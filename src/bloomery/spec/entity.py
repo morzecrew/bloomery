@@ -17,6 +17,7 @@ from pydantic import Field as PydanticField
 
 from bloomery.spec.common import (
     CardinalityName,
+    ClassificationName,
     MaterializationName,
     MemberName,
     PartitionSpecString,
@@ -62,6 +63,16 @@ class Field(SpecModel):
     canonical: str | None = None
     renamed_from: str | None = None
     assert_: AssertClause | None = PydanticField(default=None, alias="assert")
+    #: What class of data this column holds (RFC 0055 §5.2), from a closed
+    #: vocabulary. Reaches target metadata, and on Cube removes a `pii` or
+    #: `secret` column from the API surface without removing it from the
+    #: relation.
+    #:
+    #: **A declaration bloomery does not verify.** Nothing is masked, nothing is
+    #: encrypted, and a column marked `public` that is not reads exactly like
+    #: one that is. It is also never a place to put a secret *value*: this names
+    #: a column, it never carries one.
+    classification: ClassificationName | None = None
 
 
 # ....................... #

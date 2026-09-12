@@ -362,6 +362,24 @@
           "default": null,
           "title": "Canonical"
         },
+        "classification": {
+          "anyOf": [
+            {
+              "enum": [
+                "public",
+                "internal",
+                "pii",
+                "secret"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Classification"
+        },
         "renamed_from": {
           "anyOf": [
             {

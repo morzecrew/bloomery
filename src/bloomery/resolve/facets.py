@@ -223,6 +223,7 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("ColumnIR", "required"): Facet.QUALITY,
     ("ColumnIR", "description"): Facet.METADATA,
     ("ColumnIR", "renamed_from"): Facet.METADATA,
+    ("ColumnIR", "classification"): Facet.METADATA,
     # An entity field: the lowering half, one per source (RFC 0024 D26).
     ("SourceColumnIR", "expr"): Facet.BODY,
     ("SourceColumnIR", "recipe_id"): Facet.BODY,

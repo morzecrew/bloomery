@@ -642,6 +642,11 @@ class ColumnIR:
     renamed_from: str | None
     required: bool
     description: str | None = None
+    #: What class of data this column holds (RFC 0055 §5.2), carried unchanged
+    #: from the field. A plain string rather than an enum for the same reason
+    #: the spec's vocabulary is a `Literal`: the value travels to metadata and
+    #: nothing here branches on it.
+    classification: str | None = None
 
 
 # ....................... #

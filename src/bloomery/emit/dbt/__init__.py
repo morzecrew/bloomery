@@ -1058,9 +1058,26 @@ def _schema_entry(entity: EntityIR, name: str, ctx: EmitContext) -> dict[str, ob
     if model_tests:
         entry["data_tests"] = model_tests
 
-    if column_tests:
+    # Tests and classifications are two reasons for a column to appear, and the
+    # entry is one list — a column with both must be one entry carrying both,
+    # not two entries dbt would read as a duplicate.
+    classified = {
+        column.name: column.classification
+        for column in entity.columns
+        if column.classification is not None
+    }
+    named = sorted(set(column_tests) | set(classified))
+
+    if named:
         entry["columns"] = [
-            {"name": column, "data_tests": tests} for column, tests in sorted(column_tests.items())
+            {
+                "name": column,
+                **(
+                    {"meta": {"classification": classified[column]}} if column in classified else {}
+                ),
+                **({"data_tests": column_tests[column]} if column in column_tests else {}),
+            }
+            for column in named
         ]
 
     return entry
@@ -1079,7 +1096,11 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
         # owner declared on such an entity would have had nowhere to go
         # (RFC 0055 §5.1; logs/T-0050.md). Adding an owner therefore makes the
         # file appear for projects that have none today.
-        if not entity.audits and entity.owner is None:
+        if (
+            not entity.audits
+            and entity.owner is None
+            and all(column.classification is None for column in entity.columns)
+        ):
             continue
         if entity.scd is SCDKind.TYPE2:
             snapshots.append(_schema_entry(entity, f"{entity.name}_snapshot", ctx))

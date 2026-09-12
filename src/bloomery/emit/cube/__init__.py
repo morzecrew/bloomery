@@ -62,6 +62,8 @@ Deterministic choices pinned here (each golden/unit-tested):
 
 from __future__ import annotations
 
+from typing import Final
+
 import yaml
 
 from bloomery.emit.base import (
@@ -174,19 +176,68 @@ def _metric_meta(metric: MetricIR) -> dict[str, object]:
 # ....................... #
 
 
-def _dimensions(mart: MartIR) -> list[object]:
+#: Classifications that take a column off Cube's API surface (RFC 0055 §5.2).
+#:
+#: `public: false` removes the member from what Cube serves without removing it
+#: from the relation, which is the only target-native consumer this vocabulary
+#: has. `public` and `internal` route to metadata and nothing else — an
+#: `internal` column is still queryable, because "internal" is a statement
+#: about who should read it and not a statement Cube can enforce.
+_UNSERVED: Final[frozenset[str]] = frozenset({"pii", "secret"})
+
+
+def _classifications(mart: MartIR, ir: ProjectIR) -> dict[str, str]:
+    """Each mart column's classification, read through its provenance.
+
+    `MartColumnIR` carries `source_entity` and `source_column`, so the
+    classification is looked up rather than copied onto the mart column: one
+    home for the fact means a mart's view of a column cannot drift from the
+    entity's. A column whose source entity is gone is not possible here — the
+    mart guardrail refused that long before emission — and a lookup miss
+    therefore leaves the column unclassified rather than guessing.
+    """
+    by_entity = {
+        entity.name: {column.name: column.classification for column in entity.columns}
+        for entity in ir.entities
+    }
+    return {
+        column.name: classification
+        for column in mart.columns
+        if (classification := by_entity.get(column.source_entity, {}).get(column.source_column))
+        is not None
+    }
+
+
+# ....................... #
+
+
+def _dimensions(mart: MartIR, ir: ProjectIR) -> list[object]:
     types_by_column = {column.name: column.type for column in mart.columns}
+    classifications = _classifications(mart, ir)
     dimensions: list[object] = []
 
     for dimension in mart.dimensions:  # sorted by column name on MartIR
         entry: dict[str, object] = {"name": dimension.column, "sql": dimension.column}
+        meta: dict[str, object] = {}
         if dimension.ref.role is not None:
             # A date-role bucket column (RFC 0010 D4): a time dimension whose
             # bucket is recorded as meta.granularity.
             entry["type"] = "time"
-            entry["meta"] = {"granularity": dimension.ref.dimension}
+            meta["granularity"] = dimension.ref.dimension
         else:
             entry["type"] = _DIMENSION_TYPES[type(types_by_column[dimension.column])]
+
+        classification = classifications.get(dimension.column)
+
+        if classification is not None:
+            meta["classification"] = classification
+
+        if classification in _UNSERVED:
+            entry["public"] = False
+
+        if meta:
+            entry["meta"] = meta
+
         dimensions.append(entry)
 
     return dimensions
@@ -435,7 +486,7 @@ def _cube_artifact(
     cube: dict[str, object] = {
         "name": mart.name,
         "sql_table": f"{namespace}.{relation}",
-        "dimensions": _dimensions(mart),
+        "dimensions": _dimensions(mart, ir),
         "measures": _measures(mart, ir, owners),
     }
 

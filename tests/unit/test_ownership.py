@@ -333,3 +333,162 @@ def test_an_owner_is_any_string_a_project_spells_it_as() -> None:
     it is the emitted quoting that has to hold rather than a validator."""
     model = artifacts("sqlmesh", owner="\"o'brien@example.com\"")["models/silver/event.sql"]
     assert "owner 'o''brien@example.com'" in model
+
+
+# ....................... #
+# `classification` (RFC 0055 §5.2)
+
+
+CLASSIFIED_MODEL = """\
+spec_version: 1
+entities:
+  customer:
+    grain: one row per customer
+    key: [customer_id]
+    fields:
+      customer_id: {type: string, required: true}
+      email: {type: string, classification: pii}
+      segment: {type: string, classification: internal}
+"""
+
+CLASSIFIED_MAPPING = """\
+mapping_version: 1
+target: customer
+source: raw__customers
+key:
+  customer_id: {from: "$.id"}
+fields:
+  email: {from: "$.email"}
+  segment: {from: "$.segment"}
+"""
+
+
+def classified(target: str) -> dict[str, str]:
+    return {
+        a.path: a.content
+        for a in compile_project(
+            load_project({"entity_model": CLASSIFIED_MODEL, "mapping": CLASSIFIED_MAPPING}),
+            target=target,
+            dialect="duckdb",
+        )
+    }
+
+
+@pytest.mark.parametrize("value", ["tag", "PII", "confidential", "secrets"])
+def test_the_vocabulary_is_closed(value: str) -> None:
+    """D3. An open string is a tag that means whatever its writer meant, and
+    the routing — Cube's `public: false` — is what makes this more than a
+    `meta:` passthrough. The near-misses are the cases worth pinning: `PII` in
+    the wrong case is the mistake an author actually makes."""
+    from bloomery.errors import SpecParseError
+
+    with pytest.raises(SpecParseError) as excinfo:
+        load_project(
+            {
+                "entity_model": CLASSIFIED_MODEL.replace("classification: pii", f"classification: {value}"),
+                "mapping": CLASSIFIED_MAPPING,
+            }
+        )
+    assert excinfo.value.source_path == (
+        "entity_model: entities.customer.fields.email.classification"
+    )
+
+
+def test_a_classification_reaches_a_dbt_column_entry() -> None:
+    schema = yaml.safe_load(classified("dbt")["models/schema.yml"])
+    assert schema["models"] == [
+        {
+            "name": "customer",
+            "columns": [
+                {"name": "email", "meta": {"classification": "pii"}},
+                {"name": "segment", "meta": {"classification": "internal"}},
+            ],
+        }
+    ]
+
+
+def test_a_classified_column_that_also_has_tests_is_one_entry() -> None:
+    """Two reasons for a column to appear and one list to appear in. Two
+    entries for one column is a duplicate key as far as dbt is concerned, and
+    the second silently wins."""
+    # An `assert:` clause rather than `required: true`: a required field emits
+    # no dbt *column* test at all, so the obvious spelling of this test passed
+    # with an entry that had nothing to collide with.
+    model = CLASSIFIED_MODEL.replace(
+        "      email: {type: string, classification: pii}",
+        "      email: {type: string, classification: pii, assert: {not_null: true}}",
+    )
+    emitted = {
+        a.path: a.content
+        for a in compile_project(
+            load_project({"entity_model": model, "mapping": CLASSIFIED_MAPPING}),
+            target="dbt",
+            dialect="duckdb",
+        )
+    }
+    columns = yaml.safe_load(emitted["models/schema.yml"])["models"][0]["columns"]
+    email = [column for column in columns if column["name"] == "email"]
+    assert len(email) == 1
+    assert email[0]["meta"] == {"classification": "pii"}
+    assert email[0]["data_tests"] == ["not_null"]
+
+
+def test_sqlmesh_carries_no_classification() -> None:
+    """SQLMesh has no per-column metadata slot — `description`, `tags` and
+    `column_descriptions`, none of them a key-value per column. Writing the
+    value into `column_descriptions` would put a routing value into a field
+    people read as prose; the honest emission is none (logs/T-0050.md)."""
+    assert not any("classification" in content for content in classified("sqlmesh").values())
+
+
+def test_pii_and_secret_leave_cubes_api_surface_and_internal_does_not() -> None:
+    """§5.2's one target-native consumer. `public: false` removes the member
+    from what Cube serves without removing it from the relation — and
+    `internal` is deliberately still served, because "internal" is a statement
+    about who should read a column, not one Cube can enforce."""
+    sources = dict(fixture_sources("ecom_basic"))
+    sources["entity_model"] = sources["entity_model"].replace(
+        "      customer_id: {type: string", "      customer_id: {classification: pii, type: string", 1
+    )
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    emitted = {
+        a.path: a.content
+        for a in compile_project(
+            load_project(sources), target="cube", dialect="duckdb", catalog=catalog
+        )
+    }
+    dimensions = yaml.safe_load(emitted["model/cubes/order_items.yml"])["cubes"][0]["dimensions"]
+    by_name = {d["name"]: d for d in dimensions}
+
+    # The flattened column, traced back through the mart's provenance to
+    # `order.customer_id` — a mart renames it, so this is also the assertion
+    # that the lookup follows provenance rather than matching on a name.
+    assert by_name["order_customer_id"]["public"] is False
+    assert by_name["order_customer_id"]["meta"]["classification"] == "pii"
+    assert all("public" not in d for name, d in by_name.items() if name != "order_customer_id")
+
+
+def test_a_classification_does_not_remove_the_column_from_the_relation() -> None:
+    """`public: false` is Cube's API surface, not the warehouse. The column is
+    still selected — a classification that dropped it would be masking, which
+    §4 refuses in as many words."""
+    sources = dict(fixture_sources("ecom_basic"))
+    sources["entity_model"] = sources["entity_model"].replace(
+        "      customer_id: {type: string", "      customer_id: {classification: pii, type: string", 1
+    )
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    emitted = {
+        a.path: a.content
+        for a in compile_project(
+            load_project(sources), target="sqlmesh", dialect="duckdb", catalog=catalog
+        )
+    }
+    assert "order_customer_id" in emitted["models/gold/mart_order_items.sql"]
+
+
+def test_a_classified_column_no_mart_projects_has_no_cube_surface() -> None:
+    """Stated rather than discovered: Cube emits no entities, so a column that
+    never becomes a mart dimension has nothing there to be removed from. Its
+    classification still reaches dbt."""
+    assert "model/cubes" not in " ".join(classified("cube"))
+    assert "classification" in classified("dbt")["models/schema.yml"]

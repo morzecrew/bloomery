@@ -35,6 +35,7 @@ __all__ = [
     "TYPE_STRING_PATTERN",
     "AdditivityName",
     "CardinalityName",
+    "ClassificationName",
     "CurrencyCode",
     "DimensionName",
     "JsonPath",
@@ -315,6 +316,19 @@ RelationName = Annotated[
 DimensionName = Annotated[
     str, StringConstraints(pattern=IDENTIFIER_PATTERN), AfterValidator(_reject_reserved_member)
 ]
+
+#: What class of data a column holds (RFC 0055 §5.2), and **closed** (D3).
+#:
+#: An open string would be a tag that means whatever its writer meant, and the
+#: routing is the whole reason this is not a `meta:` passthrough: `pii` and
+#: `secret` decide what reaches a target's API surface. Four values, because
+#: four is enough to route and the vocabulary is easier to widen later than to
+#: narrow — a value nobody uses costs nothing, a value someone relies on cannot
+#: be taken back.
+#:
+#: A declaration bloomery does not verify: a column marked `public` that is not
+#: reads exactly like one that is.
+ClassificationName = Literal["public", "internal", "pii", "secret"]
 
 #: The authored aggregation classes — the members of :class:`~bloomery.ir.Additivity`
 #: a project can write (RFC 0038 D1). ``snapshot`` is deliberately absent: its

@@ -32,6 +32,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entities carrying quality rules, and now appears for any entity with an
   owner. Nothing else about it changed.
 
+- **`classification:` on a field**, from a closed vocabulary: `public`,
+  `internal`, `pii`, `secret`. Closed rather than a free tag because the value
+  is routed rather than only recorded — a `pii` or `secret` column becomes a
+  Cube member with `public: false`, which takes it off Cube's API surface
+  without taking it out of the relation. `internal` is deliberately still
+  served: it says who should read a column, not something Cube can enforce.
+
+  It reaches dbt as `meta.classification` on the column entry, and Cube as
+  above. It reaches SQLMesh **nowhere**: SQLMesh's model carries `description`,
+  `tags` and `column_descriptions`, none of which is a key-value per column,
+  and writing a routing value into a prose field would be worse than omitting
+  it. A column no mart projects has no Cube surface at all, and its
+  classification still reaches dbt.
+
+  **It masks nothing.** No column is dropped, redacted or encrypted, and a
+  column marked `public` that is not reads exactly like one that is. It is also
+  never a place for a secret *value*: it names a column, it never carries one.
+
 - **bloomery narrates what it is doing, and says what it noticed.** Two
   additions to the observational surface, both under the rule that compilation
   stays a pure function.
