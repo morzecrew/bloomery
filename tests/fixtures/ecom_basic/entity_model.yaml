@@ -7,7 +7,7 @@ entities:
     partition_by: [days(order_date)]
     fields:
       order_id: {type: string, required: true}
-      line_no: {type: int, required: true}
+      line_no: {type: int, required: true, classification: internal}
       unit_price: {type: "decimal(12,4)", canonical: unit_price}
       quantity: {type: int, canonical: quantity}
       order_date: {type: timestamp, assert: {not_null: true}}

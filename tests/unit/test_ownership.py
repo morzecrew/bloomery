@@ -483,6 +483,14 @@ def test_pii_and_secret_leave_cubes_api_surface_and_internal_does_not() -> None:
     # that the lookup follows provenance rather than matching on a name.
     assert by_name["order_customer_id"]["public"] is False
     assert by_name["order_customer_id"]["meta"]["classification"] == "pii"
+
+    # An `internal` column that *does* reach Cube. Without one the assertion
+    # below reads "unclassified columns are served", which is a different and
+    # much weaker claim — and a sabotage that gave every classified column
+    # `public: false` survived this test until the fixture carried one.
+    assert by_name["line_no"]["meta"]["classification"] == "internal"
+    assert "public" not in by_name["line_no"]
+
     assert all("public" not in d for name, d in by_name.items() if name != "order_customer_id")
 
 
