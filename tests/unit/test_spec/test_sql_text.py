@@ -151,6 +151,28 @@ def test_a_parseable_expression_still_loads() -> None:
     assert loaded.metric_templates["gross_revenue"].expr == "price * qty"
 
 
+def test_the_validator_returns_the_authored_text_byte_for_byte() -> None:
+    """A validator on this path is free to *rewrite* what it validates, and
+    one that did would be invisible.
+
+    The authored string is what reaches the IR and therefore the project
+    fingerprint (RFC 0003), so normalising it here — returning
+    ``parse_one(expr).sql()`` instead of ``expr`` — would move every
+    fingerprint in every project. Sabotaged exactly that way, the whole
+    default test profile stayed green: the fixture corpus is already written in
+    SQLGlot's own spelling, so the rewrite is a no-op on every input the suite
+    owns. This test is the one that is not.
+    """
+    # SQLGlot renders this as `line_total / quantity`. Surrounding whitespace
+    # is deliberately *not* part of the case: `SpecModel` sets
+    # `str_strip_whitespace`, so a `.strip()` here is a true no-op rather than
+    # an undetected rewrite — a second guard, found by asking why that mutant
+    # survived instead of assuming a blind test.
+    authored = "line_total/quantity"
+    loaded = load_catalog(catalog(recipe=authored))
+    assert loaded.canonical_fields["unit_price"].recipes[0].expr == authored
+
+
 def test_a_second_statement_is_still_accepted() -> None:
     """Deliberately unchanged, and pinned so a later reading of ``SqlText``
     cannot quietly widen it.

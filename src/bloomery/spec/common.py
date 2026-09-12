@@ -2,8 +2,8 @@
 
 Hosts the strict :class:`SpecModel` base, the source-path conversion from
 Pydantic ``loc`` tuples to dotted/bracketed authored-document addresses, the
-shared grammars (type strings, partition specs, JSONPath-lite, SQL expressions) and shared
-sub-models (:class:`RatioSpec`, :class:`SemiAdditivePolicy`), and the strict
+shared grammars (type strings, partition specs, JSONPath-lite, SQL expressions)
+and shared sub-models (:class:`RatioSpec`, :class:`SemiAdditivePolicy`), and the strict
 YAML loader that rejects duplicate keys (RFC 0002 D5).
 
 Only :mod:`bloomery.errors` may be imported from here — the spec layer knows
