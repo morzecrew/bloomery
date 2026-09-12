@@ -412,3 +412,58 @@ def test_a_non_numeric_value_for_a_numeric_parameter_is_refused() -> None:
     assert parameter_literal("12", "decimal(12,4)").sql() == "12"
     # ...and the string branch never needed this, because it quotes.
     assert parameter_literal("1 OR 1=1", "string").sql() == "'1 OR 1=1'"
+
+
+# ....................... #
+# The body itself has to be SQL
+
+
+@pytest.mark.parametrize(
+    "body",
+    ["SELECT 'abc", "SPLIT_PART(:email,"],
+    ids=["tokenizer", "parser"],
+)
+def test_an_unparseable_macro_body_is_a_step_error(body: str) -> None:
+    """A registry is assembled by the caller in Python, not authored as a
+    document, so the spec layer's ``SqlText`` never sees this body — it is the
+    one door where the parse has to be guarded at the call site.
+
+    Both spellings, because they raise *different* SQLGlot classes:
+    ``TokenError`` is ``ParseError``'s sibling under ``SqlglotError``, and a
+    handler narrowed to the latter lets an unterminated string through as a
+    raw SQLGlot exception. Before this guard existed both crossed the compile
+    boundary, which RFC 0002 forbids.
+    """
+    with pytest.raises(StepError, match="does not parse as SQL") as excinfo:
+        build(CALL, registry(body=body))
+    assert "extract_domain@1" in str(excinfo.value)
+    assert excinfo.value.source_path is not None
+
+
+def test_a_macro_body_too_deep_to_parse_is_refused_rather_than_crashing() -> None:
+    """The registry door's half of the same case: SQLGlot recurses on nesting
+    depth, so a deep body raises `RecursionError` rather than any SQLGlot
+    class, and a handler catching only the latter lets it out."""
+    deep = "(" * 400 + ":email" + ")" * 400
+    with pytest.raises(StepError, match="does not parse as SQL"):
+        build(CALL, registry(body=deep))
+
+
+def test_a_multi_statement_macro_body_is_refused() -> None:
+    """The body is spliced, not executed, so a trailing statement lands inside
+    the cast the column is wrapped in — `CAST(SPLIT_PART(email, '@', 2); DROP
+    TABLE x AS TEXT)` — which SQLGlot will not re-parse. It crashed the
+    emitter with a raw `ParseError` before this refusal existed."""
+    with pytest.raises(StepError, match="more than one statement") as excinfo:
+        build(CALL, registry(body="SPLIT_PART(:email, '@', 2); DROP TABLE x"))
+    assert "extract_domain@1" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("body", ["SELECT 1", "DELETE FROM t"], ids=["select", "delete"])
+def test_a_statement_macro_body_is_refused(body: str) -> None:
+    """The registry door's half: a body of `SELECT 1` parses to a good
+    `Select` and splices to `CAST(SELECT 1 AS TEXT)`, which fails the same way
+    a second statement does. The message names the statement it found."""
+    with pytest.raises(StepError, match="statement rather than an expression") as excinfo:
+        build(CALL, registry(body=body))
+    assert "extract_domain@1" in str(excinfo.value)

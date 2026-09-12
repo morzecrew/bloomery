@@ -2,8 +2,8 @@
 
 Hosts the strict :class:`SpecModel` base, the source-path conversion from
 Pydantic ``loc`` tuples to dotted/bracketed authored-document addresses, the
-shared grammars (type strings, partition specs, JSONPath-lite) and shared
-sub-models (:class:`RatioSpec`, :class:`SemiAdditivePolicy`), and the strict
+shared grammars (type strings, partition specs, JSONPath-lite, SQL expressions)
+and shared sub-models (:class:`RatioSpec`, :class:`SemiAdditivePolicy`), and the strict
 YAML loader that rejects duplicate keys (RFC 0002 D5).
 
 Only :mod:`bloomery.errors` may be imported from here — the spec layer knows
@@ -20,6 +20,8 @@ from typing import Annotated, Any, Literal, cast
 import yaml
 from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
 from pydantic import ValidationError as PydanticValidationError
+from sqlglot import exp, parse_one
+from sqlglot.errors import SqlglotError
 
 from bloomery.errors import BloomeryError, SpecParseError
 
@@ -46,6 +48,7 @@ __all__ = [
     "RatioSpec",
     "SemiAdditivePolicy",
     "SpecModel",
+    "SqlText",
     "StepUse",
     "TypeString",
     "USE_PATTERN",
@@ -155,11 +158,117 @@ def _reject_reserved_relation(name: str) -> str:
 # ....................... #
 
 
+def _parses_as_sql(expr: str) -> str:
+    """Refuse authored text that is not one SQL expression.
+
+    Shape, like every other grammar here: whether the text *is* a single
+    expression, never what it means. What it references, whether the operands
+    share a unit and whether the result is boolean-shaped are all decided
+    downstream, by stages that can see the entity.
+
+    Here rather than at the dozen ``parse_one`` calls that consume these
+    strings, because one authored field feeds several of them — a recipe's
+    ``expr`` is parsed by the IR builder, the grain guardrail and the
+    arithmetic guardrail — and a guard per call site refuses one mistake in
+    three different voices, none of them naming the document it was written
+    in. Refused at the parse stage, an unparseable expression is one batched
+    :class:`~bloomery.errors.SpecParseError` at the authored address.
+
+    :class:`~sqlglot.errors.SqlglotError`, not ``ParseError``: ``TokenError``
+    is its *sibling*, so an unterminated string literal (``SELECT 'abc``)
+    walks straight through a ``ParseError``-only handler — which is exactly
+    how these expressions reached the compile boundary as raw SQLGlot
+    exceptions before this existed (`bloomery.resolve.steps` documents the
+    same trap at its own door).
+
+    ``RecursionError`` beside it, because SQLGlot's parser recurses on nesting
+    depth: several hundred nested parentheses exhaust the stack instead of
+    raising. It predates this validator — the same expression crashed the IR
+    builder — but this is now the first and only place these four fields are
+    parsed, so catching it here is what makes "an authored expression cannot
+    crash the compile boundary" true rather than nearly true. Safe to catch:
+    the frames have unwound by the time the handler runs, and the only call
+    inside the ``try`` is the parse itself.
+
+    Parsing is necessary and not sufficient: ``a; b`` *parses*, as a
+    :class:`~sqlglot.expressions.Block`, and every field here is spliced into
+    a larger expression rather than executed. The trailing statement therefore
+    lands **inside** the cast the column is wrapped in — ``CAST(total / qty;
+    DROP TABLE x AS DECIMAL(12, 4))`` — which is not merely wrong output but
+    text SQLGlot itself will not re-parse, so it crashed the emitter with the
+    same raw ``ParseError`` this validator exists to prevent (PR #111 review).
+    The quality guardrail reached the same refusal from the same reasoning for
+    an expression rule (RFC 0016 D95); this is that rule at the door the other
+    four fields come through.
+
+    A ``Block`` is the special case of that; a **statement** is the general
+    one. ``SELECT 1`` parses to a perfectly good ``Select`` and splices to
+    ``CAST(SELECT 1 AS DECIMAL(12, 4))``, which fails identically, so the
+    scalar check is :func:`~sqlglot.parse_one` into a
+    :class:`~sqlglot.expressions.Condition` — SQLGlot's own name for the
+    expression grammar. Measured against every authored expression the fixture
+    corpus owns: 0 of 39 refused, and every shape a macro body takes — casts,
+    ``CASE``, window functions, a scalar subquery — parses to the identical
+    node and the identical SQL (PR #111 review).
+
+    Both checks, not one. ``into=exp.Condition`` returns a ``Block`` for
+    ``a; b`` rather than refusing it, so dropping the ``Block`` check on the
+    strength of the scalar one reintroduces exactly the case above.
+
+    Bare first and the scalar check second, rather than the other way round,
+    because ``into=`` replaces SQLGlot's syntax errors with its own: ``((a)``
+    reports ``Expecting ). Line 1, Col: 4`` bare and ``Failed to parse '((a)'
+    into <class 'sqlglot.expressions.core.Condition'>`` under ``into=``. The
+    first tells an author where the mistake is; the second leaks a Python
+    class path into a spec refusal. So the second parse's message is never
+    shown — only the fact that it failed is used.
+    """
+
+    try:
+        parsed = parse_one(expr)
+    except (SqlglotError, RecursionError) as exc:
+        msg = (
+            f"not parseable SQL: {exc!s:.120}. Bloomery parses authored expressions at "
+            "load, so this is refused here rather than by an engine reading the artifact"
+        )
+        raise ValueError(msg) from None
+
+    if isinstance(parsed, exp.Block):
+        msg = (
+            "more than one statement, and an expression is spliced into a larger one "
+            "rather than executed — the trailing statement lands inside the cast the "
+            "column is wrapped in, which does not parse at all. Fix: write a single "
+            "expression"
+        )
+        raise ValueError(msg)
+
+    try:
+        parse_one(expr, into=exp.Condition)
+    except (SqlglotError, RecursionError):
+        msg = (
+            f"a {parsed.key.upper()} statement, not an expression. These are spliced into "
+            "a larger expression rather than executed, so a statement lands inside the "
+            "cast the column is wrapped in and the artifact does not parse at all. Fix: "
+            "write the expression itself, without the surrounding statement"
+        )
+        raise ValueError(msg) from None
+
+    return expr
+
+
+# ....................... #
+
+
 TypeString = Annotated[str, StringConstraints(pattern=TYPE_STRING_PATTERN)]
 PartitionSpecString = Annotated[str, StringConstraints(pattern=PARTITION_SPEC_PATTERN)]
 JsonPath = Annotated[str, StringConstraints(pattern=JSONPATH_PATTERN)]
 CurrencyCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]
 MemberName = Annotated[str, AfterValidator(_reject_reserved_member)]
+
+#: An authored SQL expression — a recipe body, a metric expression, a
+#: derived metric's formula. Proved parseable at load; everything about what
+#: it *means* is decided downstream.
+SqlText = Annotated[str, AfterValidator(_parses_as_sql)]
 
 #: A bare lower-snake identifier — the shape a name must have to be safe in a
 #: context that does not quote it. Two such contexts exist, and they are

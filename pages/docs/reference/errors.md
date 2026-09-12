@@ -75,7 +75,7 @@ BloomeryError
 | `StepError` | steps | Base of the referenced-implementation family (RFC 0017) |
 | `StepDeterminismError` | steps (compile) | A step declaring `determinism: nondeterministic`, or a `seeded` step wired without a seed — a nondeterministic step makes a backfill disagree with the run it replaces |
 | `StepContractViolation` | steps (**run time**) | Raised by the wrapper bloomery generates *into your warehouse*: the step's actual output contradicts its manifest — a missing or undeclared output, a differing column set, an unassignable type, or a NULL in a required column. The one error here a reader meets outside a compile |
-| `SpecParseError` | parse | YAML failures, duplicate keys, unknown keys, shape/grammar violations — batched per document |
+| `SpecParseError` | parse | YAML failures, duplicate keys, unknown keys, shape/grammar violations — including an `expr:` that is not parseable SQL — batched per document |
 | `UnknownTransformError` | typecheck | A transform chain names a transform absent from the registry; message names the closest match |
 | `TypeCheckError` | typecheck | Unparsable type strings; a chain's terminal type not assignable to the declared type; precision-cap overflows |
 | `TransformRegistrationError` | registration | `register_transform` given an invalid spec or a colliding name |

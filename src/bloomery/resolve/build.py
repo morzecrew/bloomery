@@ -38,6 +38,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, cast
 
 from sqlglot import exp, parse_one
+from sqlglot.errors import SqlglotError
 from sqlglot.expressions.core import Expression
 
 from bloomery.errors import (
@@ -689,7 +690,62 @@ def _macro_parts(
         )
         raise StepError(msg, source_path=source_path)
 
-    parsed = cast("Expression", parse_one(body))
+    try:
+        # ``parse_one`` is annotated with the ``Expr`` base, but every node it
+        # returns is an ``Expression`` (cf. ir.nodes).
+        parsed = cast("Expression", parse_one(body))
+    # A registry is assembled by the caller in Python rather than authored as a
+    # document, so nothing upstream has proved this body parses — the spec
+    # layer's `SqlText` cannot reach it. `SqlglotError` rather than
+    # `ParseError` for the reason `resolve.steps` gives at its own door:
+    # `TokenError` is a sibling, so an unterminated string walks through a
+    # narrower handler and leaves the compile boundary as a raw SQLGlot
+    # exception. `RecursionError` for the reason `spec.common` gives: the
+    # parser recurses on nesting depth, so a deeply nested body exhausts the
+    # stack rather than raising a SQLGlot error at all.
+    except (SqlglotError, RecursionError) as exc:
+        msg = (
+            f"field references step {use!r}, whose registered macro body does not parse "
+            f"as SQL: {exc!s:.120}. The body is spliced into the consuming column "
+            "(RFC 0017 §5.1), so an unparseable one would reach the artifact as broken SQL"
+        )
+        raise StepError(msg, source_path=source_path) from None
+
+    # Parsing is necessary and not sufficient. `a; b` parses, as a `Block`, and
+    # a macro body is *spliced* rather than executed — so the trailing
+    # statement lands inside the cast the column is wrapped in,
+    # `CAST(SPLIT_PART(email, '@', 2); DROP TABLE x AS TEXT)`, which SQLGlot
+    # will not re-parse. Same reasoning as `spec.common`'s door and as the
+    # quality guardrail's on an expression rule (RFC 0016 D95).
+    if isinstance(parsed, exp.Block):
+        msg = (
+            f"field references step {use!r}, whose registered macro body is more than one "
+            "statement. The body is spliced into the consuming column (RFC 0017 §5.1) "
+            "rather than executed, so the trailing statement lands inside the cast the "
+            "column is wrapped in and the artifact does not parse at all"
+        )
+        raise StepError(msg, source_path=source_path)
+
+    # A `Block` is the special case; a statement is the general one. A body of
+    # `SELECT 1` parses to a good `Select` and splices to `CAST(SELECT 1 AS
+    # TEXT)`, which fails identically — so the scalar check is a re-parse into
+    # a `Condition`, SQLGlot's own name for the expression grammar. Every shape
+    # a macro body takes (casts, CASE, window functions, a scalar subquery)
+    # parses to the identical node and SQL under it. Its *message* is never
+    # shown: `into=` replaces SQLGlot's syntax errors with one naming a Python
+    # class, which is why the bare parse above is what reports them.
+    try:
+        parse_one(body, into=exp.Condition)
+    except (SqlglotError, RecursionError):
+        msg = (
+            f"field references step {use!r}, whose registered macro body is a "
+            f"{parsed.key.upper()} statement rather than an expression. The body is "
+            "spliced into the consuming column (RFC 0017 §5.1) rather than executed, so "
+            "it lands inside the cast the column is wrapped in and the artifact does not "
+            "parse at all"
+        )
+        raise StepError(msg, source_path=source_path) from None
+
     _refuse_body_disagreement(use, manifest, parsed, source_path=source_path)
 
     return manifest, parsed

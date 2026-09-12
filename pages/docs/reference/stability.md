@@ -112,47 +112,75 @@ version it does not implement rather than reading it as one it does. That refusa
 point — a spec written for a newer bloomery is a mistake worth stopping, not worth
 interpreting.
 
-### The one exception: a new reserved name
+### The exceptions: refusals that cannot reinterpret
 
-There is exactly one way a `spec_version: 1` document that loaded before can stop loading
-without a version bump, and it is written down here rather than discovered on upgrade.
+There are two ways a `spec_version: 1` document that loaded before can stop loading
+without a version bump, and they are written down here rather than discovered on upgrade.
+Both pass the same test, stated at the end of this section.
 
-bloomery generates columns — `_quality_flags`, `_source_row_id`, `metric_time` and the
-rest — and an authored field, dimension or role may not claim one of those names, because
-the generated column would collide with it silently. When a release adds a generated
-column, its name joins that reserved list, and a project that had already used the name
-stops compiling.
+**A newly reserved name.** bloomery generates columns — `_quality_flags`,
+`_source_row_id`, `metric_time` and the rest — and an authored field, dimension or role
+may not claim one of those names, because the generated column would collide with it
+silently. When a release adds a generated column, its name joins that reserved list, and a
+project that had already used the name stops compiling.
 
-**Why this does not mint a new version.** A version bump exists to stop bloomery reading a
+```
+Value error, '_source' is a reserved name (RFC 0024 D7: the generated union-merge
+provenance column); pick a different field/metric/dimension-role name
+```
+
+**Text that is not one SQL expression.** All four authored expressions — a recipe body, a
+metric template's, a metric's, and a derived metric's formula — are parsed when the
+document loads, and each must be a *single* expression. Before, they were parsed wherever
+they were first *used*, so an expression nothing reached — a recipe no mapping chooses, a
+template no metric instantiates, a metric whose canonical fields no mapping supplies — was
+never parsed at all, and a project carrying one compiled. It stopped compiling on the day
+something reached it, and it did so by crashing rather than refusing.
+
+Single, because an expression is spliced into a larger one rather than executed. `a; b`
+parses perfectly well and then lands its second statement *inside* the cast the column is
+wrapped in — `CAST(total / qty; DROP TABLE x AS DECIMAL(12, 4))` — which is not merely
+wrong output but text no parser will read back. A whole statement fails the same way:
+`SELECT 1` is valid SQL and splices to `CAST(SELECT 1 AS DECIMAL(12, 4))`, so an `expr:`
+must be an expression rather than a query.
+
+```
+Value error, not parseable SQL: Error tokenizing 'SELECT 'ab'. Bloomery parses
+authored expressions at load, so this is refused here rather than by an engine
+reading the artifact
+```
+
+**Why neither mints a new version.** A version bump exists to stop bloomery reading a
 document as something it is not, and that risk comes from *meaning* changing under a
-stable spelling. A reserved name cannot do that. The document either loads exactly as
-before or is refused outright, with a message naming the name, the layer that owns it and
-the instruction to rename:
-
-```
-'_source' is a reserved name (RFC 0024 D7: the generated union-merge provenance
-column); pick a different field/dimension/role name
-```
-
-There is no third outcome, no silent reinterpretation, and the fix is a rename the error
-states. Minting a version for it would make every author edit every document to record a
-collision almost none of them have.
+stable spelling. Neither of these can do that. The document either loads exactly as before
+or is refused outright, at the authored address, with the fix in the message. There is no
+third outcome and no silent reinterpretation. Minting a version for either would make
+every author edit every document to record a problem almost none of them have.
 
 **What it costs, stated rather than buried.** `spec_version: 1` therefore means *your
 document keeps its meaning*, not *your document is guaranteed to load*. That is weaker
 than the paragraph above reads on its own, and it is the honest boundary.
 
-The exception is bounded and does not widen:
+**The test a third case would have to pass**, so that this list is bounded rather than
+merely short — all four, and the fourth is what makes it a promise rather than a habit:
 
-- It covers **adding** a name to the reserved list. Removing one is additive — a name that
-  was refused starts working — and renaming a spec key, changing a field's meaning,
-  tightening a type, or making an optional key required all still mint a version.
-- Every addition appears in `CHANGELOG.md` under **Changed**, naming the reserved name and
-  the generated column it protects. A reserved name that arrives without a changelog entry
-  is a bug in the release, not an application of this exception.
-- The reason string is part of the contract, not decoration. Each reserved name carries one
-  (`bloomery.spec.common`), and the refusal quotes it, because "reserved" alone tells an
-  author nothing about which layer owns the name or whether it will ever be released.
+- **Binary.** Every document either loads unchanged or is refused. A change that alters
+  what a loading document *means* mints a version, however small the alteration.
+- **Refuses only what was already broken.** A reserved name collides with a generated
+  column; an unparseable expression is text no engine could have run. Neither refusal
+  reaches a document that was working — it reaches one whose failure had not been
+  delivered yet.
+- **Actionable at the authored address.** The message names the document, the path within
+  it, and what to write instead.
+- **In `CHANGELOG.md` under Changed**, naming what newly refuses and why. One that arrives
+  without an entry is a bug in the release, not an application of this section.
+
+Renaming a spec key, changing a field's meaning, tightening a *logical* type, or making an
+optional key required all fail the first test and still mint a version. Removing a
+reserved name, or accepting an expression that used to be refused, is additive and needs
+nothing. The reason string is part of the contract in both cases, not decoration:
+`bloomery.spec.common` carries the reserved-name reasons and the refusal quotes them,
+because "reserved" alone tells an author nothing about which layer owns the name.
 
 `spec_version` names the entity model rather than being spelled `entity_model_version`.
 That is inconsistent, and it stays: renaming it would break every existing spec to buy
@@ -239,9 +267,9 @@ hold still, and read the changelog on every minor bump.
 authored by people and lives in a repository far longer than the library version that
 compiled it, so `spec_version: 1` documents keep their meaning — a breaking grammar change
 gets a new version number rather than a new bloomery release. Those two clocks are
-independent by design. The single exception, a newly reserved name, is
-[above](#the-one-exception-a-new-reserved-name); it can refuse a document but never
-reinterpret one.
+independent by design. The two exceptions — a newly reserved name, and an expression that
+is not SQL — are [above](#the-exceptions-refusals-that-cannot-reinterpret); either can
+refuse a document, neither can reinterpret one.
 
 ### How a removal is announced
 
