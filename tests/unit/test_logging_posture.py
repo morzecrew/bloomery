@@ -129,20 +129,48 @@ def test_the_info_budget_does_not_scale_with_the_project(
     assert counts[0] == counts[1]
 
 
-def test_the_runtime_and_planner_stay_off_the_info_budget() -> None:
-    """§9 Q2, decided at DEBUG (`logs/T-0048.md`).
+def test_a_hydration_miss_narrates_at_debug_and_not_at_info(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """§9 Q2, decided at DEBUG (`logs/T-0048.md`), asserted by provoking a miss
+    rather than by grepping the module for `.info(`.
 
-    Both are per-*request* seams, and §4's budget is per compile. Read off the
-    module rather than by provoking a request: what is being pinned is the
-    decision, and a test that needed a warehouse to state it would not run
-    here.
+    A grep is what this test used to be, and it was wrong for the reason a
+    sibling docstring here already gives about `WARNING`: a call reached
+    through an alias passes the grep. The claim is about what a *caller* sees,
+    so the test is a caller.
+
+    A hydration miss is per-request, and §4's INFO budget is per compile — INFO
+    here would break "bounded, safe to leave on" in exactly the hot service §9
+    Q2 worries about.
     """
-    import inspect
+    from bloomery.naming import DefaultNaming
+    from bloomery.runtime import LruManifestHydrator
 
-    from bloomery.planner import metricflow_planner
-    from bloomery.runtime import hydration
+    project, catalog = load_fixture("ecom_basic")
+    ir = build_project_ir(project, catalog=catalog)
+    hydrator = LruManifestHydrator(DefaultNaming())
 
-    for module in (hydration, metricflow_planner):
-        source = inspect.getsource(module)
-        assert "_LOG.info(" not in source, f"{module.__name__} narrates at INFO"
-        assert "_LOG.debug(" in source
+    with caplog.at_level(logging.DEBUG, logger="bloomery"):
+        hydrator.get(ir)
+
+    runtime = [record for record in caplog.records if record.name == "bloomery.runtime"]
+
+    assert len(runtime) == 1
+    assert runtime[0].levelno == logging.DEBUG
+
+
+def test_a_hydration_miss_is_silent_at_info(caplog: pytest.LogCaptureFixture) -> None:
+    """The other half, and the one that makes the level a decision rather than
+    an observation: at INFO the per-request seam says nothing at all."""
+    from bloomery.naming import DefaultNaming
+    from bloomery.runtime import LruManifestHydrator
+
+    project, catalog = load_fixture("ecom_basic")
+    ir = build_project_ir(project, catalog=catalog)
+    hydrator = LruManifestHydrator(DefaultNaming())
+
+    with caplog.at_level(logging.INFO, logger="bloomery"):
+        hydrator.get(ir)
+
+    assert [record for record in caplog.records if record.name == "bloomery.runtime"] == []

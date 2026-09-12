@@ -12,7 +12,15 @@ import dataclasses
 
 import pytest
 
-from bloomery import Advisory, AdvisoryCode, SpecEvidence, Stage, evaluate, load_catalog
+from bloomery import (
+    Advisory,
+    AdvisoryCode,
+    CheckedSurfaces,
+    SpecEvidence,
+    Stage,
+    evaluate,
+    load_catalog,
+)
 from bloomery.evidence import _advisories, _divides, _sorted_advisories  # pyright: ignore[reportPrivateUsage]
 from support.compiling import load_fixture
 
@@ -132,6 +140,74 @@ def _catalog_text_with_literal_slash() -> str:
 
 
 # ....................... #
+# The refusal path
+
+
+def _refused(where: str) -> tuple[object, object]:
+    """`ecom_basic` broken so the pipeline stops at ``where``, with its catalog
+    untouched — so the dividing recipe the advisory is about survives every
+    variant, and the only thing that changes is how far analysis got."""
+    from bloomery import load_project
+    from support.compiling import fixture_sources
+
+    _project, catalog = load_fixture("ecom_basic")
+    sources = dict(fixture_sources("ecom_basic"))
+
+    if where == "resolve":
+        key = next(name for name, text in sources.items() if "metrics_version" in text)
+        sources[key] = sources[key].replace("unit_price", "no_such_field")
+    elif where == "typecheck":
+        key = next(name for name, text in sources.items() if "transform:" in text)
+        sources[key] = sources[key].replace("to_string", "no_such_transform", 1)
+    else:
+        key = next(name for name, text in sources.items() if "marts_version" in text)
+        sources[key] = sources[key].replace(
+            "      - {date: order_date, role: ordered}\n", ""
+        ).replace("    partition_by: [days(ordered_day)]\n", "")
+
+    return load_project(sources), catalog
+
+
+@pytest.mark.parametrize(
+    ("where", "stage"),
+    [("resolve", Stage.RESOLVE), ("typecheck", Stage.TYPECHECK), ("guardrails", Stage.GUARDRAILS)],
+)
+def test_a_refused_project_still_reports_its_advisories(where: str, stage: Stage) -> None:
+    """"The prefix survives" applies here too, at **every** width.
+
+    An advisory is derived from the *catalog*, which is an input: it is
+    computed and correct whether or not a stage refused. Withholding it would
+    make `advisories` the one field on this type that is empty for a reason
+    `stage_reached` cannot explain — the objection `_partial` already raises
+    about `unresolved`. §5.2's bar decides what *qualifies* as an advisory, not
+    when a qualifying one is worth saying.
+
+    Three widths because `_partial` has three returns and they are separate
+    code, not three readings of one. A sabotage that removed the field from
+    only the middle one survived a single-width version of this test.
+    """
+    project, catalog = _refused(where)
+    evidence = evaluate(project, catalog=catalog)  # type: ignore[arg-type]
+
+    assert evidence.stage_reached is stage
+    assert evidence.refusals
+    assert [a.code for a in evidence.advisories] == [AdvisoryCode.INEXACT_DIVISION]
+
+
+def test_an_unreadable_recipe_expression_is_not_an_advisory_and_not_a_crash() -> None:
+    """`SqlglotError`, not `ParseError`.
+
+    An unterminated string literal raises `TokenError`, a *sibling* of
+    `ParseError` rather than a subclass — so the narrower catch let a
+    third-party exception out of a function whose whole contract is that a
+    spec-level problem comes back as a value. The advisory pass must be silent
+    about an expression it cannot read: a malformed recipe is the resolve
+    stage's refusal to make.
+    """
+    assert _divides("CONCAT(a, 'oops)") is False
+
+
+# ....................... #
 # Ordering and identity (§5.1)
 
 
@@ -211,7 +287,23 @@ def test_positional_construction_still_binds_what_it_did() -> None:
 
     A caller who built evidence positionally before this field existed must
     still get the same object — every argument landing in the field it named.
+
+    **Every pre-existing field is supplied**, through `checked`, and that is
+    the whole point rather than thoroughness for its own sake. A shorter call
+    stops before the insertion point and passes against a field inserted after
+    it: a sabotage adding a field between `provenance` and `checked` survived a
+    seven-argument version of this test, because the eighth argument it would
+    have rebound was never passed.
     """
+    checked = CheckedSurfaces(
+        entities=1,
+        relationships=0,
+        measures=1,
+        marts=1,
+        rollups=0,
+        conversions=0,
+        temporal_joins=0,
+    )
     evidence = SpecEvidence(
         Stage.COMPLETE,
         ("revenue",),
@@ -220,13 +312,31 @@ def test_positional_construction_still_binds_what_it_did() -> None:
         (),
         ("order",),
         "blm1:abc",
+        (),
+        (),
+        checked,
     )
 
     assert evidence.stage_reached is Stage.COMPLETE
     assert evidence.reachable == ("revenue",)
     assert evidence.entities == ("order",)
     assert evidence.fingerprint == "blm1:abc"
+    assert evidence.unresolved == ()
+    assert evidence.provenance == ()
+    assert evidence.checked is checked
     assert evidence.advisories == ()
+
+
+def test_the_positional_call_above_covers_every_pre_existing_field() -> None:
+    """The control that keeps the test above honest as the type grows.
+
+    It passes one argument per field that existed before `advisories`, and the
+    claim only holds while that is true — a field appended tomorrow leaves the
+    call one short and the insertion sabotage alive again, silently.
+    """
+    names = [field.name for field in dataclasses.fields(SpecEvidence)]
+
+    assert len(names) - 1 == 10
 
 
 def test_advisories_defaults_to_empty() -> None:

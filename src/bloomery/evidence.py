@@ -39,7 +39,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlglot import exp, parse_one
-from sqlglot.errors import ParseError
+from sqlglot.errors import SqlglotError
 
 from bloomery.errors import BloomeryError, InvariantViolated
 from bloomery.ir import Materialization, UnreachableMetric, project_fingerprint
@@ -714,10 +714,16 @@ def _divides(expr: str | None) -> bool:
     both over-report and disagree with the parse that decides what the
     expression actually means.
 
-    An expression SQLGlot cannot parse is **not** an advisory: a malformed
+    An expression SQLGlot cannot read is **not** an advisory: a malformed
     recipe is the resolve stage's refusal to make, and guessing at one here
     would report a finding about a project that is about to be refused for a
     better reason.
+
+    ``SqlglotError``, not ``ParseError``. An unterminated string literal raises
+    ``TokenError``, which is a sibling of ``ParseError`` rather than a subclass
+    — so the narrower catch let a third-party exception out of
+    :func:`evaluate`, whose whole contract is that a spec-level problem comes
+    back as a value (``logs/T-0048.md``).
     """
 
     if expr is None:
@@ -725,7 +731,7 @@ def _divides(expr: str | None) -> bool:
 
     try:
         parsed = parse_one(expr)
-    except ParseError:
+    except SqlglotError:
         return False
 
     return any(True for _ in parsed.find_all(exp.Div))
@@ -809,6 +815,16 @@ def _partial(
     genuinely computed — an empty tuple here means "not computed", which is why
     :attr:`SpecEvidence.stage_reached` has to be read first.
 
+    **Advisories travel with all three widths**, including the narrowest, and
+    that is not an exception to the paragraph above — it is the same rule. An
+    advisory is derived from the catalog, which is an *input*: it is computed
+    and correct whether or not a stage refused, so withholding it would make
+    ``advisories`` the one field here that is empty for a reason
+    :attr:`SpecEvidence.stage_reached` cannot explain, which is exactly the
+    objection the next paragraph raises about ``unresolved``. §5.2's bar — the
+    spec is legal, the artifacts are correct — decides what *qualifies* as an
+    advisory, not when a qualifying one is worth saying.
+
     **The unresolved-work report travels with the resolution**, not with
     ``COMPLETE``. RFC 0030 D5 says a refusal empties it, and its argument is
     about a refusal *inside* the resolve stage — a malformed recipe id, where
@@ -822,7 +838,7 @@ def _partial(
     resolution = progress.resolution
 
     if resolution is None:
-        return SpecEvidence(stage_reached=stage, refusals=refusals)
+        return SpecEvidence(stage_reached=stage, refusals=refusals, advisories=_advisories(catalog))
 
     if progress.ir is not None:
         return _from_ir(stage, project, catalog, progress.ir, resolution, refusals)
@@ -835,6 +851,7 @@ def _partial(
         refusals=refusals,
         unresolved=_unresolved(project, catalog, resolution),
         provenance=resolution.provenance,
+        advisories=_advisories(catalog),
     )
 
 
