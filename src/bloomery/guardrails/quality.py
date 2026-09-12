@@ -24,6 +24,8 @@ The checks:
 ``referential`` onto the entity itself  §5.4, D27 (bare ``GuardrailError``)
 ``unknown_member`` on a non-string fk   §5.4, D6 (bare ``GuardrailError``)
 ``unknown_member`` on a composite key   §5.4, D48 (bare ``GuardrailError``)
+freshness with no ingestion contract    RFC 0057 §5.2 (bare ``GuardrailError``)
+freshness thresholds that disagree      RFC 0057 D2a (bare ``GuardrailError``)
 ``quality:`` name a generated rule owns §5.3, D71 (bare ``GuardrailError``)
 ``reconcile`` grammar and resolution    §5.3 (bare ``GuardrailError``)
 quality-mart metric-name collision      §5.8, D12 (bare ``GuardrailError``)
@@ -335,6 +337,112 @@ def _check_redaction(entity_name: str, entity: Entity, mapping: Mapping) -> list
         "and a redacted path is gone by then. Fix: stop mapping the path, or stop redacting it"
     )
     return [RedactionConflict(msg, source_path=_entity_path(entity_name, "quarantine.redact"))]
+
+
+# ....................... #
+
+
+def _check_freshness_contract(
+    entity_name: str, entity: Entity, mapping: Mapping
+) -> list[GuardrailError]:
+    """A ``freshness:`` block on a mapping whose entity requires no
+    ``_ingested_at`` (RFC 0057 §5.2).
+
+    dbt's freshness query is ``SELECT MAX(<loaded_at_field>)``, so the column
+    must exist. It is mandatory only where the entity declares ``quarantine:``
+    or ``dedupe:`` (RFC 0016 D21, :func:`_check_ingestion_metadata`); on an
+    entity declaring neither, the emitted ``loaded_at_field`` would name a
+    column that may not be there — a source freshness check that errors at run
+    time on a project that compiled clean.
+
+    **The declaring mapping, not every consumer** (D2c). A threshold is a
+    statement about the relation, and what asserts the relation exposes the
+    column is the contract on the mapping that declares the threshold. A
+    sibling mapping of the same physical table neither adds nor removes a
+    column, so it has nothing to satisfy. Requiring it of every consumer reads
+    as thorough and has no valid configuration: a plain entity sharing a
+    relation with a quarantining one could then neither declare nor omit.
+
+    The message carries the *why* and not only the fix, because the dependency
+    it announces is a surprising one to meet in an error (§9).
+    """
+
+    if mapping.freshness is None or entity.quarantine is not None or entity.dedupe is not None:
+        return []
+
+    msg = (
+        f"mapping {mapping_doc(mapping)} declares freshness: on {mapping.source!r}, but entity "
+        f"{entity_name!r} declares neither quarantine: nor dedupe:, so nothing requires the "
+        "bronze relation to carry _ingested_at (RFC 0016 D21). A freshness check reads "
+        "SELECT MAX(_ingested_at), so the emitted threshold would name a column that may not "
+        "exist — it compiles clean here and errors when the framework runs it "
+        "(RFC 0057 §5.2). Fix: declare quarantine: or dedupe: on the entity, which makes the "
+        "ingestion metadata mandatory, or drop the freshness: block"
+    )
+    return [GuardrailError(msg, source_path=f"{mapping_doc(mapping)}: freshness")]
+
+
+# ....................... #
+
+
+def _check_freshness_agreement(project: Project) -> list[GuardrailError]:
+    """Two mappings declaring **different** thresholds on one bronze relation
+    (RFC 0057 D2a).
+
+    ``_sources_artifact`` emits one dbt table entry per physical relation, so
+    two thresholds on one relation cannot both be emitted and picking one
+    silently is the plausible-but-wrong shape this project refuses — the rule
+    RFC 0024 D33 already applies to quality rules over a merged entity.
+
+    Two cases that look like conflicts and are not, both settled by D2c's
+    sentence — a threshold is a statement about the *relation*:
+
+    - **Equal thresholds** collapse to the one entry. Nothing disagrees.
+    - **One mapping declares and another omits.** Silence is not disagreement;
+      a mapping that says nothing about a relation's staleness is making no
+      statement about it. The tempting refusal here mistakes who a threshold is
+      about, and pairing it with a per-consumer ingestion contract leaves a
+      shared relation with no legal configuration at all.
+
+    Project-level rather than per entity: two mappings of one relation may
+    target *different* entities, and neither entity's pass can see the other's.
+    Grouped by ``source`` because the physical pair is derived from it — every
+    naming policy sends a bronze relation through unchanged under a
+    layer-named namespace (RFC 0008 §5.1), so equal strings and equal physical
+    relations are the same partition.
+    """
+
+    declared: dict[str, list[Mapping]] = {}
+
+    for mapping in sorted(project.mappings, key=lambda m: m.source):
+        if mapping.freshness is not None:
+            declared.setdefault(mapping.source, []).append(mapping)
+
+    errors: list[GuardrailError] = []
+
+    for relation, mappings in sorted(declared.items()):
+        thresholds = {
+            (m.freshness.warn_after, m.freshness.error_after) for m in mappings if m.freshness
+        }
+        if len(thresholds) < 2:
+            continue
+        spelled = ", ".join(
+            f"{mapping_doc(m)} says warn_after {m.freshness.warn_after}, error_after "
+            f"{m.freshness.error_after}"
+            for m in mappings
+            if m.freshness
+        )
+        msg = (
+            f"bronze relation {relation!r} is given more than one freshness threshold: "
+            f"{spelled}. A threshold is a statement about the relation, not about the mapping "
+            "that carries it, and the emitted sources.yml holds one entry per relation — so "
+            "one of these would be silently dropped (RFC 0057 D2a, the rule RFC 0024 D33 "
+            "applies to a merged entity's rules). Fix: make them agree, or leave the "
+            "threshold on one mapping and drop it from the others"
+        )
+        errors.append(GuardrailError(msg, source_path=f"{mapping_doc(mappings[0])}: freshness"))
+
+    return errors
 
 
 # ....................... #
@@ -1256,6 +1364,7 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
         for mapping in mappings:
             errors.extend(_check_dedupe_disposition(entity_name, entity, mapping))
             errors.extend(_check_ingestion_metadata(entity_name, entity, mapping))
+            errors.extend(_check_freshness_contract(entity_name, entity, mapping))
             errors.extend(_check_redaction(entity_name, entity, mapping))
             errors.extend(_check_patterns(entity_name, mapping))
             errors.extend(_check_chain_derived_rules(entity_name, entity, mapping))
@@ -1267,5 +1376,6 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     errors.extend(_check_coverage(project, draft))
     errors.extend(_check_reserved_metric_names(project))
     errors.extend(_check_reserved_mart_name(project))
+    errors.extend(_check_freshness_agreement(project))
 
     return errors

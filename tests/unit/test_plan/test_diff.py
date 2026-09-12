@@ -22,6 +22,7 @@ from bloomery.ir import (
     Cardinality,
     DateDimensionIR,
     DimensionRef,
+    FreshnessIR,
     MartDimensionIR,
     MartJoinIR,
     Materialization,
@@ -1070,3 +1071,121 @@ def test_reordering_membership_values_is_not_a_restatement() -> None:
     # ...and a genuinely different set still restates.
     edited = {c.subject for c in plan(ir_with(authored), ir_with(other_set)).changes}
     assert subject in edited
+
+
+# ....................... #
+# Declared source freshness (RFC 0057)
+
+
+FRESH_6H = FreshnessIR(warn_after="6h", error_after="24h")
+FRESH_1H = FreshnessIR(warn_after="1h", error_after="2h")
+
+
+def _freshness_changes(old: ProjectIR, new: ProjectIR) -> list[Change]:
+    return [change for change in plan(old, new).changes if change.subject.startswith("freshness:")]
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "old_label", "new_label"),
+    [
+        (None, FRESH_6H, "none", "warn 6h / error 24h"),
+        (FRESH_6H, None, "warn 6h / error 24h", "none"),
+        (FRESH_6H, FRESH_1H, "warn 6h / error 24h", "warn 1h / error 2h"),
+    ],
+    ids=["declared", "dropped", "changed"],
+)
+def test_a_freshness_change_is_additive_metadata(
+    before: FreshnessIR | None, after: FreshnessIR | None, old_label: str, new_label: str
+) -> None:
+    """Every direction, including dropping one.
+
+    A threshold governs when a framework calls a relation stale. It routes no
+    row, stores no value and invalidates nothing already built, so ADDITIVE —
+    the same reading that makes `quarantine.retention` metadata. Reported at
+    all because it *does* change an emitted artifact (`models/sources.yml`),
+    which is the D60 discipline.
+
+    `"none"` rather than a blank on the absent side: a blank reads as a value
+    that failed to render, where the absence is the thing being reported.
+    """
+    old = plan_ir.project(entities=(plan_ir.entity(freshness=before),))
+    new = plan_ir.project(entities=(plan_ir.entity(freshness=after),))
+    changes = _freshness_changes(old, new)
+
+    assert [(c.subject, c.change_class, c.old, c.new) for c in changes] == [
+        ("freshness:raw__items", ChangeClass.ADDITIVE, old_label, new_label)
+    ]
+
+
+def test_an_unchanged_threshold_reports_nothing() -> None:
+    """The half a change-reporting test forgets. An entity whose threshold did
+    not move must not appear in the plan at all — a subject that reports on
+    every plan is one every reader learns to skip."""
+    old = plan_ir.project(entities=(plan_ir.entity(freshness=FRESH_6H),))
+    new = plan_ir.project(entities=(plan_ir.entity(freshness=FRESH_6H),))
+
+    assert _freshness_changes(old, new) == []
+
+
+def test_a_freshness_change_carries_no_backfill_and_no_replay() -> None:
+    """Neither job can do anything about a threshold.
+
+    A backfill rebuilds rows and a replay drains a reject table; a threshold
+    changes when someone is told rows are late. Naming an entity in either
+    scope would send a caller to run a job that cannot help — the same reason
+    a widened `redact:` carries neither.
+    """
+    old = plan_ir.project(entities=(plan_ir.entity(freshness=FRESH_6H),))
+    new = plan_ir.project(entities=(plan_ir.entity(freshness=FRESH_1H),))
+    result = plan(old, new)
+
+    assert result.backfill_scope.entities == ()
+    assert result.replay_scope.entities == ()
+
+
+def test_a_relation_that_arrived_reports_only_its_arrival() -> None:
+    """A threshold on a relation the other side does not have is not a
+    freshness change.
+
+    `_source_set_changes` already reports that a mapping arrived; saying it
+    again in a second vocabulary would have one edit produce two subjects that
+    a reader has to recognize as one event. So the walk is over the relations
+    both sides share, and `woo__items` — new here, and the only one carrying a
+    threshold — contributes nothing.
+    """
+    old_entity = plan_ir.entity(freshness=None)
+    merged = plan_ir.entity(merged_with=("woo__items",), freshness=None)
+    new_entity = replace(
+        merged,
+        sources=tuple(
+            replace(source, freshness=FRESH_6H if source.relation == "woo__items" else None)
+            for source in merged.sources
+        ),
+    )
+    old = plan_ir.project(entities=(old_entity,))
+    new = plan_ir.project(entities=(new_entity,))
+
+    assert _freshness_changes(old, new) == []
+    # The arrival itself is still reported, at the entity subject.
+    assert [
+        (change.subject, change.detail)
+        for change in plan(old, new).changes
+        if "woo__items" in change.detail
+    ] == [
+        (
+            "entity:order_item",
+            "source added to the union merge (woo__items); the _source column appears",
+        )
+    ]
+
+
+def test_an_initial_deploy_stays_all_additive() -> None:
+    """RFC 0007 D2's normative property, met by the new subject.
+
+    `plan(None, ir)` is all-ADDITIVE, and a first deploy declares every
+    threshold there is — so a RESTATING classification here would break a
+    property nothing else in the differ is allowed to break.
+    """
+    new = plan_ir.project(entities=(plan_ir.entity(freshness=FRESH_6H),))
+
+    assert {change.change_class for change in plan(None, new).changes} == {ChangeClass.ADDITIVE}

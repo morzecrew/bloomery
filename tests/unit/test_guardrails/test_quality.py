@@ -1038,3 +1038,210 @@ def test_to_string_after_enum_map_is_accepted() -> None:
     """``to_string`` is the identity on the string ``enum_map`` produces, so it
     cannot move the value off the set — refusing it was a false positive."""
     build_project_ir(load_project(_chain(f"[to_string, {ENUM_MAP}, to_string]", ENUM_RULE)))
+
+
+# ....................... #
+# Declared source freshness (RFC 0057 §5.2, D2a, D2c)
+
+
+FRESHNESS = "freshness: {warn_after: 6h, error_after: 24h}\n"
+DEDUPE_OK_FOR_FRESHNESS = DEDUPE_OK
+
+
+def _freshness_project(
+    *, entity_extra: str = DEDUPE_OK_FOR_FRESHNESS, block: str = FRESHNESS
+) -> dict[str, str]:
+    documents = _project(entity_extra=entity_extra)
+    documents["mapping"] = documents["mapping"] + block
+    return documents
+
+
+#: A second consumer of the same relation, into its **own** entity.
+#:
+#: Two mappings of one relation into one entity are already refused, earlier,
+#: by RFC 0024 D12 — a union merge orders its branches by source relation, and
+#: two branches on one relation have no order. So a disagreement about one
+#: relation is only reachable *across* entities, which is exactly the shape
+#: RFC 0057 §5.2a argues about ("a plain entity reading a relation whose other
+#: consumer quarantines") and the reason the check is project-level: neither
+#: entity's own pass can see the other's.
+def _second_consumer(source: str, block: str, *, entity_extra: str = "") -> dict[str, str]:
+    return {
+        "entity_model_other": f"""
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {{type: string, required: true}}
+      amount: {{type: string}}
+{DEDUPE_OK_FOR_FRESHNESS}  audit_log:
+    grain: one row per order, as the audit shop sees it
+    key: [order_id]
+    fields:
+      order_id: {{type: string, required: true}}
+      amount: {{type: string}}
+{entity_extra}
+""",
+        "mapping_other": f"""
+mapping_version: 1
+source: {source}
+target: audit_log
+key:
+  order_id: {{from: "$.id", transform: [to_string]}}
+fields:
+  amount:
+    from: "$.amount"
+    transform: [to_string]
+unmapped: {METADATA}
+{block}""",
+    }
+
+
+def _two_consumers(source: str, block: str, *, entity_extra: str = "") -> dict[str, str]:
+    """The declaring project, plus a second consumer of ``source``.
+
+    The second entity replaces the first document's ``entity_model``, because
+    a project holds exactly one entity-model document (RFC 0002 §5.5).
+    """
+    documents = _freshness_project()
+    del documents["entity_model"]
+    return documents | _second_consumer(source, block, entity_extra=entity_extra)
+
+
+def test_a_threshold_on_a_contracted_source_is_accepted() -> None:
+    """The whole feature's happy path: an entity that dedupes requires
+    ``_ingested_at``, so a threshold on it names a column that exists."""
+    ir = build_project_ir(load_project(_freshness_project()))
+
+    assert ir.entities[0].sources[0].freshness is not None
+    assert ir.entities[0].sources[0].freshness.warn_after == "6h"
+
+
+def test_a_threshold_where_nothing_requires_ingested_at_is_refused() -> None:
+    """§5.2. dbt's freshness query is ``SELECT MAX(_ingested_at)``, and the
+    column is mandatory only where the entity quarantines or dedupes — so on an
+    entity doing neither, the emitted ``loaded_at_field`` names a column that
+    may not be there, and the project compiles clean and errors when the
+    framework runs it."""
+    documents = _freshness_project(entity_extra="")
+    message = _message(documents)
+
+    assert _leaves(documents) == [GuardrailError]
+    assert "declares neither quarantine: nor dedupe:" in message
+    # §9: the message explains the *why*, because the dependency it announces
+    # is a surprising one to meet in an error.
+    assert "SELECT MAX(_ingested_at)" in message
+    assert "Fix: declare quarantine: or dedupe:" in message
+
+
+def test_a_source_with_no_threshold_needs_no_contract() -> None:
+    """The refusal is about the block, not about the entity.
+
+    An entity that neither quarantines nor dedupes and declares no freshness is
+    the ordinary case, and nothing here may touch it.
+    """
+    ir = build_project_ir(load_project(_project()))
+
+    assert ir.entities[0].sources[0].freshness is None
+
+
+def test_two_mappings_disagreeing_about_one_relation_are_refused() -> None:
+    """D2a. ``_sources_artifact`` emits one table entry per relation, so one of
+    the two thresholds would be silently dropped — the plausible-but-wrong
+    shape this project refuses, and the rule RFC 0024 D33 already applies to
+    quality rules over a merged entity."""
+    documents = _two_consumers(
+        "oms__orders",
+        "freshness: {warn_after: 1h, error_after: 2h}\n",
+        entity_extra=DEDUPE_OK_FOR_FRESHNESS,
+    )
+    message = _message(documents)
+
+    assert "more than one freshness threshold" in message
+    # Both are named: a refusal that names one side sends the author to the
+    # wrong document half the time.
+    assert "warn_after 6h" in message
+    assert "warn_after 1h" in message
+
+
+def test_two_mappings_agreeing_about_one_relation_collapse() -> None:
+    """D2a's other half: equal thresholds are not a conflict.
+
+    They collapse to the one table entry, so there is nothing to drop and
+    nothing to arbitrate.
+    """
+    documents = _two_consumers(
+        "oms__orders", FRESHNESS, entity_extra=DEDUPE_OK_FOR_FRESHNESS
+    )
+    ir = build_project_ir(load_project(documents))
+
+    assert {source.freshness for source in ir.entities[0].sources} == {
+        ir.entities[0].sources[0].freshness
+    }
+
+
+def test_one_mapping_declaring_while_a_sibling_omits_is_legal() -> None:
+    """D2c, and the case a refusal-shaped phase forgets to pin.
+
+    A mapping that reads a relation and says nothing about its staleness is not
+    disagreeing with a threshold; it is making no statement about the relation
+    at all. The tempting refusal here — "silence is not agreement" — mistakes
+    who a threshold is about, and pairing it with a per-consumer ingestion
+    contract leaves a shared relation with no legal configuration.
+    """
+    documents = _two_consumers("oms__orders", "", entity_extra=DEDUPE_OK_FOR_FRESHNESS)
+    ir = build_project_ir(load_project(documents))
+
+    declared = [
+        (entity.name, source.relation)
+        for entity in ir.entities
+        for source in entity.sources
+        if source.freshness
+    ]
+    assert declared == [("order", "oms__orders")]
+
+
+def test_a_sibling_of_a_declaring_mapping_owes_no_contract() -> None:
+    """D2c's other half, on the *ingestion* side.
+
+    A sibling mapping of the same physical table neither adds nor removes a
+    column, so a threshold on one mapping puts no obligation on the other. This
+    is the configuration the superseded D2 made impossible: the plain branch
+    could neither declare nor omit.
+    """
+    documents = _two_consumers("oms__orders", "")
+
+    # The sibling entity declares neither quarantine nor dedupe and
+    # acknowledges no ingestion metadata — the plain consumer §5.2a describes.
+    # It compiles, and the threshold on the *other* mapping stays emitted.
+    ir = build_project_ir(load_project(documents))
+
+    assert [
+        (entity.name, source.freshness is not None)
+        for entity in ir.entities
+        for source in entity.sources
+    ] == [("audit_log", False), ("order", True)]
+
+
+def test_two_relations_with_different_thresholds_are_not_a_conflict() -> None:
+    """The rule is per relation, not per entity.
+
+    A merged entity reads several relations and each has its own arrival
+    schedule; refusing two different thresholds there would be refusing the
+    ordinary case.
+    """
+    documents = _two_consumers(
+        "woo__orders",
+        "freshness: {warn_after: 1h, error_after: 2h}\n",
+        entity_extra=DEDUPE_OK_FOR_FRESHNESS,
+    )
+    ir = build_project_ir(load_project(documents))
+
+    assert {
+        (source.relation, source.freshness.warn_after)
+        for entity in ir.entities
+        for source in entity.sources
+        if source.freshness
+    } == {("oms__orders", "6h"), ("woo__orders", "1h")}

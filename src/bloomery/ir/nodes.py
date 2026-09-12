@@ -551,6 +551,28 @@ class SourceFieldIR:
 
 
 @dataclass(frozen=True, slots=True)
+class FreshnessIR:
+    """The declared staleness thresholds for one bronze relation (RFC 0057
+    §5.1), carried verbatim from the mapping.
+
+    Strings rather than a count and a unit, because the spec's grammar is the
+    one vocabulary both halves already share (D3) and splitting it here would
+    mean two representations of ``6h`` in one pipeline. The target's own
+    vocabulary is the emitter's problem — dbt wants ``{count, period}`` and has
+    no week, so ``_sources_artifact`` is where a week becomes seven days.
+
+    Nothing measured lives here. A threshold is a declaration; the framework
+    runs the query (D1).
+    """
+
+    warn_after: str
+    error_after: str
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
 class SourceIR:
     """The bronze relation an entity is built from, with its field lowering
     entries sorted by target field (minimal M1 surface).
@@ -578,6 +600,15 @@ class SourceIR:
     columns: tuple[SourceColumnIR, ...] = ()
     mapping_version: int = 1
     unmapped: tuple[str, ...] = ()
+    #: The declared staleness thresholds for ``relation`` (RFC 0057 §5.1), or
+    #: ``None`` where the mapping declares none — never defaulted (D5).
+    #:
+    #: Per source rather than per entity because that is the grain the
+    #: declaration has: a merged entity reads several relations and each has
+    #: its own arrival schedule. Two mappings of *one* relation disagreeing is
+    #: refused before this node is built
+    #: (:mod:`bloomery.guardrails.quality`, D2a).
+    freshness: FreshnessIR | None = None
 
 
 # ....................... #
@@ -1413,7 +1444,13 @@ class ProjectIR:
     ``exposures`` — a node that changes no SELECT and moves every fingerprint
     anyway, which is the encoder working as §5.4 intends: the *shape* is
     covered, so two compilers that disagree about what an IR holds can never
-    agree on a fingerprint.
+    agree on a fingerprint. Version 14 (RFC 0057 §5.1) adds ``freshness`` to
+    every :class:`SourceIR`, and moves every fingerprint for the reason version
+    7 established: the encoder writes field names per *instance*, so a project
+    whose sources declare no threshold would otherwise encode identically
+    before and after the field existed, and two compilers of different shape
+    would agree on both the version and the fingerprint while disagreeing about
+    what an IR holds.
     The bump is
     the point — every artifact's fingerprint header moves, and ``plan()``
     refuses to diff across versions rather than misreading one as the other.
@@ -1436,7 +1473,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 13
+    bloomery_ir_version: int = 14
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

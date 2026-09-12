@@ -1,0 +1,22 @@
+{
+  "id": "T-0047",
+  "spec": "rfcs/0057-declared-source-freshness.md",
+  "phase": "P1 (spec key, IR field, three refusals) + P2 (the dbt sources.yml branch, its golden, the dbt source freshness leg). The declaring half is the whole RFC; §8's reporting half is out of scope of the document rather than deferred inside it.",
+  "decisions": [
+    {"id": "RFC 0057 D1", "grade": "LOCKED",
+     "paths": ["src/bloomery/spec/mapping.py", "src/bloomery/emit/dbt/__init__.py"]},
+    {"id": "RFC 0057 D2a", "grade": "LOCKED",
+     "paths": ["src/bloomery/guardrails/quality.py"]},
+    {"id": "RFC 0057 D2c", "grade": "LOCKED",
+     "paths": ["src/bloomery/guardrails/quality.py"]},
+    {"id": "RFC 0057 D3", "grade": "ASSUMED",
+     "paths": ["src/bloomery/spec/mapping.py", "src/bloomery/spec/quality.py"]},
+    {"id": "RFC 0057 D4", "grade": "LOCKED",
+     "paths": ["src/bloomery/spec/mapping.py"]},
+    {"id": "RFC 0057 D5", "grade": "ASSUMED",
+     "paths": ["src/bloomery/spec/mapping.py", "src/bloomery/resolve/build.py"]},
+    {"id": "RFC 0057 D6", "grade": "LOCKED",
+     "paths": ["src/bloomery/emit/sqlmesh/**", "src/bloomery/emit/cube/**"]},
+    {"id": "RFC 0057 D7", "grade": "ASSUMED"}
+  ]
+}

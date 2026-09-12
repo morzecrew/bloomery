@@ -18,6 +18,7 @@ from bloomery.spec.entity import AssertClause, Entity, EntityModel, Field, Relat
 from bloomery.spec.exposures import Exposure, ExposureDependsOn, ExposureSet
 from bloomery.spec.mapping import (
     FieldMapping,
+    Freshness,
     KeyField,
     Mapping,
     RecipeFieldMapping,
@@ -68,6 +69,7 @@ __all__ = [
     "Relationship",
     # mapping
     "FieldMapping",
+    "Freshness",
     "KeyField",
     "Mapping",
     "RecipeFieldMapping",

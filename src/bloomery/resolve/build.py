@@ -59,6 +59,7 @@ from bloomery.ir import (
     EntityIR,
     ExposureIR,
     ExposureKind,
+    FreshnessIR,
     FxRatesIR,
     Materialization,
     MetricFilterIR,
@@ -1106,6 +1107,14 @@ def _build_source(
             columns=tuple(sorted(projections, key=lambda c: c.name)),
             mapping_version=mapping.mapping_version,
             unmapped=tuple(sorted(mapping.unmapped)),
+            freshness=(
+                None
+                if mapping.freshness is None
+                else FreshnessIR(
+                    warn_after=mapping.freshness.warn_after,
+                    error_after=mapping.freshness.error_after,
+                )
+            ),
         ),
     )
 

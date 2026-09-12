@@ -17,6 +17,7 @@ from bloomery.ir import (
     DedupeIR,
     EntityIR,
     ExposureIR,
+    FreshnessIR,
     MartColumnIR,
     MartDimensionIR,
     MartIR,
@@ -103,6 +104,7 @@ def entity(
     quality: tuple[QualityRuleIR, ...] = (),
     dedupe: DedupeIR | None = None,
     quarantine: QuarantineIR | None = None,
+    freshness: FreshnessIR | None = None,
     produced_by: str | None = None,
 ) -> EntityIR:
     resolved = columns if columns is not None else (column("id", required=True),)
@@ -120,6 +122,7 @@ def entity(
             columns=projections,
             mapping_version=mapping_version,
             unmapped=tuple(sorted(unmapped)),
+            freshness=freshness,
         )
         for each in relations
     )

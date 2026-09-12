@@ -125,6 +125,28 @@
       "title": "CurrencyColumn",
       "type": "object"
     },
+    "Freshness": {
+      "additionalProperties": false,
+      "description": "``freshness: {warn_after: 6h, error_after: 24h}`` \u2014 the thresholds at\nwhich this mapping's bronze relation counts as stale (RFC 0057 \u00a75.1).\n\n**A declaration, never a measurement** (D1). bloomery emits the numbers;\n``dbt source freshness`` runs the ``SELECT MAX(_ingested_at)`` that finds\nout. Nothing here reads a clock or touches data, which is what makes a\nthreshold expressible at all under RFC 0003.\n\n**A statement about the relation, not about the mapping that carries it**\n(D2c). That sentence decides the two cross-mapping rules in\n:mod:`bloomery.guardrails.quality`: two mappings of one relation may not\ndisagree, and one that says nothing is not disagreeing.\n\nDurations are ``quarantine.retention``'s grammar (D3) \u2014 ``6h``, ``24h``,\n``90d`` \u2014 so one spelling of a duration covers the whole spec surface. The\ngrammar admits weeks and dbt's ``period`` enum does not; the emitter lowers\na week to seven days rather than the spec refusing a unit ``retention:``\naccepts.",
+      "properties": {
+        "error_after": {
+          "pattern": "^[1-9][0-9]{0,4}[hdw]$",
+          "title": "Error After",
+          "type": "string"
+        },
+        "warn_after": {
+          "pattern": "^[1-9][0-9]{0,4}[hdw]$",
+          "title": "Warn After",
+          "type": "string"
+        }
+      },
+      "required": [
+        "error_after",
+        "warn_after"
+      ],
+      "title": "Freshness",
+      "type": "object"
+    },
     "InEnumRule": {
       "additionalProperties": false,
       "description": "``{rule: in_enum}`` \u2014 the value survived its ``enum_map`` chain\nunmapped. Parameterless by construction: the admissible set *is* the\nchain's mapping, and restating it here would let the two drift.",
@@ -1163,6 +1185,17 @@
       },
       "title": "Fields",
       "type": "object"
+    },
+    "freshness": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Freshness"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "key": {
       "additionalProperties": {

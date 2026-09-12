@@ -294,6 +294,7 @@ One document per (source, target entity) pair.
 | `key` | map key-column → KeyField | yes | Key lowering |
 | `fields` | map field → FieldMapping | no (`{}`) | Field lowering |
 | `unmapped` | list of source paths | no (`[]`) | The explicitly unmapped tail |
+| `freshness` | Freshness | no (absent) | Staleness thresholds for `source` |
 
 An entity that uses `quarantine:` or `dedupe:` requires the bronze ingestion-metadata
 columns `_load_id`, `_ingested_at`, and `_source_row_id`. They are reserved names, so a
@@ -302,6 +303,40 @@ mapping states they exist by listing them in `unmapped:`; their absence is
 blocking audit: none of the three may be null, `_source_row_id` must be unique per
 source row, and `_ingested_at` must cast to timestamp. The audit is emitted only for
 dialects with `TRY_CAST`; on the others the entity is `UnsupportedByTarget`.
+
+### Freshness
+
+A staleness threshold for the mapping's bronze relation. bloomery emits it; the framework
+measures it — `dbt source freshness` runs `SELECT MAX(_ingested_at)`, and nothing in the
+compiler reads a clock or touches data.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `warn_after` | duration | yes | The age at which the source is reported stale |
+| `error_after` | duration | yes | The age at which staleness fails the check |
+
+Durations are the same closed grammar as `quarantine.retention` — `6h`, `24h`, `90d`,
+`2w`. Both keys are required and neither is defaulted: a source with no `freshness:` block
+gets no threshold at all, because a guessed one would emit an assertion nobody made.
+
+`error_after` earlier than `warn_after` is refused at parse — the warning could never
+fire. Equal values are accepted; both thresholds then trip together.
+
+Two more refusals come from the guardrail stage, and both follow from one sentence: **a
+threshold is a statement about the relation, not about the mapping that carries it.**
+
+- A `freshness:` block on a mapping whose target entity declares neither `quarantine:`
+  nor `dedupe:` is refused. Only those blocks make `_ingested_at` mandatory, so without
+  one the emitted `loaded_at_field` would name a column that may not exist — the project
+  compiles clean and the framework errors when it runs.
+- Two mappings giving **different** thresholds to one bronze relation are refused, naming
+  both. The emitted `sources.yml` holds one entry per relation, so one of them would be
+  silently dropped. Equal thresholds collapse and are not a conflict; a mapping that
+  declares none is not disagreeing with one, so a relation read by a declaring mapping and
+  a silent one is fine.
+
+Only dbt emits anything for a threshold. SQLMesh and Cube model no source object, so
+there is nothing there to attach one to and nothing is refused.
 
 ### KeyField
 
