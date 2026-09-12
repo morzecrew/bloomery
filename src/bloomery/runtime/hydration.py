@@ -28,6 +28,7 @@ path by the import-linter contract — only ``planner/`` may reach it.
 from __future__ import annotations
 
 import importlib.metadata
+import logging
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, Final
@@ -62,6 +63,9 @@ __all__ = [
     "hydrate_manifest",
     "hydration_key",
 ]
+
+#: Hydration telemetry (RFC 0033 §4). DEBUG only — see :meth:`_hydrate`.
+_LOG = logging.getLogger("bloomery.runtime")
 
 #: Read once at import into constants (RFC 0014 D2/D7): the versions are
 #: cache-key components, never per-call environment reads.
@@ -242,8 +246,17 @@ class LruManifestHydrator:
         # `parse_raw` and raised a pydantic ValidationError out of a cache
         # lookup — a partially-written key is a miss, which is what the
         # class docstring has always claimed.
+        source = "l2" if data else "build"
         if not data:
             data = build_manifest_bytes(ir, naming=self.naming)
+
+        # DEBUG, not INFO, and that is a decision §9 Q2 left open (D4 admits
+        # both). A hydration miss is *per request* rather than per compile, so
+        # INFO here would break §4's "bounded, safe to leave on in production"
+        # budget in exactly the hot service the question worries about.
+        # Widening a level later is backward-compatible; narrowing one is not
+        # (``logs/T-0048.md``).
+        _LOG.debug("runtime: hydration miss for %s, served from %s", key, source)
 
         return hydrate_manifest(data, prewarm=self._prewarm)
 

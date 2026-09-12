@@ -30,8 +30,9 @@ primary contract stays the message and, for :class:`UnsupportedFilter`, the
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Final, Self
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -40,6 +41,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     "BloomeryError",
+    "BloomeryDeprecationWarning",
+    "warn_deprecated",
     "MartCoverage",
     "MeasureRef",
     "SpecParseError",
@@ -991,3 +994,78 @@ class UnsupportedQuantifier(UnsupportedFilter):
     belongs to the adapter's ``APP_UNSUPPORTED`` set."""
 
     reason = "unsupported_quantifier"
+
+
+# ....................... #
+# Deprecation — RFC 0033 D8. Not an error: the one use of Python's `warnings`
+# module in `src/`, kept apart from the advisory channel (a compile-time
+# finding, carried on `SpecEvidence`) and from log records (telemetry). The
+# three channels do not blur, and this is the only one aimed at an
+# interpreter-level filter.
+
+
+class BloomeryDeprecationWarning(DeprecationWarning):
+    """A bloomery spelling that still works and will not, with the release
+    that removes it named in the message (RFC 0033 D8).
+
+    Its own category so ``filterwarnings`` can target bloomery precisely — a
+    suite that wants bloomery's deprecations as errors while leaving its other
+    dependencies' alone cannot express that against bare
+    :class:`DeprecationWarning`.
+
+    ``pages/docs/reference/stability.md`` is the policy this implements: a
+    removal below 1.0 uses the changelog always, and this warning whenever the
+    old spelling can survive one more minor release.
+    """
+
+
+#: Spellings already warned about in this process (RFC 0033 D8). Module-level
+#: and unsynchronized, deliberately — see :func:`warn_deprecated`.
+_WARNED: Final[set[str]] = set()
+
+
+def warn_deprecated(spelling: str, *, replacement: str, removed_in: str) -> None:
+    """Emit :class:`BloomeryDeprecationWarning` for ``spelling``, best-effort
+    once per process (RFC 0033 D8).
+
+    **Why an explicit guard rather than the warnings machinery's default
+    filter.** That filter deduplicates on ``(message, category, lineno)``,
+    scoped per emitting module by where its registry lives, and a caller can
+    override it in *both* directions: an ``always`` filter would repeat this
+    warning on every call. The guard bounds how often bloomery emits, which is
+    the only half bloomery controls.
+
+    **"Best-effort" is the whole contract**, stated rather than implied. The
+    guard is an unsynchronized ``set``, so two threads reaching a spelling's
+    *first* use concurrently may both emit — tolerated and pinned by test, the
+    way the hydrator's duplicate fetch on a cold key already is, rather than
+    locked against. The cost of the race is one extra warning; the cost of a
+    lock is a lock on a path that exists to be cheap.
+
+    And it cannot *show* a warning a caller's ``ignore`` filter hides. A suite
+    needing a hard once gets it from its own filter configuration, which
+    deduplicates delivery regardless of how often bloomery emits.
+
+    ``stacklevel=3`` so the warning points at the caller of the deprecated
+    surface rather than at this function or at its immediate caller inside
+    bloomery — the line a reader has to edit.
+
+    **The spelling is recorded after the warning, not before**, and the order
+    is load-bearing under ``-W error``. There, :func:`warnings.warn` raises;
+    recording first meant the guard counted a warning that was *converted into
+    an exception* as delivered, so a suite whose second test hit the same
+    spelling got silence instead of a second failure — one failing test
+    pointing at one call site, where ten call sites are deprecated. Recording
+    after makes a raised warning not count, which is what a ``-W error`` suite
+    is asking for (PR #110 review).
+    """
+
+    if spelling in _WARNED:
+        return
+
+    warnings.warn(
+        f"{spelling} is deprecated and will be removed in {removed_in}; use {replacement}",
+        BloomeryDeprecationWarning,
+        stacklevel=3,
+    )
+    _WARNED.add(spelling)

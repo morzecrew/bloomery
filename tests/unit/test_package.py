@@ -20,6 +20,8 @@ pytestmark = pytest.mark.unit
 
 def test_public_api_surface() -> None:
     assert bloomery.__all__ == [
+        "Advisory",
+        "AdvisoryCode",
         "AnyOf",
         "ArgKind",
         "ArtifactKind",

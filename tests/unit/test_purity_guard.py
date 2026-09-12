@@ -74,6 +74,13 @@ def findings_for(source: str) -> str:
         # auditing the guard rather than by using it.
         ("from random import choice\n", "`random` is banned"),
         ("import secrets\n", "`secrets` is banned"),
+        # Logging is telemetry, never configuration (RFC 0033 D1). The library
+        # attaches one `NullHandler` and nothing else; `basicConfig` would pick
+        # a root handler and a format for every embedder in the process.
+        ("import logging\nlogging.basicConfig()\n", "`logging.basicConfig` is banned"),
+        ("from logging import basicConfig\n", "`logging.basicConfig` is banned"),
+        ("import logging.config\n", "`logging.config` is banned"),
+        ("import logging\nlogging.disable()\n", "`logging.disable` is banned"),
         # Aliased imports: the local name matches no banned entry on its own, so
         # the root has to be resolved through the import that bound it.
         ("from datetime import datetime as dt\nx = dt.now()\n", "`datetime.datetime.now`"),
@@ -99,6 +106,11 @@ def test_a_planted_violation_is_caught(source: str, expected: str) -> None:
         # A method of one's own that happens to be spelled like a clock.
         "x = self.now()\n",
         "x = context.time()\n",
+        # The one logging call the library *must* make (RFC 0033 D1), and the
+        # ordinary ones every module makes. Banning the module would have taken
+        # these with it, which is why the ban is per member.
+        "import logging\nlogging.getLogger('bloomery').addHandler(logging.NullHandler())\n",
+        "import logging\n_LOG = logging.getLogger('bloomery.resolve')\n_LOG.info('x')\n",
         # The types, which the planner's literal grammar needs, as opposed to
         # the clock and id calls that live on them.
         "from datetime import date, datetime\n",

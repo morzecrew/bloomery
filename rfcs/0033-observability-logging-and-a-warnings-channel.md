@@ -1,9 +1,15 @@
 # RFC 0033 — Observability: logging and a warnings channel
 
-- **Status:** 📝 Draft — proposed, not started. Argued here so that the two gaps the
+- **Status:** 🚧 In progress. Argued here so that the two gaps the
   production-readiness audit named ("zero logging in `src/`; `QueryPlan.warnings` exists
   but is planner-only, and no compile-time analogue") get a settled design before any
   code, rather than an ad-hoc `logging.info` sprinkled where it first seemed useful.
+  **Landed:** the logger surface (D1–D4), the advisory channel carried on
+  `SpecEvidence.advisories` with §5.3's first candidate, and the deprecation
+  mechanism (D8).
+  **Open:** §5.3's second and third candidates, D9's CLI flag, and every question in
+  §9 — see `logs/T-0048.md` for why each was left, and for the decision table this
+  document is missing.
 - **Scope:** Two additions to the library's observational surface: (1) stdlib
   `logging` under a single `"bloomery"` logger hierarchy, stage-level and silent by
   default, across the compile path (`load_project`, resolution, guardrails, lowering,

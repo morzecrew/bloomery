@@ -38,6 +38,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from sqlglot import exp, parse_one
+from sqlglot.errors import SqlglotError
+
 from bloomery.errors import BloomeryError, InvariantViolated
 from bloomery.ir import Materialization, UnreachableMetric, project_fingerprint
 from bloomery.quality import is_quality_mart
@@ -53,11 +56,15 @@ from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 from bloomery.transforms import CONVERT_TRANSFORM
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from bloomery.ir import MartIR, ProjectIR
 
 # ----------------------- #
 
 __all__ = [
+    "Advisory",
+    "AdvisoryCode",
     "CheckedSurfaces",
     "Gap",
     "MartSummary",
@@ -66,6 +73,98 @@ __all__ = [
     "SpecEvidence",
     "evaluate",
 ]
+
+
+class AdvisoryCode(StrEnum):
+    """The closed advisory vocabulary (RFC 0033 §5.1).
+
+    Closed, and each addition is a reviewed change — the taste
+    :data:`~bloomery.planner.KNOWN_UNSUPPORTED` already sets for the refusal
+    side. There is no free-text advisory constructor, because a channel anyone
+    can write into is a channel nobody can enumerate, and the docs census
+    checks this vocabulary against the reference both ways.
+
+    **An advisory is not a refusal that lost its nerve** (D7). The bar is: the
+    spec is legal, the compiled artifacts are correct, and there is still
+    something the author would want to know. Anything where the numbers could
+    be wrong stays a refusal — an advisory where a refusal belongs is a defect,
+    not a softening.
+    """
+
+    #: A catalog recipe whose ``expr:`` divides. The ``divide`` *transform* is
+    #: marked so PostgreSQL and Trino keep it in exact decimal arithmetic, but a
+    #: recipe's ``expr:`` is parsed SQL carrying no marker, so it renders as a
+    #: binary-float division narrowed back to the declared decimal — on every
+    #: engine, not only DuckDB (``pages/docs/reference/dialects.md``).
+    INEXACT_DIVISION = "inexact_division"
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
+class Advisory:
+    """One compile-time finding that is not a refusal (RFC 0033 §5.1).
+
+    Findings are **values**, carried on the evidence a caller already receives,
+    exactly as ``QueryPlan.warnings`` carries them at request time. Nothing
+    important is ever *only* logged (D5) — which is also why no record in this
+    library is emitted at ``WARNING``: that severity belongs here.
+
+    **Deliberately not orderable.** An earlier version carried ``order=True``
+    on the claim that the dataclass's own comparison *was* §5.1's sort key. It
+    was not: the declared key is ``(code, source_path, message)`` and the field
+    order is ``(code, message, source_path)``, so the two disagreed whenever
+    two advisories shared a code — and comparing a ``None`` source path against
+    a string raised ``TypeError`` on a perfectly legal pair. Sorting goes
+    through :func:`_advisory_key`, which is where the rule is stated and the
+    only place it is applied (PR #110 review).
+    """
+
+    #: What kind of finding this is, from the closed vocabulary.
+    code: AdvisoryCode
+    #: The finding, under the same "what's wrong / why / the way out" contract
+    #: refusals carry. Message text is not API and not a stable surface; the
+    #: **code** is what a caller branches on.
+    message: str
+    #: Where in the authored documents to look, or ``None`` where the finding
+    #: is about the project rather than a place in it.
+    source_path: str | None = None
+
+
+# ....................... #
+
+
+def _advisory_key(advisory: Advisory) -> tuple[str, str, str]:
+    """The declared sort key (RFC 0033 §5.1): total, explicit, and stable under
+    a missing source path, which normalizes to the empty string for ordering
+    while staying ``None`` on the value."""
+
+    return (advisory.code.value, advisory.source_path or "", advisory.message)
+
+
+# ....................... #
+
+
+def _sorted_advisories(found: Iterable[Advisory]) -> tuple[Advisory, ...]:
+    """Sorted and deduplicated, under §5.1's rules stated rather than defaulted.
+
+    Two advisories are duplicates exactly when all three fields are equal, and
+    deduplication keeps the first of an equal pair — which the total sort makes
+    indistinguishable from keeping any. A ``set`` would do neither: RFC 0003
+    bans iterating one where order can reach output, and this tuple reaches a
+    returned value.
+    """
+
+    seen: dict[tuple[str, str, str], Advisory] = {}
+
+    for advisory in sorted(found, key=_advisory_key):
+        seen.setdefault(_advisory_key(advisory), advisory)
+
+    return tuple(seen.values())
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -353,6 +452,18 @@ class SpecEvidence:
     #: read as "this surface was checked and held nothing" by anyone who skims.
     #: There is no honest zero to print, so the field says so itself.
     checked: CheckedSurfaces | None = None
+    #: Compile-time findings that are **not** refusals (RFC 0033 §5.1) —
+    #: sorted by ``(code, source_path, message)`` and deduplicated. Empty means
+    #: "nothing to say" only where the pipeline got far enough to look, which
+    #: is the same read-``stage_reached``-first rule every tuple here carries.
+    #:
+    #: Appended after ``checked`` for the reason the comment above gives, one
+    #: field later than §5.1 names: ``checked`` was itself appended past
+    #: ``provenance`` after the RFC was written, so following §5.1's literal
+    #: neighbour would have *inserted* the field and silently rebound every
+    #: positional construction — the exact defect that paragraph exists to
+    #: prevent (``logs/T-0048.md``).
+    advisories: tuple[Advisory, ...] = ()
 
 
 # ....................... #
@@ -542,7 +653,90 @@ def _from_ir(
                 1 for mart in ir.marts for join in mart.joins if join.as_of is not None
             ),
         ),
+        advisories=_advisories(catalog),
     )
+
+
+# ....................... #
+
+
+def _advisories(catalog: Catalog | None) -> tuple[Advisory, ...]:
+    """Every compile-time advisory, as a pure function of what the pipeline
+    already holds (RFC 0033 §5.1).
+
+    **A function, not an accumulator.** The RFC does not say how a finding
+    produced deep in a stage reaches the evidence, and threading a mutable
+    collector through :func:`~bloomery.resolve.pipeline` would put a side
+    channel inside the one generator whose whole purpose is that
+    :func:`evaluate` and :func:`~bloomery.build_project_ir` cannot disagree
+    about what the pipeline is. Deriving them here is how every other field on
+    this type is built, and it makes the answer independent of when a stage
+    ran (``logs/T-0048.md``).
+
+    Called with the catalog alone today because the one advisory that exists is
+    about the catalog. The signature widens when a finding needs more; it is
+    not pre-widened, because a parameter nothing reads is a parameter whose
+    contract nobody checks.
+    """
+
+    if catalog is None:
+        return ()
+
+    return _sorted_advisories(
+        Advisory(
+            code=AdvisoryCode.INEXACT_DIVISION,
+            message=(
+                f"catalog recipe {recipe.id!r} on canonical field {name!r} divides in its "
+                "expr:, and a recipe's expression is parsed SQL carrying no exactness marker "
+                "— so the division happens in binary floating point and is narrowed back to "
+                "the declared decimal, on every engine rather than only on DuckDB. The "
+                "narrowing bounds the error; values needing more than ~15 significant digits "
+                "can still round. This is legal and the artifacts are correct. Fix, where the "
+                "division must be exact: use a divide/multiply transform chain instead, which "
+                "is marked and stays in exact decimal arithmetic on PostgreSQL and Trino"
+            ),
+            source_path=f"catalog: canonical_fields.{name}.recipes.{recipe.id}.expr",
+        )
+        for name, field in sorted(catalog.canonical_fields.items())
+        for recipe in field.recipes
+        if _divides(recipe.expr)
+    )
+
+
+# ....................... #
+
+
+def _divides(expr: str | None) -> bool:
+    """Whether a recipe's expression contains a division, read off the parsed
+    tree rather than the text.
+
+    A ``/`` in the source is not a division: it appears inside string literals
+    and comments, and the resolver already parses this same string with
+    SQLGlot two stages later (``resolve/build.py``). Scanning the text would
+    both over-report and disagree with the parse that decides what the
+    expression actually means.
+
+    An expression SQLGlot cannot read is **not** an advisory: a malformed
+    recipe is the resolve stage's refusal to make, and guessing at one here
+    would report a finding about a project that is about to be refused for a
+    better reason.
+
+    ``SqlglotError``, not ``ParseError``. An unterminated string literal raises
+    ``TokenError``, which is a sibling of ``ParseError`` rather than a subclass
+    — so the narrower catch let a third-party exception out of
+    :func:`evaluate`, whose whole contract is that a spec-level problem comes
+    back as a value (``logs/T-0048.md``).
+    """
+
+    if expr is None:
+        return False
+
+    try:
+        parsed = parse_one(expr)
+    except SqlglotError:
+        return False
+
+    return any(True for _ in parsed.find_all(exp.Div))
 
 
 # ....................... #
@@ -623,6 +817,16 @@ def _partial(
     genuinely computed — an empty tuple here means "not computed", which is why
     :attr:`SpecEvidence.stage_reached` has to be read first.
 
+    **Advisories travel with all three widths**, including the narrowest, and
+    that is not an exception to the paragraph above — it is the same rule. An
+    advisory is derived from the catalog, which is an *input*: it is computed
+    and correct whether or not a stage refused, so withholding it would make
+    ``advisories`` the one field here that is empty for a reason
+    :attr:`SpecEvidence.stage_reached` cannot explain, which is exactly the
+    objection the next paragraph raises about ``unresolved``. §5.2's bar — the
+    spec is legal, the artifacts are correct — decides what *qualifies* as an
+    advisory, not when a qualifying one is worth saying.
+
     **The unresolved-work report travels with the resolution**, not with
     ``COMPLETE``. RFC 0030 D5 says a refusal empties it, and its argument is
     about a refusal *inside* the resolve stage — a malformed recipe id, where
@@ -636,7 +840,7 @@ def _partial(
     resolution = progress.resolution
 
     if resolution is None:
-        return SpecEvidence(stage_reached=stage, refusals=refusals)
+        return SpecEvidence(stage_reached=stage, refusals=refusals, advisories=_advisories(catalog))
 
     if progress.ir is not None:
         return _from_ir(stage, project, catalog, progress.ir, resolution, refusals)
@@ -649,6 +853,7 @@ def _partial(
         refusals=refusals,
         unresolved=_unresolved(project, catalog, resolution),
         provenance=resolution.provenance,
+        advisories=_advisories(catalog),
     )
 
 

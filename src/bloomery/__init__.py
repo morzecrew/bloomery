@@ -34,10 +34,14 @@ passed back rather than read (D9), and exempts ``bloomery.errors``, whose leaves
 stay behind their own declared ``__all__`` (D2).
 """
 
+import logging
+
 from bloomery.compile import Target, compile_project
 from bloomery.emit import ArtifactKind, EmittedArtifact, TargetEmitter, register_emitter
 from bloomery.errors import BloomeryError, MartCoverage, MeasureRef
 from bloomery.evidence import (
+    Advisory,
+    AdvisoryCode,
     CheckedSurfaces,
     Gap,
     MartSummary,
@@ -129,7 +133,34 @@ except ImportError:  # pragma: no cover - only in a source tree that was never b
     # report would then quote as real.
     __version__ = "0.0.0+unknown"
 
+# The library's **only** logging configuration act (RFC 0033 D1), and the
+# stdlib-documented posture for a library: attach a do-nothing handler to the
+# root of the hierarchy so a caller who configures nothing sees nothing, and
+# no "No handlers could be found" message is emitted on their behalf.
+#
+# No `basicConfig`, no format, no level — all three are the *application's* to
+# choose, and a library that picks one has picked it for every embedder in the
+# process. The level is left at `NOTSET` deliberately: it defers to whatever
+# the caller sets, which is the only way `logging.getLogger("bloomery")
+# .setLevel(DEBUG)` can work from outside.
+#
+# `basicConfig` is banned outright under `src/bloomery` by the same
+# `banned-api` table that bans the clock (`pyproject.toml`), so this posture is
+# a gate rather than a convention.
+#
+# Guarded because a *logger* outlives a module. `importlib.reload(bloomery)`
+# re-runs this line against the same process-global logger, so the plain
+# stdlib spelling accumulates one handler per reload — 1, 2, 4 — and breaks the
+# exactly-one contract this package asserts about itself. Reloading a library
+# is unusual and legitimate (notebooks do it), and "unusual" is not a reason to
+# let an invariant be false (PR #110 review).
+_root_logger = logging.getLogger("bloomery")
+if not any(isinstance(handler, logging.NullHandler) for handler in _root_logger.handlers):
+    _root_logger.addHandler(logging.NullHandler())
+
 __all__ = [
+    "Advisory",
+    "AdvisoryCode",
     "AnyOf",
     "ArgKind",
     "ArtifactKind",

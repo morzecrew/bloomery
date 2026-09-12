@@ -30,6 +30,7 @@ shadows and lowered ``assert:`` audits.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, replace
 from datetime import date, datetime
@@ -155,6 +156,22 @@ __all__ = [
     "pipeline",
 ]
 
+#: The stage narrator (RFC 0033 §4). Named literally rather than by
+#: ``__name__``: §4 lists six logger names and §7 makes the *names* the stable
+#: surface, so ``bloomery.resolve.build`` would ship a name the RFC does not
+#: document (``logs/T-0048.md``). One INFO record per stage, after the stage
+#: produced something to count — a record before the work is a record that
+#: lies when the work refuses.
+_LOG = logging.getLogger("bloomery.resolve")
+
+#: The guardrail stage's record goes under its own documented name, even though
+#: the call sits in this module: §4's hierarchy is a *tuning* surface for the
+#: reader — "silence the guardrail chatter, keep the resolve counts" — and it
+#: would not work if the name tracked which file happened to hold the line.
+#: `typecheck` and `lower` have no name of their own in §4 and narrate under
+#: `bloomery.resolve`, which is the package they belong to.
+_GUARDRAIL_LOG = logging.getLogger("bloomery.guardrails")
+
 
 class Stage(StrEnum):
     """A stage of spec analysis, in the order :func:`pipeline` runs them.
@@ -238,13 +255,20 @@ def pipeline(
     """
     yield Stage.RESOLVE, StageProgress()
     resolution = resolve(project, catalog)
+    _LOG.info(
+        "resolve: %d metric(s) reachable, %d unreachable",
+        len(resolution.reachable_metrics),
+        len(resolution.unreachable_metrics),
+    )
 
     yield Stage.TYPECHECK, StageProgress(resolution=resolution)
     reg = registry()
     _typecheck_project(project, reg, steps)
+    _LOG.info("typecheck: %d mapping document(s)", len(project.mappings))
 
     yield Stage.LOWER, StageProgress(resolution=resolution)
     draft = _lower_draft(project, catalog, reg, steps, resolution)
+    _LOG.info("lower: %d entities, %d marts", len(draft.entities), len(draft.marts))
 
     yield Stage.GUARDRAILS, StageProgress(resolution=resolution, ir=draft)
     # ── Guardrail seam (RFC 0006 §5.1) ─────────────────────────────────
@@ -259,6 +283,7 @@ def pipeline(
     # guardrail to refuse. What the stage does check, from the spec alone, is
     # that no authored metric claimed one of its reserved names.
     finished = attach_quality_mart(checked)
+    _GUARDRAIL_LOG.info("guardrails: %d entities checked, none refused", len(finished.entities))
 
     yield Stage.COMPLETE, StageProgress(resolution=resolution, ir=finished)
 

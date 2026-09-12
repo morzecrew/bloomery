@@ -277,6 +277,39 @@ through a suggestion — the primary contract stays the message and, for
 imports nothing. `Op` is a `StrEnum`, so `refusal.nearest_supported == Op.LIKE` holds and
 `Op(refusal.nearest_supported)` round-trips.
 
+## Advisories are not errors
+
+Some findings are worth saying and not worth refusing over. Those are **advisories**:
+`evaluate()` returns them on `SpecEvidence.advisories`, sorted and deduplicated, and no
+exception is raised. They are a separate channel from the hierarchy above — nothing here
+is ever raised, and nothing above is ever reported as an advisory.
+
+The bar is deliberately high, and it is the same sentence in three parts: **the spec is
+legal, the compiled artifacts are correct, and there is still something you would want to
+know.** Anything where the numbers could be wrong stays a refusal. bloomery does not
+soften "refuse rather than answer wrongly", and an advisory standing where a refusal
+belongs is a defect in bloomery, not a convenience.
+
+Branch on `code`, never on the message: the vocabulary below is a closed, reviewed list
+and each addition is a change someone signed off, while message text is prose that
+improves between releases.
+
+| Code | Raised when |
+|---|---|
+| `inexact_division` | A catalog recipe's `expr:` divides. The `divide` *transform* is marked so PostgreSQL and Trino keep it in exact decimal arithmetic, but a recipe's expression is parsed SQL carrying no marker — so the division happens in binary floating point and is narrowed back to the declared decimal, on every engine rather than only on DuckDB. Where the division must be exact, use a `divide`/`multiply` transform chain instead |
+
+Advisories carry a `source_path` under the same rules as an error's, below.
+
+Two channels advisories are deliberately **not**:
+
+- **Log records.** bloomery emits nothing at `WARNING` — that severity belongs here, and
+  a finding that was only logged is a finding a caller who configured no handler never
+  received. See [stability](stability.md#logger-names) for the logger hierarchy.
+- **`DeprecationWarning`.** A spelling on its way out is announced through Python's
+  `warnings` module under `BloomeryDeprecationWarning`, so a suite run with `-W error`
+  sees it. That is a statement about the *library's* surface; an advisory is a statement
+  about *your spec*.
+
 ## `source_path`
 
 Every error carries an optional `source_path` — a dotted/bracketed address into the

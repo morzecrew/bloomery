@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **bloomery narrates what it is doing, and says what it noticed.** Two
+  additions to the observational surface, both under the rule that compilation
+  stays a pure function.
+
+  A `bloomery` logger hierarchy — `bloomery.spec`, `.resolve`, `.guardrails`,
+  `.emit`, `.runtime`, `.planner` — emits stage-level records. The library
+  attaches a `NullHandler` and **nothing else**: no handler of its own, no
+  format, and no level, which is what lets your `setLevel` work. `INFO` is one
+  record per stage per compile, bounded and safe to leave on; `DEBUG` adds
+  per-artifact and per-request detail. Artifacts are byte-identical whether
+  anyone is listening or not, and that is a test rather than a promise. The
+  logger *names* are the stable surface; message text is not.
+
+  There is deliberately **no `WARNING`** level. Findings about your spec are
+  values instead: `evaluate()` now returns `SpecEvidence.advisories`, a sorted,
+  deduplicated tuple of `Advisory(code, message, source_path)` with `code` from
+  the closed `AdvisoryCode` vocabulary. A finding that was only logged is one a
+  caller who configured no handler never received.
+
+  The first advisory is `inexact_division`: a catalog recipe whose `expr:`
+  divides. The `divide` *transform* is marked so PostgreSQL and Trino keep it in
+  exact decimal arithmetic, but a recipe's expression is parsed SQL carrying no
+  marker — so the division happens in binary floating point on every engine, not
+  only DuckDB. Legal, correct, and previously discoverable only by reading the
+  dialect reference.
+
+  An advisory is never a refusal that lost its nerve. The bar is that the spec
+  is legal, the artifacts are correct, and there is still something you would
+  want to know; anything where the numbers could be wrong stays a refusal.
+
+- **`BloomeryDeprecationWarning`**, exported from `bloomery.errors`, so
+  `filterwarnings` can target bloomery's deprecations without silencing your
+  other dependencies. Emitted best-effort once per process per spelling.
+  Nothing in this release is deprecated — this is the mechanism, in place
+  before the first removal needs it.
+
 - **A source declares when it is stale.** A mapping can carry a `freshness:`
   block beside the relation it reads:
 
@@ -64,6 +100,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   record.
 
 ### Changed
+
+- `SpecEvidence` gains `advisories` as its **last** field. Every field has a
+  default, so a positional construction keeps binding exactly what it bound
+  before; appending is what makes that true, and a regression test pins it.
 
 - `ProjectIR.bloomery_ir_version` is **14** (was 13): every `SourceIR` gained
   `freshness`. Every project's fingerprint moves, including those declaring no

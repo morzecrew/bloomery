@@ -90,3 +90,41 @@ def test_example_refusal_text_golden(snapshot: Snapshot, case: str) -> None:
     errors = refusal.collected or (refusal,)
     snapshot.snapshot_dir = GOLDEN
     snapshot.assert_match(_rendered(tuple(errors)), f"example-{case}.txt")
+
+
+# ....................... #
+# Advisory text (RFC 0033 §8)
+#
+# The sibling the RFC asks for, and it exists for the same reason the blocks
+# above do: an advisory message degrading silently — a dropped "Fix:", a
+# rewritten sentence that stops saying the construct is legal — is the same
+# defect class as a refusal message degrading, and no other tier notices.
+#
+# The corpus is the fixtures that actually produce one. `ecom_basic` is the
+# only one today, which is a fact about the fixtures rather than a limit here:
+# a fixture that starts producing an advisory joins this list, and one that
+# stops is a signal, not a saving.
+
+ADVISORY_FIXTURES = ("ecom_basic",)
+
+
+def _advisory_text(evidence_advisories: tuple[object, ...]) -> str:
+    """One block per advisory: code, source path, then the message verbatim —
+    the same three-part rendering `_rendered` uses for a refusal, so a reader
+    comparing the two channels reads one shape."""
+    blocks = [
+        f"{advisory.code.value}\n"  # type: ignore[attr-defined]
+        f"source: {advisory.source_path or '(none)'}\n"  # type: ignore[attr-defined]
+        f"{advisory.message}\n"  # type: ignore[attr-defined]
+        for advisory in evidence_advisories
+    ]
+    return "\n".join(blocks)
+
+
+@pytest.mark.parametrize("name", ADVISORY_FIXTURES)
+def test_advisory_text_golden(snapshot: Snapshot, name: str) -> None:
+    project, catalog = load_fixture(name)
+    evidence = evaluate(project, catalog=catalog)
+    assert evidence.advisories, f"{name} no longer produces an advisory"
+    snapshot.snapshot_dir = GOLDEN
+    snapshot.assert_match(_advisory_text(evidence.advisories), f"advisory-{name}.txt")
