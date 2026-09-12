@@ -77,6 +77,7 @@ from bloomery.spec.quality import (
     InEnumRule,
     PatternRule,
     ReferentialRule,
+    duration_hours,
 )
 from bloomery.typing import BoolType, StringType, parse_type
 
@@ -385,6 +386,20 @@ def _check_freshness_contract(
 # ....................... #
 
 
+def _hours(freshness: Freshness) -> tuple[int, int]:
+    """A threshold as the pair of hour counts it means.
+
+    The comparison key for D2a, and the reason it is a function rather than an
+    inline tuple: the *message* below names the author's own spelling, so the
+    two must not be built from one expression by accident.
+    """
+
+    return (duration_hours(freshness.warn_after), duration_hours(freshness.error_after))
+
+
+# ....................... #
+
+
 def _check_freshness_agreement(project: Project) -> list[GuardrailError]:
     """Two mappings declaring **different** thresholds on one bronze relation
     (RFC 0057 D2a).
@@ -426,7 +441,13 @@ def _check_freshness_agreement(project: Project) -> list[GuardrailError]:
     errors: list[GuardrailError] = []
 
     for relation, pairs in sorted(declared.items()):
-        if len({(block.warn_after, block.error_after) for _mapping, block in pairs}) < 2:
+        # Compared as **durations**, not as spellings. `24h` and `1d` are one
+        # threshold written two ways, and refusing them as a disagreement would
+        # refuse a pair of mappings that agree — which is what D2a's "equal
+        # thresholds collapse" says must not happen. The parse-side ordering
+        # check already reads durations this way; comparing text here left the
+        # two halves of one grammar disagreeing about what equal means.
+        if len({_hours(block) for _mapping, block in pairs}) < 2:
             continue
         spelled = ", ".join(
             f"{mapping_doc(mapping)} says warn_after {block.warn_after}, error_after "

@@ -1180,3 +1180,38 @@ def test_every_unit_the_spec_grammar_admits_reaches_a_dbt_period() -> None:
         tables = cast("list[dict[str, object]]", document["sources"][0]["tables"])  # type: ignore[index]
         after = cast("dict[str, object]", tables[0]["freshness"])["warn_after"]
         assert cast("dict[str, object]", after)["period"] in {"minute", "hour", "day"}
+
+
+def test_one_threshold_written_two_ways_emits_one_entry_deterministically() -> None:
+    """Two consumers of one relation may now spell one threshold two ways
+    (`24h`, `1d`) — the guardrail compares durations, not text.
+
+    `sources.yml` still holds one entry, and which spelling reaches it is
+    decided by the IR's own order and nothing else: the first entity carrying a
+    threshold for the relation wins. `build_project_ir` sorts entities by name
+    (`resolve/build.py:2205`), so a compiled project answers the same way every
+    time. Both spellings mean the same thing to dbt; a wobble between them
+    would move a fingerprint on nothing.
+    """
+    first = replace(
+        _entity(name="audit"),
+        sources=(
+            replace(
+                _SOURCE, relation="orders", freshness=FreshnessIR(warn_after="6h", error_after="1d")
+            ),
+        ),
+    )
+    second = _with_freshness("orders", "6h", "24h")
+    document = _sources_document(first, second)
+    tables = cast("list[dict[str, object]]", document["sources"][0]["tables"])  # type: ignore[index]
+
+    assert len(tables) == 1
+    assert cast("dict[str, object]", tables[0]["freshness"])["error_after"] == {
+        "count": 1,
+        "period": "day",
+    }
+    # And the control that says the assertion above is about *order* rather
+    # than a coincidence: `ProjectIR` keeps entities as handed to it, so a
+    # hand-built IR in the other order emits the other spelling. Only the
+    # builder's sort makes a compiled project deterministic.
+    assert _sources_document(second, first) != document

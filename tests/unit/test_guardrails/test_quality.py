@@ -1225,6 +1225,49 @@ def test_a_sibling_of_a_declaring_mapping_owes_no_contract() -> None:
     ] == [("audit_log", False), ("order", True)]
 
 
+def test_one_threshold_written_two_ways_is_not_a_conflict() -> None:
+    """D2a compares thresholds, and `24h` and `1d` are one threshold.
+
+    Refusing them would refuse two mappings that *agree*, which is the state
+    D2a's "equal thresholds collapse" exists to keep legal. The parse-side
+    ordering check has read durations rather than text since it was written;
+    this is the other half of that grammar catching up (PR #109 review).
+    """
+    documents = _two_consumers(
+        "oms__orders",
+        "freshness: {warn_after: 6h, error_after: 1d}\n",
+        entity_extra=DEDUPE_OK_FOR_FRESHNESS,
+    )
+    ir = build_project_ir(load_project(documents))
+
+    assert {
+        (entity.name, source.freshness.error_after)
+        for entity in ir.entities
+        for source in entity.sources
+        if source.freshness
+    } == {("audit_log", "1d"), ("order", "24h")}
+
+
+def test_a_real_disagreement_is_still_refused_across_units() -> None:
+    """The other direction, and the one that makes the test above meaningful.
+
+    `24h` against `2d` differ as durations and as text; a fix that made *every*
+    pair collapse would pass the test above and lose the rule entirely.
+    """
+    documents = _two_consumers(
+        "oms__orders",
+        "freshness: {warn_after: 6h, error_after: 2d}\n",
+        entity_extra=DEDUPE_OK_FOR_FRESHNESS,
+    )
+    message = _message(documents)
+
+    assert "more than one freshness threshold" in message
+    # The author's own spelling, not the normalized hours: a message that said
+    # "48 hours" would name a duration neither document contains.
+    assert "error_after 2d" in message
+    assert "error_after 24h" in message
+
+
 def test_two_relations_with_different_thresholds_are_not_a_conflict() -> None:
     """The rule is per relation, not per entity.
 
