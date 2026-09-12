@@ -1284,6 +1284,7 @@ def _build_entity(
         materialization=_materialization(entity),
         partition_by=partition_specs(entity.partition_by),
         columns=columns,
+        owner=entity.owner,
         sources=tuple(_filled(source, columns) for _columns, source in built),
         audits=(),  # populated by the guardrail stage: assert: lowering + reconcile (RFC 0006)
         # Stages 3–6 (RFC 0016 §5.4): dedupe, field rules, row rules, route.
@@ -2109,6 +2110,7 @@ def _build_metrics(
                 filter=_metric_filters(metric.filter),
                 description=metric.description,
                 depends_on=tuple(sorted({*metric.requires, *metric.requires_metrics})),
+                owner=metric.owner,
             )
         )
 

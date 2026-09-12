@@ -1048,6 +1048,13 @@ def _schema_entry(entity: EntityIR, name: str, ctx: EmitContext) -> dict[str, ob
     column_tests, model_tests = _entity_tests(entity, ctx)
     entry: dict[str, object] = {"name": name}
 
+    # dbt has no first-class owner field, so `meta` is where the ecosystem puts
+    # one (RFC 0055 §5.1). Absent rather than null when nothing is declared:
+    # every project before this RFC has no owner at all, and an empty `meta` on
+    # every model would move every existing golden to say nothing new.
+    if entity.owner is not None:
+        entry["meta"] = {"owner": entity.owner}
+
     if model_tests:
         entry["data_tests"] = model_tests
 
@@ -1067,13 +1074,31 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
     snapshots: list[object] = []
 
     for entity in ir.entities:  # sorted by name on ProjectIR
-        if not entity.audits:
+        # Audits *or* metadata. The gate was audits alone, which is why a
+        # project with no quality rules has no `schema.yml` at all — and an
+        # owner declared on such an entity would have had nowhere to go
+        # (RFC 0055 §5.1; logs/T-0050.md). Adding an owner therefore makes the
+        # file appear for projects that have none today.
+        if not entity.audits and entity.owner is None:
             continue
         if entity.scd is SCDKind.TYPE2:
             snapshots.append(_schema_entry(entity, f"{entity.name}_snapshot", ctx))
         else:
             _namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
             models.append(_schema_entry(entity, relation, ctx))
+
+    # A mart's owner reaches the same document, as its own `models:` entry.
+    # In the config line instead would mean interpolating an authored string
+    # into a Jinja call — `{{ config(meta={'owner': '...'}) }}` — where a
+    # spelling D8 explicitly permits (`o'brien@example.com`) ends the call
+    # early. Here the quoting is the YAML dumper's. Marts carry no schema entry
+    # otherwise, so one appears only for a mart that declares an owner; the
+    # quality mart and rollups have no authored node and so never do.
+    models.extend(
+        {"name": ctx.naming.relation(mart.name, Layer.GOLD)[1], "meta": {"owner": mart.owner}}
+        for mart in ir.marts
+        if mart.owner is not None
+    )
 
     if not models and not snapshots:
         return None

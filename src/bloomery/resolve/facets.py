@@ -158,6 +158,7 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("MetricIR", "derived"): Facet.BODY,
     ("MetricIR", "depends_on"): Facet.INPUTS,
     ("MetricIR", "description"): Facet.METADATA,
+    ("MetricIR", "owner"): Facet.METADATA,
     # A metric the IR could not reach: what is missing, and through what.
     ("UnreachableMetric", "missing"): Facet.INPUTS,
     ("UnreachableMetric", "via"): Facet.INPUTS,
@@ -172,6 +173,7 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("MartIR", "materialization"): Facet.STORAGE,
     ("MartIR", "partition_by"): Facet.STORAGE,
     ("MartIR", "cost_hint"): Facet.STORAGE,
+    ("MartIR", "owner"): Facet.METADATA,
     # A rollup, which shares the mart's node prefix (RFC 0067 §5.1).
     ("RollupIR", "keep"): Facet.GRAIN,
     ("RollupIR", "of"): Facet.INPUTS,
@@ -212,6 +214,7 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("EntityIR", "quarantine"): Facet.QUALITY,
     ("EntityIR", "materialization"): Facet.STORAGE,
     ("EntityIR", "partition_by"): Facet.STORAGE,
+    ("EntityIR", "owner"): Facet.METADATA,
     # An entity field: the schema half.
     ("ColumnIR", "type"): Facet.UNIT,
     ("ColumnIR", "unit"): Facet.UNIT,

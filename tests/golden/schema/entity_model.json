@@ -214,6 +214,18 @@
           "default": null,
           "title": "Materialization"
         },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Owner"
+        },
         "partition_by": {
           "default": [],
           "items": {

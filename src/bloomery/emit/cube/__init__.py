@@ -149,6 +149,13 @@ def _yaml(document: dict[str, object]) -> str:
 def _metric_meta(metric: MetricIR) -> dict[str, object]:
     meta: dict[str, object] = {"additivity": metric.additivity.value}
 
+    # A metric's owner reaches Cube and nowhere else (RFC 0055 §5.1): a metric
+    # has no SQLMesh model and no dbt schema entry of its own, so a measure's
+    # `meta` is the only owner slot it has. First, because it is the one key
+    # here a person reads rather than a machine.
+    if metric.owner is not None:
+        meta["owner"] = metric.owner
+
     if metric.grain:
         # A metric with no measure of its own — a ratio, and since RFC 0034 a
         # `derived:` metric — has no grain: its components carry theirs, and an
@@ -431,6 +438,12 @@ def _cube_artifact(
         "dimensions": _dimensions(mart),
         "measures": _measures(mart, ir, owners),
     }
+
+    if mart.owner is not None:
+        # Cube's own `meta`, on the cube rather than on a measure. Absent when
+        # undeclared, for the same reason the pre-aggregations key is: an empty
+        # `meta` on every cube would move every existing golden to say nothing.
+        cube["meta"] = {"owner": mart.owner}
     pre_aggregations = _pre_aggregations(mart, ir, owners)
 
     if pre_aggregations:

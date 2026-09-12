@@ -190,6 +190,15 @@ class Mart(SpecModel):
     materialization: MaterializationName | None = None
     assert_: tuple[MartAssert, ...] = Field(default=(), alias="assert")
     cost_hint: int = Field(default=1, ge=1)
+    #: Who is responsible for this, as a free string (RFC 0055 §5.1). Reaches
+    #: every target's owner slot and changes no SQL.
+    #:
+    #: **A declaration bloomery does not verify.** Nobody is paged, the name is
+    #: not checked against a directory, and an owner who has left reads exactly
+    #: like one who has not. Not validated as an email, a handle or a team name
+    #: either (D8): every project spells this differently, and a format rule
+    #: would refuse spellings that are correct for their reader.
+    owner: str | None = None
 
 
 # ....................... #

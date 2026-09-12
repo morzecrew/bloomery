@@ -824,6 +824,11 @@ class EntityIR:
     #: would emit a second model at the same path, which is the collision D28
     #: refuses everywhere else.
     produced_by: str | None = None
+    #: Who is responsible for this (RFC 0055 §5.1), carried unchanged to
+    #: whichever targets have an owner slot. A declaration bloomery never
+    #: verifies. Appended with a default so a positional construction keeps
+    #: binding what it bound before.
+    owner: str | None = None
 
 
 # ....................... #
@@ -994,6 +999,11 @@ class MetricIR:
     filter: tuple[MetricFilterIR, ...] = ()
     description: str | None = None
     depends_on: tuple[str, ...] = ()
+    #: Who is responsible for this (RFC 0055 §5.1), carried unchanged to
+    #: whichever targets have an owner slot. A declaration bloomery never
+    #: verifies. Appended with a default so a positional construction keeps
+    #: binding what it bound before.
+    owner: str | None = None
 
 
 # ....................... #
@@ -1144,6 +1154,11 @@ class MartIR:
     #: dispose of — no source identity, no reject table, no replay.
     asserts: tuple[MartAssertIR, ...] = ()
     cost_hint: int = 1
+    #: Who is responsible for this (RFC 0055 §5.1), carried unchanged to
+    #: whichever targets have an owner slot. A declaration bloomery never
+    #: verifies. Appended with a default so a positional construction keeps
+    #: binding what it bound before.
+    owner: str | None = None
 
 
 # ....................... #
@@ -1473,7 +1488,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 14
+    bloomery_ir_version: int = 15
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

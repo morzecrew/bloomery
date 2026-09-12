@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`owner:` on an entity, a mart and a metric.** A free string saying who is
+  responsible, carried to whichever metadata slot each target has: SQLMesh's
+  `MODEL (owner …)`, dbt's `meta.owner` in `models/schema.yml`, and Cube's
+  `meta.owner` on a cube or a measure. Not three slots per node — a metric has
+  no SQLMesh model and Cube emits no entities, so each annotation reaches the
+  objects that exist.
+
+  **It is a declaration bloomery does not verify.** Nobody is paged, the string
+  is not checked against a directory, and an owner who has left reads exactly
+  like one who has not. No spelling rule either: every project spells this
+  differently, and `o'brien@example.com` is emitted as a quoted SQL literal
+  rather than refused.
+
+  It does not inherit. A mart over an owned entity has no owner of its own, and
+  a metric instantiating a catalog template does not take the template's —
+  an owner nobody wrote should not look like one somebody did. A `<entity>__reject`
+  model does carry its entity's, because that is the same entity's second
+  artifact rather than a second node.
+
+  One consequence worth knowing: `models/schema.yml` was emitted only for
+  entities carrying quality rules, and now appears for any entity with an
+  owner. Nothing else about it changed.
+
 - **bloomery narrates what it is doing, and says what it noticed.** Two
   additions to the observational surface, both under the rule that compilation
   stays a pure function.

@@ -631,6 +631,7 @@ def _mart_ir(name: str, mart: Mart, state: _Flatten) -> MartIR:
         materialization=_materialization(mart),
         asserts=_mart_asserts(mart),
         cost_hint=mart.cost_hint,
+        owner=mart.owner,
     )
 
 

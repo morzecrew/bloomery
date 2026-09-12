@@ -41,6 +41,7 @@ from bloomery.emit.lower.predicates import (
     enum_literal,
     mart_column_type,
     metric_filter_sql,
+    text_literal,
 )
 from bloomery.emit.lower.quality_mart import quality_mart_select
 from bloomery.emit.lower.reconcile import (
@@ -125,6 +126,7 @@ __all__ = [
     "reject_incremental_select",
     "reject_select",
     "step_output_select",
+    "text_literal",
     "reject_when_matched",
     "replay_statements",
 ]
