@@ -447,3 +447,13 @@ def test_a_macro_body_too_deep_to_parse_is_refused_rather_than_crashing() -> Non
     deep = "(" * 400 + ":email" + ")" * 400
     with pytest.raises(StepError, match="does not parse as SQL"):
         build(CALL, registry(body=deep))
+
+
+def test_a_multi_statement_macro_body_is_refused() -> None:
+    """The body is spliced, not executed, so a trailing statement lands inside
+    the cast the column is wrapped in — `CAST(SPLIT_PART(email, '@', 2); DROP
+    TABLE x AS TEXT)` — which SQLGlot will not re-parse. It crashed the
+    emitter with a raw `ParseError` before this refusal existed."""
+    with pytest.raises(StepError, match="more than one statement") as excinfo:
+        build(CALL, registry(body="SPLIT_PART(:email, '@', 2); DROP TABLE x"))
+    assert "extract_domain@1" in str(excinfo.value)

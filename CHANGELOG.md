@@ -101,8 +101,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **An authored expression that is not SQL is refused when the document loads.**
-  A recipe's `expr:`, a metric's `expr:`, a metric template's and a derived
+- **Authored text that is not one SQL expression is refused when the document
+  loads.** A recipe's `expr:`, a metric template's, a metric's and a derived
   metric's are parsed by the loader now, so a typo is one batched
   `SpecParseError` at the authored address — `catalog:
   canonical_fields.unit_price.recipes[0].expr` — instead of a raw SQLGlot
@@ -119,6 +119,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   guarded. The stability reference states this as the second of two ways a
   `spec_version: 1` document that loaded before can stop loading, with the test
   a third case would have to pass.
+
+  Parsing is necessary and not sufficient, so a *second statement* is refused
+  too. `a; b` parses, and every one of these expressions is spliced into a
+  larger one rather than executed — the trailing statement lands inside the
+  cast the column is wrapped in, `CAST(total / qty; DROP TABLE x AS
+  DECIMAL(12, 4))`, which no parser will read back. The quality guardrail
+  already refused this for an entity's `expression` rule; it is now the rule at
+  every door.
 
   A step registry's `sql_macro` body is guarded the same way, at the point it
   is read: a registry is assembled by the caller in Python rather than authored

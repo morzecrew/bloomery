@@ -173,15 +173,36 @@ def test_the_validator_returns_the_authored_text_byte_for_byte() -> None:
     assert loaded.canonical_fields["unit_price"].recipes[0].expr == authored
 
 
-def test_a_second_statement_is_still_accepted() -> None:
-    """Deliberately unchanged, and pinned so a later reading of ``SqlText``
-    cannot quietly widen it.
+def test_a_second_statement_is_refused() -> None:
+    """Parsing is necessary and not sufficient.
 
-    ``a; b`` parses — SQLGlot returns a ``Block`` rather than raising — so it
-    was accepted before this validator existed and is accepted now. Refusing
-    it is a *new* refusal rather than a crash fix, and the one surface where a
-    trailing statement is known to be dangerous already refuses it by name
-    (``guardrails/quality.py``, on an expression rule).
+    ``a; b`` *parses* — SQLGlot returns a ``Block`` rather than raising — so an
+    earlier revision of this file pinned it as deliberately accepted, on the
+    reasoning that refusing it would be a new refusal rather than a crash fix.
+    That was wrong on its own terms. Every field here is spliced into a larger
+    expression rather than executed, so the trailing statement lands *inside*
+    the cast the column is wrapped in:
+
+        CAST(total / qty; DROP TABLE x AS DECIMAL(12, 4))
+
+    which SQLGlot will not re-parse, so it crashed the emitter with the same
+    raw ``ParseError`` this validator exists to prevent. The quality guardrail
+    reached the same refusal from the same reasoning for an expression rule
+    (RFC 0016 D95).
     """
-    loaded = load_catalog(catalog(recipe="a; b"))
-    assert loaded.canonical_fields["unit_price"].recipes[0].expr == "a; b"
+    with pytest.raises(SpecParseError) as excinfo:
+        load_catalog(catalog(recipe="total / qty; DROP TABLE x"))
+    assert "more than one statement" in str(excinfo.value)
+    assert excinfo.value.source_path == "catalog: canonical_fields.unit_price.recipes[0].expr"
+
+
+def test_a_second_statement_is_refused_on_every_field() -> None:
+    """One door per field, so each is asserted rather than assumed from the
+    shared annotation — a field that lost the annotation would pass the test
+    above and fail here."""
+    with pytest.raises(SpecParseError):
+        load_catalog(catalog(template="a; b"))
+    with pytest.raises(SpecParseError):
+        load_project({"metrics": metrics(expr="a; b")})
+    with pytest.raises(SpecParseError):
+        load_project({"metrics": metrics(derived="a; b")})

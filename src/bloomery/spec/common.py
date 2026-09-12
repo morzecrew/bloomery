@@ -20,7 +20,7 @@ from typing import Annotated, Any, Literal, cast
 import yaml
 from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
 from pydantic import ValidationError as PydanticValidationError
-from sqlglot import parse_one
+from sqlglot import exp, parse_one
 from sqlglot.errors import SqlglotError
 
 from bloomery.errors import BloomeryError, SpecParseError
@@ -159,12 +159,12 @@ def _reject_reserved_relation(name: str) -> str:
 
 
 def _parses_as_sql(expr: str) -> str:
-    """Refuse an authored expression SQLGlot cannot parse.
+    """Refuse authored text that is not one SQL expression.
 
-    Shape, like every other grammar here: whether the text *is* an expression,
-    never what it means. What it references, whether the operands share a unit
-    and whether the result is boolean-shaped are all decided downstream, by
-    stages that can see the entity.
+    Shape, like every other grammar here: whether the text *is* a single
+    expression, never what it means. What it references, whether the operands
+    share a unit and whether the result is boolean-shaped are all decided
+    downstream, by stages that can see the entity.
 
     Here rather than at the dozen ``parse_one`` calls that consume these
     strings, because one authored field feeds several of them — a recipe's
@@ -189,16 +189,36 @@ def _parses_as_sql(expr: str) -> str:
     crash the compile boundary" true rather than nearly true. Safe to catch:
     the frames have unwound by the time the handler runs, and the only call
     inside the ``try`` is the parse itself.
+
+    Parsing is necessary and not sufficient: ``a; b`` *parses*, as a
+    :class:`~sqlglot.expressions.Block`, and every field here is spliced into
+    a larger expression rather than executed. The trailing statement therefore
+    lands **inside** the cast the column is wrapped in — ``CAST(total / qty;
+    DROP TABLE x AS DECIMAL(12, 4))`` — which is not merely wrong output but
+    text SQLGlot itself will not re-parse, so it crashed the emitter with the
+    same raw ``ParseError`` this validator exists to prevent (PR #111 review).
+    The quality guardrail reached the same refusal from the same reasoning for
+    an expression rule (RFC 0016 D95); this is that rule at the door the other
+    four fields come through.
     """
 
     try:
-        parse_one(expr)
+        parsed = parse_one(expr)
     except (SqlglotError, RecursionError) as exc:
         msg = (
             f"not parseable SQL: {exc!s:.120}. Bloomery parses authored expressions at "
             "load, so this is refused here rather than by an engine reading the artifact"
         )
         raise ValueError(msg) from None
+
+    if isinstance(parsed, exp.Block):
+        msg = (
+            "more than one statement, and an expression is spliced into a larger one "
+            "rather than executed — the trailing statement lands inside the cast the "
+            "column is wrapped in, which does not parse at all. Fix: write a single "
+            "expression"
+        )
+        raise ValueError(msg)
 
     return expr
 

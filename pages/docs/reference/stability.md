@@ -129,12 +129,18 @@ Value error, '_source' is a reserved name (RFC 0024 D7: the generated union-merg
 provenance column); pick a different field/metric/dimension-role name
 ```
 
-**An expression that is not SQL.** A recipe body, a metric expression and a derived
-metric's formula are parsed when the document loads. Before, they were parsed wherever
+**Text that is not one SQL expression.** All four authored expressions — a recipe body, a
+metric template's, a metric's, and a derived metric's formula — are parsed when the
+document loads, and each must be a *single* expression. Before, they were parsed wherever
 they were first *used*, so an expression nothing reached — a recipe no mapping chooses, a
 template no metric instantiates, a metric whose canonical fields no mapping supplies — was
 never parsed at all, and a project carrying one compiled. It stopped compiling on the day
 something reached it, and it did so by crashing rather than refusing.
+
+Single, because an expression is spliced into a larger one rather than executed. `a; b`
+parses perfectly well and then lands its second statement *inside* the cast the column is
+wrapped in — `CAST(total / qty; DROP TABLE x AS DECIMAL(12, 4))` — which is not merely
+wrong output but text no parser will read back.
 
 ```
 Value error, not parseable SQL: Error tokenizing 'SELECT 'ab'. Bloomery parses

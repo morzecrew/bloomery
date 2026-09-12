@@ -711,6 +711,21 @@ def _macro_parts(
         )
         raise StepError(msg, source_path=source_path) from None
 
+    # Parsing is necessary and not sufficient. `a; b` parses, as a `Block`, and
+    # a macro body is *spliced* rather than executed — so the trailing
+    # statement lands inside the cast the column is wrapped in,
+    # `CAST(SPLIT_PART(email, '@', 2); DROP TABLE x AS TEXT)`, which SQLGlot
+    # will not re-parse. Same reasoning as `spec.common`'s door and as the
+    # quality guardrail's on an expression rule (RFC 0016 D95).
+    if isinstance(parsed, exp.Block):
+        msg = (
+            f"field references step {use!r}, whose registered macro body is more than one "
+            "statement. The body is spliced into the consuming column (RFC 0017 §5.1) "
+            "rather than executed, so the trailing statement lands inside the cast the "
+            "column is wrapped in and the artifact does not parse at all"
+        )
+        raise StepError(msg, source_path=source_path)
+
     _refuse_body_disagreement(use, manifest, parsed, source_path=source_path)
 
     return manifest, parsed
