@@ -2231,6 +2231,41 @@ def test_a_facet_value_with_a_newline_stays_one_row() -> None:
     assert "grain  grain  order                           ->  order_item" in printed
 
 
+def test_every_line_the_timeline_renders_is_one_line() -> None:
+    """The heading and the boundary line are built outside `_table`, so
+    flattening the cells did not cover them.
+
+    Not hypothetical for the labels: a directory name may contain a newline
+    and the command passes the path through verbatim (D1), so
+    `bloomery timeline $'q1\nq2' …` reaches this. `matched_by` is deliberately
+    not flattened — it is a two-member enum, and a guard against a value the
+    type cannot hold is a guard nothing can reach.
+    """
+    walk = bloomery.Timeline(
+        node="metric.a\nmetric.b",
+        entries=(
+            bloomery.TimelineEntry(label="q1\nq2", present=True),
+            bloomery.TimelineEntry(label="q3", present=True),
+        ),
+        changes=(
+            bloomery.TimelineChange(
+                node="order.x\ny",
+                before="q1\nq2",
+                after="q3",
+                matched_by=bloomery.MatchedBy.NAME,
+                facets=(bloomery.FacetDelta(bloomery.Facet.GRAIN, "grain", "a", "b"),),
+            ),
+        ),
+    )
+
+    printed = render.render_timeline(walk)
+
+    # One heading, one blank, two entries, one blank, one boundary, one facet.
+    assert len(printed.splitlines()) == 7, printed
+    assert printed.startswith("metric.a metric.b  (2 versions, 1 change)")
+    assert "  q1 q2 -> q3  order.x y  (name)" in printed
+
+
 def test_a_table_cell_without_a_newline_is_untouched() -> None:
     """Only a cell carrying a line break is collapsed. Folding every run of
     spaces would move the bytes of callers that have no defect, and a renderer

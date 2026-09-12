@@ -562,7 +562,7 @@ def render_timeline(walk: Timeline) -> str:
         f"{versions} version{'' if versions == 1 else 's'},"
         f" {changes} change{'' if changes == 1 else 's'}"
     )
-    lines = [f"{walk.node}  ({counted})", ""]
+    lines = [f"{_one_line(walk.node)}  ({counted})", ""]
 
     lines.extend(
         _table([(entry.label, "present" if entry.present else "absent") for entry in walk.entries])
@@ -585,7 +585,18 @@ def render_timeline(walk: Timeline) -> str:
     lines.append("")
 
     for change in walk.changes:
-        lines.append(f"  {change.before} -> {change.after}  {change.node}  ({change.matched_by})")
+        # Every value here is the caller's: two labels, which are whatever
+        # the history was assembled from, and a node id. A label carrying a
+        # newline is not hypothetical — a directory name may contain one, and
+        # the command passes the path through verbatim (D1) — so the two
+        # lines this renderer builds outside `_table` flatten their parts the
+        # way a table cell does. `matched_by` is not among them: it is a
+        # two-member enum, and flattening it would be a guard against a value
+        # the type cannot hold.
+        lines.append(
+            f"  {_one_line(change.before)} -> {_one_line(change.after)}"
+            f"  {_one_line(change.node)}  ({change.matched_by})"
+        )
         lines.extend(
             _table(
                 [
