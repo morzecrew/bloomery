@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A source declares when it is stale.** A mapping can carry a `freshness:`
+  block beside the relation it reads:
+
+  ```yaml
+  freshness: {warn_after: 6h, error_after: 24h}
+  ```
+
+  which reaches dbt's `models/sources.yml` as `freshness:` and
+  `loaded_at_field:`. bloomery emits the threshold and never measures it —
+  `dbt source freshness` runs the query, as its own command in your schedule,
+  and **`dbt build` does not**. SQLMesh and Cube get nothing and refuse
+  nothing: neither models a source as an object, so there is no artifact being
+  approximated.
+
+  Durations are `quarantine.retention`'s grammar — `6h`, `24h`, `90d`, `2w` —
+  so one spelling of a duration covers the spec surface. dbt has no week
+  `period`, so `2w` is emitted as fourteen days. The `loaded_at_field` is
+  `CAST(_ingested_at AS TIMESTAMP)` rather than the bare column: RFC 0016 D21
+  requires the column to *exist* and an audit asserts it casts, so a text
+  landing column would otherwise make the check fail at run time on a project
+  that compiled clean.
+
+  Three refusals. `error_after` earlier than `warn_after`, at parse. A block on
+  a mapping whose entity declares neither `quarantine:` nor `dedupe:` — only
+  those make `_ingested_at` mandatory. And two mappings giving one bronze
+  relation *different* thresholds, naming both, because `sources.yml` holds one
+  entry per relation. Equal thresholds collapse, and a mapping that declares
+  none is making no statement rather than disagreeing.
+
+  A declared, changed or dropped threshold is an `ADDITIVE` change in `plan()`,
+  at its own `freshness:<relation>` subject, carrying no backfill and no
+  replay: it changes when a framework complains, never what a stored number
+  means.
+
 - **A renamed metric is one change, not a deletion and an addition.** Where a
   metric or step carries an [`id:`](https://morzecrew.github.io/bloomery/how-to/trace-lineage/)
   on both sides, `plan()` reports a single `RENAME` carrying the list of what
@@ -30,6 +64,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   record.
 
 ### Changed
+
+- `ProjectIR.bloomery_ir_version` is **14** (was 13): every `SourceIR` gained
+  `freshness`. Every project's fingerprint moves, including those declaring no
+  threshold — the version is part of the canonical stream, and a nested field
+  addition that did not move it would leave two compilers of different shape
+  agreeing on both the version and the fingerprint. `plan()` refuses to diff
+  across versions; recompile both sides with one compiler.
 
 - **`bloomery lineage` prints the name where a project adopted an `id:`.** The
   walk asked for as `metric.mtr_7f3a9c` now reads `metric.gross_revenue`; the
