@@ -132,9 +132,9 @@ provenance column); pick a different field/metric/dimension-role name
 **An expression that is not SQL.** A recipe body, a metric expression and a derived
 metric's formula are parsed when the document loads. Before, they were parsed wherever
 they were first *used*, so an expression nothing reached — a recipe no mapping chooses, a
-template no metric instantiates, a metric no mart makes reachable — was never parsed at
-all, and a project carrying one compiled. It stopped compiling on the day something
-reached it, and it did so by crashing rather than refusing.
+template no metric instantiates, a metric whose canonical fields no mapping supplies — was
+never parsed at all, and a project carrying one compiled. It stopped compiling on the day
+something reached it, and it did so by crashing rather than refusing.
 
 ```
 Value error, not parseable SQL: Error tokenizing 'SELECT 'ab'. Bloomery parses

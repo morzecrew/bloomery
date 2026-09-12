@@ -700,8 +700,10 @@ def _macro_parts(
     # `ParseError` for the reason `resolve.steps` gives at its own door:
     # `TokenError` is a sibling, so an unterminated string walks through a
     # narrower handler and leaves the compile boundary as a raw SQLGlot
-    # exception.
-    except SqlglotError as exc:
+    # exception. `RecursionError` for the reason `spec.common` gives: the
+    # parser recurses on nesting depth, so a deeply nested body exhausts the
+    # stack rather than raising a SQLGlot error at all.
+    except (SqlglotError, RecursionError) as exc:
         msg = (
             f"field references step {use!r}, whose registered macro body does not parse "
             f"as SQL: {exc!s:.120}. The body is spliced into the consuming column "

@@ -438,3 +438,12 @@ def test_an_unparseable_macro_body_is_a_step_error(body: str) -> None:
         build(CALL, registry(body=body))
     assert "extract_domain@1" in str(excinfo.value)
     assert excinfo.value.source_path is not None
+
+
+def test_a_macro_body_too_deep_to_parse_is_refused_rather_than_crashing() -> None:
+    """The registry door's half of the same case: SQLGlot recurses on nesting
+    depth, so a deep body raises `RecursionError` rather than any SQLGlot
+    class, and a handler catching only the latter lets it out."""
+    deep = "(" * 400 + ":email" + ")" * 400
+    with pytest.raises(StepError, match="does not parse as SQL"):
+        build(CALL, registry(body=deep))

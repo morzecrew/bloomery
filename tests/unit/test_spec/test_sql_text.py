@@ -126,6 +126,22 @@ def test_two_bad_expressions_in_one_document_are_one_batched_refusal() -> None:
     ]
 
 
+def test_an_expression_too_deep_to_parse_is_refused_rather_than_crashing() -> None:
+    """SQLGlot's parser recurses on nesting depth, so several hundred nested
+    parentheses exhaust the stack instead of raising a SQLGlot error.
+
+    Pre-existing — the same expression crashed the IR builder before this
+    validator existed, and it still crashes every other ``parse_one`` in the
+    tree. What changed is that these four fields are now parsed *here* first,
+    so this is the one place that can stop it, and a boundary that is total
+    except for one input class is not total.
+    """
+    deep = "(" * 400 + "line_total" + ")" * 400
+    with pytest.raises(SpecParseError) as excinfo:
+        load_catalog(catalog(recipe=deep))
+    assert "not parseable SQL" in str(excinfo.value)
+
+
 def test_a_parseable_expression_still_loads() -> None:
     """The control. A validator that refused everything would pass every test
     above and be caught only by the corpus — this is the assertion that says

@@ -111,14 +111,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Two consequences worth stating. The refusal does not wait for the expression
   to be *reached*, so a recipe no mapping chooses, a template no metric
-  instantiates and a metric no mart makes reachable are all parsed too — a
-  project carrying an unparseable one of those compiled before and is refused
-  now. And an unterminated string literal is refused with everything else:
-  SQLGlot raises `TokenError` there rather than `ParseError`, which is how
-  these expressions escaped the one door that was already guarded. The
-  stability reference states this as the second of two ways a `spec_version: 1`
-  document that loaded before can stop loading, with the test a third case
-  would have to pass.
+  instantiates and a metric whose canonical fields no mapping supplies are all
+  parsed too — a project carrying an unparseable one of those compiled before
+  and is refused now. And an unterminated string literal is refused with
+  everything else: SQLGlot raises `TokenError` there rather than `ParseError`,
+  which is how these expressions escaped the one door that was already
+  guarded. The stability reference states this as the second of two ways a
+  `spec_version: 1` document that loaded before can stop loading, with the test
+  a third case would have to pass.
 
   A step registry's `sql_macro` body is guarded the same way, at the point it
   is read: a registry is assembled by the caller in Python rather than authored

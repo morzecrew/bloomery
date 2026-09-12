@@ -180,11 +180,20 @@ def _parses_as_sql(expr: str) -> str:
     how these expressions reached the compile boundary as raw SQLGlot
     exceptions before this existed (`bloomery.resolve.steps` documents the
     same trap at its own door).
+
+    ``RecursionError`` beside it, because SQLGlot's parser recurses on nesting
+    depth: several hundred nested parentheses exhaust the stack instead of
+    raising. It predates this validator — the same expression crashed the IR
+    builder — but this is now the first and only place these four fields are
+    parsed, so catching it here is what makes "an authored expression cannot
+    crash the compile boundary" true rather than nearly true. Safe to catch:
+    the frames have unwound by the time the handler runs, and the only call
+    inside the ``try`` is the parse itself.
     """
 
     try:
         parse_one(expr)
-    except SqlglotError as exc:
+    except (SqlglotError, RecursionError) as exc:
         msg = (
             f"not parseable SQL: {exc!s:.120}. Bloomery parses authored expressions at "
             "load, so this is refused here rather than by an engine reading the artifact"
