@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import logging
 from typing import TYPE_CHECKING
 
 from metricflow.engine.metricflow_engine import (
@@ -71,6 +72,9 @@ __all__ = [
     "MetricFlowPlanner",
     "translate_mf_error",
 ]
+
+#: The delegation boundary (RFC 0033 §4).
+_LOG = logging.getLogger("bloomery.planner")
 
 #: Message fragments classifying ``InvalidQueryException`` — MetricFlow
 #: raises one class for many causes; the coverage precheck catches nearly
@@ -502,6 +506,16 @@ class MetricFlowPlanner:
         on the precheck's answer rather than on a second reading of the
         request here."""
         branches = coverage.resolve_branches(ir, request, naming=self._naming, policy=policy)
+        # The delegation boundary (RFC 0033 §4): one record per request, naming
+        # what was asked and how many marts it takes to answer. DEBUG for the
+        # reason the hydrator's record is — this runs per request, not per
+        # compile, and §4's INFO budget is per compile.
+        _LOG.debug(
+            "planner: %d metric(s) over %d branch(es), dialect %s",
+            len(request.metrics),
+            len(branches),
+            dialect,
+        )
 
         if len(branches) > 1:
             return self._composed(ir, request, branches, dialect=dialect, policy=policy)

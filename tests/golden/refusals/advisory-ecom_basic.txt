@@ -1,0 +1,3 @@
+inexact_division
+source: catalog: canonical_fields.unit_price.recipes.from_total.expr
+catalog recipe 'from_total' on canonical field 'unit_price' divides in its expr:, and a recipe's expression is parsed SQL carrying no exactness marker — so the division happens in binary floating point and is narrowed back to the declared decimal, on every engine rather than only on DuckDB. The narrowing bounds the error; values needing more than ~15 significant digits can still round. This is legal and the artifacts are correct. Fix, where the division must be exact: use a divide/multiply transform chain instead, which is marked and stays in exact decimal arithmetic on PostgreSQL and Trino

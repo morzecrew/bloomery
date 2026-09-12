@@ -6,6 +6,7 @@ selected dialect port under the naming policy (RFC 0008)."""
 
 from __future__ import annotations
 
+import logging
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
@@ -29,6 +30,12 @@ __all__ = [
     "Target",
     "compile_project",
 ]
+
+#: Per-target artifact counts (RFC 0033 §4). Here rather than inside each
+#: emitter: the count is the same question for every target, and asking it in
+#: one place is what keeps a new emitter narrated without its author
+#: remembering to.
+_LOG = logging.getLogger("bloomery.emit")
 
 
 class Target(StrEnum):
@@ -117,4 +124,11 @@ def compile_project(
         fx_rates=ir.fx_rates,
     )
     _check_pattern_transport(ir, context.dialect)
-    return emitter.emit(ir, context)
+    artifacts = emitter.emit(ir, context)
+    _LOG.info("emit: %d artifact(s) for target %s on dialect %s", len(artifacts), target, dialect)
+    if _LOG.isEnabledFor(logging.DEBUG):
+        # Guarded because the join walks every artifact to build a string no
+        # INFO listener will read — the one sanctioned read of logger state
+        # (D3), and the reason it is sanctioned is exactly this shape.
+        _LOG.debug("emit: %s", ", ".join(artifact.path for artifact in artifacts))
+    return artifacts

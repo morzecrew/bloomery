@@ -19,6 +19,7 @@ from bloomery.errors import BloomeryError
 
 __all__ = [
     "ERRORS_PAGE",
+    "documented_advisory_codes",
     "TAXONOMY_SMOKE_MODULE",
     "census_exempt_classes",
     "documented_error_classes",
@@ -39,6 +40,20 @@ _NEVER_RAISED = "never raised by bloomery"
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "pages" / "docs"
 ERRORS_PAGE = DOCS / "reference" / "errors.md"
+
+#: A row of the reference's advisory table: ``| `inexact_division` | … |``. A
+#: separate pattern from the class one below rather than a widening of it: the
+#: two vocabularies are documented on one page and censused separately, and a
+#: single pattern loose enough for both would let an advisory code satisfy the
+#: refusal census (and the reverse). Codes are lowercase and classes are
+#: capitalized, which is what keeps the two disjoint by construction.
+_ADVISORY_ROW = re.compile(r"^\|\s*`([a-z][a-z0-9_]+)`\s*\|", re.M)
+
+
+def documented_advisory_codes() -> set[str]:
+    """Every advisory code named by a row of the reference's advisory table."""
+    return set(_ADVISORY_ROW.findall(ERRORS_PAGE.read_text()))
+
 
 #: A row of the reference's per-class table: ``| `FanoutRisk` | guardrails | … |``.
 #: The ASCII hierarchy above it is deliberately *not* the source: it is a

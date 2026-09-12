@@ -57,7 +57,7 @@ _EXPORTS = {name: getattr(errors_mod, name) for name in errors_mod.__all__}
 #: filtered silently: the three properties below are about the *hierarchy*, and
 #: a filter nobody checks is how a new class quietly stops being covered by
 #: them (RFC 0003 D11 added the first entry).
-NOT_A_CLASS = {"guaranteed"}
+NOT_A_CLASS = {"guaranteed", "warn_deprecated"}
 
 #: Classes here that are not errors: the fix-suggestion payloads (RFC 0020
 #: §5.4, D11). They live in this module because the errors that carry them do
@@ -65,7 +65,7 @@ NOT_A_CLASS = {"guaranteed"}
 #: part of the hierarchy. Pinned by name for the same reason as
 #: :data:`NOT_A_CLASS`: the properties below are about the hierarchy, and a
 #: silent filter is how a real leaf stops being covered by them.
-NOT_AN_ERROR = {"MartCoverage", "MeasureRef"}
+NOT_AN_ERROR = {"MartCoverage", "MeasureRef", "BloomeryDeprecationWarning"}
 
 EXEMPT = NOT_A_CLASS | NOT_AN_ERROR
 
@@ -81,11 +81,24 @@ def test_every_non_class_export_is_a_declared_exemption() -> None:
 def test_every_exempt_export_is_genuinely_not_an_error() -> None:
     """The second half of the same honesty check. An error class parked in
     :data:`NOT_AN_ERROR` would skip every property below while still being
-    raised at users, which is the failure this module exists to prevent."""
-    for name in NOT_AN_ERROR:
+    raised at users, which is the failure this module exists to prevent.
+
+    ``BloomeryDeprecationWarning`` is the one exempt export that *is* a
+    ``BaseException``, and it is exempt for the opposite reason to the payload
+    types: it is deliberately **not** in the hierarchy. RFC 0033 D8 makes it a
+    ``DeprecationWarning`` so ``filterwarnings`` can target bloomery precisely,
+    and a warning that also derived from :class:`BloomeryError` would be caught
+    by every ``except BloomeryError`` in every caller — turning a notice about
+    next release into this release's failure.
+    """
+    for name in NOT_AN_ERROR - {"BloomeryDeprecationWarning"}:
         value = _EXPORTS[name]
         assert isinstance(value, type)
         assert not issubclass(value, BaseException), f"{name} is an error — remove the exemption"
+
+    warning = _EXPORTS["BloomeryDeprecationWarning"]
+    assert issubclass(warning, DeprecationWarning)
+    assert not issubclass(warning, BloomeryError)
 
 
 @pytest.mark.parametrize("cls", ALL_ERROR_CLASSES, ids=lambda cls: cls.__name__)

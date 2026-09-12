@@ -225,6 +225,70 @@ def run_with_hash_seed(seed: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+#: The third axis (RFC 0033 D3): **logging is not load-bearing**.
+#:
+#: A caller who turns DEBUG on must get the same bytes as one who listens to
+#: nothing. That is the half of "no handler, ever" a posture test cannot reach:
+#: the library could attach nothing and still, say, assemble a message by
+#: mutating the value it is describing, or take a branch on `isEnabledFor` that
+#: changed more than message assembly.
+#:
+#: Records go to **stderr** and artifacts to stdout, so the comparison is over
+#: the artifacts alone — a run whose log output landed in the stream under
+#: comparison would pass this by construction and prove nothing.
+LISTENING_SCRIPT = """
+import logging
+import pathlib
+import sys
+
+from bloomery import Target, compile_project, evaluate, load_catalog, load_project
+
+fixture_dir, listening = pathlib.Path(sys.argv[1]), sys.argv[2] == "listening"
+
+if listening:
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setLevel(logging.DEBUG)
+    logging.getLogger("bloomery").addHandler(handler)
+    logging.getLogger("bloomery").setLevel(logging.DEBUG)
+
+for name in ("minimal", "ecom_basic", "multi_source_quality"):
+    directory = fixture_dir.parent / name
+    sources = {
+        path.stem: path.read_text()
+        for path in sorted(directory.glob("*.yaml"))
+        if path.stem != "catalog"
+    }
+    catalog_path = directory / "catalog.yaml"
+    catalog = load_catalog(catalog_path.read_text()) if catalog_path.exists() else None
+    project = load_project(sources)
+    for target in (Target.SQLMESH, Target.DBT):
+        for artifact in compile_project(
+            project, target=target, dialect="duckdb", catalog=catalog
+        ):
+            print(artifact.path, artifact.kind, artifact.checksum)
+            print(artifact.content)
+    # The evidence too: advisories are a *value* (RFC 0033 D5), so they are an
+    # output like any other and must not move with the listener either.
+    evidence = evaluate(project, catalog=catalog)
+    for advisory in evidence.advisories:
+        print(advisory.code, advisory.source_path, advisory.message)
+"""
+
+
+def _run_listening(state: str, *, seed: str = "0") -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-c", LISTENING_SCRIPT, str(FIXTURE_DIR), state],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={
+            "PYTHONPATH": f"{REPO_ROOT / 'src'}:{REPO_ROOT / 'tests'}",
+            "PYTHONHASHSEED": seed,
+        },
+        cwd=REPO_ROOT,
+    )
+
+
 def _run_framework(state: str, *, seed: str = "0") -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-c", FRAMEWORK_SCRIPT, str(FIXTURE_DIR), state],
@@ -260,6 +324,37 @@ def test_output_identical_whether_or_not_the_target_framework_is_imported() -> N
     assert bare.returncode == 0, bare.stderr
     assert imported.returncode == 0, imported.stderr
     assert bare.stdout == imported.stdout
+
+
+def test_artifacts_are_identical_whether_or_not_anyone_is_listening() -> None:
+    """RFC 0033 D3, the check the RFC asks for by name.
+
+    Compile the corpus with a capturing handler at DEBUG on the `bloomery`
+    logger, and with none, and compare every artifact's bytes. Logging sits on
+    the *output* side of RFC 0003's line and must stay there.
+    """
+    silent = _run_listening("silent")
+    listening = _run_listening("listening")
+
+    assert silent.returncode == 0, silent.stderr
+    assert listening.returncode == 0, listening.stderr
+    assert silent.stdout == listening.stdout
+
+
+def test_the_listening_run_actually_listened() -> None:
+    """The control the test above needs.
+
+    Comparing two runs that both logged nothing passes trivially and says
+    nothing — which is precisely how a determinism check quietly stops
+    checking. This asserts the listening run produced records, and the silent
+    one did not.
+    """
+    silent = _run_listening("silent")
+    listening = _run_listening("listening")
+
+    assert listening.stderr.strip(), "the DEBUG handler captured nothing"
+    assert "resolve:" in listening.stderr
+    assert not silent.stderr.strip()
 
 
 def test_the_quality_fixtures_are_identical_across_hash_seeds() -> None:

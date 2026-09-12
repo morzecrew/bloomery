@@ -60,6 +60,7 @@ from support.compiling import load_fixture
 from support.docs_claims import (
     TAXONOMY_SMOKE_MODULE,
     census_exempt_classes,
+    documented_advisory_codes,
     documented_error_classes,
     exported_error_classes,
 )
@@ -554,3 +555,43 @@ def test_the_documented_target_boundary_names_every_shipped_target() -> None:
     missing = sorted(target.value for target in Target if target.value.lower() not in boundary)
 
     assert missing == [], f"targets shipped but absent from the boundary statement: {missing}"
+
+
+# ....................... #
+# The advisory vocabulary (RFC 0033 §8)
+#
+# The same closed-vocabulary discipline the refusal census applies, on the
+# other channel. Both directions, because each catches a different mistake: a
+# code with no row is a finding a reader meets with no way to look it up, and a
+# row with no code is a page promising something bloomery cannot produce.
+
+
+def test_every_advisory_code_is_documented() -> None:
+    """A code a caller can branch on and cannot look up."""
+    from bloomery import AdvisoryCode
+
+    undocumented = {code.value for code in AdvisoryCode} - documented_advisory_codes()
+
+    assert not undocumented, f"errors.md documents no row for {sorted(undocumented)}"
+
+
+def test_every_documented_advisory_code_exists() -> None:
+    """The mirror, and the one the refusal census had to be built to catch: a
+    documented code nothing can produce is either a row to delete or a
+    vocabulary to grow, and both are edits someone has to make deliberately."""
+    from bloomery import AdvisoryCode
+
+    known = {code.value for code in AdvisoryCode}
+    invented = documented_advisory_codes() - known
+
+    assert not invented, f"errors.md documents codes that do not exist: {sorted(invented)}"
+
+
+def test_the_advisory_table_and_the_class_table_stay_disjoint() -> None:
+    """Two vocabularies on one page, read by two patterns.
+
+    A pattern loose enough to match both would let an advisory code satisfy the
+    *refusal* census — the gate would go green because a different channel had
+    grown an entry.
+    """
+    assert not documented_advisory_codes() & documented_error_classes()

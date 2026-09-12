@@ -593,6 +593,16 @@ ignore = [
 "datetime.datetime.utcnow".msg = "no ambient clock under src/bloomery (RFC 0003 §5.5)"
 "uuid.uuid1".msg = "no ambient ids under src/bloomery (RFC 0003 §5.5)"
 "uuid.uuid4".msg = "no ambient ids under src/bloomery (RFC 0003 §5.5)"
+# Logging is telemetry, never configuration (RFC 0033 D1). The library attaches
+# one `NullHandler` in `bloomery/__init__.py` and nothing else: `basicConfig`
+# installs a root handler and a format on the *application's* behalf, and
+# `logging.config` does the same from a file — both decided for every embedder
+# in the process by whichever library imported first. Per member rather than a
+# module ban, because `logging` itself is exactly what this RFC asks modules to
+# import.
+"logging.basicConfig".msg = "logging is telemetry, not configuration — the caller owns handlers and format (RFC 0033 D1)"
+"logging.config".msg = "logging is telemetry, not configuration — the caller owns handlers and format (RFC 0033 D1)"
+"logging.disable".msg = "logging is telemetry, not configuration — the caller owns handlers and format (RFC 0033 D1)"
 
 [[tool.importlinter.contracts]]
 # RFC 0019 D4, contract 2 — as layers rather than independence, which is what

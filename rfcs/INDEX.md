@@ -80,7 +80,7 @@ know it has a companion recording where it turned out to be wrong.
 
 | # | Title | Status | One-line routing description |
 |---|---|---|---|
-| [0033](0033-observability-logging-and-a-warnings-channel.md) | Observability: logging and a warnings channel | 📝 Draft | Stage-level stdlib logging that stays silent by default and cannot touch artifact bytes, a typed compile-time advisory channel riding `SpecEvidence`, and `warnings` reserved for deprecation alone. |
+| [0033](0033-observability-logging-and-a-warnings-channel.md) | Observability: logging and a warnings channel | 🚧 In progress | Stage-level stdlib logging that stays silent by default and cannot touch artifact bytes, a typed compile-time advisory channel riding `SpecEvidence`, and `warnings` reserved for deprecation alone. |
 | [0037](0037-semantic-grain-model.md) | Semantic grain model and functional dependencies | ✅ Complete | Grain as structural identity rather than a name, with functional dependencies carrying their basis, so rollup safety is proven instead of inferred from string equality. Root of the semantic sequence. |
 | [0039](0039-semantic-proof-ir.md) | Semantic proof IR and closed-world checking | 🚧 In progress | Acceptance as a positive derivation rather than the absence of a violation, with provenance on every leaf: unknown is not safe, and capability grows by adding proof rules. |
 | [0042](0042-semantic-bug-corpus.md) | Production-style semantic bug corpus | 🚧 In progress | Cases where the SQL is valid, every cast succeeds and the number is wrong anyway — the opposite question to the dirty corpus. Startable immediately; the acceptance evidence for the rest. |

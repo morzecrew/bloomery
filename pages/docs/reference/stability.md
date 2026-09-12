@@ -51,6 +51,43 @@ One name is public because *generated code* imports it. Step wrappers that bloom
 into your repository contain `from bloomery.steps import assert_step_contract`, so that
 path is a promise like any other.
 
+### Logger names
+
+bloomery emits records under a `bloomery` logger hierarchy, and **the names are the
+promise** — not the messages, which are prose and improve between releases. Nothing
+should ever branch on the text of a record.
+
+| Logger | What it narrates |
+|---|---|
+| `bloomery` | The root. Configure here to catch everything |
+| `bloomery.spec` | Document parsing |
+| `bloomery.resolve` | The resolution walk, and the stages that follow it into an IR |
+| `bloomery.guardrails` | The guardrail stage |
+| `bloomery.emit` | Per-target artifact counts |
+| `bloomery.runtime` | Manifest hydration |
+| `bloomery.planner` | The request-time delegation boundary |
+
+The library attaches a `NullHandler` to `bloomery` and does nothing else: no handler of
+its own, no format, and no level. That last one is deliberate and it is what makes tuning
+work — a logger the library pinned to a level would ignore yours:
+
+```python
+import logging
+
+logging.getLogger("bloomery").setLevel(logging.INFO)
+logging.getLogger("bloomery").addHandler(logging.StreamHandler())
+```
+
+`INFO` is one record per stage per compile — bounded, and safe to leave on. `DEBUG` adds
+per-artifact and per-request detail and is unbounded. There is **no `WARNING`**: findings
+about your spec are [advisories](errors.md#advisories-are-not-errors), carried on the
+value `evaluate()` returns, because a finding that was only logged is one a caller who
+configured no handler never received.
+
+Records carry no timestamp of bloomery's making. Compilation reads no clock (it is a pure
+function of your specs), so a record is timestamped only if the handler *you* installed
+adds one — and artifacts are byte-identical whether anyone is listening or not.
+
 ## Spec YAML
 
 Every spec document declares its version, and the key also says which kind of document it
@@ -218,6 +255,20 @@ Two channels, and a removal below 1.0 uses both:
    before it lands. A spelling that *cannot* keep working — a semantic fix, a removed
    guarantee — skips the warning and relies on the changelog, which is why the
    changelog is the channel that is always there.
+
+The warning's category is `BloomeryDeprecationWarning`, a `DeprecationWarning` exported
+from `bloomery.errors`, so you can target bloomery precisely without silencing your other
+dependencies:
+
+```python
+warnings.filterwarnings("error", category=bloomery.errors.BloomeryDeprecationWarning)
+```
+
+bloomery emits each spelling's warning **best-effort once per process**. That is the whole
+contract: the guard is unsynchronized, so two threads reaching a spelling's first use at
+the same moment may each emit, and no guard here can show a warning your own `ignore`
+filter hides. If you need a hard once, your filter configuration is what gives it to you —
+it deduplicates delivery regardless of how often bloomery emits.
 
 Nothing in the current release is deprecated; this section is the mechanism, recorded
 before it is needed rather than invented mid-removal.

@@ -12,6 +12,7 @@ into one :class:`~bloomery.errors.SpecParseError` (RFC 0002 D6).
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping as AbcMapping
 from dataclasses import dataclass
 
@@ -32,6 +33,12 @@ __all__ = [
     "load_catalog",
     "load_project",
 ]
+
+#: Document parsing (RFC 0033 §4). One record after the batch resolves, not one
+#: per document: §4's INFO budget is "one record per stage per compile", and a
+#: project with sixty mapping documents would otherwise make the level unusable
+#: in the production it is meant to be safe in.
+_LOG = logging.getLogger("bloomery.spec")
 
 _KIND_KEYS: dict[str, type[SpecModel]] = {
     "spec_version": EntityModel,
@@ -205,6 +212,8 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
         if len(flat) == 1:
             raise flat[0]
         raise SpecParseError.from_collected(flat)
+
+    _LOG.info("spec: %d document(s) parsed, %d mapping(s)", len(sources), len(mappings))
 
     return Project(
         entity_model=entity_models[0][1],
