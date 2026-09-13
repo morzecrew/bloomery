@@ -136,6 +136,17 @@ class Relationship(SpecModel):
     #: (RFC 0002 D4 — shape is exactly what parse is for).
     via: dict[str, str] = PydanticField(min_length=1)
     cardinality: CardinalityName
+    #: The artifact this relationship was read out of, where it was not
+    #: authored here (RFC 0070 D7). Its **presence** is the fact: a
+    #: relationship carrying it is `IMPORTED_VERIFIED` and one without it is
+    #: `DECLARED`. A string rather than a boolean because the refusal that
+    #: reads it has to name the artifact for a reader to act on, and a boolean
+    #: would need a second key to do that.
+    #:
+    #: Written by an importer, not by hand. There is no way for the compiler
+    #: to tell the difference, and RFC 0070 §9 says so rather than implying a
+    #: check that does not exist.
+    imported_from: str | None = None
 
 
 # ....................... #

@@ -27,10 +27,11 @@ reader who knows this file assumed otherwise.
 
 from __future__ import annotations
 
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Mapping
     from collections.abc import Set as AbstractSet
 
 from bloomery.errors import InsufficientEvidence
@@ -38,6 +39,7 @@ from bloomery.semantic import (
     BASIS_PROVENANCE,
     MAX_DERIVATIONS,
     EvidenceGrade,
+    Provenance,
     closure,
     dependencies,
     grain_of,
@@ -51,10 +53,18 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 __all__ = [
+    "IMPORTED_MESSAGE",
     "MESSAGE",
+    "Step",
     "check_evidence",
     "weak_bases",
 ]
+
+#: One hop of a route, as the grade reads it: ``(basis, relationship)``, where
+#: the relationship is ``None`` for ``entity_key``. It is
+#: :attr:`~bloomery.semantic.FunctionalDependency.via` verbatim, which is what
+#: keeps this from being a second notion of "which edge".
+type Step = tuple[str, str | None]
 
 #: The refusal, as a template rather than an f-string at the raise site.
 #:
@@ -77,6 +87,19 @@ MESSAGE = (
     "{column}, or set 'requires_evidence: assumed' on this mart"
 )
 
+#: The refusal for a column reached only through an **imported**
+#: relationship, which is a different sentence and a different repair
+#: (RFC 0070 §1). :data:`MESSAGE` tells an author to declare the relationship,
+#: and here one is declared — by an importer, in a document they may not have
+#: read. Sending them to declare it again is advice they cannot act on, which
+#: is the remedy-free refusal RFC 0065 D4 forbids.
+IMPORTED_MESSAGE = (
+    "mart {mart} requires 'locked'; its measures ({measures}) rest on column "
+    "{column}, carried by {relationships} — read out of {artifacts} rather than "
+    "written here (RFC 0070 D1). Fix: author the relationship in this project and "
+    "drop its 'imported_from:', or set 'requires_evidence: assumed' on this mart"
+)
+
 #: The requirement that asks for anything. ``assumed`` is the default and
 #: accepts every grade a compiling project can produce, so a mart carrying it
 #: is not walked at all — which is what makes absence of the annotation
@@ -84,8 +107,40 @@ MESSAGE = (
 _STRICT = "locked"
 
 
-def weak_bases(routes: Iterable[AbstractSet[str]]) -> tuple[str, ...]:
+def _grade(step: Step, imported: Mapping[str, str]) -> EvidenceGrade:
+    """One step's grade: the basis table, overlaid per relationship.
+
+    :data:`~bloomery.semantic.BASIS_PROVENANCE` is keyed by basis *kind*, so on
+    its own it says the same thing about every ``many_to_one`` in a project.
+    A relationship an importer wrote was not authored here whatever its
+    cardinality, and that is the question this grade answers (RFC 0070 D1) —
+    so a step naming one grades `ASSUMED` before the table is consulted.
+
+    ``via`` is ``None`` for ``entity_key``, which traverses no relationship and
+    therefore cannot have been imported; it takes the table's answer.
+    """
+
+    basis, via = step
+
+    if via is not None and via in imported:
+        return Provenance.IMPORTED_VERIFIED.grade
+
+    return BASIS_PROVENANCE[basis].grade
+
+
+# ....................... #
+
+
+def weak_bases(
+    routes: Iterable[AbstractSet[Step]], imported: Mapping[str, str] = MappingProxyType({})
+) -> tuple[str, ...]:
     """The sub-`LOCKED` bases of a column, or empty if it is strong enough.
+
+    A route is a set of ``(basis, relationship)`` steps rather than of basis
+    names, because the grade is a property of the edge and not of the kind of
+    edge: two ``many_to_one`` hops differ when one of them was imported
+    (RFC 0070 D1). ``imported`` is the set of relationship names an artifact
+    supplied, read from the authored spec by :func:`check_evidence`.
 
     Split out because it is the whole of the rule and the corpus cannot
     exercise it: no column in any fixture is reached two ways, so a suite built
@@ -102,8 +157,7 @@ def weak_bases(routes: Iterable[AbstractSet[str]]) -> tuple[str, ...]:
     routes = list(routes)
 
     if any(
-        all(BASIS_PROVENANCE[basis].grade is EvidenceGrade.LOCKED for basis in route)
-        for route in routes
+        all(_grade(step, imported) is EvidenceGrade.LOCKED for step in route) for route in routes
     ):
         return ()
 
@@ -121,10 +175,14 @@ def weak_bases(routes: Iterable[AbstractSet[str]]) -> tuple[str, ...]:
     return tuple(
         sorted(
             {
-                basis
+                # The basis, not the relationship: the message names *how* the
+                # compiler reached the column, and a reader fixing it acts on
+                # the kind of edge. Which relationship it was is one line of
+                # `lineage` away and would double the sentence.
+                step[0]
                 for route in routes
-                for basis in route
-                if BASIS_PROVENANCE[basis].grade is not EvidenceGrade.LOCKED
+                for step in route
+                if _grade(step, imported) is not EvidenceGrade.LOCKED
             }
         )
     )
@@ -133,7 +191,9 @@ def weak_bases(routes: Iterable[AbstractSet[str]]) -> tuple[str, ...]:
 # ....................... #
 
 
-def _weak_columns(mart_name: str, draft: ProjectIR) -> list[tuple[str, str]]:
+def _weak_columns(
+    mart_name: str, draft: ProjectIR, imported: Mapping[str, str]
+) -> list[tuple[str, str, tuple[str, ...]]]:
     """Every carried column no route reaches under `LOCKED`, as ``(column,
     bases)`` pairs sorted for a message that does not move between runs.
 
@@ -159,17 +219,35 @@ def _weak_columns(mart_name: str, draft: ProjectIR) -> list[tuple[str, str]]:
         (member.ref.entity, member.ref.column): member
         for member in closure(grain_of(base.name, base.key), dependencies(draft))
     }
-    weak: list[tuple[str, str]] = []
+    weak: list[tuple[str, str, tuple[str, ...]]] = []
 
     for column in mart.columns:
         member = reached.get((column.source_entity, column.source_column))
         if member is None:
             continue
         bases = weak_bases(
-            {step.basis.value for step in derivation.steps} for derivation in member.derivations
+            (
+                {(step.basis.value, step.via) for step in derivation.steps}
+                for derivation in member.derivations
+            ),
+            imported,
         )
-        if bases:
-            weak.append((column.name, ", ".join(repr(basis) for basis in bases)))
+        if not bases:
+            continue
+
+        # Which imported relationships were on the weak routes, so the message
+        # can name them. Only those actually traversed: a project may import a
+        # relationship this column never goes through, and naming it would
+        # point the author at the wrong line.
+        names = sorted(
+            {
+                step.via
+                for derivation in member.derivations
+                for step in derivation.steps
+                if step.via is not None and step.via in imported
+            }
+        )
+        weak.append((column.name, ", ".join(repr(basis) for basis in bases), tuple(names)))
 
     return sorted(weak)
 
@@ -193,20 +271,39 @@ def check_evidence(project: Project, draft: ProjectIR) -> list[GuardrailError]:
     if project.marts is None:
         return []
 
+    # Read here rather than at the call site, beside the `requires_evidence`
+    # read this function already does: one walk of the authored spec, two
+    # facts, so a project cannot be strict about a relationship the same
+    # function decided was authored (logs/T-0053.md).
+    imported = {
+        relationship.name: relationship.imported_from
+        for relationship in project.entity_model.relationships
+        if relationship.imported_from is not None
+    }
     errors: list[GuardrailError] = []
 
     for name, mart in sorted(project.marts.marts.items()):
         if mart.requires_evidence != _STRICT:
             continue
         measures = ", ".join(repr(measure) for measure in sorted(mart.measures)) or "(none)"
-        for column, bases in _weak_columns(name, draft):
+        for column, bases, names in _weak_columns(name, draft, imported):
             # One leaf per weak column, naming the measures it carries, rather
             # than one per (measure, column) pair. The fact is about the column;
             # repeating it per measure makes a three-measure mart print the same
             # sentence three times, and a refusal a reader skims is one they
             # work around.
-            msg = MESSAGE.format(
-                mart=repr(name), measures=measures, column=repr(column), bases=bases
+            msg = (
+                IMPORTED_MESSAGE.format(
+                    mart=repr(name),
+                    measures=measures,
+                    column=repr(column),
+                    relationships=", ".join(repr(via) for via in names),
+                    artifacts=", ".join(repr(imported[via]) for via in names),
+                )
+                if names
+                else MESSAGE.format(
+                    mart=repr(name), measures=measures, column=repr(column), bases=bases
+                )
             )
             errors.append(
                 InsufficientEvidence(msg, source_path=f"marts: marts.{name}.requires_evidence")

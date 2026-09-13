@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`imported_from:` on a relationship, and the evidence grade that reads it.**
+  A relationship carrying it was read out of an external artifact rather than
+  written in this project, so it grades `ASSUMED` however ordinary its
+  cardinality — and a mart declaring `requires_evidence: locked` over a column
+  that hop carries is refused.
+
+  ```yaml
+  relationships:
+    - name: item_of_order
+      from: order_item
+      to: order
+      via: {order_id: order_id}
+      cardinality: many_to_one
+      imported_from: metricflow:semantic_manifest.json
+  ```
+
+  **This is what `requires_evidence: locked` was waiting for.** It shipped as a
+  requirement no project could fail: every way the compile path believes a
+  dependency is something an author declared or follows necessarily from one,
+  so the refusal was only ever exercised against a patched table. It is now
+  reachable from a project a person can write.
+
+  The refusal says something different from the one beside it, because the
+  repair is different — the relationship *is* declared, so "declare the
+  relationship" would send an author to write a line that already exists.
+  It names the relationship and the artifact instead.
+
+  Nothing checks that the key was machine-written: bloomery cannot tell a
+  hand-typed one from a generated one, and writing it on a relationship you
+  authored silently lowers that relationship's grade. Absence stays
+  byte-identical to today, fingerprints included — the key never enters the
+  IR.
+
 - **A currency conversion may read its input currency from a column.**
   `currency_in: {column: currency_code}` has parsed since the declaration
   landed and was refused as unbuilt; it now lowers. The rate lookup joins on
