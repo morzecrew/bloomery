@@ -96,6 +96,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0063 | As-of compile over spec history | `074a571` |
 | 0066 | Completing the semantic plan | `9ad7ac2` |
 | 0067 | Marts in the lineage graph | `0a6f9a8` |
+| 0068 | Caller-assembled spec history | `7fe697d` |
 
 ## Not in the table
 

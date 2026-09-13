@@ -11,8 +11,8 @@
   [`logs/T-0045.md`](../logs/T-0045.md) and [`logs/T-0046.md`](../logs/T-0046.md); rows 14
   and 9's neighbours were appended from them, and nothing below has been amended to agree
   with what was built. Depends on [RFC 0062](0062-stable-node-identity.md) P1 for identity;
-  assumes [RFC 0068](0068-caller-assembled-spec-history.md)'s answer to where history comes
-  from.
+  assumes RFC 0068's answer to where history comes from (that document is retired at
+  `7fe697d`).
 - **Scope:** A second walk over a project, beside lineage. `lineage()` answers "what does
   this depend on"; `timeline()` answers "how has this changed". One value type, one pure
   function, one N-ary CLI command, and a rule that bloomery never parses an instant. No
