@@ -699,10 +699,15 @@ def test_a_strict_exposure_still_reports_what_a_lax_mart_does_not() -> None:
 
 
 def test_the_exposure_requirement_moves_no_fingerprint() -> None:
-    """Row 17's hazard on the second consumer. There is no exposure IR node at
-    all, so this holds by construction rather than by care — and that is worth
-    a test precisely because the next person to want an `ExposureIR` will not
-    know this was load-bearing."""
+    """Row 17's hazard on the second consumer, and it is a live one.
+
+    `ExposureIR` exists, and `ProjectIR.exposures` **moved every fingerprint in
+    the corpus** when it was added at encoder version 13 — `ir/nodes.py` says
+    so, because `_canon_bytes` writes every dataclass field's name per
+    instance. So a `requires_evidence` field on `ExposureIR` would do it again,
+    for every project that never types the key. Keeping the key in the authored
+    document is the same deliberate choice row 17 made for the mart, not an
+    accident of there being nothing to put it on."""
 
     plain, catalog = _exposed(None, imported=False)
     strict, _ = _exposed("locked", imported=False)

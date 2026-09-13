@@ -356,10 +356,13 @@ def check_evidence(project: Project, draft: ProjectIR) -> list[GuardrailError]:
     and for every mart carrying a metric it names (§5.2).
 
     Over the **authored** documents for the requirement and the draft for the
-    facts: the key is a spec assertion and never enters :class:`MartIR` or any
-    exposure IR — there is none — since ``project_fingerprint`` walks that tree
-    and a field there would move every fingerprint in the corpus for projects
-    that never type the key (D3, row 17).
+    facts: the key is a spec assertion and never enters :class:`MartIR` or
+    :class:`ExposureIR`, since ``project_fingerprint`` walks that tree and a
+    field there would move every fingerprint in the corpus for projects that
+    never type the key (D3, row 17). That is measured rather than assumed for
+    the exposure: adding ``exposures`` to :class:`ProjectIR` moved every
+    fingerprint when it landed, because the encoder writes each field's *name*
+    per instance.
 
     Every violation is collected rather than the first, so a project sees the
     whole of what its requirement costs in one run — a requirement met one
