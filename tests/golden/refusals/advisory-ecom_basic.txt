@@ -1,3 +1,7 @@
 inexact_division
 source: catalog: canonical_fields.unit_price.recipes.from_total.expr
 catalog recipe 'from_total' on canonical field 'unit_price' divides in its expr:, and a recipe's expression is parsed SQL carrying no exactness marker — so the division happens in binary floating point and is narrowed back to the declared decimal, on every engine rather than only on DuckDB. The narrowing bounds the error; values needing more than ~15 significant digits can still round. This is legal and the artifacts are correct. Fix, where the division must be exact: use a divide/multiply transform chain instead, which is marked and stays in exact decimal arithmetic on PostgreSQL and Trino
+
+undeclared_audience
+source: marts: marts.order_items
+mart 'order_items' publishes column 'order_customer_id', which is order.customer_id classified pii, and no grants: block says who may read it — on the mart, on the entity, or on either. bloomery has no opinion about the audience, so whatever your warehouse already grants stands. This is legal and the artifacts are correct. Fix, if the audience should be bloomery's to state: declare grants: on both, and the guardrail will then refuse a widening

@@ -25,6 +25,7 @@ from bloomery.errors import GuardrailError, guaranteed
 from bloomery.guardrails.additivity import check_additivity
 from bloomery.guardrails.arithmetic import check_arithmetic
 from bloomery.guardrails.asserts import lower_asserts
+from bloomery.guardrails.classification import check_classification
 from bloomery.guardrails.conflict import Shadow, path_conflict_amendments
 from bloomery.guardrails.evidence import check_evidence
 from bloomery.guardrails.exposures import check_exposure_targets
@@ -136,6 +137,10 @@ def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | N
     violations.extend(check_additivity(draft))
     violations.extend(check_metrics(draft))
     violations.extend(check_lineage_names(draft))
+    # Classification against grants (RFC 0055 D9-D11): a published relation
+    # carrying a `secret` column, or one granted wider than the entity the
+    # column came from. Reads the draft alone — both sides are in the IR.
+    violations.extend(check_classification(draft))
     # Exposure references (RFC 0056 D2, `LOCKED`), asked of the authored
     # documents rather than the draft — see the module docstring for why the
     # draft is the wrong side of the flattener to ask.

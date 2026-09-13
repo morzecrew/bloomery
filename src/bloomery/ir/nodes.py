@@ -1230,6 +1230,10 @@ class RollupIR:
     measures: tuple[str, ...]
     partition_by: tuple[PartitionSpec, ...] = ()
     materialization: Materialization = Materialization.FULL
+    #: Who may read this rollup (RFC 0055 D12), or ``None`` for an undeclared
+    #: audience. Not inherited from the parent mart: a rollup is an authored
+    #: node, and D2 refuses inheritance between those.
+    grants: GrantsIR | None = None
 
 
 # ....................... #

@@ -25,7 +25,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from bloomery.errors import UnprovableRollup
-from bloomery.ir import Materialization, RollupIR, partition_specs
+from bloomery.ir import GrantsIR, Materialization, RollupIR, partition_specs
 from bloomery.semantic import Refutation, prove_mart_rollup
 
 if TYPE_CHECKING:
@@ -230,6 +230,7 @@ def lower_rollups(mart_set: MartSet | None, draft: ProjectIR) -> RollupLowering:
                     if rollup.materialization is None
                     else Materialization(rollup.materialization)
                 ),
+                grants=GrantsIR(select=rollup.grants.select) if rollup.grants is not None else None,
             )
         )
 

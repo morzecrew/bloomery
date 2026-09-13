@@ -254,6 +254,15 @@ class RollupMart(SpecModel):
     measures: tuple[str, ...] = Field(min_length=1)
     partition_by: tuple[PartitionSpecString, ...] = ()
     materialization: MaterializationName | None = None
+    #: Who may read the relation this rollup becomes (RFC 0055 D12).
+    #:
+    #: Its own, not the parent mart's. D2's rule is that authored nodes do not
+    #: inherit, and a rollup is authored — so a rollup over a restricted mart is
+    #: **not** restricted until it says so, and one that says nothing is the
+    #: advisory of row 11 rather than a silent hole. That is the opposite of an
+    #: entity's ``<entity>__reject`` table, which does inherit, because a reject
+    #: table is generated rather than authored.
+    grants: Grants | None = None
 
     # ....................... #
 

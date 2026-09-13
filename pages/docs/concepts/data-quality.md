@@ -275,8 +275,10 @@ That refusal is also why `redact:` is not how you say "this column is sensitive"
 decides what a **reject row** keeps, and a column the entity actually publishes can never
 be listed there. Saying a published column is sensitive is
 [`classification:`](../how-to/annotate-a-spec.md#classification-what-a-column-holds), which
-is a property of the column rather than a rule about one artifact — the two compose, and
-neither is a substitute for the other.
+is a property of the column and is checked against the
+[`grants:`](../how-to/annotate-a-spec.md#grants-who-may-read-it) on the marts that publish
+it. The two never meet: redaction governs the reject row, classification governs the
+published one.
 
 !!! note "bloomery emits the replay merge; it never runs it"
 
