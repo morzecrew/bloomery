@@ -218,9 +218,14 @@ rather than of basis strings, and consults a per-relationship map built from the
 ```python
 def weak_bases(
     routes: Iterable[AbstractSet[tuple[str, str | None]]],
-    imported: AbstractSet[str],
+    imported: Mapping[str, str],
 ) -> tuple[str, ...]: ...
 ```
+
+**A mapping, not a set**, and the paragraph above is why: §1 says the refusal names the
+artifact a relationship came from, and a set of names cannot supply one — the caller would
+have to go back to the spec for it, which is the indirection the alternatives below reject
+in another form.
 
 `via` is `None` for `ENTITY_KEY`, which has no relationship and stays `DECLARED`. A step
 whose `via` is in `imported` grades `ASSUMED` whatever its basis says.
