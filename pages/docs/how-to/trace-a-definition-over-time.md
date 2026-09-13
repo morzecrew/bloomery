@@ -159,9 +159,37 @@ v3 -> v4  order_item.unit_price
 version; the answer is two hops beneath it. Reporting only the node you named would be the
 narrow answer `git log` already gives.
 
-Upstream only, never downstream. A mart that carries your metric as a measure is not part of
+The **walk** is upstream only. A mart that carries your metric as a measure is not part of
 what the metric *is*, so a change to it is not an answer to why the metric moved — ask about
 the mart.
+
+### And who is affected by it
+
+Each change also names what reads the node that moved:
+
+```text
+v3 -> v4  order_item.unit_price
+    body: expr       shop__order_lines: CAST(price AS ...) -> shop__order_lines: CAST(total / qty AS ...)
+    reaches  exposure.finance_extract, exposure.weekly_revenue_review, mart.order_items
+```
+
+That is `reaches` on each change — the exposures and marts downstream of the changed node,
+as graph node ids. It is the other half of the incident question: *what moved* is the
+facets, *who is affected* is this.
+
+Three things worth knowing about it:
+
+- **It is transitive.** `finance_extract` above declares no metric at all — it names only
+  the mart. It shows up because the walk follows the graph rather than reading each
+  exposure's `depends_on`.
+- **It is the later version's answer.** A boundary has two graphs and they disagree whenever
+  consumers were added or removed across it. `reaches` reports who reads the definition
+  **now**, which is who an incident is about; the earlier version's answer is who *used* to.
+- **A node is never its own sink.** A mart that feeds an exposure reports the exposure, not
+  itself.
+
+Note the direction: the walk covers what the node is built *from*, and `reaches` names what
+is built *on* it. Both are on the same change row, and they answer different questions.
 
 ### The facets
 

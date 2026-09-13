@@ -214,6 +214,28 @@ class TimelineChange:
     #: What changed, in RFC 0064's vocabulary (D3) — never empty, because an
     #: empty delta is not a change.
     facets: tuple[FacetDelta, ...] = ()
+    #: The exposures and marts this change reaches, as graph node ids
+    #: (``exposure.weekly_revenue_review``, ``mart.order_items``), sorted
+    #: (RFC 0064 §5.3 — "the exposures and marts downstream, from RFC 0056").
+    #:
+    #: **From the *after* side of the boundary.** A boundary has two graphs and
+    #: they can disagree — a change that adds a metric to a mart moves what
+    #: that metric reaches across the very boundary being reported. The sink
+    #: list answers "who is affected by this", and the parties affected are the
+    #: ones reading the definition now; the before-graph answers who *was*
+    #: reading the old one, which is not the question an incident asks
+    #: (`logs/T-0055.md`).
+    #:
+    #: Node ids rather than a record, because the kind is already in the
+    #: prefix — :func:`~bloomery.resolve.graph.exposure_node` and its mart
+    #: sibling put it there — so a caller filtering by kind reads the string it
+    #: already has, and no type enters the root namespace under the
+    #: signature-closure rule.
+    #:
+    #: The changed node is never its own sink: :func:`~bloomery.lineage` puts
+    #: the root at depth 0 and it is dropped here, so a mart that feeds an
+    #: exposure reports the exposure and not itself.
+    reaches: tuple[str, ...] = ()
 
 
 # ....................... #
@@ -525,12 +547,48 @@ _PREFIX_BY_KIND: Final[dict[NodeKind, str]] = {
 }
 
 
+#: What counts as a sink (RFC 0064 §5.3). Both, not exposures alone: a mart is
+#: a relation somebody's dashboard or query reads whether or not an exposure
+#: declares it, and RFC 0067 put marts in the graph precisely so a walk could
+#: reach them. A mart on the root's own upstream closure is reported here too
+#: — it is genuinely downstream of the node that changed, and which side of
+#: the root a node sits on is not a fact about who is affected.
+_SINK_KINDS: Final[frozenset[NodeKind]] = frozenset({NodeKind.EXPOSURE, NodeKind.MART})
+
+
 def _node_id(kind: NodeKind, spelling: str) -> str:
     """A node id from its kind and spelling — :func:`_kind_and_spelling`
     backwards."""
 
     prefix = _PREFIX_BY_KIND.get(kind)
     return spelling if prefix is None else f"{prefix}.{spelling}"
+
+
+# ....................... #
+
+
+def _sinks(graph: Graph, kind: NodeKind, spelling: str) -> tuple[str, ...]:
+    """The exposures and marts a node feeds, in the version it changed into.
+
+    ``spelling`` is the graph's spelling — the adopted id where the node has
+    one — because that is what the graph's nodes are named with, and a walk
+    rooted at a name the graph does not use finds nothing and reports it as
+    "reaches nobody" rather than as an error.
+
+    A node absent from this graph returns empty for the same reason
+    :func:`~bloomery.lineage` does: a root need not be a member, and an absence
+    is an answer.
+    """
+
+    root = Node(kind=kind, name=_node_id(kind, spelling))
+
+    return tuple(
+        sorted(
+            one.name
+            for one in lineage(graph, root, Direction.DOWNSTREAM).nodes
+            if one.kind in _SINK_KINDS and one != root
+        )
+    )
 
 
 # ....................... #
@@ -543,6 +601,7 @@ def _advance(
     version: SpecVersion,
     ir: ProjectIR,
     index: int,
+    graph: Graph,
 ) -> tuple[dict[tuple[NodeKind, str], _Held], list[TimelineChange]]:
     """One version's closure, matched against the last one's.
 
@@ -612,6 +671,10 @@ def _advance(
                         after=version.label,
                         matched_by=matched_by,
                         facets=moved,
+                        # The graph's spelling, not `name`: `node` above is the
+                        # readable one and the graph is keyed by whichever id
+                        # the node has adopted.
+                        reaches=_sinks(graph, kind, ids.get(kind, {}).get(name, name)),
                     )
                 )
 
@@ -715,7 +778,7 @@ def timeline(history: Iterable[SpecVersion], node: str) -> Timeline:
         root = Node(kind=kind, name=_node_id(kind, kind_ids.get(name, name)))
         scope = _scope(lineage(graph, root, Direction.UPSTREAM).nodes)
 
-        held, boundary = _advance(held, scope, ids, version, ir, index)
+        held, boundary = _advance(held, scope, ids, version, ir, index, graph)
         changes.extend(boundary)
         root_key = (kind, name)
 

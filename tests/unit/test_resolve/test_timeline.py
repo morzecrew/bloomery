@@ -988,3 +988,129 @@ def test_a_change_is_named_for_the_node_a_reader_knows() -> None:
     assert attributed(timeline(history, "metric.mtr_7f3a9c")) == (
         ("a", "b", "metric.gross_revenue", ("additivity:agg",)),
     )
+
+
+# ....................... #
+# The exposure sinks (RFC 0064 P3, §5.3)
+
+
+def _moved_template() -> str:
+    """The catalog with `gross_revenue`'s expression reordered — a `body` move
+    that changes no meaning, so the test is about the sinks and not about
+    whether a guardrail lets the edit through."""
+
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    moved = text.replace('expr: "unit_price * quantity"', 'expr: "quantity * unit_price"', 1)
+    assert moved != text, "the catalog no longer spells the expression this test edits"
+    return moved
+
+
+def test_a_change_names_the_exposures_and_marts_it_reaches() -> None:
+    """§5.3's deliverable. A metric's definition moves, and the change carries
+    the consumers that read it — both exposures and the mart between them.
+
+    `finance_extract` is the one that matters: it names no metric at all, only
+    the mart, so it is reached **transitively**. An implementation walking one
+    hop, or walking the exposure's own `depends_on` instead of the graph, finds
+    `weekly_revenue_review` and stops.
+    """
+
+    project = load_project(fixture_sources("ecom_basic"))
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    history = [
+        SpecVersion(label="mar", project=project, catalog=load_catalog(text)),
+        SpecVersion(label="apr", project=project, catalog=load_catalog(_moved_template())),
+    ]
+
+    (change,) = timeline(history, "metric.gross_revenue").changes
+
+    assert change.node == "metric.gross_revenue"
+    assert change.reaches == (
+        "exposure.finance_extract",
+        "exposure.weekly_revenue_review",
+        "mart.order_items",
+    )
+
+
+def test_the_sinks_come_from_the_version_the_change_lands_in() -> None:
+    """A boundary has two graphs and they can disagree; the sinks are the
+    later one's.
+
+    `v1` carries one exposure on the mart and `v2` adds a second, so the two
+    graphs answer differently about who reads that mart — and the mart's own
+    definition moves across the same boundary, which is what produces a change
+    to hang the question on. Reporting the *before* side would name one
+    consumer; a reader asking "who is affected by this" wants the parties
+    reading the definition now (`logs/T-0055.md`).
+    """
+
+    sources = fixture_sources("ecom_basic")
+    _, catalog = load_fixture("ecom_basic")
+    earlier = dict(sources)
+    earlier["exposures"] = sources["exposures"].split("  finance_extract:")[0]
+    later = dict(sources)
+    later["marts"] = sources["marts"].replace("cost_hint: 2", "cost_hint: 3", 1)
+
+    assert "finance_extract" not in earlier["exposures"], "the fixture stopped having two"
+    assert later["marts"] != sources["marts"], "the fixture stopped spelling cost_hint: 2"
+
+    history = [
+        SpecVersion(label="v1", project=load_project(earlier), catalog=catalog),
+        SpecVersion(label="v2", project=load_project(later), catalog=catalog),
+    ]
+
+    (change,) = timeline(history, "mart.order_items").changes
+
+    assert "exposure.finance_extract" in change.reaches
+    # …and the before-graph genuinely says otherwise, so this is a choice the
+    # test can see rather than a coincidence of the fixture.
+    assert "finance_extract" not in earlier["exposures"]
+
+
+def test_a_change_reaching_no_consumer_names_none() -> None:
+    """The negative, on a project that declares neither a mart nor an exposure.
+
+    `sources()` builds exactly that — a metric over a mapping and nothing that
+    reads it — so a change to the metric reaches nobody and the field is the
+    empty tuple. The assertion is paired with a populated one below it, because
+    "empty" also describes a walk that never looked.
+    """
+
+    walk = timeline([version("a"), version("b", agg="max")], "metric.gross_revenue")
+
+    (change,) = walk.changes
+    assert change.facets, "the fixture stopped producing a change to ask about"
+    assert change.reaches == ()
+
+    # The same question asked of a project that *does* declare consumers, so
+    # the emptiness above is the graph's answer and not a walk that no-ops.
+    project = load_project(fixture_sources("ecom_basic"))
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    populated = timeline(
+        [
+            SpecVersion(label="mar", project=project, catalog=load_catalog(text)),
+            SpecVersion(label="apr", project=project, catalog=load_catalog(_moved_template())),
+        ],
+        "metric.gross_revenue",
+    )
+    assert all(one.reaches for one in populated.changes)
+
+
+def test_a_changed_mart_is_not_its_own_sink() -> None:
+    """`lineage` puts the root at depth 0, so a mart walking downstream finds
+    itself first. It is not a consumer of its own change."""
+
+    sources = fixture_sources("ecom_basic")
+    _, catalog = load_fixture("ecom_basic")
+    later = dict(sources)
+    later["marts"] = sources["marts"].replace("cost_hint: 2", "cost_hint: 3", 1)
+    history = [
+        SpecVersion(label="v1", project=load_project(sources), catalog=catalog),
+        SpecVersion(label="v2", project=load_project(later), catalog=catalog),
+    ]
+
+    (change,) = timeline(history, "mart.order_items").changes
+
+    assert change.node == "mart.order_items"
+    assert "mart.order_items" not in change.reaches
+    assert change.reaches  # it does reach the exposures, so the exclusion is not vacuous

@@ -93,10 +93,13 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0057 | Declared source freshness | `02e9117` |
 | 0058 | Rollup marts and pre-aggregations | `efba2b6` |
 | 0061 | Declared input currency for conversion | `91ec527` |
+| 0062 | Stable node identity across renames | `79658f4` |
 | 0063 | As-of compile over spec history | `074a571` |
+| 0064 | Definition supersession and change attribution | `79658f4` |
 | 0066 | Completing the semantic plan | `9ad7ac2` |
 | 0067 | Marts in the lineage graph | `0a6f9a8` |
 | 0068 | Caller-assembled spec history | `7fe697d` |
+| 0069 | Spec timeline | `79658f4` |
 
 ## Not in the table
 

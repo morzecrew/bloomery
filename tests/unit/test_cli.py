@@ -2393,3 +2393,72 @@ def _load_version(directory: str) -> tuple[bloomery.Project, bloomery.Catalog | 
         bloomery.load_project(sources),
         bloomery.load_catalog(catalog_text) if catalog_text is not None else None,
     )
+
+
+def test_the_timeline_renders_what_a_change_reaches() -> None:
+    """RFC 0064 §5.3's sinks reach the human output.
+
+    Below the facets, not above: a reader's first question is what moved and
+    the second is who it reaches, and a sink list printed first buries the
+    delta. Absent entirely when nothing is reached, rather than an empty
+    `reaches` line that reads as a walk that failed.
+    """
+
+    def _walk(reaches: tuple[str, ...]) -> bloomery.Timeline:
+        return bloomery.Timeline(
+            node="metric.x",
+            entries=(
+                bloomery.TimelineEntry(label="a", present=True),
+                bloomery.TimelineEntry(label="b", present=True),
+            ),
+            changes=(
+                bloomery.TimelineChange(
+                    node="metric.x",
+                    before="a",
+                    after="b",
+                    matched_by=bloomery.MatchedBy.NAME,
+                    facets=(bloomery.FacetDelta(bloomery.Facet.GRAIN, "grain", "order", "item"),),
+                    reaches=reaches,
+                ),
+            ),
+        )
+
+    printed = render.render_timeline(_walk(("exposure.board", "mart.orders")))
+    lines = printed.splitlines()
+
+    assert "      reaches  exposure.board, mart.orders" in lines
+    # After the facet row, which is the ordering claim.
+    assert lines.index("      reaches  exposure.board, mart.orders") > next(
+        i for i, line in enumerate(lines) if line.strip().startswith("grain")
+    )
+    # And absent, not empty, when there is nothing to name.
+    assert "reaches" not in render.render_timeline(_walk(()))
+
+
+def test_a_reached_node_id_carrying_a_newline_stays_on_one_line() -> None:
+    """Every other id this renderer prints is flattened, and these arrive from
+    the same graph. Asserted rather than assumed, because the sink line is
+    built outside `_table` like the two above it and would otherwise be the
+    one place a multi-line value escapes."""
+
+    walk = bloomery.Timeline(
+        node="metric.x",
+        entries=(bloomery.TimelineEntry(label="a", present=True),),
+        changes=(
+            bloomery.TimelineChange(
+                node="metric.x",
+                before="a",
+                after="b",
+                matched_by=bloomery.MatchedBy.NAME,
+                facets=(bloomery.FacetDelta(bloomery.Facet.GRAIN, "grain", "order", "item"),),
+                reaches=("exposure.two\nlines",),
+            ),
+        ),
+    )
+
+    printed = render.render_timeline(walk)
+
+    assert "\n" in printed  # it is a multi-line document
+    assert [line for line in printed.splitlines() if "reaches" in line] == [
+        "      reaches  exposure.two lines"
+    ]
