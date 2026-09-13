@@ -67,13 +67,22 @@ is easy to widen later, while an open one could never be narrowed.
 
 - **dbt** gets `meta.classification` on the column entry.
 - **Cube** gets the same, and a `pii` or `secret` column becomes a member with
-  `public: false` — off Cube's API surface, still in the relation.
+  `public: false`.
 - **SQLMesh** gets nothing. Its model carries `description`, `tags` and
   `column_descriptions`, none of which is a key-value per column, and writing a routing
   value into a field people read as prose would be worse than leaving it out.
 
-`internal` is still served by Cube on purpose. It says who *should* read a column, which
-is not something a semantic layer can enforce.
+!!! note "`public: false` hides a column; it does not protect one"
+
+    Measured against Cube v1.7.18: the member still appears in `/meta`, carrying
+    `public: false` and `isVisible: false`, and **a client that names it in a query still
+    gets an answer**. It is a visibility hint — Cube's own UIs honour it, so the column
+    stops showing up in pickers — and it is not access control. If a role must not read a
+    column, the tool is [`grants:`](#grants-who-may-read-it), or not putting the column in
+    the mart.
+
+`internal` is still marked public on purpose. It says who *should* read a column, which is
+not something a semantic layer can enforce — and, as above, neither is `pii`.
 
 A column no mart projects has no Cube surface to be taken off; its classification still
 reaches dbt.
@@ -138,7 +147,7 @@ onto it like any other.
 **Row-level access.** A grant names a role and applies to a relation. Filtering *rows* by
 who is asking is a query-time concern and is not an annotation on a spec node.
 
-**Enforcement of the other two.** No owner is paged and no classification masks a column.
-If you need a column not to reach a consumer, the tools are the ones above: a grant that
-does not include their role, or a `pii` classification that takes the column off Cube's
-API surface.
+**Enforcement of the other two.** No owner is paged and no classification masks a column —
+not even in Cube, where `public: false` hides a member without making it unqueryable. If a
+consumer must not read a column, the tool is a grant that does not include their role, or
+leaving the column out of the mart they read.

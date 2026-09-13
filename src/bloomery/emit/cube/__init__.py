@@ -176,13 +176,18 @@ def _metric_meta(metric: MetricIR) -> dict[str, object]:
 # ....................... #
 
 
-#: Classifications that take a column off Cube's API surface (RFC 0055 §5.2).
+#: Classifications that mark a Cube member `public: false` (RFC 0055 §5.2).
 #:
-#: `public: false` removes the member from what Cube serves without removing it
-#: from the relation, which is the only target-native consumer this vocabulary
-#: has. `public` and `internal` route to metadata and nothing else — an
-#: `internal` column is still queryable, because "internal" is a statement
-#: about who should read it and not a statement Cube can enforce.
+#: **What that does, measured rather than assumed.** §5.2 says it "removes it
+#: from Cube's API surface"; against Cube v1.7.18 it does not. `/meta` still
+#: lists the member, carrying `public: false` and `isVisible: false`, and a
+#: client that names it in a query still gets an answer
+#: (`tests/e2e/test_cube_meta.py`). It is a visibility hint Cube's own UIs
+#: honour — the column stops appearing in pickers — and it is not an access
+#: control. `grants:` is the annotation with a mechanism behind it.
+#:
+#: `public` and `internal` route to metadata and nothing else, which is the same
+#: amount of enforcement by a shorter road.
 _UNSERVED: Final[frozenset[str]] = frozenset({"pii", "secret"})
 
 

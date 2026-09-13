@@ -35,9 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`classification:` on a field**, from a closed vocabulary: `public`,
   `internal`, `pii`, `secret`. Closed rather than a free tag because the value
   is routed rather than only recorded — a `pii` or `secret` column becomes a
-  Cube member with `public: false`, which takes it off Cube's API surface
-  without taking it out of the relation. `internal` is deliberately still
-  served: it says who should read a column, not something Cube can enforce.
+  Cube member with `public: false`. Measured against Cube v1.7.18, that hides
+  the member from Cube's own UIs and **does not** make it unqueryable: `/meta`
+  still lists it, flagged, and a client naming it in a query still gets an
+  answer. A visibility hint, not access control; if a role must not read a
+  column, that is `grants:`. `internal` is deliberately left public — it says
+  who should read a column, which is not something Cube can enforce either.
 
   It reaches dbt as `meta.classification` on the column entry, and Cube as
   above. It reaches SQLMesh **nowhere**: SQLMesh's model carries `description`,

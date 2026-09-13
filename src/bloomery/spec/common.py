@@ -323,7 +323,8 @@ DimensionName = Annotated[
 #:
 #: An open string would be a tag that means whatever its writer meant, and the
 #: routing is the whole reason this is not a `meta:` passthrough: `pii` and
-#: `secret` decide what reaches a target's API surface. Four values, because
+#: `secret` set `public: false` on a Cube member, which is a visibility hint
+#: rather than an access control. Four values, because
 #: four is enough to route and the vocabulary is easier to widen later than to
 #: narrow — a value nobody uses costs nothing, a value someone relies on cannot
 #: be taken back.

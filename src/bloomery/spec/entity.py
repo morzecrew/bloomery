@@ -66,9 +66,10 @@ class Field(SpecModel):
     renamed_from: str | None = None
     assert_: AssertClause | None = PydanticField(default=None, alias="assert")
     #: What class of data this column holds (RFC 0055 §5.2), from a closed
-    #: vocabulary. Reaches target metadata, and on Cube removes a `pii` or
-    #: `secret` column from the API surface without removing it from the
-    #: relation.
+    #: vocabulary. Reaches target metadata, and marks a `pii` or `secret`
+    #: column `public: false` on Cube — which hides it from Cube's own UIs and
+    #: leaves it queryable by anything that names it (measured; see
+    #: `tests/e2e/test_cube_meta.py`).
     #:
     #: **A declaration bloomery does not verify.** Nothing is masked, nothing is
     #: encrypted, and a column marked `public` that is not reads exactly like
