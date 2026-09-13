@@ -98,6 +98,26 @@ def test_secret_is_refused_whatever_is_granted(
     assert any(isinstance(e, SecretPublished) for e in excinfo.value.collected)
 
 
+def test_one_column_produces_at_most_one_classification_refusal() -> None:
+    """A `secret` column whose grants *also* widen is refused once, for being
+    secret.
+
+    Both rules match here, and the second is a second answer to a settled
+    question: the author fixes the classification and the widening refusal
+    would vanish with it. Asserted because dropping the `continue` that holds
+    this passed every other test in this module — a `secret` column was still
+    refused, just twice.
+    """
+    with pytest.raises(GuardrailError) as excinfo:
+        build(classification="secret", entity_grants="analyst", mart_grants="analyst, everyone")
+
+    classification_refusals = [
+        e for e in excinfo.value.collected if isinstance(e, SecretPublished | AudienceWidened)
+    ]
+    assert len(classification_refusals) == 1
+    assert isinstance(classification_refusals[0], SecretPublished)
+
+
 # ....................... #
 # D11 — the contradiction that needs both sides to speak
 
@@ -316,3 +336,66 @@ def test_a_rollup_does_not_inherit_its_parents_grants() -> None:
     }
     assert "grants" in emitted["models/gold/mart_order_items.sql"]
     assert "grants" not in emitted["models/gold/mart_order_items_monthly.sql"]
+
+
+def test_a_column_a_measure_is_computed_from_is_covered() -> None:
+    """`MartIR.columns` is the flattened schema, not the dimension list, so a
+    column that only feeds a measure is published like any other.
+
+    Pinned because the guard's docstring claims it and the claim is easy to
+    get wrong in the other direction: a reader thinking in Cube terms would
+    expect `unit_price` — an input to `gross_revenue` — to be a measure rather
+    than a column, and would not expect it here.
+    """
+    src = dict(fixture_sources("ecom_basic"))
+    src["entity_model"] = src["entity_model"].replace(
+        '      unit_price: {type: "decimal(12,4)", canonical: unit_price}',
+        '      unit_price: {type: "decimal(12,4)", canonical: unit_price, classification: secret}',
+        1,
+    )
+    assert "classification: secret" in src["entity_model"], "the fixture's shape moved"
+
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(load_project(src), catalog())
+
+    refused = [e for e in excinfo.value.collected if isinstance(e, SecretPublished)]
+    assert any("unit_price" in str(e) for e in refused)
+
+
+def test_a_classified_column_no_relation_publishes_is_left_alone() -> None:
+    """The annotation is legal on a column that never leaves silver — that is
+    where a sensitive column is *declared*, and refusing it there would refuse
+    the vocabulary for existing."""
+    model = """\
+spec_version: 1
+entities:
+  customer:
+    grain: one row per customer
+    key: [customer_id]
+    fields:
+      customer_id: {type: string, required: true}
+      ssn: {type: string, classification: secret}
+"""
+    mapping = """\
+mapping_version: 1
+target: customer
+source: raw__customers
+key:
+  customer_id: {from: "$.id"}
+fields:
+  ssn: {from: "$.ssn"}
+"""
+    ir = build_project_ir(load_project({"entity_model": model, "mapping": mapping}))
+    assert [c.classification for c in ir.entities[0].columns if c.name == "ssn"] == ["secret"]
+
+
+def test_an_entity_granting_nobody_still_refuses_a_wider_mart() -> None:
+    """`{select: []}` on the entity is the narrowest audience there is, so any
+    role the mart grants is strictly wider. The boundary case the subset
+    comparison is most likely to get wrong, because both sides are declared and
+    one of them is empty."""
+    with pytest.raises(GuardrailError) as excinfo:
+        build(entity_grants="", mart_grants="analyst")
+
+    (refusal,) = [e for e in excinfo.value.collected if isinstance(e, AudienceWidened)]
+    assert "select to analyst" in str(refusal)
