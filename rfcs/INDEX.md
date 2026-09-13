@@ -52,7 +52,7 @@ Two consequences worth knowing:
 
 ## Allocating a number
 
-The next free number is **0071**. Before creating an RFC, read the number above — do not
+The next free number is **0074**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
 0001–0022 are retired and permanently spent. Update this section in the same change that
 mints a number.
@@ -101,6 +101,9 @@ know it has a companion recording where it turned out to be wrong.
 | [0068](0068-caller-assembled-spec-history.md) | Caller-assembled spec history | 📝 Draft | Compiling a past spec set needs no feature — the caller hands bloomery the text and the compiler has no notion of time; why there is no `--as-of`, and what ships instead. |
 | [0069](0069-spec-timeline.md) | Spec timeline | ✅ Complete | Lineage answers what a node depends on and nothing answers how it has changed; one node across N caller-supplied spec sets, with bloomery never parsing an instant. |
 | [0070](0070-mechanical-imports-and-per-relationship-provenance.md) | Mechanical imports and per-relationship provenance | 📝 Draft | Provenance is keyed by basis kind, so an imported fact reads as an authored one; an importer for external semantic manifests, and the per-relationship provenance that makes it observable. |
+| [0071](0071-fuzzing-the-compile-boundary.md) | Fuzzing the compile boundary | 📝 Draft | Only `BloomeryError` may cross the compile boundary and exit 3 must never happen; mutated-byte targets that try to falsify both, with the seeds and triage policy that make them worth running. |
+| [0072](0072-continuous-fuzzing-in-ci.md) | Continuous fuzzing in CI | 📝 Draft | Where the fuzz corpus lives between runs and on what schedule, plus the replay job checking byte-identical output across processes — the determinism claim no in-process assertion reaches. |
+| [0073](0073-generating-from-the-spec-schema.md) | Generating from the spec schema | 📝 Draft | Mutated bytes rarely survive to the guardrails; documents generated from the exported JSON Schema always do. Why that generator belongs in the property tier, not the fuzz lane. |
 
 ## Status legend
 
