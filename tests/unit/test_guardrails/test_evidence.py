@@ -438,27 +438,39 @@ def test_an_entity_key_hop_cannot_be_imported() -> None:
 
     Asked directly because no fixture can produce the case: a project cannot
     name a relationship that a key hop went through, since there is not one.
+
+    What this pins is the *outcome*, not the `is not None` test that reads as
+    its cause. That test is narrowing: `imported` is keyed by relationship
+    name, so a `None` misses whether or not it is checked first, and removing
+    it changes no answer. Said here because a sweep finds that and a reader
+    should not have to.
     """
 
-    assert guard.weak_bases([{("entity_key", None)}], frozenset({"item_of_order"})) == ()
+    assert guard.weak_bases([{("entity_key", None)}], {"item_of_order": "a.json"}) == ()
 
 
-def test_an_imported_route_is_acquitted_by_an_authored_one() -> None:
-    """A column reached two ways is as strong as its strongest route, and that
-    rule has to survive the new dimension: the authored `many_to_one` acquits
-    the column even though the imported hop reaching the same place does not.
+def test_a_single_imported_route_is_the_only_shape_that_refuses() -> None:
+    """One route through an imported relationship is weak, and **any** column
+    with two or more routes is not — including two weak ones.
 
-    The corpus cannot exercise it — no column in any fixture is reached two
-    ways — so it is asked directly, as the rest of this rule already is.
+    That second half is not the "strongest route acquits" rule. It is the cap
+    abstention: `MAX_DERIVATIONS` is 2, and the cap branch returns
+    unconditionally for a list that long, so it answers every multi-route
+    column before the acquittal test above it is consulted. Two *weak* routes
+    also returning `()` is what distinguishes the two, and it is asserted here
+    so this test cannot be read as proving a rule it does not reach
+    (`logs/T-0053.md`).
     """
 
-    imported = frozenset({"from_artifact"})
+    imported = {"from_artifact": "metricflow:semantic_manifest.json"}
     weak = {("many_to_one", "from_artifact")}
     strong = {("many_to_one", "authored")}
 
     assert guard.weak_bases([weak], imported) == ("many_to_one",)
+    assert guard.weak_bases([strong], imported) == ()
+    # Both of these are the cap, not the rule above it.
     assert guard.weak_bases([weak, strong], imported) == ()
-    assert guard.weak_bases([strong, weak], imported) == ()
+    assert guard.weak_bases([weak, weak], imported) == ()
 
 
 def test_importing_a_relationship_moves_no_fingerprint() -> None:

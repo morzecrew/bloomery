@@ -117,7 +117,11 @@ def _grade(step: Step, imported: Mapping[str, str]) -> EvidenceGrade:
     so a step naming one grades `ASSUMED` before the table is consulted.
 
     ``via`` is ``None`` for ``entity_key``, which traverses no relationship and
-    therefore cannot have been imported; it takes the table's answer.
+    therefore cannot have been imported; it takes the table's answer. The
+    ``is not None`` test is **narrowing, not a guard** — ``imported`` is keyed
+    by relationship name, so a ``None`` would miss anyway — and it is written
+    out because a reader checking whether a key hop can be imported should
+    find the answer here rather than deduce it from the key type.
     """
 
     basis, via = step
