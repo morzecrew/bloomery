@@ -297,7 +297,9 @@ def test_every_docs_page_is_in_the_nav() -> None:
     assert listed - present == set(), "listed in the nav but not on disk"
 
 
-@pytest.mark.parametrize("name", ["MESSAGE", "IMPORTED_MESSAGE"])
+@pytest.mark.parametrize(
+    "name", ["MESSAGE", "IMPORTED_MESSAGE", "EXPOSURE_MESSAGE", "EXPOSURE_IMPORTED_MESSAGE"]
+)
 def test_the_documented_evidence_refusal_quotes_the_template(name: str) -> None:
     """A documented message is a hand-copy of a string that lives in `src`, and
     nothing tied the two together.
@@ -314,11 +316,13 @@ def test_the_documented_evidence_refusal_quotes_the_template(name: str) -> None:
     because the page wraps the example to its column width, so a segment that
     is one line in the source spans two in the docs.
 
-    **Both messages, because there are two.** RFC 0070 added a second refusal
-    for a column carried by an imported relationship, the page quotes it
-    beside the first, and a guard covering one of them would have let the new
-    copy drift on day one — which is this test's own failure class, arriving
-    again through the door it was built to close.
+    **Every message, because there are four.** RFC 0070 added a second refusal
+    for a column carried by an imported relationship, and RFC 0065 P3 added the
+    exposure form of each; the page quotes all four, and a guard covering some
+    of them would have let a new copy drift on day one — which is this test's
+    own failure class, arriving again through the door it was built to close.
+    The parameter list is the enumeration, so a fifth template that the page
+    documents and this list omits is the gap to watch for.
     """
     from bloomery.guardrails import evidence  # noqa: PLC0415
 

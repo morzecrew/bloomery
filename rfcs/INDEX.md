@@ -40,13 +40,15 @@ Two consequences worth knowing:
   vocabulary — not merely citing a decision it made, but arguing from terms it defines —
   retiring it leaves them unreadable in exactly the way the point above refuses. Its
   **status line** says so — the index one-liner records what an RFC *is*, never what has
-  happened to it — and it is retired with the last of its dependants. 0037 is the one
-  today: 0039, 0042 and 0053 still reason in its grain vocabulary. 0038 and 0040 were the
+  happened to it — and it is retired with the last of its dependants. 0037 is the first:
+  0039, 0042 and 0053 still reason in its grain vocabulary. 0038 and 0040 were the
   other two and are gone, retired with 0058 — the last dependant of each, which is the
   rule working rather than an exception to it. 0062 is the second: 0064 and 0069 argue in
   its identity vocabulary. 0069 is the third: 0064's remaining phase argues in its walk's
   vocabulary, `TimelineChange` being where that document's facets live. 0044 is the
-  fourth: 0070 is the import half taken out of it, and argues from its D1–D4.
+  fourth: 0070 is the import half taken out of it, and argues from its D1–D4. 0065 is the
+  fifth, and 0070's other parent: that document argues from the grade a consumer reads and
+  from `requires_evidence`, citing its rows 16 and 17 by number.
   This is not a licence to keep a document because something cites it — prose citations are
   precisely what `RETIRED.md` exists to keep followable.
 
@@ -97,7 +99,7 @@ know it has a companion recording where it turned out to be wrong.
 | [0060](0060-replay-on-a-historical-entity.md) | Replay on a historical entity | 📝 Draft | Replay writes past the framework that owns a type 2 relation's versions, so a recovered row lands invisible; the pair is refused until a route through the framework exists. |
 | [0062](0062-stable-node-identity.md) | Stable node identity across renames | ✅ Complete | A node id minted once and never derived from the name, so a rename relabels a vertex instead of deleting one node and adding another. |
 | [0064](0064-definition-supersession.md) | Definition supersession and change attribution | 🚧 In progress | An edge between two versions of one node carrying what changed in spec vocabulary, so "why did this number move" is answered above the level of a text diff. |
-| [0065](0065-consumer-evidence-strictness.md) | Consumer-declared evidence strictness | 🚧 In progress | A minimum evidence grade a mart or exposure requires of the facts beneath it, projected from RFC 0039's provenance and refused at compile time. |
+| [0065](0065-consumer-evidence-strictness.md) | Consumer-declared evidence strictness | ✅ Complete | A minimum evidence grade a mart or exposure requires of the facts beneath it, projected from RFC 0039's provenance and refused at compile time. |
 | [0068](0068-caller-assembled-spec-history.md) | Caller-assembled spec history | 📝 Draft | Compiling a past spec set needs no feature — the caller hands bloomery the text and the compiler has no notion of time; why there is no `--as-of`, and what ships instead. |
 | [0069](0069-spec-timeline.md) | Spec timeline | ✅ Complete | Lineage answers what a node depends on and nothing answers how it has changed; one node across N caller-supplied spec sets, with bloomery never parsing an instant. |
 | [0070](0070-mechanical-imports-and-per-relationship-provenance.md) | Mechanical imports and per-relationship provenance | 📝 Draft | Provenance is keyed by basis kind, so an imported fact reads as an authored one; an importer for external semantic manifests, and the per-relationship provenance that makes it observable. |
@@ -118,6 +120,6 @@ know it has a companion recording where it turned out to be wrong.
 ✅ and ❌ are transient: a row reaching either status is retired in the same change, so a
 steady-state table holds only 📝 and 🚧 rows — **except a ✅ root of a live sequence**, which
 stays until its last dependant is retired, for the reason the retirement section above
-gives. Such a row says so in its own status line. 0037, 0062 and 0069 are the three today. Do
-not relabel either 🚧: nothing about it is in progress, and the exception is about what other
-documents still need, not about what it has left to do.
+gives. Such a row says so in its own status line. 0037, 0044, 0062, 0065 and 0069 are the
+five today. Do not relabel either 🚧: nothing about it is in progress, and the exception is
+about what other documents still need, not about what it has left to do.

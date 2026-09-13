@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`requires_evidence:` on an exposure, applied to everything it reads.** The
+  key a mart already carries, on the consumer RFC 0065 calls its truest owner:
+  a dashboard is the thing somebody signs off, and it usually reads several
+  marts none of which knows it is feeding a statutory report.
+
+  ```yaml
+  exposures:
+    exec_dashboard:
+      kind: dashboard
+      owner: finance@example.com
+      depends_on:
+        metrics: [net_revenue]
+      requires_evidence: locked
+  ```
+
+  The requirement reaches the marts named under `depends_on.marts` and **every**
+  mart carrying a metric named under `depends_on.metrics` — not the one the
+  compiler happens to emit the measure on. Which mart serves a query is chosen
+  when the query is planned, so a guarantee that held for only one of them
+  would not hold for the number on the dashboard.
+
+  The refusal names the metric that reached the mart and sends you to the
+  exposure's own key, since that is the line you would edit. A mart carrying
+  its own `requires_evidence: locked` is not reported twice: its refusal says
+  the same thing with the same repair.
+
+  Absence stays byte-identical to today, fingerprints included. The key is read
+  from the authored document and never enters `ExposureIR` — adding a field
+  there would move every fingerprint in the corpus, including for projects that
+  never type the key, which is what adding `exposures` to the IR did when it
+  first landed.
+
 - **`imported_from:` on a relationship, and the evidence grade that reads it.**
   A relationship carrying it was read out of an external artifact rather than
   written in this project, so it grades `ASSUMED` however ordinary its
