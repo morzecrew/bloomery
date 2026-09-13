@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import pytest
-from support.compiling import load_fixture
+from support.compiling import fixture_sources, load_fixture
 
 from bloomery import build_project_ir, load_project
 from bloomery import dialects as dialects_module
@@ -416,3 +416,48 @@ unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
     (entity,) = build_project_ir(load_project(documents), None).entities
     by_kind = {rule.kind: rule for rule in entity.quality}
     assert by_kind["in_enum"].params == ()
+
+
+# ....................... #
+# A conversion nullifies on purpose (RFC 0061 §10)
+
+
+def test_a_converting_column_gets_no_implicit_coercible() -> None:
+    """A rate the relation has no row for converts the amount to NULL by
+    design (RFC 0023 D11), so `coercible` — whose marker is "the output
+    vanished while the source was there" — must not read it as a failed cast
+    and quarantine the row for a coercion that did not happen.
+
+    `convert` carried no `nullifies` for as long as it existed, with the whole
+    suite green: no fixture both converted and opted in to quality, so the
+    false positive had nowhere to appear (logs/T-0052.md). Asserted through
+    the lowering rather than the registry flag, because the flag is the
+    mechanism and this is the behaviour.
+
+    `amount_src` is the opt-in and the control in one: it reads the same
+    bronze path through the same `to_decimal` and gets its `coercible`, so a
+    lowering that dropped the rule for an unrelated reason fails here.
+    """
+    from pathlib import Path
+
+    fixtures = Path(__file__).parents[2] / "fixtures" / "currency_convert_per_row"
+    sources = {
+        path.stem: path.read_text() for path in sorted(fixtures.glob("*.yaml"))
+        if path.stem != "catalog"
+    }
+    sources["mapping"] = sources["mapping"].replace(
+        '  amount_src: {from: "$.amount", transform: [{to_decimal: [12, 4]}]}',
+        '  amount_src:\n'
+        '    from: "$.amount"\n'
+        '    transform: [{to_decimal: [12, 4]}]\n'
+        "    quality: [{rule: not_null, on_fail: flag}]",
+    )
+    project = load_project(sources)
+    entity = project.entity_model.entities["payment"]
+    mapping = project.mappings[0]
+
+    assert opts_in(entity, mapping)
+    coercible = [rule.column for rule in lower_quality(entity, mapping, ()) if rule.kind == "coercible"]
+
+    assert "amount_src" in coercible
+    assert "amount_usd" not in coercible, coercible

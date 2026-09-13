@@ -10,7 +10,12 @@ from __future__ import annotations
 
 import pytest
 
-from bloomery.semantic import Conversion, DenominationRefusal, prove_conversion
+from bloomery.semantic import (
+    Conversion,
+    DenominationRefusal,
+    consequence_of,
+    prove_conversion,
+)
 from bloomery.semantic.proof import Proof, Provenance, Refutation
 
 # ----------------------- #
@@ -21,7 +26,7 @@ CHF_USD = Conversion(from_ccy="CHF", to_ccy="USD", anchor="paid_at")
 
 
 def _prove(
-    *conversions: Conversion, declared_in: str | None = "EUR", per_row: bool = False
+    *conversions: Conversion, declared_in: str | None = "EUR", per_row: str | None = None
 ) -> Proof | Refutation:
     return prove_conversion(
         conversions,
@@ -149,15 +154,78 @@ def test_a_chain_whose_middle_disagrees_is_refused_at_the_step_that_breaks() -> 
     assert "'CHF'" in answer.obligations[0].required  # not 'EUR'
 
 
-def test_a_per_row_input_is_refused_as_unbuilt_not_as_invalid() -> None:
-    """RFC 0061 D5: the vocabulary admits it and P1 does not lower it. The
-    remediation has to say which, because "invalid" sends an author to rewrite
-    a declaration that is correct."""
-    answer = _prove(EUR_USD, declared_in=None, per_row=True)
+# ....................... #
+# Per-row denomination (RFC 0061 §5.1 shape 3, P2)
+
+
+def test_a_per_row_input_closes_the_conversion_it_opens() -> None:
+    """What is declared is *which column carries the code*, not what the code
+    is — `DECLARED` either way (§5.4), because the fact under test is the
+    column's existence and that is a fact about the spec."""
+    answer = _prove(
+        Conversion(from_ccy="currency_code", to_ccy="USD", anchor="paid_at"),
+        declared_in=None,
+        per_row="currency_code",
+    )
+
+    assert isinstance(answer, Proof)
+    assert answer.rule == "R009"
+    assert answer.conclusion.render() == "Denominated(column=amount_usd, currency=USD)"
+    # By source rather than by position: `Proof` orders its leaves by source,
+    # so `convert:` sorts ahead of the `mapping:` declaration that opened them.
+    opening = next(f for f in answer.facts if f.source.startswith("mapping:"))
+    rate = next(f for f in answer.facts if f.source.startswith("convert:"))
+    assert opening.provenance is Provenance.DECLARED
+    assert "on each row" in opening.statement
+    assert "each row's own currency_code" in rate.statement
+
+
+def test_a_per_row_chain_carries_a_literal_after_its_first_hop() -> None:
+    """Only the *first* step converts out of the column; what it produces is a
+    literal, so the second hop is an ordinary code-to-code agreement and is
+    checked as one. Written as one walk for exactly this: a per-row chain whose
+    bridge disagreed would otherwise be unchecked."""
+    answer = _prove(
+        Conversion(from_ccy="currency_code", to_ccy="CHF", anchor="paid_at"),
+        CHF_USD,
+        declared_in=None,
+        per_row="currency_code",
+    )
+
+    assert isinstance(answer, Proof)
+    assert answer.conclusion.render() == "Denominated(column=amount_usd, currency=USD)"
+    assert len(answer.facts) == 3
+
+
+def test_a_per_row_chain_whose_bridge_disagrees_is_refused() -> None:
+    """The companion to the case above, so it is not passing because a per-row
+    chain stops being walked after its first step."""
+    answer = _prove(
+        Conversion(from_ccy="currency_code", to_ccy="CHF", anchor="paid_at"),
+        Conversion(from_ccy="JPY", to_ccy="USD", anchor="paid_at"),
+        declared_in=None,
+        per_row="currency_code",
+    )
 
     assert isinstance(answer, Refutation)
-    assert answer.reason == DenominationRefusal.PER_ROW_UNBUILT.value
-    assert "not yet lowered" in answer.remediation
+    assert answer.reason == DenominationRefusal.INPUT_DISAGREES.value
+    assert "'CHF'" in answer.obligations[0].required
+
+
+def test_a_per_row_first_step_naming_another_column_is_refused() -> None:
+    """`convert`'s first argument is the same checked redundancy per row as it
+    is for a literal code (D4): it names the declared column, and one that
+    names a different one is a disagreement between two authored statements."""
+    answer = _prove(
+        Conversion(from_ccy="settlement_ccy", to_ccy="USD", anchor="paid_at"),
+        declared_in=None,
+        per_row="currency_code",
+    )
+
+    assert isinstance(answer, Refutation)
+    assert answer.reason == DenominationRefusal.INPUT_DISAGREES.value
+    assert "currency column 'currency_code'" in answer.obligations[0].required
+    assert "'settlement_ccy'" in answer.obligations[0].found
 
 
 # ....................... #
@@ -171,3 +239,20 @@ def test_every_refusal_reason_carries_a_remediation(reason: DenominationRefusal)
     from bloomery.semantic.denomination import _REMEDIES
 
     assert _REMEDIES[reason].strip()
+
+
+@pytest.mark.parametrize("reason", list(DenominationRefusal))
+def test_every_refusal_reason_carries_its_own_consequence(reason: DenominationRefusal) -> None:
+    """The other half of the same obligation, and the one that was missing:
+    resolution reported one consequence for every refusal, so a disagreement
+    between two declarations was described as a conversion nothing declares —
+    which sends an author to add a third (PR #114 review).
+
+    Distinctness is asserted, not only presence: a member whose consequence is
+    copied from its neighbour is the failure this exists to catch, and a
+    non-empty string does not notice it.
+    """
+    from bloomery.semantic.denomination import _CONSEQUENCES
+
+    assert consequence_of(reason.value).strip()
+    assert sum(text == _CONSEQUENCES[reason] for text in _CONSEQUENCES.values()) == 1

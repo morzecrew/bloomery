@@ -10,10 +10,15 @@ euros, and compiled clean (logs/T-0024.md, D-155).
 
 RFC 0061 gives the input a fact — ``currency_in:`` on the mapping's field, or
 the output of the conversion before it in the same chain — and this module is
-where the two meet. :func:`prove_conversion` **decides**: `resolve.build`
-refuses on its refutation and accepts on its proof, so R009 is what an accepted
-conversion rests on rather than a label applied to an outcome computed
-elsewhere (D8, see logs/T-0025.md D-157).
+where the two meet. Phase 2 added the third shape §5.1 always admitted: the
+fact may name a *column* rather than a code, for the export that carries an
+amount and the currency it was taken in on the same row. What is declared is
+still ``DECLARED`` — which column holds the code, not what the code is.
+
+:func:`prove_conversion` **decides**: `resolve.build` refuses on its refutation
+and accepts on its proof, so R009 is what an accepted conversion rests on
+rather than a label applied to an outcome computed elsewhere (D8, see
+logs/T-0025.md D-157).
 
 The proof is not stored. Nothing reads a retained one — a conversion happens
 once at compile time and no later stage asks — and building a channel to file
@@ -44,6 +49,7 @@ if TYPE_CHECKING:
 __all__ = [
     "DenominationRefusal",
     "Conversion",
+    "consequence_of",
     "prove_conversion",
 ]
 
@@ -61,11 +67,40 @@ class DenominationRefusal(StrEnum):
     #: the two is wrong and the compiler cannot tell which, which is why it
     #: reports both rather than picking.
     INPUT_DISAGREES = "input_disagrees"
-    #: The input is a per-row column. Admitted by the vocabulary, refused
-    #: until P2 lowers the rate lookup against a column rather than a literal
-    #: (RFC 0061 D5) — *unbuilt*, which the remediation has to say, because
-    #: "invalid" would send an author to rewrite a correct declaration.
-    PER_ROW_UNBUILT = "per_row_unbuilt"
+
+
+# ....................... #
+
+
+#: Why each refusal matters, for the caller that reports it. Kept beside the
+#: remediations rather than in `resolve.build`, because a member added there
+#: and not here would take its neighbour's consequence — the message would
+#: describe a bug the author does not have, which is how "add a declaration"
+#: reached someone whose two declarations merely disagreed (PR #114 review).
+_CONSEQUENCES: Final[dict[DenominationRefusal, str]] = {
+    DenominationRefusal.UNDECLARED_INPUT: (
+        "a conversion out of a currency nothing declares reads the rate for a currency "
+        "the values may not be in, and returns a number that is wrong by whatever the "
+        "two rates differ by"
+    ),
+    DenominationRefusal.INPUT_DISAGREES: (
+        "two authored statements disagree about what this column holds, and nothing in "
+        "the spec says which is right — whichever it is, the other one picks a rate for "
+        "a currency the values are not in, and the number is wrong by whatever the two "
+        "rates differ by"
+    ),
+}
+
+
+def consequence_of(reason: str) -> str:
+    """What the refusal named by ``reason`` costs, in one clause.
+
+    Takes the wire string a :class:`~bloomery.semantic.proof.Refutation` carries
+    rather than the enum member, so the caller reporting a refutation does not
+    have to re-derive which member produced it.
+    """
+
+    return _CONSEQUENCES[DenominationRefusal(reason)]
 
 
 # ....................... #
@@ -81,10 +116,6 @@ _REMEDIES: Final[dict[DenominationRefusal, str]] = {
     DenominationRefusal.INPUT_DISAGREES: (
         "one of the two is wrong: correct convert's first argument, or correct the "
         "declaration it disagrees with"
-    ),
-    DenominationRefusal.PER_ROW_UNBUILT: (
-        "a per-row currency column is declared but not yet lowered — convert from a "
-        "literal code for now, or split the column by currency upstream"
     ),
 }
 
@@ -152,7 +183,7 @@ def prove_conversion(
     *,
     column: str,
     declared_in: str | None,
-    per_row: bool,
+    per_row: str | None,
     document: str,
 ) -> Proof | Refutation:
     """Whether this chain of conversions ends in a currency it can account for.
@@ -165,10 +196,17 @@ def prove_conversion(
     would get answers that are individually well-formed and collectively wrong.
 
     ``declared_in`` is the field's ``currency_in:`` where it names a literal
-    code, ``per_row`` says it named a column instead, and the two are exclusive
+    code and ``per_row`` is the column it names instead; the two are exclusive
     by the spec's type. Both absent means the input is undeclared, which is a
     refusal rather than a licence: an assertion nothing can check is
     indistinguishable from a fact, and that is the whole of RFC 0061 D1.
+
+    **A per-row chain is walked exactly like a literal one**, because the
+    opening fact is the only thing that differs: what a per-row declaration
+    fixes is the *name* the first step must convert out of, and every step
+    after the first converts out of a literal its predecessor produced. Written
+    as one walk rather than two so that a second hop cannot be checked in one
+    shape and not the other (logs/T-0052.md, D10).
     """
 
     if not conversions:  # pragma: no cover — the caller returns early
@@ -179,16 +217,11 @@ def prove_conversion(
     #: refutation are about, so that they describe one question.
     target = conversions[-1].to_ccy
 
-    if per_row:
-        return _refuse(
-            DenominationRefusal.PER_ROW_UNBUILT,
-            column,
-            target,
-            required=f"a rate for each row's own currency, converting to {first.to_ccy!r}",
-            found="a per-row currency column, which the rate lookup does not yet read",
-        )
-
-    if declared_in is None:
+    if per_row is not None:
+        holding = per_row
+    elif declared_in is not None:
+        holding = declared_in
+    else:
         return _refuse(
             DenominationRefusal.UNDECLARED_INPUT,
             column,
@@ -215,24 +248,40 @@ def prove_conversion(
         SemanticFact(
             source=f"mapping:{document}.{column}",
             provenance=Provenance.DECLARED,
-            statement=f"{column!r} holds {declared_in} before conversion",
+            statement=(
+                f"{column!r} holds the currency named by {holding!r} on each row, before conversion"
+                if per_row is not None
+                else f"{column!r} holds {holding} before conversion"
+            ),
         )
     ]
-    holding = declared_in
 
-    for step in conversions:
+    for index, step in enumerate(conversions):
+        # Only the *first* step of a per-row chain converts out of the column;
+        # what it produces is a literal, so every hop after it is compared the
+        # way a literal chain's is.
+        by_column = per_row is not None and index == 0
+
         if step.from_ccy != holding:
             return _refuse(
                 DenominationRefusal.INPUT_DISAGREES,
                 column,
                 target,
-                required=f"a conversion out of {holding!r}",
+                required=(
+                    f"a conversion out of the currency column {holding!r}"
+                    if by_column
+                    else f"a conversion out of {holding!r}"
+                ),
                 found=f"convert names {step.from_ccy!r} as its input currency",
                 rejected=(
                     SemanticFact(
                         source=f"mapping:{document}.{column}",
                         provenance=Provenance.DECLARED,
-                        statement=f"{column!r} holds {holding} at this point in the chain",
+                        statement=(
+                            f"{column!r} holds the currency named by {holding!r} on each row"
+                            if by_column
+                            else f"{column!r} holds {holding} at this point in the chain"
+                        ),
                     ),
                 ),
             )
@@ -244,10 +293,14 @@ def prove_conversion(
                 # readings it depends on — silently, since the surviving fact
                 # still looked right (logs/T-0025.md, D-163).
                 source=(f"convert:{document}.{column}.{step.from_ccy}-{step.to_ccy}@{step.anchor}"),
-                provenance=Provenance.DECLARED,
                 statement=(
-                    f"a declared rate converts {step.from_ccy} to {step.to_ccy} as of {step.anchor}"
+                    f"a declared rate converts each row's own {step.from_ccy} to "
+                    f"{step.to_ccy} as of {step.anchor}"
+                    if by_column
+                    else f"a declared rate converts {step.from_ccy} to {step.to_ccy} "
+                    f"as of {step.anchor}"
                 ),
+                provenance=Provenance.DECLARED,
             )
         )
         holding = step.to_ccy

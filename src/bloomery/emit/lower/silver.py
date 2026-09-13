@@ -520,15 +520,35 @@ def _lower_conversions(entity: EntityIR, ctx: EmitContext) -> EntityIR:
 
 
 def _converted(expr: Expression, fx: FxRatesIR, ctx: EmitContext) -> Expression:
-    """One column expression with every marker in it replaced."""
+    """One column expression with every marker in it replaced, **innermost
+    first**.
 
-    def rewrite(node: Expression) -> Expression:
-        if isinstance(node, exp.Anonymous) and str(node.this).upper() == CONVERT_MARKER:
-            return _rate_subquery(node, fx, ctx)
+    The order is the whole of it. A chain that bridges through a major
+    currency — `EUR -> CHF -> USD`, which is how minor pairs convert, and what
+    RFC 0061 D3 unlocked — nests one marker inside another, and
+    :func:`_rate_subquery` copies the amount it multiplies. Rewriting outside
+    in therefore detaches the inner marker into a copy that the walk has
+    already passed, and it reaches the artifact as a literal
+    ``CONVERT_CURRENCY(...)`` call no engine defines. `Expression.transform`
+    does exactly that: it prunes the subtree of any node it has just replaced,
+    so a nested marker is never offered to the rewrite at all. Rewriting
+    inside out means the outer step copies an amount that is already the inner
+    step's subquery.
+    """
 
-        return node
+    root = expr.copy()
 
-    return expr.transform(rewrite)
+    # `_markers` is pre-order, so the outermost marker comes first; reversed,
+    # the innermost is rewritten before anything copies it.
+    for marker in reversed(_markers(root)):
+        subquery = _rate_subquery(marker, fx, ctx)
+
+        if marker is root:
+            root = subquery
+        else:
+            marker.replace(subquery)
+
+    return root
 
 
 # ....................... #

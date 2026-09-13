@@ -29,7 +29,7 @@ from bloomery.errors import InvariantViolated, UnsupportedByTarget
 from bloomery.naming import DefaultNaming, PrefixNaming
 from bloomery.transforms import CONVERT_MARKER, DEFAULT_REGISTRY
 from bloomery.typing import DecimalType
-from support.compiling import load_fixture
+from support.compiling import fixture_sources, load_fixture
 from support.plan_ir import column as plan_column
 from support.plan_ir import entity as plan_entity
 
@@ -49,6 +49,7 @@ pytestmark = pytest.mark.unit
 
 REFUSED = "currency_convert_refusal"
 CONVERTS = "currency_convert"
+PER_ROW = "currency_convert_per_row"
 _FIXTURES = pathlib.Path(__file__).parents[2] / "fixtures" / CONVERTS
 
 #: Every cell that lowers a silver SELECT. Cube and MetricFlow are absent on
@@ -278,11 +279,7 @@ def test_a_convert_that_is_not_the_last_step_is_still_rewritten() -> None:
     """
     project, catalog = load_fixture(CONVERTS)
     _ = project
-    sources = {
-        path.stem: path.read_text()
-        for path in sorted(_FIXTURES.glob("*.yaml"))
-        if path.stem != "catalog"
-    }
+    sources = fixture_sources(CONVERTS)
     sources["mapping"] = sources["mapping"].replace(
         "{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}",
         "{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}, {round: 2}",
@@ -295,3 +292,89 @@ def test_a_convert_that_is_not_the_last_step_is_still_rewritten() -> None:
     assert CONVERT_MARKER not in sql
     assert "ROUND(" in sql
     assert "SELECT fx.rate" in sql
+
+
+# ....................... #
+# Per-row denomination (RFC 0061 §5.1 shape 3, P2)
+
+
+@pytest.mark.parametrize("dialect", DIALECTS)
+def test_a_per_row_input_compares_the_column_not_a_literal(dialect: str) -> None:
+    """The whole of what P2 emits. Resolution binds the currency column's own
+    lowering into the slot a literal code occupied, and this side reads
+    whatever stands there — so the from-side of the rate predicate becomes a
+    column reference and no emit code changed to allow it.
+
+    Asserted on every SQL dialect because the predicate is the thing that
+    varies: the cast the column's chain carries renders per dialect, and the
+    comparison has to survive each rendering.
+    """
+    project, catalog = load_fixture(PER_ROW)
+    artifacts = compile_project(project, target=Target.SQLMESH, dialect=dialect, catalog=catalog)
+    sql = " ".join(next(a for a in artifacts if a.path.endswith("payment.sql")).content.split())
+
+    assert "fx.from_ccy = CAST(currency AS " in sql, sql
+    # The other half of the same predicate is still a literal: a per-row input
+    # says nothing about the output, and reading both sides per row would be a
+    # rate lookup with no fixed target at all.
+    assert "fx.to_ccy = 'USD'" in sql, sql
+    assert "'currency_code'" not in sql, sql
+
+
+def test_a_per_row_bridge_hop_stays_a_literal() -> None:
+    """Only the chain's first step converts out of the column. A second hop
+    that also read the column would convert `CHF -> USD` at whatever rate the
+    row's *original* currency happened to name."""
+    _project, catalog = load_fixture(PER_ROW)
+    sources = fixture_sources(PER_ROW)
+    sources["mapping"] = sources["mapping"].replace(
+        "{convert: [currency_code, USD, paid_at]}",
+        "{convert: [currency_code, CHF, paid_at]}, {convert: [CHF, USD, paid_at]}",
+    )
+    artifacts = compile_project(
+        load_project(sources), target=Target.SQLMESH, dialect="duckdb", catalog=catalog
+    )
+    sql = " ".join(next(a for a in artifacts if a.path.endswith("payment.sql")).content.split())
+
+    assert "fx.from_ccy = CAST(currency AS TEXT)" in sql, sql
+    assert "fx.from_ccy = 'CHF'" in sql, sql
+
+
+def test_a_bridged_chain_leaves_no_marker_behind() -> None:
+    """The literal shape of the escape the per-row bridge test found, pinned
+    on its own so the fix is not held up only by a per-row case.
+
+    `EUR -> CHF -> USD` nests one marker inside another, and the rewrite ran
+    outside in: the outer step copied the inner marker into its multiplicand,
+    the walk had already passed that subtree, and a literal
+    `CONVERT_CURRENCY(...)` reached the artifact — a call no engine defines,
+    compiled clean and failing on its first run. Reproduced against `main`
+    before the fix (logs/T-0052.md).
+    """
+    sources = fixture_sources(CONVERTS)
+    sources["mapping"] = sources["mapping"].replace(
+        "{convert: [EUR, USD, paid_at]}",
+        "{convert: [EUR, CHF, paid_at]}, {convert: [CHF, USD, paid_at]}",
+    )
+    _project, catalog = load_fixture(CONVERTS)
+    artifacts = compile_project(
+        load_project(sources), target=Target.SQLMESH, dialect="duckdb", catalog=catalog
+    )
+    sql = " ".join(next(a for a in artifacts if a.path.endswith("payment.sql")).content.split())
+
+    assert CONVERT_MARKER not in sql, sql
+    assert "fx.from_ccy = 'EUR'" in sql and "fx.to_ccy = 'CHF'" in sql, sql
+    assert "fx.from_ccy = 'CHF'" in sql and "fx.to_ccy = 'USD'" in sql, sql
+
+
+def test_convert_declares_that_it_nullifies() -> None:
+    """A rate the relation has no row for converts the amount to NULL on
+    purpose (RFC 0023 D11), so `coercible` must not read the vanished value as
+    a failed cast.
+
+    Asserted on the registry rather than on an emitted reject predicate
+    because that is where the fact lives and where `nullifying_steps` reads it
+    — and because the flag was absent for as long as `convert` existed, with
+    the whole suite green (logs/T-0052.md).
+    """
+    assert DEFAULT_REGISTRY["convert"].nullifies

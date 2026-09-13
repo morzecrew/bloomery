@@ -23,7 +23,12 @@ from bloomery.semantic.closure import (
     dependencies,
     prove_rollup,
 )
-from bloomery.semantic.denomination import Conversion, DenominationRefusal, prove_conversion
+from bloomery.semantic.denomination import (
+    Conversion,
+    DenominationRefusal,
+    consequence_of,
+    prove_conversion,
+)
 from bloomery.semantic.historical import AsOfState, qualify_as_of
 from bloomery.semantic.nodes import (
     NO_CONTEXT,
@@ -90,6 +95,7 @@ __all__ = [
     "MAX_DERIVATIONS",
     "BASIS_RULES",
     "prove_rollup",
+    "consequence_of",
     "prove_conversion",
     "prove_additive_rollup",
     "prove_mart_rollup",

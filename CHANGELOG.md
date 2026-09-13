@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A currency conversion may read its input currency from a column.**
+  `currency_in: {column: currency_code}` has parsed since the declaration
+  landed and was refused as unbuilt; it now lowers. The rate lookup joins on
+  the row's own code instead of a literal, which is the shape a payment
+  processor actually exports — one amount column, one currency column, many
+  currencies:
+
+  ```yaml
+  amount_usd:
+    currency_in: {column: currency_code}
+    from: "$.amount"
+    transform: [{to_decimal: [12, 4]}, {convert: [currency_code, USD, paid_at]}]
+  ```
+
+  `convert`'s first argument names the declared column back, and is checked
+  against the declaration exactly as a literal code is — the spelling is
+  unchanged, so nothing that converts today reads differently. The column must
+  be a `string` field of the same entity, mapped by a direct `from:` path, the
+  same three rules the anchor has always had. Only the first step of a chain
+  converts out of the column; a bridge hop after it is an ordinary
+  code-to-code conversion and is checked as one.
+
+  Two operational facts, neither a compile-time error because neither is a
+  fact about the spec: a code the rate relation has no row for converts to
+  `NULL`, one row at a time; and a row already in the target currency still
+  reads the rate relation, so the feed needs a self-rate for every code that
+  can appear in the column.
+
 - **`owner:` on an entity, a mart and a metric.** A free string saying who is
   responsible, carried to whichever metadata slot each target has: SQLMesh's
   `MODEL (owner …)`, dbt's `meta.owner` in `models/schema.yml`, and Cube's
@@ -169,6 +197,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Metrics and steps only. A renamed canonical field still reads as a drop plus
   an add, because `plan()` diffs the IR and the IR keeps no canonical-field
   record.
+
+### Fixed
+
+- **A currency chain that bridges through a second currency emitted a call no
+  engine defines.** `[{convert: [EUR, CHF, …]}, {convert: [CHF, USD, …]}]`
+  resolved correctly and then wrote a literal `CONVERT_CURRENCY(...)` into the
+  model: the rewrite ran outermost-first and the inner marker was carried into
+  a copy the walk had already passed. Models compiled clean and failed on
+  their first run. The rewrite now runs innermost-first.
+
+- **A missing exchange rate was reported as a failed cast.** `convert` turns an
+  unmatched amount into `NULL` deliberately, but did not declare it, so the
+  implicit `coercible` rule read the vanished value as a coercion failure and
+  quarantined the row with the wrong reason. Reachable before only where a
+  project both converted and declared quality rules; unavoidable per row.
+  Rejecting on a missing rate is still available, and now says so:
+  `quality: [{rule: not_null, on_fail: quarantine}]`.
 
 ### Changed
 
@@ -1061,8 +1106,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   last conversion produces.
 
   Refusals name what was being held where the chain broke, and cite `R009`.
-  Per-row denomination — `currency_in: {column: currency_code}` — parses and is
-  refused as *unbuilt* rather than invalid.
+  Per-row denomination — `currency_in: {column: currency_code}` — parsed and
+  was refused as *unbuilt* rather than invalid; it is lowered by the entry at
+  the top of this section, so nothing in this release refuses it.
 
 
 - **A ratio metric declares `additivity: ratio`, and `non_additive` with a

@@ -20,6 +20,7 @@ import pytest
 from bloomery import build_project_ir, load_catalog, load_project
 from bloomery.errors import ResolutionError
 from bloomery.spec import Catalog
+from support.compiling import fixture_sources, load_fixture
 
 pytestmark = pytest.mark.unit
 
@@ -93,6 +94,24 @@ def test_a_from_that_disagrees_with_the_declaration_is_refused() -> None:
         _declare("EUR", "{convert: [JPY, USD, paid_at]}")
 
 
+def test_a_disagreement_is_not_reported_as_an_undeclared_input() -> None:
+    """Both refusals shared one explanation, and it was the undeclared one: a
+    disagreement between two authored statements was described as a conversion
+    "out of a currency nothing declares", which sends an author to add a third
+    declaration when the repair is to correct one of the two (PR #114 review).
+
+    Pinned from both sides — the wrong clause must be absent, not merely the
+    right one present, because appending the second explanation to the first
+    would satisfy a one-sided assertion.
+    """
+    with pytest.raises(ResolutionError) as excinfo:
+        _declare("EUR", "{convert: [JPY, USD, paid_at]}")
+
+    message = str(excinfo.value)
+    assert "two authored statements disagree" in message
+    assert "nothing declares reads the rate" not in message
+
+
 def test_a_two_hop_chain_through_a_bridge_currency_builds() -> None:
     """Refused before this change, and correct: `EUR -> CHF -> USD` ends in the
     currency the catalog declares, and bridging through a major currency is how
@@ -112,12 +131,6 @@ def test_a_two_hop_chain_whose_middle_disagrees_is_refused() -> None:
         _declare("EUR", "{convert: [EUR, CHF, paid_at]}, {convert: [JPY, USD, paid_at]}")
 
 
-def test_a_per_row_currency_column_is_refused_as_unbuilt() -> None:
-    """In the vocabulary from the first commit, lowered by P2 (RFC 0061 D5).
-    The refusal says *unbuilt*, because "invalid" would send an author to
-    rewrite a declaration that is correct."""
-    with pytest.raises(ResolutionError, match=r"not yet lowered"):
-        _declare("{column: ccy}")
 
 
 def test_a_column_the_catalog_gives_no_currency_converts_freely() -> None:
@@ -397,3 +410,172 @@ def test_the_anchor_is_bound_in_the_emitted_sql_not_left_as_a_name() -> None:
 
     assert "CAST(paid_at AS DATE)" in converted.expr.sql
     assert "'paid_at'" not in converted.expr.sql
+
+
+# ....................... #
+# Per-row denomination (RFC 0061 §5.1 shape 3, P2 — logs/T-0052.md)
+
+PER_ROW = "currency_convert_per_row"
+
+#: The converting field, as the per-row fixture writes it. Every case below is
+#: one edit to this block, so a case that stopped editing anything would fail
+#: `test_the_per_row_fixture_builds_as_written`'s sibling rather than pass.
+PER_ROW_STEP = "{convert: [currency_code, USD, paid_at]}"
+
+
+def _per_row(
+    *,
+    declaration: str = "{column: currency_code}",
+    step: str = PER_ROW_STEP,
+    model: str = "",
+    extra_field: str = "",
+) -> None:
+    """Build the per-row fixture with a chosen declaration, chain and entity.
+
+    ``model`` replaces one line of `entity_model.yaml` where a case needs the
+    currency column to be typed differently or not declared at all — the two
+    conditions the sibling lookup owns that no mapping edit can produce.
+    ``extra_field`` appends one `fields:` entry, for the case that needs a
+    second column with a chain of its own.
+    """
+
+    sources = fixture_sources(PER_ROW)
+    sources["mapping"] = (
+        sources["mapping"]
+        .replace(PER_ROW_STEP, step)
+        .replace("{column: currency_code}", declaration)
+    )
+    if model:
+        before, _, after = model.partition(" -> ")
+        sources["entity_model"] = sources["entity_model"].replace(before, after)
+    if extra_field:
+        sources["mapping"] = sources["mapping"].rstrip("\n") + "\n" + extra_field + "\n"
+    _project, catalog = load_fixture(PER_ROW)
+    build_project_ir(load_project(sources), catalog=catalog)
+
+
+def test_the_per_row_fixture_builds_as_written() -> None:
+    """The non-vacuity guard for the battery below, which asserts refusals
+    after editing one thing each."""
+    _per_row()
+
+
+def test_a_per_row_first_argument_naming_another_column_is_refused() -> None:
+    """`convert`'s first argument names the declared column, checked against
+    the declaration exactly as a literal code is (D4, D10). Unchecked, the two
+    could name different columns and the rate would be picked by whichever one
+    resolution happened to bind."""
+    with pytest.raises(ResolutionError, match=r"cannot prove what currency 'amount_usd' is in"):
+        _per_row(step="{convert: [payment_id, USD, paid_at]}")
+
+
+def test_a_per_row_first_argument_is_not_read_as_a_currency_code() -> None:
+    """The ISO-4217 check is skipped for the slot the declaration turns into a
+    column name — and only for that slot, which the `to` case below pins."""
+    with pytest.raises(ResolutionError, match=r"'usd' as its to currency"):
+        _per_row(step="{convert: [currency_code, usd, paid_at]}")
+
+
+def test_a_currency_column_the_entity_does_not_declare_is_refused() -> None:
+    """§6's struck item, which D9 assigned to the phase that would read the
+    name. Undeclared, the name reaches emit and compares the rate relation
+    against a column no branch projects."""
+    with pytest.raises(ResolutionError, match=r"which entity 'payment' does not declare"):
+        _per_row(
+            declaration="{column: settlement_ccy}",
+            step="{convert: [settlement_ccy, USD, paid_at]}",
+        )
+
+
+def test_a_currency_column_the_mapping_does_not_lower_is_refused() -> None:
+    """A merged entity's branches map different columns, and the branch that
+    converts is the one that has to supply the code."""
+    with pytest.raises(ResolutionError, match=r"does not lower"):
+        _per_row(
+            declaration="{column: settlement_ccy}",
+            step="{convert: [settlement_ccy, USD, paid_at]}",
+            model="      currency_code: {type: string} -> "
+            "      currency_code: {type: string}\n      settlement_ccy: {type: string}",
+        )
+
+
+def test_a_currency_column_that_is_not_a_string_is_refused() -> None:
+    """The code is compared against the rate relation's from-currency column.
+    A date there would emit a predicate no engine refuses and no row matches."""
+    with pytest.raises(ResolutionError, match=r"which is date .* it must be a string"):
+        _per_row(
+            declaration="{column: paid_at}",
+            step="{convert: [paid_at, USD, paid_at]}",
+        )
+
+
+def test_a_per_row_conversion_into_its_own_target_currency_is_not_refused() -> None:
+    """The self-conversion refusal is a comparison between two literals and
+    there is only one here. Whether a given row is already in USD is a fact
+    about that row, answered by a self-rate in the feed — refusing it at
+    compile time would refuse the mixed-currency export this shape exists for.
+    """
+    _per_row()
+
+
+def test_a_per_row_chain_may_bridge_and_its_bridge_is_checked() -> None:
+    """Only the first step converts out of the column; the rest are ordinary
+    code-to-code hops, checked as such."""
+    _per_row(step="{convert: [currency_code, CHF, paid_at]}, {convert: [CHF, USD, paid_at]}")
+
+    with pytest.raises(ResolutionError, match=r"required: a conversion out of 'CHF'"):
+        _per_row(step="{convert: [currency_code, CHF, paid_at]}, {convert: [JPY, USD, paid_at]}")
+
+
+def test_a_currency_column_whose_own_chain_converts_is_refused() -> None:
+    """`{to_decimal: …}`, `{convert: …}`, `to_string` declares a `string`
+    column, so nothing about its *type* stops it being named as the currency
+    column — and a sibling is re-lowered into the conversion that reads it.
+
+    Reproduced before the guard: the inner conversion was spliced inside the
+    rate lookup with its anchor still the field name, and the emitted
+    predicate read `'paid_at' >= fx.valid_from` — a string literal against a
+    date, matching nothing, in SQL that compiled (logs/T-0052.md).
+    """
+    with pytest.raises(ResolutionError, match=r"whose own chain converts"):
+        _per_row(
+            declaration="{column: bridged_ccy}",
+            step="{convert: [bridged_ccy, USD, paid_at]}",
+            model="      currency_code: {type: string} -> "
+            "      currency_code: {type: string}\n      bridged_ccy: {type: string}",
+            extra_field='  bridged_ccy: {currency_in: EUR, from: "$.amount", '
+            "transform: [{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}, to_string]}",
+        )
+
+
+def test_a_per_row_bridge_hops_code_is_still_read_as_a_currency() -> None:
+    """The slot the declaration turns into a column name is the *first* one,
+    and only on the first step. A bridge hop's `from` is an ordinary code and
+    a malformed one is refused as such.
+
+    It is refused either way — `chf` also disagrees with the `CHF` the first
+    step produced — so what this pins is which refusal arrives. The ISO one
+    says the code would match no rate and null every amount, which is the
+    repair; the disagreement one describes a chain that is not the problem.
+    """
+    with pytest.raises(ResolutionError, match=r"'chf' as its from currency"):
+        _per_row(step="{convert: [currency_code, CHF, paid_at]}, {convert: [chf, USD, paid_at]}")
+
+
+def test_a_currency_column_named_like_the_target_currency_still_converts() -> None:
+    """`MemberName` puts no case rule on a column, so a column named `USD` is
+    legal — and per-row that makes `convert`'s two arguments equal without the
+    conversion being a self-conversion at all.
+
+    The self-conversion refusal compares two literal codes. Per-row the first
+    is a column name, so it is skipped, and this is the case that proves the
+    skip is doing something: whether a given row is already in USD is a fact
+    about that row, answered by a self-rate in the feed.
+    """
+    _per_row(
+        declaration="{column: USD}",
+        step="{convert: [USD, USD, paid_at]}",
+        model="      currency_code: {type: string} -> "
+        "      currency_code: {type: string}\n      USD: {type: string}",
+        extra_field='  USD: {from: "$.currency", transform: [to_string]}',
+    )

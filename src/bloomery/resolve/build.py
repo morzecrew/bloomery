@@ -105,7 +105,7 @@ from bloomery.resolve.recipes import resolve_recipe
 from bloomery.resolve.refs import mapping_doc
 from bloomery.resolve.resolution import Resolution, resolve
 from bloomery.resolve.steps import lower_steps, step_entities
-from bloomery.semantic import Conversion, Refutation, prove_conversion
+from bloomery.semantic import Conversion, Refutation, consequence_of, prove_conversion
 from bloomery.spec.catalog import Catalog
 from bloomery.spec.mapping import (
     ALIAS_BOUND,
@@ -2329,8 +2329,62 @@ def _lower_draft(
 _CURRENCY_CODE = re.compile(r"[A-Z]{3}")
 
 
-def _anchor_expression(
-    anchor: str,
+@dataclass(frozen=True, slots=True)
+class _Sibling:
+    """One of the two columns of the row being converted that a ``convert``
+    step reads: the anchor that dates the rate, and — per-row — the column that
+    carries the code the rate is looked up for (RFC 0061 §5.1).
+
+    Both are resolved by :func:`_sibling_expression` against one set of rules,
+    parameterised rather than copied. The rules are the interesting part and
+    they are identical: declared by the entity, lowered by *this* mapping, and
+    lowered by a direct ``from:`` path. Two copies would be two chances for the
+    second column to acquire a rule the first does not have.
+    """
+
+    #: How the refusal names it — "anchor", "currency column".
+    noun: str
+    #: The logical types it may be declared as.
+    allowed: tuple[type[LogicalType], ...]
+    #: Those types in prose, for the message that lists them.
+    wanted: str
+    #: Why it has to be a column of the row at all.
+    purpose: str
+    #: The document that decided this column exists.
+    rfc: str
+    #: What to do about a wrongly typed one.
+    type_fix: str
+    #: What the converting branch has to supply — "the date", "the code".
+    supplies: str
+
+
+#: The anchor: a date or timestamp sibling, dating the rate (RFC 0023 §5.4).
+_ANCHOR = _Sibling(
+    noun="anchor",
+    allowed=(DateType, TimestampType),
+    wanted="a date or a timestamp",
+    purpose="The anchor dates the rate",
+    rfc="RFC 0023 §5.4",
+    type_fix="name the field that dates the amount, or parse this one into a date first",
+    supplies="the date",
+)
+
+#: The per-row currency column: a string sibling carrying this row's ISO-4217
+#: code, compared against the rate relation's from-currency (RFC 0061 §5.1).
+_CURRENCY_IN = _Sibling(
+    noun="currency column",
+    allowed=(StringType,),
+    wanted="a string",
+    purpose="The code picks the rate for each row",
+    rfc="RFC 0061 §5.1",
+    type_fix="name the field carrying the ISO-4217 code, or cast this one to a string first",
+    supplies="the code",
+)
+
+
+def _sibling_expression(
+    name: str,
+    kind: _Sibling,
     entity_name: str,
     entity: Entity,
     mapping: Mapping,
@@ -2339,57 +2393,64 @@ def _anchor_expression(
     *,
     source_path: str,
 ) -> Expression:
-    """The lowered expression for a ``convert`` anchor, or a refusal.
+    """The lowered expression for a sibling column a ``convert`` step names, or
+    a refusal.
 
-    The anchor names a sibling column — a ``fields:`` entry or a ``key:`` one,
-    both of which are direct paths — and what the conversion needs is that
-    column's **value**, which in a branch SELECT is its own lowering, not a
-    reference to its output name. The silver name does not exist yet where the
-    conversion is projected: both are projections of one SELECT, and a lateral
-    column alias is a DuckDB extension that Postgres and Trino reject. So the
-    chain is lowered a second time, here, into the conversion.
+    The column is a ``fields:`` entry or a ``key:`` one, both of which are
+    direct paths, and what the conversion needs is that column's **value**,
+    which in a branch SELECT is its own lowering, not a reference to its output
+    name. The silver name does not exist yet where the conversion is projected:
+    both are projections of one SELECT, and a lateral column alias is a DuckDB
+    extension that Postgres and Trino reject. So the chain is lowered a second
+    time, here, into the conversion.
 
-    **That second lowering can never itself contain a conversion**, which is
-    why `_resolve_conversions` scans for markers once and binds anchors after.
-    It follows from two stated contracts rather than from luck: an anchor must
-    be a `date` or a `timestamp` (below), and `convert` is decimal-in,
-    decimal-out by signature. Nothing bridges the two — `parse_date` takes a
-    string — so a chain carrying a conversion cannot typecheck to what an
-    anchor has to be. Left as a sentence rather than a guard because a guard
-    here could not be reached, and an unreachable branch is a claim no test can
-    keep honest; a transform that turned a decimal into an instant would break
-    the argument, and this is where its author should be told so.
+    **That second lowering must not itself contain a conversion**, which is
+    why `_resolve_conversions` scans for markers once and binds siblings after
+    — and why the guard below is a guard rather than the sentence it used to
+    be. For an anchor the argument held: `convert` is decimal-in, decimal-out
+    by signature, nothing turns a decimal into an instant, so no chain that
+    converts can typecheck to a date. For a string it does not, and the
+    transform that breaks it is the obvious one: `{to_decimal: …}`,
+    `{convert: …}`, `to_string` is a legal chain declaring a `string` column,
+    and naming it as a currency column spliced its conversion inside the rate
+    lookup — with the inner marker's anchor still the field *name*, so the
+    emitted predicate compared the string `'paid_at'` against a date and
+    matched nothing (logs/T-0052.md).
+
+    Refused for both roles from one place rather than for the role that can
+    reach it, because the argument that protects the anchor is a fact about
+    today's transform vocabulary and a transform added later is exactly what
+    would retire it silently.
     """
-    field = entity.fields.get(anchor)
+    field = entity.fields.get(name)
 
     if field is None:
         known = sorted(entity.fields)
         msg = (
-            f"convert names anchor {anchor!r}, which entity {entity_name!r} does not "
-            f"declare; declared fields: {known}. The anchor dates the rate, so it has to "
-            "be a column of the row being converted (RFC 0023 §5.4)"
+            f"convert names {kind.noun} {name!r}, which entity {entity_name!r} does not "
+            f"declare; declared fields: {known}. {kind.purpose}, so it has to "
+            f"be a column of the row being converted ({kind.rfc})"
         )
         raise ResolutionError(msg, source_path=source_path)
 
-    declared = _field_type(entity_name, anchor, field)
+    declared = _field_type(entity_name, name, field)
 
-    if not isinstance(declared, DateType | TimestampType):
+    if not isinstance(declared, kind.allowed):
         msg = (
-            f"convert names anchor {anchor!r}, which is {render_type(declared)} — an as-of "
-            "anchor is compared against the rate's validity interval, so it must be a "
-            "date or a timestamp (RFC 0023 §5.4). Fix: name the field that dates the "
-            "amount, or parse this one into a date first"
+            f"convert names {kind.noun} {name!r}, which is {render_type(declared)} — "
+            f"{kind.purpose.lower()}, so it must be {kind.wanted} ({kind.rfc}). "
+            f"Fix: {kind.type_fix}"
         )
         raise ResolutionError(msg, source_path=source_path)
 
-    lowering: KeyField | FieldMapping | None = mapping.fields.get(anchor) or mapping.key.get(anchor)
+    lowering: KeyField | FieldMapping | None = mapping.fields.get(name) or mapping.key.get(name)
 
     if lowering is None:
         msg = (
-            f"convert names anchor {anchor!r}, which entity {entity_name!r} declares but "
+            f"convert names {kind.noun} {name!r}, which entity {entity_name!r} declares but "
             f"mapping {mapping.source!r} does not lower. A merged entity's branches map "
             "different columns (RFC 0024 §5.2 rule 3), and the branch that converts is "
-            "the one that has to supply the date"
+            f"the one that has to supply {kind.supplies}"
         )
         raise ResolutionError(msg, source_path=source_path)
 
@@ -2398,19 +2459,32 @@ def _anchor_expression(
     # the second refused a perfectly ordinary key anchor — and said it was
     # "lowered by a step", which it was not.
     if not isinstance(lowering, SimpleFieldMapping | KeyField):
-        kind = "recipe" if isinstance(lowering, RecipeFieldMapping) else "step"
+        by = "recipe" if isinstance(lowering, RecipeFieldMapping) else "step"
         msg = (
-            f"convert names anchor {anchor!r}, which is lowered by a {kind} rather than a "
+            f"convert names {kind.noun} {name!r}, which is lowered by a {by} rather than a "
             "direct from: path. Only a direct path is re-lowered into the conversion "
-            "today, because a derived anchor would splice its whole derivation into every "
-            "converted column. Fix: map the anchor directly, or convert against a field "
-            "that is"
+            f"today, because a derived {kind.noun} would splice its whole derivation into "
+            f"every converted column. Fix: map the {kind.noun} directly, or convert "
+            "against a field that is"
         )
         raise ResolutionError(msg, source_path=source_path)
 
-    return _lower_chain(
+    lowered = _lower_chain(
         lowering.from_, lowering.transform, declared, reg, steps, source_path=source_path
     )
+
+    if any(str(node.this).upper() == CONVERT_MARKER for node in lowered.find_all(exp.Anonymous)):
+        msg = (
+            f"convert names {kind.noun} {name!r}, whose own chain converts. A {kind.noun} is "
+            "re-lowered into the conversion that reads it, so its conversion would be "
+            "spliced inside the rate lookup — where its anchor is never bound, and the "
+            "emitted predicate compares a field name against a date and matches nothing. "
+            f"Fix: name a {kind.noun} that does not convert, or convert it into a column of "
+            "its own and name that"
+        )
+        raise ResolutionError(msg, source_path=source_path)
+
+    return lowered
 
 
 # ....................... #
@@ -2428,14 +2502,17 @@ def _resolve_conversions(
     column: str,
     source_path: str,
 ) -> Expression:
-    """Validate every ``convert`` in one lowered column and bind its anchor.
+    """Validate every ``convert`` in one lowered column and bind its siblings.
 
     What comes out is still a :data:`CONVERT_MARKER` call — with the anchor's
-    *expression* in place of the field name it was written with. The rate
-    relation is named by the catalog and resolved through the naming policy,
-    which is an emit concern, so emit finishes the rewrite (RFC 0023 D4 keeps
-    the refusal there too, for the project that converts with no rates
-    declared).
+    *expression* in place of the field name it was written with, and, where the
+    input is denominated per row, the currency column's expression in place of
+    the code. The rate relation is named by the catalog and resolved through
+    the naming policy, which is an emit concern, so emit finishes the rewrite
+    (RFC 0023 D4 keeps the refusal there too, for the project that converts
+    with no rates declared). Emit reads whatever stands in those slots and
+    compares it against the rate relation, so a bound column needs nothing
+    there that a bound anchor did not already need.
 
     The checks live here because here is where the entity, the mapping and the
     catalog are all in scope, and where a refusal can name the document that
@@ -2456,11 +2533,24 @@ def _resolve_conversions(
     if not markers:
         return expr
 
-    for marker in markers:
+    # `find_all` is pre-order and the chain nests outward, so the *last*
+    # conversion applied is the first marker found. Both the walk below and the
+    # catalog comparison need the other order, and reversing once here is what
+    # stops each of them reversing it privately (RFC 0061 D3).
+    chain = list(reversed(markers))
+    declared_in, per_row = _declared_input_currency(mapping, column)
+
+    for position, marker in enumerate(chain):
         from_ccy = marker.expressions[CONVERT_FROM].this
         to_ccy = marker.expressions[CONVERT_TO].this
+        # Only the chain's *first* step converts out of the per-row column;
+        # what it produces is a literal, so every hop after it is an ordinary
+        # code-to-code conversion and is read as one (logs/T-0052.md, D10).
+        by_column = per_row is not None and position == 0
 
         for role, code in (("from", from_ccy), ("to", to_ccy)):
+            if role == "from" and by_column:
+                continue
             if not _CURRENCY_CODE.fullmatch(code):
                 msg = (
                     f"convert names {code!r} as its {role} currency, which is not an "
@@ -2470,7 +2560,11 @@ def _resolve_conversions(
                 )
                 raise ResolutionError(msg, source_path=source_path)
 
-        if from_ccy == to_ccy:
+        # Not comparable where the input is a column: whether a row is already
+        # in the target currency is a fact about that row, and the rate feed
+        # answers it with a self-rate. A compile-time refusal would refuse the
+        # mixed-currency export this shape exists for.
+        if not by_column and from_ccy == to_ccy:
             msg = (
                 f"convert asks for {from_ccy!r} to {to_ccy!r}, which converts nothing but "
                 "still joins the rate relation — a missing self-rate would turn the "
@@ -2478,16 +2572,36 @@ def _resolve_conversions(
             )
             raise ResolutionError(msg, source_path=source_path)
 
-    # `find_all` is pre-order and the chain nests outward, so the *last*
-    # conversion applied is the first marker found. Both the walk below and the
-    # catalog comparison need the other order, and reversing once here is what
-    # stops each of them reversing it privately (RFC 0061 D3).
-    chain = list(reversed(markers))
-    _check_denomination(chain, entity, mapping, catalog, column=column, source_path=source_path)
+    _check_denomination(
+        chain,
+        entity,
+        catalog,
+        column=column,
+        declared_in=declared_in,
+        per_row=per_row,
+        document=mapping.document,
+        source_path=source_path,
+    )
 
     for marker in markers:
-        marker.expressions[CONVERT_ANCHOR] = _anchor_expression(
+        marker.expressions[CONVERT_ANCHOR] = _sibling_expression(
             marker.expressions[CONVERT_ANCHOR].this,
+            _ANCHOR,
+            entity_name,
+            entity,
+            mapping,
+            reg,
+            steps,
+            source_path=source_path,
+        )
+
+    if per_row is not None:
+        # The first step of the chain, which is the *last* marker `find_all`
+        # returned. Bound after the anchors so that both slots are replaced by
+        # one pass over one already-validated chain.
+        chain[0].expressions[CONVERT_FROM] = _sibling_expression(
+            per_row,
+            _CURRENCY_IN,
             entity_name,
             entity,
             mapping,
@@ -2505,10 +2619,12 @@ def _resolve_conversions(
 def _check_denomination(
     chain: Sequence[Expression],
     entity: Entity,
-    mapping: Mapping,
     catalog: Catalog | None,
     *,
     column: str,
+    declared_in: str | None,
+    per_row: str | None,
+    document: str,
     source_path: str,
 ) -> None:
     """R009 over one column's conversions, plus the catalog comparison the
@@ -2519,9 +2635,13 @@ def _check_denomination(
     ``EUR -> CHF -> USD`` failed on the intermediate ``CHF`` with a message
     written for a single conversion — and bridging through a major currency is
     how minor pairs convert in practice (logs/T-0024.md, D-155's probe).
+
+    The declaration is read by the caller and passed in rather than read again
+    here: the caller decides which of the chain's steps converts out of a
+    column on the strength of it, so a second read is a second chance for the
+    two to answer differently.
     """
 
-    declared_in, per_row = _declared_input_currency(mapping, column)
     answer = prove_conversion(
         [
             Conversion(
@@ -2534,17 +2654,15 @@ def _check_denomination(
         column=column,
         declared_in=declared_in,
         per_row=per_row,
-        document=mapping.document,
+        document=document,
     )
 
     if isinstance(answer, Refutation):
         obligation = answer.obligations[0]
         msg = (
             f"cannot prove what currency {column!r} is in: {obligation.found} "
-            f"(required: {obligation.required}) — a conversion out of a currency nothing "
-            "declares reads the rate for a currency the values may not be in, and returns "
-            f"a number that is wrong by whatever the two rates differ by (RFC 0061 D1, "
-            f"R009). Fix: {answer.remediation}"
+            f"(required: {obligation.required}) — {consequence_of(answer.reason)} "
+            f"(RFC 0061 D1, R009). Fix: {answer.remediation}"
         )
         raise ResolutionError(msg, source_path=source_path)
 
@@ -2565,8 +2683,12 @@ def _check_denomination(
 # ....................... #
 
 
-def _declared_input_currency(mapping: Mapping, column: str) -> tuple[str | None, bool]:
-    """This column's ``currency_in:``, as ``(literal code, is per-row)``.
+def _declared_input_currency(mapping: Mapping, column: str) -> tuple[str | None, str | None]:
+    """This column's ``currency_in:``, as ``(literal code, per-row column)``.
+
+    At most one of the two is set, because :data:`CurrencyIn` is a union of the
+    two spellings and a field carries one ``currency_in:``. Both ``None`` is
+    the undeclared case.
 
     Read from the mapping rather than the catalog because a canonical field is
     shared across mappings, and one fed by a euro feed and a dollar feed would
@@ -2580,9 +2702,11 @@ def _declared_input_currency(mapping: Mapping, column: str) -> tuple[str | None,
     declared = getattr(source, "currency_in", None)
 
     if declared is None:
-        return None, False
+        return None, None
 
-    return (None, True) if isinstance(declared, CurrencyColumn) else (str(declared), False)
+    return (
+        (None, declared.column) if isinstance(declared, CurrencyColumn) else (str(declared), None)
+    )
 
 
 # ....................... #
