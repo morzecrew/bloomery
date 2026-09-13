@@ -170,7 +170,8 @@ error because neither is a fact about the spec:
   at a time: the amount is gone and visible rather than priced at a neighbouring rate. The
   row is *not* quarantined as a failed cast — `convert` nulls on purpose, so the implicit
   `coercible` rule does not claim it. To reject on it instead, declare
-  `quality: [{rule: not_null}]` on the field.
+  `quality: [{rule: not_null, on_fail: quarantine}]` on the field. `on_fail` is required:
+  no rule in this project carries a default disposition.
 - **A row already in the target currency still reads the rate relation.** `USD → USD` is a
   lookup like any other, so the feed needs a self-rate row for every code that can appear
   in the column, or those rows convert to `NULL`.
@@ -220,8 +221,8 @@ contents. Two properties are the operator's to hold:
   converts to `NULL`, whether it is a typo, a currency you have not loaded, or a gap in
   the feed. `convert` refuses a code that is not three uppercase letters, because that
   much is checkable from the spec alone; whether `USD` rates were actually loaded is not.
-  Declare a `not_null` quality rule on the converted column if a missing rate should stop
-  the run rather than propagate.
+  Declare a `{rule: not_null, on_fail: quarantine}` rule on the converted column if a
+  missing rate should stop the run rather than propagate.
 
 Without `fx_rates:` in the catalog, `convert` is refused at emit with
 `UnsupportedByTarget` naming the column — the transform stays whitelisted and

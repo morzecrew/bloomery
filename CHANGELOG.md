@@ -213,7 +213,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   quarantined the row with the wrong reason. Reachable before only where a
   project both converted and declared quality rules; unavoidable per row.
   Rejecting on a missing rate is still available, and now says so:
-  `quality: [{rule: not_null}]`.
+  `quality: [{rule: not_null, on_fail: quarantine}]`.
 
 ### Changed
 
