@@ -91,6 +91,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0056 | Exposures and downstream consumers | `38dd7a6` |
 | 0057 | Declared source freshness | `02e9117` |
 | 0058 | Rollup marts and pre-aggregations | `efba2b6` |
+| 0061 | Declared input currency for conversion | `91ec527` |
 | 0063 | As-of compile over spec history | `074a571` |
 | 0066 | Completing the semantic plan | `9ad7ac2` |
 | 0067 | Marts in the lineage graph | `0a6f9a8` |
