@@ -700,9 +700,9 @@ def _undeclared_audiences(ir: ProjectIR | None) -> tuple[Advisory, ...]:
     """A sensitive column published where the audience is undeclared
     (RFC 0055 D11).
 
-    The refusal beside this one fires when a published relation grants
-    *strictly more* roles than the entity a sensitive column came from. That
-    needs both sides declared. When either says nothing, bloomery has no
+    The refusal beside this one fires when a published relation admits a role
+    the entity a sensitive column came from does not. That needs both sides
+    declared. When either says nothing, bloomery has no
     opinion and the warehouse's own grants stand (D6) — which is unknown
     rather than wider, and refusing the unknown would refuse every project
     managing its gold grants elsewhere.
@@ -727,7 +727,12 @@ def _undeclared_audiences(ir: ProjectIR | None) -> tuple[Advisory, ...]:
         for column, source_entity, source_column in relation.columns:
             classification = sensitive.get((source_entity, source_column))
 
-            if classification is None:
+            # `pii` only. A `secret` column in a published relation is already
+            # refused, unconditionally (RFC 0055 D10) — so advising about its
+            # audience would put "this is legal and the artifacts are correct"
+            # beside a refusal saying otherwise, which is the advisory-where-a-
+            # refusal-belongs that RFC 0033 D7 calls a defect (PR #113 review).
+            if classification != "pii":
                 continue
 
             source = entities.get(source_entity)

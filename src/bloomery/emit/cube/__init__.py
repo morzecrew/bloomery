@@ -551,12 +551,19 @@ def _refuse_grants(ir: ProjectIR) -> None:
 
     By existence and project-wide, like the refusal below it: a grant on an
     *entity* has no cube of its own, so a per-cube check would pass a project
-    whose silver relations are restricted and say nothing.
+    whose silver relations are restricted and say nothing. A rollup has none
+    either, and it was missed for exactly that reason (PR #113 review).
     """
 
     granted = [
         *((f"entity {entity.name!r}") for entity in ir.entities if entity.grants is not None),
         *((f"mart {mart.name!r}") for mart in ir.marts if mart.grants is not None),
+        # Rollups too. A rollup declares its own audience (RFC 0055 D12), so
+        # leaving it out meant a project granting only a rollup compiled here
+        # with the restriction dropped — the silent degradation this refusal
+        # exists to prevent, reintroduced by adding a third node kind that can
+        # carry grants and updating two of the places that read them.
+        *((f"rollup {rollup.name!r}") for rollup in ir.rollups if rollup.grants is not None),
     ]
 
     if granted:

@@ -399,3 +399,62 @@ def test_an_entity_granting_nobody_still_refuses_a_wider_mart() -> None:
 
     (refusal,) = [e for e in excinfo.value.collected if isinstance(e, AudienceWidened)]
     assert "select to analyst" in str(refusal)
+
+
+def test_disjoint_grant_sets_are_refused() -> None:
+    """A set difference, not a superset test.
+
+    The entity grants `analyst` and the mart grants `contractor`: neither set
+    contains the other, so a "strict superset" reading says this passes. It
+    must not — `contractor` can read the mart and cannot read the entity, which
+    is the whole leak, and every prose description of this rule said the wrong
+    thing until a reviewer read the code against it (PR #113 review).
+    """
+    with pytest.raises(GuardrailError) as excinfo:
+        build(entity_grants="analyst", mart_grants="contractor")
+
+    (refusal,) = [e for e in excinfo.value.collected if isinstance(e, AudienceWidened)]
+    assert "select to contractor" in str(refusal)
+    # ...and the role the entity grants is not reported as a problem.
+    assert "analyst" not in str(refusal).split("select to", 1)[1]
+
+
+def test_a_secret_column_is_refused_without_also_being_advised_about() -> None:
+    """RFC 0033 D7: an advisory standing where a refusal belongs is a defect.
+
+    A `secret` column with no grants was collecting both `SecretPublished` and
+    an `undeclared_audience` advisory whose text reads "This is legal and the
+    artifacts are correct" — beside a refusal saying it is not. The advisory is
+    about `pii` alone, because a `secret` column's audience is not a question:
+    it must not be published at all.
+    """
+    evidence = evaluate(load_project(sources(classification="secret")), catalog=catalog())
+
+    assert [type(r).__name__ for r in evidence.refusals] == ["SecretPublished"]
+    assert not [a for a in evidence.advisories if a.code is AdvisoryCode.UNDECLARED_AUDIENCE]
+
+
+def test_cube_refuses_a_granted_rollup() -> None:
+    """D5 reaches every node kind that can carry grants.
+
+    Cube refused an entity's and a mart's and never looked at rollups, so a
+    project granting only a rollup compiled here with the restriction silently
+    dropped — which is the degradation the refusal exists to prevent, walked
+    straight back in by adding a third node kind and updating two of the three
+    places that read one (PR #113 review).
+    """
+    from bloomery import compile_project  # noqa: PLC0415 — one call site
+    from bloomery.errors import UnsupportedByTarget  # noqa: PLC0415
+
+    src = dict(fixture_sources("rollup_mart"))
+    src["marts"] = src["marts"].replace(
+        "    keep: [order_customer_id, ordered_month]",
+        "    grants: {select: [analyst]}\n    keep: [order_customer_id, ordered_month]",
+        1,
+    )
+    rollup_catalog = load_catalog((FIXTURES / "rollup_mart" / "catalog.yaml").read_text())
+
+    with pytest.raises(UnsupportedByTarget, match="rollup 'order_items_monthly'"):
+        compile_project(
+            load_project(src), target="cube", dialect="duckdb", catalog=rollup_catalog
+        )

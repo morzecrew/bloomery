@@ -14,8 +14,9 @@ Two refusals and one advisory, graded by what the compiler can actually prove:
 
 - `secret` on a column a published relation carries is a contradiction between
   two authored statements, so it is refused whatever else is declared (D10).
-- A `pii`/`secret` column reaching a relation granted to **strictly more**
-  roles than its source entity is refused (D11). Both sides must declare their
+- A `pii`/`secret` column reaching a relation that **admits a role its source
+  entity does not** is refused (D11) — a set difference rather than a superset
+  test, so disjoint grant sets are refused too. Both sides must declare their
   grants: that is the only case where bloomery holds both halves of the
   contradiction.
 - An undeclared audience is *unknown*, not wider, and is the advisory carried
@@ -25,6 +26,16 @@ Two refusals and one advisory, graded by what the compiler can actually prove:
 The published relations are marts and rollups. Silver entities are not: an
 entity is where a classified column is *declared*, and refusing it there would
 refuse the annotation for existing at all.
+
+**Columns, not measures.** A mart carries the columns its measures are computed
+from, so on a mart the distinction does not arise. A rollup drops them —
+``keep`` names what survives the grouping — and keeps aggregates over them, and
+those aggregates are deliberately **not** checked: `SUM(salary)` is not the
+salary column, and refusing a mart that sums a sensitive measure for finance
+would refuse the ordinary case. The exception worth knowing is that a
+non-additive aggregate can disclose a value — `MAX(ssn)` over a group of one is
+that row's `ssn` — and bloomery does not currently distinguish those (PR #113
+review).
 """
 
 from __future__ import annotations

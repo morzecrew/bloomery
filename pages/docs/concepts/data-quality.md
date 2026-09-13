@@ -276,8 +276,8 @@ decides what a **reject row** keeps, and a column the entity actually publishes 
 be listed there. Saying a published column is sensitive is
 [`classification:`](../how-to/annotate-a-spec.md#classification-what-a-column-holds), which
 is a property of the column and is checked against the
-[`grants:`](../how-to/annotate-a-spec.md#grants-who-may-read-it) on the marts that publish
-it. The two never meet: redaction governs the reject row, classification governs the
+[`grants:`](../how-to/annotate-a-spec.md#grants-who-may-read-it) on the relations that
+publish it — marts and rollups alike. The two never meet: redaction governs the reject row, classification governs the
 published one.
 
 !!! note "bloomery emits the replay merge; it never runs it"

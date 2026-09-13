@@ -107,9 +107,9 @@ thing 'secret' says this column is not part of. Fix: drop the column from the fl
 or reclassify it if it is not secret
 ```
 
-**A `pii`/`secret` column in a relation granted wider than its entity is refused.** The
-mart's `grants.select` being a strict superset of the source entity's is the ordinary leak
-— a customer table flattened into a wide mart, and the mart granted to everyone:
+**A `pii`/`secret` column in a relation that admits a role its entity does not is
+refused.** The ordinary leak is a customer table flattened into a wide mart and the mart
+granted to everyone:
 
 ```
 mart 'order_items' carries column 'order_customer_id', which is order.customer_id
@@ -118,7 +118,9 @@ classified pii, and grants select to everyone — role(s) entity 'order' does no
 ```
 
 Equal grants pass. Narrower grants pass. `{select: []}` passes, because no role at all is
-the narrowest thing there is.
+the narrowest thing there is. **Disjoint sets are refused**, not passed: it is a set
+difference rather than a superset test, and a role that can read the mart but not the
+entity is the leak whether or not the mart also admits the entity's own roles.
 
 **An undeclared audience advises rather than refuses.** If either side has no `grants:`
 block, bloomery has no opinion about who reads the relation and your warehouse's own grants

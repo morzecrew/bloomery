@@ -635,7 +635,11 @@ class SecretPublished(GuardrailError):
 
 class AudienceWidened(GuardrailError):
     """Guardrail stage (RFC 0055 D11): a ``pii``/``secret`` column reaching a
-    relation granted to strictly more roles than the entity it came from.
+    relation that admits a role the entity it came from does not.
+
+    A set difference, not a superset test — disjoint grant sets are refused
+    too, because a role that can read the mart and not the entity is the leak
+    whether or not the mart also admits the entity's roles.
 
     The leak this exists for is the ordinary one — a customer table flattened
     into a wide mart, and the mart granted to everyone. Both sides must

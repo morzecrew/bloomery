@@ -179,11 +179,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - A `secret` column carried by a mart or a rollup is refused
       (`SecretPublished`), whatever is granted. A published relation is the one
       thing `secret` says the column is not part of.
-    - A `pii`/`secret` column reaching a relation whose `grants.select` is a
-      **strict superset** of its source entity's is refused
-      (`AudienceWidened`) — the customer table flattened into a wide mart, and
-      the mart granted to everyone. Equal, narrower, and `{select: []}` all
-      pass.
+    - A `pii`/`secret` column reaching a relation that **admits a role its
+      source entity does not** is refused (`AudienceWidened`) — the customer
+      table flattened into a wide mart, and the mart granted to everyone.
+      Equal, narrower, and `{select: []}` all pass; disjoint sets do not,
+      because it is a set difference rather than a superset test.
     - An **undeclared** audience on either side is an `undeclared_audience`
       advisory, not a refusal. An absent `grants:` block means bloomery has no
       opinion and your warehouse's grants stand, which is unknown rather than
@@ -241,12 +241,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   default, so a positional construction keeps binding exactly what it bound
   before; appending is what makes that true, and a regression test pins it.
 
-- `ProjectIR.bloomery_ir_version` is **14** (was 13): every `SourceIR` gained
-  `freshness`. Every project's fingerprint moves, including those declaring no
-  threshold — the version is part of the canonical stream, and a nested field
-  addition that did not move it would leave two compilers of different shape
-  agreeing on both the version and the fingerprint. `plan()` refuses to diff
-  across versions; recompile both sides with one compiler.
+- `ProjectIR.bloomery_ir_version` is **16** (was 13), across three shape
+  changes in this release: every `SourceIR` gained `freshness`, then
+  `EntityIR`/`MartIR`/`MetricIR` gained `owner` and `ColumnIR` gained
+  `classification`, then `RollupIR` gained `grants`.
+
+  Each bump is deliberate and loud. The version is part of the canonical
+  stream, so most projects' fingerprints move with it — but a *nested* field
+  addition does not move a fingerprint on its own, because the encoder writes
+  field names per instance and a project with no rollup encodes no `RollupIR`.
+  Without the bump, two compilers of different shape would agree on both the
+  version and the fingerprint, which is the one thing this field exists to
+  prevent. `plan()` refuses to diff across versions; recompile both sides with
+  one compiler.
 
 - **`bloomery lineage` prints the name where a project adopted an `id:`.** The
   walk asked for as `metric.mtr_7f3a9c` now reads `metric.gross_revenue`; the
