@@ -1,7 +1,14 @@
 # RFC 0044 — `bloomery check` and imported semantic provenance
 
-- **Status:** 🚧 In progress — §9's P1 has landed: `bloomery check`, its per-surface counts,
-  and the CI exit contract ([`logs/T-0030.md`](../logs/T-0030.md)). P1 was smaller than §2
+- **Status:** ✅ Complete — §9's P1 has landed: `bloomery check`, its per-surface counts,
+  and the CI exit contract ([`logs/T-0030.md`](../logs/T-0030.md)). **P2 moved out on
+  2026-09-13** and is [RFC 0070](0070-mechanical-imports-and-per-relationship-provenance.md);
+  executing it here halted at the plan gate on five load-bearing questions this document
+  does not settle ([`logs/T-0053.md`](../logs/T-0053.md)), three of which are the phase
+  rather than details of it. **This document stays as the ✅ root of a live sequence**
+  (`INDEX.md`): 0070 argues from D1–D4 rather than merely citing them — D3 and D4 are the
+  rows it sharpens into a mapping and a conflict predicate — so it is retired with 0070
+  and not before. P1 was smaller than §2
   describes, because `resolve` has since gained the exit-code contract §2 says it lacks and
   the CLI encoder has since gained the refusal serialisation D6 asks for — the command is
   the shape those two did not have, not the purity they already did. D7 is settled as a
@@ -185,3 +192,9 @@ documented CI exit contract, and nothing outside today's compiler.
 **P2 — mechanical imports.** At least one external artifact importer, provenance on every
 imported fact, heuristic facts unable to prove safety, explicit conflict refusal, and
 adoption through semantic overlays rather than a full DSL migration.
+
+> **Moved out, 2026-09-13.** P2 is [RFC 0070](0070-mechanical-imports-and-per-relationship-provenance.md).
+> The paragraph above stands as written — it is what this document asked for — and 0070 is
+> what answering it turned out to require: a command, an artifact reader, a mapping table,
+> a conflict predicate, and a change to how provenance is keyed, which is more than a phase
+> of a document about a check command. D2, D3 and D4 govern it there.

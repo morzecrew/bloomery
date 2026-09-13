@@ -45,13 +45,14 @@ Two consequences worth knowing:
   other two and are gone, retired with 0058 — the last dependant of each, which is the
   rule working rather than an exception to it. 0062 is the second: 0064 and 0069 argue in
   its identity vocabulary. 0069 is the third: 0064's remaining phase argues in its walk's
-  vocabulary, `TimelineChange` being where that document's facets live.
+  vocabulary, `TimelineChange` being where that document's facets live. 0044 is the
+  fourth: 0070 is the import half taken out of it, and argues from its D1–D4.
   This is not a licence to keep a document because something cites it — prose citations are
   precisely what `RETIRED.md` exists to keep followable.
 
 ## Allocating a number
 
-The next free number is **0070**. Before creating an RFC, read the number above — do not
+The next free number is **0071**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
 0001–0022 are retired and permanently spent. Update this section in the same change that
 mints a number.
@@ -85,7 +86,7 @@ know it has a companion recording where it turned out to be wrong.
 | [0039](0039-semantic-proof-ir.md) | Semantic proof IR and closed-world checking | 🚧 In progress | Acceptance as a positive derivation rather than the absence of a violation, with provenance on every leaf: unknown is not safe, and capability grows by adding proof rules. |
 | [0042](0042-semantic-bug-corpus.md) | Production-style semantic bug corpus | 🚧 In progress | Cases where the SQL is valid, every cast succeeds and the number is wrong anyway — the opposite question to the dirty corpus. Startable immediately; the acceptance evidence for the rest. |
 | [0043](0043-semantic-capability-matrix.md) | Evidence-based semantic capability matrix | 📝 Draft | Comparing represented semantic properties across engines, one tested configuration at a time, with bloomery scored by the same standard including where it loses. |
-| [0044](0044-check-command-and-imported-provenance.md) | `bloomery check` and imported semantic provenance | 🚧 In progress | A CI command that resolves, type-checks and proves without emitting or executing, and the provenance rules deciding which imported facts may close a proof obligation. |
+| [0044](0044-check-command-and-imported-provenance.md) | `bloomery check` and imported semantic provenance | ✅ Complete | A CI command that resolves, type-checks and proves without emitting or executing, and the provenance floor an imported fact must clear to close a proof obligation. |
 | [0046](0046-validating-a-dialect-port.md) | Validating a dialect port against an engine we cannot run | 📝 Draft | The tier ladder for a hosted engine with no container: what an emulator proves, why the engine's own compile-only check is the oracle, and the naming and credential rules that keep the two apart. |
 | [0047](0047-snowflake-dialect.md) | Snowflake dialect port | 📝 Draft | Two credible local emulators and `EXPLAIN USING JSON` for authority; the risk is semantic, chiefly three timestamp types where bloomery has one zoneless UTC. |
 | [0048](0048-bigquery-dialect.md) | BigQuery dialect port | 📝 Draft | A dry run is a full parse, bind and type check that scans nothing — the cheapest authoritative layer of the four. `DATETIME` versus `TIMESTAMP` carries most of the risk. |
@@ -100,6 +101,7 @@ know it has a companion recording where it turned out to be wrong.
 | [0065](0065-consumer-evidence-strictness.md) | Consumer-declared evidence strictness | 🚧 In progress | A minimum evidence grade a mart or exposure requires of the facts beneath it, projected from RFC 0039's provenance and refused at compile time. |
 | [0068](0068-caller-assembled-spec-history.md) | Caller-assembled spec history | 📝 Draft | Compiling a past spec set needs no feature — the caller hands bloomery the text and the compiler has no notion of time; why there is no `--as-of`, and what ships instead. |
 | [0069](0069-spec-timeline.md) | Spec timeline | ✅ Complete | Lineage answers what a node depends on and nothing answers how it has changed; one node across N caller-supplied spec sets, with bloomery never parsing an instant. |
+| [0070](0070-mechanical-imports-and-per-relationship-provenance.md) | Mechanical imports and per-relationship provenance | 📝 Draft | Provenance is keyed by basis kind, so an imported fact reads as an authored one; an importer for external semantic manifests, and the per-relationship provenance that makes it observable. |
 
 ## Status legend
 
