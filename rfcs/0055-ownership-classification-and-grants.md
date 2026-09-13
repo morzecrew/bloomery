@@ -1,7 +1,7 @@
 # RFC 0055 — Ownership, classification and grants
 
-- **Status:** 📝 Draft — the first of the platform-metadata split, and the only one of
-  the five with a design question rather than a scheduling one.
+- **Status:** 🚧 In progress — the first of the platform-metadata split, and the only one
+  of the five with a design question rather than a scheduling one.
 - **Scope:** Three annotations on spec nodes — who owns a thing, what class of data it
   holds, and who may read the relation it becomes — and one rule about where each may be
   authored. All three travel to a *metadata slot* each target already has, and none of
