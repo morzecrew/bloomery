@@ -20,6 +20,7 @@ import pytest
 from bloomery import build_project_ir, load_catalog, load_project
 from bloomery.errors import ResolutionError
 from bloomery.spec import Catalog
+from support.compiling import fixture_sources, load_fixture
 
 pytestmark = pytest.mark.unit
 
@@ -396,7 +397,7 @@ def test_the_anchor_is_bound_in_the_emitted_sql_not_left_as_a_name() -> None:
 # ....................... #
 # Per-row denomination (RFC 0061 §5.1 shape 3, P2 — logs/T-0052.md)
 
-PER_ROW = FIXTURE.parent / "currency_convert_per_row"
+PER_ROW = "currency_convert_per_row"
 
 #: The converting field, as the per-row fixture writes it. Every case below is
 #: one edit to this block, so a case that stopped editing anything would fail
@@ -420,11 +421,7 @@ def _per_row(
     second column with a chain of its own.
     """
 
-    sources = {
-        path.stem: path.read_text()
-        for path in sorted(PER_ROW.glob("*.yaml"))
-        if path.stem != "catalog"
-    }
+    sources = fixture_sources(PER_ROW)
     sources["mapping"] = (
         sources["mapping"]
         .replace(PER_ROW_STEP, step)
@@ -435,7 +432,7 @@ def _per_row(
         sources["entity_model"] = sources["entity_model"].replace(before, after)
     if extra_field:
         sources["mapping"] = sources["mapping"].rstrip("\n") + "\n" + extra_field + "\n"
-    catalog = load_catalog((PER_ROW / "catalog.yaml").read_text())
+    _project, catalog = load_fixture(PER_ROW)
     build_project_ir(load_project(sources), catalog=catalog)
 
 

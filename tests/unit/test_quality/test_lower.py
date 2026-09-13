@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import pytest
-from support.compiling import load_fixture
+from support.compiling import fixture_sources, load_fixture
 
 from bloomery import build_project_ir, load_project
 from bloomery import dialects as dialects_module

@@ -158,8 +158,10 @@ amount_usd:
 
 The rate is then looked up per row, against that row's own code. The currency column names
 a `string` field of the same entity, mapped by a direct `from:` path, exactly as the anchor
-does. Only the **first** step of a chain converts out of the column; a bridge hop after it
-is an ordinary code-to-code conversion and is checked as one.
+does — and, like the anchor, it must not convert itself: both are re-lowered into the
+conversion that reads them, so a converting one would be spliced inside the rate lookup.
+Only the **first** step of a chain converts out of the column; a bridge hop after it is an
+ordinary code-to-code conversion and is checked as one.
 
 Two operational facts follow from the rate being read per row, and neither is a compile-time
 error because neither is a fact about the spec:

@@ -29,7 +29,7 @@ from bloomery.errors import InvariantViolated, UnsupportedByTarget
 from bloomery.naming import DefaultNaming, PrefixNaming
 from bloomery.transforms import CONVERT_MARKER, DEFAULT_REGISTRY
 from bloomery.typing import DecimalType
-from support.compiling import load_fixture
+from support.compiling import fixture_sources, load_fixture
 from support.plan_ir import column as plan_column
 from support.plan_ir import entity as plan_entity
 
@@ -279,11 +279,7 @@ def test_a_convert_that_is_not_the_last_step_is_still_rewritten() -> None:
     """
     project, catalog = load_fixture(CONVERTS)
     _ = project
-    sources = {
-        path.stem: path.read_text()
-        for path in sorted(_FIXTURES.glob("*.yaml"))
-        if path.stem != "catalog"
-    }
+    sources = fixture_sources(CONVERTS)
     sources["mapping"] = sources["mapping"].replace(
         "{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}",
         "{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}, {round: 2}",
@@ -330,11 +326,7 @@ def test_a_per_row_bridge_hop_stays_a_literal() -> None:
     that also read the column would convert `CHF -> USD` at whatever rate the
     row's *original* currency happened to name."""
     _project, catalog = load_fixture(PER_ROW)
-    sources = {
-        path.stem: path.read_text()
-        for path in sorted((pathlib.Path(__file__).parents[2] / "fixtures" / PER_ROW).glob("*.yaml"))
-        if path.stem != "catalog"
-    }
+    sources = fixture_sources(PER_ROW)
     sources["mapping"] = sources["mapping"].replace(
         "{convert: [currency_code, USD, paid_at]}",
         "{convert: [currency_code, CHF, paid_at]}, {convert: [CHF, USD, paid_at]}",
@@ -359,11 +351,7 @@ def test_a_bridged_chain_leaves_no_marker_behind() -> None:
     compiled clean and failing on its first run. Reproduced against `main`
     before the fix (logs/T-0052.md).
     """
-    sources = {
-        path.stem: path.read_text()
-        for path in sorted(_FIXTURES.glob("*.yaml"))
-        if path.stem != "catalog"
-    }
+    sources = fixture_sources(CONVERTS)
     sources["mapping"] = sources["mapping"].replace(
         "{convert: [EUR, USD, paid_at]}",
         "{convert: [EUR, CHF, paid_at]}, {convert: [CHF, USD, paid_at]}",
