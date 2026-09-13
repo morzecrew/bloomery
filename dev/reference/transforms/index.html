@@ -1564,6 +1564,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#per-row-denomination-the-code-lives-in-a-column" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Per-row denomination — the code lives in a column
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-rate-relation" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1854,6 +1865,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         <code>currency_in:</code> — what the source holds
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#per-row-denomination-the-code-lives-in-a-column" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Per-row denomination — the code lives in a column
       </span>
     </span>
   </a>
@@ -2227,7 +2249,7 @@ to <code>decimal(p1+p2, s1+s2)</code>; crossing the 38-digit precision cap is a 
 <tbody>
 <tr>
 <td><code>convert</code></td>
-<td>from (ISO-4217), to (ISO-4217), anchor (column name)</td>
+<td>from (ISO-4217, or the declared currency column), to (ISO-4217), anchor (column name)</td>
 <td>decimal → decimal</td>
 <td>Converts an amount between two declared currencies at the rate that was current on the anchor's date</td>
 </tr>
@@ -2266,10 +2288,34 @@ each step's input is the previous step's output, so only the first needs declari
 <p>The column's currency is what the <strong>last</strong> conversion produces, and that is what must match
 the canonical field's <code>currency:</code>. A step whose <code>from</code> disagrees with what the chain is
 holding at that point is refused, naming both.</p>
-<p><strong>Per-row denomination is declared but not yet lowered.</strong> Where the code lives in a sibling
-column — <code>currency_in: {column: currency_code}</code> — the declaration parses and the conversion
-is refused as unbuilt rather than as invalid. Convert from a literal code, or split the
-column by currency upstream.</p>
+<h3 id="per-row-denomination-the-code-lives-in-a-column">Per-row denomination — the code lives in a column<a class="headerlink" href="#per-row-denomination-the-code-lives-in-a-column" title="Permanent link">&para;</a></h3>
+<p>A payment processor exports the amount and the currency it was taken in on the same row.
+Name the sibling column that carries the code, and <code>convert</code>'s first argument names it
+back — the same checked redundancy a literal code gets:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">amount_usd</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">currency_in</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">column</span><span class="p">:</span><span class="w"> </span><span class="nv">currency_code</span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.amount"</span>
+<span class="w">  </span><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">to_decimal</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">12</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]},</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">convert</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">currency_code</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">USD</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">paid_at</span><span class="p p-Indicator">]}]</span>
+</code></pre></div>
+<p>The rate is then looked up per row, against that row's own code. The currency column names
+a <code>string</code> field of the same entity, mapped by a direct <code>from:</code> path, exactly as the anchor
+does — and, like the anchor, it must not convert itself: both are re-lowered into the
+conversion that reads them, so a converting one would be spliced inside the rate lookup.
+Only the <strong>first</strong> step of a chain converts out of the column; a bridge hop after it is an
+ordinary code-to-code conversion and is checked as one.</p>
+<p>Two operational facts follow from the rate being read per row, and neither is a compile-time
+error because neither is a fact about the spec:</p>
+<ul>
+<li><strong>A code the rate relation has no row for converts to <code>NULL</code>.</strong> It is D11's miss, one row
+  at a time: the amount is gone and visible rather than priced at a neighbouring rate. The
+  row is <em>not</em> quarantined as a failed cast — <code>convert</code> nulls on purpose, so the implicit
+  <code>coercible</code> rule does not claim it. To reject on it instead, declare
+  <code>quality: [{rule: not_null, on_fail: quarantine}]</code> on the field. <code>on_fail</code> is required:
+  no rule in this project carries a default disposition.</li>
+<li><strong>A row already in the target currency still reads the rate relation.</strong> <code>USD → USD</code> is a
+  lookup like any other, so the feed needs a self-rate row for every code that can appear
+  in the column, or those rows convert to <code>NULL</code>.</li>
+</ul>
 <p>The anchor names a <code>date</code> or <code>timestamp</code> column of the same entity, mapped by a direct
 <code>from:</code> path — a <code>fields:</code> entry or a <code>key:</code> one. A recipe or macro anchor is refused
 rather than spliced, because its whole derivation would be copied into every converted
@@ -2307,8 +2353,8 @@ contents. Two properties are the operator's to hold:</p>
   converts to <code>NULL</code>, whether it is a typo, a currency you have not loaded, or a gap in
   the feed. <code>convert</code> refuses a code that is not three uppercase letters, because that
   much is checkable from the spec alone; whether <code>USD</code> rates were actually loaded is not.
-  Declare a <code>not_null</code> quality rule on the converted column if a missing rate should stop
-  the run rather than propagate.</li>
+  Declare a <code>{rule: not_null, on_fail: quarantine}</code> rule on the converted column if a
+  missing rate should stop the run rather than propagate.</li>
 </ul>
 <p>Without <code>fx_rates:</code> in the catalog, <code>convert</code> is refused at emit with
 <code>UnsupportedByTarget</code> naming the column — the transform stays whitelisted and
