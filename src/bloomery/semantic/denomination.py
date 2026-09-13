@@ -49,6 +49,7 @@ if TYPE_CHECKING:
 __all__ = [
     "DenominationRefusal",
     "Conversion",
+    "consequence_of",
     "prove_conversion",
 ]
 
@@ -66,6 +67,40 @@ class DenominationRefusal(StrEnum):
     #: the two is wrong and the compiler cannot tell which, which is why it
     #: reports both rather than picking.
     INPUT_DISAGREES = "input_disagrees"
+
+
+# ....................... #
+
+
+#: Why each refusal matters, for the caller that reports it. Kept beside the
+#: remediations rather than in `resolve.build`, because a member added there
+#: and not here would take its neighbour's consequence — the message would
+#: describe a bug the author does not have, which is how "add a declaration"
+#: reached someone whose two declarations merely disagreed (PR #114 review).
+_CONSEQUENCES: Final[dict[DenominationRefusal, str]] = {
+    DenominationRefusal.UNDECLARED_INPUT: (
+        "a conversion out of a currency nothing declares reads the rate for a currency "
+        "the values may not be in, and returns a number that is wrong by whatever the "
+        "two rates differ by"
+    ),
+    DenominationRefusal.INPUT_DISAGREES: (
+        "two authored statements disagree about what this column holds, and nothing in "
+        "the spec says which is right — whichever it is, the other one picks a rate for "
+        "a currency the values are not in, and the number is wrong by whatever the two "
+        "rates differ by"
+    ),
+}
+
+
+def consequence_of(reason: str) -> str:
+    """What the refusal named by ``reason`` costs, in one clause.
+
+    Takes the wire string a :class:`~bloomery.semantic.proof.Refutation` carries
+    rather than the enum member, so the caller reporting a refutation does not
+    have to re-derive which member produced it.
+    """
+
+    return _CONSEQUENCES[DenominationRefusal(reason)]
 
 
 # ....................... #

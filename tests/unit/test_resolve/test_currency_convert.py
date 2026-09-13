@@ -94,6 +94,24 @@ def test_a_from_that_disagrees_with_the_declaration_is_refused() -> None:
         _declare("EUR", "{convert: [JPY, USD, paid_at]}")
 
 
+def test_a_disagreement_is_not_reported_as_an_undeclared_input() -> None:
+    """Both refusals shared one explanation, and it was the undeclared one: a
+    disagreement between two authored statements was described as a conversion
+    "out of a currency nothing declares", which sends an author to add a third
+    declaration when the repair is to correct one of the two (PR #114 review).
+
+    Pinned from both sides — the wrong clause must be absent, not merely the
+    right one present, because appending the second explanation to the first
+    would satisfy a one-sided assertion.
+    """
+    with pytest.raises(ResolutionError) as excinfo:
+        _declare("EUR", "{convert: [JPY, USD, paid_at]}")
+
+    message = str(excinfo.value)
+    assert "two authored statements disagree" in message
+    assert "nothing declares reads the rate" not in message
+
+
 def test_a_two_hop_chain_through_a_bridge_currency_builds() -> None:
     """Refused before this change, and correct: `EUR -> CHF -> USD` ends in the
     currency the catalog declares, and bridging through a major currency is how

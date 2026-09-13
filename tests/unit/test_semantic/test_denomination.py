@@ -10,7 +10,12 @@ from __future__ import annotations
 
 import pytest
 
-from bloomery.semantic import Conversion, DenominationRefusal, prove_conversion
+from bloomery.semantic import (
+    Conversion,
+    DenominationRefusal,
+    consequence_of,
+    prove_conversion,
+)
 from bloomery.semantic.proof import Proof, Provenance, Refutation
 
 # ----------------------- #
@@ -234,3 +239,20 @@ def test_every_refusal_reason_carries_a_remediation(reason: DenominationRefusal)
     from bloomery.semantic.denomination import _REMEDIES
 
     assert _REMEDIES[reason].strip()
+
+
+@pytest.mark.parametrize("reason", list(DenominationRefusal))
+def test_every_refusal_reason_carries_its_own_consequence(reason: DenominationRefusal) -> None:
+    """The other half of the same obligation, and the one that was missing:
+    resolution reported one consequence for every refusal, so a disagreement
+    between two declarations was described as a conversion nothing declares —
+    which sends an author to add a third (PR #114 review).
+
+    Distinctness is asserted, not only presence: a member whose consequence is
+    copied from its neighbour is the failure this exists to catch, and a
+    non-empty string does not notice it.
+    """
+    from bloomery.semantic.denomination import _CONSEQUENCES
+
+    assert consequence_of(reason.value).strip()
+    assert sum(text == _CONSEQUENCES[reason] for text in _CONSEQUENCES.values()) == 1

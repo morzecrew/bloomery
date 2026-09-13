@@ -105,7 +105,7 @@ from bloomery.resolve.recipes import resolve_recipe
 from bloomery.resolve.refs import mapping_doc
 from bloomery.resolve.resolution import Resolution, resolve
 from bloomery.resolve.steps import lower_steps, step_entities
-from bloomery.semantic import Conversion, Refutation, prove_conversion
+from bloomery.semantic import Conversion, Refutation, consequence_of, prove_conversion
 from bloomery.spec.catalog import Catalog
 from bloomery.spec.mapping import (
     ALIAS_BOUND,
@@ -2661,10 +2661,8 @@ def _check_denomination(
         obligation = answer.obligations[0]
         msg = (
             f"cannot prove what currency {column!r} is in: {obligation.found} "
-            f"(required: {obligation.required}) — a conversion out of a currency nothing "
-            "declares reads the rate for a currency the values may not be in, and returns "
-            f"a number that is wrong by whatever the two rates differ by (RFC 0061 D1, "
-            f"R009). Fix: {answer.remediation}"
+            f"(required: {obligation.required}) — {consequence_of(answer.reason)} "
+            f"(RFC 0061 D1, R009). Fix: {answer.remediation}"
         )
         raise ResolutionError(msg, source_path=source_path)
 
