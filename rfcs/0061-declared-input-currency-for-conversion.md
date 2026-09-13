@@ -1,6 +1,6 @@
 # RFC 0061 — Declared input currency for conversion
 
-- **Status:** 🚧 In progress — P1 has landed: `currency_in:`, R009, the chain walk and §5.3's two-hop fix. P2 (per-row denomination lowered) is unscheduled. D9 records the two §6 tests execution struck and why; §6 keeps its text. The refusal it adds is small; the spec surface it
+- **Status:** ✅ Complete — P1 landed `currency_in:`, R009, the chain walk and §5.3's two-hop fix; P2 lowered per-row denomination, answered §10, and settled D10 (see [`logs/T-0052.md`](../logs/T-0052.md)). D9 records the two §6 tests execution struck: the per-row one is written now that something reads the name, and the monotonicity one stays struck. §6 keeps its text. The refusal it adds is small; the spec surface it
   adds is one optional key, and the migration is one line per converting field.
 - **Scope:** Give a currency conversion's *input* a declared fact to be checked against.
   `{convert: [<from>, <to>, <anchor>]}` asserts what currency the column holds, and nothing
