@@ -2050,12 +2050,34 @@ measures, the column, and how the compiler reached it:</p>
 author wrote (RFC 0065 §5.1). Fix: declare the relationship that carries
 'customer_tier', or set 'requires_evidence: assumed' on this mart
 </code></pre></div>
-<p><strong>No project reaches that refusal today</strong>, which is why the basis above is a placeholder
-rather than a name you could grep for. Every way the compiler currently believes a
-dependency is something an author declared, or follows necessarily from one — an entity's
-key determining its own columns is the second kind. A weaker premise arrives when facts
-start coming from <em>another</em> project's artifacts, and the requirement is here first so a
-mart can be strict before there is anything to be strict about.</p>
+<p>The basis above is a placeholder rather than a name you could grep for, because every way
+the compiler believes a dependency <em>from your own specs</em> is something an author declared or
+follows necessarily from one — an entity's key determining its own columns is the second
+kind. That refusal is waiting for a weaker premise the compile path does not yet mint.</p>
+<p><strong>A premise from another project's artifacts does reach it.</strong> A relationship carrying
+<code>imported_from:</code> was read out of an artifact rather than written here, so it grades
+<code>ASSUMED</code> however ordinary its cardinality — and a strict mart whose columns are carried
+through one is refused, in its own words:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">relationships</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">item_of_order</span>
+<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_item</span>
+<span class="w">    </span><span class="nt">to</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order</span>
+<span class="w">    </span><span class="nt">via</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">order_id</span><span class="p">:</span><span class="w"> </span><span class="nv">order_id</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">cardinality</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">many_to_one</span>
+<span class="w">    </span><span class="nt">imported_from</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">metricflow:semantic_manifest.json</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>mart 'statutory_revenue' requires 'locked'; its measures ('net_revenue') rest on column
+'order_customer_id', carried by 'item_of_order' — read out of
+'metricflow:semantic_manifest.json' rather than written here (RFC 0070 D1). Fix: author
+the relationship in this project and drop its 'imported_from:', or set
+'requires_evidence: assumed' on this mart
+</code></pre></div>
+<p>The fix differs from the one above, and that is why the sentence does: the relationship
+<em>is</em> declared, so "declare the relationship" would send you to write a line that already
+exists. What a strict mart is asking is whether somebody <strong>here</strong> wrote it.</p>
+<p><code>imported_from:</code> names the artifact and is written by an importer, not by hand. Nothing
+checks that — bloomery cannot tell a hand-typed one from a generated one, and writing it
+on a relationship you authored silently lowers that relationship's grade.</p>
 <p><strong>Use it on few marts.</strong> A finance mart feeding a statutory report is the case it exists
 for: someone signs that number, and "the compiler worked it out" is not an answer they can
 give a regulator. An exploration mart is the counter-example — it wants whatever compiles,

@@ -3320,6 +3320,12 @@ custom audit artifacts.</p>
 <td>yes</td>
 <td>Checked by the fan-out guardrail</td>
 </tr>
+<tr>
+<td><code>imported_from</code></td>
+<td>string</td>
+<td>no</td>
+<td>The artifact this relationship was read out of. Its presence is the fact: a relationship carrying it grades <code>ASSUMED</code> and a mart declaring <code>requires_evidence: locked</code> over a column it carries is refused. Written by an importer, not by hand</td>
+</tr>
 </tbody>
 </table>
 <h3 id="entity-quality-rules">Entity quality rules<a class="headerlink" href="#entity-quality-rules" title="Permanent link">&para;</a></h3>
