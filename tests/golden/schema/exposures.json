@@ -23,6 +23,15 @@
           "title": "Owner",
           "type": "string"
         },
+        "requires_evidence": {
+          "default": "assumed",
+          "enum": [
+            "locked",
+            "assumed"
+          ],
+          "title": "Requires Evidence",
+          "type": "string"
+        },
         "url": {
           "anyOf": [
             {

@@ -224,8 +224,51 @@ exists. What a strict mart is asking is whether somebody **here** wrote it.
 checks that — bloomery cannot tell a hand-typed one from a generated one, and writing it
 on a relationship you authored silently lowers that relationship's grade.
 
-**Use it on few marts.** A finance mart feeding a statutory report is the case it exists
-for: someone signs that number, and "the compiler worked it out" is not an answer they can
+### The consumer is often not the mart
+
+A dashboard is the thing somebody signs off, and it usually reads several marts none of
+which knows it is feeding a statutory report. So an **exposure** carries the same key, and
+its requirement applies to everything beneath it:
+
+```yaml
+exposures:
+  exec_dashboard:
+    kind: dashboard
+    owner: finance@example.com
+    depends_on:
+      metrics: [net_revenue]
+    requires_evidence: locked    # ... and of everything this reads
+```
+
+That reaches the marts named under `depends_on.marts`, and — this is the point — every
+mart carrying a metric named under `depends_on.metrics`. **Every** such mart, not the one
+the compiler happens to emit the measure on: which mart serves a query is chosen when the
+query is planned, so a guarantee that held for only one of them would not hold for the
+number on the dashboard.
+
+The two refusals mirror the mart's, naming the metric that reached the mart and sending
+you to the exposure's own key:
+
+```
+exposure 'exec_dashboard' requires 'locked'; it reads mart 'statutory_revenue' (carrying
+metric 'net_revenue'), whose column 'customer_tier' the compiler reached by '<basis>' rather
+than from anything an author wrote (RFC 0065 §5.1). Fix: declare the relationship that
+carries 'customer_tier', or set 'requires_evidence: assumed' on this exposure
+```
+
+```
+exposure 'exec_dashboard' requires 'locked'; it reads mart 'statutory_revenue' (carrying
+metric 'net_revenue'), whose column 'order_customer_id' comes in through 'item_of_order' —
+read out of 'metricflow:semantic_manifest.json' rather than written here (RFC 0070 D1). Fix:
+author the relationship in this project and drop its 'imported_from:', or set
+'requires_evidence: assumed' on this exposure
+```
+
+A mart that carries its own `requires_evidence: locked` is not reported twice: its own
+refusal says the same thing with the same repair, so the exposure adds nothing to it.
+
+**Use it on few consumers.** A finance mart feeding a statutory report is the case it
+exists for: someone signs that number, and "the compiler worked it out" is not an answer they can
 give a regulator. An exploration mart is the counter-example — it wants whatever compiles,
 and annotating it strictly buys a wall of declarations whose cheapest fix is deleting the
 requirement, which loses the guarantee everywhere at once.

@@ -101,6 +101,25 @@ class Exposure(SpecModel):
     #: to decide whether a spec is valid.
     url: str | None = None
     depends_on: ExposureDependsOn
+    #: The weakest evidence this consumer accepts under everything it reads
+    #: (RFC 0065 §5.2). The same key a mart carries, on the kind RFC 0065 §10
+    #: calls the truest owner of it: strictness belongs to the consumer, and
+    #: the consumer is often not the mart.
+    #:
+    #: **It applies transitively.** A dashboard declaring ``locked`` makes the
+    #: requirement of the marts it names *and* of every mart carrying a metric
+    #: it names — an exposure has no facts of its own, so a requirement that
+    #: stopped at the exposure would assert nothing.
+    #:
+    #: ``assumed`` is the default and absence is byte-identical to not having
+    #: the key (D3). There is no ``open``, for the reason there is none on a
+    #: mart: it would mean "accept anything", which is the absence of the
+    #: annotation rather than a third setting.
+    #:
+    #: A plain literal rather than :class:`~bloomery.semantic.EvidenceGrade`,
+    #: because the spec layer sits below ``semantic`` in the import contract —
+    #: the same reason, and the same pinning test, as the mart's key.
+    requires_evidence: Literal["locked", "assumed"] = "assumed"
 
     # ....................... #
 
