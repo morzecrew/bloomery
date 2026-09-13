@@ -40,8 +40,8 @@ Two consequences worth knowing:
   vocabulary — not merely citing a decision it made, but arguing from terms it defines —
   retiring it leaves them unreadable in exactly the way the point above refuses. Its
   **status line** says so — the index one-liner records what an RFC *is*, never what has
-  happened to it — and it is retired with the last of its dependants. 0037 is the one
-  today: 0039, 0042 and 0053 still reason in its grain vocabulary. 0038 and 0040 were the
+  happened to it — and it is retired with the last of its dependants. 0037 is the first:
+  0039, 0042 and 0053 still reason in its grain vocabulary. 0038 and 0040 were the
   other two and are gone, retired with 0058 — the last dependant of each, which is the
   rule working rather than an exception to it. 0062 is the second: 0064 and 0069 argue in
   its identity vocabulary. 0069 is the third: 0064's remaining phase argues in its walk's
@@ -121,6 +121,5 @@ know it has a companion recording where it turned out to be wrong.
 steady-state table holds only 📝 and 🚧 rows — **except a ✅ root of a live sequence**, which
 stays until its last dependant is retired, for the reason the retirement section above
 gives. Such a row says so in its own status line. 0037, 0044, 0062, 0065 and 0069 are the
-five today. Do
-not relabel either 🚧: nothing about it is in progress, and the exception is about what other
-documents still need, not about what it has left to do.
+five today. Do not relabel either 🚧: nothing about it is in progress, and the exception is
+about what other documents still need, not about what it has left to do.
