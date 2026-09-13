@@ -88,6 +88,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0051 | Loose ends inside shipped subsystems | `588e1e6` |
 | 0052 | dbt as a complete quality target | `588e1e6` |
 | 0054 | The SQLMesh project file | `588e1e6` |
+| 0055 | Ownership, classification and grants | `503a9c2` |
 | 0056 | Exposures and downstream consumers | `38dd7a6` |
 | 0057 | Declared source freshness | `02e9117` |
 | 0058 | Rollup marts and pre-aggregations | `efba2b6` |

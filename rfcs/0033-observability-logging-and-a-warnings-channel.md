@@ -252,3 +252,24 @@ advisory constructor.
 3. **Whether the CLI's `--verbose` belongs in this RFC or in a CLI amendment** — it is
    listed here (D9) because it is the first consumer, but RFC 0020's "no config"
    posture should be re-read before the flag lands.
+
+## 10. Decisions
+
+Added 2026-09-13, after the fact. This document argued D1–D9 in its prose and never
+tabled them, so `rfc_index.py check` failed on it and `flag-dont-flip`'s documented
+fallback applied: **every one of them was executed as `LOCKED`**, including the two that
+say in their own words they are open. The grades below are read off each decision's own
+prose rather than invented — see [`logs/T-0048.md`](../logs/T-0048.md), which proposed
+them and quotes the sentence each grade comes from.
+
+| # | Grade | Decision |
+| --- | --- | --- |
+| 1 | `LOCKED` | **No handler, ever.** The library's only configuration act is attaching a `NullHandler`; it never adds, removes or configures a handler on a logger it does not own. "A grep-able invariant, testable as one" — a library that installs a handler fights its embedder, and reversing this reaches every caller. |
+| 2 | `LOCKED` | **Log records never carry nondeterminism of bloomery's making.** No timestamps, ids or counters the compiler invented. It is RFC 0003 restated for a new surface, and reversal invalidates the determinism contract rather than only this document. |
+| 3 | `LOCKED` | **Logging is not load-bearing.** No test may assert behaviour *through* log output. This is what keeps the channel deletable, and it is the rule a later change is most tempted to bend — a test that reads a log makes the log an API. |
+| 4 | `ASSUMED` | **Two levels only, to start.** `INFO` for one record per stage per compile, `DEBUG` for the rest. The RFC's own "to start" invites a third once there is evidence for one, so departing costs a log line and not a contract. |
+| 5 | `LOCKED` | **Nothing important is ever *only* logged.** Anything a caller must act on is a value they receive — a refusal or an advisory — and the log is a second copy at most. It is the whole argument for the advisory channel existing; without it the channel is decoration. |
+| 6 | `OPEN` | **The advisory channel's signature.** `SpecEvidence.advisories` alone, or also a `CompileReport`? The RFC calls it "the one genuinely open signature question" and holds it until a real embedder asks; the evidence field ships either way (§9 Q1). |
+| 7 | `LOCKED` | **An advisory is not a refusal that lost its nerve.** The bar is: the spec is legal, the artifacts are correct, and there is still something the author would want to know. Anything where the numbers could be wrong stays a refusal, and "a review that finds an advisory where a refusal belongs should treat it as a defect". |
+| 8 | `ASSUMED` | **Deprecation is `warnings.warn(..., BloomeryDeprecationWarning)` at the old call site.** The mechanism is settled; "best-effort once per process" is explicitly a tolerance rather than a guarantee, which is what makes this `ASSUMED` rather than `LOCKED`. |
+| 9 | `OPEN` | **CLI verbosity is a handler, not a channel** — `--verbose` attaches a stderr handler and adds no second output path. §9 Q3 holds the flag itself open against RFC 0020's no-config posture, and D9 "fixes what the flag *means* if it lands, not that it lands". |

@@ -8,7 +8,10 @@
   `ASSUMED` — and revisits when RFC 0044 P2 gives that provenance a producer. **P2 has landed**
   (`requires_evidence` on marts, `InsufficientEvidence`, and rows 14-17 —
   [`logs/T-0040.md`](../logs/T-0040.md)); **P3 (exposures, transitivity) is unscheduled** and is
-  what holds this document open. Execution's findings and the rows it proposes are
+  what holds this document open. **Row 18 records that row 16's condition is discharged**:
+  RFC 0070 P1 gave the grade a producer, so the requirement P2 shipped is no longer one no
+  project can fail — while row 9's trigger, which needs the *provenance* produced, has not
+  fired. Execution's findings and the rows it proposes are
   in the same log; nothing below has been amended to agree with what was built. **§§5.2,
   5.3 and 7 describe the annotation, its refusal and its worked example** — P2's, and
   §5.3's example in particular describes a refusal the compiler cannot produce, which
@@ -242,6 +245,7 @@ it.
 | 15 | `ASSUMED` | **§5.3's worked example is unbuildable and is superseded by the message P2 ships.** It describes an `ASSUMED` additivity "derived by default from aggregation class `sum`"; additivity is never defaulted — `resolve.metrics._merge` reads it from the metric or its template and raises when both are silent, so every metric reaching a mart has a `DECLARED` one. The shipped refusal names a *column* whose derivation is weak rather than a measure whose additivity is, and keeps row 4's four parts. Added by execution 2026-09-10 — see [`logs/T-0040.md`](../logs/T-0040.md) (D4, attempts 1-3). |
 | 16 | `ASSUMED` | **§6's "a derived fact does not satisfy `locked`" is tested against the mapping, not a fixture.** After row 14 no fact the compile path mints grades below `LOCKED`, so no project can be written that trips the refusal; the test restores the pre-row-14 mapping and asserts the refusal and its wording, which doubles as the regression test for row 14 itself. **This phase therefore ships a requirement no current project can fail** — it first refuses when RFC 0044 P2 gives `IMPORTED_VERIFIED` a producer. Stated rather than discovered later. Added by execution 2026-09-10 — see [`logs/T-0040.md`](../logs/T-0040.md) (unlisted, attempt 1). |
 | 17 | `ASSUMED` | **`requires_evidence` never enters `MartIR`.** It is read from the authored `MartSet` at the guardrail stage, the shape `check_exposure_targets` already uses. `project_fingerprint` walks the IR dataclass tree, so a field there would move every fingerprint in the corpus for projects that never type the key — which is row 3 broken by the mechanism row 3 exists to protect. Settles the `MartIR` half of row 6. Added by execution 2026-09-10 — see [`logs/T-0040.md`](../logs/T-0040.md) (D6, attempt 1). |
+| 18 | `ASSUMED` | **Row 16's condition is discharged: a project can now fail the requirement.** [RFC 0070](0070-mechanical-imports-and-per-relationship-provenance.md) P1 gave a relationship an `imported_from:` key, so a hop an artifact supplied grades `ASSUMED` however ordinary its cardinality, and a `locked` mart carrying a column through one is refused from a fixture rather than from a patched table. Row 16 said this would arrive with RFC 0044 P2; 0044's import half became 0070, and its **P1** was enough because what the requirement reads is the grade. **Row 9's trigger has *not* fired.** It revisits when something produces `IMPORTED_VERIFIED`, and nothing does: 0070 P1 produces the grade `ASSUMED`, while `_dependency_proof` still mints `BASIS_PROVENANCE[basis]` for the same edge — one relationship, two provenances, which 0070 P2 owns. D8 therefore stands unreopened. Added by execution 2026-09-13 — see [`logs/T-0053.md`](../logs/T-0053.md). |
 
 ## 12. Phasing
 

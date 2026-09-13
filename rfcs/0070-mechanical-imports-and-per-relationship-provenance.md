@@ -359,6 +359,9 @@ same grades it takes now.
 | 5 | `ASSUMED` | **The first importer reads MetricFlow, and only relationships.** MetricFlow states cardinality in the artifact where dbt does not (§5.1), and relationships are the only facts `weak_bases` reads — so they are the shortest path to a producer that is observable. Not `LOCKED` because a second importer may show the mapping table wants a shape the first did not need. |
 | 6 | `OPEN` | **Whether the importer writes one `imported.yaml` or one document per source model.** One is a simpler contract and a worse diff on a large import; per-model matches the layout of the project being imported from. Decide it against what a real manifest produces, and log the decision. |
 | 7 | `ASSUMED` | **`imported_from:` is a free string naming the artifact, and its presence is the fact.** A boolean would need a second key for the refusal to name the source, and an enum invites an author to write `declared` on something they did not read (§5's alternatives). Not `LOCKED` because a second importer may want structure; a string is the cheapest thing to widen. |
+| 8 | `ASSUMED` | **P1 relabels the grade a consumer reads and leaves the proof leaf saying `declared`.** `BASIS_PROVENANCE` has two consumers, not the one §3 names: `weak_bases` reads the grade, and `_dependency_proof` mints `SemanticFact(provenance=BASIS_PROVENANCE[basis])`, which is the literal producer a reader of §1 looks for. Closing the second needs an IR field, which D3 forbids, or a spec-aware planner — and `planner/coverage.py` holds no `Project` anywhere from `resolve_request` down to `prove_rollup`. One relationship therefore reports two provenances until P2. It mislabels an account without changing a verdict, since `IMPORTED_VERIFIED` closes an obligation. Added by execution 2026-09-13 — see [`logs/T-0053.md`](../logs/T-0053.md) (unlisted, attempt 1). |
+| 9 | `ASSUMED` | **The imported set is read from `project.entity_model` in `check_evidence`**, beside the `requires_evidence` read it already does. One walk of the authored spec, two facts — so a project cannot be strict about a relationship the same function decided was authored. Added by execution 2026-09-13 — see [`logs/T-0053.md`](../logs/T-0053.md) (unlisted, attempt 1). |
+| 10 | `LOCKED` | **A relationship's name is unique across a project.** Nothing made it so and every consumer treats it as a key, each resolving a collision differently and silently: a mart's `via:` takes the first match, `plan` keeps the last of a `{name: rel}` dict, and D1's lookup marked every same-named authored edge as imported. Refused at resolution rather than fixed per reader — the readers are four and the fact is one. Locked because D1's lookup is keyed by that name, so relaxing it reintroduces a wrong refusal rather than an ambiguity. Added by execution 2026-09-13 — see PR #115 review. |
 
 ## 12. Phasing
 
@@ -366,6 +369,9 @@ same grades it takes now.
 lookup, `weak_bases` re-signed, and RFC 0065's refusal reached from a fixture rather than a
 monkeypatch. No command yet: the fact can be authored into a fixture, which is what proves
 the path end to end.
+
+> **Landed 2026-09-13** (PR #115), with the relationship-name uniqueness guard row 10
+> records. Rows 8 and 9 are what it had to decide that §12 did not settle.
 
 **P2 — the importer and the command.** The MetricFlow mapping of §5.2, its refusals, and
 `bloomery import`.
