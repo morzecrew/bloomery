@@ -188,12 +188,41 @@ author wrote (RFC 0065 §5.1). Fix: declare the relationship that carries
 'customer_tier', or set 'requires_evidence: assumed' on this mart
 ```
 
-**No project reaches that refusal today**, which is why the basis above is a placeholder
-rather than a name you could grep for. Every way the compiler currently believes a
-dependency is something an author declared, or follows necessarily from one — an entity's
-key determining its own columns is the second kind. A weaker premise arrives when facts
-start coming from *another* project's artifacts, and the requirement is here first so a
-mart can be strict before there is anything to be strict about.
+The basis above is a placeholder rather than a name you could grep for, because every way
+the compiler believes a dependency *from your own specs* is something an author declared or
+follows necessarily from one — an entity's key determining its own columns is the second
+kind. That refusal is waiting for a weaker premise the compile path does not yet mint.
+
+**A premise from another project's artifacts does reach it.** A relationship carrying
+`imported_from:` was read out of an artifact rather than written here, so it grades
+`ASSUMED` however ordinary its cardinality — and a strict mart whose columns are carried
+through one is refused, in its own words:
+
+```yaml
+relationships:
+  - name: item_of_order
+    from: order_item
+    to: order
+    via: {order_id: order_id}
+    cardinality: many_to_one
+    imported_from: metricflow:semantic_manifest.json
+```
+
+```
+mart 'statutory_revenue' requires 'locked'; its measures ('net_revenue') rest on column
+'order_customer_id', carried by 'item_of_order' — read out of
+'metricflow:semantic_manifest.json' rather than written here (RFC 0070 D1). Fix: author
+the relationship in this project and drop its 'imported_from:', or set
+'requires_evidence: assumed' on this mart
+```
+
+The fix differs from the one above, and that is why the sentence does: the relationship
+*is* declared, so "declare the relationship" would send you to write a line that already
+exists. What a strict mart is asking is whether somebody **here** wrote it.
+
+`imported_from:` names the artifact and is written by an importer, not by hand. Nothing
+checks that — bloomery cannot tell a hand-typed one from a generated one, and writing it
+on a relationship you authored silently lowers that relationship's grade.
 
 **Use it on few marts.** A finance mart feeding a statutory report is the case it exists
 for: someone signs that number, and "the compiler worked it out" is not an answer they can

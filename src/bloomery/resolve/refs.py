@@ -179,8 +179,45 @@ def _check_step_canonical_links(
 # ....................... #
 
 
+def _check_relationship_names(project: Project, errors: list[BloomeryError]) -> None:
+    """Refuse two relationships sharing a name.
+
+    ``relationships:`` is a list and nothing made its names unique, but every
+    consumer treats a name as a key and each one resolves the collision
+    differently and silently: a mart's ``via:`` takes the first match
+    (`marts/flatten.py`), ``plan`` builds a ``{name: rel}`` dict and keeps the
+    last, and the evidence guard reads the name to decide whether the edge was
+    imported — so one imported relationship marked every same-named authored
+    one as imported and refused a strict mart for it (PR #115 review).
+
+    Refused here rather than fixed at each reader, because the readers are
+    four and the fact is one: a name that resolves to two relationships is a
+    question the spec has not answered, and answering it differently in four
+    places is how the answers came to disagree.
+    """
+
+    seen: dict[str, int] = {}
+
+    for index, rel in enumerate(project.entity_model.relationships):
+        first = seen.setdefault(rel.name, index)
+        if first == index:
+            continue
+        msg = (
+            f"relationship {rel.name!r} is declared twice, at relationships[{first}] and "
+            f"relationships[{index}]. A relationship's name is how a mart's via:, an "
+            "entity's referential rule and the plan diff all refer to it, so two of one "
+            "name is a reference that resolves to either. Fix: give them distinct names"
+        )
+        errors.append(ResolutionError(msg, source_path=f"entity_model: relationships[{index}]"))
+
+
+# ....................... #
+
+
 def _check_relationships(project: Project, errors: list[BloomeryError]) -> None:
     entities = project.entity_model.entities
+
+    _check_relationship_names(project, errors)
 
     for index, rel in enumerate(project.entity_model.relationships):
         path = f"entity_model: relationships[{index}]"

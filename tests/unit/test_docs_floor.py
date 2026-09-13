@@ -297,7 +297,8 @@ def test_every_docs_page_is_in_the_nav() -> None:
     assert listed - present == set(), "listed in the nav but not on disk"
 
 
-def test_the_documented_evidence_refusal_quotes_the_template() -> None:
+@pytest.mark.parametrize("name", ["MESSAGE", "IMPORTED_MESSAGE"])
+def test_the_documented_evidence_refusal_quotes_the_template(name: str) -> None:
     """A documented message is a hand-copy of a string that lives in `src`, and
     nothing tied the two together.
 
@@ -312,13 +313,20 @@ def test_the_documented_evidence_refusal_quotes_the_template() -> None:
     and the part a restructure moves. Whitespace is normalized on both sides
     because the page wraps the example to its column width, so a segment that
     is one line in the source spans two in the docs.
-    """
-    from bloomery.guardrails.evidence import MESSAGE  # noqa: PLC0415
 
+    **Both messages, because there are two.** RFC 0070 added a second refusal
+    for a column carried by an imported relationship, the page quotes it
+    beside the first, and a guard covering one of them would have let the new
+    copy drift on day one — which is this test's own failure class, arriving
+    again through the door it was built to close.
+    """
+    from bloomery.guardrails import evidence  # noqa: PLC0415
+
+    template = getattr(evidence, name)
     page = " ".join((DOCS / "concepts" / "what-bloomery-proves.md").read_text().split())
     segments = [
         " ".join(segment.split())
-        for segment in re.split(r"\{\w+\}", MESSAGE)
+        for segment in re.split(r"\{\w+\}", template)
         if len(segment.strip()) >= 15
     ]
 

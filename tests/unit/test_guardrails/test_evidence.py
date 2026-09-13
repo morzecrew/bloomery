@@ -17,7 +17,8 @@ import dataclasses
 import pytest
 
 from bloomery import build_project_ir, load_catalog, load_project
-from bloomery.errors import GuardrailError, InsufficientEvidence
+from bloomery.errors import GuardrailError, InsufficientEvidence, SpecParseError
+from bloomery.ir import project_fingerprint
 from bloomery.guardrails import evidence as guard
 from bloomery.semantic import (
     BASIS_PROVENANCE,
@@ -32,12 +33,27 @@ from support.compiling import fixture_sources, load_fixture
 pytestmark = pytest.mark.unit
 
 
-def _project(requirement: str | None):
+def _project(requirement: str | None, *, imported: bool = False):
+    """The corpus fixture, optionally strict and optionally with its one
+    relationship marked as read out of an artifact.
+
+    ``imported`` is what makes the refusal reachable from a project rather
+    than from a monkeypatched table: `item_of_order` is the `many_to_one` the
+    `order_items` mart flattens through, so marking it moves every column that
+    hop carries to `ASSUMED` (RFC 0070 P1).
+    """
+
     sources = fixture_sources("ecom_basic")
     if requirement is not None:
         sources["marts"] = sources["marts"].replace(
             "    measures: [gross_revenue]",
             f"    measures: [gross_revenue]\n    requires_evidence: {requirement}",
+            1,
+        )
+    if imported:
+        sources["entity_model"] = sources["entity_model"].replace(
+            "    cardinality: many_to_one",
+            "    cardinality: many_to_one\n    imported_from: metricflow:semantic_manifest.json",
             1,
         )
     _, catalog = load_fixture("ecom_basic")
@@ -229,8 +245,8 @@ def test_a_column_is_as_strong_as_its_strongest_route() -> None:
     compiler could also have got there through a key.
     """
 
-    declared = {"many_to_one"}
-    derived = {"entity_key"}
+    declared = {("many_to_one", "order__customer")}
+    derived = {("entity_key", None)}
 
     # One strong route acquits, whichever order the routes arrive in.
     assert guard.weak_bases([declared, derived]) == ()
@@ -248,12 +264,12 @@ def test_the_rule_reports_every_weak_basis_when_no_route_is_strong(
     monkeypatch.setitem(guard.BASIS_PROVENANCE, "entity_key", Provenance.DERIVED)
     monkeypatch.setitem(guard.BASIS_PROVENANCE, "one_to_one", Provenance.DERIVED)
 
-    assert guard.weak_bases([{"entity_key"}]) == ("entity_key",)
+    assert guard.weak_bases([{("entity_key", None)}]) == ("entity_key",)
     # A route mixing a declared hop with a derived one is still weak: the
     # column was not reached without the derived step.
-    assert guard.weak_bases([{"many_to_one", "entity_key"}]) == ("entity_key",)
+    assert guard.weak_bases([{("many_to_one", "r"), ("entity_key", None)}]) == ("entity_key",)
     # And one strong route still acquits.
-    assert guard.weak_bases([{"many_to_one"}, {"entity_key"}]) == ()
+    assert guard.weak_bases([{("many_to_one", "r")}, {("entity_key", None)}]) == ()
 
 
 def test_a_route_list_at_the_cap_is_not_refused(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -274,7 +290,7 @@ def test_a_route_list_at_the_cap_is_not_refused(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setitem(guard.BASIS_PROVENANCE, "entity_key", Provenance.DERIVED)
     monkeypatch.setitem(guard.BASIS_PROVENANCE, "one_to_one", Provenance.DERIVED)
 
-    weak = [{"entity_key"}, {"one_to_one"}][:MAX_DERIVATIONS]
+    weak = [{("entity_key", None)}, {("one_to_one", "r")}][:MAX_DERIVATIONS]
     assert len(weak) == MAX_DERIVATIONS
     assert guard.weak_bases(weak) == ()
     # One route below the cap still reports, so the abstention above is the
@@ -351,3 +367,145 @@ def test_every_basis_grades_and_the_guard_reads_that_grade() -> None:
         # Every basis still closes: this guard sits above RFC 0039's floor and
         # never below it (D2), so nothing it admits is unsound.
         assert provenance.closes, basis
+
+
+# ....................... #
+# An imported relationship is not authored here (RFC 0070 D1, D7)
+
+
+def test_an_imported_relationship_grades_assumed_and_a_locked_mart_refuses_it() -> None:
+    """The first refusal in this suite reached from a project rather than from
+    a monkeypatched table.
+
+    `logs/T-0040.md` shipped `requires_evidence: locked` as a requirement no
+    project could fail: after the `entity_key` regrade every basis the compile
+    path mints grades `LOCKED`, so the only way to reach the refusal was to put
+    the table back. `imported_from:` is the producer that closes that gap —
+    the hop is still a `many_to_one`, and it was still not written here.
+    """
+
+    # The draft is built from the same project asking nothing, because the
+    # guardrail stage runs inside `build_project_ir` and the strict one does
+    # not get that far — the same staging the monkeypatched test above uses.
+    relaxed, catalog = _project("assumed", imported=True)
+    draft = build_project_ir(relaxed, catalog)
+    strict, _ = _project("locked", imported=True)
+
+    errors = guard.check_evidence(strict, draft)
+
+    assert errors, "an imported relationship under a locked mart must refuse"
+    assert all(isinstance(error, InsufficientEvidence) for error in errors)
+    # The message names the relationship and the artifact, not the basis: one
+    # is already declared, so "declare the relationship" is advice the author
+    # cannot act on (RFC 0070 §1).
+    message = str(errors[0])
+    assert "'item_of_order'" in message
+    assert "'metricflow:semantic_manifest.json'" in message
+    assert "drop its 'imported_from:'" in message
+
+
+def test_the_same_project_without_the_key_is_accepted() -> None:
+    """The control the test above needs. Without `imported_from:` the identical
+    project compiles, so the refusal is the key and not the fixture edit that
+    carries it."""
+
+    project, catalog = _project("locked")
+
+    assert guard.check_evidence(project, build_project_ir(project, catalog)) == []
+    # …and the refusal above really was this project plus one key: the same
+    # compile with the key raises rather than returning, which is the guard
+    # running inside `build_project_ir`.
+    imported, _ = _project("locked", imported=True)
+    with pytest.raises(GuardrailError, match=r"read out of 'metricflow:"):
+        build_project_ir(imported, catalog)
+
+
+def test_an_imported_relationship_costs_nothing_to_a_mart_that_asks_nothing() -> None:
+    """`assumed` is the default and accepts every grade a compiling project
+    produces, imported included — the annotation lowers a grade, it does not
+    refuse on its own."""
+
+    project, catalog = _project("assumed", imported=True)
+
+    assert guard.check_evidence(project, build_project_ir(project, catalog)) == []
+    # …and the whole project still compiles, not merely this one guard.
+    assert build_project_ir(project, catalog).marts
+
+
+def test_an_entity_key_hop_cannot_be_imported() -> None:
+    """`via` is `None` for `entity_key`, which traverses no relationship — so
+    the overlay cannot reach it whatever the imported set contains.
+
+    Asked directly because no fixture can produce the case: a project cannot
+    name a relationship that a key hop went through, since there is not one.
+
+    What this pins is the *outcome*, not the `is not None` test that reads as
+    its cause. That test is narrowing: `imported` is keyed by relationship
+    name, so a `None` misses whether or not it is checked first, and removing
+    it changes no answer. Said here because a sweep finds that and a reader
+    should not have to.
+    """
+
+    assert guard.weak_bases([{("entity_key", None)}], {"item_of_order": "a.json"}) == ()
+
+
+def test_a_single_imported_route_is_the_only_shape_that_refuses() -> None:
+    """One route through an imported relationship is weak, and **any** column
+    with two or more routes is not — including two weak ones.
+
+    That second half is not the "strongest route acquits" rule. It is the cap
+    abstention: `MAX_DERIVATIONS` is 2, and the cap branch returns
+    unconditionally for a list that long, so it answers every multi-route
+    column before the acquittal test above it is consulted. Two *weak* routes
+    also returning `()` is what distinguishes the two, and it is asserted here
+    so this test cannot be read as proving a rule it does not reach
+    (`logs/T-0053.md`).
+    """
+
+    imported = {"from_artifact": "metricflow:semantic_manifest.json"}
+    weak = {("many_to_one", "from_artifact")}
+    strong = {("many_to_one", "authored")}
+
+    assert guard.weak_bases([weak], imported) == ("many_to_one",)
+    assert guard.weak_bases([strong], imported) == ()
+    # Both of these are the cap, not the rule above it.
+    assert guard.weak_bases([weak, strong], imported) == ()
+    assert guard.weak_bases([weak, weak], imported) == ()
+
+
+def test_importing_a_relationship_moves_no_fingerprint() -> None:
+    """RFC 0070 D3, measured. `imported_from:` is a spec key and reaches no IR
+    node, so a project that adds one fingerprints identically.
+
+    The claim is not decorative: `_canon_bytes` writes every dataclass field's
+    *name* and writes `None` as a byte, so a field on `RelationshipIR` would
+    have moved every fingerprint in the corpus — RFC 0065 row 17's hazard,
+    arriving from the same direction a second time. This is the assertion that
+    would go red if the key were ever moved onto the IR for convenience.
+    """
+
+    plain, catalog = _project(None)
+    imported, _ = _project(None, imported=True)
+
+    assert project_fingerprint(build_project_ir(imported, catalog)) == project_fingerprint(
+        build_project_ir(plain, catalog)
+    )
+
+
+def test_an_empty_imported_from_is_refused_at_parse() -> None:
+    """Presence is the fact, and an empty string is present while naming
+    nothing — it would lower the relationship's grade and then produce a
+    refusal citing `''` as the artifact.
+
+    Refused for the reason an empty `via:` is: shape is what parse is for, and
+    the alternative is a message that helps nobody (PR #115 review).
+    """
+
+    sources = fixture_sources("ecom_basic")
+    sources["entity_model"] = sources["entity_model"].replace(
+        "    cardinality: many_to_one",
+        '    cardinality: many_to_one\n    imported_from: ""',
+        1,
+    )
+    with pytest.raises(SpecParseError):
+        load_project(sources)

@@ -199,6 +199,7 @@ custom audit artifacts.
 | `from` / `to` | string | yes | The two entities |
 | `via` | map from-column → to-column, ≥ 1 | yes | Join columns — a relationship *is* its join, so an empty map is a `SpecParseError` |
 | `cardinality` | `many_to_one` \| `one_to_one` \| `one_to_many` | yes | Checked by the fan-out guardrail |
+| `imported_from` | string | no | The artifact this relationship was read out of. Its presence is the fact: a relationship carrying it grades `ASSUMED` and a mart declaring `requires_evidence: locked` over a column it carries is refused. Written by an importer, not by hand |
 
 ### Entity quality rules
 
