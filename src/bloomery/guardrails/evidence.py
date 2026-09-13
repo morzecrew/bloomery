@@ -175,10 +175,12 @@ def weak_bases(
     return tuple(
         sorted(
             {
-                # The basis, not the relationship: the message names *how* the
-                # compiler reached the column, and a reader fixing it acts on
-                # the kind of edge. Which relationship it was is one line of
-                # `lineage` away and would double the sentence.
+                # The basis, not the relationship. This feeds `MESSAGE`,
+                # which names *how* the compiler reached the column because
+                # its reader's repair is to declare an edge of that kind.
+                # `IMPORTED_MESSAGE` names the relationship instead, and takes
+                # it from `names` below — there the edge is already declared
+                # and the kind is not what the author acts on.
                 step[0]
                 for route in routes
                 for step in route
