@@ -1,14 +1,22 @@
 # RFC 0065 — Consumer-declared evidence strictness
 
-- **Status:** 🚧 In progress — §12's P1 has landed: `EvidenceGrade`, its total derivation
+- **Status:** ✅ Complete — and **kept in this directory as the root of a live sequence**,
+  which [`INDEX.md`](INDEX.md) explains: [RFC 0070](0070-mechanical-imports-and-per-relationship-provenance.md)
+  argues *in* this document's vocabulary rather than merely citing it — the grade a consumer
+  reads, `requires_evidence`, rows 16 and 17 by number — so retiring this would leave that one
+  unreadable. It retires with 0070. §12's P1 has landed: `EvidenceGrade`, its total derivation
   from [RFC 0039](0039-semantic-proof-ir.md)'s `Provenance`, and `bloomery explain`
   rendering a grade beside every fact ([`logs/T-0031.md`](../logs/T-0031.md)). Nothing is
   required and nothing is refused, which is what P1 is: the grades become visible before
   there is a way to demand them. D8 is settled there — `IMPORTED_VERIFIED` grades
   `ASSUMED` — and revisits when RFC 0044 P2 gives that provenance a producer. **P2 has landed**
   (`requires_evidence` on marts, `InsufficientEvidence`, and rows 14-17 —
-  [`logs/T-0040.md`](../logs/T-0040.md)); **P3 (exposures, transitivity) is unscheduled** and is
-  what holds this document open. **Row 18 records that row 16's condition is discharged**:
+  [`logs/T-0040.md`](../logs/T-0040.md)); **P3 has landed** (`requires_evidence` on an exposure, applied
+  transitively to the marts it names and to every mart carrying a metric it names —
+  [`logs/T-0054.md`](../logs/T-0054.md)), which completes §12. That log proposes three rows
+  and they are **not yet appended**: the quantifier P3 chose over the marts beneath an
+  exposure, the skip that keeps a doubly-strict column to one refusal, and the two message
+  templates the second consumer needed. **Row 18 records that row 16's condition is discharged**:
   RFC 0070 P1 gave the grade a producer, so the requirement P2 shipped is no longer one no
   project can fail — while row 9's trigger, which needs the *provenance* produced, has not
   fired. Execution's findings and the rows it proposes are

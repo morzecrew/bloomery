@@ -237,7 +237,7 @@ exposures:
     owner: finance@example.com
     depends_on:
       metrics: [net_revenue]
-    requires_evidence: locked    # ... and of everything this reads
+    requires_evidence: locked    # of every mart below this, too
 ```
 
 That reaches the marts named under `depends_on.marts`, and — this is the point — every

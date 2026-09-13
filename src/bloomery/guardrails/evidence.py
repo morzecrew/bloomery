@@ -321,20 +321,21 @@ def _reads(exposure: Exposure, draft: ProjectIR) -> dict[str, tuple[str, ...]]:
     exposure naming both a mart and a metric on it reaches it twice, and
     saying so twice repeats the mart name in one sentence.
 
-    A name absent from the draft is skipped rather than reported twice:
-    :func:`~bloomery.guardrails.exposures.check_exposure_targets` has already
-    refused a dangling one, and a mart that failed to flatten is a violation in
-    this same batch.
+    A name absent from the draft is **not** filtered here, deliberately. It
+    would be dead code: :func:`_weak_columns` already returns nothing for a
+    mart it cannot find, with the reason written there — a dangling name is
+    :func:`~bloomery.guardrails.exposures.check_exposure_targets`'s refusal and
+    a mart that failed to flatten is a violation in this same batch, so either
+    way the author is already being told. A filter here would be a second guard
+    no test could distinguish from its absence (sabotage sweep, T-0054).
     """
 
     reads: dict[str, set[str]] = {}
-    declared = {mart.name for mart in draft.marts}
 
     for name in exposure.depends_on.marts:
-        if name in declared:
-            # Named directly, so no metric explains it. The empty set is the
-            # value, not a missing key: the key is what puts the mart in scope.
-            reads.setdefault(name, set())
+        # Named directly, so no metric explains it. The empty set is the value,
+        # not a missing key: the key is what puts the mart in scope.
+        reads.setdefault(name, set())
 
     for metric in exposure.depends_on.metrics:
         for mart in draft.marts:
@@ -342,16 +343,6 @@ def _reads(exposure: Exposure, draft: ProjectIR) -> dict[str, tuple[str, ...]]:
                 reads.setdefault(mart.name, set()).add(metric)
 
     return {name: tuple(sorted(metrics)) for name, metrics in sorted(reads.items())}
-
-
-# ....................... #
-
-
-def _leaf(message: str, /, **parts: str) -> str:
-    """One refusal's text. Exists so the four templates are formatted in one
-    place and a new one cannot quietly acquire a different call shape."""
-
-    return message.format(**parts)
 
 
 # ....................... #
@@ -400,8 +391,7 @@ def check_evidence(project: Project, draft: ProjectIR) -> list[GuardrailError]:
                 # mart print the same sentence three times, and a refusal a
                 # reader skims is one they work around.
                 msg = (
-                    _leaf(
-                        IMPORTED_MESSAGE,
+                    IMPORTED_MESSAGE.format(
                         mart=repr(name),
                         measures=measures,
                         column=repr(column),
@@ -409,8 +399,7 @@ def check_evidence(project: Project, draft: ProjectIR) -> list[GuardrailError]:
                         artifacts=", ".join(repr(imported[via]) for via in names),
                     )
                     if names
-                    else _leaf(
-                        MESSAGE,
+                    else MESSAGE.format(
                         mart=repr(name),
                         measures=measures,
                         column=repr(column),
@@ -433,8 +422,11 @@ def check_evidence(project: Project, draft: ProjectIR) -> list[GuardrailError]:
                 # two loops up, with the identical repair. Reporting it again
                 # under the exposure's heading is one problem printed twice,
                 # which is how a batch stops being read (D4, logs/T-0054.md).
-                # Nothing goes unreported: this skips only where the stricter
-                # walk has already run.
+                # Nothing goes unreported: `locked` is the only requirement
+                # that asks anything, so a mart in this set asked for exactly
+                # what the exposure did and its walk covered exactly these
+                # columns. The skip is a duplicate suppressed, never a weaker
+                # requirement standing in for a stronger one.
                 continue
             # §6: name the metric. A parenthetical rather than a clause, so
             # the "whose column" that follows still attaches to the mart — as a
@@ -447,8 +439,7 @@ def check_evidence(project: Project, draft: ProjectIR) -> list[GuardrailError]:
             )
             for column, bases, names in _weak_columns(mart_name, draft, imported):
                 msg = (
-                    _leaf(
-                        EXPOSURE_IMPORTED_MESSAGE,
+                    EXPOSURE_IMPORTED_MESSAGE.format(
                         exposure=repr(name),
                         mart=repr(mart_name),
                         via=via,
@@ -457,8 +448,7 @@ def check_evidence(project: Project, draft: ProjectIR) -> list[GuardrailError]:
                         artifacts=", ".join(repr(imported[step]) for step in names),
                     )
                     if names
-                    else _leaf(
-                        EXPOSURE_MESSAGE,
+                    else EXPOSURE_MESSAGE.format(
                         exposure=repr(name),
                         mart=repr(mart_name),
                         via=via,

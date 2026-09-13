@@ -520,7 +520,13 @@ def test_an_empty_imported_from_is_refused_at_parse() -> None:
 #: joins nothing. Every column it carries is `entity_key`, which grades
 #: `LOCKED` (row 14), so it is the strong half of the pair the quantifier tests
 #: below need. Its `cost_hint` is deliberately *lower* than `order_items`'s 2.
-_STRONG_MART = """  order_items_direct:
+#:
+#: **Named to sort first.** `draft.marts` is ordered by name, so a walk that
+#: stopped at the first mart carrying the measure would stop at `order_items`
+#: — the weak one — and the quantifier test would pass without the quantifier.
+#: With the strong mart first, "only the first" and "every one" give different
+#: answers, which is the whole point of the pair (sabotage sweep, T-0054).
+_STRONG_MART = """  direct_revenue:
     grain: order_item
     base: order_item
     flatten:
@@ -656,7 +662,7 @@ def test_a_metric_is_checked_against_every_mart_carrying_it() -> None:
 
     assert refusals, "the weak mart was acquitted by the cheaper strong one"
     assert all("mart 'order_items'" in r for r in refusals)
-    assert not any("order_items_direct" in r for r in refusals)
+    assert not any("direct_revenue" in r for r in refusals)
 
 
 def test_a_mart_with_its_own_requirement_is_not_reported_twice() -> None:
@@ -686,6 +692,10 @@ def test_a_strict_exposure_still_reports_what_a_lax_mart_does_not() -> None:
 
     assert len(exposure_only) == len(mart_only)
     assert all("exposure" in refusal for refusal in exposure_only)
+    # §6's "violations aggregate", on this consumer: more than one leaf in one
+    # error, so a walk reporting only the first would fail the equality above
+    # for a reason this line names.
+    assert len(exposure_only) > 1
 
 
 def test_the_exposure_requirement_moves_no_fingerprint() -> None:
@@ -722,3 +732,119 @@ def test_an_exposure_naming_a_mart_that_is_not_declared_adds_no_evidence_leaf() 
     dangling = [leaf for leaf in excinfo.value.collected if "no_such_mart" in str(leaf)]
     assert len(dangling) == 1
     assert not isinstance(dangling[0], InsufficientEvidence)
+
+
+def test_reads_returns_every_mart_carrying_the_metric() -> None:
+    """The quantifier asked of `_reads` directly, the way `weak_bases` is.
+
+    The end-to-end test above can only observe the quantifier through a refusal,
+    and a refusal is produced by the *weak* mart — so a walk that stopped early
+    on the strong one and a walk that visited both are told apart only by which
+    mart sorts first. This asks the function instead, where the answer is the
+    whole set and nothing about ordering can hide it.
+    """
+
+    # The requirement is not read by `_reads`, so this takes the variant that
+    # compiles — the strict one refuses, and a draft is what is needed here.
+    project, catalog = _exposed(None, metric_only=True, second_mart=True)
+    draft = build_project_ir(project, catalog)
+    assert project.exposures is not None
+    exposure = project.exposures.exposures["weekly_revenue_review"]
+
+    reads = guard._reads(exposure, draft)  # noqa: SLF001
+
+    assert set(reads) == {"direct_revenue", "order_items"}
+    # Both reached through the metric, so both carry it as the explanation.
+    assert reads["order_items"] == ("gross_revenue",)
+    assert reads["direct_revenue"] == ("gross_revenue",)
+
+
+def test_an_exposure_naming_only_a_mart_is_still_checked() -> None:
+    """`finance_extract` names no metric at all — `depends_on.marts` alone.
+
+    The dashboard beside it names both, so the metric hop reaches its mart
+    anyway and a direct hop that had been dropped entirely would go unnoticed
+    there. This is the exposure that has only the direct hop to lose
+    (sabotage sweep, T-0054).
+    """
+
+    sources = fixture_sources("ecom_basic")
+    sources["entity_model"] = sources["entity_model"].replace(
+        "    cardinality: many_to_one",
+        "    cardinality: many_to_one\n    imported_from: metricflow:semantic_manifest.json",
+        1,
+    )
+    sources["exposures"] = sources["exposures"].replace(
+        "    kind: application",
+        "    kind: application\n    requires_evidence: locked",
+        1,
+    )
+    _, catalog = load_fixture("ecom_basic")
+    refusals = _refusals(load_project(sources), catalog)
+
+    assert refusals, "a mart-only exposure refused nothing"
+    assert all("exposure 'finance_extract'" in refusal for refusal in refusals)
+    # Named directly, so nothing carries it: no metric parenthetical.
+    assert not any("carrying metric" in refusal for refusal in refusals)
+
+
+def test_the_exposure_refusal_points_at_the_exposure_key() -> None:
+    """`source_path` is where a reader is sent, and it is the exposure's own
+    key rather than the mart's — the mart may be perfectly happy, and editing
+    its line would not lift this refusal."""
+
+    project, catalog = _exposed("locked")
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(project, catalog=catalog)
+
+    paths = {
+        leaf.source_path
+        for leaf in excinfo.value.collected
+        if isinstance(leaf, InsufficientEvidence)
+    }
+    assert paths == {"exposures: exposures.weekly_revenue_review.requires_evidence"}
+
+
+def test_the_two_exposure_refusals_are_not_interchangeable() -> None:
+    """Which template renders is a choice, and only the imported one names an
+    artifact and a repair the author can act on.
+
+    Without this, swapping the two branches renders a plain "reached by
+    <basis>" sentence for an imported column — telling an author to declare a
+    relationship that is already declared, which is the remedy-free refusal
+    D4 forbids. Every other assertion in this file passes on either template
+    (sabotage sweep, T-0054).
+    """
+
+    refusals = _refusals(*_exposed("locked"))
+
+    assert refusals
+    for refusal in refusals:
+        assert "comes in through 'item_of_order'" in refusal
+        assert "'metricflow:semantic_manifest.json'" in refusal
+        assert "drop its 'imported_from:'" in refusal
+        # The plain template's distinguishing clause must be absent.
+        assert "the compiler reached by" not in refusal
+
+
+def test_a_non_imported_weak_route_renders_the_other_exposure_template(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The control for the test above, and the only way to reach
+    `EXPOSURE_MESSAGE` at all.
+
+    Nothing the compile path mints grades below `LOCKED` except an import
+    (row 16, discharged by row 18 for the *imported* case only), so the plain
+    exposure refusal is exercised against the pre-regrade table — exactly as
+    the mart's plain refusal is, and for the same reason.
+    """
+
+    monkeypatch.setitem(guard.BASIS_PROVENANCE, "entity_key", Provenance.DERIVED)
+    project, catalog = _exposed("locked", imported=False)
+    refusals = _refusals(project, catalog)
+
+    assert refusals, "the pre-regrade table stopped producing a weak basis"
+    for refusal in refusals:
+        assert "the compiler reached by" in refusal
+        assert "or set 'requires_evidence: assumed' on this exposure" in refusal
+        assert "imported_from" not in refusal
