@@ -150,10 +150,18 @@ semantic_models:
       - {name: customer, type: primary, expr: customer_id}
 ```
 
-A `foreign` entity in one model and a `primary` (or `unique`) entity of the same name in
-another is a `many_to_one` from the first to the second, joined on the two `expr` columns.
-Nothing is inferred: both halves are authored in the artifact, and the pair is what carries
-the cardinality.
+**Two things are called entities here and they are not the same thing.** A *semantic model*
+is the relation, and it is what a bloomery entity corresponds to. An *entity element* —
+the rows under `entities:` — is a join identity that several models share, and it
+corresponds to nothing in bloomery's vocabulary. `orders` above is a bloomery entity;
+`order` and `customer` are not. Reading the element names as endpoints is the mistake this
+paragraph exists to prevent, and §5.2's table says `semantic_models[].name` for that reason.
+
+A `foreign` *element* named `E` in one model, and a `primary` (or `unique`) element named
+`E` in another, is a `many_to_one` **from the first model to the second**, joined on the
+two elements' `expr` columns. So the example yields one relationship, `orders -> customers`
+on `customer_id`. Nothing is inferred: both halves are authored in the artifact, and the
+pair is what carries the cardinality.
 
 The dbt importer is not refused forever — it becomes exact the moment it requires *both*
 tests, which §8 records as the escape hatch rather than building it.
@@ -164,11 +172,12 @@ RFC 0044 §5 asks for five columns; these are they.
 
 | Source field | bloomery fact | Transformation | Provenance | Refuses when |
 | --- | --- | --- | --- | --- |
-| `semantic_models[].entities[]` with `type: foreign`, name `E` | the from-side of a `Relationship` | `from` is the model's own bloomery entity name | `IMPORTED_VERIFIED` | no model declares `E` as `primary` or `unique` |
-| the model declaring `E` as `primary`/`unique` | the to-side | `to` is that model's entity name | `IMPORTED_VERIFIED` | two models declare `E` `primary` — the target is ambiguous |
+| a `foreign` **element** named `E` in model `M` | the from-side | `from` is `M`'s name, never `E` | `IMPORTED_VERIFIED` | no model declares `E` as `primary` or `unique` |
+| the model `N` declaring `E` as `primary`/`unique` | the to-side | `to` is `N`'s name, never `E` | `IMPORTED_VERIFIED` | two models declare `E` `primary` — the target is ambiguous |
 | both elements' `expr` | `via: {from_expr: to_expr}` | verbatim, one pair | `IMPORTED_VERIFIED` | either `expr` is absent, or is not a bare column name |
 | the `foreign`/`primary` pairing | `cardinality: many_to_one` | fixed by the pair | `IMPORTED_VERIFIED` | — |
-| `semantic_models[].name` | the entity name | verbatim | `IMPORTED_VERIFIED` | it is not a `MemberName`, or names no entity the project declares |
+| `semantic_models[].name` | the **entity** name, on both sides above | verbatim | `IMPORTED_VERIFIED` | it is not a `MemberName`, or names no entity the project declares |
+| — | the relationship's own `name` | generated, and unique across the project | `IMPORTED_VERIFIED` | the generated name collides with one the project already declares |
 
 A `natural` entity type imports nothing: it is MetricFlow's marker for a key that is not
 unique, so no cardinality follows from it. `unique` is admitted alongside `primary` because
