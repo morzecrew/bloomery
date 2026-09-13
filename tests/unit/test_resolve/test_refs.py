@@ -139,6 +139,45 @@ def test_relationship_unknown_via_column() -> None:
     assert excinfo.value.source_path == "entity_model: relationships[0].via.ghost"
 
 
+def test_two_relationships_of_one_name_are_refused() -> None:
+    """A name that resolves to either is a reference the spec has not made.
+
+    Nothing made these unique and every consumer treats a name as a key,
+    resolving the collision differently and silently: a mart's `via:` takes
+    the first match, `plan` builds a `{name: rel}` dict and keeps the last,
+    and the evidence guard reads the name to decide whether the edge was
+    imported — so one imported relationship marked a same-named authored one
+    as imported too (PR #115 review). Reproduced as a clean build before the
+    guard existed.
+    """
+
+    model = ENTITY_MODEL + (
+        "relationships:\n"
+        "  - {name: r, from: order_item, to: order_item, via: {order_id: order_id},"
+        " cardinality: one_to_one}\n"
+        "  - {name: r, from: order_item, to: order_item, via: {order_id: order_id},"
+        " cardinality: one_to_one}\n"
+    )
+    project = load_project({"entity_model": model, "mapping": MAPPING})
+    with pytest.raises(ResolutionError, match="'r' is declared twice") as excinfo:
+        resolve(project, load_catalog(CATALOG))
+    assert excinfo.value.source_path == "entity_model: relationships[1]"
+
+
+def test_one_relationship_of_each_name_is_accepted() -> None:
+    """The control. Two relationships differing only in name resolve, so the
+    refusal above is the collision and not the second entry."""
+
+    model = ENTITY_MODEL + (
+        "relationships:\n"
+        "  - {name: r, from: order_item, to: order_item, via: {order_id: order_id},"
+        " cardinality: one_to_one}\n"
+        "  - {name: s, from: order_item, to: order_item, via: {order_id: order_id},"
+        " cardinality: one_to_one}\n"
+    )
+    resolve(load_project({"entity_model": model, "mapping": MAPPING}), load_catalog(CATALOG))
+
+
 def test_metric_unknown_template() -> None:
     metrics = "metrics_version: 1\nmetrics:\n  rev: {template: revenues}\n"
     project = load_project({"entity_model": ENTITY_MODEL, "mapping": MAPPING, "metrics": metrics})
