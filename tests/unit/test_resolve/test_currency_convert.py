@@ -112,12 +112,6 @@ def test_a_two_hop_chain_whose_middle_disagrees_is_refused() -> None:
         _declare("EUR", "{convert: [EUR, CHF, paid_at]}, {convert: [JPY, USD, paid_at]}")
 
 
-def test_a_per_row_currency_column_is_refused_as_unbuilt() -> None:
-    """In the vocabulary from the first commit, lowered by P2 (RFC 0061 D5).
-    The refusal says *unbuilt*, because "invalid" would send an author to
-    rewrite a declaration that is correct."""
-    with pytest.raises(ResolutionError, match=r"not yet lowered"):
-        _declare("{column: ccy}")
 
 
 def test_a_column_the_catalog_gives_no_currency_converts_freely() -> None:
@@ -397,3 +391,114 @@ def test_the_anchor_is_bound_in_the_emitted_sql_not_left_as_a_name() -> None:
 
     assert "CAST(paid_at AS DATE)" in converted.expr.sql
     assert "'paid_at'" not in converted.expr.sql
+
+
+# ....................... #
+# Per-row denomination (RFC 0061 §5.1 shape 3, P2 — logs/T-0052.md)
+
+PER_ROW = FIXTURE.parent / "currency_convert_per_row"
+
+#: The converting field, as the per-row fixture writes it. Every case below is
+#: one edit to this block, so a case that stopped editing anything would fail
+#: `test_the_per_row_fixture_builds_as_written`'s sibling rather than pass.
+PER_ROW_STEP = "{convert: [currency_code, USD, paid_at]}"
+
+
+def _per_row(
+    *, declaration: str = "{column: currency_code}", step: str = PER_ROW_STEP, model: str = ""
+) -> None:
+    """Build the per-row fixture with a chosen declaration, chain and entity.
+
+    ``model`` replaces one line of `entity_model.yaml` where a case needs the
+    currency column to be typed differently or not declared at all — the two
+    conditions the sibling lookup owns that no mapping edit can produce.
+    """
+
+    sources = {
+        path.stem: path.read_text()
+        for path in sorted(PER_ROW.glob("*.yaml"))
+        if path.stem != "catalog"
+    }
+    sources["mapping"] = (
+        sources["mapping"]
+        .replace(PER_ROW_STEP, step)
+        .replace("{column: currency_code}", declaration)
+    )
+    if model:
+        before, _, after = model.partition(" -> ")
+        sources["entity_model"] = sources["entity_model"].replace(before, after)
+    catalog = load_catalog((PER_ROW / "catalog.yaml").read_text())
+    build_project_ir(load_project(sources), catalog=catalog)
+
+
+def test_the_per_row_fixture_builds_as_written() -> None:
+    """The non-vacuity guard for the battery below, which asserts refusals
+    after editing one thing each."""
+    _per_row()
+
+
+def test_a_per_row_first_argument_naming_another_column_is_refused() -> None:
+    """`convert`'s first argument names the declared column, checked against
+    the declaration exactly as a literal code is (D4, D10). Unchecked, the two
+    could name different columns and the rate would be picked by whichever one
+    resolution happened to bind."""
+    with pytest.raises(ResolutionError, match=r"cannot prove what currency 'amount_usd' is in"):
+        _per_row(step="{convert: [payment_id, USD, paid_at]}")
+
+
+def test_a_per_row_first_argument_is_not_read_as_a_currency_code() -> None:
+    """The ISO-4217 check is skipped for the slot the declaration turns into a
+    column name — and only for that slot, which the `to` case below pins."""
+    with pytest.raises(ResolutionError, match=r"'usd' as its to currency"):
+        _per_row(step="{convert: [currency_code, usd, paid_at]}")
+
+
+def test_a_currency_column_the_entity_does_not_declare_is_refused() -> None:
+    """§6's struck item, which D9 assigned to the phase that would read the
+    name. Undeclared, the name reaches emit and compares the rate relation
+    against a column no branch projects."""
+    with pytest.raises(ResolutionError, match=r"which entity 'payment' does not declare"):
+        _per_row(
+            declaration="{column: settlement_ccy}",
+            step="{convert: [settlement_ccy, USD, paid_at]}",
+        )
+
+
+def test_a_currency_column_the_mapping_does_not_lower_is_refused() -> None:
+    """A merged entity's branches map different columns, and the branch that
+    converts is the one that has to supply the code."""
+    with pytest.raises(ResolutionError, match=r"does not lower"):
+        _per_row(
+            declaration="{column: settlement_ccy}",
+            step="{convert: [settlement_ccy, USD, paid_at]}",
+            model="      currency_code: {type: string} -> "
+            "      currency_code: {type: string}\n      settlement_ccy: {type: string}",
+        )
+
+
+def test_a_currency_column_that_is_not_a_string_is_refused() -> None:
+    """The code is compared against the rate relation's from-currency column.
+    A date there would emit a predicate no engine refuses and no row matches."""
+    with pytest.raises(ResolutionError, match=r"which is date .* it must be a string"):
+        _per_row(
+            declaration="{column: paid_at}",
+            step="{convert: [paid_at, USD, paid_at]}",
+        )
+
+
+def test_a_per_row_conversion_into_its_own_target_currency_is_not_refused() -> None:
+    """The self-conversion refusal is a comparison between two literals and
+    there is only one here. Whether a given row is already in USD is a fact
+    about that row, answered by a self-rate in the feed — refusing it at
+    compile time would refuse the mixed-currency export this shape exists for.
+    """
+    _per_row()
+
+
+def test_a_per_row_chain_may_bridge_and_its_bridge_is_checked() -> None:
+    """Only the first step converts out of the column; the rest are ordinary
+    code-to-code hops, checked as such."""
+    _per_row(step="{convert: [currency_code, CHF, paid_at]}, {convert: [CHF, USD, paid_at]}")
+
+    with pytest.raises(ResolutionError, match=r"required: a conversion out of 'CHF'"):
+        _per_row(step="{convert: [currency_code, CHF, paid_at]}, {convert: [JPY, USD, paid_at]}")

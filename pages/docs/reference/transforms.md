@@ -99,7 +99,7 @@ to `decimal(p1+p2, s1+s2)`; crossing the 38-digit precision cap is a loud
 
 | Name | Args | Input → output | Usage |
 |---|---|---|---|
-| `convert` | from (ISO-4217), to (ISO-4217), anchor (column name) | decimal → decimal | Converts an amount between two declared currencies at the rate that was current on the anchor's date |
+| `convert` | from (ISO-4217, or the declared currency column), to (ISO-4217), anchor (column name) | decimal → decimal | Converts an amount between two declared currencies at the rate that was current on the anchor's date |
 
 ```yaml
 # entity_model.yaml — the converted amount is its own field
@@ -143,10 +143,35 @@ The column's currency is what the **last** conversion produces, and that is what
 the canonical field's `currency:`. A step whose `from` disagrees with what the chain is
 holding at that point is refused, naming both.
 
-**Per-row denomination is declared but not yet lowered.** Where the code lives in a sibling
-column — `currency_in: {column: currency_code}` — the declaration parses and the conversion
-is refused as unbuilt rather than as invalid. Convert from a literal code, or split the
-column by currency upstream.
+### Per-row denomination — the code lives in a column
+
+A payment processor exports the amount and the currency it was taken in on the same row.
+Name the sibling column that carries the code, and `convert`'s first argument names it
+back — the same checked redundancy a literal code gets:
+
+```yaml
+amount_usd:
+  currency_in: {column: currency_code}
+  from: "$.amount"
+  transform: [{to_decimal: [12, 4]}, {convert: [currency_code, USD, paid_at]}]
+```
+
+The rate is then looked up per row, against that row's own code. The currency column names
+a `string` field of the same entity, mapped by a direct `from:` path, exactly as the anchor
+does. Only the **first** step of a chain converts out of the column; a bridge hop after it
+is an ordinary code-to-code conversion and is checked as one.
+
+Two operational facts follow from the rate being read per row, and neither is a compile-time
+error because neither is a fact about the spec:
+
+- **A code the rate relation has no row for converts to `NULL`.** It is D11's miss, one row
+  at a time: the amount is gone and visible rather than priced at a neighbouring rate. The
+  row is *not* quarantined as a failed cast — `convert` nulls on purpose, so the implicit
+  `coercible` rule does not claim it. To reject on it instead, declare
+  `quality: [{rule: not_null}]` on the field.
+- **A row already in the target currency still reads the rate relation.** `USD → USD` is a
+  lookup like any other, so the feed needs a self-rate row for every code that can appear
+  in the column, or those rows convert to `NULL`.
 
 The anchor names a `date` or `timestamp` column of the same entity, mapped by a direct
 `from:` path — a `fields:` entry or a `key:` one. A recipe or macro anchor is refused

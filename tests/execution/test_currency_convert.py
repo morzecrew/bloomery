@@ -215,3 +215,101 @@ def test_the_converted_column_carries_the_type_it_declares(
     }
 
     assert types["amount_usd"] == types["amount_eur"] == types["fee_usd"] == "DECIMAL(12,4)"
+
+
+# ....................... #
+# Per-row denomination, executed (RFC 0061 §5.1 shape 3, P2)
+
+PER_ROW_FIXTURE = "currency_convert_per_row"
+
+#: One rate feed for three source currencies, plus the self-rate that answers
+#: §10's second question: a row already in the target currency is converted
+#: like any other, so USD→USD must be a row the operator supplies.
+PER_ROW_RATES = [
+    ("EUR", "USD", Decimal("1.10"), "2024-01-01", None),
+    ("GBP", "USD", Decimal("1.30"), "2024-01-01", None),
+    ("USD", "USD", Decimal("1.00"), "2024-01-01", None),
+]
+
+#: ``(id, amount, currency, paid_at)``. ``q4`` carries a code the feed has no
+#: row for — the per-row shape of D11's miss, and the case §10 left open.
+PER_ROW_PAYMENTS = [
+    ("q1", "100.00", "EUR", "2024-03-10"),
+    ("q2", "100.00", "GBP", "2024-03-10"),
+    ("q3", "100.00", "USD", "2024-03-10"),
+    ("q4", "100.00", "JPY", "2024-03-10"),
+]
+
+
+@pytest.fixture(scope="module")
+def per_row_warehouse() -> Iterator[duckdb.DuckDBPyConnection]:
+    conn = duckdb.connect()
+    conn.execute("CREATE SCHEMA bronze")
+    conn.execute("CREATE SCHEMA silver")
+    conn.execute(
+        "CREATE TABLE silver.fx_rate (from_ccy VARCHAR, to_ccy VARCHAR, "
+        "rate DECIMAL(12, 4), valid_from DATE, valid_to DATE)"
+    )
+    conn.executemany("INSERT INTO silver.fx_rate VALUES (?, ?, ?, ?, ?)", PER_ROW_RATES)
+    conn.execute(
+        "CREATE TABLE bronze.psp__payments "
+        "(id VARCHAR, amount VARCHAR, currency VARCHAR, paid_at VARCHAR)"
+    )
+    conn.executemany("INSERT INTO bronze.psp__payments VALUES (?, ?, ?, ?)", PER_ROW_PAYMENTS)
+
+    artifact = next(
+        a
+        for a in compile_fixture(PER_ROW_FIXTURE, dialect="duckdb")
+        if a.path.endswith("payment.sql")
+    )
+    conn.execute(f"CREATE TABLE silver.payment AS {extract_select(artifact.content)}")
+    yield conn
+    conn.close()
+
+
+def test_each_row_converts_at_its_own_currencys_rate(
+    per_row_warehouse: duckdb.DuckDBPyConnection,
+) -> None:
+    """The feature. Four identical amounts of 100, four currencies, one column:
+    the rate is picked by the value in `currency_code` rather than by a code
+    written once in the spec.
+
+    The compile-time tests prove the predicate reads a column; this proves the
+    column it reads is the row's own, which a predicate comparing the wrong
+    column would also satisfy.
+    """
+    rows = per_row_warehouse.execute(
+        "SELECT payment_id, amount_usd FROM silver.payment ORDER BY payment_id"
+    ).fetchall()
+
+    assert rows == [
+        ("q1", Decimal("110.0000")),
+        ("q2", Decimal("130.0000")),
+        # Already in the target currency, and converted anyway — at the
+        # self-rate the feed supplies. Without that row this is NULL, which is
+        # the operational fact the docs have to carry.
+        ("q3", Decimal("100.0000")),
+        ("q4", None),
+    ]
+
+
+def test_a_code_the_feed_has_no_row_for_converts_to_null(
+    per_row_warehouse: duckdb.DuckDBPyConnection,
+) -> None:
+    """RFC 0061 §10, answered where it can be tested. Per-row changes the
+    multiplicity of a miss, not its meaning: `JPY` matches no rate and the
+    amount is NULL (RFC 0023 D11), rather than the row being dropped or
+    silently priced at a neighbouring currency's rate.
+
+    The row survives, which is the half worth pinning — the payment happened
+    and the count must still say so.
+    """
+    rows = per_row_warehouse.execute(
+        "SELECT payment_id, currency_code FROM silver.payment WHERE amount_usd IS NULL"
+    ).fetchall()
+
+    assert rows == [("q4", "JPY")]
+
+    count = per_row_warehouse.execute("SELECT COUNT(*) FROM silver.payment").fetchone()
+    assert count is not None
+    assert count[0] == len(PER_ROW_PAYMENTS)
