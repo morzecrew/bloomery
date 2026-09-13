@@ -531,3 +531,36 @@ def test_a_currency_column_whose_own_chain_converts_is_refused() -> None:
             extra_field='  bridged_ccy: {currency_in: EUR, from: "$.amount", '
             "transform: [{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}, to_string]}",
         )
+
+
+def test_a_per_row_bridge_hops_code_is_still_read_as_a_currency() -> None:
+    """The slot the declaration turns into a column name is the *first* one,
+    and only on the first step. A bridge hop's `from` is an ordinary code and
+    a malformed one is refused as such.
+
+    It is refused either way — `chf` also disagrees with the `CHF` the first
+    step produced — so what this pins is which refusal arrives. The ISO one
+    says the code would match no rate and null every amount, which is the
+    repair; the disagreement one describes a chain that is not the problem.
+    """
+    with pytest.raises(ResolutionError, match=r"'chf' as its from currency"):
+        _per_row(step="{convert: [currency_code, CHF, paid_at]}, {convert: [chf, USD, paid_at]}")
+
+
+def test_a_currency_column_named_like_the_target_currency_still_converts() -> None:
+    """`MemberName` puts no case rule on a column, so a column named `USD` is
+    legal — and per-row that makes `convert`'s two arguments equal without the
+    conversion being a self-conversion at all.
+
+    The self-conversion refusal compares two literal codes. Per-row the first
+    is a column name, so it is skipped, and this is the case that proves the
+    skip is doing something: whether a given row is already in USD is a fact
+    about that row, answered by a self-rate in the feed.
+    """
+    _per_row(
+        declaration="{column: USD}",
+        step="{convert: [USD, USD, paid_at]}",
+        model="      currency_code: {type: string} -> "
+        "      currency_code: {type: string}\n      USD: {type: string}",
+        extra_field='  USD: {from: "$.currency", transform: [to_string]}',
+    )
