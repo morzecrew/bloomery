@@ -582,6 +582,12 @@ def _sinks(graph: Graph, kind: NodeKind, spelling: str) -> tuple[str, ...]:
 
     root = Node(kind=kind, name=_node_id(kind, spelling))
 
+    # Sorted here even though `Lineage.nodes` already arrives sorted by
+    # `(name, kind)`. An emitted collection carries its own total key rather
+    # than inheriting one from a neighbour's documented order — the ordering
+    # this value has is then a property of this function, and a change to how
+    # `lineage` orders its walk cannot move it. A sabotage sweep cannot tell
+    # the two apart today, which is why the reason is here (`logs/T-0055.md`).
     return tuple(
         sorted(
             one.name

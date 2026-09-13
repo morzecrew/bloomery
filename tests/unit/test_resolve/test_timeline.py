@@ -1114,3 +1114,39 @@ def test_a_changed_mart_is_not_its_own_sink() -> None:
     assert change.node == "mart.order_items"
     assert "mart.order_items" not in change.reaches
     assert change.reaches  # it does reach the exposures, so the exclusion is not vacuous
+
+
+def test_the_sinks_are_found_for_a_node_that_adopted_an_id() -> None:
+    """The graph keys a node by its adopted id, so the sink walk has to root
+    itself with that spelling and not the readable name.
+
+    Nothing else in this file can catch it: no fixture in the corpus adopts an
+    `id:`, so a lookup by name finds every node and the two spellings agree.
+    Measured — with the name passed instead, this history reports a change that
+    reaches three consumers as reaching none, silently (`logs/T-0055.md`).
+    """
+
+    sources = fixture_sources("ecom_basic")
+    sources["metrics"] = sources["metrics"].replace(
+        "  gross_revenue:\n", "  gross_revenue:\n    id: mtr_7f3a9c\n", 1
+    )
+    assert "mtr_7f3a9c" in sources["metrics"], "the fixture stopped spelling the metric this way"
+
+    _, _catalog = load_fixture("ecom_basic")
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    project = load_project(sources)
+    history = [
+        SpecVersion(label="mar", project=project, catalog=load_catalog(text)),
+        SpecVersion(label="apr", project=project, catalog=load_catalog(_moved_template())),
+    ]
+
+    (change,) = timeline(history, "metric.mtr_7f3a9c").changes
+
+    # Named for the reader, rooted for the graph — and the sinks prove the
+    # second half, which the naming test above cannot.
+    assert change.node == "metric.gross_revenue"
+    assert change.reaches == (
+        "exposure.finance_extract",
+        "exposure.weekly_revenue_review",
+        "mart.order_items",
+    )
