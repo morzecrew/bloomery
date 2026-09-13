@@ -42,6 +42,7 @@ from sqlglot import exp, parse_one
 from sqlglot.errors import SqlglotError
 
 from bloomery.errors import BloomeryError, InvariantViolated
+from bloomery.guardrails.classification import published_columns, sensitive_columns
 from bloomery.ir import Materialization, UnreachableMetric, project_fingerprint
 from bloomery.quality import is_quality_mart
 from bloomery.resolve import FieldProvenance, Resolution, Stage, StageProgress, pipeline
@@ -97,6 +98,13 @@ class AdvisoryCode(StrEnum):
     #: binary-float division narrowed back to the declared decimal — on every
     #: engine, not only DuckDB (``pages/docs/reference/dialects.md``).
     INEXACT_DIVISION = "inexact_division"
+    #: A `pii` or `secret` column published by a mart or rollup where no
+    #: `grants:` block says who may read it — on the relation, on the source
+    #: entity, or on either (RFC 0055 D11). The refusal beside it needs both
+    #: sides declared to call one wider than the other; with either missing,
+    #: bloomery has no opinion about the audience and the warehouse's own
+    #: grants stand, which is unknown rather than wrong.
+    UNDECLARED_AUDIENCE = "undeclared_audience"
 
 
 # ....................... #
@@ -653,14 +661,14 @@ def _from_ir(
                 1 for mart in ir.marts for join in mart.joins if join.as_of is not None
             ),
         ),
-        advisories=_advisories(catalog),
+        advisories=_advisories(catalog, ir),
     )
 
 
 # ....................... #
 
 
-def _advisories(catalog: Catalog | None) -> tuple[Advisory, ...]:
+def _advisories(catalog: Catalog | None, ir: ProjectIR | None = None) -> tuple[Advisory, ...]:
     """Every compile-time advisory, as a pure function of what the pipeline
     already holds (RFC 0033 §5.1).
 
@@ -673,16 +681,97 @@ def _advisories(catalog: Catalog | None) -> tuple[Advisory, ...]:
     this type is built, and it makes the answer independent of when a stage
     ran (``logs/T-0048.md``).
 
-    Called with the catalog alone today because the one advisory that exists is
-    about the catalog. The signature widens when a finding needs more; it is
-    not pre-widened, because a parameter nothing reads is a parameter whose
-    contract nobody checks.
+    The signature widened for the second finding, exactly as this docstring
+    said it would: `undeclared_audience` is about the IR rather than the
+    catalog. ``ir`` is optional because the partial widths below reach here
+    before one exists — a project refused at parse has no IR and still has a
+    catalog to advise about.
     """
+
+    return _sorted_advisories(
+        (*_inexact_divisions(catalog), *_undeclared_audiences(ir)),
+    )
+
+
+# ....................... #
+
+
+def _undeclared_audiences(ir: ProjectIR | None) -> tuple[Advisory, ...]:
+    """A sensitive column published where the audience is undeclared
+    (RFC 0055 D11).
+
+    The refusal beside this one fires when a published relation admits a role
+    the entity a sensitive column came from does not. That needs both sides
+    declared. When either says nothing, bloomery has no
+    opinion and the warehouse's own grants stand (D6) — which is unknown
+    rather than wider, and refusing the unknown would refuse every project
+    managing its gold grants elsewhere.
+
+    So it advises instead, and the bar RFC 0033 D7 sets is met: the spec is
+    legal, the artifacts are correct, and an author who classified a column
+    `pii` and then published it to nobody-knows-whom would want to know.
+    """
+
+    if ir is None:
+        return ()
+
+    sensitive = sensitive_columns(ir)
+
+    if not sensitive:
+        return ()
+
+    entities = {entity.name: entity for entity in ir.entities}
+    found: list[Advisory] = []
+
+    for relation in published_columns(ir):
+        for column, source_entity, source_column in relation.columns:
+            classification = sensitive.get((source_entity, source_column))
+
+            # `pii` only. A `secret` column in a published relation is already
+            # refused, unconditionally (RFC 0055 D10) — so advising about its
+            # audience would put "this is legal and the artifacts are correct"
+            # beside a refusal saying otherwise, which is the advisory-where-a-
+            # refusal-belongs that RFC 0033 D7 calls a defect (PR #113 review).
+            if classification != "pii":
+                continue
+
+            source = entities.get(source_entity)
+
+            if relation.grants is not None and source is not None and source.grants is not None:
+                # Both sides declared: the guardrail beside this one decides
+                # whether the audience widened, and says so as a refusal.
+                continue
+
+            found.append(
+                Advisory(
+                    code=AdvisoryCode.UNDECLARED_AUDIENCE,
+                    message=(
+                        f"{relation.kind[:-1]} {relation.name!r} publishes column {column!r}, "
+                        f"which is {source_entity}.{source_column} classified "
+                        f"{classification}, and no grants: block says who may read it — on "
+                        f"the {relation.kind[:-1]}, on the entity, or on either. bloomery has "
+                        "no opinion about the audience, so whatever your warehouse already "
+                        "grants stands. This is legal and the artifacts are correct. Fix, if "
+                        "the audience should be bloomery's to state: declare grants: on both, "
+                        "and the guardrail will then refuse a widening"
+                    ),
+                    source_path=f"marts: {relation.kind}.{relation.name}",
+                )
+            )
+
+    return tuple(found)
+
+
+# ....................... #
+
+
+def _inexact_divisions(catalog: Catalog | None) -> tuple[Advisory, ...]:
+    """A catalog recipe whose ``expr:`` divides (RFC 0033 §5.3)."""
 
     if catalog is None:
         return ()
 
-    return _sorted_advisories(
+    return tuple(
         Advisory(
             code=AdvisoryCode.INEXACT_DIVISION,
             message=(

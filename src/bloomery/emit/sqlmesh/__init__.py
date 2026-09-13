@@ -548,6 +548,8 @@ def _rollup_artifact(rollup: RollupIR, ir: ProjectIR, ctx: EmitContext) -> Emitt
         grain=", ".join(rollup.keep),
         partitioned_by=_partitioned_by(rollup.partition_by),
         audits="",
+        owner=_owner_clause(None, ctx),
+        grants=_grants_clause(rollup.grants, ctx),
         select=ctx.dialect.render(rollup_select(rollup, ir, ctx)),
     )
     return EmittedArtifact.create(

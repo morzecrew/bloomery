@@ -60,6 +60,7 @@ __all__ = [
     "GrainMismatch",
     "AdditivityViolation",
     "AssertLoweringError",
+    "AudienceWidened",
     "GrainViolation",
     "guaranteed",
     "FanoutRisk",
@@ -77,6 +78,7 @@ __all__ = [
     "DedupeDispositionConflict",
     "IngestionMetadataMissing",
     "RedactionConflict",
+    "SecretPublished",
     "StepError",
     "UnknownStep",
     "UnprovableRollup",
@@ -613,6 +615,38 @@ class RedactionConflict(GuardrailError):
     intersecting a path the entity's mappings read (``from`` paths, recipe
     aliases included) — you cannot both require a field and destroy it at
     write time; the message names both sides."""
+
+
+# ....................... #
+
+
+class SecretPublished(GuardrailError):
+    """Guardrail stage (RFC 0055 D10): a column classified ``secret`` carried
+    by a **published relation** — a mart or a rollup.
+
+    A published relation is exactly the thing ``secret`` says this column is
+    not part of, so the two authored statements cannot both hold. Refused
+    unconditionally: it does not depend on redaction, on quarantine, or on
+    anything being granted, because none of those change what a mart is."""
+
+
+# ....................... #
+
+
+class AudienceWidened(GuardrailError):
+    """Guardrail stage (RFC 0055 D11): a ``pii``/``secret`` column reaching a
+    relation that admits a role the entity it came from does not.
+
+    A set difference, not a superset test — disjoint grant sets are refused
+    too, because a role that can read the mart and not the entity is the leak
+    whether or not the mart also admits the entity's roles.
+
+    The leak this exists for is the ordinary one — a customer table flattened
+    into a wide mart, and the mart granted to everyone. Both sides must
+    *declare* their grants for this to fire: an undeclared audience is unknown
+    rather than wider, and it is an advisory instead (RFC 0033), because
+    refusing the unknown case would refuse every project that manages its gold
+    grants outside bloomery."""
 
 
 # ....................... #

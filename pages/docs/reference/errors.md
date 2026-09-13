@@ -41,7 +41,9 @@ BloomeryError
 │   ├── DedupeTieBreakMissing
 │   ├── DedupeDispositionConflict
 │   ├── IngestionMetadataMissing
-│   └── RedactionConflict
+│   ├── RedactionConflict
+│   ├── SecretPublished
+│   └── AudienceWidened
 ├── PlanError
 │   ├── ContractViolation
 │   └── RenameTargetMissing
@@ -106,6 +108,8 @@ BloomeryError
 | `DedupeDispositionConflict` | guardrails | A `coercible` rule weaker than `fail` on a field named by `dedupe.field`/`tie_break`, where an uncastable value leaves the dedupe order undefined |
 | `IngestionMetadataMissing` | guardrails | An entity using `quarantine:`/`dedupe:` whose mapping neither maps nor acknowledges `_load_id`, `_ingested_at`, `_source_row_id` |
 | `RedactionConflict` | guardrails | A `quarantine.redact` path intersecting a path the mapping reads — replay re-runs the mapping against `raw`, which the redaction has already destroyed |
+| `SecretPublished` | guardrails | A mart or rollup carrying a column classified `secret`. A published relation is the one thing `secret` says the column is not part of, so the two authored statements cannot both hold. Unconditional — it does not depend on redaction, quarantine, or anything being granted |
+| `AudienceWidened` | guardrails | A `pii`/`secret` column reaching a relation that **admits a role its source entity does not** — a set difference rather than a superset test, so disjoint sets are refused as well — the customer table flattened into a wide mart and the mart granted to everyone. Both sides must declare grants: an undeclared audience is unknown rather than wider, and is an [advisory](#advisories-are-not-errors) instead |
 | `PlanError` | plan | A spec diff that cannot produce a safe migration plan (including IR-version mismatch) |
 | `ContractViolation` | plan | Dropping or narrowing a field still referenced by a reachable metric — expand/contract enforced |
 | `RenameTargetMissing` | plan | A `renamed_from` annotation whose old name is absent from the old IR |
@@ -303,6 +307,7 @@ improves between releases.
 
 | Code | Raised when |
 |---|---|
+| `undeclared_audience` | A mart or rollup publishes a `pii`/`secret` column and no `grants:` block says who may read it — on the relation, on the source entity, or on either. bloomery has no opinion about the audience, so whatever the warehouse already grants stands. Declare grants on both and the guardrail refuses a widening instead |
 | `inexact_division` | A catalog recipe's `expr:` divides. The `divide` *transform* is marked so PostgreSQL and Trino keep it in exact decimal arithmetic, but a recipe's expression is parsed SQL carrying no marker — so the division happens in binary floating point and is narrowed back to the declared decimal, on every engine rather than only on DuckDB. Where the division must be exact, use a `divide`/`multiply` transform chain instead |
 
 Advisories carry a `source_path` under the same rules as an error's, below.

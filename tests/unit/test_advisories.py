@@ -35,6 +35,21 @@ def _advisory(code: AdvisoryCode, message: str, source_path: str | None = None) 
 # The producer
 
 
+
+def divisions(evidence: object) -> tuple[object, ...]:
+    """Only the `inexact_division` advisories.
+
+    Scoped rather than asserting the whole tuple, because the whole tuple is
+    not this module's subject: `ecom_basic` also carries a classified column,
+    so a second advisory arrived and turned three assertions about division
+    into assertions about the advisory channel's total contents (RFC 0055
+    D11). A test named for one code should fail only when that code changes.
+    """
+    return tuple(
+        a for a in evidence.advisories  # type: ignore[attr-defined]
+        if a.code is AdvisoryCode.INEXACT_DIVISION
+    )
+
 def test_a_recipe_that_divides_is_flagged() -> None:
     """`ecom_basic`'s `from_total` recipe is `line_total / quantity` — the
     exact construct `dialects.md` documents as inexact on every engine, and
@@ -43,7 +58,7 @@ def test_a_recipe_that_divides_is_flagged() -> None:
     project, catalog = load_fixture("ecom_basic")
     evidence = evaluate(project, catalog=catalog)
 
-    assert [(a.code, a.source_path) for a in evidence.advisories] == [
+    assert [(a.code, a.source_path) for a in divisions(evidence)] == [
         (
             AdvisoryCode.INEXACT_DIVISION,
             "catalog: canonical_fields.unit_price.recipes.from_total.expr",
@@ -56,14 +71,14 @@ def test_a_project_whose_recipes_do_not_divide_says_nothing() -> None:
     project is a finding nobody looks at."""
     project, catalog = load_fixture("multi_source")
 
-    assert evaluate(project, catalog=catalog).advisories == ()
+    assert divisions(evaluate(project, catalog=catalog)) == ()
 
 
 def test_the_message_says_what_why_and_the_way_out() -> None:
     """§5.1: the same contract refusals carry. Not the exact words — message
     text is not API — but the three parts a reader needs."""
     project, catalog = load_fixture("ecom_basic")
-    (advisory,) = evaluate(project, catalog=catalog).advisories
+    (advisory,) = divisions(evaluate(project, catalog=catalog))
 
     assert "divides in its expr:" in advisory.message  # what
     assert "binary floating point" in advisory.message  # why
@@ -125,7 +140,7 @@ def test_a_slash_in_a_literal_survives_a_real_compile() -> None:
     project, _catalog = load_fixture("ecom_basic")
     doctored = load_catalog(_catalog_text_with_literal_slash())
 
-    assert evaluate(project, catalog=doctored).advisories == ()
+    assert divisions(evaluate(project, catalog=doctored)) == ()
 
 
 def _catalog_text_with_literal_slash() -> str:

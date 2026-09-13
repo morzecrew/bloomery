@@ -189,6 +189,7 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("RollupIR", "measures"): Facet.INPUTS,
     ("RollupIR", "materialization"): Facet.STORAGE,
     ("RollupIR", "partition_by"): Facet.STORAGE,
+    ("RollupIR", "grants"): Facet.ACCESS,
     # A declared consumer.
     ("ExposureIR", "metrics"): Facet.INPUTS,
     ("ExposureIR", "marts"): Facet.INPUTS,

@@ -1175,6 +1175,17 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
         if mart.owner is not None or mart.grants is not None
     )
 
+    # A rollup declares its own audience (RFC 0055 D12) and does not inherit
+    # its parent's, so it gets its own entry when it declares one.
+    models.extend(
+        {
+            "name": ctx.naming.relation(rollup.name, Layer.GOLD)[1],
+            "config": {"grants": {"select": list(rollup.grants.select)}},
+        }
+        for rollup in ir.rollups
+        if rollup.grants is not None
+    )
+
     if not models and not snapshots:
         return None
 

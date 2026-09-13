@@ -20,12 +20,15 @@ entities:
       segment: {type: string, classification: internal}
 ```
 
-**Two of the three are declarations bloomery never verifies.** An owner is not paged, and
-a classification masks nothing: no column is dropped, redacted or encrypted, and one
-marked `public` that is not reads exactly like one that is. They are written down so a
-person can find out, not so a machine can enforce.
+**An owner is a declaration bloomery never verifies.** Nobody is paged, and a name is not
+checked against a directory.
 
-`grants:` is the exception, and the rest of this page treats it as one.
+**A classification masks nothing either** — no column is dropped, redacted or encrypted —
+but it is not inert: it is checked *against your grants*, and a sensitive column published
+to an audience its source entity restricts is a compile error. What it cannot do is
+protect a column on its own.
+
+`grants:` is the one with a mechanism, and everything enforceable here runs through it.
 
 ## `owner:` — who to tell
 
@@ -87,17 +90,61 @@ not something a semantic layer can enforce — and, as above, neither is `pii`.
 A column no mart projects has no Cube surface to be taken off; its classification still
 reaches dbt.
 
+### What a classification refuses
+
+The metadata above is the smaller half. A `pii` or `secret` column is checked against the
+grants on the relations that publish it — a mart or a rollup — and there are three
+outcomes, in decreasing order of what the compiler can prove:
+
+**`secret` in a published relation is refused, always.** A mart is the published surface,
+which is the one thing `secret` says the column is not part of. It does not matter what is
+granted:
+
+```
+mart 'order_items' carries column 'order_customer_id', which is order.customer_id
+classified secret (RFC 0055 D10). A mart is the published surface, which is the one
+thing 'secret' says this column is not part of. Fix: drop the column from the flatten,
+or reclassify it if it is not secret
+```
+
+**A `pii`/`secret` column in a relation that admits a role its entity does not is
+refused.** The ordinary leak is a customer table flattened into a wide mart and the mart
+granted to everyone:
+
+```
+mart 'order_items' carries column 'order_customer_id', which is order.customer_id
+classified pii, and grants select to everyone — role(s) entity 'order' does not grant
+(RFC 0055 D11)
+```
+
+Equal grants pass. Narrower grants pass. `{select: []}` passes, because no role at all is
+the narrowest thing there is. **Disjoint sets are refused**, not passed: it is a set
+difference rather than a superset test, and a role that can read the mart but not the
+entity is the leak whether or not the mart also admits the entity's own roles.
+
+**An undeclared audience advises rather than refuses.** If either side has no `grants:`
+block, bloomery has no opinion about who reads the relation and your warehouse's own grants
+stand — that is *unknown*, not wider, and refusing it would refuse every project that
+manages gold grants elsewhere. You get an
+[`undeclared_audience` advisory](../reference/errors.md#advisories-are-not-errors) on the
+value `evaluate()` returns. Declare grants on both sides and the refusal above takes over.
+
+A rollup is a published relation too, and declares **its own** grants — it does not inherit
+its parent mart's, because a rollup is something you wrote and D2's rule is that authored
+nodes do not inherit.
+
 ### How this relates to `quarantine.redact`
 
-They answer different questions and bloomery keeps them apart.
+They answer different questions and never meet.
 [`redact:`](../concepts/data-quality.md) decides what a **reject row** keeps — a reject
 table is a copy of failing rows with a retention window, so a path listed there is removed
-before the row is written. `classification:` describes a column that is *present*, and
-governs how it is treated everywhere else.
+before the row is written. `classification:` describes a column that is *published*, and
+what it composes with is `grants:`, above.
 
-The two cannot be pointed at the same column: bloomery already refuses a `redact:` path
-that a mapping reads, because replay re-runs the mapping against `raw` and a redacted path
-is gone by then.
+The two cannot be pointed at the same column anyway: bloomery refuses a `redact:` path that
+a mapping reads, because replay re-runs the mapping against `raw` and a redacted path is
+gone by then. A published column therefore never appears in `redact:`, which is exactly why
+a classification has to be checked against something else.
 
 ## `grants:` — who may read it
 
@@ -147,7 +194,8 @@ onto it like any other.
 **Row-level access.** A grant names a role and applies to a relation. Filtering *rows* by
 who is asking is a query-time concern and is not an annotation on a spec node.
 
-**Enforcement of the other two.** No owner is paged and no classification masks a column —
-not even in Cube, where `public: false` hides a member without making it unqueryable. If a
-consumer must not read a column, the tool is a grant that does not include their role, or
-leaving the column out of the mart they read.
+**Masking.** No owner is paged and no classification masks a column — not even in Cube,
+where `public: false` hides a member without making it unqueryable. A classification is
+checked against your grants; it never rewrites a column. If a consumer must not read one,
+the tool is a grant that does not include their role, or leaving the column out of the mart
+they read.
