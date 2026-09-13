@@ -17,7 +17,7 @@ import dataclasses
 import pytest
 
 from bloomery import build_project_ir, load_catalog, load_project
-from bloomery.errors import GuardrailError, InsufficientEvidence
+from bloomery.errors import GuardrailError, InsufficientEvidence, SpecParseError
 from bloomery.ir import project_fingerprint
 from bloomery.guardrails import evidence as guard
 from bloomery.semantic import (
@@ -490,3 +490,22 @@ def test_importing_a_relationship_moves_no_fingerprint() -> None:
     assert project_fingerprint(build_project_ir(imported, catalog)) == project_fingerprint(
         build_project_ir(plain, catalog)
     )
+
+
+def test_an_empty_imported_from_is_refused_at_parse() -> None:
+    """Presence is the fact, and an empty string is present while naming
+    nothing — it would lower the relationship's grade and then produce a
+    refusal citing `''` as the artifact.
+
+    Refused for the reason an empty `via:` is: shape is what parse is for, and
+    the alternative is a message that helps nobody (PR #115 review).
+    """
+
+    sources = fixture_sources("ecom_basic")
+    sources["entity_model"] = sources["entity_model"].replace(
+        "    cardinality: many_to_one",
+        '    cardinality: many_to_one\n    imported_from: ""',
+        1,
+    )
+    with pytest.raises(SpecParseError):
+        load_project(sources)
