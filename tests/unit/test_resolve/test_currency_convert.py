@@ -405,13 +405,19 @@ PER_ROW_STEP = "{convert: [currency_code, USD, paid_at]}"
 
 
 def _per_row(
-    *, declaration: str = "{column: currency_code}", step: str = PER_ROW_STEP, model: str = ""
+    *,
+    declaration: str = "{column: currency_code}",
+    step: str = PER_ROW_STEP,
+    model: str = "",
+    extra_field: str = "",
 ) -> None:
     """Build the per-row fixture with a chosen declaration, chain and entity.
 
     ``model`` replaces one line of `entity_model.yaml` where a case needs the
     currency column to be typed differently or not declared at all — the two
     conditions the sibling lookup owns that no mapping edit can produce.
+    ``extra_field`` appends one `fields:` entry, for the case that needs a
+    second column with a chain of its own.
     """
 
     sources = {
@@ -427,6 +433,8 @@ def _per_row(
     if model:
         before, _, after = model.partition(" -> ")
         sources["entity_model"] = sources["entity_model"].replace(before, after)
+    if extra_field:
+        sources["mapping"] = sources["mapping"].rstrip("\n") + "\n" + extra_field + "\n"
     catalog = load_catalog((PER_ROW / "catalog.yaml").read_text())
     build_project_ir(load_project(sources), catalog=catalog)
 
@@ -502,3 +510,24 @@ def test_a_per_row_chain_may_bridge_and_its_bridge_is_checked() -> None:
 
     with pytest.raises(ResolutionError, match=r"required: a conversion out of 'CHF'"):
         _per_row(step="{convert: [currency_code, CHF, paid_at]}, {convert: [JPY, USD, paid_at]}")
+
+
+def test_a_currency_column_whose_own_chain_converts_is_refused() -> None:
+    """`{to_decimal: …}`, `{convert: …}`, `to_string` declares a `string`
+    column, so nothing about its *type* stops it being named as the currency
+    column — and a sibling is re-lowered into the conversion that reads it.
+
+    Reproduced before the guard: the inner conversion was spliced inside the
+    rate lookup with its anchor still the field name, and the emitted
+    predicate read `'paid_at' >= fx.valid_from` — a string literal against a
+    date, matching nothing, in SQL that compiled (logs/T-0052.md).
+    """
+    with pytest.raises(ResolutionError, match=r"whose own chain converts"):
+        _per_row(
+            declaration="{column: bridged_ccy}",
+            step="{convert: [bridged_ccy, USD, paid_at]}",
+            model="      currency_code: {type: string} -> "
+            "      currency_code: {type: string}\n      bridged_ccy: {type: string}",
+            extra_field='  bridged_ccy: {currency_in: EUR, from: "$.amount", '
+            "transform: [{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}, to_string]}",
+        )

@@ -2404,18 +2404,23 @@ def _sibling_expression(
     extension that Postgres and Trino reject. So the chain is lowered a second
     time, here, into the conversion.
 
-    **That second lowering can never itself contain a conversion**, which is
-    why `_resolve_conversions` scans for markers once and binds siblings after.
-    It follows from two stated contracts rather than from luck: a sibling is a
-    date, a timestamp or a string (above), and `convert` is decimal-in,
-    decimal-out by signature. Nothing bridges the two — `parse_date` takes a
-    string and returns a date, and `to_string` goes the other way from a
-    decimal without passing through one — so a chain carrying a conversion
-    cannot typecheck to what a sibling has to be. Left as a sentence rather
-    than a guard because a guard here could not be reached, and an unreachable
-    branch is a claim no test can keep honest; a transform that turned a
-    decimal into an instant would break the argument, and this is where its
-    author should be told so.
+    **That second lowering must not itself contain a conversion**, which is
+    why `_resolve_conversions` scans for markers once and binds siblings after
+    — and why the guard below is a guard rather than the sentence it used to
+    be. For an anchor the argument held: `convert` is decimal-in, decimal-out
+    by signature, nothing turns a decimal into an instant, so no chain that
+    converts can typecheck to a date. For a string it does not, and the
+    transform that breaks it is the obvious one: `{to_decimal: …}`,
+    `{convert: …}`, `to_string` is a legal chain declaring a `string` column,
+    and naming it as a currency column spliced its conversion inside the rate
+    lookup — with the inner marker's anchor still the field *name*, so the
+    emitted predicate compared the string `'paid_at'` against a date and
+    matched nothing (logs/T-0052.md).
+
+    Refused for both roles from one place rather than for the role that can
+    reach it, because the argument that protects the anchor is a fact about
+    today's transform vocabulary and a transform added later is exactly what
+    would retire it silently.
     """
     field = entity.fields.get(name)
 
@@ -2464,9 +2469,22 @@ def _sibling_expression(
         )
         raise ResolutionError(msg, source_path=source_path)
 
-    return _lower_chain(
+    lowered = _lower_chain(
         lowering.from_, lowering.transform, declared, reg, steps, source_path=source_path
     )
+
+    if any(str(node.this).upper() == CONVERT_MARKER for node in lowered.find_all(exp.Anonymous)):
+        msg = (
+            f"convert names {kind.noun} {name!r}, whose own chain converts. A {kind.noun} is "
+            "re-lowered into the conversion that reads it, so its conversion would be "
+            "spliced inside the rate lookup — where its anchor is never bound, and the "
+            "emitted predicate compares a field name against a date and matches nothing. "
+            f"Fix: name a {kind.noun} that does not convert, or convert it into a column of "
+            "its own and name that"
+        )
+        raise ResolutionError(msg, source_path=source_path)
+
+    return lowered
 
 
 # ....................... #
