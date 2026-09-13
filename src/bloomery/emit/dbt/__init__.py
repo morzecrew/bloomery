@@ -1142,6 +1142,26 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
             _namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
             models.append(_schema_entry(entity, relation, ctx))
 
+    # A granted entity's reject relation is granted with it. The reject model
+    # is a *separate* dbt model, so the entity's own entry does not reach it —
+    # and a reject table left open while the silver table is closed publishes
+    # exactly the rows an author restricted. SQLMesh got this in the same
+    # commit that added grants because there the reject model is rendered
+    # through the same envelope; here it is a second entry, and it was missing
+    # (PR #112 review).
+    #
+    # Grants only: an owner and a classification say something about the entity
+    # that its reject rows do not restate, and dbt reads a `meta:` on a model
+    # nobody queries directly as noise.
+    models.extend(
+        {
+            "name": ctx.naming.relation(reject_relation(entity), Layer.SILVER)[1],
+            "config": {"grants": {"select": list(entity.grants.select)}},
+        }
+        for entity in ir.entities
+        if entity.grants is not None and entity.quarantine is not None
+    )
+
     # A mart's owner reaches the same document, as its own `models:` entry.
     # In the config line instead would mean interpolating an authored string
     # into a Jinja call — `{{ config(meta={'owner': '...'}) }}` — where a

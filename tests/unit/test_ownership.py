@@ -634,6 +634,75 @@ unmapped: ["$._ingested_at", "$._load_id", "$._source_row_id"]
     assert 'grants ("select" = (\'analyst\'))' in reject
 
 
+def test_the_dbt_reject_model_is_granted_too() -> None:
+    """The same claim as the SQLMesh reject test, at the target where it was
+    missing.
+
+    On SQLMesh the reject model renders through the same envelope, so it picked
+    the grant up in the commit that added grants at all. On dbt it is a
+    *separate* model, so the entity's own schema entry does not reach it — and
+    a reject table left open while the silver table is closed publishes exactly
+    the rows an author restricted (PR #112 review).
+    """
+    model = """\
+spec_version: 1
+entities:
+  event:
+    grain: one row per event
+    key: [event_id]
+    grants: {select: [analyst]}
+    quarantine: {retention: 90d}
+    dedupe: {keep: latest_by, field: _ingested_at, tie_break: [_load_id]}
+    fields:
+      event_id: {type: string, required: true}
+      kind: {type: string, required: true}
+"""
+    mapping = """\
+mapping_version: 1
+target: event
+source: raw__events
+key:
+  event_id: {from: "$.id"}
+fields:
+  kind: {from: "$.kind"}
+unmapped: ["$._ingested_at", "$._load_id", "$._source_row_id"]
+"""
+    emitted = {
+        a.path: a.content
+        for a in compile_project(
+            load_project({"entity_model": model, "mapping": mapping}),
+            target="dbt",
+            dialect="duckdb",
+        )
+    }
+    entries = {e["name"]: e for e in yaml.safe_load(emitted["models/schema.yml"])["models"]}
+    granted = {"grants": {"select": ["analyst"]}}
+
+    assert entries["event"]["config"] == granted
+    assert entries["event__reject"]["config"] == granted
+
+    # An ungranted entity gains no reject entry, so the entry exists because of
+    # the grant rather than because the reject model exists.
+    plain = {
+        a.path: a.content
+        for a in compile_project(
+            load_project(
+                {"entity_model": model.replace("    grants: {select: [analyst]}\n", ""), "mapping": mapping}
+            ),
+            target="dbt",
+            dialect="duckdb",
+        )
+    }
+    # This entity has no audits, no owner and no classification either, so
+    # without the grant there is no `schema.yml` at all — which is the same
+    # claim in its strongest form.
+    document = plain.get("models/schema.yml")
+    names = (
+        {e["name"] for e in yaml.safe_load(document)["models"]} if document is not None else set()
+    )
+    assert "event__reject" not in names
+
+
 @pytest.mark.parametrize("node", ["entity", "mart"])
 def test_cube_refuses_grants_rather_than_dropping_them(node: str) -> None:
     """D5. Cube reads relations it does not own, so a grant there would be a
