@@ -24,7 +24,16 @@ followable once the document is gone; `just quality` refuses a number that is ne
 nor retired, a commit that does not hold the document, and one the mainline cannot reach.
 `git show <commit>:rfcs/<file>` prints a retired document back in full.
 
-Two consequences worth knowing:
+**A retiring RFC takes no new rows.** Where the change that completes a document is also the
+change that retires it, its execution's decisions go in the task log and nowhere else. The
+retirement row names the branch point, so a row appended on the branch exists at no commit
+the mainline can reach: not at the commit `RETIRED.md` names, which predates it, and not in
+the tree, which no longer holds the file. This is the one place the usual habit — a phase's
+decisions land in the change that executes it — does not apply, and it is not a licence to
+skip recording them: the log is a committed file that survives the deletion, so an entry
+there states its rationale in full rather than deferring to a row that will not exist.
+
+Three consequences worth knowing:
 
 - **Prose citations outlive the file.** Source, tests and docs cite decisions as
   `RFC 0016 D84` rather than as links, so a retired RFC's number keeps naming where a
@@ -32,6 +41,14 @@ Two consequences worth knowing:
   input documents the corpus grew from — `_original-smelter-spec.md` and the
   `_bloomery-*.md` set — were removed on the same reasoning, once every RFC deriving from
   them had shipped.
+- **A log citation to a retired document still resolves, and a bare path check will say
+  otherwise.** Task logs cite evidence as `rfcs/0064-….md:209-220`, and the file is gone.
+  The line is not lost: the number is in [`RETIRED.md`](RETIRED.md), the commit there holds
+  the document, and `git show <commit>:<path> | sed -n '209,220p'` prints it. Every such
+  citation in `logs/` resolves this way today, measured. `log_check.py` reports them as
+  missing because it tests the working tree and knows nothing of this table — a limitation
+  of a vendored checker that gates neither CI nor `just quality`, not a decay in the record.
+  Do not migrate the citations to work around it.
 - **Retire whole, never in part.** A 🚧 In progress RFC stays, however much of it has
   shipped. Deleting the shipped half would leave the remainder arguing from a premise no
   longer in the tree.
