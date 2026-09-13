@@ -1230,6 +1230,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#what-a-classification-refuses" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What a classification refuses
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#how-this-relates-to-quarantineredact" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1728,6 +1739,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#what-a-classification-refuses" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What a classification refuses
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#how-this-relates-to-quarantineredact" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1854,11 +1876,13 @@ changes a line of SQL.</p>
 <span class="w">      </span><span class="nt">email</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="nv">string</span><span class="p p-Indicator">,</span><span class="nt"> classification</span><span class="p">:</span><span class="w"> </span><span class="nv">pii</span><span class="p p-Indicator">}</span>
 <span class="w">      </span><span class="nt">segment</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="nv">string</span><span class="p p-Indicator">,</span><span class="nt"> classification</span><span class="p">:</span><span class="w"> </span><span class="nv">internal</span><span class="p p-Indicator">}</span>
 </code></pre></div>
-<p><strong>Two of the three are declarations bloomery never verifies.</strong> An owner is not paged, and
-a classification masks nothing: no column is dropped, redacted or encrypted, and one
-marked <code>public</code> that is not reads exactly like one that is. They are written down so a
-person can find out, not so a machine can enforce.</p>
-<p><code>grants:</code> is the exception, and the rest of this page treats it as one.</p>
+<p><strong>An owner is a declaration bloomery never verifies.</strong> Nobody is paged, and a name is not
+checked against a directory.</p>
+<p><strong>A classification masks nothing either</strong> — no column is dropped, redacted or encrypted —
+but it is not inert: it is checked <em>against your grants</em>, and a sensitive column published
+to an audience its source entity restricts is a compile error. What it cannot do is
+protect a column on its own.</p>
+<p><code>grants:</code> is the one with a mechanism, and everything enforceable here runs through it.</p>
 <h2 id="owner-who-to-tell"><code>owner:</code> — who to tell<a class="headerlink" href="#owner-who-to-tell" title="Permanent link">&para;</a></h2>
 <p>A free string on an entity, a mart or a metric. It is not validated as an email, a handle
 or a team name: every project spells this differently, and a format rule would refuse
@@ -1932,15 +1956,48 @@ the mart.</p>
 not something a semantic layer can enforce — and, as above, neither is <code>pii</code>.</p>
 <p>A column no mart projects has no Cube surface to be taken off; its classification still
 reaches dbt.</p>
+<h3 id="what-a-classification-refuses">What a classification refuses<a class="headerlink" href="#what-a-classification-refuses" title="Permanent link">&para;</a></h3>
+<p>The metadata above is the smaller half. A <code>pii</code> or <code>secret</code> column is checked against the
+grants on the relations that publish it — a mart or a rollup — and there are three
+outcomes, in decreasing order of what the compiler can prove:</p>
+<p><strong><code>secret</code> in a published relation is refused, always.</strong> A mart is the published surface,
+which is the one thing <code>secret</code> says the column is not part of. It does not matter what is
+granted:</p>
+<div class="highlight"><pre><span></span><code>mart 'order_items' carries column 'order_customer_id', which is order.customer_id
+classified secret (RFC 0055 D10). A mart is the published surface, which is the one
+thing 'secret' says this column is not part of. Fix: drop the column from the flatten,
+or reclassify it if it is not secret
+</code></pre></div>
+<p><strong>A <code>pii</code>/<code>secret</code> column in a relation that admits a role its entity does not is
+refused.</strong> The ordinary leak is a customer table flattened into a wide mart and the mart
+granted to everyone:</p>
+<div class="highlight"><pre><span></span><code>mart 'order_items' carries column 'order_customer_id', which is order.customer_id
+classified pii, and grants select to everyone — role(s) entity 'order' does not grant
+(RFC 0055 D11)
+</code></pre></div>
+<p>Equal grants pass. Narrower grants pass. <code>{select: []}</code> passes, because no role at all is
+the narrowest thing there is. <strong>Disjoint sets are refused</strong>, not passed: it is a set
+difference rather than a superset test, and a role that can read the mart but not the
+entity is the leak whether or not the mart also admits the entity's own roles.</p>
+<p><strong>An undeclared audience advises rather than refuses.</strong> If either side has no <code>grants:</code>
+block, bloomery has no opinion about who reads the relation and your warehouse's own grants
+stand — that is <em>unknown</em>, not wider, and refusing it would refuse every project that
+manages gold grants elsewhere. You get an
+<a href="../../reference/errors/#advisories-are-not-errors"><code>undeclared_audience</code> advisory</a> on the
+value <code>evaluate()</code> returns. Declare grants on both sides and the refusal above takes over.</p>
+<p>A rollup is a published relation too, and declares <strong>its own</strong> grants — it does not inherit
+its parent mart's, because a rollup is something you wrote and D2's rule is that authored
+nodes do not inherit.</p>
 <h3 id="how-this-relates-to-quarantineredact">How this relates to <code>quarantine.redact</code><a class="headerlink" href="#how-this-relates-to-quarantineredact" title="Permanent link">&para;</a></h3>
-<p>They answer different questions and bloomery keeps them apart.
+<p>They answer different questions and never meet.
 <a href="../../concepts/data-quality/"><code>redact:</code></a> decides what a <strong>reject row</strong> keeps — a reject
 table is a copy of failing rows with a retention window, so a path listed there is removed
-before the row is written. <code>classification:</code> describes a column that is <em>present</em>, and
-governs how it is treated everywhere else.</p>
-<p>The two cannot be pointed at the same column: bloomery already refuses a <code>redact:</code> path
-that a mapping reads, because replay re-runs the mapping against <code>raw</code> and a redacted path
-is gone by then.</p>
+before the row is written. <code>classification:</code> describes a column that is <em>published</em>, and
+what it composes with is <code>grants:</code>, above.</p>
+<p>The two cannot be pointed at the same column anyway: bloomery refuses a <code>redact:</code> path that
+a mapping reads, because replay re-runs the mapping against <code>raw</code> and a redacted path is
+gone by then. A published column therefore never appears in <code>redact:</code>, which is exactly why
+a classification has to be checked against something else.</p>
 <h2 id="grants-who-may-read-it"><code>grants:</code> — who may read it<a class="headerlink" href="#grants-who-may-read-it" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="w">    </span><span class="nt">grants</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">select</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">analyst</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">reverse_etl</span><span class="p p-Indicator">]</span>
@@ -1974,10 +2031,11 @@ CSV with your loader, declare the relation it writes as a bronze source, and map
 onto it like any other.</p>
 <p><strong>Row-level access.</strong> A grant names a role and applies to a relation. Filtering <em>rows</em> by
 who is asking is a query-time concern and is not an annotation on a spec node.</p>
-<p><strong>Enforcement of the other two.</strong> No owner is paged and no classification masks a column —
-not even in Cube, where <code>public: false</code> hides a member without making it unqueryable. If a
-consumer must not read a column, the tool is a grant that does not include their role, or
-leaving the column out of the mart they read.</p>
+<p><strong>Masking.</strong> No owner is paged and no classification masks a column — not even in Cube,
+where <code>public: false</code> hides a member without making it unqueryable. A classification is
+checked against your grants; it never rewrites a column. If a consumer must not read one,
+the tool is a grant that does not include their role, or leaving the column out of the mart
+they read.</p>
 
 
 

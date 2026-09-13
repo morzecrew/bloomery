@@ -1963,7 +1963,9 @@ pulling in any pipeline stage.</p>
 │   ├── DedupeTieBreakMissing
 │   ├── DedupeDispositionConflict
 │   ├── IngestionMetadataMissing
-│   └── RedactionConflict
+│   ├── RedactionConflict
+│   ├── SecretPublished
+│   └── AudienceWidened
 ├── PlanError
 │   ├── ContractViolation
 │   └── RenameTargetMissing
@@ -2176,6 +2178,16 @@ pulling in any pipeline stage.</p>
 <td><code>RedactionConflict</code></td>
 <td>guardrails</td>
 <td>A <code>quarantine.redact</code> path intersecting a path the mapping reads — replay re-runs the mapping against <code>raw</code>, which the redaction has already destroyed</td>
+</tr>
+<tr>
+<td><code>SecretPublished</code></td>
+<td>guardrails</td>
+<td>A mart or rollup carrying a column classified <code>secret</code>. A published relation is the one thing <code>secret</code> says the column is not part of, so the two authored statements cannot both hold. Unconditional — it does not depend on redaction, quarantine, or anything being granted</td>
+</tr>
+<tr>
+<td><code>AudienceWidened</code></td>
+<td>guardrails</td>
+<td>A <code>pii</code>/<code>secret</code> column reaching a relation that <strong>admits a role its source entity does not</strong> — a set difference rather than a superset test, so disjoint sets are refused as well — the customer table flattened into a wide mart and the mart granted to everyone. Both sides must declare grants: an undeclared audience is unknown rather than wider, and is an <a href="#advisories-are-not-errors">advisory</a> instead</td>
 </tr>
 <tr>
 <td><code>PlanError</code></td>
@@ -2517,6 +2529,10 @@ improves between releases.</p>
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><code>undeclared_audience</code></td>
+<td>A mart or rollup publishes a <code>pii</code>/<code>secret</code> column and no <code>grants:</code> block says who may read it — on the relation, on the source entity, or on either. bloomery has no opinion about the audience, so whatever the warehouse already grants stands. Declare grants on both and the guardrail refuses a widening instead</td>
+</tr>
 <tr>
 <td><code>inexact_division</code></td>
 <td>A catalog recipe's <code>expr:</code> divides. The <code>divide</code> <em>transform</em> is marked so PostgreSQL and Trino keep it in exact decimal arithmetic, but a recipe's expression is parsed SQL carrying no marker — so the division happens in binary floating point and is narrowed back to the declared decimal, on every engine rather than only on DuckDB. Where the division must be exact, use a <code>divide</code>/<code>multiply</code> transform chain instead</td>

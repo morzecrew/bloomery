@@ -2275,8 +2275,10 @@ because replay would have nothing left to re-run against.</p>
 decides what a <strong>reject row</strong> keeps, and a column the entity actually publishes can never
 be listed there. Saying a published column is sensitive is
 <a href="../../how-to/annotate-a-spec/#classification-what-a-column-holds"><code>classification:</code></a>, which
-is a property of the column rather than a rule about one artifact — the two compose, and
-neither is a substitute for the other.</p>
+is a property of the column and is checked against the
+<a href="../../how-to/annotate-a-spec/#grants-who-may-read-it"><code>grants:</code></a> on the relations that
+publish it — marts and rollups alike. The two never meet: redaction governs the reject row, classification governs the
+published one.</p>
 <div class="admonition note">
 <p class="admonition-title">bloomery emits the replay merge; it never runs it</p>
 <p>Compilation produces a <code>replay/&lt;entity&gt;.sql</code> artifact holding the <code>MERGE</code> statements
