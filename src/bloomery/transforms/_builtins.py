@@ -800,6 +800,15 @@ CONVERT_TRANSFORM = "convert"
     arg_kinds=(ArgKind.STR, ArgKind.STR, ArgKind.STR),
     input=(DecimalType,),
     output=lambda t, _args: t,
+    # A rate the relation has no row for converts the amount to NULL on
+    # purpose (RFC 0023 D11), so `coercible` must not read the vanished value
+    # as a failed cast and quarantine the row for a coercion that did not
+    # happen. Latent while every conversion named a literal — one gap in the
+    # feed nulls every row equally — and acute per-row, where one unrecognised
+    # code nulls one row and the reject reason names the wrong cause
+    # (RFC 0061 §10, logs/T-0052.md). Rejecting on a missing rate is still
+    # available and is now declared: `{rule: not_null}` on the field.
+    nullifies=True,
     types=True,
 )
 def convert(
