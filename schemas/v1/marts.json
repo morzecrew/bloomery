@@ -20,6 +20,24 @@
       "title": "DateRoleStep",
       "type": "object"
     },
+    "Grants": {
+      "additionalProperties": false,
+      "description": "Who may read the relation a node becomes (RFC 0055 \u00a75.3).\n\nThe one annotation of this RFC with a *consequence*: an emitted grant is\napplied by the framework, on the engine, so being wrong here changes who\ncan read data rather than only what a catalogue says.\n\n``select`` alone, and required. More permissions are additive later; a\nsecond key today would buy nothing and cost D6 its clarity, because\n``grants: {}`` would then be a third state meaning neither \"no opinion\" nor\n\"no role may select\".\n\n**An empty list is not an absent block** (D6). ``grants: {select: []}``\nsays no role may select; no ``grants:`` at all says bloomery has no opinion\nand the warehouse's existing grants stand. What the empty list can promise\nis bounded by the adapter: dbt reconciles its grants on every run, SQLMesh\napplies them at creation, and a warehouse may carry privileges across a\nreplace regardless of either \u2014 so it is a statement about the\nframework-managed grant set, never about every privilege the object holds.",
+      "properties": {
+        "select": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Select",
+          "type": "array"
+        }
+      },
+      "required": [
+        "select"
+      ],
+      "title": "Grants",
+      "type": "object"
+    },
     "Mart": {
       "additionalProperties": false,
       "description": "One wide mart: base entity, authored-order flatten steps (order is\nmeaningful \u2014 chains flatten transitively, RFC 0010 \u00a75.1), measures,\npartitioning, aggregate assertions, and the tie-breaking ``cost_hint``\n(RFC 0010 D8).",
@@ -61,6 +79,17 @@
           "title": "Grain",
           "type": "string"
         },
+        "grants": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Grants"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "materialization": {
           "anyOf": [
             {
@@ -85,6 +114,18 @@
           },
           "title": "Measures",
           "type": "array"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Owner"
         },
         "partition_by": {
           "default": [],
