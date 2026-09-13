@@ -642,6 +642,11 @@ class ColumnIR:
     renamed_from: str | None
     required: bool
     description: str | None = None
+    #: What class of data this column holds (RFC 0055 §5.2), carried unchanged
+    #: from the field. A plain string rather than an enum for the same reason
+    #: the spec's vocabulary is a `Literal`: the value travels to metadata and
+    #: nothing here branches on it.
+    classification: str | None = None
 
 
 # ....................... #
@@ -777,6 +782,22 @@ class CoverageIR:
 
 
 @dataclass(frozen=True, slots=True)
+class GrantsIR:
+    """Who may read a relation (RFC 0055 §5.3).
+
+    A record rather than a bare tuple so that "no role may select" and "no
+    opinion" stay different values: ``GrantsIR(select=())`` is the first and
+    ``None`` is the second (D6). A tuple alone would collapse them into an
+    empty sequence that reads as both.
+    """
+
+    select: tuple[str, ...]
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
 class EntityIR:
     """One silver entity: key in authored order (it is meaningful), columns
     sorted by name, audits sorted by (kind, column).
@@ -824,6 +845,14 @@ class EntityIR:
     #: would emit a second model at the same path, which is the collision D28
     #: refuses everywhere else.
     produced_by: str | None = None
+    #: Who is responsible for this (RFC 0055 §5.1), carried unchanged to
+    #: whichever targets have an owner slot. A declaration bloomery never
+    #: verifies. Appended with a default so a positional construction keeps
+    #: binding what it bound before.
+    owner: str | None = None
+    #: Who may read this relation (RFC 0055 §5.3), or ``None`` for "bloomery
+    #: has no opinion and the warehouse's grants stand" (D6).
+    grants: GrantsIR | None = None
 
 
 # ....................... #
@@ -994,6 +1023,11 @@ class MetricIR:
     filter: tuple[MetricFilterIR, ...] = ()
     description: str | None = None
     depends_on: tuple[str, ...] = ()
+    #: Who is responsible for this (RFC 0055 §5.1), carried unchanged to
+    #: whichever targets have an owner slot. A declaration bloomery never
+    #: verifies. Appended with a default so a positional construction keeps
+    #: binding what it bound before.
+    owner: str | None = None
 
 
 # ....................... #
@@ -1144,6 +1178,14 @@ class MartIR:
     #: dispose of — no source identity, no reject table, no replay.
     asserts: tuple[MartAssertIR, ...] = ()
     cost_hint: int = 1
+    #: Who is responsible for this (RFC 0055 §5.1), carried unchanged to
+    #: whichever targets have an owner slot. A declaration bloomery never
+    #: verifies. Appended with a default so a positional construction keeps
+    #: binding what it bound before.
+    owner: str | None = None
+    #: Who may read this relation (RFC 0055 §5.3), or ``None`` for "bloomery
+    #: has no opinion and the warehouse's grants stand" (D6).
+    grants: GrantsIR | None = None
 
 
 # ....................... #
@@ -1473,7 +1515,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 14
+    bloomery_ir_version: int = 15
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

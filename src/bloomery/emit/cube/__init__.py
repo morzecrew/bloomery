@@ -62,6 +62,8 @@ Deterministic choices pinned here (each golden/unit-tested):
 
 from __future__ import annotations
 
+from typing import Final
+
 import yaml
 
 from bloomery.emit.base import (
@@ -149,6 +151,13 @@ def _yaml(document: dict[str, object]) -> str:
 def _metric_meta(metric: MetricIR) -> dict[str, object]:
     meta: dict[str, object] = {"additivity": metric.additivity.value}
 
+    # A metric's owner reaches Cube and nowhere else (RFC 0055 §5.1): a metric
+    # has no SQLMesh model and no dbt schema entry of its own, so a measure's
+    # `meta` is the only owner slot it has. First, because it is the one key
+    # here a person reads rather than a machine.
+    if metric.owner is not None:
+        meta["owner"] = metric.owner
+
     if metric.grain:
         # A metric with no measure of its own — a ratio, and since RFC 0034 a
         # `derived:` metric — has no grain: its components carry theirs, and an
@@ -167,19 +176,73 @@ def _metric_meta(metric: MetricIR) -> dict[str, object]:
 # ....................... #
 
 
-def _dimensions(mart: MartIR) -> list[object]:
+#: Classifications that mark a Cube member `public: false` (RFC 0055 §5.2).
+#:
+#: **What that does, measured rather than assumed.** §5.2 says it "removes it
+#: from Cube's API surface"; against Cube v1.7.18 it does not. `/meta` still
+#: lists the member, carrying `public: false` and `isVisible: false`, and a
+#: client that names it in a query still gets an answer
+#: (`tests/e2e/test_cube_meta.py`). It is a visibility hint Cube's own UIs
+#: honour — the column stops appearing in pickers — and it is not an access
+#: control. `grants:` is the annotation with a mechanism behind it.
+#:
+#: `public` and `internal` route to metadata and nothing else, which is the same
+#: amount of enforcement by a shorter road.
+_UNSERVED: Final[frozenset[str]] = frozenset({"pii", "secret"})
+
+
+def _classifications(mart: MartIR, ir: ProjectIR) -> dict[str, str]:
+    """Each mart column's classification, read through its provenance.
+
+    `MartColumnIR` carries `source_entity` and `source_column`, so the
+    classification is looked up rather than copied onto the mart column: one
+    home for the fact means a mart's view of a column cannot drift from the
+    entity's. A column whose source entity is gone is not possible here — the
+    mart guardrail refused that long before emission — and a lookup miss
+    therefore leaves the column unclassified rather than guessing.
+    """
+    by_entity = {
+        entity.name: {column.name: column.classification for column in entity.columns}
+        for entity in ir.entities
+    }
+    return {
+        column.name: classification
+        for column in mart.columns
+        if (classification := by_entity.get(column.source_entity, {}).get(column.source_column))
+        is not None
+    }
+
+
+# ....................... #
+
+
+def _dimensions(mart: MartIR, ir: ProjectIR) -> list[object]:
     types_by_column = {column.name: column.type for column in mart.columns}
+    classifications = _classifications(mart, ir)
     dimensions: list[object] = []
 
     for dimension in mart.dimensions:  # sorted by column name on MartIR
         entry: dict[str, object] = {"name": dimension.column, "sql": dimension.column}
+        meta: dict[str, object] = {}
         if dimension.ref.role is not None:
             # A date-role bucket column (RFC 0010 D4): a time dimension whose
             # bucket is recorded as meta.granularity.
             entry["type"] = "time"
-            entry["meta"] = {"granularity": dimension.ref.dimension}
+            meta["granularity"] = dimension.ref.dimension
         else:
             entry["type"] = _DIMENSION_TYPES[type(types_by_column[dimension.column])]
+
+        classification = classifications.get(dimension.column)
+
+        if classification is not None:
+            meta["classification"] = classification
+
+        if classification in _UNSERVED:
+            entry["public"] = False
+
+        if meta:
+            entry["meta"] = meta
+
         dimensions.append(entry)
 
     return dimensions
@@ -428,9 +491,15 @@ def _cube_artifact(
     cube: dict[str, object] = {
         "name": mart.name,
         "sql_table": f"{namespace}.{relation}",
-        "dimensions": _dimensions(mart),
+        "dimensions": _dimensions(mart, ir),
         "measures": _measures(mart, ir, owners),
     }
+
+    if mart.owner is not None:
+        # Cube's own `meta`, on the cube rather than on a measure. Absent when
+        # undeclared, for the same reason the pre-aggregations key is: an empty
+        # `meta` on every cube would move every existing golden to say nothing.
+        cube["meta"] = {"owner": mart.owner}
     pre_aggregations = _pre_aggregations(mart, ir, owners)
 
     if pre_aggregations:
@@ -464,6 +533,41 @@ def _view_artifact(mart: MartIR, ctx: EmitContext) -> EmittedArtifact:
         content=_header(ctx) + _yaml(document),
         kind=ArtifactKind.MODEL,
     )
+
+
+# ....................... #
+
+
+def _refuse_grants(ir: ProjectIR) -> None:
+    """Refuse a project declaring grants when the target is Cube (D5).
+
+    Refused rather than dropped, which is the whole of the decision. Cube reads
+    relations it does not own — it issues queries against a warehouse someone
+    else creates — so it has no mechanism to apply a grant with. Emitting the
+    block anyway would put a restriction in a file that never restricts
+    anything, and dropping it silently would let a project believe a
+    restriction it declared is in force on every target it compiles for. That
+    is the silent degradation RFC 0008 D3 exists to prevent.
+
+    By existence and project-wide, like the refusal below it: a grant on an
+    *entity* has no cube of its own, so a per-cube check would pass a project
+    whose silver relations are restricted and say nothing.
+    """
+
+    granted = [
+        *((f"entity {entity.name!r}") for entity in ir.entities if entity.grants is not None),
+        *((f"mart {mart.name!r}") for mart in ir.marts if mart.grants is not None),
+    ]
+
+    if granted:
+        msg = (
+            f"{granted[0]} declares grants:, which Cube cannot apply — it reads relations "
+            "it does not own, so a grant emitted here would be a restriction in a file "
+            "that restricts nothing (RFC 0055 D5). Fix: compile this project for SQLMesh "
+            "or dbt, which do apply grants, and keep Cube for the semantic layer over "
+            "relations those targets have already restricted"
+        )
+        raise UnsupportedByTarget(msg)
 
 
 # ....................... #
@@ -526,6 +630,7 @@ class CubeEmitter:
         content ending in exactly one newline (RFC 0003 §5.5 rule 5). A
         project without marts emits nothing — Cube has no silver surface."""
 
+        _refuse_grants(ir)
         _refuse_time_shaped(ir)
         owners = measure_owners(ir)
         artifacts: list[EmittedArtifact] = []

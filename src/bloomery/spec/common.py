@@ -35,8 +35,10 @@ __all__ = [
     "TYPE_STRING_PATTERN",
     "AdditivityName",
     "CardinalityName",
+    "ClassificationName",
     "CurrencyCode",
     "DimensionName",
+    "Grants",
     "JsonPath",
     "MaterializationName",
     "MemberName",
@@ -46,6 +48,7 @@ __all__ = [
     "ParameterValue",
     "PartitionSpecString",
     "RatioSpec",
+    "SeedsRefusal",
     "SemiAdditivePolicy",
     "SpecModel",
     "SqlText",
@@ -316,6 +319,20 @@ DimensionName = Annotated[
     str, StringConstraints(pattern=IDENTIFIER_PATTERN), AfterValidator(_reject_reserved_member)
 ]
 
+#: What class of data a column holds (RFC 0055 §5.2), and **closed** (D3).
+#:
+#: An open string would be a tag that means whatever its writer meant, and the
+#: routing is the whole reason this is not a `meta:` passthrough: `pii` and
+#: `secret` set `public: false` on a Cube member, which is a visibility hint
+#: rather than an access control. Four values, because
+#: four is enough to route and the vocabulary is easier to widen later than to
+#: narrow — a value nobody uses costs nothing, a value someone relies on cannot
+#: be taken back.
+#:
+#: A declaration bloomery does not verify: a column marked `public` that is not
+#: reads exactly like one that is.
+ClassificationName = Literal["public", "internal", "pii", "secret"]
+
 #: The authored aggregation classes — the members of :class:`~bloomery.ir.Additivity`
 #: a project can write (RFC 0038 D1). ``snapshot`` is deliberately absent: its
 #: declaration is ``semi_additive`` with a ``rule`` (logs/T-0028.md).
@@ -332,6 +349,72 @@ class SpecModel(BaseModel):
     (a parsed spec is immutable), whitespace-stripped strings."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+
+# ....................... #
+
+
+def _refuse_seeds(value: object) -> object:
+    """Refuse a ``seeds:`` key, by name (RFC 0055 D7).
+
+    A permanent refusal rather than a gap. A seed is a table of *data* in the
+    repository, and bloomery reads no files while compiling (RFC 0003) — so
+    the only way it could emit one is for the rows to be in a spec, which
+    would make the spec a data file and undo the split the entity/mapping/
+    metric documents exist to draw.
+
+    The key is declared here **in order to be refused**: without it, writing
+    ``seeds:`` gets pydantic's "Extra inputs are not permitted", which tells an
+    author that the key is unknown and leaves them expecting it in a later
+    release. It is not unknown; it is refused, and the difference is the whole
+    content of the answer.
+    """
+
+    msg = (
+        "'seeds:' is refused, permanently, and not missing (RFC 0055 D7). A seed is a "
+        "table of data in your repository, and bloomery reads no files while compiling "
+        "(RFC 0003) — so the rows would have to live in a spec, which would make the spec "
+        "a data file. Fix: land the CSV with your loader, declare the relation it writes "
+        "as a bronze source, and map an entity onto it like any other"
+    )
+    raise ValueError(msg)
+
+
+#: A key that exists so that writing it gets an answer.
+#:
+#: ``Any`` and **not** ``... | None``, which is the difference between refusing
+#: every value and refusing every value but one: a union sends ``None`` down
+#: the ``None`` branch without running the validator, so ``seeds:`` with
+#: nothing after it — still someone asking for seeds — parsed clean. Pydantic
+#: does not validate defaults, so an absent key costs nothing either way.
+SeedsRefusal = Annotated[Any, AfterValidator(_refuse_seeds)]
+
+
+# ....................... #
+
+
+class Grants(SpecModel):
+    """Who may read the relation a node becomes (RFC 0055 §5.3).
+
+    The one annotation of this RFC with a *consequence*: an emitted grant is
+    applied by the framework, on the engine, so being wrong here changes who
+    can read data rather than only what a catalogue says.
+
+    ``select`` alone, and required. More permissions are additive later; a
+    second key today would buy nothing and cost D6 its clarity, because
+    ``grants: {}`` would then be a third state meaning neither "no opinion" nor
+    "no role may select".
+
+    **An empty list is not an absent block** (D6). ``grants: {select: []}``
+    says no role may select; no ``grants:`` at all says bloomery has no opinion
+    and the warehouse's existing grants stand. What the empty list can promise
+    is bounded by the adapter: dbt reconciles its grants on every run, SQLMesh
+    applies them at creation, and a warehouse may carry privileges across a
+    replace regardless of either — so it is a statement about the
+    framework-managed grant set, never about every privilege the object holds.
+    """
+
+    select: tuple[str, ...]
 
 
 # ....................... #

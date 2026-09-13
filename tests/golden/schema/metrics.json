@@ -188,6 +188,18 @@
           "default": null,
           "title": "Id"
         },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Owner"
+        },
         "ratio": {
           "anyOf": [
             {

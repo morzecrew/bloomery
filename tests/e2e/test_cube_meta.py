@@ -78,7 +78,41 @@ def test_the_declared_meta_survives_to_the_api(cube: CubeStack) -> None:
     measure = next(
         m for m in _cube_entry(cube, MART)["measures"] if m["name"] == f"{MART}.gross_revenue"
     )
-    assert measure["meta"] == {"additivity": "additive", "grain": "order_item"}
+    assert measure["meta"] == {
+        "additivity": "additive",
+        "owner": "finance-reporting@example.com",
+        "grain": "order_item",
+    }
+
+
+def test_a_pii_dimension_is_marked_non_public_and_is_still_queryable(
+    cube: CubeStack,
+) -> None:
+    """What `public: false` actually does, measured rather than assumed.
+
+    RFC 0055 §5.2 says it "removes it from Cube's API surface". Against
+    Cube v1.7.18 it does not: `/meta` still lists the member, carrying
+    `public: false` and `isVisible: false`, and a client that names it in a
+    query **still gets an answer**. It is a visibility hint that Cube's own
+    UIs honour, not an access control.
+
+    Both halves are asserted, and the queryable half is the load-bearing one:
+    it is the sentence the documentation must not contradict, on a page whose
+    subject is PII. `line_no` is the control — classified `internal`, and
+    public.
+    """
+    dimensions = {d["name"]: d for d in _cube_entry(cube, MART)["dimensions"]}
+
+    classified = dimensions[f"{MART}.order_customer_id"]
+    assert classified["public"] is False
+    assert classified["isVisible"] is False
+    assert dimensions[f"{MART}.line_no"]["public"] is True
+
+    # ...and it answers anyway.
+    rows = cube.load(
+        {"dimensions": [f"{MART}.order_customer_id"], "measures": [], "limit": 1}
+    )
+    assert rows, "a non-public dimension returned nothing — the claim below may have changed"
 
 
 def test_every_flattened_column_is_a_requestable_dimension(cube: CubeStack) -> None:

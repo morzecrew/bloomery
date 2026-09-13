@@ -149,6 +149,7 @@ addressed message inside the same batched aggregate:
 | Reconcile grammar and resolution | A side outside the closed shape, an undeclared entity, an unknown column, sides keyed on different columns, or a duplicate check name |
 | Freshness with no ingestion contract | A `freshness:` block on a mapping whose target entity declares neither `quarantine:` nor `dedupe:` — only those make `_ingested_at` mandatory, so the emitted `loaded_at_field` would name a column that may not exist and the check would error at run time on a project that compiled clean |
 | Freshness thresholds that disagree | Two mappings giving one bronze relation different `freshness:` thresholds, named on both sides — `sources.yml` holds one entry per relation, so one would be silently dropped. Equal thresholds collapse, and a mapping that declares none is making no statement about the relation rather than disagreeing |
+| `seeds:` | A key that exists in order to be refused, permanently. A seed is a table of data in your repository and bloomery reads no files while compiling (RFC 0003), so the rows would have to live in a spec — which would make the spec a data file. The message says "refused, not missing", because an author told only that a key is unknown expects it in a later release |
 | Reserved metric name | A project metric colliding with one the quality mart owns (`quality_rows_evaluated`, `quality_rows_failed`, `quality_rows_quarantined`, `quality_rows_deduped`, `quality_quarantine_rate`) — one flat namespace, and two definitions of one name is a silent winner, not a merge |
 
 Data-quality refusals also happen at emit time rather than compile time, and those are
@@ -161,6 +162,12 @@ the three can fire on a shipped dialect**: DuckDB and Trino have `TRY_CAST`, Pos
 gets a guard around its own input parser (D84), and all three normalize. They are what a
 fourth dialect would meet if it arrived without the capability, and they are provoked in
 the test suite against exactly such a dialect.
+
+A fourth is about a target's *mechanism* rather than its SQL: a `grants:` block is
+refused for Cube, because Cube reads relations it does not own and so has nothing to
+apply a grant with. Emitting it anyway would put a restriction in a file that restricts
+nothing, and dropping it silently would let a project believe a restriction it declared
+is in force on every target it compiles for.
 
 None is about a *target's* artifact families any more. A `quarantine:` block and a
 `reconcile:` check were refused for dbt until it grew the reject table, the replay macro

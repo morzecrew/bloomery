@@ -54,6 +54,12 @@ class EffectiveMetric:
     #: template**: a template is instantiated many times and an id it carried
     #: would make every instantiation the same node.
     id: str | None = None
+    #: Who is responsible for this metric (RFC 0055 §5.1), and **never merged
+    #: from a template** for the same reason as ``id`` directly above: an owner
+    #: a template carried would appear on every instantiation as an owner
+    #: nobody wrote, which is D2's argument against mart inheritance at the
+    #: other edge. ``MetricTemplate`` therefore has no ``owner`` key to merge.
+    owner: str | None = None
 
 
 # ....................... #
@@ -93,6 +99,7 @@ def _merge(name: str, metric: Metric, template: MetricTemplate | None) -> Effect
         description=metric.description or (template.description if template else None),
         source_path=source_path,
         id=metric.id,
+        owner=metric.owner,
     )
 
 

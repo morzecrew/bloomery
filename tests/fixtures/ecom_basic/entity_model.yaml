@@ -7,7 +7,7 @@ entities:
     partition_by: [days(order_date)]
     fields:
       order_id: {type: string, required: true}
-      line_no: {type: int, required: true}
+      line_no: {type: int, required: true, classification: internal}
       unit_price: {type: "decimal(12,4)", canonical: unit_price}
       quantity: {type: int, canonical: quantity}
       order_date: {type: timestamp, assert: {not_null: true}}
@@ -15,9 +15,14 @@ entities:
   order:
     grain: one row per order
     key: [order_id]
+    # RFC 0055: the three annotations, on the corpus's flagship project, so the
+    # metadata slots are pinned as bytes in every target's golden rather than
+    # only in a unit test's parsed YAML. `customer_id` flattens into the mart,
+    # which is what makes Cube's `public: false` visible here.
+    owner: commerce-platform@example.com
     fields:
       order_id: {type: string, required: true}
-      customer_id: {type: string}
+      customer_id: {type: string, classification: pii}
 relationships:
   - name: item_of_order
     from: order_item

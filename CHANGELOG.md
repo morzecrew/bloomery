@@ -9,6 +9,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`owner:` on an entity, a mart and a metric.** A free string saying who is
+  responsible, carried to whichever metadata slot each target has: SQLMesh's
+  `MODEL (owner …)`, dbt's `meta.owner` in `models/schema.yml`, and Cube's
+  `meta.owner` on a cube or a measure. Not three slots per node — a metric has
+  no SQLMesh model and Cube emits no entities, so each annotation reaches the
+  objects that exist.
+
+  **It is a declaration bloomery does not verify.** Nobody is paged, the string
+  is not checked against a directory, and an owner who has left reads exactly
+  like one who has not. No spelling rule either: every project spells this
+  differently, and `o'brien@example.com` is emitted as a quoted SQL literal
+  rather than refused.
+
+  It does not inherit. A mart over an owned entity has no owner of its own, and
+  a metric instantiating a catalog template does not take the template's —
+  an owner nobody wrote should not look like one somebody did. A `<entity>__reject`
+  model does carry its entity's, because that is the same entity's second
+  artifact rather than a second node.
+
+  One consequence worth knowing: `models/schema.yml` was emitted only for
+  entities carrying quality rules, and now appears for any entity with an
+  owner. Nothing else about it changed.
+
+- **`classification:` on a field**, from a closed vocabulary: `public`,
+  `internal`, `pii`, `secret`. Closed rather than a free tag because the value
+  is routed rather than only recorded — a `pii` or `secret` column becomes a
+  Cube member with `public: false`. Measured against Cube v1.7.18, that hides
+  the member from Cube's own UIs and **does not** make it unqueryable: `/meta`
+  still lists it, flagged, and a client naming it in a query still gets an
+  answer. A visibility hint, not access control; if a role must not read a
+  column, that is `grants:`. `internal` is deliberately left public — it says
+  who should read a column, which is not something Cube can enforce either.
+
+  It reaches dbt as `meta.classification` on the column entry, and Cube as
+  above. It reaches SQLMesh **nowhere**: SQLMesh's model carries `description`,
+  `tags` and `column_descriptions`, none of which is a key-value per column,
+  and writing a routing value into a prose field would be worse than omitting
+  it. A column no mart projects has no Cube surface at all, and its
+  classification still reaches dbt.
+
+  **It masks nothing.** No column is dropped, redacted or encrypted, and a
+  column marked `public` that is not reads exactly like one that is. It is also
+  never a place for a secret *value*: it names a column, it never carries one.
+
+- **`grants:` on an entity or a mart**, and it is the one annotation here with a
+  consequence: `grants: {select: [analyst]}` is *applied* — by SQLMesh at
+  creation, by dbt on every run — so being wrong changes who can read data.
+  An entity's `<entity>__reject` table is granted with it, because a reject row
+  is that entity's data that failed a rule.
+
+  **An empty list is not an absent block.** `{select: []}` says no role may
+  select; no `grants:` at all says bloomery has no opinion and your warehouse's
+  grants stand. What the empty list promises is bounded by the adapter, though:
+  dbt reconciles on every run, SQLMesh applies at creation, and a warehouse may
+  carry privileges across a replace regardless — so it is a statement about the
+  framework-managed grant set, never about every privilege the object holds.
+
+  **Cube refuses it.** Cube reads relations it does not own, so a grant there
+  would be a restriction in a file that restricts nothing. Compiling a granted
+  project for Cube fails rather than dropping the block.
+
+- **`seeds:` is refused, permanently, and says so.** A seed is a table of data
+  in your repository and bloomery reads no files while compiling, so the rows
+  would have to live in a spec — which would make the spec a data file. The key
+  now exists in order to be refused: writing it gets a message naming the
+  reason, rather than "Extra inputs are not permitted", which reads like a key
+  that might arrive in a later release.
+
+- **A how-to for all three**, at
+  [Say who owns a thing, what it holds, and who may read it](how-to/annotate-a-spec.md).
+
 - **bloomery narrates what it is doing, and says what it noticed.** Two
   additions to the observational surface, both under the rule that compilation
   stays a pure function.

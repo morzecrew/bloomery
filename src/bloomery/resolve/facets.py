@@ -99,6 +99,14 @@ class Facet(StrEnum):
     RUNTIME = "runtime"
     #: Something a reader reads and no number depends on.
     METADATA = "metadata"
+    #: Who may read the relation (RFC 0055 §5.3). Its own member rather than
+    #: :attr:`METADATA`, because metadata's defining property is that nothing
+    #: depends on it and a grant is the one annotation of that RFC with a
+    #: consequence — it is *applied*, by the framework, on the engine. A
+    #: timeline that reported "metadata changed" for a revoked role would be a
+    #: facet meaning two things, which is the failure this vocabulary exists to
+    #: avoid (logs/T-0045.md).
+    ACCESS = "access"
 
 
 # ....................... #
@@ -158,6 +166,7 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("MetricIR", "derived"): Facet.BODY,
     ("MetricIR", "depends_on"): Facet.INPUTS,
     ("MetricIR", "description"): Facet.METADATA,
+    ("MetricIR", "owner"): Facet.METADATA,
     # A metric the IR could not reach: what is missing, and through what.
     ("UnreachableMetric", "missing"): Facet.INPUTS,
     ("UnreachableMetric", "via"): Facet.INPUTS,
@@ -172,6 +181,8 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("MartIR", "materialization"): Facet.STORAGE,
     ("MartIR", "partition_by"): Facet.STORAGE,
     ("MartIR", "cost_hint"): Facet.STORAGE,
+    ("MartIR", "owner"): Facet.METADATA,
+    ("MartIR", "grants"): Facet.ACCESS,
     # A rollup, which shares the mart's node prefix (RFC 0067 §5.1).
     ("RollupIR", "keep"): Facet.GRAIN,
     ("RollupIR", "of"): Facet.INPUTS,
@@ -212,6 +223,8 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("EntityIR", "quarantine"): Facet.QUALITY,
     ("EntityIR", "materialization"): Facet.STORAGE,
     ("EntityIR", "partition_by"): Facet.STORAGE,
+    ("EntityIR", "owner"): Facet.METADATA,
+    ("EntityIR", "grants"): Facet.ACCESS,
     # An entity field: the schema half.
     ("ColumnIR", "type"): Facet.UNIT,
     ("ColumnIR", "unit"): Facet.UNIT,
@@ -220,6 +233,7 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("ColumnIR", "required"): Facet.QUALITY,
     ("ColumnIR", "description"): Facet.METADATA,
     ("ColumnIR", "renamed_from"): Facet.METADATA,
+    ("ColumnIR", "classification"): Facet.METADATA,
     # An entity field: the lowering half, one per source (RFC 0024 D26).
     ("SourceColumnIR", "expr"): Facet.BODY,
     ("SourceColumnIR", "recipe_id"): Facet.BODY,

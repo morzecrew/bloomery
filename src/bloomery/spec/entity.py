@@ -17,10 +17,13 @@ from pydantic import Field as PydanticField
 
 from bloomery.spec.common import (
     CardinalityName,
+    ClassificationName,
+    Grants,
     MaterializationName,
     MemberName,
     PartitionSpecString,
     RelationName,
+    SeedsRefusal,
     SpecModel,
     TypeString,
 )
@@ -62,6 +65,17 @@ class Field(SpecModel):
     canonical: str | None = None
     renamed_from: str | None = None
     assert_: AssertClause | None = PydanticField(default=None, alias="assert")
+    #: What class of data this column holds (RFC 0055 §5.2), from a closed
+    #: vocabulary. Reaches target metadata, and marks a `pii` or `secret`
+    #: column `public: false` on Cube — which hides it from Cube's own UIs and
+    #: leaves it queryable by anything that names it (measured; see
+    #: `tests/e2e/test_cube_meta.py`).
+    #:
+    #: **A declaration bloomery does not verify.** Nothing is masked, nothing is
+    #: encrypted, and a column marked `public` that is not reads exactly like
+    #: one that is. It is also never a place to put a secret *value*: this names
+    #: a column, it never carries one.
+    classification: ClassificationName | None = None
 
 
 # ....................... #
@@ -86,6 +100,19 @@ class Entity(SpecModel):
     quality: tuple[EntityQualityRule, ...] = ()
     dedupe: Dedupe | None = None
     quarantine: Quarantine | None = None
+    #: Who is responsible for this, as a free string (RFC 0055 §5.1). Reaches
+    #: every target's owner slot and changes no SQL.
+    #:
+    #: **A declaration bloomery does not verify.** Nobody is paged, the name is
+    #: not checked against a directory, and an owner who has left reads exactly
+    #: like one who has not. Not validated as an email, a handle or a team name
+    #: either (D8): every project spells this differently, and a format rule
+    #: would refuse spellings that are correct for their reader.
+    owner: str | None = None
+    #: Who may read the relation this becomes (RFC 0055 §5.3). Unlike the two
+    #: annotations above, this one is **applied** — by the framework, on the
+    #: engine — so being wrong changes who can read data.
+    grants: Grants | None = None
 
 
 # ....................... #
@@ -133,6 +160,10 @@ class EntityModel(SpecModel):
     #: discriminator, so it stays required: a document without one cannot be
     #: identified at all.
     spec_version: Literal[1]
+    #: Declared in order to be refused (RFC 0055 D7). See
+    #: :func:`~bloomery.spec.common._refuse_seeds`: a seed is data in the
+    #: repository, and the answer an author needs is "never", not "unknown key".
+    seeds: SeedsRefusal = None
     entities: dict[RelationName, Entity]
     relationships: tuple[Relationship, ...] = ()
     reconcile: tuple[Reconcile, ...] = ()

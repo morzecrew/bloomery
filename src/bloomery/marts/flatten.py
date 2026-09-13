@@ -47,6 +47,7 @@ from bloomery.ir import (
     REJECT_SUFFIX,
     Cardinality,
     DimensionRef,
+    GrantsIR,
     MartAssertIR,
     MartColumnIR,
     MartDimensionIR,
@@ -631,6 +632,8 @@ def _mart_ir(name: str, mart: Mart, state: _Flatten) -> MartIR:
         materialization=_materialization(mart),
         asserts=_mart_asserts(mart),
         cost_hint=mart.cost_hint,
+        owner=mart.owner,
+        grants=GrantsIR(select=mart.grants.select) if mart.grants is not None else None,
     )
 
 

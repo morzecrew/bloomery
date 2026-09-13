@@ -126,6 +126,23 @@ def _bound_literal(value: str, bound_type: LogicalType) -> Expression:
 # ....................... #
 
 
+def text_literal(value: str) -> Expression:
+    """An authored string as a SQL string literal.
+
+    Here rather than at the call site because the emitters import no SQLGlot —
+    every value they place reaches them pre-rendered through this package
+    (RFC 0008 D4) — and because the quoting and escaping are SQLGlot's rather
+    than a second implementation per target. What needs it is metadata an
+    author writes freely and no grammar constrains: an ``owner`` is a person,
+    and people are spelled ``o'brien@example.com`` (RFC 0055 D8).
+    """
+
+    return exp.Literal.string(value)
+
+
+# ....................... #
+
+
 def enum_literal(value: str, member_type: LogicalType) -> Expression:
     """An ``accepted_values`` member literal, typed by the audited column."""
 

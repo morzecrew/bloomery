@@ -1048,13 +1048,70 @@ def _schema_entry(entity: EntityIR, name: str, ctx: EmitContext) -> dict[str, ob
     column_tests, model_tests = _entity_tests(entity, ctx)
     entry: dict[str, object] = {"name": name}
 
+    # dbt has no first-class owner field, so `meta` is where the ecosystem puts
+    # one (RFC 0055 §5.1). Absent rather than null when nothing is declared:
+    # every project before this RFC has no owner at all, and an empty `meta` on
+    # every model would move every existing golden to say nothing new.
+    if entity.owner is not None:
+        entry["meta"] = {"owner": entity.owner}
+
+    if entity.grants is not None:
+        # In the schema entry rather than `dbt_project.yml`, which is the other
+        # place dbt reads a `+grants` config from. Both work; this one keeps a
+        # node's three annotations in one document instead of naming the same
+        # model in two files, and it is where the owner above already is
+        # (logs/T-0050.md). An empty list is emitted rather than skipped — that
+        # is D6, and dbt reads `{select: []}` as "no role", not as silence.
+        entry["config"] = {"grants": {"select": list(entity.grants.select)}}
+
     if model_tests:
         entry["data_tests"] = model_tests
 
-    if column_tests:
+    # Tests and classifications are two reasons for a column to appear, and the
+    # entry is one list — a column with both must be one entry carrying both,
+    # not two entries dbt would read as a duplicate.
+    classified = {
+        column.name: column.classification
+        for column in entity.columns
+        if column.classification is not None
+    }
+    named = sorted(set(column_tests) | set(classified))
+
+    if named:
         entry["columns"] = [
-            {"name": column, "data_tests": tests} for column, tests in sorted(column_tests.items())
+            {
+                "name": column,
+                **(
+                    {"meta": {"classification": classified[column]}} if column in classified else {}
+                ),
+                **({"data_tests": column_tests[column]} if column in column_tests else {}),
+            }
+            for column in named
         ]
+
+    return entry
+
+
+# ....................... #
+
+
+def _mart_metadata_entry(mart: MartIR, ctx: EmitContext) -> dict[str, object]:
+    """A mart's `schema.yml` entry — the metadata half only.
+
+    A mart carries no schema entry otherwise: its tests are singular tests of
+    their own and its columns are the entity columns it flattened. So this
+    entry exists exactly when there is metadata to put in it, and the quality
+    mart and rollups — which have no authored node — never have any.
+    """
+
+    _namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+    entry: dict[str, object] = {"name": relation}
+
+    if mart.owner is not None:
+        entry["meta"] = {"owner": mart.owner}
+
+    if mart.grants is not None:
+        entry["config"] = {"grants": {"select": list(mart.grants.select)}}
 
     return entry
 
@@ -1067,13 +1124,56 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
     snapshots: list[object] = []
 
     for entity in ir.entities:  # sorted by name on ProjectIR
-        if not entity.audits:
+        # Audits *or* metadata. The gate was audits alone, which is why a
+        # project with no quality rules has no `schema.yml` at all — and an
+        # owner declared on such an entity would have had nowhere to go
+        # (RFC 0055 §5.1; logs/T-0050.md). Adding an owner therefore makes the
+        # file appear for projects that have none today.
+        if (
+            not entity.audits
+            and entity.owner is None
+            and entity.grants is None
+            and all(column.classification is None for column in entity.columns)
+        ):
             continue
         if entity.scd is SCDKind.TYPE2:
             snapshots.append(_schema_entry(entity, f"{entity.name}_snapshot", ctx))
         else:
             _namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
             models.append(_schema_entry(entity, relation, ctx))
+
+    # A granted entity's reject relation is granted with it. The reject model
+    # is a *separate* dbt model, so the entity's own entry does not reach it —
+    # and a reject table left open while the silver table is closed publishes
+    # exactly the rows an author restricted. SQLMesh got this in the same
+    # commit that added grants because there the reject model is rendered
+    # through the same envelope; here it is a second entry, and it was missing
+    # (PR #112 review).
+    #
+    # Grants only: an owner and a classification say something about the entity
+    # that its reject rows do not restate, and dbt reads a `meta:` on a model
+    # nobody queries directly as noise.
+    models.extend(
+        {
+            "name": ctx.naming.relation(reject_relation(entity), Layer.SILVER)[1],
+            "config": {"grants": {"select": list(entity.grants.select)}},
+        }
+        for entity in ir.entities
+        if entity.grants is not None and entity.quarantine is not None
+    )
+
+    # A mart's owner reaches the same document, as its own `models:` entry.
+    # In the config line instead would mean interpolating an authored string
+    # into a Jinja call — `{{ config(meta={'owner': '...'}) }}` — where a
+    # spelling D8 explicitly permits (`o'brien@example.com`) ends the call
+    # early. Here the quoting is the YAML dumper's. Marts carry no schema entry
+    # otherwise, so one appears only for a mart that declares an owner; the
+    # quality mart and rollups have no authored node and so never do.
+    models.extend(
+        _mart_metadata_entry(mart, ctx)
+        for mart in ir.marts
+        if mart.owner is not None or mart.grants is not None
+    )
 
     if not models and not snapshots:
         return None
