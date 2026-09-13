@@ -1143,6 +1143,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/annotate-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Say who owns a thing, what it holds, and who may read it
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/merge-sources/" class="md-nav__link">
         
   
@@ -2320,6 +2347,10 @@ addressed message inside the same batched aggregate:</p>
 <td>Two mappings giving one bronze relation different <code>freshness:</code> thresholds, named on both sides — <code>sources.yml</code> holds one entry per relation, so one would be silently dropped. Equal thresholds collapse, and a mapping that declares none is making no statement about the relation rather than disagreeing</td>
 </tr>
 <tr>
+<td><code>seeds:</code></td>
+<td>A key that exists in order to be refused, permanently. A seed is a table of data in your repository and bloomery reads no files while compiling (RFC 0003), so the rows would have to live in a spec — which would make the spec a data file. The message says "refused, not missing", because an author told only that a key is unknown expects it in a later release</td>
+</tr>
+<tr>
 <td>Reserved metric name</td>
 <td>A project metric colliding with one the quality mart owns (<code>quality_rows_evaluated</code>, <code>quality_rows_failed</code>, <code>quality_rows_quarantined</code>, <code>quality_rows_deduped</code>, <code>quality_quarantine_rate</code>) — one flat namespace, and two definitions of one name is a silent winner, not a merge</td>
 </tr>
@@ -2335,6 +2366,11 @@ the three can fire on a shipped dialect</strong>: DuckDB and Trino have <code>TR
 gets a guard around its own input parser (D84), and all three normalize. They are what a
 fourth dialect would meet if it arrived without the capability, and they are provoked in
 the test suite against exactly such a dialect.</p>
+<p>A fourth is about a target's <em>mechanism</em> rather than its SQL: a <code>grants:</code> block is
+refused for Cube, because Cube reads relations it does not own and so has nothing to
+apply a grant with. Emitting it anyway would put a restriction in a file that restricts
+nothing, and dropping it silently would let a project believe a restriction it declared
+is in force on every target it compiles for.</p>
 <p>None is about a <em>target's</em> artifact families any more. A <code>quarantine:</code> block and a
 <code>reconcile:</code> check were refused for dbt until it grew the reject table, the replay macro
 and the comparison model; what dbt still refuses is a Tier 3 <code>python_model</code> step, which

@@ -1327,6 +1327,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/annotate-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Say who owns a thing, what it holds, and who may read it
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/merge-sources/" class="md-nav__link">
         
   
@@ -2244,6 +2271,12 @@ trivial now and a legal problem in eighteen months. <code>redact:</code> removes
 <code>raw</code> and <code>key_values</code> at write time, and the compiler refuses a redaction that
 intersects a path the mapping reads: you cannot both require a field and destroy it,
 because replay would have nothing left to re-run against.</p>
+<p>That refusal is also why <code>redact:</code> is not how you say "this column is sensitive". It
+decides what a <strong>reject row</strong> keeps, and a column the entity actually publishes can never
+be listed there. Saying a published column is sensitive is
+<a href="../../how-to/annotate-a-spec/#classification-what-a-column-holds"><code>classification:</code></a>, which
+is a property of the column rather than a rule about one artifact — the two compose, and
+neither is a substitute for the other.</p>
 <div class="admonition note">
 <p class="admonition-title">bloomery emits the replay merge; it never runs it</p>
 <p>Compilation produces a <code>replay/&lt;entity&gt;.sql</code> artifact holding the <code>MERGE</code> statements
