@@ -1197,6 +1197,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/import-a-semantic-layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Adopt a project that already has a semantic layer
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/resolve-identities/" class="md-nav__link">
         
   
@@ -1971,6 +1998,7 @@ pulling in any pipeline stage.</p>
 │   └── RenameTargetMissing
 ├── EmitError
 │   └── UnsupportedByTarget
+├── ArtifactImportError
 └── PlannerError
     ├── UnknownMember
     ├── UnreachableAtGrain
@@ -2213,6 +2241,11 @@ pulling in any pipeline stage.</p>
 <td><code>UnsupportedByTarget</code></td>
 <td>emit</td>
 <td>An IR construct the selected target or dialect cannot express — fail loud, never approximate</td>
+</tr>
+<tr>
+<td><code>ArtifactImportError</code></td>
+<td>imports</td>
+<td>An external semantic artifact does not state a relationship exactly enough to read one out of it — a <code>foreign</code> entity element nothing declares unique, two models claiming one target, a missing or non-column <code>expr</code>, a semantic model naming no entity this project declares. Also a cardinality disagreement with a relationship the project already declares. Every one of them is a refusal to guess: there is no weaker relationship to emit instead</td>
 </tr>
 <tr>
 <td><code>PlannerError</code></td>
