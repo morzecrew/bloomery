@@ -2638,3 +2638,22 @@ def test_import_refuses_a_format_it_has_no_importer_for(
 
     assert code == EXIT_USAGE
     assert "metricflow" in err
+
+
+def test_import_offers_no_catalog_flag(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    """Every other spec-reading command takes `--catalog`; this one must not.
+
+    It reads relationships, and a catalog carries canonical field definitions —
+    so the flag would parse, load a file and change nothing anyone could
+    observe. A flag with no effect is one a reader spends time on and then
+    passes in a script that needs it to matter.
+    """
+
+    artifact = _manifest_file(tmp_path, _PAIR)
+
+    code, _out, err = run(
+        capsys, "import", "metricflow", artifact, ECOM, "--catalog", str(tmp_path / "nope.yaml")
+    )
+
+    assert code == EXIT_USAGE
+    assert "unrecognized arguments" in err or "--catalog" in err

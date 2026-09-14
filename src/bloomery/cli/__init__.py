@@ -740,14 +740,17 @@ def _import(arguments: argparse.Namespace) -> int:
 
     The spec directory is read, not written: it is what the artifact's semantic
     model names are checked against, and what a cardinality conflict is judged
-    against (RFC 0070 D4).
+    against (RFC 0070 D4). Only the entity model is consulted, so this is the
+    one spec-reading command with no ``--catalog`` — a canonical field
+    definition has no bearing on whether two relations join.
 
     An artifact stating only relationships this project already declares prints
     nothing and exits ``0``. That is the honest answer — there is nothing to
     paste — and it is not a refusal: two statements that agree are not a
     contradiction.
     """
-    project, _catalog = _load(arguments.directory, arguments.catalog)
+    sources, _catalog_text = io.read_spec_directory(arguments.directory)
+    project = load_project(sources)
     text = io.read_text(arguments.artifact)
     relationships = metricflow_relationships(
         text,
@@ -960,7 +963,11 @@ def build_parser() -> argparse.ArgumentParser:
         "format", choices=("metricflow",), help="the kind of artifact being read"
     )
     import_parser.add_argument("artifact", help="the semantic manifest to read")
-    _add_spec_directory(import_parser)
+    # The positional alone rather than `_add_spec_directory`, which also adds
+    # `--catalog`: a catalog carries canonical field definitions and this
+    # command reads relationships out of an artifact, so the flag would parse,
+    # load a file and change nothing anyone could observe.
+    import_parser.add_argument("directory", help="directory of spec documents")
     import_parser.add_argument(
         "--entity",
         action="append",

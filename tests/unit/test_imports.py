@@ -371,6 +371,18 @@ def test_a_relationship_the_project_already_declares_identically_is_not_returned
     )
 
 
+def test_rendering_nothing_is_empty_rather_than_an_empty_block() -> None:
+    """`render` is public and its empty case is the one the command hits
+    whenever the project already says everything the artifact does.
+
+    Empty text rather than `relationships:` over an empty list: the output is
+    pasted, and pasting a second `relationships:` key into a document that has
+    one is a duplicate key rather than a no-op.
+    """
+
+    assert render(()) == ""
+
+
 def test_a_cardinality_disagreement_on_the_same_join_refuses_naming_both() -> None:
     """Same `(from, to, via)`, different cardinality: neither side wins by
     default, because "declared is more true" quietly overwrites a mechanically
@@ -535,33 +547,110 @@ def test_an_imported_relationship_lowers_the_grade_a_strict_consumer_reads() -> 
 # Determinism (RFC 0003)
 
 
-def test_the_element_order_in_the_artifact_does_not_reach_the_output() -> None:
+#: Two *source* models and two targets. A version of this with one source
+#: model cannot fail when the model sort is removed — every edge comes from the
+#: same iteration — which is what a sweep found it doing (`logs/T-0056.md`).
+_TWO_MAP = {
+    "order_items": "order_item",
+    "orders": "order",
+    "parties": "order",
+    "payers": "order",
+    "shippers": "order",
+}
+
+
+def test_the_order_of_models_and_elements_in_the_artifact_does_not_reach_the_output() -> None:
     """Nothing in MetricFlow orders a model's elements or a manifest's models,
-    so an artifact regenerated upstream must not produce a different paste."""
+    so an artifact regenerated upstream must not produce a different paste.
+
+    Both axes in one test and both exercised: two models carry a ``foreign``
+    element, so the model order changes which edge is found first, and one of
+    them carries two so the element order does too.
+    """
 
     forwards = _manifest(
         _model(
             "order_items",
             _element("buyer", "foreign", "buyer_id"),
-            _element("payer", "foreign", "payer_id"),
+            _element("shipper", "foreign", "shipper_id"),
         ),
+        _model("orders", _element("payer", "foreign", "payer_id")),
         _model("parties", _element("buyer", "primary", "party_id")),
+        _model("shippers", _element("shipper", "primary", "shipper_ref")),
         _model("payers", _element("payer", "primary", "party_id")),
     )
     backwards = _manifest(
         _model("payers", _element("payer", "primary", "party_id")),
+        _model("shippers", _element("shipper", "primary", "shipper_ref")),
         _model("parties", _element("buyer", "primary", "party_id")),
+        _model("orders", _element("payer", "foreign", "payer_id")),
         _model(
             "order_items",
-            _element("payer", "foreign", "payer_id"),
+            _element("shipper", "foreign", "shipper_id"),
             _element("buyer", "foreign", "buyer_id"),
         ),
     )
-    mapping = {"order_items": "order_item", "parties": "order", "payers": "order"}
 
-    assert render(_import(forwards, entities=mapping)) == render(
-        _import(backwards, entities=mapping)
+    one = render(_import(forwards, entities=_TWO_MAP))
+    other = render(_import(backwards, entities=_TWO_MAP))
+
+    assert one == other
+    assert one.count("- name:") == 3, "every edge is in the value being compared"
+
+
+def test_a_foreign_element_declared_only_natural_elsewhere_refuses() -> None:
+    """`natural` imports nothing on the *target* side too, which is the half a
+    test built from a `natural` element nobody points at cannot reach.
+
+    MetricFlow's `natural` marks a key that is not unique. Admitting one as a
+    target would produce a `many_to_one` whose to-side may repeat — an edge
+    that determines nothing, arrived at by reading a type that says so.
+    """
+
+    with pytest.raises(ArtifactImportError) as caught:
+        _import(
+            _manifest(
+                _model("order_items", _element("customer", "foreign", "customer_id")),
+                _model("customers", _element("customer", "natural", "cust_id")),
+            ),
+            entities={"order_items": "order_item", "customers": "order"},
+        )
+
+    assert "no other model declares it primary or unique" in str(caught.value)
+
+
+def test_a_refusal_stops_the_run_before_names_are_generated() -> None:
+    """The mapping stage raises before the naming stage, so a reader is not
+    handed a second finding derived from a half-resolved edge set.
+
+    Here the project already declares `order_item__order`, which is the name the
+    valid edge would generate — so without the stop, the same run reports both
+    the unresolvable element *and* a name collision. Fixing the first changes
+    the edge set, so the second may not be true once the manifest is corrected:
+    it is a consequence of the broken state rather than a second problem.
+    """
+
+    sources = fixture_sources(_FIXTURE)
+    sources["entity_model"] = sources["entity_model"].replace(
+        "  - name: item_of_order", "  - name: order_item__order", 1
     )
+
+    with pytest.raises(ArtifactImportError) as caught:
+        _import(
+            _manifest(
+                _model(
+                    "order_items",
+                    _element("customer", "foreign", "customer_id"),
+                    _element("dangling", "foreign", "dangling_id"),
+                ),
+                _model("customers", _element("customer", "primary", "cust_id")),
+            ),
+            entities={"order_items": "order_item", "customers": "order"},
+            project=load_project(sources),
+        )
+
+    assert _messages(caught.value) == [one for one in _messages(caught.value) if "foreign" in one]
+    assert not any("already a relationship in this project" in one for one in _messages(caught.value))
 
 
 def test_the_rendered_block_is_byte_identical_across_processes_and_hash_seeds() -> None:
