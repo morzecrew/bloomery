@@ -49,6 +49,7 @@ BloomeryError
 │   └── RenameTargetMissing
 ├── EmitError
 │   └── UnsupportedByTarget
+├── ArtifactImportError
 └── PlannerError
     ├── UnknownMember
     ├── UnreachableAtGrain
@@ -115,6 +116,7 @@ BloomeryError
 | `RenameTargetMissing` | plan | A `renamed_from` annotation whose old name is absent from the old IR |
 | `EmitError` | emit | The IR cannot be lowered to a target artifact; also unknown target/dialect names and emitter-registration collisions |
 | `UnsupportedByTarget` | emit | An IR construct the selected target or dialect cannot express — fail loud, never approximate |
+| `ArtifactImportError` | imports | An external semantic artifact does not state a relationship exactly enough to read one out of it — a `foreign` entity element nothing declares unique, two models claiming one target, a missing or non-column `expr`, a semantic model naming no entity this project declares. Also a cardinality disagreement with a relationship the project already declares. Every one of them is a refusal to guess: there is no weaker relationship to emit instead |
 | `PlannerError` | planner | A malformed or unanswerable request; also the fallback for untranslated backend failures |
 | `UnknownMember` | planner | A request names a metric or dimension that exists nowhere in the project; message carries a did-you-mean |
 | `UnreachableAtGrain` | planner | The request cannot be served at the requested grain. Measures spanning grains are aggregated per mart and joined afterwards where every requested dimension is provably the same dimension on each; this is what is raised when they are not, when a filter or the row policy names a dimension some branch does not carry, when a metric's own components cannot each be answered by one branch, or when no mart serves a measure at all. Also a dimension another mart carries and this one does not, where `.refusal_reason` says whether one line of spec would fix it |

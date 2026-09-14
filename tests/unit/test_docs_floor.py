@@ -52,11 +52,12 @@ from bloomery import Target, build_project_ir, compile_project, load_project
 from bloomery.errors import (
     BloomeryError,
     GuardrailError,
+    InsufficientEvidence,
     ResolutionError,
     UnsupportedByTarget,
 )
 from conftest import CENSUS_FLAG, census_is_enforceable
-from support.compiling import load_fixture
+from support.compiling import fixture_sources, load_fixture
 from support.docs_claims import (
     TAXONOMY_SMOKE_MODULE,
     census_exempt_classes,
@@ -200,7 +201,42 @@ def _snapshot_that_quarantines() -> object:
     return build_project_ir(load_project(_SNAPSHOT_QUARANTINE))
 
 
+def _hand_written_import_under_a_strict_mart() -> object:
+    """The hazard the import how-to warns about, built exactly as it describes.
+
+    `imported_from:` is a spec key with no producer the compiler can verify
+    (RFC 0070 §9), so a hand-written one is indistinguishable from an importer's
+    — and this is what a reader who typed it discovers. Built from the corpus
+    fixture plus the two keys, so the refusal is those keys rather than a
+    project shaped to produce it.
+    """
+    sources = fixture_sources("ecom_basic")
+    sources["entity_model"] = sources["entity_model"].replace(
+        "    cardinality: many_to_one",
+        "    cardinality: many_to_one\n    imported_from: metricflow:semantic_manifest.json",
+        1,
+    )
+    sources["marts"] = sources["marts"].replace(
+        "    measures: [gross_revenue]",
+        "    measures: [gross_revenue]\n    requires_evidence: locked",
+        1,
+    )
+    _, catalog = load_fixture("ecom_basic")
+
+    return build_project_ir(load_project(sources), catalog)
+
+
 CLAIMS: tuple[Claim, ...] = (
+    Claim(
+        page="how-to/import-a-semantic-layer.md",
+        names="InsufficientEvidence",
+        # The aggregate, because the guardrail stage always batches — even one
+        # violation goes through `from_collected`. That makes this arm pass for
+        # any guardrail failure, so the leaf class the page actually names is
+        # asserted separately below, the way the batching claim is.
+        expect=GuardrailError,
+        provoke=_hand_written_import_under_a_strict_mart,
+    ),
     Claim(
         page="concepts/data-quality.md",
         names="ResolutionError",
@@ -229,6 +265,24 @@ def test_each_documented_claim_still_holds(claim: Claim) -> None:
         return
     with pytest.raises(claim.expect):
         claim.provoke()
+
+
+def test_the_hand_written_import_refusal_is_an_insufficient_evidence_leaf() -> None:
+    """The half `pytest.raises(GuardrailError)` above cannot check.
+
+    The import page warns that a hand-written `imported_from:` refuses a strict
+    consumer *and names an artifact nobody read it out of*. Both are the point:
+    a reader who typed the key has to see it in the message to connect the two,
+    and a guardrail failure of any other kind would satisfy the arm above.
+    """
+    with pytest.raises(GuardrailError) as excinfo:
+        _hand_written_import_under_a_strict_mart()
+
+    assert excinfo.value.collected
+    assert all(isinstance(leaf, InsufficientEvidence) for leaf in excinfo.value.collected)
+    assert all(
+        "metricflow:semantic_manifest.json" in str(leaf) for leaf in excinfo.value.collected
+    )
 
 
 def test_the_guardrail_aggregate_really_batches() -> None:

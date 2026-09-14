@@ -86,6 +86,8 @@ from bloomery.cli import io, render, serialize
 from bloomery.dialects import get_dialect
 from bloomery.emit import get_emitter
 from bloomery.errors import EmitError, UnknownMember
+from bloomery.imports import metricflow_relationships
+from bloomery.imports import render as render_relationships
 from bloomery.naming import DefaultNaming
 from bloomery.planner import parse_filter_json
 
@@ -697,6 +699,70 @@ def _fingerprint(arguments: argparse.Namespace) -> int:
 
 
 # ....................... #
+
+
+def _entity_map(pairs: list[str] | None) -> dict[str, str]:
+    """``--entity model=entity``, repeatable, as a map.
+
+    A mistyped pair and a repeated model are both usage errors rather than
+    refusals: the invocation is wrong, not the specs. Repetition is refused
+    rather than resolved because either answer — first wins, last wins — is a
+    silent one, and a caller who wrote two mappings for one model believes
+    something about which applies.
+    """
+    mapping: dict[str, str] = {}
+
+    for pair in pairs or ():
+        model, separator, entity = pair.partition("=")
+        if not separator or not model or not entity:
+            msg = f"--entity {pair!r}: expected 'model=entity'"
+            raise _Usage(msg)
+        if model in mapping:
+            msg = f"--entity: semantic model {model!r} is mapped twice"
+            raise _Usage(msg)
+        mapping[model] = entity
+
+    return mapping
+
+
+# ....................... #
+
+
+def _import(arguments: argparse.Namespace) -> int:
+    """``bloomery import`` — an external artifact, as relationships to paste.
+
+    **Prints; writes nothing.** A project holds exactly one ``EntityModel``
+    document, so the ``imported.yaml`` RFC 0070 §5.5 described could not be
+    loaded back — as an unknown kind without a version key, and as a second
+    entity model with one. Printing puts the block in front of the author, who
+    pastes it into the document they already have and commits it, which is what
+    keeps compilation a function of the specs on disk (RFC 0003).
+
+    The spec directory is read, not written: it is what the artifact's semantic
+    model names are checked against, and what a cardinality conflict is judged
+    against (RFC 0070 D4).
+
+    An artifact stating only relationships this project already declares prints
+    nothing and exits ``0``. That is the honest answer — there is nothing to
+    paste — and it is not a refusal: two statements that agree are not a
+    contradiction.
+    """
+    project, _catalog = _load(arguments.directory, arguments.catalog)
+    text = io.read_text(arguments.artifact)
+    relationships = metricflow_relationships(
+        text,
+        project,
+        artifact=arguments.artifact,
+        entities=_entity_map(arguments.entity),
+    )
+
+    if relationships:
+        _emit(render_relationships(relationships).rstrip("\n"), as_json=False)
+
+    return EXIT_OK
+
+
+# ....................... #
 # Parser
 
 
@@ -882,6 +948,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_spec_directory(fingerprint_parser)
     fingerprint_parser.set_defaults(run=_fingerprint)
+
+    import_parser = commands.add_parser(
+        "import", help="read relationships out of an external semantic artifact"
+    )
+    # A positional choice rather than a nested subparser: one importer exists,
+    # the argument is the extension point RFC 0070 §5.5 names, and `choices`
+    # already refuses `dbt` with the spelling it would have wanted. A second
+    # importer that needs flags of its own is when this becomes subparsers.
+    import_parser.add_argument(
+        "format", choices=("metricflow",), help="the kind of artifact being read"
+    )
+    import_parser.add_argument("artifact", help="the semantic manifest to read")
+    _add_spec_directory(import_parser)
+    import_parser.add_argument(
+        "--entity",
+        action="append",
+        metavar="MODEL=ENTITY",
+        help=(
+            "which bloomery entity a semantic model names; repeatable."
+            " Without it the two must be spelled identically"
+        ),
+    )
+    import_parser.set_defaults(run=_import)
 
     return parser
 

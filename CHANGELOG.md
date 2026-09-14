@@ -9,6 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`bloomery import` — relationships out of a MetricFlow semantic manifest.**
+  If your team already runs MetricFlow, the relationships between your tables
+  are written down; this reads them out rather than asking you to type them
+  again.
+
+  ```bash
+  bloomery import metricflow target/semantic_manifest.json specs/ \
+      --entity order_items=order_item --entity customers=customer
+  ```
+
+  It prints a `relationships:` block and writes nothing — a project holds
+  exactly one entity model, so what you get is a fragment of the document you
+  already have, and you paste it in and commit it. That keeps compilation a
+  function of the specs on disk.
+
+  A `foreign` entity element in one semantic model paired with a `primary` or
+  `unique` one of the same name in another becomes one `many_to_one`, joined on
+  the two elements' `expr` columns. Both halves are stated in the artifact, so
+  nothing is inferred — and where either is missing the import refuses rather
+  than emitting a weaker edge: a target nothing declares unique, two models
+  claiming one target, an absent `expr`, an `expr` that is an expression rather
+  than a column. A `natural` element contributes nothing, because it is a key
+  that is explicitly not unique. Every refusal is collected, so one run tells
+  you everything to fix.
+
+  `--entity` says which bloomery entity a semantic model names, because a
+  MetricFlow project names its models after source relations and yours are
+  named for your business. Nothing guesses the pairing.
+
+  The relationships it produces carry `imported_from:`, which is what makes
+  `requires_evidence: locked` mean something: a mart or exposure asking for it
+  is now refused over a fact read out of an artifact, and the refusal names the
+  artifact. Until now no project could trip that requirement without a
+  relationship somebody marked by hand.
+
+  Two statements that agree are not a contradiction: a relationship you already
+  declare with the same `from`, `to` and `via` is not printed. One that
+  disagrees about cardinality is refused, naming both.
+
+  New: `bloomery.imports`, and `ArtifactImportError` for every refusal above.
+  There is no dbt importer — a `relationships` test states referential
+  integrity and never cardinality, and reading it as `many_to_one` would invent
+  the fact that makes the edge worth having.
+
 - **A timeline change names what it reaches.** `bloomery timeline` already said
   what moved between two spec versions; each change now also names the
   exposures and marts downstream of the node that moved.

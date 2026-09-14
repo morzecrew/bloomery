@@ -369,6 +369,15 @@ exclude_type_checking_imports = true
 # assessment must not be able to reach an emitter: `evaluate()` is the natural-
 # looking home for "and also compile it to see", and the layer refuses that
 # before a reviewer has to.
+# M20 (RFC 0070 §5): `imports` sits beside `typing`, as low as it can go, and
+# the placement is what states what it is — it reads the authored `spec` models
+# and `errors`, and nothing else in bloomery. An importer that could reach
+# `resolve` or `ir` would be one that could check its own output by compiling
+# it, which is the compile-from-an-artifact shape RFC 0044 D1 keeps out of
+# `check`; here it would arrive by the back door. A sibling of `typing` rather
+# than a layer of its own because the two are mutually independent: a logical
+# type knows nothing about artifacts, and an importer produces spec text rather
+# than types.
 name = "Layered bloomery compile pipeline"
 type = "layers"
 layers = [
@@ -388,7 +397,7 @@ layers = [
     "(bloomery.dialects) | (bloomery.schema)",
     "(bloomery.transforms)",
     "(bloomery.steps)",
-    "(bloomery.typing)",
+    "(bloomery.typing) | (bloomery.imports)",
     "(bloomery.spec)",
     "(bloomery.errors)",
 ]
