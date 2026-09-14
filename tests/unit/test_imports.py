@@ -790,3 +790,60 @@ def test_a_join_column_the_mapped_entity_does_not_declare_refuses(
     message = str(caught.value)
     assert f"{column!r}" in message
     assert f"entity {entity!r} does not declare" in message
+
+
+#: A project whose two entities carry column names that make the generated
+#: widening ambiguous: `order_id` + `_` + `x` and `order` + `_` + `id_x` are one
+#: string. Hand-built rather than taken from the corpus, because no fixture has
+#: a pair of columns shaped to collide and the collision is the whole case.
+_COLLIDING_SOURCES = {
+    "entity_model": """
+spec_version: 1
+entities:
+  a:
+    grain: one row per a
+    key: [k]
+    fields:
+      k: {type: string}
+      order_id: {type: string}
+      order: {type: string}
+  b:
+    grain: one row per b
+    key: [k]
+    fields:
+      k: {type: string}
+      x: {type: string}
+      id_x: {type: string}
+""",
+}
+
+
+def test_two_joins_whose_generated_names_would_collide_refuse() -> None:
+    """The widening is not injective and nothing downstream would notice.
+
+    `{order_id: x}` and `{order: id_x}` are different joins between the same two
+    entities, and the name built from each is `a__b__order_id_x`. Rendered, that
+    is two relationships of one name — which `resolve` refuses by name, after the
+    author has pasted it. No separator fixes it: every character a bare column
+    name may hold is one it may also hold in the middle.
+    """
+
+    with pytest.raises(ArtifactImportError) as caught:
+        _import(
+            _manifest(
+                _model(
+                    "ma",
+                    _element("p", "foreign", "order_id"),
+                    _element("q", "foreign", "order"),
+                ),
+                _model("t1", _element("p", "primary", "x")),
+                _model("t2", _element("q", "primary", "id_x")),
+            ),
+            entities={"ma": "a", "t1": "b", "t2": "b"},
+            project=load_project(_COLLIDING_SOURCES),
+        )
+
+    message = str(caught.value)
+    assert "would both be named 'a__b__order_id_x'" in message
+    assert "'order_id': 'x'" in message
+    assert "'order': 'id_x'" in message

@@ -297,6 +297,15 @@ def _generated_names(edges: list[tuple[str, str, dict[str, str]]]) -> list[str]:
     depends on the order the artifact happens to list its models: adding an
     unrelated semantic model would renumber an existing relationship, and a
     re-import would then diff against the last one for no reason.
+
+    **The widening is not injective, and the caller checks.** A column name may
+    contain the separator, so ``{order_id: x}`` and ``{order: id_x}`` widen to
+    one string — two different joins, one name. No separator fixes this: every
+    character a bare column name may hold is one it may also hold in the middle.
+    Choosing a rarer separator would make the collision harder to hit without
+    making it impossible, which is worse, because it would be hit by whoever had
+    no reason to expect it. :func:`metricflow_relationships` refuses a repeat
+    instead.
     """
 
     collisions = {
@@ -393,6 +402,23 @@ def metricflow_relationships(
     ]
 
     names = _generated_names(edges)
+
+    for index, name in enumerate(names):
+        twin = names.index(name)
+        if twin == index:
+            continue
+        _refuse(
+            errors,
+            f"two relationships this artifact states would both be named {name!r}: "
+            f"{edges[twin][0]} -> {edges[twin][1]} on {edges[twin][2]} and "
+            f"{edges[index][0]} -> {edges[index][1]} on {edges[index][2]}. The generated "
+            "name is built from the join columns and a column name may contain the "
+            "separator. Fix: author these two relationships here, naming them yourself",
+            source_path=artifact,
+        )
+
+    if errors:
+        raise _aggregate(errors)
     declared = {
         (one.from_, one.to, tuple(sorted(one.via.items()))): one
         for one in project.entity_model.relationships
