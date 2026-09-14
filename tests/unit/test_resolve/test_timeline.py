@@ -1132,7 +1132,6 @@ def test_the_sinks_are_found_for_a_node_that_adopted_an_id() -> None:
     )
     assert "mtr_7f3a9c" in sources["metrics"], "the fixture stopped spelling the metric this way"
 
-    _, _catalog = load_fixture("ecom_basic")
     text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
     project = load_project(sources)
     history = [

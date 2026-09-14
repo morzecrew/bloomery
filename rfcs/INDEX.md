@@ -33,7 +33,7 @@ decisions land in the change that executes it — does not apply, and it is not 
 skip recording them: the log is a committed file that survives the deletion, so an entry
 there states its rationale in full rather than deferring to a row that will not exist.
 
-Three consequences worth knowing:
+Four consequences worth knowing:
 
 - **Prose citations outlive the file.** Source, tests and docs cite decisions as
   `RFC 0016 D84` rather than as links, so a retired RFC's number keeps naming where a
@@ -58,14 +58,14 @@ Three consequences worth knowing:
   retiring it leaves them unreadable in exactly the way the point above refuses. Its
   **status line** says so — the index one-liner records what an RFC *is*, never what has
   happened to it — and it is retired with the last of its dependants. 0037 is the first:
-  0039, 0042 and 0053 still reason in its grain vocabulary. 0038 and 0040 were the
-  other two and are gone, retired with 0058 — the last dependant of each, which is the
-  rule working rather than an exception to it. 0062 and 0069 were held the same way and are
-  gone too, retired together with 0064 once its last phase landed: they cited only each
-  other, so the three left the directory in one change rather than one at a time. 0044 is
-  the second: 0070 is the import half taken out of it, and argues from its D1–D4. 0065 is
-  the third, and 0070's other parent: that document argues from the grade a consumer reads
-  and from `requires_evidence`, citing its rows 16 and 17 by number.
+  0039, 0042 and 0053 still reason in its grain vocabulary. 0038 and 0040 were the other two
+  and are gone, retired with 0058 — the last dependant of each, which is the rule working
+  rather than an exception to it. 0062 and 0069 were held the same way and are gone too,
+  retired together with 0064 once its last phase landed: nothing outside the three argued in
+  their vocabulary, so all three left the directory in one change rather than one at a time.
+  0044 is the second: 0070 is the import half taken out of it, and argues from its D1–D4.
+  0065 is the third, and 0070's other parent: that document argues from the grade a consumer
+  reads and from `requires_evidence`, citing its rows 16 and 17 by number.
   This is not a licence to keep a document because something cites it — prose citations are
   precisely what `RETIRED.md` exists to keep followable.
 
