@@ -1382,6 +1382,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#and-who-is-affected-by-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        And who is affected by it
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-facets" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1844,6 +1855,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#and-who-is-affected-by-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        And who is affected by it
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-facets" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2101,9 +2123,31 @@ about:</p>
 <p><code>metric.gross_revenue</code> is what was asked for and its own record is identical in every
 version; the answer is two hops beneath it. Reporting only the node you named would be the
 narrow answer <code>git log</code> already gives.</p>
-<p>Upstream only, never downstream. A mart that carries your metric as a measure is not part of
+<p>The <strong>walk</strong> is upstream only. A mart that carries your metric as a measure is not part of
 what the metric <em>is</em>, so a change to it is not an answer to why the metric moved — ask about
 the mart.</p>
+<h3 id="and-who-is-affected-by-it">And who is affected by it<a class="headerlink" href="#and-who-is-affected-by-it" title="Permanent link">&para;</a></h3>
+<p>Each change also names what reads the node that moved:</p>
+<div class="highlight"><pre><span></span><code>v3 -&gt; v4  order_item.unit_price
+    body: expr       shop__order_lines: CAST(price AS ...) -&gt; shop__order_lines: CAST(total / qty AS ...)
+    reaches  exposure.finance_extract, exposure.weekly_revenue_review, mart.order_items
+</code></pre></div>
+<p>That is <code>reaches</code> on each change — the exposures and marts downstream of the changed node,
+as graph node ids. It is the other half of the incident question: <em>what moved</em> is the
+facets, <em>who is affected</em> is this.</p>
+<p>Three things worth knowing about it:</p>
+<ul>
+<li><strong>It is transitive.</strong> <code>finance_extract</code> above declares no metric at all — it names only
+  the mart. It shows up because the walk follows the graph rather than reading each
+  exposure's <code>depends_on</code>.</li>
+<li><strong>It is the later version's answer.</strong> A boundary has two graphs and they disagree whenever
+  consumers were added or removed across it. <code>reaches</code> reports who reads the definition
+  <strong>now</strong>, which is who an incident is about; the earlier version's answer is who <em>used</em> to.</li>
+<li><strong>A node is never its own sink.</strong> A mart that feeds an exposure reports the exposure, not
+  itself.</li>
+</ul>
+<p>Note the direction: the walk covers what the node is built <em>from</em>, and <code>reaches</code> names what
+is built <em>on</em> it. Both are on the same change row, and they answer different questions.</p>
 <h3 id="the-facets">The facets<a class="headerlink" href="#the-facets" title="Permanent link">&para;</a></h3>
 <p><code>facets</code> is never empty: a change with nothing to report is not a change. Each entry names
 the facet, the field, and both values where a value has a short spelling.</p>
