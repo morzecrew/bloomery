@@ -617,5 +617,12 @@ def render_timeline(walk: Timeline) -> str:
                 indent="      ",
             )
         )
+        if change.reaches:
+            # After the facets, not before: the reader's first question is
+            # what moved and the second is who it reaches, and a sink list
+            # printed above the delta buries the delta. Node ids are the
+            # caller's only in the sense that a spec named them, so they get
+            # the same flattening every other id here gets.
+            lines.append(f"      reaches  {', '.join(_one_line(one) for one in change.reaches)}")
 
     return "\n".join(lines)

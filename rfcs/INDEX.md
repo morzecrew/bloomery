@@ -24,7 +24,16 @@ followable once the document is gone; `just quality` refuses a number that is ne
 nor retired, a commit that does not hold the document, and one the mainline cannot reach.
 `git show <commit>:rfcs/<file>` prints a retired document back in full.
 
-Two consequences worth knowing:
+**A retiring RFC takes no new rows.** Where the change that completes a document is also the
+change that retires it, its execution's decisions go in the task log and nowhere else. The
+retirement row names the branch point, so a row appended on the branch exists at no commit
+the mainline can reach: not at the commit `RETIRED.md` names, which predates it, and not in
+the tree, which no longer holds the file. This is the one place the usual habit — a phase's
+decisions land in the change that executes it — does not apply, and it is not a licence to
+skip recording them: the log is a committed file that survives the deletion, so an entry
+there states its rationale in full rather than deferring to a row that will not exist.
+
+Four consequences worth knowing:
 
 - **Prose citations outlive the file.** Source, tests and docs cite decisions as
   `RFC 0016 D84` rather than as links, so a retired RFC's number keeps naming where a
@@ -32,6 +41,14 @@ Two consequences worth knowing:
   input documents the corpus grew from — `_original-smelter-spec.md` and the
   `_bloomery-*.md` set — were removed on the same reasoning, once every RFC deriving from
   them had shipped.
+- **A log citation to a retired document still resolves, and a bare path check will say
+  otherwise.** Task logs cite evidence as `rfcs/0064-….md:209-220`, and the file is gone.
+  The line is not lost: the number is in [`RETIRED.md`](RETIRED.md), the commit there holds
+  the document, and `git show <commit>:<path> | sed -n '209,220p'` prints it. Every such
+  citation in `logs/` resolves this way today, measured. `log_check.py` reports them as
+  missing because it tests the working tree and knows nothing of this table — a limitation
+  of a vendored checker that gates neither CI nor `just quality`, not a decay in the record.
+  Do not migrate the citations to work around it.
 - **Retire whole, never in part.** A 🚧 In progress RFC stays, however much of it has
   shipped. Deleting the shipped half would leave the remainder arguing from a premise no
   longer in the tree.
@@ -41,14 +58,14 @@ Two consequences worth knowing:
   retiring it leaves them unreadable in exactly the way the point above refuses. Its
   **status line** says so — the index one-liner records what an RFC *is*, never what has
   happened to it — and it is retired with the last of its dependants. 0037 is the first:
-  0039, 0042 and 0053 still reason in its grain vocabulary. 0038 and 0040 were the
-  other two and are gone, retired with 0058 — the last dependant of each, which is the
-  rule working rather than an exception to it. 0062 is the second: 0064 and 0069 argue in
-  its identity vocabulary. 0069 is the third: 0064's remaining phase argues in its walk's
-  vocabulary, `TimelineChange` being where that document's facets live. 0044 is the
-  fourth: 0070 is the import half taken out of it, and argues from its D1–D4. 0065 is the
-  fifth, and 0070's other parent: that document argues from the grade a consumer reads and
-  from `requires_evidence`, citing its rows 16 and 17 by number.
+  0039, 0042 and 0053 still reason in its grain vocabulary. 0038 and 0040 were the other two
+  and are gone, retired with 0058 — the last dependant of each, which is the rule working
+  rather than an exception to it. 0062 and 0069 were held the same way and are gone too,
+  retired together with 0064 once its last phase landed: nothing outside the three argued in
+  their vocabulary, so all three left the directory in one change rather than one at a time.
+  0044 is the second: 0070 is the import half taken out of it, and argues from its D1–D4.
+  0065 is the third, and 0070's other parent: that document argues from the grade a consumer
+  reads and from `requires_evidence`, citing its rows 16 and 17 by number.
   This is not a licence to keep a document because something cites it — prose citations are
   precisely what `RETIRED.md` exists to keep followable.
 
@@ -97,10 +114,7 @@ know it has a companion recording where it turned out to be wrong.
 | [0053](0053-retrieval-semantics.md) | Retrieval semantics | 📝 Draft | Semantic spaces, vector-field annotations and retrieval profiles as their own spec kind, so an embedding corpus is refused when its dimensions, space or grain disagree. |
 | [0059](0059-multi-project-composition.md) | Multi-project composition | 📝 Draft | One project reading another's published surface: what may cross the boundary, and what a fingerprint means once something does. |
 | [0060](0060-replay-on-a-historical-entity.md) | Replay on a historical entity | 📝 Draft | Replay writes past the framework that owns a type 2 relation's versions, so a recovered row lands invisible; the pair is refused until a route through the framework exists. |
-| [0062](0062-stable-node-identity.md) | Stable node identity across renames | ✅ Complete | A node id minted once and never derived from the name, so a rename relabels a vertex instead of deleting one node and adding another. |
-| [0064](0064-definition-supersession.md) | Definition supersession and change attribution | 🚧 In progress | An edge between two versions of one node carrying what changed in spec vocabulary, so "why did this number move" is answered above the level of a text diff. |
 | [0065](0065-consumer-evidence-strictness.md) | Consumer-declared evidence strictness | ✅ Complete | A minimum evidence grade a mart or exposure requires of the facts beneath it, projected from RFC 0039's provenance and refused at compile time. |
-| [0069](0069-spec-timeline.md) | Spec timeline | ✅ Complete | Lineage answers what a node depends on and nothing answers how it has changed; one node across N caller-supplied spec sets, with bloomery never parsing an instant. |
 | [0070](0070-mechanical-imports-and-per-relationship-provenance.md) | Mechanical imports and per-relationship provenance | 📝 Draft | Provenance is keyed by basis kind, so an imported fact reads as an authored one; an importer for external semantic manifests, and the per-relationship provenance that makes it observable. |
 | [0071](0071-fuzzing-the-compile-boundary.md) | Fuzzing the compile boundary | 📝 Draft | Only `BloomeryError` may cross the compile boundary and exit 3 must never happen; mutated-byte targets that try to falsify both, with the seeds and triage policy that make them worth running. |
 | [0072](0072-continuous-fuzzing-in-ci.md) | Continuous fuzzing in CI | 📝 Draft | Where the fuzz corpus lives between runs and on what schedule, plus the replay job checking byte-identical output across processes — the determinism claim no in-process assertion reaches. |
@@ -119,6 +133,6 @@ know it has a companion recording where it turned out to be wrong.
 ✅ and ❌ are transient: a row reaching either status is retired in the same change, so a
 steady-state table holds only 📝 and 🚧 rows — **except a ✅ root of a live sequence**, which
 stays until its last dependant is retired, for the reason the retirement section above
-gives. Such a row says so in its own status line. 0037, 0044, 0062, 0065 and 0069 are the
-five today. Do not relabel either 🚧: nothing about it is in progress, and the exception is
-about what other documents still need, not about what it has left to do.
+gives. Such a row says so in its own status line. 0037, 0044 and 0065 are the three today.
+Do not relabel either 🚧: nothing about it is in progress, and the exception is about what
+other documents still need, not about what it has left to do.

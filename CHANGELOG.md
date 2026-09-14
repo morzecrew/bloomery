@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A timeline change names what it reaches.** `bloomery timeline` already said
+  what moved between two spec versions; each change now also names the
+  exposures and marts downstream of the node that moved.
+
+  ```text
+  mar -> apr  metric.gross_revenue  (name)
+      body  expr  unit_price * quantity  ->  quantity * unit_price
+      reaches  exposure.finance_extract, exposure.weekly_revenue_review, mart.order_items
+  ```
+
+  That is `TimelineChange.reaches`, a sorted tuple of graph node ids, and it is
+  in `--format json` too. It is **transitive**: `finance_extract` above declares
+  no metric, only the mart, and shows up because the walk follows the graph
+  rather than reading each exposure's `depends_on`.
+
+  It reports the **later** version's answer. A boundary has two graphs and they
+  disagree whenever consumers were added or removed across it; `reaches` names
+  who reads the definition now, which is who an incident is about. A node is
+  never its own sink.
+
+  The walk itself is unchanged — still the upstream closure, still what the node
+  is built *from*. `reaches` is what is built *on* it, on the same row.
+
 - **`requires_evidence:` on an exposure, applied to everything it reads.** The
   key a mart already carries, on the consumer RFC 0065 calls its truest owner:
   a dashboard is the thing somebody signs off, and it usually reads several
