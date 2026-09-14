@@ -484,6 +484,13 @@ min_confidence = 80
 [tool.deptry]
 known_first_party = ["bloomery"]
 ignore_notebooks = true
+# `tools/spikes/` is the same exception `tests/` gets by default, for the same
+# reason: a spike drives a real framework against a real warehouse, so it
+# imports the dev-only CLIs and the test-support package. It is not shipped, not
+# imported by anything under `src/`, and not run by CI — `tools/spikes/README.md`
+# says what one is. The rest of `tools/` stays scanned, so this does not become
+# a hole the next helper falls through.
+extend_exclude = ["tools/spikes"]
 
 # `examples/` is documentation that runs. The two container-backed examples
 # drive the warehouse they build — `duckdb` to seed and read it back — and that
