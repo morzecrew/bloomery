@@ -89,6 +89,7 @@ __all__ = [
     "RenameTargetMissing",
     "EmitError",
     "UnsupportedByTarget",
+    "ArtifactImportError",
     "PlannerError",
     "UnknownMember",
     "UnreachableAtGrain",
@@ -762,6 +763,25 @@ class UnsupportedByTarget(EmitError):
 
 # ....................... #
 # Planner — RFC 0011 (backend: RFC 0013). Deliberately NOT batched (0011 D9).
+
+
+# ....................... #
+
+
+class ArtifactImportError(BloomeryError):
+    """Raised by :mod:`bloomery.imports` when an external semantic artifact
+    cannot be read into bloomery relationships exactly (RFC 0070 §5.2).
+
+    ``ArtifactImportError`` rather than ``ImportError``, which is a builtin and
+    means something else entirely to every reader and every ``except`` clause.
+
+    **Every refusal here is a refusal to guess.** The mapping table names one
+    condition per row and each of them is a place where the artifact is silent
+    about something the bloomery fact requires — a ``foreign`` element nothing
+    declares as unique, an ``expr`` that is absent, two models claiming one
+    target. There is no weaker relationship to emit instead (RFC 0044 D3), so
+    the alternatives are the exact edge and none.
+    """
 
 
 # ....................... #

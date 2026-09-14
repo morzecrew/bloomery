@@ -914,6 +914,12 @@ def test_there_is_no_execution_command() -> None:
     This is what keeps the test suite infrastructure-free and bloomery a
     compiler. Pinned because the pressure to add it is real and would arrive as
     a small, reasonable-looking patch.
+
+    ``import`` is the one command that reads something other than specs, and it
+    still executes nothing and writes nothing: it prints a ``relationships:``
+    block for the author to paste (RFC 0070 §5.5, `logs/T-0056.md`). The set
+    below is exact rather than a subset, so a command added later shows up here
+    and has to argue for itself.
     """
     parser = build_parser()
     actions = [
@@ -930,6 +936,7 @@ def test_there_is_no_execution_command() -> None:
         "explain",
         "schema",
         "fingerprint",
+        "import",
     }
     for forbidden in ("run", "init", "new", "watch", "serve"):
         assert forbidden not in commands
@@ -2462,3 +2469,218 @@ def test_a_reached_node_id_carrying_a_newline_stays_on_one_line() -> None:
     assert [line for line in printed.splitlines() if "reaches" in line] == [
         "      reaches  exposure.two lines"
     ]
+
+
+# ....................... #
+# `bloomery import` (RFC 0070 §5.5) — the one command that produces specs
+
+
+def _manifest_file(tmp_path: Path, models: list[dict[str, object]]) -> str:
+    path = tmp_path / "semantic_manifest.json"
+    path.write_text(
+        json.dumps(
+            {
+                "semantic_models": models,
+                "metrics": [],
+                "project_configuration": {"time_spine_table_configurations": []},
+                "interpreted_apis": [],
+                "saved_queries": [],
+                "semantic_version": None,
+            }
+        )
+    )
+    return str(path)
+
+
+def _semantic_model(name: str, entities: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        "name": name,
+        "node_relation": {"alias": name, "schema_name": "analytics"},
+        "entities": entities,
+        "measures": [],
+        "dimensions": [],
+    }
+
+
+#: The columns are ones `ecom_basic` really declares — `order_item.order_id`
+#: and `order.customer_id` — because the importer refuses a join on a column the
+#: mapped entity does not have, which is the whole point of it reading the
+#: project at all.
+_PAIR = [
+    _semantic_model("order_items", [{"name": "cust", "type": "foreign", "expr": "order_id"}]),
+    _semantic_model("customers", [{"name": "cust", "type": "primary", "expr": "customer_id"}]),
+]
+
+
+def test_import_prints_a_block_and_writes_nothing(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The whole command. It is the only one in this CLI whose output is
+    *input* — the author pastes it into the entity-model document they already
+    have — so what it prints has to be pasteable, and the directory it read has
+    to come back unchanged."""
+
+    artifact = _manifest_file(tmp_path, _PAIR)
+    before = sorted(path.name for path in Path(ECOM).iterdir())
+
+    code, out, err = run(
+        capsys,
+        "import",
+        "metricflow",
+        artifact,
+        ECOM,
+        "--entity",
+        "order_items=order_item",
+        "--entity",
+        "customers=order",
+    )
+
+    assert code == EXIT_OK, err
+    assert out.startswith("relationships:\n")
+    assert "  - name: order_item__order\n" in out
+    assert "imported_from: metricflow:" in out
+    assert sorted(path.name for path in Path(ECOM).iterdir()) == before
+
+
+def test_import_refuses_an_artifact_it_cannot_map(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Exit 1, the code that means bloomery read the input and said no — and
+    not 3, which would claim the refusal is a defect in bloomery."""
+
+    artifact = _manifest_file(tmp_path, _PAIR)
+
+    code, out, err = run(capsys, "import", "metricflow", artifact, ECOM)
+
+    assert code == EXIT_REFUSED
+    assert out == ""
+    assert "--entity order_items=<entity>" in err
+
+
+def test_import_refuses_a_malformed_entity_flag_as_usage(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Exit 2: the invocation is wrong, not the specs. A flag argparse accepted
+    as a string and this command cannot use is exactly what `_Usage` is for."""
+
+    artifact = _manifest_file(tmp_path, _PAIR)
+
+    code, _out, err = run(capsys, "import", "metricflow", artifact, ECOM, "--entity", "order_item")
+
+    assert code == EXIT_USAGE
+    assert "expected 'model=entity'" in err
+
+
+def test_import_refuses_one_model_mapped_twice(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Neither answer — first wins, last wins — can be given silently: a caller
+    who wrote two mappings for one model believes something about which
+    applies."""
+
+    artifact = _manifest_file(tmp_path, _PAIR)
+
+    code, _out, err = run(
+        capsys,
+        "import",
+        "metricflow",
+        artifact,
+        ECOM,
+        "--entity",
+        "order_items=order_item",
+        "--entity",
+        "order_items=order",
+    )
+
+    assert code == EXIT_USAGE
+    assert "mapped twice" in err
+
+
+def test_import_prints_nothing_when_the_project_already_says_it_all(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Not a refusal: two statements that agree are not a contradiction
+    (RFC 0044 D4), and there is genuinely nothing to paste."""
+
+    artifact = _manifest_file(
+        tmp_path,
+        [
+            _semantic_model(
+                "order_items", [{"name": "order", "type": "foreign", "expr": "order_id"}]
+            ),
+            _semantic_model("orders", [{"name": "order", "type": "primary", "expr": "order_id"}]),
+        ],
+    )
+
+    code, out, err = run(
+        capsys,
+        "import",
+        "metricflow",
+        artifact,
+        ECOM,
+        "--entity",
+        "order_items=order_item",
+        "--entity",
+        "orders=order",
+    )
+
+    assert code == EXIT_OK, err
+    assert out == ""
+
+
+def test_import_refuses_a_format_it_has_no_importer_for(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """`dbt` is the spelling a reader will try first, and RFC 0070 row 2 is why
+    it is not here: a `relationships` test states referential integrity and
+    never cardinality. argparse refuses it by exit code rather than this
+    command discovering it later."""
+
+    artifact = _manifest_file(tmp_path, _PAIR)
+
+    code, _out, err = run(capsys, "import", "dbt", artifact, ECOM)
+
+    assert code == EXIT_USAGE
+    assert "metricflow" in err
+
+
+def test_import_offers_no_catalog_flag(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    """Every other spec-reading command takes `--catalog`; this one must not.
+
+    It reads relationships, and a catalog carries canonical field definitions —
+    so the flag would parse, load a file and change nothing anyone could
+    observe. A flag with no effect is one a reader spends time on and then
+    passes in a script that needs it to matter.
+    """
+
+    artifact = _manifest_file(tmp_path, _PAIR)
+
+    code, _out, err = run(
+        capsys, "import", "metricflow", artifact, ECOM, "--catalog", str(tmp_path / "nope.yaml")
+    )
+
+    assert code == EXIT_USAGE
+    assert "unrecognized arguments" in err or "--catalog" in err
+
+
+def test_import_reports_a_bad_flag_even_when_the_specs_are_also_broken(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The invocation is checked before the files are read.
+
+    Parsed the other way round, the spec's refusal answered first and the
+    command exited 1 — telling the caller their project was wrong when what was
+    wrong was the flag they typed.
+    """
+
+    artifact = _manifest_file(tmp_path, _PAIR)
+    broken = tmp_path / "broken"
+    broken.mkdir()
+    (broken / "entity_model.yaml").write_text("spec_version: 1\nentities: {\n")
+
+    code, _out, err = run(
+        capsys, "import", "metricflow", artifact, str(broken), "--entity", "oops"
+    )
+
+    assert code == EXIT_USAGE
+    assert "expected 'model=entity'" in err

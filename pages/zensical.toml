@@ -49,6 +49,7 @@ nav = [
         "how-to/declare-an-exposure.md",
         "how-to/annotate-a-spec.md",
         "how-to/merge-sources.md",
+        "how-to/import-a-semantic-layer.md",
         "how-to/resolve-identities.md",
         "how-to/trace-lineage.md",
         "how-to/trace-a-definition-over-time.md",

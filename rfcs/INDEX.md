@@ -63,9 +63,16 @@ Four consequences worth knowing:
   rather than an exception to it. 0062 and 0069 were held the same way and are gone too,
   retired together with 0064 once its last phase landed: nothing outside the three argued in
   their vocabulary, so all three left the directory in one change rather than one at a time.
-  0044 is the second: 0070 is the import half taken out of it, and argues from its D1–D4.
-  0065 is the third, and 0070's other parent: that document argues from the grade a consumer
-  reads and from `requires_evidence`, citing its rows 16 and 17 by number.
+  0044, 0065 and 0070 left in one change for the same reason, and that change is worth
+  reading as the rule rather than as three retirements: 0070 was the import half taken out of
+  0044 and the other half of 0065's consumer story, arguing from the first's D1–D4 and the
+  second's `requires_evidence` — so it was the last dependant of both, and the three could
+  only ever go together. 0037 is the one ✅ root left. A root is held by the dependants that
+  exist, never by ones a reader expects: measured at that retirement, no live RFC argued in
+  0065's vocabulary, and the one that still named it at all did so in a prose citation in its
+  own decision table — which is the thing the sentence below says is not a reason to keep a
+  document. This paragraph names it too, and that is the same kind of mention: a record of
+  what happened, not a document arguing from it.
   This is not a licence to keep a document because something cites it — prose citations are
   precisely what `RETIRED.md` exists to keep followable.
 
@@ -105,7 +112,6 @@ know it has a companion recording where it turned out to be wrong.
 | [0039](0039-semantic-proof-ir.md) | Semantic proof IR and closed-world checking | 🚧 In progress | Acceptance as a positive derivation rather than the absence of a violation, with provenance on every leaf: unknown is not safe, and capability grows by adding proof rules. |
 | [0042](0042-semantic-bug-corpus.md) | Production-style semantic bug corpus | 🚧 In progress | Cases where the SQL is valid, every cast succeeds and the number is wrong anyway — the opposite question to the dirty corpus. Startable immediately; the acceptance evidence for the rest. |
 | [0043](0043-semantic-capability-matrix.md) | Evidence-based semantic capability matrix | 📝 Draft | Comparing represented semantic properties across engines, one tested configuration at a time, with bloomery scored by the same standard including where it loses. |
-| [0044](0044-check-command-and-imported-provenance.md) | `bloomery check` and imported semantic provenance | ✅ Complete | A CI command that resolves, type-checks and proves without emitting or executing, and the provenance floor an imported fact must clear to close a proof obligation. |
 | [0046](0046-validating-a-dialect-port.md) | Validating a dialect port against an engine we cannot run | 📝 Draft | The tier ladder for a hosted engine with no container: what an emulator proves, why the engine's own compile-only check is the oracle, and the naming and credential rules that keep the two apart. |
 | [0047](0047-snowflake-dialect.md) | Snowflake dialect port | 📝 Draft | Two credible local emulators and `EXPLAIN USING JSON` for authority; the risk is semantic, chiefly three timestamp types where bloomery has one zoneless UTC. |
 | [0048](0048-bigquery-dialect.md) | BigQuery dialect port | 📝 Draft | A dry run is a full parse, bind and type check that scans nothing — the cheapest authoritative layer of the four. `DATETIME` versus `TIMESTAMP` carries most of the risk. |
@@ -114,8 +120,6 @@ know it has a companion recording where it turned out to be wrong.
 | [0053](0053-retrieval-semantics.md) | Retrieval semantics | 📝 Draft | Semantic spaces, vector-field annotations and retrieval profiles as their own spec kind, so an embedding corpus is refused when its dimensions, space or grain disagree. |
 | [0059](0059-multi-project-composition.md) | Multi-project composition | 📝 Draft | One project reading another's published surface: what may cross the boundary, and what a fingerprint means once something does. |
 | [0060](0060-replay-on-a-historical-entity.md) | Replay on a historical entity | 📝 Draft | Replay writes past the framework that owns a type 2 relation's versions, so a recovered row lands invisible; the pair is refused until a route through the framework exists. |
-| [0065](0065-consumer-evidence-strictness.md) | Consumer-declared evidence strictness | ✅ Complete | A minimum evidence grade a mart or exposure requires of the facts beneath it, projected from RFC 0039's provenance and refused at compile time. |
-| [0070](0070-mechanical-imports-and-per-relationship-provenance.md) | Mechanical imports and per-relationship provenance | 📝 Draft | Provenance is keyed by basis kind, so an imported fact reads as an authored one; an importer for external semantic manifests, and the per-relationship provenance that makes it observable. |
 | [0071](0071-fuzzing-the-compile-boundary.md) | Fuzzing the compile boundary | 📝 Draft | Only `BloomeryError` may cross the compile boundary and exit 3 must never happen; mutated-byte targets that try to falsify both, with the seeds and triage policy that make them worth running. |
 | [0072](0072-continuous-fuzzing-in-ci.md) | Continuous fuzzing in CI | 📝 Draft | Where the fuzz corpus lives between runs and on what schedule, plus the replay job checking byte-identical output across processes — the determinism claim no in-process assertion reaches. |
 | [0073](0073-generating-from-the-spec-schema.md) | Generating from the spec schema | 📝 Draft | Mutated bytes rarely survive to the guardrails; documents generated from the exported JSON Schema always do. Why that generator belongs in the property tier, not the fuzz lane. |
@@ -133,6 +137,6 @@ know it has a companion recording where it turned out to be wrong.
 ✅ and ❌ are transient: a row reaching either status is retired in the same change, so a
 steady-state table holds only 📝 and 🚧 rows — **except a ✅ root of a live sequence**, which
 stays until its last dependant is retired, for the reason the retirement section above
-gives. Such a row says so in its own status line. 0037, 0044 and 0065 are the three today.
+gives. Such a row says so in its own status line. 0037 is the only one today.
 Do not relabel either 🚧: nothing about it is in progress, and the exception is about what
 other documents still need, not about what it has left to do.

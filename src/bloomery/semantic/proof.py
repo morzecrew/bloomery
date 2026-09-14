@@ -707,6 +707,24 @@ BASIS_RULES: Final[dict[str, str]] = {
 #: with its own basis, so the provenance of a composed dependency is the
 #: provenance of the hops it composed — which is the right answer and the one
 #: a table row would have had to duplicate.
+#:
+#: **Two consumers read this, and they no longer agree.** :func:`weak_bases`
+#: reads it for the grade a strict consumer asks about, and since RFC 0070 it
+#: consults a per-relationship map first — so an imported edge reads `ASSUMED`
+#: there while every row below still says `DECLARED`. :func:`_dependency_proof`
+#: reads it to mint a `SemanticFact`, and that leaf reports `DECLARED` for an
+#: imported relationship.
+#:
+#: The split is deliberate and unclosed. Closing it needs either a provenance
+#: field on an IR node — which moves every fingerprint in the corpus for
+#: projects that import nothing, the hazard RFC 0065 row 17 and RFC 0070 D3
+#: both refuse — or a `Project` inside the planner, and the chain from
+#: `resolve_request` down to `prove_rollup` carries none by design. It
+#: mislabels an account without changing a verdict: `IMPORTED_VERIFIED` closes
+#: an obligation, so no proof succeeds or fails differently for it. Written
+#: here rather than left in a decision row, because the row retired with its
+#: document and this is where the next reader of the two consumers will be
+#: (`logs/T-0056.md`).
 BASIS_PROVENANCE: Final[dict[str, Provenance]] = {
     "entity_key": Provenance.DECLARED,
     "many_to_one": Provenance.DECLARED,

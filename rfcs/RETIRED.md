@@ -84,6 +84,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0038 | Measure semantic types and additivity algebra | `efba2b6` |
 | 0040 | Safe rollup planner and SemanticPlan IR | `efba2b6` |
 | 0041 | Multi-grain aggregate-then-join planning | `654d93e` |
+| 0044 | `bloomery check` and imported semantic provenance | `c771ff0` |
 | 0045 | Soundness positioning and the claims the docs may make | `9ad7ac2` |
 | 0051 | Loose ends inside shipped subsystems | `588e1e6` |
 | 0052 | dbt as a complete quality target | `588e1e6` |
@@ -96,10 +97,12 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0062 | Stable node identity across renames | `79658f4` |
 | 0063 | As-of compile over spec history | `074a571` |
 | 0064 | Definition supersession and change attribution | `79658f4` |
+| 0065 | Consumer-declared evidence strictness | `c771ff0` |
 | 0066 | Completing the semantic plan | `9ad7ac2` |
 | 0067 | Marts in the lineage graph | `0a6f9a8` |
 | 0068 | Caller-assembled spec history | `7fe697d` |
 | 0069 | Spec timeline | `79658f4` |
+| 0070 | Mechanical imports and per-relationship provenance | `c771ff0` |
 
 ## Not in the table
 
