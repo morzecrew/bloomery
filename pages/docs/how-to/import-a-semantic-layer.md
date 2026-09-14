@@ -95,9 +95,12 @@ relationships:
     imported_from: metricflow:target/semantic_manifest.json
 ```
 
-The name is generated, and it is a name your marts can refer to like any other — a
-`flatten:` step naming a relationship names this one by the name above. Rename it if you
-prefer; nothing downstream depends on the generated spelling.
+The name is generated, and it is a **key**: a mart's `flatten:` step, an entity's
+referential rule and the plan diff all refer to a relationship by it. So adopting an imported
+edge in place of one you wrote means repointing whatever named the old one — and if you
+rename the generated one to taste, rename it everywhere in the same change. bloomery refuses
+two relationships sharing a name, but it cannot tell you that a `flatten:` step is now
+pointing at a name nothing declares until you compile.
 
 A relationship your project already declares with the same `from`, `to` and `via` is **not**
 printed — two statements that agree are not a contradiction. One that disagrees about

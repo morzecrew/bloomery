@@ -76,6 +76,12 @@ _UNIQUE_SIDE: Final[frozenset[EntityType]] = frozenset({EntityType.PRIMARY, Enti
 #: reference checker against an entity's declared fields. Pinned to the
 #: grammar ``RelationName`` and ``DimensionName`` already use, so "a bare
 #: column name" is one answer in this codebase rather than a second opinion.
+#:
+#: Read with :meth:`~re.Pattern.fullmatch` and not :meth:`~re.Pattern.match`,
+#: even though the pattern is anchored at both ends: ``$`` also matches *before*
+#: a final newline, so ``"order_id\n"`` passed an anchored ``match`` and became
+#: a ``via`` column no entity declares. The anchors stay because the constant is
+#: shared and is read by pydantic elsewhere.
 _BARE_COLUMN: Final[re.Pattern[str]] = re.compile(IDENTIFIER_PATTERN)
 
 #: What the generated ``imported_from:`` says. The scheme rather than the bare
@@ -221,7 +227,7 @@ def _column(
         )
         return None
 
-    if _BARE_COLUMN.match(expr) is None:
+    if _BARE_COLUMN.fullmatch(expr) is None:
         _refuse(
             errors,
             f"entity element {element!r} of semantic model {model!r} has expr "
@@ -233,6 +239,46 @@ def _column(
         return None
 
     return expr
+
+
+# ....................... #
+
+
+def _declares(
+    entity: str,
+    column: str,
+    model: str,
+    project: Project,
+    errors: list[BloomeryError],
+    *,
+    source_path: str,
+) -> bool:
+    """Whether the mapped entity declares the column the artifact joins on.
+
+    The reference checker already refuses a ``via`` naming a column an entity
+    does not have, so without this the importer prints a block that parses,
+    pastes cleanly and then refuses at resolution — with a message about the
+    author's spec rather than about the artifact it came out of, which is the
+    wrong file to send them to.
+
+    The same test `resolve` makes, deliberately: one answer to "does this entity
+    have this column", asked earlier. An artifact spelling a column
+    ``customer_id`` against an entity declaring ``customer_key`` is the ordinary
+    way this happens, and it is the mapping being wrong rather than the column
+    being missing.
+    """
+
+    if column in project.entity_model.entities[entity].fields:
+        return True
+
+    _refuse(
+        errors,
+        f"semantic model {model!r} joins on column {column!r}, which entity "
+        f"{entity!r} does not declare. Fix: correct the mapping for {model!r}, or "
+        f"declare {column!r} on {entity!r}",
+        source_path=source_path,
+    )
+    return False
 
 
 # ....................... #
@@ -304,6 +350,11 @@ def metricflow_relationships(
     parsed = _parse(manifest, artifact=artifact)
     targets = _targets(parsed)
 
+    # Both halves of every mapping, before any edge is built. Checking the
+    # target lazily — where `_edges_of` happens to reach it — means a model
+    # carrying no `foreign` element never has its mapping checked at all, so
+    # `--entity customers=nonesuch` was accepted in full whenever `customers`
+    # was only ever a target.
     for model_name, entity_name in sorted(entities.items()):
         if all(model.name != model_name for model in parsed.semantic_models):
             _refuse(
@@ -311,6 +362,13 @@ def metricflow_relationships(
                 f"--entity {model_name}={entity_name} names no semantic model in this "
                 "artifact. Fix: check the spelling against the manifest's "
                 "semantic_models",
+                source_path=artifact,
+            )
+        if entity_name not in project.entity_model.entities:
+            _refuse(
+                errors,
+                f"--entity {model_name}={entity_name} names no entity this project "
+                f"declares. Fix: declare entity {entity_name!r}, or correct the mapping",
                 source_path=artifact,
             )
 
@@ -321,6 +379,18 @@ def metricflow_relationships(
 
     if errors:
         raise _aggregate(errors)
+
+    # Two semantic models can map to one entity, and when they state the same
+    # join they state one relationship twice. Collapsed here rather than
+    # refused, on §5.4's rule that agreement is not a contradiction — and
+    # before naming, because `_generated_names` would widen both to the same
+    # string and `render` would print a duplicate name that `resolve` refuses.
+    edges = [
+        (one, other, dict(via))
+        for one, other, via in dict.fromkeys(
+            (one, other, tuple(sorted(via.items()))) for one, other, via in edges
+        )
+    ]
 
     names = _generated_names(edges)
     declared = {
@@ -447,6 +517,18 @@ def _edges_of(
 
         assert from_column is not None and to_column is not None  # noqa: S101 — narrowing
         assert from_entity is not None and to_entity is not None  # noqa: S101 — narrowing
+
+        declares = [
+            _declares(entity, column, model_name, project, errors, source_path=where)
+            for entity, column, model_name, where in (
+                (from_entity, from_column, model.name, path),
+                (to_entity, to_column, target_model, target_path),
+            )
+        ]
+
+        if not all(declares):
+            continue
+
         found.append((from_entity, to_entity, {from_column: to_column}))
 
     return found

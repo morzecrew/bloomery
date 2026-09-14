@@ -107,15 +107,15 @@ def test_a_foreign_and_a_primary_element_become_one_many_to_one() -> None:
 
     (relationship,) = _import(
         _manifest(
-            _model("order_items", _element("customer", "foreign", "customer_id")),
-            _model("customers", _element("customer", "primary", "cust_id")),
+            _model("order_items", _element("customer", "foreign", "order_id")),
+            _model("customers", _element("customer", "primary", "customer_id")),
         ),
         entities={"order_items": "order_item", "customers": "order"},
     )
 
     assert relationship.from_ == "order_item"
     assert relationship.to == "order"
-    assert relationship.via == {"customer_id": "cust_id"}
+    assert relationship.via == {"order_id": "customer_id"}
     assert relationship.cardinality == "many_to_one"
     assert relationship.imported_from == "metricflow:semantic_manifest.json"
 
@@ -132,8 +132,8 @@ def test_the_endpoints_are_the_models_and_never_the_elements() -> None:
 
     (relationship,) = _import(
         _manifest(
-            _model("order_items", _element("customer", "foreign", "customer_id")),
-            _model("customers", _element("customer", "primary", "cust_id")),
+            _model("order_items", _element("customer", "foreign", "order_id")),
+            _model("customers", _element("customer", "primary", "customer_id")),
         ),
         entities={"order_items": "order_item", "customers": "order"},
     )
@@ -147,8 +147,8 @@ def test_unique_is_a_target_exactly_as_primary_is() -> None:
 
     (relationship,) = _import(
         _manifest(
-            _model("order_items", _element("customer", "foreign", "customer_id")),
-            _model("customers", _element("customer", "unique", "cust_id")),
+            _model("order_items", _element("customer", "foreign", "order_id")),
+            _model("customers", _element("customer", "unique", "customer_id")),
         ),
         entities={"order_items": "order_item", "customers": "order"},
     )
@@ -169,11 +169,11 @@ def test_natural_imports_nothing_and_a_valid_pair_beside_it_still_imports() -> N
         _manifest(
             _model(
                 "order_items",
-                _element("bucket", "natural", "bucket_id"),
-                _element("customer", "foreign", "customer_id"),
+                _element("bucket", "natural", "line_no"),
+                _element("customer", "foreign", "order_id"),
             ),
-            _model("customers", _element("customer", "primary", "cust_id")),
-            _model("buckets", _element("bucket", "natural", "bucket_id")),
+            _model("customers", _element("customer", "primary", "customer_id")),
+            _model("buckets", _element("bucket", "natural", "line_no")),
         ),
         entities={"order_items": "order_item", "customers": "order"},
     )
@@ -187,7 +187,7 @@ def test_natural_imports_nothing_and_a_valid_pair_beside_it_still_imports() -> N
 
 def test_a_foreign_element_no_model_declares_unique_refuses() -> None:
     with pytest.raises(ArtifactImportError) as caught:
-        _import(_manifest(_model("order_items", _element("customer", "foreign", "customer_id"))))
+        _import(_manifest(_model("order_items", _element("customer", "foreign", "order_id"))))
 
     message = str(caught.value)
     assert "'customer'" in message
@@ -342,8 +342,8 @@ def test_every_refusal_is_collected_rather_than_only_the_first() -> None:
             _manifest(
                 _model(
                     "order_items",
-                    _element("customer", "foreign", "customer_id"),
-                    _element("promo", "foreign", "promo_id"),
+                    _element("customer", "foreign", "order_id"),
+                    _element("promo", "foreign", "quantity"),
                 )
             ),
             entities={"order_items": "order_item"},
@@ -421,8 +421,8 @@ def test_a_generated_name_colliding_with_a_declared_one_refuses() -> None:
     with pytest.raises(ArtifactImportError) as caught:
         _import(
             _manifest(
-                _model("order_items", _element("customer", "foreign", "customer_id")),
-                _model("customers", _element("customer", "primary", "cust_id")),
+                _model("order_items", _element("customer", "foreign", "order_id")),
+                _model("customers", _element("customer", "primary", "customer_id")),
             ),
             entities={"order_items": "order_item", "customers": "order"},
             project=load_project(sources),
@@ -439,19 +439,19 @@ def test_two_edges_between_one_pair_of_entities_get_distinct_names() -> None:
         _manifest(
             _model(
                 "order_items",
-                _element("buyer", "foreign", "buyer_id"),
-                _element("payer", "foreign", "payer_id"),
+                _element("buyer", "foreign", "line_no"),
+                _element("payer", "foreign", "quantity"),
             ),
-            _model("parties", _element("buyer", "primary", "party_id")),
-            _model("payers", _element("payer", "primary", "party_id")),
+            _model("parties", _element("buyer", "primary", "order_id")),
+            _model("payers", _element("payer", "primary", "customer_id")),
         ),
         entities={"order_items": "order_item", "parties": "order", "payers": "order"},
     )
 
     assert first.name != second.name
     assert {first.name, second.name} == {
-        "order_item__order__buyer_id_party_id",
-        "order_item__order__payer_id_party_id",
+        "order_item__order__line_no_order_id",
+        "order_item__order__quantity_customer_id",
     }
 
 
@@ -471,8 +471,8 @@ def test_the_rendered_block_loads_back_into_the_project_it_was_read_against() ->
 
     relationships = _import(
         _manifest(
-            _model("order_items", _element("customer", "foreign", "customer_id")),
-            _model("customers", _element("customer", "primary", "cust_id")),
+            _model("order_items", _element("customer", "foreign", "order_id")),
+            _model("customers", _element("customer", "primary", "customer_id")),
         ),
         entities={"order_items": "order_item", "customers": "order"},
     )
@@ -571,23 +571,23 @@ def test_the_order_of_models_and_elements_in_the_artifact_does_not_reach_the_out
     forwards = _manifest(
         _model(
             "order_items",
-            _element("buyer", "foreign", "buyer_id"),
-            _element("shipper", "foreign", "shipper_id"),
+            _element("buyer", "foreign", "line_no"),
+            _element("shipper", "foreign", "quantity"),
         ),
-        _model("orders", _element("payer", "foreign", "payer_id")),
-        _model("parties", _element("buyer", "primary", "party_id")),
-        _model("shippers", _element("shipper", "primary", "shipper_ref")),
-        _model("payers", _element("payer", "primary", "party_id")),
+        _model("orders", _element("payer", "foreign", "customer_id")),
+        _model("parties", _element("buyer", "primary", "order_id")),
+        _model("shippers", _element("shipper", "primary", "customer_id")),
+        _model("payers", _element("payer", "primary", "order_id")),
     )
     backwards = _manifest(
-        _model("payers", _element("payer", "primary", "party_id")),
-        _model("shippers", _element("shipper", "primary", "shipper_ref")),
-        _model("parties", _element("buyer", "primary", "party_id")),
-        _model("orders", _element("payer", "foreign", "payer_id")),
+        _model("payers", _element("payer", "primary", "order_id")),
+        _model("shippers", _element("shipper", "primary", "customer_id")),
+        _model("parties", _element("buyer", "primary", "order_id")),
+        _model("orders", _element("payer", "foreign", "customer_id")),
         _model(
             "order_items",
-            _element("shipper", "foreign", "shipper_id"),
-            _element("buyer", "foreign", "buyer_id"),
+            _element("shipper", "foreign", "quantity"),
+            _element("buyer", "foreign", "line_no"),
         ),
     )
 
@@ -610,8 +610,8 @@ def test_a_foreign_element_declared_only_natural_elsewhere_refuses() -> None:
     with pytest.raises(ArtifactImportError) as caught:
         _import(
             _manifest(
-                _model("order_items", _element("customer", "foreign", "customer_id")),
-                _model("customers", _element("customer", "natural", "cust_id")),
+                _model("order_items", _element("customer", "foreign", "order_id")),
+                _model("customers", _element("customer", "natural", "customer_id")),
             ),
             entities={"order_items": "order_item", "customers": "order"},
         )
@@ -640,10 +640,10 @@ def test_a_refusal_stops_the_run_before_names_are_generated() -> None:
             _manifest(
                 _model(
                     "order_items",
-                    _element("customer", "foreign", "customer_id"),
-                    _element("dangling", "foreign", "dangling_id"),
+                    _element("customer", "foreign", "order_id"),
+                    _element("dangling", "foreign", "quantity"),
                 ),
-                _model("customers", _element("customer", "primary", "cust_id")),
+                _model("customers", _element("customer", "primary", "customer_id")),
             ),
             entities={"order_items": "order_item", "customers": "order"},
             project=load_project(sources),
@@ -674,8 +674,8 @@ def test_the_rendered_block_is_byte_identical_across_processes_and_hash_seeds() 
         " entities={'order_items': 'order_item', 'customers': 'order'})), end='')"
     )
     manifest = _manifest(
-        _model("order_items", _element("customer", "foreign", "customer_id")),
-        _model("customers", _element("customer", "primary", "cust_id")),
+        _model("order_items", _element("customer", "foreign", "order_id")),
+        _model("customers", _element("customer", "primary", "customer_id")),
     )
 
     rendered = {
@@ -691,3 +691,102 @@ def test_the_rendered_block_is_byte_identical_across_processes_and_hash_seeds() 
 
     assert len(rendered) == 1
     assert "order_item__order" in rendered.pop()
+
+
+# ....................... #
+# Review round 1 — four findings, each red before its fix
+
+
+def test_an_expr_with_a_trailing_newline_is_not_a_bare_column() -> None:
+    """`$` matches before a final newline as well as at the end of the string,
+    so an anchored `match` accepted `"order_id\\n"`.
+
+    It reached `via` as a column name with a newline in it, which no entity
+    declares and no reader would spot in the pasted block. The pattern is shared
+    and read by pydantic elsewhere, so the fix is `fullmatch` here rather than a
+    second spelling of the grammar.
+    """
+
+    with pytest.raises(ArtifactImportError) as caught:
+        _import(
+            _manifest(
+                _model("order_items", _element("customer", "foreign", "order_id\n")),
+                _model("customers", _element("customer", "primary", "customer_id")),
+            ),
+            entities={"order_items": "order_item", "customers": "order"},
+        )
+
+    assert "expression rather than a bare column name" in str(caught.value)
+
+
+def test_a_mapping_target_is_checked_even_for_a_model_that_builds_no_edge() -> None:
+    """Checked lazily, a model carrying no `foreign` element never had its
+    mapping looked at — so `--entity customers=nonesuch` was accepted in full
+    whenever `customers` was only ever a target."""
+
+    with pytest.raises(ArtifactImportError) as caught:
+        _import(
+            _manifest(_model("customers", _element("customer", "primary", "customer_id"))),
+            entities={"customers": "nonesuch"},
+        )
+
+    assert "names no entity this project declares" in str(caught.value)
+
+
+def test_two_models_stating_one_join_produce_one_relationship() -> None:
+    """Two semantic models can map to one entity, and then they state the same
+    relationship twice.
+
+    Collapsed rather than refused, on the rule that agreement is not a
+    contradiction — and before naming, because both would otherwise widen to the
+    same generated name and `render` would print a duplicate that `resolve`
+    refuses by name.
+    """
+
+    (relationship,) = _import(
+        _manifest(
+            _model("order_items", _element("customer", "foreign", "order_id")),
+            _model("line_items", _element("customer", "foreign", "order_id")),
+            _model("customers", _element("customer", "primary", "customer_id")),
+        ),
+        entities={
+            "order_items": "order_item",
+            "line_items": "order_item",
+            "customers": "order",
+        },
+    )
+
+    assert relationship.name == "order_item__order"
+
+
+@pytest.mark.parametrize(
+    ("source_expr", "target_expr", "column", "entity"),
+    [
+        ("nonexistent_col", "customer_id", "nonexistent_col", "order_item"),
+        ("order_id", "nonexistent_col", "nonexistent_col", "order"),
+    ],
+    ids=["from-side", "to-side"],
+)
+def test_a_join_column_the_mapped_entity_does_not_declare_refuses(
+    source_expr: str, target_expr: str, column: str, entity: str
+) -> None:
+    """Being a bare identifier is not being a column this project has.
+
+    Without the check the importer printed a block that parsed, pasted cleanly,
+    and then refused at resolution — with a message about the author's own spec
+    rather than about the artifact it came out of, which is the wrong file to
+    send them to.
+    """
+
+    with pytest.raises(ArtifactImportError) as caught:
+        _import(
+            _manifest(
+                _model("order_items", _element("customer", "foreign", source_expr)),
+                _model("customers", _element("customer", "primary", target_expr)),
+            ),
+            entities={"order_items": "order_item", "customers": "order"},
+        )
+
+    message = str(caught.value)
+    assert f"{column!r}" in message
+    assert f"entity {entity!r} does not declare" in message

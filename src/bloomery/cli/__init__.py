@@ -749,14 +749,16 @@ def _import(arguments: argparse.Namespace) -> int:
     paste — and it is not a refusal: two statements that agree are not a
     contradiction.
     """
+    # The flags before the files. A malformed `--entity` is a usage error and
+    # the specs are allowed to be broken at the same time — parsed second, the
+    # spec's refusal answered first and the command exited 1, telling the caller
+    # their project was wrong when what was wrong was the invocation.
+    entities = _entity_map(arguments.entity)
     sources, _catalog_text = io.read_spec_directory(arguments.directory)
     project = load_project(sources)
     text = io.read_text(arguments.artifact)
     relationships = metricflow_relationships(
-        text,
-        project,
-        artifact=arguments.artifact,
-        entities=_entity_map(arguments.entity),
+        text, project, artifact=arguments.artifact, entities=entities
     )
 
     if relationships:

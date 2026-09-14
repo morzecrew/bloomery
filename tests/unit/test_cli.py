@@ -2502,9 +2502,13 @@ def _semantic_model(name: str, entities: list[dict[str, object]]) -> dict[str, o
     }
 
 
+#: The columns are ones `ecom_basic` really declares — `order_item.order_id`
+#: and `order.customer_id` — because the importer refuses a join on a column the
+#: mapped entity does not have, which is the whole point of it reading the
+#: project at all.
 _PAIR = [
-    _semantic_model("order_items", [{"name": "cust", "type": "foreign", "expr": "customer_id"}]),
-    _semantic_model("customers", [{"name": "cust", "type": "primary", "expr": "cust_id"}]),
+    _semantic_model("order_items", [{"name": "cust", "type": "foreign", "expr": "order_id"}]),
+    _semantic_model("customers", [{"name": "cust", "type": "primary", "expr": "customer_id"}]),
 ]
 
 
@@ -2657,3 +2661,26 @@ def test_import_offers_no_catalog_flag(capsys: pytest.CaptureFixture[str], tmp_p
 
     assert code == EXIT_USAGE
     assert "unrecognized arguments" in err or "--catalog" in err
+
+
+def test_import_reports_a_bad_flag_even_when_the_specs_are_also_broken(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The invocation is checked before the files are read.
+
+    Parsed the other way round, the spec's refusal answered first and the
+    command exited 1 — telling the caller their project was wrong when what was
+    wrong was the flag they typed.
+    """
+
+    artifact = _manifest_file(tmp_path, _PAIR)
+    broken = tmp_path / "broken"
+    broken.mkdir()
+    (broken / "entity_model.yaml").write_text("spec_version: 1\nentities: {\n")
+
+    code, _out, err = run(
+        capsys, "import", "metricflow", artifact, str(broken), "--entity", "oops"
+    )
+
+    assert code == EXIT_USAGE
+    assert "expected 'model=entity'" in err

@@ -68,10 +68,11 @@ Four consequences worth knowing:
   0044 and the other half of 0065's consumer story, arguing from the first's D1–D4 and the
   second's `requires_evidence` — so it was the last dependant of both, and the three could
   only ever go together. 0037 is the one ✅ root left. A root is held by the dependants that
-  exist, never by ones a reader expects: measured at that retirement, nothing live argued in
-  0065's vocabulary, and the only remaining mention of it anywhere in this directory was a
-  prose citation in 0037's own decision table — which is the thing the sentence below says is
-  not a reason to keep a document.
+  exist, never by ones a reader expects: measured at that retirement, no live RFC argued in
+  0065's vocabulary, and the one that still named it at all did so in a prose citation in its
+  own decision table — which is the thing the sentence below says is not a reason to keep a
+  document. This paragraph names it too, and that is the same kind of mention: a record of
+  what happened, not a document arguing from it.
   This is not a licence to keep a document because something cites it — prose citations are
   precisely what `RETIRED.md` exists to keep followable.
 
