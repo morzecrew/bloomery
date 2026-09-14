@@ -55,7 +55,7 @@ def rows(db, sql):
 
 def report(label, db):
     snap = rows(db, "SELECT customer_id, segment, valid_from, valid_to FROM silver.customer_snapshot ORDER BY customer_id, valid_from")
-    mart = rows(db, "SELECT order_id, customer_id, customer_segment FROM gold.mart_orders ORDER BY order_id")
+    mart = rows(db, "SELECT order_id, customer_id, customer_segment, order_date FROM gold.mart_orders ORDER BY order_id")
     print(f"\n--- {label}")
     print("  snapshot:", snap)
     print("  as-of mart:", mart)
@@ -67,6 +67,30 @@ def report(label, db):
     # was false for every row and all three routes reported "invisible".
     print(f"  baseline row c1 found by the join: {bool(baseline)}"
           f"{'' if baseline else '   <-- APPARATUS BROKEN, result unreadable'}")
+    present = [s for s in snap if s[0] == "c2"]
+    # Present-but-invisible and never-arrived are different answers, and only
+    # the first is the defect this RFC is about. Asked separately so a route
+    # the framework simply did not run cannot read as a route that failed.
+    print(f"  the row reached the entity at all: {bool(present)}"
+          f"{'' if present else '   <-- the framework never saw it; not a verdict on the route'}")
+    # And the third way a route can read "invisible" without being broken: the
+    # order is dated before the interval the framework assigned, so the corpus
+    # cannot reach the row whatever the route did. The baseline check does not
+    # cover this — on SQLMesh the first version is stamped at the epoch, so
+    # `c1` is reachable from any date while `c2` is not (measured; a sweep
+    # turned the routes invisible without tripping the baseline).
+    # Read out of the row rather than held as a constant: a constant drifts
+    # from the seed, which is how the first version of this guard passed a
+    # deliberately broken corpus (a sweep changed the seed and not the constant).
+    ordered = next((m[3] for m in mart if m[1] == "c2"), None)
+    stamped = next((s[2] for s in present if s[2] is not None), None)
+    if not found and ordered is not None and stamped is not None:
+        import datetime as _dt
+        at = _dt.datetime.combine(ordered, _dt.time()) if isinstance(ordered, _dt.date) and not isinstance(ordered, _dt.datetime) else ordered
+        if at < stamped:
+            print(f"  <-- the order is dated {ordered} and the framework stamped valid_from "
+                  f"{stamped}; the corpus cannot reach the row and this is not a verdict "
+                  "on the route")
     print(f"  as-of join FINDS the recovered row: {bool(found)}")
     return bool(baseline) and bool(found)
 
