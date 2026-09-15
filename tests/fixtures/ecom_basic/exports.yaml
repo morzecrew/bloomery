@@ -1,0 +1,15 @@
+# What this project publishes for another project to read (RFC 0059 §5.1).
+#
+# Authored out of order on purpose: the order of an export list carries no
+# meaning, so the lowering sorts it, and a fixture already in sorted order
+# would let an unsorted lowering pass unnoticed.
+#
+# `average_order_value` and `margin` are deliberately absent. An export list is
+# a boundary somebody drew, not a restatement of everything the project
+# declares — a project that exports its whole spec has no boundary at all
+# (D1), and a fixture that exported everything would not show the difference.
+exports_version: 1
+exports:
+  entities: [order_item, order]
+  marts: [order_items]
+  metrics: [order_count, gross_revenue]

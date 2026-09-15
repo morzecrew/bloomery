@@ -13,6 +13,7 @@ from bloomery.errors import (
     TypeCheckError,
 )
 from bloomery.ir import (
+    ExportsIR,
     ExposureKind,
     DateDimensionIR,
     DimensionRef,
@@ -1476,3 +1477,54 @@ def test_the_kind_is_lowered_to_the_closed_vocabulary() -> None:
         ExposureKind.APPLICATION,
         ExposureKind.DASHBOARD,
     ]
+
+
+# ....................... #
+# Exports — RFC 0059 §5.1
+
+
+def _with_exports(body: str, *, fixture: str = "cross_mart_branches") -> ExportsIR | None:
+    """A fixture plus an exports document, lowered.
+
+    ``cross_mart_branches`` rather than ``ecom_basic`` because it declares
+    three entities, three marts and seven metrics — a sort test needs at least
+    two names per kind, and ``ecom_basic`` has one mart.
+    """
+
+    sources = fixture_sources(fixture)
+    sources["exports"] = body
+    catalog = load_catalog((FIXTURES / fixture / "catalog.yaml").read_text())
+    return build_project_ir(load_project(sources), catalog=catalog).exports
+
+
+def test_each_exported_list_is_sorted_on_the_way_in() -> None:
+    """Authored order carries no meaning in an export list, so two spellings of
+    one surface must not produce two fingerprints (RFC 0003 §5.1).
+
+    All three lists are given out of order, because sorting one and
+    transcribing the others is the shape this would take if it were wrong.
+    """
+
+    exports = _with_exports("""
+exports_version: 1
+exports:
+  entities: [order_item, order]
+  marts: [orders, order_items]
+  metrics: [shipping_count, customer_count]
+""")
+
+    assert exports == ExportsIR(
+        entities=("order", "order_item"),
+        marts=("order_items", "orders"),
+        metrics=("customer_count", "shipping_count"),
+    )
+
+
+def test_no_exports_document_lowers_to_none() -> None:
+    """Absence is the only spelling of "publishes nothing": the document
+    refuses to be empty, so ``None`` and an empty node never both mean it.
+
+    ``minimal`` rather than ``ecom_basic``, which carries an exports document.
+    """
+
+    assert build_project_ir(load_project(fixture_sources("minimal"))).exports is None

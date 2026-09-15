@@ -134,7 +134,9 @@ def test_a_delete_is_still_a_delete() -> None:
     )
     catalog = load_catalog(catalog_text)
     # Drop the metric and everything naming it: the mart measure, the derived
-    # ratio, and the exposure's dependency.
+    # ratio, the exposure's dependency, and the export list's entry — a metric
+    # deleted while still on the published surface is what the dangling-export
+    # guard refuses (RFC 0059 D1), which is a different test than this one.
     without = fixture_sources("ecom_basic")
     without["metrics"] = """
 metrics_version: 1
@@ -148,6 +150,9 @@ metrics:
     without["marts"] = without["marts"].replace("measures: [gross_revenue]", "measures: []")
     without["exposures"] = without["exposures"].replace(
         "metrics: [gross_revenue, order_count]", "metrics: [order_count]"
+    )
+    without["exports"] = without["exports"].replace(
+        "metrics: [order_count, gross_revenue]", "metrics: [order_count]"
     )
     new_project = load_project(without)
 

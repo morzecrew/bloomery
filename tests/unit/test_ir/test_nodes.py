@@ -4,6 +4,7 @@ qualification, and the data-quality nodes' shape and canonical order."""
 
 from __future__ import annotations
 
+import dataclasses
 from decimal import Decimal
 
 import pytest
@@ -12,6 +13,7 @@ from support.compiling import load_fixture
 
 from bloomery import build_project_ir
 from bloomery.ir import (
+    DateDimensionIR,
     DedupeIR,
     DimensionRef,
     OnFail,
@@ -75,7 +77,8 @@ def test_the_declared_ir_version_is_the_current_one() -> None:
     # `ProjectIR.fx_rates`, `MetricIR`'s cumulative/derived/filter,
     # `CumulativeIR.period_agg`, `SourceColumnIR`'s branch facts,
     # `ProjectIR.exposures`, `SourceIR.freshness`, the `owner` on each of
-    # `EntityIR`/`MartIR`/`MetricIR` and `RollupIR.grants` each change the IR
+    # `EntityIR`/`MartIR`/`MetricIR`, `RollupIR.grants` and
+    # `ProjectIR.exports` each change the IR
     # shape; RFC 0003 D3 makes the version
     # part of the fingerprint, so each bump is deliberate and loud. The M12/M13
     # wave nearly shipped without one: the fingerprints moved anyway (the
@@ -89,7 +92,7 @@ def test_the_declared_ir_version_is_the_current_one() -> None:
     # fingerprint does not move at all — two compilers of different shape then
     # agree on the fingerprint as well as the version. Named for what it pins
     # rather than for a number, because the number is what changes.
-    assert ProjectIR().bloomery_ir_version == 16
+    assert ProjectIR().bloomery_ir_version == 17
 
 
 def test_the_compiler_emits_the_declared_ir_version() -> None:
@@ -204,3 +207,51 @@ def test_reconcile_tolerance_is_a_decimal() -> None:
     assert not isinstance(block.tolerance, float)
     # exact by construction: 0.01 and 0.010 are the same number, distinct text
     assert block.tolerance == Decimal("0.010")
+
+# ....................... #
+# Field order — RFC 0018 D1
+
+
+def test_exports_is_the_last_field() -> None:
+    """Every field on `ProjectIR` has a default, so one inserted mid-list does
+    not raise for a caller who bound positionally — it silently rebinds.
+
+    The rule is RFC 0018 D1's and the tree already states it for
+    `SpecEvidence` (``tests/unit/test_advisories.py``). It was not stated here,
+    and `exports` first landed between `exposures` and `date_dimension`, which
+    is how the next field will land too unless something says otherwise.
+    """
+
+    names = [field.name for field in dataclasses.fields(ProjectIR)]
+
+    assert names[-1] == "exports"
+
+
+def test_positional_construction_still_binds_what_it_did() -> None:
+    """The regression the rule above exists to prevent, executed.
+
+    A caller who built an IR positionally before `exports` existed must still
+    get the same object. **Every pre-existing field is supplied**, not a
+    prefix: a call that stops before the insertion point passes against a field
+    inserted after it, which is the shape that let this ship once already.
+    """
+
+    dimension = DateDimensionIR(name="dim_date", grain="day", start_year=2020, end_year=2030)
+    ir = ProjectIR(
+        ProjectIR().bloomery_ir_version,
+        (),
+        (),
+        (),
+        (),
+        (),
+        (),
+        (),
+        dimension,
+        None,
+        (),
+        (),
+        (),
+    )
+
+    assert ir.date_dimension == dimension
+    assert ir.exports is None

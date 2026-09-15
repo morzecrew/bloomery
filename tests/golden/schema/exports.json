@@ -1,0 +1,56 @@
+{
+  "$defs": {
+    "Exports": {
+      "additionalProperties": false,
+      "description": "What a project publishes, grouped by kind (RFC 0059 \u00a75.1).",
+      "properties": {
+        "entities": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Entities",
+          "type": "array"
+        },
+        "marts": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Marts",
+          "type": "array"
+        },
+        "metrics": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Metrics",
+          "type": "array"
+        }
+      },
+      "title": "Exports",
+      "type": "object"
+    }
+  },
+  "$id": "https://morzecrew.github.io/bloomery/schemas/v1/exports.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The per-project exports document (``exports_version``), at most one per\nproject (RFC 0059 \u00a75.1).",
+  "properties": {
+    "exports": {
+      "$ref": "#/$defs/Exports"
+    },
+    "exports_version": {
+      "const": 1,
+      "title": "Exports Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "exports",
+    "exports_version"
+  ],
+  "title": "ExportSet",
+  "type": "object"
+}

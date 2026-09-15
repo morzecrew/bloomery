@@ -28,6 +28,7 @@ from bloomery.guardrails.asserts import lower_asserts
 from bloomery.guardrails.classification import check_classification
 from bloomery.guardrails.conflict import Shadow, path_conflict_amendments
 from bloomery.guardrails.evidence import check_evidence
+from bloomery.guardrails.exports import check_export_targets
 from bloomery.guardrails.exposures import check_exposure_targets
 from bloomery.guardrails.grain import check_grain
 from bloomery.guardrails.lineage import check_lineage_names
@@ -145,6 +146,10 @@ def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | N
     # documents rather than the draft — see the module docstring for why the
     # draft is the wrong side of the flattener to ask.
     violations.extend(check_exposure_targets(project))
+    # Exported names (RFC 0059 D1, `LOCKED`), asked of the authored documents
+    # for the reason the exposure guard is — a mart that failed to flatten is
+    # absent from the draft while very much declared.
+    violations.extend(check_export_targets(project))
     # Consumer evidence (RFC 0065 D4, `LOCKED`): the requirement is read from
     # the authored marts document and the facts from the draft, which is the
     # one guardrail that needs both sides — the key never enters `MartIR` (D3).
