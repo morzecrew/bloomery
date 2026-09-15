@@ -1,8 +1,12 @@
 # RFC 0060 — Replay on a historical entity
 
-- **Status:** 📝 Draft — the design behind a refusal that already shipped. Not scheduled;
-  this document exists so "refused" reads as "not yet, and here is the shape" rather than
-  as "never".
+- **Status:** 📝 Draft — the design behind a refusal that already shipped. Still a draft
+  because nothing here has been built: this document exists so "refused" reads as "not yet,
+  and here is the shape" rather than as "never". **§6's measurement has been run**
+  (2026-09-15, [`logs/T-0057.md`](../logs/T-0057.md)), which is what §12 said had to happen
+  before there was a phase to write — so D5 and D6 are settled by rows 7 and 8, and a P1 is
+  writable. §§3, 5 and 10 read as they were written and describe the state before that
+  measurement; rows 9 and 10 record where it found them incomplete rather than editing them.
 - **Scope:** How a quarantined row is admitted into an entity whose history the *target
   framework* maintains — `scd: type2`. One question, three candidate answers, and the
   measurement that rules the current one out. No change to flag-only quality, to type 1
@@ -213,11 +217,21 @@ the block stays and gains the reason.
 | 2 | `LOCKED` | A recovered row reaches the entity **through whatever produces the entity's versions**, so the framework versions it. Writing past the framework is what the shipped defect did, and it reported success. |
 | 3 | `LOCKED` | The acceptance test is an as-of join *finding* the recovered row, never a row being present in the relation. Present-and-invisible is the exact failure this RFC exists to remove, and a row-count assertion cannot tell the two apart. |
 | 4 | `ASSUMED` | Replay for `scd: type1` entities does not change. It is correct there, every fixture exercises it, and a shared rewrite would put the branch nobody needs in the path everybody takes. |
-| 5 | `OPEN` | Which of §5.1, §5.2 and §5.3. The lean is §5.2 then §5.1; §6's measurement decides, and it has not been run. |
-| 6 | `OPEN` | What a recovered version's `valid_from` means (§10). Three defensible answers producing three different histories. |
+| 5 | `OPEN` | **Superseded by row 7.** Which of §5.1, §5.2 and §5.3. The lean is §5.2 then §5.1; §6's measurement decides, and it has not been run. |
+| 6 | `OPEN` | **Superseded by row 8.** What a recovered version's `valid_from` means (§10). Three defensible answers producing three different histories. |
+| 7 | `ASSUMED` | **§5.2 — replay writes the recovered row back to bronze, and the ordinary pipeline admits it.** §6's measurement was run and rules out only §5.1's alternative to it: routes through bronze *and* through a `__replayed` arm both make the row visible to an as-of join, on both targets, while the shipped merge is invisible on both. So the measurement does not discriminate and §5's own ranking is the whole of the remaining argument — §5.2 needs no new relation, no lifecycle nobody owns and no change to `entity_select`, and its objection is about posture rather than correctness. §5.1 stays the named fallback and is now **known** to work rather than believed to, which is what the spike bought. Not `LOCKED` because the posture objection in §9 is real and a reviewer may weigh it differently than this row does. Proposed by execution — see [`logs/T-0057.md`](../logs/T-0057.md) (D5, attempt 1). |
+| 8 | `LOCKED` | **A recovered version's `valid_from` is whatever the framework assigns, and bloomery does not choose it.** §10's three candidate answers — the delivery's `_ingested_at`, the moment of recovery, the framework's run time — are not three options a design picks between: measured, dbt stamps its own wall clock on every version and SQLMesh stamps `1970-01-01` for an initial load and the run's execution time thereafter. Neither offers a caller-supplied value, and the two disagree about the *same* first load. Choosing would mean computing a framework's bookkeeping, which D1 forbids, so D6 closes the way D1 closed rather than being answered. Locked for D1's reason: this is the point of routing through the framework, not a cost of it. Proposed by execution — see [`logs/T-0057.md`](../logs/T-0057.md) (D6, attempt 1). |
+| 9 | `ASSUMED` | **§3's measurement table describes dbt, and the SQLMesh column was reasoned rather than run.** On SQLMesh the replay merge does not land at all: `silver.customer` is a *view* over a physical snapshot table in `sqlmesh__silver`, and the write is refused outright — `Catalog Error: customer is not an table`. So one target fails loudly and the other fails silently, which changes nothing about the refusal — the pair is refused either way, for a reason that holds on both — but changes what §3 may claim and how urgent a reader should think this is. Proposed by execution — see [`logs/T-0057.md`](../logs/T-0057.md) (unlisted, attempt 1). |
+| 10 | `ASSUMED` | **Replay adds a version; it never rewrites one.** §10's second question has only one answer reachable on a shipped target: SQLMesh disables restatement on an `SCD_TYPE_2_BY_COLUMN` model and warns rather than acting — "Restatement is disabled for this model to prevent possible data loss". Both candidates add, neither corrects, and that is now a measured constraint rather than a preference. Not `LOCKED` because a project may set `disable_restatement: false` deliberately and a future release may move the default; what is locked is that nothing here relies on restatement. Proposed by execution — see [`logs/T-0057.md`](../logs/T-0057.md) (unlisted, attempt 1). |
 
 ## 12. Phasing
 
 None until §6's first measurement is run. That measurement is a spike — one entity, one
 recovered row, one as-of join, on both targets — and it is what makes D5 answerable. Only
 then is there a phase to write.
+
+> **The measurement was run on 2026-09-15** — `tools/spikes/rfc0060_dbt.py` and
+> `tools/spikes/rfc0060_sqlmesh.py`, transcript and findings in
+> [`logs/T-0057.md`](../logs/T-0057.md). Rows 7–10 are what it settled, and a P1 is now
+> writable: §5.2's route, the deletion of `_snapshot_quarantine`, and §6's per-candidate
+> execution test on both targets. Nothing has shipped — the spike changed no behaviour.
