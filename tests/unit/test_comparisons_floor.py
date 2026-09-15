@@ -173,3 +173,37 @@ def test_matrix_rows_are_the_corpus_cases() -> None:
     assert found == expected, {
         key: (found[key], expected[key]) for key in found if found[key] != expected[key]
     }
+
+
+#: Feature → how it appears in a bundle's `config/`, for features whose
+#: presence a `sources.md` claims. Keyed on what the citation says, so a row
+#: added to one bundle's table has to be true of that bundle's manifest.
+FEATURES = {
+    "`ratio` metric type": "type: ratio",
+    "`non_additive_dimension` on a measure": "non_additive_dimension:",
+}
+
+
+@pytest.mark.parametrize("bundle", BUNDLES, ids=lambda p: f"{p.parent.name}/{p.name}")
+def test_sources_cite_only_the_feature_set_this_bundle_uses(bundle: pathlib.Path) -> None:
+    """RFC 0043 §3 and D1: `sources.md` names the feature set *this*
+    configuration exercises, so a reader can check the configuration is
+    idiomatic rather than a strawman.
+
+    A shared template is the failure this catches. Three bundles written from
+    one file cite features two of them never declare, and the citation then
+    reads as per-bundle research while being boilerplate — the same shape as a
+    version string typed from memory, and just as invisible once written down.
+    """
+
+    cited = (bundle / "sources.md").read_text(encoding="utf-8")
+    declared = "\n".join(
+        path.read_text(encoding="utf-8") for path in sorted((bundle / "config").glob("*.yaml"))
+    )
+
+    for feature, marker in FEATURES.items():
+        assert (feature in cited) == (marker in declared), (
+            f"{bundle.relative_to(ROOT)}: sources.md "
+            f"{'cites' if feature in cited else 'omits'} {feature}, "
+            f"config {'declares' if marker in declared else 'does not declare'} it"
+        )

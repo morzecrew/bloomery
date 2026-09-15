@@ -11,8 +11,7 @@ Version-pinned and checkable offline, which is what makes it the primary citatio
 | What | Where, in the `metricflow` distribution |
 |---|---|
 | the YAML schema every config in `config/` is validated against | `metricflow_semantic_interfaces/parsing/schemas.py` |
-| the `ratio` metric type | `metricflow_semantic_interfaces/implementations/metric.py` |
-| `non_additive_dimension` on a measure | `metricflow_semantic_interfaces/protocols/measure.py` |
+| the `ratio` metric type, which `config/` declares | `metricflow_semantic_interfaces/implementations/metric.py` |
 | the manifest validator, run in full | `metricflow_semantic_interfaces/validations/semantic_manifest_validator.py` |
 
 ```
