@@ -1,8 +1,13 @@
 # RFC 0059 — Multi-project composition
 
-- **Status:** 📝 Draft — the large one. Schedulable in the sense that it is not blocked on
-  another design, and not small: it is the only member of the platform-metadata split that
-  changes what a *project* is.
+- **Status:** 🚧 In progress — the large one. Schedulable in the sense that it is not
+  blocked on another design, and not small: it is the only member of the platform-metadata
+  split that changes what a *project* is. **§12's P1 has landed** (2026-09-16, `ff6e6fe2`,
+  [`logs/T-0059.md`](../logs/T-0059.md)): a project declares an export list, the dangling
+  names are refused, and the surface reaches `ProjectIR` at `bloomery_ir_version` 17.
+  Nothing consumes it — measured, not asserted: `ecom_basic` carries an export list and
+  every artifact it emits is byte-identical but the fingerprint. P2 through P5 remain, in
+  §12's order, and every section below reads as it was written.
 - **Scope:** One project reading entities, marts or metrics that another project declares
   — dbt's cross-project `ref()`, and the general question underneath it. Covers what
   crosses the boundary, what a fingerprint means when it does, and which refusals become
