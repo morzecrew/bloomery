@@ -5,8 +5,11 @@ checked in beside it. Read [`README.md`](README.md) first: a cell is a property 
 configuration**, never of a product, and the six values have precise meanings.
 
 - **Last checked:** 2026-09-15.
-- **Coverage:** 25 rows. bloomery is filled for all of them; MetricFlow for 6; dbt Core,
-  SQLMesh and Cube for none.
+- **Coverage:** 25 rows — one per *expectation*, not one per case. RFC 0042's twelve cases
+  pin between one and three apiece, because a case is typically refused in one shape and
+  planned correctly in another, and a column that answered only one of those would say
+  nothing. bloomery is filled for all 25; MetricFlow for 6; dbt Core, SQLMesh and Cube for
+  none.
 
 ## Columns
 

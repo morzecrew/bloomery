@@ -2,12 +2,15 @@
 
 - **Status:** 🚧 In progress — research and specification task, **not a code change**.
   [RFC 0042](0042-semantic-bug-corpus.md) is strongly recommended first: its cases are this
-  document's rows. **The first column is measured** (2026-09-15,
+  document's rows. **A second column is measured** (2026-09-15,
   [`logs/T-0058.md`](../logs/T-0058.md)): `comparisons/` exists with MetricFlow `0.212.0`
-  against three cases, `comparisons/MATRIX.md` carries all 25 rows, and D6 and D7 are
-  settled by rows 9 and 10. §§3, 4 and 8 read as they were written and describe the state
-  before that research; rows 11–13 record what it settled that they do not mention. Every
-  other column is `UNKNOWN`, which is D2 working rather than work missing.
+  against three cases, and D6 and D7 are settled by rows 9 and 10. `comparisons/MATRIX.md`
+  carries 25 rows, which is one row per **expectation** — RFC 0042's twelve cases pin
+  between one and three apiece, and a case is refused in one shape while being planned
+  correctly in another. bloomery's column is filled for all 25, MetricFlow's for the 6 its
+  three bundles cover, and dbt Core, SQLMesh and Cube are `UNKNOWN` throughout, which is D2
+  working rather than work missing. §§3, 4 and 8 read as they were written and describe the
+  state before that research; rows 11–13 record what it settled that they do not mention.
 - **Scope:** A reproducible comparison of bloomery, dbt, SQLMesh, MetricFlow, Cube and
   other explicitly selected systems against concrete semantic failure cases.
 - **Non-goal:** Competitive marketing copy. §6 exists to keep it that way.
