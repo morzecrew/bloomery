@@ -2055,7 +2055,10 @@ lives in bloomery. The additivity <em>lowering</em> — generating the windowed 
 balance or the <code>SUM(num)/NULLIF(SUM(den), 0)</code> for a ratio — is delegated to the
 embedded MetricFlow backend, and the numbers above are asserted by executing its
 generated SQL. MetricFlow lowers additivity; it does not stop you from modeling it
-wrongly. That refusal stays here.</p>
+wrongly — at <code>0.212.0</code>, a measure declaring <code>agg: average</code> over a stored average validates
+clean and answers <code>55.00</code>, beside a <code>ratio</code> metric over the same rows that answers <code>32.50</code>
+(<a href="https://github.com/morzecrew/bloomery/tree/main/comparisons/metricflow">the reproduction</a>).
+That refusal stays here.</p>
 <h2 id="path-conflict-the-guardrail-that-does-not-raise">Path conflict: the guardrail that does not raise<a class="headerlink" href="#path-conflict-the-guardrail-that-does-not-raise" title="Permanent link">&para;</a></h2>
 <p>When a field has both a direct source column and a satisfiable recorded derivation, any
 silent choice is wrong — the two can disagree, and whichever the compiler picked, the
