@@ -1,0 +1,74 @@
+semantic_model:
+  name: order_summaries
+  node_relation:
+    alias: corpus__order_summaries
+    schema_name: bronze
+    relation_name: bronze.corpus__order_summaries
+  entities:
+    - name: order
+      type: primary
+      expr: order_id
+  dimensions:
+    - name: created_at
+      type: time
+      expr: CAST(created_at AS TIMESTAMP)
+      type_params:
+        time_granularity: day
+  measures:
+    - name: stored_order_average
+      agg: average
+      expr: average_item_price
+      agg_time_dimension: created_at
+---
+semantic_model:
+  name: order_items
+  node_relation:
+    alias: corpus__order_items
+    schema_name: bronze
+    relation_name: bronze.corpus__order_items
+  entities:
+    - name: order_line
+      type: primary
+      expr: order_id || '-' || CAST(line_no AS VARCHAR)
+  dimensions:
+    - name: created_at
+      type: time
+      expr: CAST(created_at AS TIMESTAMP)
+      type_params:
+        time_granularity: day
+  measures:
+    - name: unit_price_total
+      agg: sum
+      expr: unit_price
+      agg_time_dimension: created_at
+    - name: line_count
+      agg: count
+      expr: line_no
+      agg_time_dimension: created_at
+---
+metric:
+  name: average_item_price_naive
+  type: simple
+  type_params:
+    measure: stored_order_average
+---
+metric:
+  name: unit_price_total
+  type: simple
+  type_params:
+    measure: unit_price_total
+---
+metric:
+  name: line_count
+  type: simple
+  type_params:
+    measure: line_count
+---
+metric:
+  name: average_item_price_decomposed
+  type: ratio
+  type_params:
+    numerator:
+      name: unit_price_total
+    denominator:
+      name: line_count

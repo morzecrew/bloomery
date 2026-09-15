@@ -1,0 +1,43 @@
+semantic_model:
+  name: balances
+  node_relation:
+    alias: corpus__balances
+    schema_name: bronze
+    relation_name: bronze.corpus__balances
+  entities:
+    - name: account_day
+      type: primary
+      expr: account_id || '-' || CAST(as_of_day AS VARCHAR)
+    - name: account
+      type: foreign
+      expr: account_id
+  dimensions:
+    - name: as_of_day
+      type: time
+      expr: as_of_day
+      type_params:
+        time_granularity: day
+  measures:
+    - name: balance_summed
+      agg: sum
+      expr: balance
+      agg_time_dimension: as_of_day
+    - name: balance_last
+      agg: sum
+      expr: balance
+      agg_time_dimension: as_of_day
+      non_additive_dimension:
+        name: as_of_day
+        window_choice: max
+---
+metric:
+  name: total_balance_naive
+  type: simple
+  type_params:
+    measure: balance_summed
+---
+metric:
+  name: total_balance_semi_additive
+  type: simple
+  type_params:
+    measure: balance_last

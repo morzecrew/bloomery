@@ -1,0 +1,5 @@
+SemanticManifestValidator: 0 error(s), 0 warning(s)
+### average_item_price_naive
+  -> [(55.0,)]
+### average_item_price_decomposed
+  -> [(32.5,)]

@@ -1,0 +1,4 @@
+uv run python comparisons/metricflow/run.py \
+    tests/fixtures/semantic_corpus/002-average-of-averages \
+    comparisons/metricflow/002-average-of-averages \
+    average_item_price_naive average_item_price_decomposed
