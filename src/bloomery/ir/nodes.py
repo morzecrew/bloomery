@@ -1568,15 +1568,22 @@ class ProjectIR:
     #: of the lineage graph and an input to ``plan()``'s impact report; nothing
     #: is built for one.
     exposures: tuple[ExposureIR, ...] = ()
-    #: What this project publishes for another to read (RFC 0059 §5.1, D1).
-    #: ``None`` where no exports document was authored, which is the only
-    #: spelling of "exports nothing" — the document refuses to be empty.
-    exports: ExportsIR | None = None
     date_dimension: DateDimensionIR | None = None
     fx_rates: FxRatesIR | None = None
     reconcile: tuple[ReconcileIR, ...] = ()
     coverage: tuple[CoverageIR, ...] = ()
     steps: tuple[StepIR, ...] = ()
+    #: What this project publishes for another to read (RFC 0059 §5.1, D1).
+    #: ``None`` where no exports document was authored, which is the only
+    #: spelling of "exports nothing" — the document refuses to be empty.
+    #:
+    #: **Last, and it stays last.** Every field here has a default, so one
+    #: inserted mid-list does not raise for a caller who bound positionally —
+    #: it silently rebinds, and a `DateDimensionIR` lands in `exports` while
+    #: `date_dimension` comes back `None`. Appending is what keeps the addition
+    #: additive (RFC 0018 D1), and `test_exports_is_the_last_field` is what
+    #: keeps the next one honest.
+    exports: ExportsIR | None = None
 
 
 # ....................... #
