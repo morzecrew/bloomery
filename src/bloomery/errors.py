@@ -70,6 +70,7 @@ __all__ = [
     "NonAdditiveWithoutComponents",
     "FalseAdditivityClaim",
     "MartMissingTimeDimension",
+    "DanglingExport",
     "DanglingExposure",
     "InsufficientEvidence",
     "ReservedEntityName",
@@ -530,6 +531,23 @@ class ReservedEntityName(GuardrailError):
 
 
 # ....................... #
+
+
+class DanglingExport(GuardrailError):
+    """Guardrail stage (RFC 0059 D1, `LOCKED`): an export naming an entity,
+    mart or metric the project does not declare.
+
+    An export list is the boundary another project reads through, so a name on
+    it that resolves to nothing publishes nothing while looking published. The
+    failure surfaces one project away and one compile later — downstream asks
+    for the name, is told it is not exported, and the author of the *upstream*
+    is the only person who can see that it is right there in the list. Refused
+    where it is written, which is the only place both halves are visible.
+
+    A **rollup** named under ``marts:`` gets its own message rather than "not
+    declared": an author can disprove "not declared" by opening the marts
+    document, and what is true is narrower — this list names marts.
+    """
 
 
 class DanglingExposure(GuardrailError):

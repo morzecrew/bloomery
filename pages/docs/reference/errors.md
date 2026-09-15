@@ -37,6 +37,7 @@ BloomeryError
 │   ├── UnprovableRollup
 │   ├── ReservedEntityName
 │   ├── DanglingExposure
+│   ├── DanglingExport
 │   ├── QuarantineRetentionMissing
 │   ├── DedupeTieBreakMissing
 │   ├── DedupeDispositionConflict
@@ -104,6 +105,7 @@ BloomeryError
 | `ReservedEntityName` | guardrails | An entity named `canonical`, `exposure`, `mart`, `metric`, `source` or `step` — every lineage node id but an entity field's is `<prefix>.<rest>`, so such an entity mints ids in another kind's namespace |
 | `InsufficientEvidence` | guardrails | A mart declaring `requires_evidence: locked` reads a measure resting on a fact nobody wrote down — sound under the proof floor, but not authored here, which is the different question the consumer asked |
 | `DanglingExposure` | guardrails | An exposure whose `depends_on` names a metric or mart the project does not declare — the dependency would match no change, so the impact report would name nobody and still read clean |
+| `DanglingExport` | guardrails | An export list naming an entity, mart or metric the project does not declare — nothing is built for an export, so the name publishes nothing while reading as published, and the refusal lands one project and one compile away from the author who can fix it |
 | `QuarantineRetentionMissing` | guardrails | An entity with a `quarantine` disposition and no `quarantine:` block — reject rows hold raw payloads, so retention is required and never defaulted |
 | `DedupeTieBreakMissing` | guardrails | `dedupe: {keep: latest_by}` without `tie_break` — rows sharing a timestamp would make the winner arbitrary |
 | `DedupeDispositionConflict` | guardrails | A `coercible` rule weaker than `fail` on a field named by `dedupe.field`/`tie_break`, where an uncastable value leaves the dedupe order undefined |

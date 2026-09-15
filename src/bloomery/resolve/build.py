@@ -59,6 +59,7 @@ from bloomery.ir import (
     DerivedIR,
     DimensionRef,
     EntityIR,
+    ExportsIR,
     ExposureIR,
     ExposureKind,
     FreshnessIR,
@@ -2144,6 +2145,34 @@ def _build_relationships(project: Project) -> tuple[RelationshipIR, ...]:
 # ....................... #
 
 
+def _build_exports(project: Project) -> ExportsIR | None:
+    """Lower the exports document, each collection sorted (RFC 0059 §5.1).
+
+    A transcription and nothing more, for the same reason
+    :func:`_build_exposures` is one: every name an export holds belongs to
+    another document, and whether those names resolve is
+    :func:`~bloomery.guardrails.exports.check_export_targets`'s question —
+    asked of the **authored** documents, because a mart absent from this draft
+    may have failed to flatten rather than failed to exist.
+
+    ``None`` where no document was authored. An empty export list is refused
+    where it is written, so there is exactly one way for a project to say it
+    publishes nothing.
+    """
+
+    if project.exports is None:
+        return None
+
+    return ExportsIR(
+        entities=tuple(sorted(project.exports.exports.entities)),
+        marts=tuple(sorted(project.exports.exports.marts)),
+        metrics=tuple(sorted(project.exports.exports.metrics)),
+    )
+
+
+# ....................... #
+
+
 def _build_exposures(project: Project) -> tuple[ExposureIR, ...]:
     """Lower the exposures document, sorted by name (RFC 0056 §5.1).
 
@@ -2294,6 +2323,7 @@ def _lower_draft(
         metrics=_build_metrics(project, catalog, resolution.reachable_metrics),
         unreachable=resolution.unreachable_metrics,
         relationships=_build_relationships(project),
+        exports=_build_exports(project),
         exposures=_build_exposures(project),
         marts=(),  # attached below, once the flattener has the entity draft
         date_dimension=_build_date_dimension(catalog),

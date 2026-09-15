@@ -52,6 +52,7 @@ __all__ = [
     "DimensionRef",
     "FxRatesIR",
     "EntityIR",
+    "ExportsIR",
     "ExposureIR",
     "ExposureKind",
     "Layer",
@@ -1265,6 +1266,41 @@ class ExposureKind(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class ExportsIR:
+    """What this project publishes for another project to read (RFC 0059 §5.1,
+    D1).
+
+    The upstream half of the composition boundary, and in this phase the whole
+    of it: nothing consumes an export yet. It is here rather than only in the
+    authored document because **the IR is what crosses** (D2) — a downstream
+    compile is handed the upstream's compiled IR, never its spec, so a surface
+    that lived only in the document would be a surface the boundary could not
+    see.
+
+    Three collections rather than one, for the reason :class:`ExposureIR` keeps
+    two: entity, mart and metric names are separate namespaces, so a single
+    list would be names whose kind has to be guessed by looking each one up,
+    and a name held by two kinds would resolve to whichever lookup ran first.
+
+    Each is sorted. The order of an export list carries no meaning, so leaving
+    it authored would let two spellings of one surface produce two fingerprints
+    (RFC 0003 §5.1).
+
+    **Absence is the only spelling of "exports nothing".** An empty document is
+    refused where it is authored, so this node is either present with something
+    in it or absent entirely — which keeps "no boundary" and "a boundary that
+    publishes nothing" from being two states that mean one thing.
+    """
+
+    entities: tuple[str, ...] = ()
+    marts: tuple[str, ...] = ()
+    metrics: tuple[str, ...] = ()
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
 class ExposureIR:
     """A declared consumer of what this project builds (RFC 0056 §5.1).
 
@@ -1519,7 +1555,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 16
+    bloomery_ir_version: int = 17
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()
@@ -1532,6 +1568,10 @@ class ProjectIR:
     #: of the lineage graph and an input to ``plan()``'s impact report; nothing
     #: is built for one.
     exposures: tuple[ExposureIR, ...] = ()
+    #: What this project publishes for another to read (RFC 0059 §5.1, D1).
+    #: ``None`` where no exports document was authored, which is the only
+    #: spelling of "exports nothing" — the document refuses to be empty.
+    exports: ExportsIR | None = None
     date_dimension: DateDimensionIR | None = None
     fx_rates: FxRatesIR | None = None
     reconcile: tuple[ReconcileIR, ...] = ()

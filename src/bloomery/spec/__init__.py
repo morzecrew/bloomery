@@ -15,6 +15,7 @@ from bloomery.spec.catalog import (
 )
 from bloomery.spec.common import RatioSpec, SemiAdditivePolicy, SpecModel
 from bloomery.spec.entity import AssertClause, Entity, EntityModel, Field, Relationship
+from bloomery.spec.exports import Exports, ExportSet
 from bloomery.spec.exposures import Exposure, ExposureDependsOn, ExposureSet
 from bloomery.spec.mapping import (
     FieldMapping,
@@ -79,6 +80,9 @@ __all__ = [
     "StepSet",
     "StepUse",
     "StepWiring",
+    # exports (RFC 0059)
+    "ExportSet",
+    "Exports",
     # exposures (RFC 0056)
     "Exposure",
     "ExposureDependsOn",
