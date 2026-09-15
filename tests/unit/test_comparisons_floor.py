@@ -112,12 +112,22 @@ def test_pinned_version_is_the_one_installed(bundle: pathlib.Path) -> None:
 @pytest.mark.parametrize("bundle", BUNDLES, ids=lambda p: f"{p.parent.name}/{p.name}")
 def test_checked_date_is_within_the_ceiling(bundle: pathlib.Path) -> None:
     """D7's second half, and the only one that applies to a system this
-    repository does not install."""
+    repository does not install.
+
+    Bounded at both ends. A date in the future subtracts to a negative age and
+    satisfies any ceiling, so the freshness gate would wave through a cell
+    pinning a check that has not happened — which is D2's failure with a
+    timestamp on it rather than a guess.
+    """
 
     match = _CHECKED.search((bundle / "README.md").read_text(encoding="utf-8"))
     assert match is not None
     checked = dt.date.fromisoformat(match.group(1))
     age = dt.date.today() - checked
+    assert age >= dt.timedelta(), (
+        f"{bundle.relative_to(ROOT)} is dated {checked}, which has not happened yet — "
+        f"a cell cannot pin a check in the future"
+    )
     assert age <= MAX_AGE, (
         f"{bundle.relative_to(ROOT)} was checked {age.days} days ago — re-run commands.txt "
         f"or mark its cells `UNKNOWN`"
