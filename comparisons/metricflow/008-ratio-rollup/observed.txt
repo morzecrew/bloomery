@@ -1,0 +1,5 @@
+SemanticManifestValidator: 0 error(s), 0 warning(s)
+### revenue_per_item_naive
+  -> [(3.5,)]
+### revenue_per_item_ratio
+  -> [(3.25,)]

@@ -161,7 +161,10 @@ lives in bloomery. The additivity *lowering* — generating the windowed SQL for
 balance or the `SUM(num)/NULLIF(SUM(den), 0)` for a ratio — is delegated to the
 embedded MetricFlow backend, and the numbers above are asserted by executing its
 generated SQL. MetricFlow lowers additivity; it does not stop you from modeling it
-wrongly. That refusal stays here.
+wrongly — at `0.212.0`, a measure declaring `agg: average` over a stored average validates
+clean and answers `55.00`, beside a `ratio` metric over the same rows that answers `32.50`
+([the reproduction](https://github.com/morzecrew/bloomery/tree/main/comparisons/metricflow)).
+That refusal stays here.
 
 ## Path conflict: the guardrail that does not raise
 

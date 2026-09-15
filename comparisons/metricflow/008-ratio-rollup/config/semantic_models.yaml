@@ -1,0 +1,56 @@
+semantic_model:
+  name: orders
+  node_relation:
+    alias: corpus__orders
+    schema_name: bronze
+    relation_name: bronze.corpus__orders
+  entities:
+    - name: order
+      type: primary
+      expr: order_id
+  dimensions:
+    - name: placed_on
+      type: time
+      expr: placed_on
+      type_params:
+        time_granularity: day
+  measures:
+    - name: revenue
+      agg: sum
+      expr: revenue
+      agg_time_dimension: placed_on
+    - name: item_count
+      agg: sum
+      expr: item_count
+      agg_time_dimension: placed_on
+    - name: stored_rate
+      agg: average
+      expr: revenue / item_count
+      agg_time_dimension: placed_on
+---
+metric:
+  name: revenue_per_item_naive
+  type: simple
+  type_params:
+    measure: stored_rate
+---
+metric:
+  name: revenue_per_item_ratio
+  type: ratio
+  type_params:
+    numerator:
+      name: revenue
+    denominator:
+      name: item_count
+---
+metric:
+  name: revenue
+  type: simple
+  type_params:
+    measure: revenue
+---
+metric:
+  name: item_count
+  type: simple
+  type_params:
+    measure: item_count

@@ -1,0 +1,4 @@
+uv run python comparisons/metricflow/run.py \
+    tests/fixtures/semantic_corpus/005-semi-additive-balance \
+    comparisons/metricflow/005-semi-additive-balance \
+    total_balance_naive total_balance_semi_additive

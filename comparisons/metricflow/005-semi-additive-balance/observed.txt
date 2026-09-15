@@ -1,0 +1,5 @@
+SemanticManifestValidator: 0 error(s), 0 warning(s)
+### total_balance_naive
+  -> [(Decimal('320.0000'),)]
+### total_balance_semi_additive
+  -> [(Decimal('170.0000'),)]

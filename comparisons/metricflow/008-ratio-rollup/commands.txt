@@ -1,0 +1,4 @@
+uv run python comparisons/metricflow/run.py \
+    tests/fixtures/semantic_corpus/008-ratio-rollup \
+    comparisons/metricflow/008-ratio-rollup \
+    revenue_per_item_naive revenue_per_item_ratio
