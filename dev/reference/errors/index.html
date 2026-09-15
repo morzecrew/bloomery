@@ -1986,6 +1986,7 @@ pulling in any pipeline stage.</p>
 │   ├── UnprovableRollup
 │   ├── ReservedEntityName
 │   ├── DanglingExposure
+│   ├── DanglingExport
 │   ├── QuarantineRetentionMissing
 │   ├── DedupeTieBreakMissing
 │   ├── DedupeDispositionConflict
@@ -2181,6 +2182,11 @@ pulling in any pipeline stage.</p>
 <td><code>DanglingExposure</code></td>
 <td>guardrails</td>
 <td>An exposure whose <code>depends_on</code> names a metric or mart the project does not declare — the dependency would match no change, so the impact report would name nobody and still read clean</td>
+</tr>
+<tr>
+<td><code>DanglingExport</code></td>
+<td>guardrails</td>
+<td>An export list naming an entity, mart or metric the project does not declare — nothing is built for an export, so the name publishes nothing while reading as published, and the refusal lands one project and one compile away from the author who can fix it</td>
 </tr>
 <tr>
 <td><code>QuarantineRetentionMissing</code></td>
