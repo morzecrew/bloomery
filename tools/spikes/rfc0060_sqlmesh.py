@@ -174,6 +174,39 @@ refresh(root)
 results["C — §5.1, a __replayed arm in the entity's source"] = report("route C", db)
 shutil.rmtree(root, ignore_errors=True)
 
+# ---------- Correction: does a changed row rewrite its version or add one? ----------
+# Routes A, B and C all admit a key the entity did not have. RFC 0060 §10 asks a
+# different question — whether replay corrects history or adds to it — and a row
+# that only ever *arrives* cannot answer it (found in review of PR #121).
+root, db = fresh("correct")
+write(root, db)
+apply(root)
+c = duckdb.connect(str(db))
+c.execute("UPDATE bronze.crm__customers SET segment = 'ent' WHERE id = 'c1'")
+c.close()
+refresh(root)
+versions = rows(db, "SELECT customer_id, segment, valid_from, valid_to FROM silver.customer ORDER BY valid_from")
+print("\n--- correcting an existing row, through bronze")
+print("  versions of c1:", versions)
+print(f"  the old version is retained: {len(versions) > 1}")
+print(f"  the old version was closed rather than rewritten: "
+      f"{any(v[3] is not None for v in versions)}")
+
+# And the other half of the same question: can the history be rewritten at all?
+# Cited by `logs/T-0057.md`, so it has to run here rather than in a probe that
+# was deleted — a citation naming a command this script does not contain is not
+# evidence (found in review of PR #121).
+print("\n--- asking SQLMesh to restate the entity")
+try:
+    Context(paths=root).plan(
+        auto_apply=True, no_prompts=True, restate_models=["silver.customer"]
+    )
+    after = rows(db, "SELECT COUNT(*) FROM silver.customer")
+    print(f"  the plan returned; versions now: {after[0][0]}"
+          f" (was {len(versions)}) — watch the console line above for a refusal")
+except Exception as exc:
+    print(f"  refused: {type(exc).__name__}: {exc}")
+
 print("\n" + "=" * 62)
 for label, ok in results.items():
     print(f"  {'FOUND    ' if ok else 'INVISIBLE'}  {label}")
