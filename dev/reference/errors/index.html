@@ -1987,6 +1987,9 @@ pulling in any pipeline stage.</p>
 │   ├── ReservedEntityName
 │   ├── DanglingExposure
 │   ├── DanglingExport
+│   ├── UnexportedImport
+│   ├── UnknownUpstream
+│   ├── ImportCollision
 │   ├── QuarantineRetentionMissing
 │   ├── DedupeTieBreakMissing
 │   ├── DedupeDispositionConflict
@@ -2187,6 +2190,21 @@ pulling in any pipeline stage.</p>
 <td><code>DanglingExport</code></td>
 <td>guardrails</td>
 <td>An export list naming an entity, mart or metric the project does not declare — nothing is built for an export, so the name publishes nothing while reading as published, and the refusal lands one project and one compile away from the author who can fix it</td>
+</tr>
+<tr>
+<td><code>UnexportedImport</code></td>
+<td>guardrails</td>
+<td>A project imports a name the upstream does not export — the refusal that makes an export list mean something, since without it "exported" would be a label with no consequence; the message names the upstream's list</td>
+</tr>
+<tr>
+<td><code>UnknownUpstream</code></td>
+<td>guardrails</td>
+<td>A project declares an import from an upstream this compile was not given — how the upstream reaches a compile is the caller's, so what was passed is the whole world, and the message names it</td>
+</tr>
+<tr>
+<td><code>ImportCollision</code></td>
+<td>guardrails</td>
+<td>A name a project declares is also one it imports — two things of one kind answering to one name, where any precedence rule would be invisible from the other project's file</td>
 </tr>
 <tr>
 <td><code>QuarantineRetentionMissing</code></td>
