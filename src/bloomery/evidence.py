@@ -34,8 +34,10 @@ see :class:`SpecEvidence`.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from sqlglot import exp, parse_one
@@ -43,7 +45,7 @@ from sqlglot.errors import SqlglotError
 
 from bloomery.errors import BloomeryError, InvariantViolated
 from bloomery.guardrails.classification import published_columns, sensitive_columns
-from bloomery.ir import Materialization, UnreachableMetric, project_fingerprint
+from bloomery.ir import Materialization, ProjectIR, UnreachableMetric, project_fingerprint
 from bloomery.quality import is_quality_mart
 from bloomery.resolve import FieldProvenance, Resolution, Stage, StageProgress, pipeline
 
@@ -954,6 +956,7 @@ def evaluate(
     *,
     catalog: Catalog | None = None,
     steps: StepRegistry = EMPTY_REGISTRY,
+    upstream: Mapping[str, ProjectIR] = MappingProxyType({}),
 ) -> SpecEvidence:
     """Everything knowable about ``project`` without touching data.
 
@@ -992,7 +995,7 @@ def evaluate(
     stage, progress = Stage.RESOLVE, StageProgress()
 
     try:
-        for reached_stage, reached in pipeline(project, catalog, steps=steps):
+        for reached_stage, reached in pipeline(project, catalog, steps=steps, upstream=upstream):
             stage, progress = reached_stage, reached
     except InvariantViolated:
         raise

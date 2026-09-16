@@ -113,3 +113,41 @@ def test_a_project_allows_at_most_one() -> None:
 
 def test_a_project_with_no_imports_document_has_none() -> None:
     assert load_project(fixture_sources("minimal")).imports is None
+
+
+@pytest.mark.parametrize(
+    ("label", "document"),
+    [
+        ("no upstreams", {"imports_version": 1, "imports": {}}),
+        ("an upstream reading nothing", {"imports_version": 1, "imports": {"p": {}}}),
+        ("an upstream with empty lists", {"imports_version": 1, "imports": {"p": {"marts": []}}}),
+        (
+            "an alias that is not an identifier",
+            {"imports_version": 1, "imports": {"Platform Team": {"marts": ["a"]}}},
+        ),
+    ],
+)
+def test_the_published_schema_refuses_what_the_loader_refuses(
+    label: str, document: dict[str, object]
+) -> None:
+    """RFC 0020 D10: the schema is a pre-filter and the parser is the
+    authority — so the schema may be *stricter*, never looser. A document it
+    accepts and the loader rejects is one a proposal loop emits, a user pastes,
+    and nothing in either artifact explains.
+
+    Three of these came from the generator's defaults. `patternProperties`
+    without `additionalProperties: false` constrains only the keys that match,
+    so a non-identifier alias falls through to the default `true`; and three
+    arrays with defaults make `minProperties` useless, since `{"marts": []}`
+    has a property and reads nothing.
+    """
+
+    from jsonschema import Draft202012Validator
+
+    from bloomery import SpecKind, all_spec_schemas
+
+    with pytest.raises(ValidationError):
+        ImportSet.model_validate(document)
+
+    schema = Draft202012Validator(all_spec_schemas()[SpecKind.IMPORTS])
+    assert list(schema.iter_errors(document)), f"the schema accepts {label}"

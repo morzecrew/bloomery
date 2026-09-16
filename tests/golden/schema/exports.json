@@ -2,6 +2,38 @@
   "$defs": {
     "Exports": {
       "additionalProperties": false,
+      "anyOf": [
+        {
+          "properties": {
+            "entities": {
+              "minItems": 1
+            }
+          },
+          "required": [
+            "entities"
+          ]
+        },
+        {
+          "properties": {
+            "marts": {
+              "minItems": 1
+            }
+          },
+          "required": [
+            "marts"
+          ]
+        },
+        {
+          "properties": {
+            "metrics": {
+              "minItems": 1
+            }
+          },
+          "required": [
+            "metrics"
+          ]
+        }
+      ],
       "description": "What a project publishes, grouped by kind (RFC 0059 \u00a75.1).",
       "properties": {
         "entities": {

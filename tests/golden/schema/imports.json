@@ -2,6 +2,38 @@
   "$defs": {
     "Imports": {
       "additionalProperties": false,
+      "anyOf": [
+        {
+          "properties": {
+            "entities": {
+              "minItems": 1
+            }
+          },
+          "required": [
+            "entities"
+          ]
+        },
+        {
+          "properties": {
+            "marts": {
+              "minItems": 1
+            }
+          },
+          "required": [
+            "marts"
+          ]
+        },
+        {
+          "properties": {
+            "metrics": {
+              "minItems": 1
+            }
+          },
+          "required": [
+            "metrics"
+          ]
+        }
+      ],
       "description": "What this project reads from one upstream, grouped by kind.",
       "properties": {
         "entities": {
@@ -39,6 +71,8 @@
   "description": "The per-project imports document (``imports_version``), at most one per\nproject (RFC 0059 \u00a75.1).",
   "properties": {
     "imports": {
+      "additionalProperties": false,
+      "minProperties": 1,
       "patternProperties": {
         "^[a-z][a-z0-9_]*$": {
           "$ref": "#/$defs/Imports"

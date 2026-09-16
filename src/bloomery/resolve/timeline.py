@@ -27,9 +27,10 @@ already gives badly. Every change names the node it is about.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from bloomery.errors import InvariantViolated
@@ -40,6 +41,7 @@ from bloomery.errors import InvariantViolated
 # requires a public annotation to resolve at run time —
 # `tests/unit/test_signature_closure.py` calls `get_type_hints` on every
 # export and a guarded name fails it.
+from bloomery.ir import ProjectIR
 from bloomery.resolve.build import StageProgress, pipeline
 from bloomery.resolve.facets import FacetDelta, facets
 from bloomery.resolve.graph import Node, NodeKind
@@ -148,6 +150,13 @@ class SpecVersion:
     #: the caller in charge of — the party holding the history is already the
     #: party holding this. See ``logs/T-0043.md``.
     steps: StepRegistry = EMPTY_REGISTRY
+    #: The upstream IRs this version compiles against (RFC 0059 D2/D8), by the
+    #: alias its imports document names. Here for the reason ``steps`` is: a
+    #: project declaring ``imports:`` is refused with ``UnknownUpstream``
+    #: against the empty mapping, so a history of any importing project would
+    #: have no timeline at all. The same caller-assembled compile input, held
+    #: by the same party.
+    upstream: Mapping[str, ProjectIR] = MappingProxyType({})
 
 
 # ....................... #
@@ -448,7 +457,9 @@ def _compile(version: SpecVersion) -> tuple[Graph, ProjectIR]:
     """
 
     progress = StageProgress()
-    for _stage, reached in pipeline(version.project, version.catalog, steps=version.steps):
+    for _stage, reached in pipeline(
+        version.project, version.catalog, steps=version.steps, upstream=version.upstream
+    ):
         progress = reached
 
     if progress.ir is None or progress.resolution is None:  # pragma: no cover

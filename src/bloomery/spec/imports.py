@@ -21,9 +21,9 @@ export list can hold.
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Final, Literal, Self
 
-from pydantic import StringConstraints, model_validator
+from pydantic import ConfigDict, Field, StringConstraints, model_validator
 
 from bloomery.spec.common import IDENTIFIER_PATTERN, SpecModel
 
@@ -41,8 +41,25 @@ __all__ = [
 UpstreamAlias = Annotated[str, StringConstraints(pattern=IDENTIFIER_PATTERN)]
 
 
+#: What the published schema must say so it refuses what the parser refuses:
+#: at least one of the three lists carries a name. Three defaulted arrays make
+#: ``minProperties`` useless — ``{"entities": []}`` has one property and reads
+#: nothing — so the constraint is an ``anyOf`` over the three, spelled here
+#: because pydantic generates the shape and not the rule (RFC 0020 D10: the
+#: schema is a pre-filter, and a pre-filter looser than the parser is one that
+#: passes documents the loader then rejects).
+_READS_SOMETHING: Final[dict[str, Any]] = {
+    "anyOf": [
+        {"properties": {kind: {"minItems": 1}}, "required": [kind]}
+        for kind in ("entities", "marts", "metrics")
+    ]
+}
+
+
 class Imports(SpecModel):
     """What this project reads from one upstream, grouped by kind."""
+
+    model_config = ConfigDict(**SpecModel.model_config, json_schema_extra=_READS_SOMETHING)
 
     entities: tuple[str, ...] = ()
     marts: tuple[str, ...] = ()
@@ -87,7 +104,15 @@ class ImportSet(SpecModel):
     #: a future bloomery and silently applies v1 semantics to it. Required,
     #: because this key is also the document-kind discriminator.
     imports_version: Literal[1]
-    imports: dict[UpstreamAlias, Imports]
+    #: ``additionalProperties: false`` beside the generated ``patternProperties``
+    #: is what makes the alias pattern bite in the published schema: on its own,
+    #: ``patternProperties`` constrains only the keys that *match*, and a
+    #: non-matching ``Platform Team`` falls through to the default
+    #: ``additionalProperties: true``. ``minProperties`` carries the other half
+    #: of :meth:`_imports_something` across.
+    imports: dict[UpstreamAlias, Imports] = Field(
+        json_schema_extra={"additionalProperties": False, "minProperties": 1}
+    )
 
     # ....................... #
 

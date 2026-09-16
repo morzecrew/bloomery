@@ -297,3 +297,40 @@ def test_the_public_entry_point_reaches_the_guard() -> None:
         )
 
     assert isinstance(caught.value.collected[0], UnexportedImport)
+
+
+def test_every_surface_that_compiles_can_supply_an_upstream() -> None:
+    """`pipeline` has three callers and threading one is not threading the
+    guard.
+
+    `evaluate` and the timeline compile the same project and would report a
+    refusal the compiler does not — a guard handed a world its caller never
+    passed along. One parametrized assertion rather than three tests, because
+    the property is "every surface", and a fourth caller added later fails
+    here rather than reporting a phantom `UnknownUpstream` to whoever uses it.
+    """
+
+    from bloomery.evidence import evaluate
+    from bloomery.resolve.timeline import SpecVersion, timeline
+
+    documents = fixture_sources(DOWNSTREAM)
+    documents["imports"] = (
+        "imports_version: 1\nimports:\n  platform:\n    metrics: [gross_revenue]\n"
+    )
+    project = load_project(documents)
+    upstream = {"platform": _upstream()}
+
+    # The compiler: clean.
+    build_project_ir(project, catalog=_catalog(), upstream=upstream)
+
+    # The evidence surface: clean only if it can pass the same input along.
+    assert evaluate(project, catalog=_catalog()).refusals  # without it, a phantom refusal
+    assert not evaluate(project, catalog=_catalog(), upstream=upstream).refusals
+
+    # The timeline: every refusal propagates, so an unthreaded input is no
+    # timeline at all for any importing project.
+    versions = (
+        SpecVersion(label="a", project=project, catalog=_catalog(), upstream=upstream),
+        SpecVersion(label="b", project=project, catalog=_catalog(), upstream=upstream),
+    )
+    assert timeline(versions, "metric:gross_revenue") is not None

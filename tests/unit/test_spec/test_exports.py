@@ -105,3 +105,34 @@ def test_a_project_allows_at_most_one() -> None:
 
 def test_a_project_with_no_exports_document_has_none() -> None:
     assert load_project(fixture_sources("minimal")).exports is None
+
+
+@pytest.mark.parametrize(
+    ("label", "document"),
+    [
+        ("publishing nothing", {"exports_version": 1, "exports": {}}),
+        ("empty lists", {"exports_version": 1, "exports": {"marts": []}}),
+    ],
+)
+def test_the_published_schema_refuses_what_the_loader_refuses(
+    label: str, document: dict[str, object]
+) -> None:
+    """RFC 0020 D10: the schema is a pre-filter and may be stricter than the
+    parser, never looser.
+
+    Three defaulted arrays make `minProperties` useless — `{"marts": []}` has a
+    property and publishes nothing — so the constraint is an `anyOf`, and it is
+    the same one the imports document carries. Found on the imports side in
+    review and true here since RFC 0059 P1; the two documents mirror each
+    other, so a rule on one of them only is a rule that will be asked about.
+    """
+
+    from jsonschema import Draft202012Validator
+
+    from bloomery import SpecKind, all_spec_schemas
+
+    with pytest.raises(ValidationError):
+        ExportSet.model_validate(document)
+
+    schema = Draft202012Validator(all_spec_schemas()[SpecKind.EXPORTS])
+    assert list(schema.iter_errors(document)), f"the schema accepts {label}"

@@ -22,9 +22,9 @@ document over.
 
 from __future__ import annotations
 
-from typing import Literal, Self
+from typing import Any, Final, Literal, Self
 
-from pydantic import model_validator
+from pydantic import ConfigDict, model_validator
 
 from bloomery.spec.common import SpecModel
 
@@ -36,8 +36,24 @@ __all__ = [
 ]
 
 
+#: What the published schema must say so it refuses what the parser refuses:
+#: at least one of the three lists carries a name. The mirror of
+#: :data:`~bloomery.spec.imports._READS_SOMETHING`, and here for the same
+#: reason — three defaulted arrays make ``minProperties`` useless, so the
+#: constraint is an ``anyOf`` (RFC 0020 D10: a pre-filter looser than the
+#: parser passes documents the loader then rejects).
+_PUBLISHES_SOMETHING: Final[dict[str, Any]] = {
+    "anyOf": [
+        {"properties": {kind: {"minItems": 1}}, "required": [kind]}
+        for kind in ("entities", "marts", "metrics")
+    ]
+}
+
+
 class Exports(SpecModel):
     """What a project publishes, grouped by kind (RFC 0059 §5.1)."""
+
+    model_config = ConfigDict(**SpecModel.model_config, json_schema_extra=_PUBLISHES_SOMETHING)
 
     entities: tuple[str, ...] = ()
     marts: tuple[str, ...] = ()
