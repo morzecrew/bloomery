@@ -17,6 +17,7 @@ from bloomery.spec.common import RatioSpec, SemiAdditivePolicy, SpecModel
 from bloomery.spec.entity import AssertClause, Entity, EntityModel, Field, Relationship
 from bloomery.spec.exports import Exports, ExportSet
 from bloomery.spec.exposures import Exposure, ExposureDependsOn, ExposureSet
+from bloomery.spec.imports import Imports, ImportSet, UpstreamAlias
 from bloomery.spec.mapping import (
     FieldMapping,
     Freshness,
@@ -83,6 +84,10 @@ __all__ = [
     # exports (RFC 0059)
     "ExportSet",
     "Exports",
+    # imports (RFC 0059)
+    "ImportSet",
+    "Imports",
+    "UpstreamAlias",
     # exposures (RFC 0056)
     "Exposure",
     "ExposureDependsOn",

@@ -38,6 +38,9 @@ BloomeryError
 │   ├── ReservedEntityName
 │   ├── DanglingExposure
 │   ├── DanglingExport
+│   ├── UnexportedImport
+│   ├── UnknownUpstream
+│   ├── ImportCollision
 │   ├── QuarantineRetentionMissing
 │   ├── DedupeTieBreakMissing
 │   ├── DedupeDispositionConflict
@@ -106,6 +109,9 @@ BloomeryError
 | `InsufficientEvidence` | guardrails | A mart declaring `requires_evidence: locked` reads a measure resting on a fact nobody wrote down — sound under the proof floor, but not authored here, which is the different question the consumer asked |
 | `DanglingExposure` | guardrails | An exposure whose `depends_on` names a metric or mart the project does not declare — the dependency would match no change, so the impact report would name nobody and still read clean |
 | `DanglingExport` | guardrails | An export list naming an entity, mart or metric the project does not declare — nothing is built for an export, so the name publishes nothing while reading as published, and the refusal lands one project and one compile away from the author who can fix it |
+| `UnexportedImport` | guardrails | A project imports a name the upstream does not export — the refusal that makes an export list mean something, since without it "exported" would be a label with no consequence; the message names the upstream's list |
+| `UnknownUpstream` | guardrails | A project declares an import from an upstream this compile was not given — how the upstream reaches a compile is the caller's, so what was passed is the whole world, and the message names it |
+| `ImportCollision` | guardrails | A name a project declares is also one it imports — two things of one kind answering to one name, where any precedence rule would be invisible from the other project's file |
 | `QuarantineRetentionMissing` | guardrails | An entity with a `quarantine` disposition and no `quarantine:` block — reject rows hold raw payloads, so retention is required and never defaulted |
 | `DedupeTieBreakMissing` | guardrails | `dedupe: {keep: latest_by}` without `tie_break` — rows sharing a timestamp would make the winner arbitrary |
 | `DedupeDispositionConflict` | guardrails | A `coercible` rule weaker than `fail` on a field named by `dedupe.field`/`tie_break`, where an uncastable value leaves the dedupe order undefined |

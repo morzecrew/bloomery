@@ -19,6 +19,7 @@ The seventh is the metric-shape guard (RFC 0034), which replaced the blanket
 from __future__ import annotations
 
 from dataclasses import replace
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from bloomery.errors import GuardrailError, guaranteed
@@ -31,6 +32,7 @@ from bloomery.guardrails.evidence import check_evidence
 from bloomery.guardrails.exports import check_export_targets
 from bloomery.guardrails.exposures import check_exposure_targets
 from bloomery.guardrails.grain import check_grain
+from bloomery.guardrails.imports import check_imports
 from bloomery.guardrails.lineage import check_lineage_names
 from bloomery.guardrails.metrics import check_metrics
 from bloomery.guardrails.operands import collect_derivations
@@ -38,6 +40,8 @@ from bloomery.guardrails.quality import check_quality
 from bloomery.marts import lower_marts, lower_rollups
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from bloomery.ir import AuditIR, EntityIR, ProjectIR
     from bloomery.spec.catalog import Catalog
     from bloomery.spec.project import Project
@@ -122,7 +126,13 @@ def _amended_entity(
 # ....................... #
 
 
-def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | None) -> ProjectIR:
+def check_guardrails(
+    draft: ProjectIR,
+    *,
+    project: Project,
+    catalog: Catalog | None,
+    upstream: Mapping[str, ProjectIR] = MappingProxyType({}),
+) -> ProjectIR:
     """Run all eight guardrails plus the data-quality leaves, the
     lineage-namespace guard and the dangling-exposure guard over the draft IR
     (RFC 0006 D9; RFC 0016 §5.9; RFC 0051 §5.2; RFC 0056 D2).
@@ -150,6 +160,9 @@ def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | N
     # for the reason the exposure guard is — a mart that failed to flatten is
     # absent from the draft while very much declared.
     violations.extend(check_export_targets(project))
+    # Declared dependencies (RFC 0059 D1/D8): the upstream side read from the
+    # IR it arrived as, the local side from the authored documents.
+    violations.extend(check_imports(project, draft, upstream))
     # Consumer evidence (RFC 0065 D4, `LOCKED`): the requirement is read from
     # the authored marts document and the facts from the draft, which is the
     # one guardrail that needs both sides — the key never enters `MartIR` (D3).

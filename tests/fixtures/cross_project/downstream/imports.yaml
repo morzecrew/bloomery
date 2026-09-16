@@ -1,0 +1,18 @@
+# What this project reads from another's published surface (RFC 0059 §5.1).
+#
+# Nested one level deeper than every other fixture, and deliberately. A project
+# carrying this document cannot be compiled without an upstream IR passed
+# alongside it — `UnknownUpstream` refuses it otherwise — so it must not be
+# reachable by the corpus sweeps that compile every top-level fixture directory.
+# `fixture_sources` globs one level, so this is invisible to them; the property
+# tier's schema sweep uses `rglob`, which is what needs a document of every
+# `SpecKind` to exist at all.
+#
+# `platform` is a local alias, not the upstream's name: a project has no name
+# of its own, and the alias is what keys the `upstream=` compile input.
+imports_version: 1
+imports:
+  platform:
+    entities: [order]
+    marts: [order_items]
+    metrics: [gross_revenue, order_count]

@@ -71,6 +71,7 @@ __all__ = [
     "FalseAdditivityClaim",
     "MartMissingTimeDimension",
     "DanglingExport",
+    "ImportCollision",
     "DanglingExposure",
     "InsufficientEvidence",
     "ReservedEntityName",
@@ -81,7 +82,9 @@ __all__ = [
     "RedactionConflict",
     "SecretPublished",
     "StepError",
+    "UnexportedImport",
     "UnknownStep",
+    "UnknownUpstream",
     "UnprovableRollup",
     "StepDeterminismError",
     "StepContractViolation",
@@ -533,6 +536,24 @@ class ReservedEntityName(GuardrailError):
 # ....................... #
 
 
+class ImportCollision(GuardrailError):
+    """Guardrail stage (RFC 0059 §5.4): a name this project declares is also a
+    name it imports.
+
+    Two things of one kind answering to one name, and every reference to that
+    name afterwards is ambiguous — which is the refusal RFC 0059 §2 names as
+    composition's payoff. Today a domain project declaring its own `customer`
+    beside the platform's is two entities that happen to share a spelling and
+    nothing notices; the collision is only visible once a boundary exists to
+    make the two meet.
+
+    Refused rather than shadowed. A precedence rule — local wins, or imported
+    wins — is a rule every reader has to know before they can read a
+    reference, and whichever way it points, the other project's author cannot
+    see it from their own file.
+    """
+
+
 class DanglingExport(GuardrailError):
     """Guardrail stage (RFC 0059 D1, `LOCKED`): an export naming an entity,
     mart or metric the project does not declare.
@@ -548,6 +569,48 @@ class DanglingExport(GuardrailError):
     declared": an author can disprove "not declared" by opening the marts
     document, and what is true is narrower — this list names marts.
     """
+
+
+class UnexportedImport(GuardrailError):
+    """Guardrail stage (RFC 0059 D1, `LOCKED`): a project imports a name the
+    upstream does not export.
+
+    The boundary read from the other side. An export list is explicit
+    precisely so that what is not on it is unavailable, and this is the
+    refusal that makes the list mean something — without it, "exported" would
+    be a label with no consequence.
+
+    The message names the upstream's export list, because the fix is either a
+    corrected name here or an added name there, and only the list tells an
+    author which. That is the same reason the dangling-export guard prints
+    what a project declares.
+    """
+
+
+class UnknownUpstream(GuardrailError):
+    """Guardrail stage (RFC 0059 D8): a project declares an import from an
+    upstream the compile was not given.
+
+    The shape :class:`UnknownStep` already has, one input over: a spec
+    references something the caller supplies, the caller did not supply it,
+    and there is no discovery path to fall back on — how the upstream artifact
+    reaches the compile is the caller's (D8), so what was passed is the whole
+    world. The message names the aliases that *were* supplied, since an empty
+    set is a different repair from a misspelled one.
+
+    ``supplied`` is that same list as data, sorted (RFC 0020 §5.4).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        source_path: str | None = None,
+        collected: tuple[BloomeryError, ...] = (),
+        supplied: tuple[str, ...] = (),
+    ) -> None:
+        super().__init__(message, source_path=source_path, collected=collected)
+        self.supplied = supplied
 
 
 class DanglingExposure(GuardrailError):

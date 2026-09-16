@@ -1,0 +1,62 @@
+{
+  "$defs": {
+    "Imports": {
+      "additionalProperties": false,
+      "description": "What this project reads from one upstream, grouped by kind.",
+      "properties": {
+        "entities": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Entities",
+          "type": "array"
+        },
+        "marts": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Marts",
+          "type": "array"
+        },
+        "metrics": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Metrics",
+          "type": "array"
+        }
+      },
+      "title": "Imports",
+      "type": "object"
+    }
+  },
+  "$id": "https://morzecrew.github.io/bloomery/schemas/v1/imports.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The per-project imports document (``imports_version``), at most one per\nproject (RFC 0059 \u00a75.1).",
+  "properties": {
+    "imports": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/Imports"
+        }
+      },
+      "title": "Imports",
+      "type": "object"
+    },
+    "imports_version": {
+      "const": 1,
+      "title": "Imports Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "imports",
+    "imports_version"
+  ],
+  "title": "ImportSet",
+  "type": "object"
+}
