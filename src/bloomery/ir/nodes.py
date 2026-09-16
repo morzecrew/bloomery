@@ -546,6 +546,19 @@ class SourceFieldIR:
     target_field: str
     source_path: str
     transform: tuple[TransformStepIR, ...] = ()
+    #: The zone this path's wall clocks were written in, as the mapping
+    #: declared it (RFC 0074 §5.2) — ``None`` where nothing was declared,
+    #: which is every project that predates the key.
+    #:
+    #: Here rather than on :class:`SourceColumnIR` because the declaration is a
+    #: fact about *the path the value was read from*, and this is the node
+    #: grained that way. A recipe field reads several paths to produce one
+    #: column and carries no ``zone_in:`` at all, so nothing is stored twice.
+    #:
+    #: The chain beside it is the other half of the same question: R018 asks
+    #: whether a value that reached a boundary was ever an undeclared wall
+    #: clock, and ``transform`` already says whether ``parse_ts`` made it one.
+    zone_in: str | None = None
 
 
 # ....................... #
@@ -1532,7 +1545,9 @@ class ProjectIR:
     whose sources declare no threshold would otherwise encode identically
     before and after the field existed, and two compilers of different shape
     would agree on both the version and the fingerprint while disagreeing about
-    what an IR holds.
+    what an IR holds. Version 18 (RFC 0074 §5.2) adds ``zone_in`` to every
+    :class:`SourceFieldIR` — a declaration no SELECT reads, moving every
+    fingerprint for version 14's reason and no other.
     The bump is
     the point — every artifact's fingerprint header moves, and ``plan()``
     refuses to diff across versions rather than misreading one as the other.
@@ -1555,7 +1570,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 17
+    bloomery_ir_version: int = 18
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

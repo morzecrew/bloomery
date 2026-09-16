@@ -16,7 +16,13 @@ from typing import Annotated, Literal, Self, cast
 from pydantic import Discriminator, Field, Tag, model_validator
 from pydantic.json_schema import SkipJsonSchema
 
-from bloomery.spec.common import CurrencyCode, JsonPath, MemberName, SpecModel
+from bloomery.spec.common import (
+    CurrencyCode,
+    JsonPath,
+    MemberName,
+    SpecModel,
+    ZoneName,
+)
 from bloomery.spec.quality import FieldQualityRule, RetentionDuration, duration_hours
 from bloomery.spec.steps import ParameterValue, StepUse
 
@@ -135,6 +141,11 @@ class KeyField(SpecModel):
     #: because a decimal key is legal and an unwalked marker reaches emit
     #: (logs/T-0025.md, D-158).
     currency_in: CurrencyIn | None = None
+    #: The zone this path's wall clocks were written in (RFC 0074 D2). Here
+    #: for the reason `currency_in:` is here, one key over: a key field may
+    #: carry a timestamp, and a declaration the key half cannot make is one an
+    #: author has to move a column to state.
+    zone_in: ZoneName | None = None
 
 
 # ....................... #
@@ -153,6 +164,18 @@ class SimpleFieldMapping(SpecModel):
     #: one fed by a euro feed and a dollar feed would need two input currencies
     #: for one declaration (D6).
     currency_in: CurrencyIn | None = None
+    #: The zone this path's wall clocks were written in (RFC 0074 §5.2, D2).
+    #: On the mapping rather than the canonical field for the argument beside
+    #: it, unchanged one type over: a canonical `placed_at` fed by a New York
+    #: feed and a London feed runs on two clocks and would need two
+    #: declarations for one field.
+    #:
+    #: A converting chain has already declared — `{to_utc: America/New_York}`
+    #: names the zone — so the key's own case is the one `to_utc` cannot
+    #: express: a feed whose wall clocks genuinely are UTC converts nothing and
+    #: has nowhere else to say so (D3). Where both are present they are
+    #: cross-checked rather than merely allowed.
+    zone_in: ZoneName | None = None
 
 
 # ....................... #

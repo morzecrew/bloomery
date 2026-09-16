@@ -359,3 +359,97 @@ def test_both_thresholds_are_required() -> None:
 
     with pytest.raises(SpecParseError):
         _with_freshness("{error_after: 24h}")
+
+
+# ....................... #
+# The declared source zone (RFC 0074 §5.2)
+
+
+def _with_zone(field: str) -> Mapping:
+    return parse(f"""
+mapping_version: 1
+source: shopify__orders
+target: order
+key:
+  order_id: {{from: "$.order_id", transform: [to_string]}}
+fields:
+  placed_at: {field}
+""")
+
+
+def test_zone_in_parses_on_a_field() -> None:
+    mapping = _with_zone('{from: "$.placed_at", transform: [{parse_ts: ISO8601}], zone_in: UTC}')
+    field = mapping.fields["placed_at"]
+
+    assert isinstance(field, SimpleFieldMapping)
+    assert field.zone_in == "UTC"
+
+
+def test_zone_in_parses_on_a_key_field() -> None:
+    """A key is a strange place for a timestamp and the key half carries the
+    declaration anyway — `currency_in:`'s argument (D-158), one type over: a
+    declaration the key cannot make is one an author has to restructure an
+    entity to state."""
+
+    mapping = parse("""
+mapping_version: 1
+source: shopify__events
+target: event
+key:
+  seen_at: {from: "$.seen_at", transform: [{parse_ts: ISO8601}], zone_in: UTC}
+fields:
+  payload: {from: "$.payload"}
+""")
+
+    assert mapping.key["seen_at"].zone_in == "UTC"
+
+
+def test_zone_in_defaults_to_none() -> None:
+    """Absent is a third state, not UTC. The whole design rests on the
+    difference: a mapping that says nothing has not claimed UTC, it has said
+    nothing, and R018 is what makes that distinguishable."""
+
+    assert _with_zone('{from: "$.placed_at"}').fields["placed_at"].zone_in is None
+
+
+@pytest.mark.parametrize(
+    "zone",
+    [
+        "UTC",
+        "Etc/UTC",
+        "America/New_York",
+        "America/Argentina/Buenos_Aires",
+        "Etc/GMT+5",
+    ],
+)
+def test_zone_names_the_database_really_holds(zone: str) -> None:
+    """Shapes taken from the zone database rather than invented: a three-segment
+    name, a `+` in `Etc/GMT+5`, and both UTC spellings. A pattern that refused
+    any of these would be a pattern nobody could satisfy honestly."""
+
+    assert _with_zone(f'{{from: "$.placed_at", zone_in: "{zone}"}}').fields[
+        "placed_at"
+    ].zone_in == zone
+
+
+@pytest.mark.parametrize(
+    "zone",
+    [
+        "",
+        "/New_York",
+        "America/",
+        "America//New_York",
+        "America/New York",
+        "1America/New_York",
+        "a/b/c/d",
+        "America/New_York; DROP TABLE orders",
+    ],
+)
+def test_a_zone_that_is_not_a_zone_name_is_refused(zone: str) -> None:
+    """What the shape check is for. It cannot know whether a well-formed name
+    is a *real* zone — that is the engine's to say, and deliberately so
+    (logs/T-0062.md, the unlisted row) — but a value that is not shaped like
+    one at all was never going to be a zone on any machine."""
+
+    with pytest.raises(SpecParseError):
+        _with_zone(f'{{from: "$.placed_at", zone_in: "{zone}"}}')
