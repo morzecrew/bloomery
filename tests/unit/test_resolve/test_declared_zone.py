@@ -25,7 +25,7 @@ from bloomery.steps import StepManifest, StepRegistry
 pytestmark = pytest.mark.unit
 
 FIXTURE = pathlib.Path(__file__).parents[2] / "fixtures" / "period_over_period"
-PARSED = 'booked_at: {from: "$.booked_at", transform: [{parse_ts: ISO8601}]}'
+PARSED = 'booked_at: {from: "$.booked_at", transform: [{parse_ts: ISO8601}], zone_in: UTC}'
 
 
 def _sources() -> dict[str, str]:
@@ -60,9 +60,14 @@ def _zone_of(ir, column: str = "booked_at") -> str | None:
 def test_the_fixture_builds_as_written() -> None:
     """The non-vacuity guard: every test below asserts something after editing
     one line, and an unedited fixture that did not build would make all of them
-    pass for the wrong reason."""
+    pass for the wrong reason.
 
-    assert _zone_of(_build()) is None
+    The fixture declares `UTC` because R018 refuses it otherwise — its
+    `booked_at` is bucketed by a date role — which is the rule working on the
+    suite's own corpus rather than only on the case that motivated it.
+    """
+
+    assert _zone_of(_build()) == "UTC"
 
 
 def test_a_declared_zone_reaches_the_ir() -> None:

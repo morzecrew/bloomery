@@ -63,4 +63,4 @@ fields:
   # keeping distinct from "the customer left an empty note".
   note: {from: "$.payload.note", transform: [to_string]}
 
-  ordered_at: {from: "$.occurred_at", transform: [{parse_ts: ISO8601}]}
+  ordered_at: {from: "$.occurred_at", transform: [{parse_ts: ISO8601}], zone_in: UTC}

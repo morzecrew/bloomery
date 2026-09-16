@@ -37,6 +37,7 @@ from bloomery.guardrails.lineage import check_lineage_names
 from bloomery.guardrails.metrics import check_metrics
 from bloomery.guardrails.operands import collect_derivations
 from bloomery.guardrails.quality import check_quality
+from bloomery.guardrails.zone import check_zones
 from bloomery.marts import lower_marts, lower_rollups
 
 if TYPE_CHECKING:
@@ -163,6 +164,10 @@ def check_guardrails(
     # Declared dependencies (RFC 0059 D1/D8): the upstream side read from the
     # IR it arrived as, the local side from the authored documents.
     violations.extend(check_imports(project, draft, upstream))
+    # Declared source zones (RFC 0074 §5.3, R018): asked of the draft, which
+    # carries one transform chain per source — so a merged entity is answered
+    # per mapping, and the mapping that declared is not sent to fix anything.
+    violations.extend(check_zones(project, draft))
     # Consumer evidence (RFC 0065 D4, `LOCKED`): the requirement is read from
     # the authored marts document and the facts from the draft, which is the
     # one guardrail that needs both sides — the key never enters `MartIR` (D3).

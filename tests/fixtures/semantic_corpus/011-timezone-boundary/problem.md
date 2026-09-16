@@ -57,11 +57,15 @@ bloomery refuses a metric filtered to a fixed period — *a metric restricted to
 period is a constant, not a metric* (RFC 0034) — and the expression is identical in both
 arms, so the only difference between them is which instant `placed_at` holds.
 
-- **zoneless** — `parse_ts` alone compiles, plans, and returns 40.00. It is **`unguarded`**:
-  nothing today asks a timestamp to say which clock it came off, so bloomery produces the
-  wrong month without complaint. The corpus says so rather than pretending a guard exists
-  (RFC 0042 §8). **RFC 0042 D5** is the decision a future rule converting this case
-  answers to.
+- **zoneless** — `parse_ts` alone is **refused**, with `UndeclaredZone`. **R018** is the
+  rule: a timestamp whose absolute position is consumed was parsed from a declared zone, or
+  was never a wall clock, and this one is neither. The refusal names both sites that read the
+  instant here — the metric's comparison against a literal, and the mart's date role — and
+  both fixes, because a wall clock nothing declares is an assertion made by silence.
+
+  This case was `unguarded` until the rule existed, which is what the corpus is for: the
+  wrong number was asserted rather than tolerated, and RFC 0042 D5 named the decision the
+  converting rule would answer to.
 - **anchored** — `to_utc: America/New_York` names the zone the wall clock was written in,
   and the same expression is **accepted** and returns 140.00. **R011** is what authorizes
   the sum once the instant is right; nothing about the sum was ever wrong.

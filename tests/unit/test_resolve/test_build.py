@@ -628,7 +628,7 @@ key:
   event_id: {from: "$.id", transform: [to_string]}
 fields:
   kind: {from: "$.kind", transform: [to_string]}
-  occurred_at: {from: "$.ts", transform: [{parse_ts: ["ISO8601"]}]}
+  occurred_at: {from: "$.ts", transform: [{parse_ts: ["ISO8601"]}], zone_in: UTC}
 """,
         mapping_z="""\
 mapping_version: 1
@@ -638,7 +638,7 @@ key:
   event_id: {from: "$.identifier", transform: [to_string]}
 fields:
   kind: {from: "$.type", transform: [to_string]}
-  occurred_at: {from: "$.at", transform: [{parse_ts: ["ISO8601"]}]}
+  occurred_at: {from: "$.at", transform: [{parse_ts: ["ISO8601"]}], zone_in: UTC}
 """,
         marts="""\
 marts_version: 1

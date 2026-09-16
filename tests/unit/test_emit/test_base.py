@@ -91,7 +91,7 @@ key:
   order_id: {from: "$.order_id"}
 fields:
   quantity: {from: "$.quantity", transform: [to_int]}
-  order_date: {from: "$.order_date", transform: [{parse_ts: ISO8601}]}
+  order_date: {from: "$.order_date", transform: [{parse_ts: ISO8601}], zone_in: UTC}
 """
 
 

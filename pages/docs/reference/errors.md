@@ -41,6 +41,7 @@ BloomeryError
 │   ├── UnexportedImport
 │   ├── UnknownUpstream
 │   ├── ImportCollision
+│   ├── UndeclaredZone
 │   ├── QuarantineRetentionMissing
 │   ├── DedupeTieBreakMissing
 │   ├── DedupeDispositionConflict
@@ -112,6 +113,7 @@ BloomeryError
 | `UnexportedImport` | guardrails | A project imports a name the upstream does not export — the refusal that makes an export list mean something, since without it "exported" would be a label with no consequence; the message names the upstream's list |
 | `UnknownUpstream` | guardrails | A project declares an import from an upstream this compile was not given — how the upstream reaches a compile is the caller's, so what was passed is the whole world, and the message names it |
 | `ImportCollision` | guardrails | A name a project declares is also one it imports — two things of one kind answering to one name, where any precedence rule would be invisible from the other project's file |
+| `UndeclaredZone` | guardrails | A timestamp parsed from a wall clock nothing declares a zone for, whose absolute position is then read — a date role, a comparison against a literal instant, or an as-of anchor. Declare it with `zone_in: UTC` where the source's wall clocks really are UTC, or `{to_utc: <zone>}` naming the clock they run on. The compiler checks that the assertion exists, never that it is true |
 | `QuarantineRetentionMissing` | guardrails | An entity with a `quarantine` disposition and no `quarantine:` block — reject rows hold raw payloads, so retention is required and never defaulted |
 | `DedupeTieBreakMissing` | guardrails | `dedupe: {keep: latest_by}` without `tie_break` — rows sharing a timestamp would make the winner arbitrary |
 | `DedupeDispositionConflict` | guardrails | A `coercible` rule weaker than `fail` on a field named by `dedupe.field`/`tie_break`, where an uncastable value leaves the dedupe order undefined |

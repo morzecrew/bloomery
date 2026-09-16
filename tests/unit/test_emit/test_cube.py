@@ -470,7 +470,7 @@ key:
   order_id: {from: "$.id", transform: [to_string]}
 fields:
   amount: {from: "$.amount", transform: [{to_decimal: [12, 4]}]}
-  order_date: {from: "$.created_at", transform: [{parse_ts: ISO8601}]}
+  order_date: {from: "$.created_at", transform: [{parse_ts: ISO8601}], zone_in: UTC}
 """
 
 TWO_MARTS_ONE_GRAIN_MARTS = """
