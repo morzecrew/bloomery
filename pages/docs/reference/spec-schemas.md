@@ -24,9 +24,17 @@ implement is **refused**, never read as one it does.
 | Partition spec | A bare column, or `fn(column)` with `fn` ∈ `days`/`months`/`years`/`hours` | `days(order_date)` |
 | Source path | JSONPath-lite: `$` followed by dotted identifiers only | `$.customer.id` |
 | Currency code | Three uppercase letters (ISO 4217) | `EUR` |
+| Zone name | An IANA name: a letter-led segment, optionally `/`-joined up to three deep. Checked for shape, never against a zone database — the engine is the authority for a zone that reaches SQL | `America/New_York` |
 | Member name | Any identifier except the reserved names | — |
 | Rule name | `[a-z0-9_]+` — identifier-constrained so no flag lowering ever needs escaping | `discount_not_exceeding_gross` |
 | Retention duration | A positive integer (no leading zero, ≤ 5 digits) plus one unit of `h` / `d` / `w` | `90d` |
+
+**`timestamp` is UTC.** Not "a timestamp in whatever zone the source used" — the type
+means an instant, and two doors lead into it: `{to_utc: <zone>}`, which converts a wall
+clock, and `zone_in: UTC`, which declares that the source's wall clocks already are one.
+A wall clock read for its position with neither behind it is refused — see
+[`zone_in:`](transforms.md#zone_in-what-clock-the-source-runs-on). `date` carries no
+instant and asks nothing.
 
 **Reserved names.** `metric_time` may not be used as a field, dimension, or role name —
 the planner owns it as the canonical query-time dimension. The generated data-quality
@@ -345,6 +353,8 @@ there is nothing there to attach one to and nothing is refused.
 |---|---|---|---|
 | `from` | source path | yes | Where the key column comes from |
 | `transform` | transform chain | no (`[]`) | Steps applied in order |
+| `currency_in` | ISO-4217 code, or `{column: <name>}` | no | What currency the path's values are in, where the chain converts |
+| `zone_in` | IANA zone name | no | What clock the path's wall clocks were written on — see [`zone_in:`](transforms.md#zone_in-what-clock-the-source-runs-on) |
 
 ### FieldMapping — two forms
 
@@ -365,6 +375,8 @@ unit_price:
 | simple | `from` | source path | yes | Source column path |
 | simple | `transform` | transform chain | no (`[]`) | Steps applied in order |
 | simple | `quality` | list of field quality rules | no (`[]`) | See [Field quality rules](#field-quality-rules) |
+| simple | `currency_in` | ISO-4217 code, or `{column: <name>}` | no | What the source holds before a `convert` step — see [`currency_in:`](transforms.md#currency_in-what-the-source-holds) |
+| simple | `zone_in` | IANA zone name | no | What clock the source writes its wall clocks on. Required where a parsed timestamp's *position* is read and the chain does not `to_utc` — see [`zone_in:`](transforms.md#zone_in-what-clock-the-source-runs-on) |
 | recipe | `recipe` | string | yes | Catalog recipe id, chosen upstream and recorded here |
 | recipe | `from` | map alias → source path | yes | Bindings for every name in the recipe's `requires` — exactly, no more, no fewer |
 | recipe | `direct` | source path | no | The source *also* carries the field directly — emits a `<name>__direct` shadow column and a reconciliation audit |

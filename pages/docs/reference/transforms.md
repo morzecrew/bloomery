@@ -33,7 +33,7 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 | `to_int` | — | string, int, decimal, bool → int | `[to_int]` — cast to integer |
 | `to_decimal` | precision (int), scale (int) | string, int, decimal → decimal(p, s) | `[{to_decimal: [12, 2]}]` — cast with explicit shape |
 | `to_bool` | — | string, int, bool → bool | `[to_bool]` — cast to boolean |
-| `parse_ts` | format (str) | string → timestamp | `[{parse_ts: ISO8601}]` — parse a timestamp as a **local wall clock**; `ISO8601` means the engine's native parse, any other string is an explicit format. Text carrying a UTC offset is refused as NULL — see below |
+| `parse_ts` | format (str) | string → timestamp | `[{parse_ts: ISO8601}]` — parse a timestamp as a **local wall clock**; `ISO8601` means the engine's native parse, any other string is an explicit format. Text carrying a UTC offset is refused as NULL, and a parsed wall clock read for its *position* needs a declared zone — both below |
 | `parse_date` | format (str) | string → date | `[{parse_date: ISO8601}]` — parse a date |
 | `to_utc` | zone (str) | timestamp → timestamp | `[{to_utc: Europe/Paris}]` — interpret a zoneless local timestamp in `zone`; the only door into the always-UTC timestamp type |
 
@@ -41,9 +41,9 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 
 `parse_ts` reads a local wall clock, and `to_utc` is the only door into UTC. So
 `2026-01-06T12:00:00+01:00` is text that says something the transform is not allowed to
-believe. Which zone a column is written in is the spec's statement to make — the absence
-of a `to_utc` says UTC, its presence says the zone it names — and here the data
-contradicts it.
+believe. Which zone a column is written in is the spec's statement to make — `to_utc` names
+it, or [`zone_in:`](#zone_in-what-clock-the-source-runs-on) declares it — and here the data
+contradicts whatever the spec said.
 
 Every engine bloomery targets resolves that disagreement the same silent way — it drops
 the offset and keeps `12:00`, an hour off the instant the row actually carries, with
@@ -73,6 +73,64 @@ is still a value moving under you: check the affected columns with a `coercible`
 before you promote the upgrade.
 
 `parse_date: ISO8601` is unaffected — an ISO date has no time and therefore no offset.
+
+### `zone_in:` — what clock the source runs on
+
+**A wall clock read for its position is refused unless something says which clock it
+came off.** `parse_ts` cannot know, and the `timestamp` type calls whatever it produces
+UTC — so a feed publishing local times with no zone on them compiles clean and answers
+with an order placed at 21:30 on 31 January in New York counted as a January order. It is
+02:30 on 1 February. No row is null, nothing is duplicated, and February is short by that
+order's revenue.
+
+A converting chain has already said it: `{to_utc: America/New_York}` names the clock the
+wall clock was written on. What has nowhere to go is the other claim — *this feed really
+does write UTC* — and `zone_in:` is that place, on the mapping's field beside
+[`currency_in:`](#currency_in-what-the-source-holds):
+
+```yaml
+# mapping.yaml
+placed_at:
+  from: "$.placed_at"
+  zone_in: UTC
+  transform: [{parse_ts: ISO8601}]
+```
+
+**It is only asked for where the instant's position decides an answer** — a mart's date
+role, a comparison against a literal instant in a metric's expression or `filter:`, an
+as-of anchor, a rollup's kept bucket. A timestamp that is carried, projected, or compared
+with another column has no boundary to fall the wrong side of, and declaring a zone for it
+would state a fact nothing reads. Where the declaration *is* missing, the refusal is
+[`UndeclaredZone`](errors.md), and it names both spellings that fix it.
+
+**On the mapping, never on the canonical field.** A canonical `placed_at` fed by a New
+York feed and a London feed runs on two clocks, and a field-level key would have one
+answer for two facts — the same argument `currency_in:` is here for. Each mapping declares
+its own:
+
+```yaml
+# mapping_uk.yaml
+placed_at:
+  from: "$.placed"
+  transform: [{parse_ts: ISO8601}, {to_utc: Europe/London}]
+
+# mapping_us.yaml
+placed_at:
+  from: "$.placed"
+  transform: [{parse_ts: ISO8601}, {to_utc: America/New_York}]
+```
+
+**Both spellings together are checked, not merely allowed.** `zone_in: Europe/London`
+beside `{to_utc: Europe/London}` is a redundancy the compiler reads; a disagreement
+between them is refused naming both, because one of the two is wrong and nothing in the
+spec says which. A non-UTC `zone_in:` with nothing converting it is refused for the
+opposite reason: the declaration is right and the instant is still wrong.
+
+**What this does not check is whether the zone is the true one.** A `Europe/London` on a
+New York feed shifts every row by five hours with the compiler's full blessing. The
+question the declaration answers is *what clock does this source system run on*, which is
+written in that system's documentation rather than in its rows — so it is a question with
+a findable answer, and bloomery can only check that somebody answered it.
 
 ## Null handling and JSON
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 from bloomery import build_project_ir, load_project
-from bloomery.errors import GuardrailError, UndeclaredZone
+from bloomery.errors import GuardrailError, ResolutionError, UndeclaredZone
 
 pytestmark = pytest.mark.unit
 
@@ -456,3 +456,92 @@ def test_only_the_mapping_that_declared_nothing_is_blamed() -> None:
     assert "'legacy__orders'" in message
     assert "shop__orders" not in message
     assert refusal.source_path == "mapping[legacy__orders->order]: fields.placed_at"
+
+
+MERGED_NEW_YORK = """
+mapping_version: 1
+source: us__orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  placed_at:
+    from: "$.placed"
+    transform: [{parse_ts: ISO8601}, {to_utc: America/New_York}]
+  revenue: {from: "$.total"}
+"""
+
+MERGED_LONDON = """
+mapping_version: 1
+source: uk__orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  placed_at:
+    from: "$.placed"
+    transform: [{parse_ts: ISO8601}, {to_utc: Europe/London}]
+    zone_in: Europe/London
+  revenue: {from: "$.total"}
+"""
+
+
+def test_two_feeds_on_two_clocks_build_one_canonical_column() -> None:
+    """D2's whole argument, run: a canonical `placed_at` fed by a New York feed
+    and a London feed runs on two clocks, and each mapping declares its own.
+
+    A declaration on the canonical field could not express this — there is one
+    field and two answers — and that is why the key sits on the mapping beside
+    `currency_in:` rather than beside `type:`. The two spellings are mixed on
+    purpose: the London feed states its clock as well as converting it, which
+    is the checked redundancy §5.2 allows, and the New York feed lets `to_utc`
+    be the declaration, which is what D4 says it already is.
+    """
+
+    marts = CARRIED.replace("flatten: []", "flatten:\n      - {date: placed_at, role: placed}")
+    ir = build_project_ir(
+        load_project(
+            {
+                "entity_model": ENTITY_MODEL,
+                "mapping_us": MERGED_NEW_YORK,
+                "mapping_uk": MERGED_LONDON,
+                "marts": marts,
+                "metrics": METRICS,
+            }
+        )
+    )
+
+    (entity,) = ir.entities
+    zones = {
+        source.relation: next(
+            field.zone_in for field in source.fields if field.target_field == "placed_at"
+        )
+        for source in entity.sources
+    }
+
+    assert zones == {"uk__orders": "Europe/London", "us__orders": None}
+    # One column, two branches of the UNION, and both instants are UTC by the
+    # time they meet — which is the thing the rule is protecting and the reason
+    # neither branch had to be renamed.
+    assert [column.name for column in entity.columns].count("placed_at") == 1
+
+
+def test_a_feed_whose_zone_disagrees_with_its_own_chain_is_refused_alone() -> None:
+    """The cross-check is per mapping, so a merged entity does not hide it: the
+    London feed's declaration is checked against the London feed's chain, and
+    the New York one is untouched."""
+
+    with pytest.raises(ResolutionError, match="uk__orders|Europe/London"):
+        build_project_ir(
+            load_project(
+                {
+                    "entity_model": ENTITY_MODEL,
+                    "mapping_us": MERGED_NEW_YORK,
+                    "mapping_uk": MERGED_LONDON.replace(
+                        "zone_in: Europe/London", "zone_in: America/Chicago"
+                    ),
+                    "marts": CARRIED,
+                    "metrics": METRICS,
+                }
+            )
+        )
