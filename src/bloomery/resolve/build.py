@@ -32,9 +32,14 @@ from __future__ import annotations
 
 import logging
 import re
+
+# Runtime, not `TYPE_CHECKING`: `build_project_ir` is public and RFC 0018's
+# signature closure requires a public annotation to resolve at run time.
+from collections.abc import Mapping as AbcMapping
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 from enum import StrEnum
+from types import MappingProxyType
 from typing import TYPE_CHECKING, cast
 
 from sqlglot import exp, parse_one
@@ -240,6 +245,7 @@ def pipeline(
     catalog: Catalog | None = None,
     *,
     steps: StepRegistry = EMPTY_REGISTRY,
+    upstream: AbcMapping[str, ProjectIR] = MappingProxyType({}),
 ) -> Iterator[tuple[Stage, StageProgress]]:
     """The compile pipeline, one yield per stage, in order.
 
@@ -279,7 +285,7 @@ def pipeline(
     # GuardrailError (mart-level leaves included, RFC 0006 D10) before any
     # artifact is emitted, and amends only via path-conflict shadows and
     # lowered assert: audits (RFC 0006 D9).
-    checked = check_guardrails(draft, project=project, catalog=catalog)
+    checked = check_guardrails(draft, project=project, catalog=catalog, upstream=upstream)
     # The quality mart (RFC 0016 §5.8) is bloomery-owned, like the dim_date
     # calendar: synthesized from the finished IR rather than authored, so it
     # attaches *after* the refusals — there is nothing about it for a
@@ -2261,6 +2267,7 @@ def build_project_ir(
     catalog: Catalog | None = None,
     *,
     steps: StepRegistry = EMPTY_REGISTRY,
+    upstream: AbcMapping[str, ProjectIR] = MappingProxyType({}),
 ) -> ProjectIR:
     """Compile parsed specs into the frozen, fingerprintable IR (RFC 0003).
 
@@ -2277,7 +2284,7 @@ def build_project_ir(
     """
     progress = StageProgress()
 
-    for _stage, reached in pipeline(project, catalog, steps=steps):
+    for _stage, reached in pipeline(project, catalog, steps=steps, upstream=upstream):
         progress = reached
 
     if progress.ir is None:  # pragma: no cover — COMPLETE always carries the IR

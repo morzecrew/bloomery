@@ -22,6 +22,7 @@ from bloomery.spec.common import SpecModel, flatten_collected, load_yaml_mapping
 from bloomery.spec.entity import EntityModel
 from bloomery.spec.exports import ExportSet
 from bloomery.spec.exposures import ExposureSet
+from bloomery.spec.imports import ImportSet
 from bloomery.spec.mapping import Mapping
 from bloomery.spec.marts import MartSet
 from bloomery.spec.metrics import MetricSet
@@ -49,6 +50,7 @@ _KIND_KEYS: dict[str, type[SpecModel]] = {
     "steps_version": StepSet,
     "exposures_version": ExposureSet,
     "exports_version": ExportSet,
+    "imports_version": ImportSet,
 }
 
 
@@ -68,6 +70,11 @@ class Project:
     #: ``None`` and an empty list are the same statement, so the document
     #: refuses to be empty and absence is the only spelling of "nothing".
     exports: ExportSet | None = None
+    #: What this project reads from another's published surface
+    #: (RFC 0059 §5.1). Keyed by the local alias the ``upstream=`` compile
+    #: input is keyed by; ``None`` where no imports document was authored,
+    #: which is the only spelling of "reads nothing".
+    imports: ImportSet | None = None
 
 
 # ....................... #
@@ -129,6 +136,7 @@ def _check_document_counts(
     step_sets: list[tuple[str, StepSet]],
     exposure_sets: list[tuple[str, ExposureSet]],
     export_sets: list[tuple[str, ExportSet]],
+    import_sets: list[tuple[str, ImportSet]],
 ) -> list[BloomeryError]:
     errors: list[BloomeryError] = []
 
@@ -150,6 +158,7 @@ def _check_document_counts(
         ("StepSet", step_sets),
         ("ExposureSet", exposure_sets),
         ("ExportSet", export_sets),
+        ("ImportSet", import_sets),
     ):
         if len(sets) > 1:
             names = [name for name, _ in sets]
@@ -181,6 +190,7 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
     step_sets: list[tuple[str, StepSet]] = []
     exposure_sets: list[tuple[str, ExposureSet]] = []
     export_sets: list[tuple[str, ExportSet]] = []
+    import_sets: list[tuple[str, ImportSet]] = []
 
     for name in sorted(sources):
         try:
@@ -203,6 +213,8 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
             exposure_sets.append((name, model))
         elif isinstance(model, ExportSet):
             export_sets.append((name, model))
+        elif isinstance(model, ImportSet):
+            import_sets.append((name, model))
         else:  # pragma: no cover — _KIND_KEYS is closed
             # Not a `cast` on the closed table: the cast made an unhandled kind
             # silently *become* a StepSet, and hid the mismatch from pyright
@@ -216,7 +228,13 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
         # parse errors first; counts are checked once every document parses.
         errors.extend(
             _check_document_counts(
-                entity_models, metric_sets, mart_sets, step_sets, exposure_sets, export_sets
+                entity_models,
+                metric_sets,
+                mart_sets,
+                step_sets,
+                exposure_sets,
+                export_sets,
+                import_sets,
             )
         )
 
@@ -236,6 +254,7 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
         steps=step_sets[0][1] if step_sets else None,
         exposures=exposure_sets[0][1] if exposure_sets else None,
         exports=export_sets[0][1] if export_sets else None,
+        imports=import_sets[0][1] if import_sets else None,
     )
 
 

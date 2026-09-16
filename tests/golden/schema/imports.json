@@ -1,6 +1,6 @@
 {
   "$defs": {
-    "Exports": {
+    "Imports": {
       "additionalProperties": false,
       "anyOf": [
         {
@@ -34,7 +34,7 @@
           ]
         }
       ],
-      "description": "What a project publishes, grouped by kind (RFC 0059 \u00a75.1).",
+      "description": "What this project reads from one upstream, grouped by kind.",
       "properties": {
         "entities": {
           "default": [],
@@ -61,28 +61,36 @@
           "type": "array"
         }
       },
-      "title": "Exports",
+      "title": "Imports",
       "type": "object"
     }
   },
-  "$id": "https://morzecrew.github.io/bloomery/schemas/v1/exports.json",
+  "$id": "https://morzecrew.github.io/bloomery/schemas/v1/imports.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "The per-project exports document (``exports_version``), at most one per\nproject (RFC 0059 \u00a75.1).",
+  "description": "The per-project imports document (``imports_version``), at most one per\nproject (RFC 0059 \u00a75.1).",
   "properties": {
-    "exports": {
-      "$ref": "#/$defs/Exports"
+    "imports": {
+      "additionalProperties": false,
+      "minProperties": 1,
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/Imports"
+        }
+      },
+      "title": "Imports",
+      "type": "object"
     },
-    "exports_version": {
+    "imports_version": {
       "const": 1,
-      "title": "Exports Version",
+      "title": "Imports Version",
       "type": "integer"
     }
   },
   "required": [
-    "exports",
-    "exports_version"
+    "imports",
+    "imports_version"
   ],
-  "title": "ExportSet",
+  "title": "ImportSet",
   "type": "object"
 }

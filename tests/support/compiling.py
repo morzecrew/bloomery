@@ -32,7 +32,7 @@ _DBT_SOURCE = re.compile(r"\{\{ source\('(?P<namespace>[^']+)', '(?P<relation>[^
 #: down under ``<case>/bloomery/<expectation>/`` — and half of them are meant
 #: to be refused. A sweep asserting "every spec fixture resolves" would fail on
 #: exactly the cases the corpus exists to hold (RFC 0042).
-NON_SPEC_FIXTURES = frozenset({"dirty", "semantic_corpus"})
+NON_SPEC_FIXTURES = frozenset({"dirty", "semantic_corpus", "cross_project"})
 
 
 #: A project whose entity-field id collides with a metric id. An entity-field id

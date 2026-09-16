@@ -42,6 +42,7 @@ from bloomery.spec import (
     EntityModel,
     ExportSet,
     ExposureSet,
+    ImportSet,
     Mapping,
     MartSet,
     MetricSet,
@@ -77,10 +78,10 @@ _BASE_URI = "https://morzecrew.github.io/bloomery/schemas"
 
 
 class SpecKind(StrEnum):
-    """The eight loadable spec kinds (RFC 0020 §5.1; ``EXPOSURES`` added by
-    RFC 0056 §5.1, ``EXPORTS`` by RFC 0059 §5.1).
+    """The nine loadable spec kinds (RFC 0020 §5.1; ``EXPOSURES`` added by
+    RFC 0056 §5.1, ``EXPORTS`` and ``IMPORTS`` by RFC 0059 §5.1).
 
-    Seven are project documents :func:`~bloomery.load_project` dispatches on by
+    Eight are project documents :func:`~bloomery.load_project` dispatches on by
     version key; :attr:`CATALOG` is loaded separately by
     :func:`~bloomery.load_catalog` because a catalog is not part of a project
     (RFC 0002 D8). Each member's value is the kind's name in a ``$id`` and on
@@ -91,6 +92,7 @@ class SpecKind(StrEnum):
     ENTITY_MODEL = "entity_model"
     EXPORTS = "exports"
     EXPOSURES = "exposures"
+    IMPORTS = "imports"
     MAPPING = "mapping"
     MARTS = "marts"
     METRICS = "metrics"
@@ -109,6 +111,7 @@ _KINDS: dict[SpecKind, tuple[type[SpecModel], str]] = {
     SpecKind.ENTITY_MODEL: (EntityModel, "spec_version"),
     SpecKind.EXPORTS: (ExportSet, "exports_version"),
     SpecKind.EXPOSURES: (ExposureSet, "exposures_version"),
+    SpecKind.IMPORTS: (ImportSet, "imports_version"),
     SpecKind.MAPPING: (Mapping, "mapping_version"),
     SpecKind.MARTS: (MartSet, "marts_version"),
     SpecKind.METRICS: (MetricSet, "metrics_version"),

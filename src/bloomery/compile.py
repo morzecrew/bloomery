@@ -7,13 +7,15 @@ selected dialect port under the naming policy (RFC 0008)."""
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from enum import StrEnum
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from bloomery.dialects import get_dialect
 from bloomery.emit import EmitContext, EmittedArtifact, get_emitter
 from bloomery.errors import UnsupportedByTarget
-from bloomery.ir import project_fingerprint
+from bloomery.ir import ProjectIR, project_fingerprint
 from bloomery.naming import DefaultNaming, NamingPolicy
 from bloomery.quality.pattern import PATTERN_TARGET_DIALECTS, unsupported_dialects
 from bloomery.resolve import build_project_ir
@@ -22,7 +24,6 @@ from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 
 if TYPE_CHECKING:
     from bloomery.dialects import DialectPort
-    from bloomery.ir import ProjectIR
 
 # ----------------------- #
 
@@ -103,6 +104,7 @@ def compile_project(
     naming: NamingPolicy | None = None,
     catalog: Catalog | None = None,
     steps: StepRegistry = EMPTY_REGISTRY,
+    upstream: Mapping[str, ProjectIR] = MappingProxyType({}),
 ) -> tuple[EmittedArtifact, ...]:
     """Compile a parsed project into target artifacts (spec §8).
 
@@ -115,7 +117,7 @@ def compile_project(
     :class:`~bloomery.naming.DefaultNaming` (the RFC 0008 signature spells
     the default inline; a ``None`` sentinel avoids a call in the signature).
     """
-    ir = build_project_ir(project, catalog=catalog, steps=steps)
+    ir = build_project_ir(project, catalog=catalog, steps=steps, upstream=upstream)
     emitter = get_emitter(str(target))
     context = EmitContext(
         dialect=get_dialect(dialect),
