@@ -1,0 +1,354 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0006
+title: Evidence-based semantic capability matrix
+kind: design
+status: draft
+implementation: partial
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  How bloomery and other semantic engines are compared: one tested configuration at a
+  time, against the cases of the semantic bug corpus, with bloomery scored by the same
+  standard including where it loses.
+
+  The unit of comparison is a represented semantic property, never a product. A cell is
+  one of six values, and `UNKNOWN` is one of them — no cell is filled from reputation or
+  memory. Every filled cell is backed by a reproduction bundle checked in beside the
+  table, pinning the version, the date, the feature set and the configuration it was
+  measured under. The first column landed on 2026-09-15 and the table now stands at
+  `comparisons/MATRIX.md` with bloomery filled for every row, MetricFlow for six, and
+  dbt Core, SQLMesh and Cube open. What is left is columns.
+motivation: |
+  The documentation already spends comparative claims that nothing backs. At
+  `pages/docs/concepts/guardrails.md` the page asserts a semantic property of another
+  system — "MetricFlow lowers additivity; it does not stop you from modeling it wrongly"
+  — and before this work there was no reproduction behind it. A claim of that shape is
+  either the strongest thing the project can say or the cheapest, and the difference is
+  whether a reader can clone the repository and re-run it.
+
+  The failure this document is arranged against is not a wrong cell. It is a true cell
+  quoted later as a general statement: "for corpus case 002, at MetricFlow 0.212.0, with
+  this manifest, the naive model validated clean and returned 55.0" is a measurement, and
+  "MetricFlow does not prevent average-of-averages" is marketing wearing its clothes. Only
+  the phrasing discipline and the bundle behind each cell prevent the second from being
+  produced out of the first.
+
+  A matrix also has a second failure that arrives slowly: a cell that was true when it was
+  written, is still read as current, and is not. Every cell pins a version and a date for
+  that reason, and the pin is checked by a program rather than trusted.
+current_state: |
+  Measured against the working tree on 2026-09-18.
+
+  `comparisons/` exists and carries the first column. `comparisons/MATRIX.md` holds **26
+  table rows** — one per *expectation*, not one per case: the twelve corpus cases under
+  `tests/fixtures/semantic_corpus/` pin between one and three apiece, because a case is
+  typically refused in one shape and planned correctly in another. The file's own coverage
+  line still reads 25, written before `009-null-denominator` gained an `inclusive` arm.
+  bloomery is filled for all 26; MetricFlow `0.212.0` for 6; dbt Core (`1.12.3` resolved),
+  SQLMesh (`0.236.1` resolved) and Cube (not installed) are `UNKNOWN` throughout, which is
+  D-2 working rather than work missing.
+
+  Three bundles exist, all MetricFlow, at the fixed layout — `comparisons/metricflow/`
+  `002-average-of-averages/`, `005-semi-additive-balance/`, `008-ratio-rollup/`, each with
+  `README.md`, `config/`, `commands.txt`, `observed.txt` and `sources.md`, driven by
+  `comparisons/metricflow/run.py`. They read their case's fixtures directly rather than
+  copying them.
+
+  The staleness rule is a program: `tests/unit/test_comparisons_floor.py`, 17 tests in the
+  default unit tier, reading each bundle's pinned version against the installed
+  distribution and refusing a check date outside a twelve-month window in either
+  direction. It also holds the matrix's rows against the corpus's cases and each bundle's
+  `sources.md` against its own manifest.
+
+  bloomery's column has no losses at the time of writing, and that is a change rather than
+  a standing fact. Two rows sat there and both moved: `011-timezone-boundary` / `zoneless`
+  and `009-null-denominator` / `declared` were published as wrong numbers until the rules
+  that closed them landed at `659bec6f` and `237739cb`. The column is what made each gap
+  citable while it was open.
+
+  What landed, landed in one change: `55ade485` (#123), from `logs/T-0058.md`, which
+  proposed the five rows the source document's table then gained.
+goals: |
+  A table whose every filled cell is re-runnable from a directory in this repository, and
+  whose empty cells say plainly that nobody has run them. Enough columns that a
+  comparative sentence in the documentation points at evidence a reader has already
+  cloned. A boundary discovered rather than a win manufactured: the losses are published
+  by the same rule that publishes the wins.
+non_goals: |
+  Competitive marketing copy. A cell is not a verdict on a product and the phrasing is not
+  a courtesy — a universal claim such as "dbt cannot do X" is refused wherever it appears,
+  because it is not what was measured.
+
+  Inventing rows. The rows are the corpus's cases; a row this table needs and the corpus
+  does not carry is a missing corpus case first, and belongs in the corpus document before
+  it belongs here.
+design:
+  - key: what-a-cell-claims
+    md: |
+      A cell compares a **specific represented semantic property** of a **tested
+      configuration**. Not:
+
+      ```text
+      dbt does not prevent fanout
+      ```
+
+      but:
+
+      ```text
+      For corpus case 001, using documented native feature set X and configuration Y, the
+      system does/does not encode the measure-origin grain needed to reject the naive
+      query before execution.
+      ```
+
+      Every cell takes one of six values:
+
+      | Value | Meaning |
+      |---|---|
+      | `NATIVE-PREVENT` | documented native semantics prevent the failure before a wrong answer is produced |
+      | `NATIVE-PLAN` | documented native semantics construct a correct plan |
+      | `RUNTIME-DETECT` | a native runtime test or audit can detect the bad result or data condition |
+      | `CUSTOM` | achievable only with a project-authored test, model or SQL |
+      | `NOT-REPRESENTED` | the required semantic fact has no documented native representation found |
+      | `UNKNOWN` | research incomplete |
+
+      `UNKNOWN` is an honest value and the default. A guessed cell is indistinguishable
+      from a researched one once written down, which makes one guess enough to void the
+      whole table.
+
+      What a cell is *not* comparing is diligence. Measured on the first column: bloomery
+      refuses the naive models of 002, 005 and 008 because its spec requires an additivity
+      declaration — there is a claim on the page to be wrong. MetricFlow's measure schema
+      is closed (`additionalProperties: False`) and none of its keys states that a column
+      is already an aggregate, so the naive model is not a claim its validator declines to
+      check: it is not a claim at all. `NATIVE-PREVENT` printed beside `NOT-REPRESENTED`
+      without that sentence reads as a scoreboard, which is the thing this document's
+      non-goals name.
+  - key: the-reproduction-bundle
+    md: |
+      One directory per system per case, at a fixed layout:
+
+      ```text
+      comparisons/<system>/<case>/
+        README.md   config/   commands.txt   observed.txt   sources.md
+      ```
+
+      `README.md` records the version, the date and the exact question being tested.
+      `config/` is the system's own configuration, authored the way that system's own
+      documentation describes it. `commands.txt` is what was run, verbatim and runnable
+      through `sh` from the repository root; `observed.txt` is what came back, regenerated
+      by running its own `commands.txt`. `sources.md` cites the feature set *this bundle's
+      own configuration* uses — and the gate asserts that biconditional in both
+      directions, because one `sources.md` written and copied three times is how two
+      bundles came to cite features their manifests do not contain.
+
+      The bundles live in this repository. The objection to that — third-party
+      configuration falling under gates written for bloomery's own source — turned out not
+      to arise: `just quality` runs ruff and mypy over `src` alone and the pre-commit
+      hooks are scoped `^src/.*\.py$`. The one gate that does read `comparisons/` is
+      written for it rather than inherited from `src`.
+
+      The matrix itself is `comparisons/MATRIX.md`, beside the bundles it cites. It is
+      evidence, not documentation: a documentation page is bound to what a reproduction
+      supports, which a table whose honest state is mostly `UNKNOWN` cannot satisfy on the
+      day it is created. A documentation page reads *from* this table, which means the
+      table cannot be that page.
+  - key: rows-columns-and-the-bloomery-column
+    md: |
+      **Rows** are the expectations of the cases under `tests/fixtures/semantic_corpus/` —
+      fact fanout, SCD2 and as-of correctness, currency and unit mismatch, ratio rollup,
+      semi-additive time behaviour, distinct-count fanout, many-to-many bridges. One set
+      of cases keeps this table and the regression suite from becoming two accounts of the
+      same question.
+
+      **Columns** may include bloomery, dbt Core, SQLMesh, MetricFlow, Cube, and further
+      systems only when somebody is willing to maintain the reproduction. A column is
+      listed with its version and its evidence, and a system with no bundle is `UNKNOWN`
+      in every row rather than absent from the table — the difference between "nobody has
+      run it" and "it has nothing to say" is the whole point of having `UNKNOWN`.
+
+      **bloomery's column has a different shape.** It cites
+      `tests/fixtures/semantic_corpus/<case>/expected/semantic_outcome.json` and the test
+      that executes it, `tests/execution/test_semantic_corpus.py`, rather than a bundle of
+      its own. That is the heavier standard, not the lighter one: a bundle is run by hand
+      when somebody remembers, and the corpus runs in the default suite on every commit
+      against a stable rule ID. Building `comparisons/bloomery/` beside it would duplicate
+      the same question into a second account that can drift from the first.
+
+      What the same-standard rule actually demands is that the losses are published, and a
+      test refuses a matrix cell edited away from the outcome the corpus pins. That test
+      is the difference between a discipline and a gate, and editing the table to hide a
+      loss is the single most damaging thing anybody could do to this tree.
+  - key: staleness-as-a-gate
+    md: |
+      Every result pins the product or library version, the date checked, the relevant
+      feature flags, and whether hosted-only features were required. Cells do not claim
+      permanence.
+
+      A cell returns to `UNKNOWN` when the version it pins stops matching what the
+      reproduction resolves, or when its check date leaves a twelve-month window —
+      whichever comes first. For a system this repository does not resolve as a
+      dependency, only the date half applies and the bundle says so.
+
+      The rule is `tests/unit/test_comparisons_floor.py`, not a sentence anybody has to
+      remember to re-read. A bundle directory name maps to the distribution whose version
+      its cells pin, and a system absent from that map is one this repository does not
+      resolve. The window is bounded at both ends: a bound tested from one side only let a
+      bundle dated 2031 pass the gate whose entire purpose is noticing that a cell has
+      stopped being current.
+
+      Of the three candidate staleness rules — a release count, a month count, a re-check
+      on each corpus change — only the month-and-version one is computable here. A release
+      count needs an index query, and a corpus change does not move a third-party system.
+  - key: automation-and-what-stays-manual
+    md: |
+      Where licensing and tooling permit, a reproduction should be executable in CI or a
+      scheduled compatibility workflow. Where it is not, the cell is manual and its bundle
+      records the exact reproduction steps.
+
+      Every cell filled so far is manual: each bundle's `commands.txt` is the exact
+      invocation, run by hand from the repository root, and nothing schedules it. The
+      bundles are not tests — no marker, no CI, no fixture contract. A bundle that stops
+      working is a fact about the tree or the pinned version having moved, and the first
+      thing to re-read is the date and version in its `README.md`.
+
+      What *is* automated is the floor beneath them: the layout, the pins, the window, the
+      rows against the corpus, and each bundle's citations against its own configuration.
+      The gate never lints a third party's configuration and never runs one.
+tests: |
+  `tests/unit/test_comparisons_floor.py` is the gate — 17 tests in the default unit tier,
+  covering the bundle layout, the version pin against the installed distribution, the
+  check-date window at both ends, the matrix's rows against the corpus's pinned outcomes,
+  and each bundle's `sources.md` against its own manifest.
+
+  `tests/execution/test_semantic_corpus.py` is what bloomery's column cites: all twelve
+  cases, in the default suite, against stable rule IDs.
+
+  What is deliberately not tested is the reproductions themselves. Running a third party's
+  configuration on every commit is a compatibility workflow this repository does not have,
+  and a bundle whose invocation is wrong is caught by a person re-running it, not by CI.
+docs: |
+  `comparisons/README.md` — what a bundle is, what each of the six values means, and the
+  standard the evidence is held to. `comparisons/MATRIX.md` — the table, its columns with
+  their versions, and the prose that keeps a filled cell from reading as a verdict.
+  `pages/docs/concepts/guardrails.md` carries the one live comparative sentence, and is
+  bound to what a checked-in reproduction supports.
+out_of_scope: |
+  **Cube's column.** Cube needs a runtime this repository does not carry, so a bundle
+  needs somebody willing to install and maintain one. It earns a column when that person
+  exists.
+
+  **Cube's pre-aggregation matching as a measured row.** The row is owed — bloomery proves
+  a rollup's measures re-aggregable over the dimensions it drops, and Cube decides at
+  query time by its own rules whether a pre-aggregation may serve a request — but it is a
+  case the semantic corpus does not carry, and the case belongs in the corpus before the
+  row belongs here.
+
+  **Changing what bloomery represents.** A `NOT-REPRESENTED` cell in bloomery's column is
+  a finding this table publishes; closing it is a different document's work, as the two
+  closed so far were.
+risks: |
+  **A true cell quoted as a verdict.** This is the failure the whole arrangement exists to
+  prevent, and no gate catches it — it happens in somebody else's sentence, outside this
+  repository. The mitigations are the phrasing discipline, the vocabulary paragraph beside
+  every filled column, and the fact that each cell's version and date travel with it.
+
+  **A stale cell read as current.** Mitigated by the gate rather than by prose, and
+  bounded at both ends after a future-dated bundle once passed it.
+
+  **Prose written about a run rather than from it.** Two version strings and one cited
+  entry point were typed from memory inside the document that forbids exactly that, and
+  one `sources.md` was copied across three bundles. Both are now gates. The pattern is
+  that a cell gets researched and its surroundings do not, and a reader cannot tell which
+  half is which.
+
+  **The document read as a scoreboard.** A partially filled matrix of researched cells is
+  useful; a fully filled one containing guesses is worth less than nothing, because it
+  will be cited.
+sections:
+  - key: provenance
+    md: |
+      This document is a carry-across of `rfcs/0043-semantic-capability-matrix.md`,
+      numbered 0043 in bloomery's own design corpus and listed there as *in progress*. Its
+      decision table is the source of every row below, carried with the grade the source
+      gives it: rows 1 through 13 of that table map one-to-one onto D-1 through D-13, and
+      no row was added, re-graded or dropped in the carry. Rows D-6 and D-7 are carried as
+      the source carries them — `OPEN`, and marked superseded by D-9 and D-10.
+
+      Rows D-9 through D-13 were not authored at design time. They were proposed by
+      execution in `logs/T-0058.md` and accepted by the owner on 2026-09-15; two of the
+      five (D-6 and D-7 in the source, answered by D-9 and D-10) were the source's own
+      open questions, and three were unlisted findings the build forced. Row D-8 arrived
+      from elsewhere: it was transferred at the retirement of the rollup-and-pre-aggregation
+      document, numbered 0058 and readable at `efba2b6`, with the transfer recorded in
+      `logs/T-0035.md`.
+
+      The rows the design table calls its own dimensions come from the production-style
+      semantic bug corpus, numbered 0042 in that corpus and retired at `99318be`; its
+      twelve cases live on as `tests/fixtures/semantic_corpus/`.
+
+      **What has landed.** One change: `55ade485`, pull request #123, "the semantic
+      capability matrix, and the column that backs a live claim" — `comparisons/README.md`,
+      `comparisons/MATRIX.md`, three MetricFlow bundles, `comparisons/metricflow/run.py`,
+      `tests/unit/test_comparisons_floor.py` and the one-sentence edit to
+      `pages/docs/concepts/guardrails.md`. Two later changes touched only the table, moving
+      bloomery's two published losses as the rules that closed them landed: `659bec6f`
+      (#126) and `237739cb` (#127).
+
+      **What has not.** Every column after the first. The `phasing` below is exactly that
+      remainder; the rows are carried whole, because a row whose phase has landed still
+      governs the paths it declares.
+alternatives:
+  - option: >-
+      Reproduction bundles in a sibling repository rather than under `comparisons/`
+    rejected_because: >-
+      Out-of-repo keeps third-party configuration away from gates written for bloomery's
+      own source, and makes every citation weaker in exchange — a documentation sentence
+      would point at something the reader has not cloned, and no gate could read the
+      version a cell pins. The objection it answers turned out not to arise: the quality
+      tooling targets `src` alone, so nothing needed excluding. Closed at the moment
+      a documentation page linked into the tree, because every later link compounds
+      the cost of moving it.
+  - option: The matrix as a page under `pages/docs/`
+    rejected_because: >-
+      A documentation page is bound to what a checked-in reproduction supports, which
+      a table whose honest state is mostly `UNKNOWN` cannot satisfy on the day it
+      is created. The rule that documentation may summarize only backed findings describes
+      a page reading *from* the table, so the table cannot be that page.
+  - option: >-
+      A `comparisons/bloomery/<case>/` bundle, so every column has the same shape
+    rejected_because: >-
+      It would duplicate a question the corpus already answers against a stable rule
+      ID in the default suite, producing a second bloomery account that can drift
+      from the first. The same-standard rule asks for the same standard, not the same
+      file layout, and a bundle run by hand is the lighter one.
+  - option: >-
+      A staleness rule counting releases, or re-checking on each corpus change
+    rejected_because: >-
+      Neither is computable here. A release count needs an index query against each
+      third-party project, and a corpus change does not move a third-party system.
+      The version-and-date rule is the only one of the three a program in this tree
+      can decide.
+  - option: >-
+      A separately invented row taxonomy for the matrix
+    rejected_because: >-
+      Two taxonomies for one question drift into two accounts of it. A row the matrix
+      needs and the corpus does not carry is evidence the corpus is missing a case,
+      which is where the gap belongs first.
+questions:
+  - id: Q-1
+    text: >-
+      Where reproduction bundles live — in this repository under `comparisons/`, or
+      beside it. Decide before the first bundle, since moving them later breaks every
+      link the documentation will have made.
+    status: settled
+    settled_by: D-9
+  - id: Q-2
+    text: >-
+      What a stale cell does. Cells pin a date and nothing says when age alone should
+      return a cell to `UNKNOWN`.
+    status: settled
+    settled_by: D-10

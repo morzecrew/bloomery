@@ -1,0 +1,215 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      A cell claims a property of a tested configuration, never a property of a product:
+      every claim names the version, the date, the feature set and the configuration
+      it was measured under, and a universal statement of the form "system X cannot
+      do Y" is refused wherever it appears
+    paths: [comparisons/**]
+    consequence: >-
+      A bundle that pins no version and no date is not evidence, and a sentence that
+      generalises a measured cell is rewritten rather than softened; the phrasing
+      is the only thing standing between a measurement and marketing
+    rationale: >-
+      The failure mode is not a wrong cell — it is a true cell quoted later as a general
+      statement, and nothing downstream of the quote can tell the two apart
+    check: >-
+      uv run pytest tests/unit/test_comparisons_floor.py::test_bundle_pins_a_version_and_a_date
+      tests/unit/test_comparisons_floor.py::test_sources_cite_only_the_feature_set_this_bundle_uses
+      -q
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      No cell is filled from reputation or memory; an unrun cell says `UNKNOWN`, which
+      is an honest value and the default
+    paths: [comparisons/**]
+    consequence: >-
+      A column with no bundle is listed as `UNKNOWN` in every row rather than omitted,
+      so "nobody has run it" and "it has nothing to say" stay distinguishable
+    rationale: >-
+      A guessed cell is indistinguishable from a researched one once written down,
+      which makes one guess enough to void the table
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      bloomery is evaluated by the same standard as every other column, including
+      where it loses: if it requires a custom step, a runtime audit, or cannot represent
+      a case, the cell says so
+    paths: [comparisons/MATRIX.md, comparisons/README.md]
+    consequence: >-
+      An omitted caveat scores as effectively as a wrong cell, so the asymmetry that
+      makes bloomery's wins possible is stated beside them rather than left for the
+      reader to infer; a cell edited in bloomery's favour is refused by a test rather
+      than by review
+    rationale: >-
+      A matrix that scores its author's tool favourably is worth nothing as evidence
+      and is worse than none, because it will be cited
+    check: >-
+      uv run pytest tests/unit/test_comparisons_floor.py::test_matrix_rows_are_the_corpus_cases
+      -q
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Rows are the cases of the semantic bug corpus under `tests/fixtures/semantic_corpus/`,
+      not a separately invented taxonomy; a row the matrix needs and the corpus does
+      not carry is a missing corpus case first
+    paths: [comparisons/MATRIX.md, tests/unit/test_comparisons_floor.py]
+    consequence: >-
+      Departing means the matrix needs a row no corpus case covers — in which case
+      the case is what is missing, and it belongs in the corpus document before it
+      belongs here
+    rationale: >-
+      One set of cases keeps the matrix and the regression suite from drifting into
+      two accounts of the same question
+    check: >-
+      uv run pytest tests/unit/test_comparisons_floor.py::test_matrix_rows_are_the_corpus_cases
+      -q
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Documentation may state only what a checked-in reproduction supports, and a
+      comparative sentence points at the `sources.md` and `observed.txt` of the bundle
+      behind it
+    paths: [pages/docs/**]
+    consequence: >-
+      A comparative claim with no bundle behind it is either deleted or blocked on
+      the reproduction that would support it; the live one at `pages/docs/concepts/guardrails.md`
+      is what chose the first column
+    rationale: >-
+      Not LOCKED because it is a documentation discipline rather than a compiler rule;
+      the retired soundness-positioning document, readable at `9ad7ac2`, carried the
+      same constraint for the claims themselves
+  - id: D-6
+    grade: OPEN
+    text: >-
+      Superseded by D-9. Where reproduction bundles live — in this repository under
+      `comparisons/`, or beside it. In-repo makes the citation strongest and puts
+      third-party configuration under gates written for bloomery's own source; out-of-repo
+      inverts both
+    consequence: >-
+      Decide before the first bundle, since moving them later breaks every link the
+      documentation will have made
+    rationale: >-
+      Carried as the source document carries it, marked superseded rather than deleted,
+      so D-9 keeps the question it answers visible
+    superseded_by: D-9
+  - id: D-7
+    grade: OPEN
+    text: >-
+      Superseded by D-10. The staleness policy: cells pin a date and nothing says
+      when age alone should return a cell to `UNKNOWN`
+    consequence: >-
+      An unmarked stale cell is the reputation-and-memory failure arriving slowly,
+      so the rule must be picked rather than left implicit
+    rationale: >-
+      Carried as the source document carries it, marked superseded rather than deleted,
+      so D-10 keeps the question it answers visible
+    superseded_by: D-10
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      Cube's pre-aggregation matching is a row this matrix owes, and by D-4 it is
+      a case the semantic corpus must carry before the row can be measured
+    paths: [tests/fixtures/semantic_corpus/**]
+    consequence: >-
+      A rollup bloomery proves safe and Cube declines to use is wasted; one Cube uses
+      that bloomery did not prove is a wrong number by Cube's reasoning rather than
+      bloomery's, and only a tested configuration can tell which happens
+    rationale: >-
+      Transferred at the retirement of the rollup-and-pre-aggregation document, numbered
+      0058 and readable at `efba2b6`, with the transfer recorded in `logs/T-0035.md`.
+      ASSUMED rather than LOCKED because it is a row this table owes, not a rule anything
+      enforces
+    cites: [D-4]
+  - id: D-9
+    grade: LOCKED
+    text: >-
+      Reproduction bundles live in this repository, at `comparisons/<system>/<case>/`,
+      and the matrix is `comparisons/MATRIX.md` beside them
+    paths: [comparisons/**]
+    consequence: >-
+      In-repo is what makes D-5 enforceable: a documentation sentence points at an
+      `observed.txt` the reader has already cloned, and a gate can read the version
+      a cell pins. The gate that reads `comparisons/` is written for it rather than
+      inherited from `src`, and never lints a third party's configuration
+    rationale: >-
+      D-6's objection did not arise — `just quality` runs ruff and mypy over `src`
+      alone and the pre-commit hooks are scoped to `src`, so nothing needed excluding.
+      LOCKED because a documentation page now links into the tree and every later
+      link compounds the cost of moving it. Proposed by execution in `logs/T-0058.md`
+      and accepted 2026-09-15
+    cites: [D-5, D-6]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      A cell returns to `UNKNOWN` when the version it pins stops matching what the
+      reproduction resolves, or when its check date leaves a twelve-month window —
+      and the rule is a gate, not a sentence
+    paths: [comparisons/**, tests/unit/test_comparisons_floor.py]
+    consequence: >-
+      For a system this repository does not resolve as a dependency only the date
+      half applies, and the bundle says so; the window is bounded at both ends, because
+      a bound tested from one side let a future-dated bundle pass the gate whose purpose
+      is noticing that a cell has stopped being current
+    rationale: >-
+      Of D-7's three candidates only this one is computable here: a release count
+      needs an index query and a corpus change does not move a third-party system.
+      ASSUMED because twelve months is a judgement a reviewer may set differently;
+      the mechanism is what matters. Proposed by execution in `logs/T-0058.md` and
+      accepted 2026-09-15
+    cites: [D-2, D-7]
+    check: >-
+      uv run pytest tests/unit/test_comparisons_floor.py -q
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      The matrix itself is `comparisons/MATRIX.md`, beside the bundles it cites —
+      not a page under `pages/docs/`
+    paths: [comparisons/MATRIX.md]
+    consequence: >-
+      A documentation page reads from this table; the table is evidence and is not
+      bound by D-5, which a table whose honest state is mostly `UNKNOWN` could not
+      satisfy on the day it is created
+    rationale: >-
+      The bundle layout was specified and the table's home was not, and the two candidates
+      are not equivalent. Proposed by execution in `logs/T-0058.md` and accepted 2026-09-15
+    cites: [D-5, D-9]
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      bloomery's column cites the semantic corpus — the pinned outcome of each case
+      and the test that executes it — rather than duplicating it as a bundle of its
+      own
+    paths: [comparisons/MATRIX.md, comparisons/README.md]
+    consequence: >-
+      A second bloomery account is the split D-4 exists to prevent arriving from the
+      other side; the README states plainly that bloomery's evidence has a different
+      shape and why, and a test refuses a matrix cell edited away from the outcome
+      the corpus pins
+    rationale: >-
+      Every corpus case pins a machine-readable outcome against a stable rule ID and
+      the default suite runs all twelve, where a bundle is run by hand — so the citation
+      is the heavier standard, and D-3 asks for the same standard rather than the
+      same file layout. Proposed by execution in `logs/T-0058.md` and accepted 2026-09-15
+    cites: [D-3, D-4]
+  - id: D-13
+    grade: LOCKED
+    text: >-
+      A cell compares which semantic facts a system's vocabulary requires an author
+      to state — never how carefully a system checks facts both systems hold — and
+      the matrix says so in prose beside every column it fills
+    paths: [comparisons/MATRIX.md]
+    consequence: >-
+      `NATIVE-PREVENT` printed beside `NOT-REPRESENTED` is a difference in what can
+      be said; without the sentence it reads as a scoreboard, which is this document's
+      non-goal
+    rationale: >-
+      Measured on the first column — bloomery refuses 002, 005 and 008's naive models
+      because its spec requires an additivity declaration, so there is a claim to
+      be wrong, while MetricFlow's measure schema is closed and states no such fact,
+      so the naive model is not a claim at all. Locked for D-1 and D-3's reason: the
+      failure is a true cell quoted as a verdict, and only the framing prevents it.
+      Proposed by execution in `logs/T-0058.md` and accepted 2026-09-15
+    cites: [D-1, D-3]

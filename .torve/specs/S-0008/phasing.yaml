@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The harness and the parse-door target
+    intent: >-
+      Stand up the lane and the one target the evidence says pays most. Measure the
+      stack depth at each `parse_one` site under a real compile first — one instrumented
+      run, which tells the rest of the phase which sites are real and settles Q-1.
+      Then build `fuzz/_harness.py` with the expectation tuple of D-1, the valid six-document
+      fixture set, `fuzz_parse_doors.py`, its seeds and dictionary, the `just fuzz`
+      lane, `atheris` in the dev group, and the corpus and crash directories in `.gitignore`.
+      Reproduce the two narrow-handler asymmetries, decide D-7 per site from its reproduction,
+      land the fix and the unit test that pins it, and check that the target finds
+      each defect when its fix is reverted — a target that cannot catch the defect
+      that motivated it is not finished. Ships `pages/docs/contributing/fuzzing.md`
+      and the lane's entry in `CONTRIBUTING.md`. Self-contained: useful, and complete,
+      with no CI.
+    scope:
+      - fuzz/**
+      - justfile
+      - pyproject.toml
+      - .gitignore
+      - CONTRIBUTING.md
+      - src/bloomery/errors.py
+      - src/bloomery/evidence.py
+      - src/bloomery/resolve/steps.py
+      - tests/unit/test_errors.py
+      - tests/unit/test_evidence.py
+      - tests/unit/test_steps/**
+      - pages/docs/contributing/fuzzing.md
+      - pages/docs/reference/errors.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_errors.py tests/unit/test_evidence.py tests/unit/test_steps
+        -q
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: The CLI oracle and the spec-layer target
+    intent: >-
+      Add the two targets that are nearly free once the harness exists. `fuzz_cli.py`
+      carries the single assertion of D-2 over fuzzed argv, called in process because
+      a subprocess per execution loses coverage feedback entirely. `fuzz_load_project.py`
+      fuzzes one document against five held valid, the kind chosen from the fuzzer's
+      own bytes, so that cross-document resolution is actually reached and a mutation
+      can produce a real guardrail violation against real entities. Each target ships
+      with the known-catchable defect that proves its oracle, and every confirmed
+      finding lands as a unit test under D-4.
+    scope: [fuzz/**, tests/unit/test_cli.py, tests/unit/test_spec/**]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_cli.py tests/unit/test_spec -q
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: The promise targets
+    intent: >-
+      Encode the in-process half of the determinism and cross-dialect oracles. `fuzz_compile_determinism.py`
+      compiles twice on one `Project` and once more on a freshly loaded one, because
+      compiler state and caching keyed on object identity are distinct failures. `fuzz_cross_dialect.py`
+      asserts a spec is compiled or refused with a named reason on each of duckdb,
+      trino and postgres, treating differing refusals as legitimate. Landing this
+      before the CI design means its replay job has targets to replay when it arrives;
+      the cross-process half of the claim is that design's, not this one's.
+    scope:
+      - fuzz/**
+      - tests/unit/test_compile.py
+      - tests/unit/test_determinism_guard.py
+      - tests/unit/test_dialects/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_compile.py tests/unit/test_determinism_guard.py
+        tests/unit/test_dialects -q
+    depends_on:
+      - 2
+    character: routine
+  - phase: 4
+    title: The planner target
+    intent: >-
+      Add `fuzz_metric_request.py` over fixed valid IR with a fuzzed `MetricRequest`,
+      names drawn half from a known-good pool so the target gets past "no such metric".
+      It carries the assertion that a plan rendering valid SQL alongside an empty
+      or crashing `Explanation` is a real defect, since the explanation is user-facing
+      and generated deterministically. Demand-gated on the planner surface settling,
+      and last because the evidence for it is the weakest of the five.
+    scope: [fuzz/**, tests/unit/test_plan/**, tests/unit/test_planner/**]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_plan tests/unit/test_planner -q
+    depends_on:
+      - 3
+    character: routine

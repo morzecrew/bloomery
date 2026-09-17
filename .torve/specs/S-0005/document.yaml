@@ -1,0 +1,294 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0005
+title: Semantic proof IR and closed-world checking
+kind: design
+status: draft
+implementation: partial
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  Acceptance is a positive derivation rather than the absence of a violation: unknown is
+  not safe, and capability grows by adding proof rules instead of weakening guardrails.
+
+  A semantic operation is admitted only when the compiler can construct a finite derivation
+  from facts that were declared or mechanically implied, and that derivation is a value the
+  planner holds and a consumer can read — not a side effect of nothing having objected.
+  Every leaf names where its fact came from, and two of the five provenances may never
+  close an obligation however good the guess behind them. A refusal names the smallest
+  obligation it could not close and claims nothing about impossibility. Two of the design's
+  three phases have landed; what is left is the explain surface rendering the derivations
+  the planner already holds.
+motivation: |
+  A guardrail answers by raising or staying silent, so the whole of the evidence that a
+  project is safe is that nothing objected. That is enough to refuse a wrongly shaped spec
+  and not enough to say why an accepted plan is correct, and the difference shows up in
+  three places at once: an author asking why a metric was refused gets a message rather
+  than a derivation, a release that widens capability cannot state what it widened, and a
+  fact read from a foreign artifact has no grade, so a guess and a declaration close an
+  obligation identically. Stating acceptance positively fixes all three in one move,
+  because a derivation names its rule, its premises and its leaves, and a leaf that may
+  not close anything is visible as such.
+current_state: |
+  Two of the three phases have landed. `src/bloomery/semantic/proof.py` is 759 lines
+  carrying the vocabulary — a five-member `Provenance` whose `closes` property is the one
+  place the safety line is drawn, `Proof`, `Refutation`, `Obligation`, `SemanticFact`,
+  `SemanticJudgement`, `EvidenceGrade`, and a `RULES` registry of nineteen entries,
+  R001 through R019, with nothing superseded. `closure.py` (794 lines) expresses the
+  rollup answer as a proof beside the boolean one it agrees with; `additivity.py` (760
+  lines) adds the second question a rollup asks, and `denomination.py` (312 lines) makes an
+  accepted currency conversion rest on R009 rather than on a label. The planner holds
+  proofs: `planner/semantic_plan.py` builds them and `planner/coverage.py` reads them, so
+  every answered request carries its derivation.
+
+  What has not landed is the reading surface. `Proof.render` produces the numbered prose
+  form this design shows and `Proof.serialize` produces the canonical encoding, and neither
+  has a caller outside the semantic package's own tests: `bloomery explain` prints SQL, the
+  planner's prose explanation, and the evidence-grade tally that a later document added,
+  and no derivation at all. The prose explanation's safety notes — `additive — SUM`, and
+  the ratio note recomputed at the requested grain — are fixed strings assembled from the
+  planner's structured result, with no proof behind them, which is the shape this design
+  refuses by name.
+
+  Of the seven rules the design names, six are minted. Explicit unit conversion is not:
+  nothing in the spec language declares a unit, no case in the bug corpus names the rule,
+  and the phase that minted the other measure rules added no premise for it. The corpus
+  itself is twelve cases under `tests/fixtures/semantic_corpus/`, 001 through 012.
+goals: |
+  Finish the reading half of the design: the derivation a plan already carries becomes
+  something an author and a continuous-integration run can both read, in the numbered form
+  this document shows and in the canonical encoding, against rule identifiers that are a
+  contract rather than a label. Carry every decision the source document graded into a form
+  a minted contract inherits, with the area each one governs read from the tree.
+non_goals: |
+  Deleting a guardrail. Widening what the compiler accepts — the explain surface changes no
+  request's outcome, which is what keeps the parity assertions meaningful. Minting the
+  seventh rule, which has no premise and no case and therefore nothing to convert; the
+  question of whether it is ever minted is left open rather than answered by building it.
+  Re-grading what the source document graded: every row below carries the grade it was
+  given.
+design:
+  - key: the-closed-world-contract
+    md: |
+      The semantic checker returns a proof or a refusal, never a boolean. A proof carries
+      the semantic result and the derivation that admitted it:
+
+      ```python
+      @dataclass(frozen=True, slots=True)
+      class Proof:
+          rule: RuleId
+          premises: tuple["Proof", ...]
+          facts: tuple[SemanticFactRef, ...]
+          conclusion: SemanticJudgement
+      ```
+
+      A judgement reads like `AdditiveRollup(measure=shipping, from=Order,
+      to=CustomerCountry)`. A refusal carries structured failed obligations and
+      remediation where it is known.
+
+      The rules the design names are entity-key determination, relationship preservation,
+      transitive functional dependency, additive rollup, explicit unit conversion,
+      qualified as-of join, and derived ratio reconstruction. Each is named, documented,
+      deterministic and independently testable, which is what makes "which rule admitted
+      this?" a question with an answer.
+  - key: provenance-of-facts
+    md: |
+      Every leaf identifies where its fact came from, and the vocabulary is closed at five
+      members:
+
+      - `Declared` — authored directly in a spec;
+      - `Derived` — mechanically implied by declared facts;
+      - `ImportedVerified` — read from a machine-readable external artifact under a
+        documented exact rule;
+      - `InferredHeuristic` — never sufficient for a correctness proof;
+      - `Unknown` — never sufficient.
+
+      The last two exist so a diagnostic can say there is a fact here and it is not one I
+      may use. That distinction is worth more than their absence and worth nothing at all
+      if either can close an obligation, which is why the line is drawn in one place rather
+      than at each call site.
+  - key: closed-world-monotonicity
+    md: |
+      The release property, when specs are unchanged and no prior rule is found unsound:
+
+      ```text
+      SafeQueries(N) ⊆ SafeQueries(N+1)
+      ```
+
+      Capability grows by adding sound derivations, and a new rule ships with positive and
+      adversarial tests showing the boundary it admits. If a rule already accepted is
+      discovered unsound, correctness wins: the change is breaking and is documented
+      explicitly rather than narrowed quietly.
+  - key: refutations
+    md: |
+      A refusal identifies the smallest failed obligation available, and says what it found
+      instead of what it required:
+
+      ```text
+      Cannot prove shipping by item_sku.
+
+      Required:
+        preserve shipping@Order while grouping by Item.sku
+
+      Found:
+        Order -> OrderItem is one_to_many
+
+      Reason:
+        the path refines the measure grain and may duplicate shipping
+      ```
+
+      A refutation is not a formal proof of impossibility. It states that there is no
+      permitted derivation under the current rule set, and the wording must not claim more.
+  - key: the-explain-surface
+    md: |
+      `bloomery explain` renders the same proof objects the planner consumes. No separate
+      prose-only explanation engine reconstructs the reasoning from the final SQL, because
+      a reconstruction can be wrong in exactly the way the derivation exists to prevent:
+      it agrees with the answer without resting on it.
+
+      ```text
+      PROVEN revenue by customer.country
+
+      1. revenue originates at Order
+      2. Order.customer_id -> Customer is many_to_one
+      3. Customer -> country is functionally determined
+      4. revenue is additive across Order
+      5. therefore Order -> CustomerCountry is a safe rollup
+      ```
+
+      Machine-readable output is available for continuous integration and tooling, against
+      stable rule identifiers.
+
+      This is the half still outstanding, and the reason it waited is recorded rather than
+      inferred: when the vocabulary landed, the planner consulted the semantic package
+      nowhere, so there was no proof for the surface to render and the first phase said so
+      in `logs/T-0020.md`. The planner holds proofs now, which removes the reason.
+  - key: guardrails-are-kept
+    md: |
+      Existing guardrails remain valid, and migration proceeds by expressing current safety
+      decisions as proof obligations and refutations where practical — **not by deleting
+      guardrails first**. A guardrail deleted in favour of a rule that turns out narrower is
+      a silently accepted unsafe project, and the parity assertions are what make the two
+      comparable at all.
+
+      The mart compiler keeps its aggregate error mechanism throughout while internally
+      consuming shared semantic facts. The additive obligation is the shape this asks for,
+      built and kept: it expresses a decision a guardrail already makes, converts no corpus
+      case by construction, and the guardrail stayed.
+  - key: determinism-of-proofs
+    md: |
+      A proof tree is a compiler output held for evidence, so the determinism contract
+      applies without exception: canonical premise order, stable rule identifiers, no memory
+      addresses, no timestamps, no arbitrary graph traversal order. Equivalent authored
+      ordering produces equivalent proof serialization. Premises and facts are sorted on
+      construction rather than trusted in arrival order, because a graph walk is what
+      produces them and this codebase's determinism failures have always entered through
+      iteration order.
+tests: |
+  `tests/unit/test_semantic/test_proof.py` is the vocabulary's test and the largest single
+  piece of evidence for the rows below: provenance closure, a proof resting on nothing,
+  canonical premise order, serialization that carries nothing process-dependent, the
+  registry's uniqueness and append-only discipline, and the parity between the proof and
+  the boolean answer it expresses. `tests/unit/test_semantic/test_closure.py` and
+  `test_additivity.py` cover the rollup's two questions;
+  `tests/unit/test_semantic/test_denomination.py` covers the conversion obligation.
+  `tests/unit/test_determinism_guard.py` runs the proof and the semantic plan across hash
+  seeds. `tests/execution/test_semantic_corpus.py` runs the twelve cases and pins each
+  outcome against the rule identifier that produced it.
+
+  What the remaining phase owes: a test that the rendered derivation is the proof the plan
+  holds rather than a second account of it, a test that the machine-readable form names
+  stable rule identifiers, and the assertion that no request changes outcome because the
+  surface was added.
+docs: |
+  `pages/docs/concepts/what-bloomery-proves.md` is where the derivation belongs as a
+  concept, and `pages/docs/how-to/use-the-cli.md` is where the new section of `explain`
+  output is shown. Both are snippet-checked, so a rendered example in either is executed
+  rather than transcribed.
+out_of_scope: |
+  The planner's own prose safety notes, which belong to the documents that specified the
+  explanation surface and its fixed strings; this design adds a derivation beside them
+  rather than replacing them. The import path that reads facts from a foreign artifact,
+  which was built against D-1 and retired. The plan optimization pass D-9 governs, which
+  does not exist and which no phase here builds.
+risks: |
+  A rendered derivation is a surface, and a surface is pinned by tests and by documentation
+  snippets the moment it ships; getting the shape wrong is expensive to correct afterwards.
+  The mitigation is that the shape is already written down and already tested — `Proof.render`
+  and `Proof.serialize` exist and are exercised — so the phase is a wiring change against a
+  settled form rather than a design of one.
+
+  D-4 is a release discipline nothing in the code can enforce, so it is graded `ASSUMED` and
+  will stay unmeasured until a release-time comparison exists. D-9 governs an area with no
+  implementation, so it is a lock over an empty pass: it convicts the first optimization that
+  merges aggregate branches, and until one is written it measures nothing.
+sections:
+  - key: provenance
+    md: |
+      Carried across from `rfcs/0039-semantic-proof-ir.md`, corpus number 0039, third in
+      the semantic-correctness sequence, status *in progress* in `rfcs/INDEX.md`. The rows
+      D-1 through D-9 below are rows 1 through 9 of that document's decision table, each
+      with the grade it was given there; the `paths` on every row are read from the working
+      tree on 2026-09-18 and were not part of the source document, which declared areas in
+      task files rather than in the table.
+
+      Two phases have landed:
+
+      - the vocabulary, provenance, and the rollup answer expressed in them, in #81
+        (`8c2eee45`), with the execution record in `logs/T-0020.md`;
+      - the two measure rules R011 and R012 with four corpus cases as their evidence, in
+        #92 (`654d93e6`), with the execution record in `logs/T-0029.md`. The task file for
+        that landing, `tasks/T-0029.json`, is where the source document's rows first
+        declared areas, and those declarations are the starting point for the `paths` below.
+
+      What execution proposed and the source table never accepted is deliberately not folded
+      in. Row 7 was proposed closed — a proof is built on demand and never retained — and row
+      8 was proposed closed as append-only, by the discipline the decision tables themselves
+      use; both rows are carried at `OPEN`, because the grade is the author's to change and an
+      unaccepted proposal recorded as settled would launder it. The proposals are named in
+      each row's rationale so a reader meets the evidence rather than re-deriving it.
+
+      The seventh rule of the core contract is unbuilt and has no phase. The document that
+      owned the bug corpus has retired, so no new case can name the rule; that leaves the
+      question open rather than answered, which is Q-1.
+alternatives:
+  - option: >-
+      A boolean `is_safe` as the primary internal representation
+    rejected_because: >-
+      It discards the derivation, so every consumer downstream — the explain surface,
+      the per-case rule pinning the bug corpus needs, a refusal's smallest failed
+      obligation — has to reconstruct it from the answer. Reconstruction after the
+      fact is how a prose-only explanation engine gets written, which the explain
+      surface refuses by name.
+  - option: >-
+      Deleting a guardrail once a proof rule covers the same ground
+    rejected_because: >-
+      A guardrail deleted in favour of a rule that turns out narrower is a silently
+      accepted unsafe project. The order is fixed instead: express the decision as
+      an obligation first, keep the guardrail, and let the parity assertions make
+      the two comparable.
+  - option: One monolithic checker that returns a proof tree
+    rejected_because: >-
+      It passes the same tests and cannot answer which rule admitted a given acceptance,
+      which the bug corpus requires of every case it pins.
+  - option: >-
+      A prose-only explanation engine that reconstructs the reasoning from the final
+      SQL
+    rejected_because: >-
+      The reasoning would agree with the answer without resting on it, which is precisely
+      the failure a positive derivation exists to prevent; the explanation and the
+      admission would drift with nothing able to notice.
+questions:
+  - id: Q-1
+    text: >-
+      Whether explicit unit conversion is ever minted as a rule. It is the last of
+      the seven the core contract names and the only one unbuilt: nothing in the spec
+      language declares a unit, no case in the bug corpus names the rule, and the
+      document that owned the corpus has retired, so no new case will. A rule with
+      no premise and nothing to convert is the monolithic-checker failure D-5 exists
+      to catch, so building it to complete the list would be a fixture written for
+      a rule rather than a rule written for a failure. Either the spec language gains
+      units and the rule follows, or the core contract names six rules and says why.

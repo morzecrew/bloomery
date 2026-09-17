@@ -1,0 +1,129 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      Every relation is declared, never inferred — not from column names, not from
+      cardinality, not from the data. One `GROUP BY` would answer `determines:` exactly,
+      and from a single load of a source that has no counterexample yet; an inference
+      cannot be told from a declaration once written down
+    paths:
+      - src/bloomery/spec/entity.py
+      - src/bloomery/spec/catalog.py
+      - src/bloomery/semantic/closure.py
+    consequence: >-
+      A relation has exactly the standing of a declared `many_to_one`: the compiler
+      reads what an author wrote and never looks at a row, so nothing in the closure
+      or the spec models may consult data or guess from a name
+    rationale: >-
+      Carried from row 1 of the source document, which grades it `LOCKED` and takes
+      the same posture the declared-source-timezone design takes for a zone. It also
+      rests on the compiler's own purity boundary, which is what makes an inference
+      impossible to write here without crossing a line that is already defended
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      A fact with no consumer is not added. Each of the three relations is listed
+      with the rule or surface that reads it, and one that loses its consumer during
+      execution is dropped rather than landed
+    paths: [src/bloomery/semantic/proof.py]
+    consequence: >-
+      A vocabulary that outruns its rules is a spec surface nobody can be refused
+      by, which is a promise the compiler does not keep; a relation reaching the spec
+      models without its rule reaching `RULES` is the shape this forbids
+    rationale: >-
+      Carried from row 2 of the source document, which grades it `LOCKED`. It is the
+      reason the phasing is ordered by consumer rather than by how easy each relation
+      is to build
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      A dimension is not an entity. Modelling `city` and `state` as entities with
+      a declared `many_to_one` would reuse R002 exactly and is rejected: it taxes
+      a two-column fact with a grain, a key and a mapping, and it puts every hierarchy
+      level into the lineage graph as a node nobody builds
+    paths: [src/bloomery/spec/entity.py, src/bloomery/semantic/closure.py]
+    consequence: >-
+      The column-to-column determination needs its own fact and its own closure; the
+      entity-keyed machinery is not extended to carry it, and a project with a five-level
+      geography gains no entities
+    rationale: >-
+      Carried from row 3 of the source document, which grades it `LOCKED`. The existing
+      composition rules key on the determined reference's entity, so the reuse is
+      not merely unattractive — it does not fit without changing what those rules
+      are keyed on
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Determination is a lattice, not a list. A column may determine several others
+      independently, and `postcode` determining both `state` and `delivery_zone` is
+      the ordinary case rather than the exotic one
+    paths: [src/bloomery/spec/entity.py, src/bloomery/spec/catalog.py]
+    consequence: >-
+      `determines:` is a set of names on the determinant and is transitively closed
+      by the compiler; departing means an ordered-levels spelling, which is smaller,
+      cannot express a lattice, and restates the same fact on every mart that carries
+      the columns
+    rationale: >-
+      Carried from row 4 of the source document, which grades it `ASSUMED`. The trade
+      is stated in the alternatives rather than left to be rediscovered by whoever
+      builds it
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      `role_of:` generalizes `DateRoleStep` rather than replacing it. A date's roles
+      expand into buckets, which is a date-specific elaboration, so the two coexist
+    paths: [src/bloomery/spec/marts.py, src/bloomery/ir/nodes.py]
+    consequence: >-
+      Existing projects with `flatten: [{date: …, role: …}]` compile unchanged and
+      the general role is additive beside them; departing means absorbing dates into
+      the general vocabulary, which touches every existing project
+    rationale: >-
+      Carried from row 5 of the source document, which grades it `ASSUMED`. Q-4 is
+      the question this row answers provisionally, and the two move together
+  - id: D-6
+    grade: OPEN
+    text: >-
+      Whether `determines:` lives on the entity model or on the catalog's canonical
+      field. A determination is a property of values rather than of a feed, which
+      argues for the catalog; the entity model is where fields are otherwise described.
+      The executor decides against the shape of both and logs it
+    paths: [src/bloomery/spec/entity.py, src/bloomery/spec/catalog.py]
+    consequence: >-
+      The placement decides where the parse, the cycle refusal and the transitive
+      closure live, and whether a determination is stated once per catalog field or
+      once per entity that maps it
+    rationale: >-
+      Carried from row 6 of the source document, which grades it `OPEN`; Q-1 states
+      the same question in the document's own words
+  - id: D-7
+    grade: OPEN
+    text: >-
+      Whether R020 requires a determinant of every dropped dimension or merely proves
+      more when one is present. Requiring refuses rollups that are legal today; proving
+      more leaves them where they are and may be the honest answer. Decide with one
+      real rollup corpus in hand
+    paths: [src/bloomery/semantic/proof.py, src/bloomery/semantic/rollup.py]
+    consequence: >-
+      The strict reading is a new refusal against projects that compile today; the
+      permissive reading changes no existing verdict and only adds a proof where a
+      determinant exists
+    rationale: >-
+      Carried from row 7 of the source document, which grades it `OPEN`; Q-2 states
+      the same question. The coarsening corpus case the tests section asks for is
+      what settles it
+  - id: D-8
+    grade: OPEN
+    text: >-
+      Whether `same_as:` is needed at all. The in-project case is derivable from `role_of:`
+      and the cross-project case has no consumer until multi-project composition reaches
+      its emitted-reference phase. If both hold, this relation is not built
+    paths: [src/bloomery/spec/marts.py]
+    consequence: >-
+      Phase 3 exists only if this resolves that the relation is needed; resolving
+      it the other way retires the relation and the document can complete on the first
+      two phases
+    rationale: >-
+      Carried from row 8 of the source document, which grades it `OPEN`; Q-3 is the
+      question whose answer decides it. D-2 is why an unneeded relation is dropped
+      rather than landed
