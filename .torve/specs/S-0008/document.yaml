@@ -2,13 +2,13 @@
 id: S-0008
 title: Fuzzing the compile boundary
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: []
 informed_by: [S-0001]
 supersedes: []
 superseded_by: null
-owner: author role
+owner: Lev Litvinov
 schema_version: 4
 summary: |
   A seventh test lane: coverage-guided fuzz targets under `fuzz/` that feed mutated bytes
