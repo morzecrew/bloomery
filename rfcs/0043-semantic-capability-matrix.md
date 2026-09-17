@@ -1,7 +1,8 @@
 # RFC 0043 — Evidence-based semantic capability matrix
 
 - **Status:** 🚧 In progress — research and specification task, **not a code change**.
-  [RFC 0042](0042-semantic-bug-corpus.md) is strongly recommended first: its cases are this
+  RFC 0042 (production-style semantic bug corpus; retired at `99318be`) is strongly
+  recommended first: its cases are this
   document's rows. **A second column is measured** (2026-09-15,
   [`logs/T-0058.md`](../logs/T-0058.md)): `comparisons/` exists with MetricFlow `0.212.0`
   against three cases, and D6 and D7 are settled by rows 9 and 10. `comparisons/MATRIX.md`

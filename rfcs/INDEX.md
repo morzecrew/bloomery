@@ -58,9 +58,11 @@ Four consequences worth knowing:
   retiring it leaves them unreadable in exactly the way the point above refuses. Its
   **status line** says so — the index one-liner records what an RFC *is*, never what has
   happened to it — and it is retired with the last of its dependants. 0037 is the first:
-  0039, 0042 and 0053 still reason in its grain vocabulary. 0038 and 0040 were the other two
-  and are gone, retired with 0058 — the last dependant of each, which is the rule working
-  rather than an exception to it. 0062 and 0069 were held the same way and are gone too,
+  0039 and 0053 still reason in its grain vocabulary. 0038, 0040 and 0042 were the others
+  and are gone: the first two retired with 0058 — the last dependant of each, which is the
+  rule working rather than an exception to it — and 0042 once the last of the cases it
+  owned was converted, which is the same rule reached by its own gate rather than by a
+  reader's judgement. 0062 and 0069 were held the same way and are gone too,
   retired together with 0064 once its last phase landed: nothing outside the three argued in
   their vocabulary, so all three left the directory in one change rather than one at a time.
   0044, 0065 and 0070 left in one change for the same reason, and that change is worth
@@ -110,7 +112,6 @@ know it has a companion recording where it turned out to be wrong.
 | [0033](0033-observability-logging-and-a-warnings-channel.md) | Observability: logging and a warnings channel | 🚧 In progress | Stage-level stdlib logging that stays silent by default and cannot touch artifact bytes, a typed compile-time advisory channel riding `SpecEvidence`, and `warnings` reserved for deprecation alone. |
 | [0037](0037-semantic-grain-model.md) | Semantic grain model and functional dependencies | ✅ Complete | Grain as structural identity rather than a name, with functional dependencies carrying their basis, so rollup safety is proven instead of inferred from string equality. Root of the semantic sequence. |
 | [0039](0039-semantic-proof-ir.md) | Semantic proof IR and closed-world checking | 🚧 In progress | Acceptance as a positive derivation rather than the absence of a violation, with provenance on every leaf: unknown is not safe, and capability grows by adding proof rules. |
-| [0042](0042-semantic-bug-corpus.md) | Production-style semantic bug corpus | 🚧 In progress | Cases where the SQL is valid, every cast succeeds and the number is wrong anyway — the opposite question to the dirty corpus. Startable immediately; the acceptance evidence for the rest. |
 | [0043](0043-semantic-capability-matrix.md) | Evidence-based semantic capability matrix | 🚧 In progress | Comparing represented semantic properties across engines, one tested configuration at a time, with bloomery scored by the same standard including where it loses. |
 | [0046](0046-validating-a-dialect-port.md) | Validating a dialect port against an engine we cannot run | 📝 Draft | The tier ladder for a hosted engine with no container: what an emulator proves, why the engine's own compile-only check is the oracle, and the naming and credential rules that keep the two apart. |
 | [0047](0047-snowflake-dialect.md) | Snowflake dialect port | 📝 Draft | Two credible local emulators and `EXPLAIN USING JSON` for authority; the risk is semantic, chiefly three timestamp types where bloomery has one zoneless UTC. |
