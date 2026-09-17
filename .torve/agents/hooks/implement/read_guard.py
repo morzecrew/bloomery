@@ -27,7 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from scope_guard import allow_patterns, is_allowed
+from scope_guard import allow_patterns, deny_patterns, is_allowed
 
 # Below this a whole file is cheaper than the round trip that would replace it.
 # 8,000 bytes is roughly the threshold dsh's own result pruner uses (8,192),
@@ -111,7 +111,7 @@ def main() -> int:
     except (ValueError, OSError):
         return 0
 
-    if size < LARGE or is_allowed(rel, allow_patterns(contracts[0])):
+    if size < LARGE or is_allowed(rel, allow_patterns(contracts[0]), deny_patterns(contracts[0])):
         return 0
 
     sys.stderr.write(answer(rel, size, outline(rel)) + "\n")

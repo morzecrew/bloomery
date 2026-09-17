@@ -37,8 +37,13 @@ equipment:
 # `local:`, because it is a path this repository already versions (S-0062/D-3):
 # the re-declaration is a fetch of tracked bytes into the cache, not a second
 # copy of a third party's repository.
+# `readable-code` is vendored here by skills-lock.json into `.claude/skills/`,
+# which git does not track — so a worktree cut from a commit holds no such
+# directory and a `local:` source would not resolve. Fetched from the
+# repository the lock names instead, pinned in `.torve/pins.yaml`.
 - kind: skill
-  source: local:.claude/skills/readable-code
+  source: github:morzecrew/agent-skills
+  select: [readable-code]
 # The first `hook` declaration (S-0066/D-5): declared equipment, never an
 # image edit, and the battery stays the judge — the refusal says a write is
 # outside the contract's scope before the bytes land, and the finishing

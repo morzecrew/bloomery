@@ -250,6 +250,40 @@
       "title": "Model",
       "type": "object"
     },
+    "NightConfig": {
+      "additionalProperties": false,
+      "description": "The terms one served night runs under (S-0079/D-5).\n\nBoth refusals below fire at load, while a person is still standing at\nthe terminal. A night with no budget on either axis would run until\nsomething else stopped it, and a stop class nobody can raise is a\ncondition that silently never fires at 04:00 \u2014 which is the one hour\nnobody is there to notice that it did not.",
+      "properties": {
+        "budget_attempts": {
+          "default": 50,
+          "description": "Attempts the night may start before it closes; 0 leaves the attempt axis\nunbounded, and both axes at 0 is refused.",
+          "title": "Budget Attempts",
+          "type": "integer"
+        },
+        "budget_usd": {
+          "default": 50.0,
+          "description": "Dollars the night may burn across every task before it closes; 0 leaves the\ndollar axis unbounded, and both axes at 0 is refused.",
+          "title": "Budget Usd",
+          "type": "number"
+        },
+        "minutes": {
+          "default": 480,
+          "description": "The wall-clock end, measured from the open. A soft bound: an attempt in flight\nis never interrupted by it (S-0079/D-12).",
+          "title": "Minutes",
+          "type": "integer"
+        },
+        "stop_on": {
+          "description": "Escalation classes that stop the night on their first occurrence; every other\nclass escalates as it always did and the night carries on (S-0079/D-7). Each name\nmust be one `EscalationReason` carries.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Stop On",
+          "type": "array"
+        }
+      },
+      "title": "NightConfig",
+      "type": "object"
+    },
     "NotifyConfig": {
       "additionalProperties": false,
       "description": "Where an interrupt-class escalation is delivered (S-0051).\n\n`none` by default and explicitly (S-0051/D-4): a repository that has not\nchosen a destination sends nothing because somebody decided that, the\nsame shape the broker's `none` adapter takes.\n\nThe URL is the destination itself, not a credential \u2014 a webhook URL is\na bearer secret in practice, so it names an environment variable rather\nthan carrying a value into a committed file (S-0001/D-13).",
@@ -583,6 +617,7 @@
         "base_url": {
           "default": "",
           "description": "Where this dialect is served (http:// or https://). Named `base_url` because that\nis what every client calls it; it was `upstream` while it lived on the broker.",
+          "pattern": "^https?://",
           "title": "Base Url",
           "type": "string"
         },
@@ -1100,6 +1135,10 @@
     "loop": {
       "$ref": "#/$defs/LoopConfig",
       "description": "The manager pass's knobs (S-0019/A-8)."
+    },
+    "night": {
+      "$ref": "#/$defs/NightConfig",
+      "description": "The terms a served night runs under (S-0079/D-5)."
     },
     "notify": {
       "$ref": "#/$defs/NotifyConfig",

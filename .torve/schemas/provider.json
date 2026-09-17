@@ -113,6 +113,7 @@
         "base_url": {
           "default": "",
           "description": "Where this dialect is served (http:// or https://). Named `base_url` because that\nis what every client calls it; it was `upstream` while it lived on the broker.",
+          "pattern": "^https?://",
           "title": "Base Url",
           "type": "string"
         },

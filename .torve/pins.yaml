@@ -5,3 +5,4 @@
 # Not an equipment layer: nothing here gives a seat anything it did not ask for
 # (S-0062/A-6). A profile that writes its own `ref:` keeps it.
 github:mattpocock/skills: 3cca18b368ae95cdbdebbff572ccafa662551015
+github:morzecrew/agent-skills: 6105b0749125b9ae7eef0c11d5f97a5ffa84438f

@@ -40,6 +40,7 @@ with open(manifest, encoding="utf-8") as handle:
     items = json.load(handle).get("items", [])
 
 words = []
+placed: dict[str, str] = {}  # skill directory name -> the item that landed it
 
 for item in items:
     kind, path = item["kind"], item["path"]
@@ -52,7 +53,17 @@ for item in items:
             )
 
         os.makedirs(root, exist_ok=True)
-        shutil.copytree(path, os.path.join(root, os.path.basename(path)), dirs_exist_ok=True)
+        name = os.path.basename(path)
+        # Two items whose directories share a name would land in one skill
+        # directory and merge — `dirs_exist_ok` is for a re-run of the same
+        # item, not for one skill silently overwriting another.
+        if placed.get(name, path) != path:
+            raise SystemExit(
+                f"two skills named {name!r} — {placed[name]} and {path} — would land in "
+                f"one directory under {root}; declare one under another name"
+            )
+        placed[name] = path
+        shutil.copytree(path, os.path.join(root, name), dirs_exist_ok=True)
         continue
 
     if kind == "mcp":
