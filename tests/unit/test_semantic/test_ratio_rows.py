@@ -35,6 +35,7 @@ entities:
       shipment_id: {type: string, required: true}
       carrier_cost: {type: "decimal(12,2)", required: true}
       parcels: {type: int, required: true}
+      crates: {type: int, required: true}
       shipped_on: {type: date, required: true}
       note: {type: string}
 """
@@ -48,6 +49,7 @@ key:
 fields:
   carrier_cost: {from: "$.cost"}
   parcels: {from: "$.parcels", transform: [to_int]}
+  crates: {from: "$.crates", transform: [to_int]}
   shipped_on: {from: "$.shipped_on", transform: [{parse_date: ISO8601}]}
   note: {from: "$.note"}
 """
@@ -435,3 +437,186 @@ def test_two_restrictions_that_resolve_differently_still_disagree() -> None:
 
     assert isinstance(refutation, Refutation)
     assert refutation.reason == RatioRowsRefusal.OPERANDS_DISAGREE.value
+
+
+@pytest.mark.parametrize(
+    ("clause", "discharges"),
+    [
+        ("{dimension: parcels, op: gt, values: [0]}", True),
+        ("{dimension: parcels, op: gt, values: [1]}", True),
+        ("{dimension: parcels, op: gte, values: [1]}", True),
+        ("{dimension: parcels, op: gte, values: [0]}", False),
+        ("{dimension: parcels, op: eq, values: [2]}", True),
+        ("{dimension: parcels, op: eq, values: [0]}", False),
+        ("{dimension: parcels, op: ne, values: [0]}", True),
+        ("{dimension: parcels, op: ne, values: [7]}", False),
+        ("{dimension: parcels, op: not_in, values: [0, 1]}", True),
+        ("{dimension: parcels, op: not_in, values: [1, 2]}", False),
+        ("{dimension: parcels, op: in, values: [1, 2]}", True),
+        ("{dimension: parcels, op: in, values: [0, 1]}", False),
+        ("{dimension: parcels, op: lt, values: [5]}", False),
+        ("{dimension: parcels, op: lte, values: [5]}", False),
+        ("{dimension: note, op: is_null, values: [false]}", False),
+        ('{dimension: parcels, op: ne, values: ["many"]}', False),
+    ],
+)
+def test_which_restrictions_are_read_as_excluding_a_zero(clause: str, discharges: bool) -> None:
+    """The operator table, exhaustively, because a restriction the compiler
+    reads *wrongly* is worse than one it cannot read at all.
+
+    `>= 0` and `!= 7` are the two that look like they exclude a zero and do
+    not; `lt`/`lte` can only exclude one by admitting negatives, which is a
+    worse version of this bug and out of scope (§8); `is_null` is about nulls,
+    which is a counting denominator's question rather than a summed one's.
+    """
+
+    restriction = f"\n    filter:\n      - {clause}\n"
+    metrics = METRICS.replace('    expr: "carrier_cost"\n', f'    expr: "carrier_cost"{restriction}')
+    metrics = metrics.replace('    expr: "parcels"\n', f'    expr: "parcels"{restriction}')
+
+    assert isinstance(answer(metrics), Proof if discharges else Refutation)
+
+
+def test_a_restriction_on_another_column_does_not_discharge_it() -> None:
+    """The restriction has to be about the *denominator's* column.
+
+    Both operands restricted the same way satisfies leg 2, and a filter on
+    `note` says nothing about whether `parcels` is zero — so leg 1 still asks.
+    Found by sabotage: dropping the column match broke no test.
+    """
+
+    # A zero-excluding restriction on a *different* numeric column: it reads as
+    # one of the shapes the operator table admits, and says nothing about
+    # `parcels`. Found by sabotage — with the column match dropped, this is the
+    # project that wrongly discharges.
+    restriction = "\n    filter:\n      - {dimension: crates, op: gt, values: [0]}\n"
+    metrics = METRICS.replace('    expr: "carrier_cost"\n', f'    expr: "carrier_cost"{restriction}')
+    metrics = metrics.replace('    expr: "parcels"\n', f'    expr: "parcels"{restriction}')
+    refutation = answer(metrics)
+
+    assert isinstance(refutation, Refutation)
+    assert refutation.reason == RatioRowsRefusal.UNDECLARED_ROWS.value
+
+
+def test_a_range_rule_of_min_zero_does_not_discharge_it() -> None:
+    """`min: 0` admits the zero it would have to exclude. The bound has to be
+    *above* zero, and `>= 0` is the most natural thing to write for a count of
+    things — which is why this is the boundary worth pinning."""
+
+    mapping = MAPPING.replace(
+        '  parcels: {from: "$.parcels", transform: [to_int]}',
+        '  parcels:\n    from: "$.parcels"\n    transform: [to_int]\n'
+        "    quality:\n      - {rule: range, min: 0, on_fail: quarantine}",
+    )
+    refutation = answer(mapping=mapping)
+
+    assert isinstance(refutation, Refutation)
+    assert refutation.reason == RatioRowsRefusal.UNDECLARED_ROWS.value
+
+
+def test_a_boolean_filter_value_is_not_read_as_a_number() -> None:
+    """`False == 0` in Python, so a `ne: [false]` clause would otherwise read as
+    "not zero" and discharge a premise nobody stated. The values a filter
+    carries are text, ints and bools (RFC 0034 D8), and only the first two are
+    numbers."""
+
+    restriction = "\n    filter:\n      - {dimension: parcels, op: ne, values: [false]}\n"
+    metrics = METRICS.replace('    expr: "carrier_cost"\n', f'    expr: "carrier_cost"{restriction}')
+    metrics = metrics.replace('    expr: "parcels"\n', f'    expr: "parcels"{restriction}')
+    refutation = answer(metrics)
+
+    assert isinstance(refutation, Refutation)
+    assert refutation.reason == RatioRowsRefusal.UNDECLARED_ROWS.value
+
+
+def test_one_set_valued_restriction_written_in_two_orders_is_one_restriction() -> None:
+    """The values inside a clause are canonicalised too, not only the clauses.
+
+    `in: [1, 2]` and `in: [2, 1]` admit the same rows, and the IR keeps each as
+    written because the bytes differ. Leg 2 compares what they mean.
+    """
+
+    numerator = "\n    filter:\n      - {dimension: parcels, op: in, values: [1, 2]}\n"
+    denominator = "\n    filter:\n      - {dimension: parcels, op: in, values: [2, 1]}\n"
+    metrics = METRICS.replace('    expr: "carrier_cost"\n', f'    expr: "carrier_cost"{numerator}')
+    metrics = metrics.replace('    expr: "parcels"\n', f'    expr: "parcels"{denominator}')
+
+    assert isinstance(answer(metrics), Proof)
+
+
+def test_a_denominator_with_no_measure_of_its_own_is_refused() -> None:
+    """§8 names ratios of ratios as the next question and does not answer it.
+
+    What this pins is the answer the rule gives meanwhile: a denominator that
+    is a computed metric has no expression to trace to a field, so neither
+    structural discharge is available and the author is asked for a
+    declaration. Refusing is the conservative end of an undesigned question,
+    and it is reachable by an author, so it is pinned rather than left to be
+    discovered.
+    """
+
+    metrics = METRICS.replace(
+        '  parcels:\n    grain: shipment\n    additivity: additive\n    agg: sum\n'
+        '    expr: "parcels"\n',
+        '  parcels:\n    grain: shipment\n    additivity: additive\n    agg: sum\n'
+        '    expr: "parcels"\n'
+        "  parcels_computed:\n    additivity: non_additive\n    derived:\n"
+        '      expr: "p * 1"\n      inputs:\n        p: {metric: parcels}\n',
+    ).replace("denominator: parcels}", "denominator: parcels_computed}")
+    refutation = answer(metrics)
+
+    assert isinstance(refutation, Refutation)
+    assert refutation.reason == RatioRowsRefusal.UNDECLARED_ROWS.value
+    # Named by the metric, because there is no column to name.
+    assert "parcels_computed" in str(refutation.obligations[0].required)
+
+
+def test_a_counted_expression_that_is_not_a_column_discharges_nothing() -> None:
+    """The counting discharge needs a *column* to ask about nullability, and
+    `COUNT(parcels * 2)` has none — an expression can be null for reasons no
+    field declares, so the premise is unavailable rather than assumed."""
+
+    metrics = METRICS.replace(
+        '  parcels:\n    grain: shipment\n    additivity: additive\n    agg: sum\n'
+        '    expr: "parcels"\n',
+        '  parcels:\n    grain: shipment\n    additivity: additive\n    agg: count\n'
+        '    expr: "parcels * 2"\n',
+    )
+    refutation = answer(metrics)
+
+    assert isinstance(refutation, Refutation)
+    assert refutation.reason == RatioRowsRefusal.UNDECLARED_ROWS.value
+
+
+def test_a_ratio_naming_an_operand_that_does_not_exist_is_left_to_r012() -> None:
+    """Two rules must not claim one defect.
+
+    A ratio whose denominator names nothing is already reported where it
+    belongs — the metric is unreachable, and R012 refuses the reconstruction
+    with the message written for it. R019 stays silent rather than adding a
+    second leaf telling the author to declare a row set for a metric that is
+    not there.
+    """
+
+    metrics = METRICS.replace("denominator: parcels}", "denominator: nowhere}")
+
+    assert build(metrics=metrics) is not None
+
+
+def test_an_expression_naming_no_column_of_the_entity_resolves_to_nothing() -> None:
+    """The membership half of the origin lookup, which is not decoration.
+
+    `parse_one("parcels * 2").name` is the empty string and `parse_one("SUM(x)")`
+    reports `x`, so a check that stopped at "is this an `exp.Column`" would let
+    a compound expression resolve to whatever name SQLGlot surfaced. The
+    membership test is what makes the answer *this entity's column or nothing*,
+    and it is reachable: an expression naming a column the entity does not
+    declare reaches R019 before any other guard refuses it.
+    """
+
+    metrics = METRICS.replace('    expr: "parcels"\n', '    expr: "nonexistent_column"\n')
+    refutation = answer(metrics)
+
+    assert isinstance(refutation, Refutation)
+    # Named by the metric, because the expression resolved to no column.
+    assert "'parcels'" in str(refutation.obligations[0].required)

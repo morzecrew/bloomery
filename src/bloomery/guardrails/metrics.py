@@ -449,6 +449,14 @@ def _check_ratio_rows(metric: MetricIR, draft: ProjectIR, path: str) -> list[Gua
     if metric.ratio is None:
         return []
 
+    # An operand that names no metric is a different refusal with a message
+    # written for it (R012), and asking R019 about a ratio half of which does
+    # not exist would mean two rules claiming one defect.
+    declared = {one.name for one in draft.metrics}
+
+    if not {metric.ratio.numerator, metric.ratio.denominator} <= declared:
+        return []
+
     answer = prove_ratio_rows(metric, draft)
 
     if not isinstance(answer, Refutation):

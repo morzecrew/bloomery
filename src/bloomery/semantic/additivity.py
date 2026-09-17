@@ -304,6 +304,7 @@ _EXCLUDES_ZERO: Final[dict[str, Callable[[tuple[object, ...]], bool]]] = {
     # itself to be above zero.
     "gt": lambda values: _at_least(values[0], 0),
     "gte": lambda values: _above(values[0], 0),
+    "eq": lambda values: _numeric(values[0]) is not None and not _is_zero(values[0]),
     "ne": lambda values: _is_zero(values[0]),
     "not_in": lambda values: any(_is_zero(value) for value in values),
     "in": lambda values: values != () and not any(_is_zero(value) for value in values),
@@ -366,9 +367,13 @@ def _dimension_source(metric: MetricIR, project: ProjectIR) -> dict[str, str]:
     to the same rows therefore carry two spellings, and comparing the spellings
     refuses a correct ratio (logs/T-0063.md).
 
-    Read from every mart carrying the metric, because that is the set of marts
-    whose filters were checked against it (RFC 0034 D9) — and they agree by
-    construction, since each name resolves to the column it was flattened from.
+    Read from every mart carrying the metric, because that is the set whose
+    filters were checked against it (RFC 0034 D9). Where two of them spell one
+    dimension name over different columns the later mart wins, by the sorted
+    order ``ProjectIR.marts`` is already in — deterministic, and a tie this
+    rule does not try to break: a name meaning two things across the marts that
+    carry one measure is a modelling problem with its own refusal to grow, not
+    a row-set question.
     """
 
     return {
@@ -565,11 +570,13 @@ def prove_ratio_rows(metric: MetricIR, project: ProjectIR) -> Proof | Refutation
       contributes cost and no parcels, and sum-over-sum charges that cost to
       the parcels somebody else moved.
 
-    The second leg discharges three ways and every one of them is the author
-    having stated a reading: both operands restricted to exclude the zeros, the
-    denominator's own field declared positive at a disposition that removes the
-    row, or ``includes_zero_denominator: true`` — the inclusive reading, said
-    out loud rather than arrived at by default (D1, D2).
+    The second leg discharges four ways. Three are the author having stated a
+    reading — both operands restricted to exclude the zeros, the denominator's
+    own field declared positive at a disposition that removes the row, or
+    ``includes_zero_denominator: true``, the inclusive reading said out loud
+    rather than arrived at by default (D1, D2). The fourth is structural: a
+    count over a column that cannot be null counts every row the numerator
+    sums, so there is nothing to state (logs/T-0063.md).
 
     Nothing here chooses. A refutation is the rule working; a proof names which
     of the three the author wrote, because "declared" without which declaration
@@ -584,24 +591,13 @@ def prove_ratio_rows(metric: MetricIR, project: ProjectIR) -> Proof | Refutation
     numerator = _metric(project, metric.ratio.numerator)
     denominator = _metric(project, metric.ratio.denominator)
 
-    if numerator is None or denominator is None:
-        # R012's territory: an operand that names nothing is refused there,
-        # with the message written for it. Answering it here too would mean two
-        # rules claiming one defect.
-        return Proof(
-            rule="R019",
-            conclusion=judgement,
-            facts=(
-                SemanticFact(
-                    source=f"metric:{metric.name}",
-                    provenance=Provenance.DERIVED,
-                    statement=(
-                        f"{metric.name} names an operand this project does not declare; "
-                        "which rows it is about is R012's refusal to make, not this one's"
-                    ),
-                ),
-            ),
-        )
+    if numerator is None or denominator is None:  # pragma: no cover — caller contract
+        # An operand that names nothing is R012's refusal to make, with the
+        # message written for it, and the caller filters those out before
+        # asking. Proving *anything* here would be worse than raising: a proof
+        # over a ratio half of which does not exist is a true-looking answer to
+        # a question nobody may rely on.
+        raise ValueError("prove_ratio_rows needs a ratio whose operands are declared metrics")
 
     if _restriction(numerator, project) != _restriction(denominator, project):
         return Refutation(
@@ -641,7 +637,16 @@ def prove_ratio_rows(metric: MetricIR, project: ProjectIR) -> Proof | Refutation
     origin = _origin_column(denominator, project)
     column = origin[1] if origin is not None else denominator.name
 
-    if _excludes_zero_of(denominator, column) and _excludes_zero_of(numerator, column):
+    # The denominator alone, and deliberately: leg 2 has already proved the two
+    # restrictions are the *same* one, so asking the numerator again adds
+    # nothing — and it adds it wrongly. `_excludes_zero_of` matches on the
+    # authored dimension name, which differs between marts for one column
+    # (`region` and `order_region` are the same column flattened twice), so a
+    # cross-mart ratio correctly restricted on both sides would fail the second
+    # check and be refused. Found by sabotage: removing the numerator's half
+    # broke no test, and the reason it broke none is that it cannot be reached
+    # with the restrictions equal.
+    if _excludes_zero_of(denominator, column):
         return _rows_proof(
             metric,
             f"both operands are restricted to rows whose {column!r} is not zero",
