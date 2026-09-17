@@ -884,6 +884,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="The reject table and the replay lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#replaying-onto-a-historical-entity" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Replaying onto a historical entity
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1888,6 +1905,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="The reject table and the replay lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#replaying-onto-a-historical-entity" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Replaying onto a historical entity
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2314,25 +2348,50 @@ as one unit of work — on dbt, a <code>macros/replay_&lt;entity&gt;.sql</code> 
 name their relations through <code>ref()</code>. Executing them — and executing retention
 deletes — is the caller's job. The package never touches a warehouse.</p>
 </div>
+<h3 id="replaying-onto-a-historical-entity">Replaying onto a historical entity<a class="headerlink" href="#replaying-onto-a-historical-entity" title="Permanent link">&para;</a></h3>
+<p>An entity that keeps history natively — <code>scd: type2</code> — may quarantine, and the route a
+recovered row takes back is different from every other entity's.</p>
+<p>Its relation belongs to the target framework: a <code>SCD_TYPE_2_BY_COLUMN</code> model on SQLMesh, a
+snapshot on dbt. Replay's usual <code>MERGE</code> admits a row by the entity's own columns, and a
+type 2 relation carries more than those — the validity interval the framework maintains,
+plus dbt's <code>dbt_scd_id</code>. A merge that names none of them inserts a version with a NULL
+interval: a row that is present, queryable, and skipped by every as-of join, with the
+statement reporting success. Filling those columns is not available to a compiler, because
+<code>dbt_scd_id</code> is a hash dbt computes and owns.</p>
+<p>So replay writes the recovered row <strong>back to bronze</strong>, as a new delivery, and the ordinary
+pipeline admits it. The framework then versions it with the interval the framework assigns,
+which is the point of routing through it rather than around it.</p>
+<div class="admonition note">
+<p class="admonition-title">The entity does not change when you run replay</p>
+<p>Running <code>replay/&lt;entity&gt;.sql</code> — or <code>dbt run-operation replay_&lt;entity&gt;</code> — leaves a type 2
+entity untouched, and that is the design rather than a failure. The recovered row appears
+on the <strong>next</strong> build, when the framework versions it, and its reject row resolves on the
+replay after that. The artifact's own header says so where you will meet it.</p>
+</div>
+<p><strong>The re-delivery keeps the original row's <code>_source_row_id</code></strong> and carries a reserved
+<code>_load_id</code> of <code>__replay__</code>, which is what an operator greps for to find the rows replay
+delivered. The identity is reused deliberately: it is what lets the reject row be marked
+resolved once the row has arrived, rather than being re-delivered forever under a new one.</p>
 <div class="admonition warning">
-<p class="admonition-title"><code>quarantine:</code> and <code>scd: type2</code> do not compose</p>
-<p>An entity that keeps history natively is refused if it also quarantines, on <strong>every</strong>
-target. Replay's merge admits a row by the entity's own columns, and a type 2 relation
-carries more than those: the validity interval the framework maintains, plus dbt's
-<code>dbt_scd_id</code>. The merge names none of them, so it would insert a version with a NULL
-interval — a row that is present, queryable, and skipped by every as-of join, with the
-merge reporting success.</p>
-<p>Filling those columns is not available to a compiler: <code>dbt_scd_id</code> is a hash dbt
-computes and owns. So the combination is refused rather than approximated — a
-<code>ResolutionError</code> naming both halves.</p>
-<p><strong>Which half to give up depends on which you need.</strong> If the history matters more,
-declare the entity <code>scd: type1</code> and keep <code>quarantine:</code> — you lose versioning and keep
-the reject table and replay. If the recovery matters more, keep <code>scd: type2</code> and
-reduce the entity's rules to <code>flag</code>: no row is diverted, <code>_quality_flags</code> still
-records every failure, and the quality mart still counts them.</p>
-<p>This is unbuilt rather than wrong. A recovered row has to reach the entity through
-whatever produces its versions, so the framework does the versioning it owns, and
-that route does not exist yet.</p>
+<p class="admonition-title">The route needs two declarations, and refuses without them</p>
+<p>A quarantining <code>scd: type2</code> entity is a <code>ResolutionError</code> unless both hold:</p>
+<ul>
+<li><strong>it declares <code>dedupe:</code></strong> — the re-delivery shares an identity with the original, so
+  without a dedupe both reach the entity and one source row becomes two;</li>
+<li><strong>it declares no <code>redact:</code></strong> — what replay re-delivers is the reject row's stored
+  payload, and that payload has the redacted columns removed. Writing it back would put
+  a row into your landing zone whose redacted column is NULL and whose metadata says it
+  was delivered. The value is gone from the only copy replay can reach.</li>
+</ul>
+<p>Either way the message names the half to fix, and <code>scd: type1</code> remains the answer for a
+project that wants neither.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Replay writes to bronze, which is yours</p>
+<p>This is the one statement bloomery emits that writes outside the layers it builds. It is
+still text you run — the package never touches a warehouse — but it targets the relation
+your ingestion owns, and it only exists for an entity that declares both <code>scd: type2</code>
+and <code>quarantine:</code>.</p>
 </div>
 <p><code>plan()</code> knows about all of this. Adding, removing, or changing a rule, changing a
 disposition in either direction, and changing <code>dedupe</code> all classify as <code>RESTATING</code>, and
