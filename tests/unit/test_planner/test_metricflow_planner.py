@@ -314,10 +314,22 @@ def test_a_distinct_count_is_planned_on_one_mart_and_explained_as_one() -> None:
     ir = variant_ir(
         "cross_mart_branches",
         metrics=(
-            "  shipping_count:\n    grain: order\n    additivity: additive\n    agg: count\n"
-            '    expr: "order_id"\n',
-            "  shipping_count:\n    grain: order\n    additivity: distinct_count\n"
-            '    agg: count_distinct\n    expr: "customer_id"\n',
+            (
+                "  shipping_count:\n    grain: order\n    additivity: additive\n"
+                '    agg: count\n    expr: "order_id"\n',
+                "  shipping_count:\n    grain: order\n    additivity: distinct_count\n"
+                '    agg: count_distinct\n    expr: "customer_id"\n',
+            ),
+            # `customer_id` is nullable, so counting distinct customers misses
+            # the orders that have none — and `discount_per_order` divides by
+            # this measure, which makes R019 ask which rows that ratio is
+            # about. The variant's subject is the plan for `shipping_count`,
+            # so the ratio states a reading and stays out of the way.
+            (
+                "    ratio: {numerator: line_discount, denominator: shipping_count}",
+                "    ratio: {numerator: line_discount, denominator: shipping_count, "
+                "includes_zero_denominator: true}",
+            ),
         ),
     )
     plan = PLANNER.plan(

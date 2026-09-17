@@ -562,6 +562,11 @@
           "title": "Denominator",
           "type": "string"
         },
+        "includes_zero_denominator": {
+          "default": false,
+          "title": "Includes Zero Denominator",
+          "type": "boolean"
+        },
         "numerator": {
           "title": "Numerator",
           "type": "string"

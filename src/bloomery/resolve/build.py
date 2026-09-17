@@ -2200,7 +2200,11 @@ def _build_metrics(
                     else None
                 ),
                 ratio=(
-                    Ratio(numerator=metric.ratio.numerator, denominator=metric.ratio.denominator)
+                    Ratio(
+                        numerator=metric.ratio.numerator,
+                        denominator=metric.ratio.denominator,
+                        includes_zero_denominator=metric.ratio.includes_zero_denominator,
+                    )
                     if metric.ratio is not None
                     else None
                 ),

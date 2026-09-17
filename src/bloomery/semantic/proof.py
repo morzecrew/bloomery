@@ -326,6 +326,15 @@ class Rule:
 #: that evaluating the expression after the aggregate is the declared number
 #: rather than a row-level one aggregated afterwards.
 #:
+#: R019 is the row-set obligation on a ratio (RFC 0075 §5.1). It stands beside
+#: R012 rather than inside it: R012 is about *how* a ratio is rebuilt — from
+#: operands that each roll up, never from a summed quotient — and is silent
+#: about which rows belong in it. Corpus case 009 satisfies R012 exactly and
+#: still answers `4.00` where the answer is `3.00`, because a shipment that
+#: moved nothing contributes cost to the numerator and no parcels to the
+#: denominator. The rule refuses and never chooses: both readings are metrics
+#: somebody wants, and the defect is that they are spelled identically.
+
 #: R018 is the zone obligation (RFC 0074 §5.3). It is the only rule here that
 #: fires on a *use* rather than on an operation: nothing is wrong with parsing
 #: a wall clock, and nothing is wrong with carrying one — what needs an
@@ -384,6 +393,10 @@ RULES: Final[dict[str, Rule]] = {
         Rule(
             "R018",
             "a timestamp whose absolute position is consumed was parsed from a declared zone",
+        ),
+        Rule(
+            "R019",
+            "a ratio is over one row set, and every row in it has a non-zero denominator",
         ),
     )
 }

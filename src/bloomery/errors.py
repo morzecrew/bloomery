@@ -85,6 +85,8 @@ __all__ = [
     "UnexportedImport",
     "UnknownStep",
     "UnknownUpstream",
+    "RatioOperandsDisagree",
+    "UndeclaredRatioRows",
     "UndeclaredZone",
     "UnprovableRollup",
     "StepDeterminismError",
@@ -552,6 +554,44 @@ class ImportCollision(GuardrailError):
     wins — is a rule every reader has to know before they can read a
     reference, and whichever way it points, the other project's author cannot
     see it from their own file.
+    """
+
+
+class UndeclaredRatioRows(GuardrailError):
+    """Guardrail stage (RFC 0075 §5.1, R019): a ratio whose denominator can be
+    zero on a row, with nothing saying whether that row belongs in it.
+
+    A shipment cancelled after the carrier charged for it contributes cost to
+    the numerator and no parcels to the denominator, so sum-over-sum charges
+    its cost to the parcels somebody else moved. Every check a ratio normally
+    gets still passes: the operands are additive, each rolls up, nothing is
+    null and the total denominator is not zero.
+
+    **Two readings are legitimate and this refuses rather than choosing.**
+    "Cost per parcel, over the parcels that exist" and "total carrier spend per
+    parcel moved, overheads included" are both metrics somebody wants, and
+    today they are spelled identically. Excluding the rows silently is the
+    fastest fix and the wrong one: it drops cost somebody is accountable for
+    and the report is silent about what it dropped.
+
+    The message carries both fixes, in that order, because a refusal that names
+    one of two legitimate readings pushes every author toward the same answer.
+    """
+
+
+class RatioOperandsDisagree(GuardrailError):
+    """Guardrail stage (RFC 0075 §5.2, R019): a ratio whose operands are
+    restricted to different row sets.
+
+    Its own class rather than a second message on
+    :class:`UndeclaredRatioRows`, for the reason R009's two refusal reasons are
+    two: the repair differs. That one asks an author which rows the ratio is
+    about; this one tells them the question has already been answered twice,
+    differently, and the quotient is of two quantities about different things.
+
+    Cheaper to check than the row question and sharper as a bug, and the two
+    fail on different projects — corpus case 009 passes this leg with both
+    operands unrestricted and fails the other.
     """
 
 

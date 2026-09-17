@@ -176,11 +176,21 @@ def test_the_avg_remediation_prescribes_a_spec_that_compiles() -> None:
     assert "additivity: ratio with ratio:" in _REMEDIES["avg"]
     assert "non_additive" not in _REMEDIES["avg"]
 
+    # Both operands unrestricted: R019 refuses a ratio of a filtered measure
+    # over an unfiltered one as being about two row sets, and that is a
+    # different piece of advice than the one under test here. The remedy names
+    # "the additive components", and components of one quantity share a row set
+    # by construction.
     compile_with(
-        "  avg_paid_revenue:\n"
-        "    requires_metrics: [paid_revenue, revenue]\n"
+        "  sale_count:\n"
+        "    grain: sale\n"
+        "    additivity: additive\n"
+        "    agg: count\n"
+        '    expr: "sale_id"\n'
+        "  avg_sale_value:\n"
+        "    requires_metrics: [revenue, sale_count]\n"
         "    additivity: ratio\n"
-        "    ratio: {numerator: paid_revenue, denominator: revenue}\n"
+        "    ratio: {numerator: revenue, denominator: sale_count}\n"
     )
 
 
@@ -239,7 +249,7 @@ def test_a_ratio_block_under_another_additivity_is_refused() -> None:
     leaf = one_violation(
         "  aov:\n"
         "    additivity: non_additive\n"
-        "    ratio: {numerator: revenue, denominator: revenue}\n"
+        "    ratio: {numerator: revenue, denominator: revenue, includes_zero_denominator: true}\n"
     )
 
     assert isinstance(leaf, InvalidMetricShape)
@@ -273,7 +283,7 @@ def test_a_cumulative_ratio_is_refused_even_carrying_an_aggregation() -> None:
         "    additivity: ratio\n"
         "    agg: sum\n"
         '    expr: "revenue"\n'
-        "    ratio: {numerator: revenue, denominator: revenue}\n"
+        "    ratio: {numerator: revenue, denominator: revenue, includes_zero_denominator: true}\n"
         "    cumulative: {grain_to_date: month}\n"
     )
 
@@ -305,7 +315,7 @@ def test_a_derived_metric_is_told_one_thing_and_not_two() -> None:
     [
         (
             "    additivity: ratio\n"
-            "    ratio: {numerator: revenue, denominator: revenue}\n",
+            "    ratio: {numerator: revenue, denominator: revenue, includes_zero_denominator: true}\n",
             "is ratio",
         ),
         # The second way to have nothing to accumulate, and the one that used to
@@ -340,7 +350,7 @@ def test_a_cumulative_metric_with_no_measure_is_refused(body: str, because: str)
         # word is its own since RFC 0038 minted the member, which is why the
         # additivity is parametrized rather than shared: one refusal reached
         # through both members of `COMPUTED` is what the predicate claims.
-        ("ratio", "ratio", "    ratio: {numerator: revenue, denominator: revenue}\n"),
+        ("ratio", "ratio", "    ratio: {numerator: revenue, denominator: revenue, includes_zero_denominator: true}\n"),
     ],
 )
 def test_a_filter_on_a_metric_with_no_measure_is_refused(
@@ -365,7 +375,7 @@ def test_a_filter_on_a_metric_with_no_measure_is_refused(
 @pytest.mark.parametrize(
     ("body", "also"),
     [
-        ("    ratio: {numerator: revenue, denominator: revenue}\n", "ratio:"),
+        ("    ratio: {numerator: revenue, denominator: revenue, includes_zero_denominator: true}\n", "ratio:"),
         ('    agg: sum\n    expr: "amount"\n', "agg:, expr:"),
     ],
 )

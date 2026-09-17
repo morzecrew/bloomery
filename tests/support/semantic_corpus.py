@@ -94,7 +94,8 @@ class Outcome(StrEnum):
 
     @property
     def answer(self) -> str | None:
-        """Which entry of ``expected/result.json`` the planner must return."""
+        """Which entry of ``expected/result.json`` an arm of this outcome
+        returns, absent an arm that says otherwise."""
 
         return {Outcome.ACCEPTED: "correct", Outcome.UNGUARDED: "naive"}.get(self)
 
@@ -112,6 +113,16 @@ class Expectation:
     #: the retirement policy: a retired RFC keeps its number.
     rule: str
     directory: pathlib.Path
+    #: Which entry of ``result.json`` this arm returns, where the outcome's own
+    #: mapping is not it. ``None`` means the mapping stands.
+    #:
+    #: One case needs it and the need is not an accident: 009's `inclusive` arm
+    #: is **accepted** and returns the number the case pins as `naive`, because
+    #: the case has two right answers to two different questions and only one
+    #: of them is the question the naive query was asking. An arm that is right
+    #: and returns the other number had no spelling until a case had two
+    #: readings to tell apart (RFC 0075 §6, logs/T-0063.md).
+    answer: str | None = None
 
     # ....................... #
 
@@ -257,6 +268,7 @@ def _expectations(directory: pathlib.Path) -> tuple[Expectation, ...]:
             error=declared[name].get("error"),
             rule=declared[name]["rule"],
             directory=directory / "bloomery" / name,
+            answer=declared[name].get("answer"),
         )
         for name in sorted(declared)
     )

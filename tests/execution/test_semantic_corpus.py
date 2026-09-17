@@ -135,7 +135,11 @@ def test_bloomery_does_what_the_case_says(case: Case, expectation: Expectation) 
     finally:
         conn.close()
 
-    answer = expectation.outcome.answer
+    # The arm's own answer where it has one, and the outcome's otherwise. An
+    # arm declares one when it is right and returns the *other* number — a case
+    # with two readings has two right answers, and only one of them is the
+    # question the naive query asked (RFC 0075 §6).
+    answer = expectation.answer or expectation.outcome.answer
     assert answer is not None
     assert dict(zip(case.metrics, planned, strict=True)) == case.results()[answer], (
         f"{case.name}/{expectation.name} is {expectation.outcome} and so must plan to the "

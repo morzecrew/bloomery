@@ -388,3 +388,40 @@ def test_the_duplicate_is_refused_before_a_graph_can_be_built() -> None:
                 ),
             }
         )
+
+
+# ....................... #
+# Which rows a ratio is about (RFC 0075 §5.1)
+
+
+def test_includes_zero_denominator_defaults_to_false() -> None:
+    """Absent is not the other reading — it is *no* reading, which R019
+    refuses. The default cannot be `true` without making the compiler choose,
+    and cannot be a third state without the spec carrying one."""
+
+    parsed = parse("""
+metrics_version: 1
+metrics:
+  cost_per_parcel:
+    grain: shipment
+    additivity: ratio
+    ratio: {numerator: carrier_cost, denominator: parcels}
+""")
+
+    assert parsed.metrics["cost_per_parcel"].ratio.includes_zero_denominator is False
+
+
+def test_includes_zero_denominator_parses() -> None:
+    parsed = parse("""
+metrics_version: 1
+metrics:
+  cost_per_parcel:
+    grain: shipment
+    additivity: ratio
+    ratio:
+      numerator: carrier_cost
+      denominator: parcels
+      includes_zero_denominator: true
+""")
+
+    assert parsed.metrics["cost_per_parcel"].ratio.includes_zero_denominator is True

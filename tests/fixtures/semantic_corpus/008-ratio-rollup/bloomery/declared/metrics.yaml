@@ -16,4 +16,8 @@ metrics:
   revenue_per_item:
     grain: order
     additivity: ratio
-    ratio: {numerator: revenue, denominator: item_count}
+    # Which rows the ratio is about, stated because R019 asks (RFC 0075): an
+    # order with no items would contribute revenue and no items, and this case
+    # seeds none — so all three readings return the same number here and only
+    # the statement differs. The case's subject is the rollup, not the row set.
+    ratio: {numerator: revenue, denominator: item_count, includes_zero_denominator: true}
