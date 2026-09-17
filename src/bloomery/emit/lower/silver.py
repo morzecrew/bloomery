@@ -2303,6 +2303,78 @@ def _candidate_wins(entity: EntityIR) -> Expression:
 # ....................... #
 
 
+def _admitted_since(entity: EntityIR, namespace: str, relation: str) -> Expression:
+    """Whether the identity is in the entity — and, on a historical entity,
+    *because of this recovery* rather than because of a version that predates
+    it.
+
+    Matched on the **pair**, not the row identity alone: that is unique within
+    one source relation (RFC 0016 D21) and a merged entity's reject table holds
+    rows from several, so two shops can quarantine one identity. Keyed by the
+    identity alone, admitting one shop's row stamped the other's resolved — a
+    still-failing row marked drained, which never replays again. ``_source`` is
+    a real column of a merged entity's model (D18/D19), so the pair is
+    available on both sides.
+
+    **A type 2 relation is a history, so membership is not evidence.** A source
+    row that was admitted once, later quarantined, and now replayed still has
+    its *old* version in that relation — so the plain membership test resolved
+    the reject row in the same run that re-delivered it, before the framework
+    had versioned anything. Reproduced on dbt: after the replay macro the
+    reject row read resolved while the snapshot still held only the previous
+    value, and a delivery that is then not admitted leaves a drained reject row
+    that never replays again — a row silently dropped (PR #128).
+
+    The evidence is therefore a version **newer than the reject row's
+    ``last_seen``**, which is the diverted delivery's own clock: the old
+    version predates it, and anything after it arrived because the row came
+    back — through this re-delivery, or through the source delivering it
+    cleanly again, which resolves the reject row just as truthfully.
+
+    Type 1 keeps the plain membership test, unchanged: its relation holds one
+    row per key, there is no history to mistake for evidence, and the merge
+    writes the candidate with the reject row's own ``_ingested_at`` rather than
+    a fresh one — so a recency comparison there would be false of every
+    correctly admitted row.
+    """
+
+    if entity.scd is not SCDKind.TYPE2:
+        return exp.In(
+            this=_identity_operand(entity, table=None, provenance="source_relation"),
+            query=exp.Select()
+            .select(*_replay_identity(entity, table=_TARGET_ALIAS))
+            .from_(exp.table_(relation, db=namespace, alias=_TARGET_ALIAS))
+            .subquery(),
+        )
+
+    matched: list[Expression] = [
+        exp.EQ(this=version, expression=reject)
+        for version, reject in zip(
+            _replay_identity(entity, table=_TARGET_ALIAS),
+            _replay_identity(entity, table=None, provenance="source_relation"),
+            strict=True,
+        )
+    ]
+    # `last_seen` is unqualified for the reason the `SET` targets are: it is a
+    # column of the statement's own target, and only the reject table has one.
+    matched.append(
+        exp.GT(
+            this=exp.column(_INGESTED_AT_COLUMN, table=_TARGET_ALIAS),
+            expression=exp.column("last_seen"),
+        )
+    )
+
+    return exp.Exists(
+        this=exp.Select()
+        .select(exp.Literal.number(1))
+        .from_(exp.table_(relation, db=namespace, alias=_TARGET_ALIAS))
+        .where(conjunction(matched))
+    )
+
+
+# ....................... #
+
+
 def _redelivery(entity: EntityIR, origin: SourceIR, ctx: EmitContext) -> exp.Insert:
     """One source's recovered rows, written back to bronze as a new delivery
     (RFC 0060 §5.2, D2) — replay's first statement for a ``scd: type2`` entity.
@@ -2579,15 +2651,7 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
                     # which never replays again. `_source` is a real column of
                     # a merged entity's model (D18/D19), so the pair is
                     # available on both sides.
-                    exp.In(
-                        this=_identity_operand(entity, table=None, provenance="source_relation"),
-                        query=exp.Select()
-                        .select(*_replay_identity(entity, table=_TARGET_ALIAS))
-                        .from_(
-                            exp.table_(entity_relation, db=entity_namespace, alias=_TARGET_ALIAS)
-                        )
-                        .subquery(),
-                    ),
+                    _admitted_since(entity, entity_namespace, entity_relation),
                 ]
             )
         ),

@@ -285,3 +285,52 @@ def test_one_entity_key_can_have_at_most_one_candidate(
     assert warehouse.execute(
         "SELECT _source_row_id FROM silver.customer__reject WHERE _source_row_id IN ('a', 'b')"
     ).fetchall() == [("b",)]
+
+
+def test_a_reject_is_not_resolved_by_a_version_that_predates_it(
+    warehouse: duckdb.DuckDBPyConnection,
+) -> None:
+    """A type 2 relation is a history, so membership in it is not evidence that
+    *this* recovery worked.
+
+    A source row that was admitted once, later quarantined, and now replayed
+    still has its old version sitting in the entity. The plain membership test
+    the type 1 route uses therefore resolved the reject row in the same run
+    that re-delivered it — before the framework had versioned anything — and a
+    delivery that is then not admitted leaves a drained reject row that never
+    replays again. Reproduced on dbt, where the reject read resolved while the
+    snapshot still held only the previous value (PR #128).
+
+    The entity's versions are seeded by hand here, the way `test_as_of_join`
+    seeds them: the framework writes them, and what is under test is the
+    statement bloomery emits against what the framework left behind.
+    """
+    # `c2` is quarantined, and the entity already holds a version of it from a
+    # delivery that predates the bad one.
+    warehouse.execute(
+        "INSERT INTO silver.customer BY NAME "
+        "(SELECT 'c2' AS customer_id, 'ent' AS segment, NULL::TIMESTAMP AS signed_up_at, "
+        "TIMESTAMP '2023-12-01' AS _ingested_at, 'load-0' AS _load_id, "
+        "'r2' AS _source_row_id, [] AS _quality_flags, TRUE AS _quality_ok)"
+    )
+    wide = _compiled(wide=True)
+    _replay(warehouse, wide)
+
+    assert warehouse.execute(
+        "SELECT resolved_at FROM silver.customer__reject WHERE _source_row_id = 'r2'"
+    ).fetchall() == [(None,)]
+
+    # The framework versions the re-delivery: a row for the same identity, now
+    # newer than the reject row's own clock.
+    warehouse.execute(
+        "INSERT INTO silver.customer BY NAME "
+        "(SELECT 'c2' AS customer_id, 'ent' AS segment, NULL::TIMESTAMP AS signed_up_at, "
+        "CURRENT_TIMESTAMP::TIMESTAMP AS _ingested_at, 'load-0' AS _load_id, "
+        "'r2' AS _source_row_id, [] AS _quality_flags, TRUE AS _quality_ok)"
+    )
+    _replay(warehouse, wide)
+
+    resolved = warehouse.execute(
+        "SELECT resolved_at FROM silver.customer__reject WHERE _source_row_id = 'r2'"
+    ).fetchone()
+    assert resolved is not None and resolved[0] is not None

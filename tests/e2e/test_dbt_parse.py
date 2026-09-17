@@ -33,6 +33,7 @@ with a control for the half a green build does not visibly prove.
 
 from __future__ import annotations
 
+import datetime
 import pathlib
 
 import pytest
@@ -716,8 +717,6 @@ def _row(values: dict[str, str]) -> dict[str, object]:
     """One bronze delivery: the mapped columns plus the ingestion metadata the
     contract requires (RFC 0016 D21). The row identity is stable per row
     because replay re-delivers under it."""
-    import datetime
-
     return {
         **values,
         "_ingested_at": datetime.datetime(2024, 1, 1),
