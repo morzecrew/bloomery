@@ -118,17 +118,23 @@ def _is_instant_literal(side: exp.Expression) -> bool:
 
     Two shapes, and both are one authored ``TIMESTAMP '…'``: the canonical form
     is a cast around a string, and a bare string literal compared to a column
-    holding an instant is the same comparison with the cast left to the
-    engine.
-    A side naming a *column* is neither — two columns compared have no literal
-    to be in the wrong zone, which is why R018 does not fire there.
+    holding an instant is the same comparison with the cast left to the engine.
+
+    **The cast has to wrap a literal.** A cast is also how an author spells a
+    *column* as an instant — ``CAST(placed_at AS TIMESTAMP)`` — and reading
+    that as the literal side inverts the rule twice over: the comparison is
+    then thought to have a literal it does not have, and the column inside it
+    is thought not to be a column (PR #126). Two columns compared have no
+    literal to be in the wrong zone, and R018 does not fire there.
     """
 
     if isinstance(side, exp.Literal) and side.is_string:
         return True
 
     return any(
-        isinstance(cast.to, exp.DataType) and cast.to.this in _INSTANT_TYPES
+        isinstance(cast.to, exp.DataType)
+        and cast.to.this in _INSTANT_TYPES
+        and isinstance(cast.this, exp.Literal)
         for cast in side.find_all(exp.Cast)
     )
 
@@ -148,7 +154,11 @@ def _pinned_columns(expr: SqlExpr, columns: frozenset[str]) -> frozenset[str]:
     discharges it without an argument.
 
     The walk is over the whole tree rather than the top node because case 011's
-    comparison is nested two levels inside a ``CASE``.
+    comparison is nested two levels inside a ``CASE``, and a column is looked
+    for **inside** each operand rather than as the operand itself: a boundary
+    is just as wrong under a cast or a ``COALESCE`` as it is bare, and an
+    author who writes ``CAST(placed_at AS TIMESTAMP) >= TIMESTAMP '…'`` has
+    written case 011 (PR #126).
     """
 
     pinned: set[str] = set()
@@ -160,9 +170,10 @@ def _pinned_columns(expr: SqlExpr, columns: frozenset[str]) -> frozenset[str]:
             if isinstance(operand := node.args.get(key), exp.Expression)
         ]
         named = {
-            operand.name
+            column.name
             for operand in operands
-            if isinstance(operand, exp.Column) and operand.name in columns
+            for column in operand.find_all(exp.Column)
+            if column.name in columns
         }
 
         if named and any(_is_instant_literal(operand) for operand in operands):

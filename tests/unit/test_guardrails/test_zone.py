@@ -680,3 +680,59 @@ def test_a_string_column_no_chain_ever_parsed_is_not_refused() -> None:
     )
 
     assert refusals(mapping=mapping, metrics=metrics, entity=entity) == []
+
+
+# ....................... #
+# A cast is not a literal (PR #126)
+
+
+def test_a_cast_column_compared_to_a_literal_instant_is_refused() -> None:
+    """`CAST(placed_at AS TIMESTAMP) >= TIMESTAMP '…'` **is** case 011, written
+    with the cast spelled out — and it was passing.
+
+    The cast is how an author spells a column as an instant, so reading every
+    instant cast as "the literal side" inverted the rule twice: the column
+    under the cast stopped being a column, and the comparison stopped having a
+    column to pin. What the literal test now requires is that the cast wrap a
+    *literal*.
+    """
+
+    metrics = METRICS.replace(
+        "    expr: revenue",
+        "    expr: \"CASE WHEN CAST(placed_at AS TIMESTAMP) >= TIMESTAMP "
+        "'2025-02-01 00:00:00' THEN revenue ELSE 0 END\"",
+    )
+    (refusal,) = refusals(metrics=metrics)
+
+    assert "compares it against a literal instant" in str(refusal)
+
+
+def test_a_cast_column_compared_to_another_column_is_not_refused() -> None:
+    """The same defect's other half, and the reason it is one defect: with a
+    cast reading as a literal, `CAST(placed_at AS TIMESTAMP) = shipped_at`
+    demanded a zone for `shipped_at` — a refusal for a comparison that has no
+    literal instant in it at all."""
+
+    metrics = METRICS.replace(
+        "    expr: revenue",
+        '    expr: "CASE WHEN CAST(placed_at AS TIMESTAMP) = shipped_at THEN revenue ELSE 0 END"',
+    )
+
+    assert refusals(metrics=metrics) == []
+
+
+def test_a_column_wrapped_in_a_function_is_still_pinned() -> None:
+    """A boundary is as wrong under a `COALESCE` as it is bare, so the column
+    is looked for *inside* each operand rather than as the operand itself. This
+    is the shape that decides between collecting from the whole comparison and
+    collecting only from the non-literal side: here one side carries both a
+    column and a literal instant."""
+
+    metrics = METRICS.replace(
+        "    expr: revenue",
+        "    expr: \"CASE WHEN COALESCE(placed_at, TIMESTAMP '2020-01-01 00:00:00') >= "
+        "TIMESTAMP '2025-02-01 00:00:00' THEN revenue ELSE 0 END\"",
+    )
+    (refusal,) = refusals(metrics=metrics)
+
+    assert "order.placed_at" in str(refusal)

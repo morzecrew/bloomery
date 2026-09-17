@@ -1087,7 +1087,12 @@ def _zone_declaration(
     )
 
     if converted:
-        if zone not in converted:
+        # Compared as *zones*, not as spellings: `UTC` and `Etc/UTC` are one
+        # zone under two names, and refusing `zone_in: Etc/UTC` beside
+        # `{to_utc: UTC}` would report a disagreement between two statements
+        # that agree (PR #126). Everything else is compared literally, which is
+        # what `to_utc` itself does — the argument reaches SQL as written.
+        if not any(zone == one or {zone, one} <= UTC_ZONES for one in converted):
             named = ", ".join(repr(one) for one in converted)
             msg = (
                 f"zone_in: {zone!r} on column {column!r} disagrees with the chain, which "

@@ -314,3 +314,26 @@ fields:
                 }
             )
         )
+
+
+@pytest.mark.parametrize(
+    ("declared", "converted"),
+    [("Etc/UTC", "UTC"), ("UTC", "Etc/UTC")],
+    ids=["declared-Etc/UTC", "converted-Etc/UTC"],
+)
+def test_the_two_utc_spellings_agree_with_each_other(declared: str, converted: str) -> None:
+    """One zone under two names is not two statements disagreeing (PR #126).
+
+    `{to_utc: UTC}` is a conversion nobody needs to write, which is why the
+    pair reads as exotic — but the cross-check exists to catch an author who
+    said two different things, and these two say the same thing. Everything
+    else stays compared as written, which is what `to_utc` itself does: its
+    argument reaches SQL verbatim.
+    """
+
+    ir = _build(
+        f'booked_at: {{from: "$.booked_at", '
+        f"transform: [{{parse_ts: ISO8601}}, {{to_utc: {converted}}}], zone_in: {declared}}}"
+    )
+
+    assert _zone_of(ir) == declared
