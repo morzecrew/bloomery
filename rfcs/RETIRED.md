@@ -104,6 +104,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0069 | Spec timeline | `79658f4` |
 | 0070 | Mechanical imports and per-relationship provenance | `c771ff0` |
 | 0074 | Declared source timezone | `fb4c6ac` |
+| 0075 | A ratio over one row set | `ba52320` |
 
 ## Not in the table
 
