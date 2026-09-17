@@ -41,7 +41,6 @@ from bloomery.errors import UndeclaredZone
 from bloomery.semantic import Refutation
 from bloomery.semantic.zone import WallClock, prove_zone
 from bloomery.spec.mapping import mapping_doc
-from bloomery.typing import TimestampType
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -136,13 +135,19 @@ def _is_instant_literal(side: exp.Expression) -> bool:
 # ....................... #
 
 
-def _pinned_columns(expr: SqlExpr, instants: frozenset[str]) -> frozenset[str]:
-    """The timestamp columns this expression compares against a literal instant.
+def _pinned_columns(expr: SqlExpr, columns: frozenset[str]) -> frozenset[str]:
+    """The entity columns this expression compares against a literal instant.
 
-    ``instants`` is what the entity holds, so a comparison against a column of
-    some other type — a decimal beside a string date, a row number — never
-    reaches R018. The walk is over the whole tree rather than the top node
-    because case 011's comparison is nested two levels inside a ``CASE``.
+    ``columns`` is what the entity holds, so a name the expression invents
+    reaches nothing. It is deliberately **not** filtered to timestamp columns:
+    what makes a value a wall clock is the chain that produced it, and
+    ``[{parse_ts: ISO8601}, to_string]`` is a wall clock rendered back to text
+    — still five hours out, still compared to a literal. The provenance test
+    downstream is the one that decides, and a column no chain ever parsed
+    discharges it without an argument.
+
+    The walk is over the whole tree rather than the top node because case 011's
+    comparison is nested two levels inside a ``CASE``.
     """
 
     pinned: set[str] = set()
@@ -153,14 +158,14 @@ def _pinned_columns(expr: SqlExpr, instants: frozenset[str]) -> frozenset[str]:
             for key in ("this", "expression", "low", "high")
             if isinstance(operand := node.args.get(key), exp.Expression)
         ]
-        columns = {
+        named = {
             operand.name
             for operand in operands
-            if isinstance(operand, exp.Column) and operand.name in instants
+            if isinstance(operand, exp.Column) and operand.name in columns
         }
 
-        if columns and any(_is_instant_literal(operand) for operand in operands):
-            pinned |= columns
+        if named and any(_is_instant_literal(operand) for operand in operands):
+            pinned |= named
 
     return frozenset(pinned)
 
@@ -217,7 +222,10 @@ def check_zones(project: Project, draft: ProjectIR) -> list[GuardrailError]:
     for rollup in draft.rollups:
         parent = marts.get(rollup.of)
 
-        if parent is None:  # pragma: no cover — an unknown parent is refused upstream
+        # Unreachable from an authored project: `rollups: {of: not_a_mart}` is a
+        # parse error naming the marts the document does declare, so a rollup that
+        # reaches the draft names a mart that reached it too.
+        if parent is None:  # pragma: no cover
             continue
 
         kept = {column.name: column for column in parent.columns}
@@ -236,11 +244,8 @@ def check_zones(project: Project, draft: ProjectIR) -> list[GuardrailError]:
         if entity is None:
             continue
 
-        instants = frozenset(
-            column.name for column in entity.columns if isinstance(column.type, TimestampType)
-        )
-
-        pinned = _pinned_columns(metric.expr, instants) if metric.expr is not None else ()
+        columns = frozenset(column.name for column in entity.columns)
+        pinned = _pinned_columns(metric.expr, columns) if metric.expr is not None else ()
 
         for name in pinned:
             demand.setdefault((entity.name, name), set()).add(
@@ -248,7 +253,7 @@ def check_zones(project: Project, draft: ProjectIR) -> list[GuardrailError]:
             )
 
         for restriction in metric.filter:
-            if restriction.dimension in instants:
+            if restriction.dimension in columns:
                 demand.setdefault((entity.name, restriction.dimension), set()).add(
                     f"metric {metric.name!r} filters on it by a literal instant"
                 )

@@ -259,3 +259,58 @@ def test_the_same_chain_without_the_step_link_is_refused() -> None:
         _build_with_macro(
             '{from: "$.seen_at", transform: [{parse_ts: ISO8601}], zone_in: America/New_York}'
         )
+
+
+# ....................... #
+# The key half
+
+
+def test_a_key_fields_declaration_reaches_the_ir_and_is_cross_checked() -> None:
+    """A key is a strange place for a timestamp, and the walk reaches it
+    anyway — `currency_in:`'s argument (D-158): a declaration the key half
+    cannot make is one an author has to restructure an entity to state, and a
+    key column flattened as a date role is read for its position like any
+    other.
+
+    Both directions in one test on purpose: the carriage and the refusal come
+    from a single call, so a key path that silently returned `None` would pass
+    a test that only asserted the refusal.
+    """
+
+    model = """
+spec_version: 1
+entities:
+  event:
+    grain: one row per event
+    key: [seen_at]
+    fields:
+      seen_at: {type: timestamp, required: true}
+      payload: {type: string}
+"""
+    mapping = """
+mapping_version: 1
+source: app__events
+target: event
+key:
+  seen_at: {from: "$.seen_at", transform: [{parse_ts: ISO8601}], zone_in: UTC}
+fields:
+  payload: {from: "$.payload"}
+"""
+    ir = build_project_ir(load_project({"entity_model": model, "mapping": mapping}))
+    (entity,) = ir.entities
+    (field,) = (f for f in entity.sources[0].fields if f.target_field == "seen_at")
+
+    assert field.zone_in == "UTC"
+
+    with pytest.raises(ResolutionError, match="disagrees with the chain"):
+        build_project_ir(
+            load_project(
+                {
+                    "entity_model": model,
+                    "mapping": mapping.replace(
+                        "transform: [{parse_ts: ISO8601}], zone_in: UTC",
+                        "transform: [{parse_ts: ISO8601}, {to_utc: Europe/London}], zone_in: UTC",
+                    ),
+                }
+            )
+        )

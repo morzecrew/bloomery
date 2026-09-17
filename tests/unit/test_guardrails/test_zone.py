@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from bloomery import build_project_ir, load_project
+from bloomery import build_project_ir, load_catalog, load_project
 from bloomery.errors import GuardrailError, ResolutionError, UndeclaredZone
 
 pytestmark = pytest.mark.unit
@@ -545,3 +545,138 @@ def test_a_feed_whose_zone_disagrees_with_its_own_chain_is_refused_alone() -> No
                 }
             )
         )
+
+
+# ....................... #
+# The hole, pinned
+
+
+RECIPE_CATALOG = """
+catalog_version: 1
+vertical: probe
+canonical_fields:
+  placed_at:
+    entity: order
+    type: timestamp
+    recipes:
+      - {id: parsed, requires: [raw_placed], expr: "CAST(raw_placed AS TIMESTAMP)"}
+"""
+
+RECIPE_MODEL = """
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      placed_at: {type: timestamp, canonical: placed_at}
+      revenue: {type: "decimal(12,2)"}
+"""
+
+RECIPE_MAPPING = """
+mapping_version: 1
+source: shop__orders
+target: order
+key:
+  order_id: {from: "$.order_id", transform: [to_string]}
+fields:
+  placed_at:
+    recipe: parsed
+    from: {raw_placed: "$.placed_at"}
+  revenue: {from: "$.revenue"}
+"""
+
+
+def test_a_recipe_that_parses_a_timestamp_is_not_reached_by_r018() -> None:
+    """**A known hole, pinned rather than hidden** — RFC 0074 §10's fourth
+    question, answered by running it (logs/T-0062.md).
+
+    A catalog recipe whose body casts text to a timestamp produces the same
+    wall-clock-read-as-UTC this rule exists to refuse, and R018 does not see
+    it: the column's chain is empty, so §5.3's third provenance — "was never a
+    wall clock" — discharges it. Nothing in the mapping is wrong; the parse is
+    in the catalog, where there is no `zone_in:` to write.
+
+    Refusing it here would be a refusal no author could satisfy, which is the
+    one kind this design cannot afford. So the behaviour is pinned instead: if
+    a later change closes the hole this test fails, and closing it deliberately
+    is the point.
+    """
+
+    marts = CARRIED.replace("flatten: []", "flatten:\n      - {date: placed_at, role: placed}")
+    ir = build_project_ir(
+        load_project(
+            {
+                "entity_model": RECIPE_MODEL,
+                "mapping": RECIPE_MAPPING,
+                "marts": marts,
+                "metrics": METRICS,
+            }
+        ),
+        catalog=load_catalog(RECIPE_CATALOG),
+    )
+
+    (entity,) = ir.entities
+    (field,) = (
+        field
+        for source in entity.sources
+        for field in source.fields
+        if field.target_field == "placed_at"
+    )
+
+    # The reason it is not reached, rather than the fact alone: an empty chain
+    # is what the provenance test reads, and a recipe never fills one.
+    assert field.transform == ()
+    assert field.zone_in is None
+
+
+def test_a_wall_clock_rendered_back_to_text_is_still_compared_as_one() -> None:
+    """The case the column's *declared type* would have hidden, and the reason
+    the walk reads the chain instead.
+
+    `[{parse_ts: ISO8601}, to_string]` produces a `string` column, and it is
+    still the same wall clock — rendering it back to text does not move the
+    instant it was read as. Compared to a literal, it falls on the wrong side
+    of the same boundary, so R018 asks the same question of it.
+
+    Found by sabotage: filtering the comparison to timestamp-typed columns was
+    a branch nothing could kill, because the only inputs it changed the answer
+    for were ones the suite did not have.
+    """
+
+    entity = ENTITY_MODEL.replace(
+        "      placed_at: {type: timestamp}", "      placed_at: {type: string}"
+    )
+    mapping = MAPPING.replace(
+        PARSED, 'placed_at: {from: "$.placed_at", transform: [{parse_ts: ISO8601}, to_string]}'
+    )
+    metrics = METRICS.replace(
+        "    expr: revenue",
+        "    expr: \"CASE WHEN placed_at >= '2025-02-01 00:00:00' THEN revenue ELSE 0 END\"",
+    )
+
+    (refusal,) = refusals(mapping=mapping, metrics=metrics, entity=entity)
+
+    assert "compares it against a literal instant" in str(refusal)
+
+
+def test_a_string_column_no_chain_ever_parsed_is_not_refused() -> None:
+    """The other side of dropping the type filter: comparing an ordinary string
+    column to a literal raises the question and answers it immediately, because
+    nothing in that column's chain ever read a clock. The rule stays scoped by
+    provenance rather than by the shape of the comparison."""
+
+    metrics = METRICS.replace(
+        "    expr: revenue",
+        "    expr: \"CASE WHEN channel = 'web' THEN revenue ELSE 0 END\"",
+    )
+    entity = ENTITY_MODEL.replace(
+        "      revenue:", "      channel: {type: string}\n      revenue:"
+    )
+    mapping = MAPPING.replace(
+        '  revenue: {from: "$.revenue"}',
+        '  channel: {from: "$.channel"}\n  revenue: {from: "$.revenue"}',
+    )
+
+    assert refusals(mapping=mapping, metrics=metrics, entity=entity) == []

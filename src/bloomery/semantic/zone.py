@@ -16,10 +16,12 @@ Three provenances discharge it, and they are the three honest ones:
 * the value never passed ``parse_ts`` — an instant from the source, or a step
   output. It was never a wall clock, so there is no clock to name.
 
-Anything else is a refutation. A **per-source** answer rather than a per-column
-one, because a merged entity is built from several mappings and one of them may
-have declared: reporting the column would name a fix in a document that is
-already correct, and the author of the other one would never see it.
+Anything else is a refutation. The judgement is about the **column** — one
+column is either safe to position or it is not — but it is reached from a
+reading **per source**, and a refutation names the sources that failed rather
+than the column that carries them: a merged entity is built from several
+mappings and one of them may have declared, so blaming the column would send an
+author to a document that is already correct.
 
 Like every prover here this **decides** — :mod:`bloomery.guardrails.zone`
 refuses on its refutation and stays silent on its proof, so an accepted
