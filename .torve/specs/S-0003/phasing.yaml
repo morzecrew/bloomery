@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The conservation law over a retaining relation
+    intent: |
+      The blocking conservation audit is written for a relation that holds one row per
+      key, and the route this design built makes the other kind reachable: on a
+      historical entity a row is a version, the relation keeps the ones that predate the
+      run, and a source row admitted earlier and quarantined later is counted as
+      surviving and as diverted at once. It fires at the build before any replay runs,
+      on correct data, and it stops the run — which is the live form of this design's
+      own risk that a partial fix is worse than the refusal it removed. Reproduce it
+      first, then restate the law as the predicate a retaining relation actually
+      satisfies — each surviving bronze row is either the current version of its
+      identity or diverted — and leave the type 1 predicate exactly as it is, because
+      there a row is the whole of the key's history and a validity filter would read a
+      column the relation does not have.
+    scope:
+      - src/bloomery/emit/lower/silver.py
+      - tests/unit/test_emit/test_quality_artifacts.py
+      - tests/execution/test_replay_to_bronze.py
+      - tests/e2e/test_dbt_parse.py
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_emit/test_quality_artifacts.py tests/execution/test_replay_to_bronze.py
+        -q
+      - uv run mypy src
+    character: structural

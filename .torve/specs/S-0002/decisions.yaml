@@ -1,0 +1,153 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      The boundary is an explicit export list, never "everything public by default":
+      an entity, a mart or a metric may be named on it, grouped by kind, and a name
+      absent from it is not exported however public it looks from inside the project
+    paths:
+      - src/bloomery/spec/exports.py
+      - src/bloomery/guardrails/exports.py
+      - tests/unit/test_spec/test_exports.py
+      - tests/unit/test_guardrails/test_exports.py
+    consequence: >-
+      A project that exports its whole spec has no boundary, and its first refactor
+      breaks every consumer; an export naming something the project does not declare
+      is refused with `DanglingExport`, so the list is an assertion rather than a
+      claim
+    rationale: >-
+      Carried from row D1 of the source design record. The landed phase made the rule
+      the document's shape as well as a check — there is no key to put a mapping under
+      — and the fixture exports four of its six eligible names so that a lowering
+      which exported everything would be visible
+    check: >-
+      uv run pytest tests/unit/test_spec/test_exports.py tests/unit/test_guardrails/test_exports.py
+      -q
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      What crosses is the upstream's compiled IR, passed to the compile as an argument
+      — not its spec documents, and not a path bloomery opens; the upstream is keyed
+      by a local alias the downstream chooses, because a project has no identity of
+      its own
+    paths:
+      - src/bloomery/compile.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/spec/imports.py
+      - src/bloomery/guardrails/imports.py
+    consequence: >-
+      Mappings, steps and quality surfaces stay outside the boundary, because re-resolving
+      upstream documents downstream would put all three inside it; and an alias the
+      compile was not given is refused with `UnknownUpstream` rather than resolving
+      to nothing
+    rationale: >-
+      Carried from row D2 of the source design record. Execution checked the "serialized"
+      wording against the tree and found no IR deserializer: the point of the row
+      is what crosses, which an in-process `ProjectIR` satisfies exactly, and a wire
+      format is a separate feature the caller owns
+    check: >-
+      uv run pytest tests/unit/test_spec/test_imports.py tests/unit/test_guardrails/test_imports.py
+      -q
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      The downstream fingerprint includes the upstream fingerprint whole, never only
+      the exports the downstream touched
+    paths: [src/bloomery/ir/fingerprint.py, tests/unit/test_ir/test_fingerprint.py]
+    consequence: >-
+      An upstream change that touches nothing the downstream reads still moves the
+      downstream fingerprint, and artifact headers change on projects nothing about
+      which changed; the docs have to meet that head on rather than the rule being
+      softened
+    rationale: >-
+      Carried from row D3 of the source design record. A fingerprint is an identity,
+      and making it depend on which exports were touched makes it depend on analysis
+      — two compiles that read the same upstream differently would then disagree about
+      what the upstream was
+  - id: D-4
+    grade: LOCKED
+    text: Import cycles are refused, not resolved
+    paths: [src/bloomery/guardrails/imports.py]
+    consequence: >-
+      Two projects importing each other never compile, and no order is invented for
+      them; what a cycle needs is an author's decision about which project owns the
+      shared concept
+    rationale: >-
+      Carried from row D4 of the source design record. Execution recorded that the
+      refusal is satisfied by construction for a fresh compile — an upstream arrives
+      as a built IR, so neither of two mutually importing projects can be built first
+      — and that the stale case needs a project identity the tree does not have; the
+      row stands and the check is not yet written. See the open questions
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      Quality surfaces do not cross: an upstream entity's reject table, replay and
+      quality mart stay upstream, and the downstream reads the entity
+    paths: [src/bloomery/spec/exports.py, src/bloomery/spec/imports.py]
+    consequence: >-
+      A downstream project cannot depend on how an upstream entity was cleaned, so
+      the upstream is free to change its quality surface without breaking a consumer;
+      the rule is enforced by the documents' shape, which has no key for it
+    rationale: >-
+      Carried from row D5 of the source design record. A quality surface is how a
+      thing is built rather than what it is, which is the same argument that keeps
+      mappings and steps off the list
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Lineage node ids gain a project component for imported nodes only; a local node
+      keeps its `<kind>.<name>` spelling
+    paths:
+      - src/bloomery/resolve/graph.py
+      - src/bloomery/resolve/lineage.py
+      - src/bloomery/guardrails/lineage.py
+      - tests/unit/test_resolve/test_lineage.py
+      - tests/unit/test_guardrails/test_lineage.py
+    consequence: >-
+      Every existing id and every published citation stays valid — a node name is
+      public surface and `bloomery lineage --node metric.gross_revenue` is a documented
+      invocation — while two projects' graphs can be composed without collision
+    rationale: >-
+      Carried from row D6 of the source design record, which grades it ASSUMED. The
+      namespace guard already refused to re-spell the ids the ecosystem stores once,
+      and that is the precedent this follows; the alias is held to a bare identifier
+      so a project component needs no quoting
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      Two composing projects must share a naming policy; whether a mismatch is a refusal
+      depends on the upstream IR recording the policy it was compiled under
+    paths: [src/bloomery/naming.py, src/bloomery/emit/base.py]
+    consequence: >-
+      Without a shared policy the downstream names relations the upstream never created,
+      and the failure surfaces in the warehouse rather than in the compile — which
+      is the worst place for it
+    rationale: >-
+      Carried from row D7 of the source design record, which grades it ASSUMED and
+      defers the enforcement question. It is the first open question below, and it
+      is the one the emitting phase makes live
+  - id: D-8
+    grade: LOCKED
+    text: >-
+      No registry, no packaging, no network: how the upstream artifact reaches the
+      compile is the caller's problem — a path, a checkout, a CI artifact — and bloomery
+      reads what it is handed
+    paths: [src/bloomery/compile.py, src/bloomery/spec/imports.py]
+    consequence: >-
+      The upstream is a value the caller assembles, exactly as a step registry is,
+      so composition adds no I/O to a compile that performs none; the cost is that
+      a surface with no value to pass — the CLI today — cannot compile an importing
+      project at all
+    rationale: >-
+      Carried from row D8 of the source design record. "How do I get the upstream
+      artifact" is a real question with a tempting answer, and the non-goal is what
+      keeps this design from growing into a different project
+invariants:
+  - id: I-1
+    statement: >-
+      A project carrying neither an exports nor an imports document compiles byte-identically
+      to what it compiled before composition existed; the golden corpus is that test,
+      and only a deliberate IR version bump may move a fingerprint in it
+    paths: [tests/golden/**, src/bloomery/emit/**]
+    check: uv run pytest tests/golden -q

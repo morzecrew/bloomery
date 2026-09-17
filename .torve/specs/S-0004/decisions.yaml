@@ -1,0 +1,299 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      No handler, ever: the library's only logging configuration act is attaching
+      a `NullHandler` to the `bloomery` logger at package import, and it never adds,
+      removes or configures a handler, a format or a level on a logger it does not
+      own
+    paths: [src/bloomery/__init__.py, pyproject.toml]
+    consequence: >-
+      A library that installs a handler fights its embedder, and reversing this reaches
+      every caller in the process; the level stays at `NOTSET` deliberately, which
+      is the only way a caller's own `setLevel` on the `bloomery` logger can work
+      from outside
+    rationale: >-
+      The source calls it "a grep-able invariant, testable as one", and it is now
+      a gate rather than a grep — `logging.basicConfig`, `logging.config` and `logging.disable`
+      sit in the `banned-api` table beside the clock
+    check: >-
+      uv run pytest tests/unit/test_logging_posture.py -q
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      A log record never carries nondeterminism of bloomery's making — no timestamp,
+      id or counter the compiler invented — and is built only from values the pipeline
+      already holds: stage names, counts, fingerprints and source paths
+    paths:
+      - src/bloomery/spec/project.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/compile.py
+      - src/bloomery/runtime/hydration.py
+      - src/bloomery/planner/metricflow_planner.py
+    consequence: >-
+      A record's timestamp exists only if the caller's handler adds one, on the caller's
+      side of the I/O boundary; the pre-commit bans on the clock and the id generator
+      get no exemption for a logging call site
+    rationale: >-
+      It is this repository's determinism invariant restated for a new surface, so
+      reversing it invalidates the determinism contract rather than only this document
+    check: >-
+      uv run pytest tests/unit/test_determinism_guard.py -q
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      Logging is not load-bearing: no test may assert behaviour through log output,
+      and no code path may branch on logger state, with `isEnabledFor` used purely
+      to skip expensive message assembly as the one sanctioned read
+    paths:
+      - tests/unit/test_logging_posture.py
+      - tests/unit/test_determinism_guard.py
+    consequence: >-
+      This is what keeps the channel deletable; a test that reads a log makes the
+      log an API, and it is the rule a later change is most tempted to bend
+    rationale: >-
+      The posture suite reads handlers and levels rather than messages, and the determinism
+      guard compiles the corpus with a DEBUG capturing handler and with none and byte-compares
+      the artifacts, with a control asserting the listening run captured something
+    check: >-
+      uv run pytest tests/unit/test_determinism_guard.py tests/unit/test_logging_posture.py
+      -q
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Two levels only, to start — `INFO` for one bounded record per stage per compile
+      and `DEBUG` for per-entity and per-artifact detail — and no record at `WARNING`
+      or above anywhere, because that severity belongs to the advisory channel
+    paths:
+      - src/bloomery/spec/project.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/compile.py
+      - src/bloomery/runtime/hydration.py
+      - src/bloomery/planner/metricflow_planner.py
+    consequence: >-
+      The INFO budget is pinned not to grow with the project, which is what "safe
+      to leave on in production" has to mean to be worth saying; a third level costs
+      a log line rather than a contract, which is why this is not `LOCKED`
+    rationale: >-
+      The source's own wording is "two levels only, **to start**", which invites a
+      third once there is evidence for one
+    check: >-
+      uv run pytest tests/unit/test_logging_posture.py -q
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      Nothing important is ever only logged: anything a caller must act on is a value
+      they receive — a refusal or an advisory — and a log record is a second copy
+      at most
+    paths: [src/bloomery/evidence.py]
+    consequence: >-
+      It is the whole argument for the advisory channel existing; without it the channel
+      is decoration, and it is also why there is no log record for an advisory at
+      all
+    rationale: >-
+      A finding that lives only in a stream the caller may not be listening to is
+      a finding nobody has to act on
+    check: uv run pytest tests/unit/test_advisories.py -q
+  - id: D-6
+    grade: OPEN
+    text: >-
+      Whether `compile_project` grows a report carrying artifacts plus advisories,
+      or stays artifacts-only with callers who want advisories calling `evaluate`,
+      is deliberately undecided and needs a consumer rather than a guess
+    paths: [src/bloomery/compile.py]
+    consequence: >-
+      Until a consumer asks, `compile_project` returns artifacts and nothing else;
+      the field on `SpecEvidence` is useful under either answer and ships first, so
+      neither answer is foreclosed
+    rationale: >-
+      The source calls it "the one genuinely open signature question" and holds it
+      until a real embedder asks
+  - id: D-7
+    grade: LOCKED
+    text: >-
+      An advisory is not a refusal that lost its nerve: the bar is that the spec is
+      legal, the compiled artifacts are correct, and there is still something the
+      author would want to know, and anything where the numbers could be wrong stays
+      a refusal
+    paths: [src/bloomery/evidence.py]
+    consequence: >-
+      A review that finds an advisory where a refusal belongs should treat it as a
+      defect; this does not soften "refuse rather than answer wrongly" and nothing
+      may be moved from the refusal side to the advisory side under it
+    rationale: >-
+      A channel that accepts findings the numbers depend on turns every refusal into
+      a negotiation, which is the failure the refusal taxonomy exists to prevent
+    check: uv run pytest tests/unit/test_advisories.py -q
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      Deprecation is `warnings.warn(..., BloomeryDeprecationWarning)` at the old call
+      site, naming the replacement and the removal release, best-effort once per process
+      per spelling by an explicit module-level guard that records after emitting —
+      and it is the only use of the `warnings` module under `src/bloomery/`
+    paths: [src/bloomery/errors.py]
+    consequence: >-
+      The guard bounds how often bloomery emits and cannot show a warning a caller's
+      `ignore` filter hides; two threads hitting a spelling's first use concurrently
+      may emit twice, and a caller needing a hard once gets it from their own filter
+      configuration
+    rationale: >-
+      The mechanism is settled, but "best-effort once per process" is explicitly a
+      tolerance rather than a guarantee, which is what makes this `ASSUMED` rather
+      than `LOCKED`
+    check: uv run pytest tests/unit/test_deprecation.py -q
+  - id: D-9
+    grade: OPEN
+    text: >-
+      CLI verbosity is a handler and not a channel: if `--verbose` lands it attaches
+      a stderr `StreamHandler` at INFO to the `bloomery` logger and sets that logger's
+      level to match, restoring both the handler and the prior level in a `finally`
+      around the whole of `main`, and adds no second instrumentation path
+    paths: [src/bloomery/cli/__init__.py]
+    consequence: >-
+      A logger left at `NOTSET` defers to the root's default `WARNING` and would drop
+      the very records the handler exists to show; without the restore, a refusal
+      or a `KeyboardInterrupt` leaves an embedder with a mutated global logger
+    rationale: >-
+      The source fixes what the flag means if it lands, not that it lands — Q-3 holds
+      the flag itself open against the CLI's no-config posture
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      The advisory vocabulary is a closed enum with no free-text constructor, and
+      every member has a row in the reference's advisory table while every documented
+      code is constructible — checked in both directions
+    paths:
+      - src/bloomery/evidence.py
+      - pages/docs/reference/errors.md
+      - tests/unit/test_docs_floor.py
+    consequence: >-
+      Adding an advisory is a reviewed change that lands its documentation row with
+      it; a documented code no path can construct fails the census, which is what
+      blocks the deprecated-spelling advisory until a spelling is actually deprecated
+    rationale: >-
+      The source states the closed vocabulary and the census in prose and never tabled
+      either; the same taste the refusal side already has for closed vocabularies
+    check: uv run pytest tests/unit/test_docs_floor.py -q
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      Advisories are a sorted, deduplicated tuple under the declared key `(code.value,
+      source_path or "", message)`, applied in exactly one place, and the `Advisory`
+      dataclass is deliberately not orderable
+    paths: [src/bloomery/evidence.py]
+    consequence: >-
+      A missing source path normalizes to the empty string for ordering while staying
+      `None` on the value; the dataclass's own field order disagrees with the key,
+      so making the type orderable reintroduces both a silent disagreement and a `TypeError`
+      on a legal pair
+    rationale: >-
+      The source states the key and the identity rule in prose and never tabled them,
+      and the first implementation got it wrong in exactly the way the rule anticipates
+    check: uv run pytest tests/unit/test_advisories.py -q
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      Advisories are computed by a pure function of the same values every other evidence
+      field is derived from, called by `evaluate`, with no accumulator threaded through
+      the pipeline and no ordering dependence on when a stage ran, and are reported
+      at every partial width
+    paths: [src/bloomery/evidence.py]
+    consequence: >-
+      An advisory derived from an input is computed and correct whether or not a stage
+      refused, so withholding it from a refused project makes `advisories` the one
+      field that is empty for a reason the stage reached cannot explain
+    rationale: >-
+      Proposed in `logs/T-0048.md` from contact with the code: the source never says
+      how a finding produced inside a stage reaches the evidence, and a collector
+      inside the pipeline generator would break the one guarantee that generator exists
+      for
+    check: uv run pytest tests/unit/test_advisories.py -q
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      Modules obtain their stage logger by the documented name literally — `bloomery.spec`,
+      `bloomery.resolve`, `bloomery.guardrails`, `bloomery.emit`, `bloomery.runtime`,
+      `bloomery.planner` — and never through `getLogger(__name__)`
+    paths:
+      - src/bloomery/spec/project.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/compile.py
+      - src/bloomery/runtime/hydration.py
+      - src/bloomery/planner/metricflow_planner.py
+    consequence: >-
+      The two idioms ship different stable sets, and `__name__` would make the documented
+      names a strict subset of the real ones; tuning works either way through the
+      hierarchy, so what differs is only which names are the promise
+    rationale: >-
+      Proposed in `logs/T-0048.md`: the source lists six names and makes the names
+      rather than the messages the stable surface, but never says how a module obtains
+      one
+    check: >-
+      uv run pytest tests/unit/test_logging_posture.py -q
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      `bloomery.runtime` records at DEBUG, not at INFO, until the bench lane says
+      otherwise
+    paths: [src/bloomery/runtime/hydration.py]
+    consequence: >-
+      Widening a level later is backward-compatible where narrowing one is not, so
+      DEBUG is the end that cannot cause the chattiness Q-2 names as the risk
+    rationale: >-
+      Proposed in `logs/T-0048.md`: Q-2 asks for a measurement this work does not
+      run, and D-4 admits both levels, so shipping one fills a deferred gap rather
+      than departing from a decision
+    check: >-
+      uv run pytest tests/unit/test_logging_posture.py -q
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      A new field on `SpecEvidence` is appended after whatever field is last at the
+      time, and a positional-construction test that supplies every pre-existing field
+      by position lands with it, alongside a test pinning the field count
+    paths: [src/bloomery/evidence.py]
+    consequence: >-
+      "Additive" holds positionally only for an appended field, and a field inserted
+      earlier silently rebinds positional construction; a test that stops short of
+      the insertion point passes in both worlds and pins nothing
+    rationale: >-
+      Proposed in `logs/T-0048.md`: the source names a specific neighbour to append
+      after, which had already stopped being last by the time the work ran — the rule
+      is "append", and naming a neighbour dates the instruction
+    check: uv run pytest tests/unit/test_advisories.py -q
+  - id: D-16
+    grade: OPEN
+    text: >-
+      What makes a quality rule "unstrengthened" — the vocabulary the second advisory
+      candidate names and this codebase does not have — is decided at implementation
+      against the `QualityRule` subclasses in `src/bloomery/spec/quality.py`, and
+      the decision is logged
+    paths: [src/bloomery/evidence.py]
+    consequence: >-
+      The advisory cannot be built before the term means something checkable, and
+      the definition chosen fixes both what the code reports and what its documentation
+      row can say; getting it wrong produces an advisory that fires on correct specs,
+      which D-7 forbids
+    rationale: >-
+      The readiness gate scoped this candidate out as under-specified rather than
+      wrong; the question is a definition an executor can settle against twelve concrete
+      rule classes, not an author-level design choice
+invariants:
+  - id: I-1
+    statement: >-
+      Compiling the corpus with a capturing handler at DEBUG on the `bloomery` logger
+      and with no handler at all produces byte-identical artifacts, and the listening
+      run demonstrably captured records
+    paths: [src/bloomery/**]
+    check: >-
+      uv run pytest tests/unit/test_determinism_guard.py -q
+  - id: I-2
+    statement: >-
+      The package installs exactly one `NullHandler`, sets no level, leaves propagation
+      alone, survives a reload without accumulating a second handler, and emits no
+      record at `WARNING` or above over a real compile
+    paths: [src/bloomery/**]
+    check: >-
+      uv run pytest tests/unit/test_logging_posture.py -q
