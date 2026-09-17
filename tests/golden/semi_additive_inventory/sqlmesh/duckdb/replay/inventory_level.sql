@@ -3,10 +3,10 @@
 -- Quarantine replay for inventory_level (RFC 0016 §5.6). bloomery emits this
 -- artifact and never executes it: run the statements below, in order, as one
 -- unit of work — the passers merge, the rows that made it resolve, and the
--- rest have their failed_rules and last_seen re-stamped from the very same
--- evaluation. Winners are decided by the pipeline's own dedupe total order, so
--- re-running replay re-derives identical semantic state (D22). Retention —
--- never replay — deletes reject rows; resolved rows are kept as audit history.
+-- rest have their failed_rules re-derived from the very same evaluation.
+-- Winners are decided by the pipeline's own dedupe total order, so re-running
+-- replay re-derives identical semantic state (D22). Retention — never replay —
+-- deletes reject rows; resolved rows are kept as audit history.
 
 MERGE INTO silver.inventory_level AS _target
 USING (
