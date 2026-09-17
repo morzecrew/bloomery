@@ -2806,6 +2806,11 @@ implement is <strong>refused</strong>, never read as one it does.</p>
 <td><code>EUR</code></td>
 </tr>
 <tr>
+<td>Zone name</td>
+<td>An IANA name: a letter-led segment, optionally <code>/</code>-joined up to three deep. Checked for shape, never against a zone database — the engine is the authority for a zone that reaches SQL</td>
+<td><code>America/New_York</code></td>
+</tr>
+<tr>
 <td>Member name</td>
 <td>Any identifier except the reserved names</td>
 <td>—</td>
@@ -2822,6 +2827,12 @@ implement is <strong>refused</strong>, never read as one it does.</p>
 </tr>
 </tbody>
 </table>
+<p><strong><code>timestamp</code> is UTC.</strong> Not "a timestamp in whatever zone the source used" — the type
+means an instant, and two doors lead into it: <code>{to_utc: &lt;zone&gt;}</code>, which converts a wall
+clock, and <code>zone_in: UTC</code>, which declares that the source's wall clocks already are one.
+A wall clock read for its position with neither behind it is refused — see
+<a href="../transforms/#zone_in-what-clock-the-source-runs-on"><code>zone_in:</code></a>. <code>date</code> carries no
+instant and asks nothing.</p>
 <p><strong>Reserved names.</strong> <code>metric_time</code> may not be used as a field, dimension, or role name —
 the planner owns it as the canonical query-time dimension. The generated data-quality
 and ingestion-metadata columns are reserved on the same terms: <code>_quality_flags</code>,
@@ -3668,6 +3679,18 @@ there is nothing there to attach one to and nothing is refused.</p>
 <td>no (<code>[]</code>)</td>
 <td>Steps applied in order</td>
 </tr>
+<tr>
+<td><code>currency_in</code></td>
+<td>ISO-4217 code, or <code>{column: &lt;name&gt;}</code></td>
+<td>no</td>
+<td>What currency the path's values are in, where the chain converts</td>
+</tr>
+<tr>
+<td><code>zone_in</code></td>
+<td>IANA zone name</td>
+<td>no</td>
+<td>What clock the path's wall clocks were written on — see <a href="../transforms/#zone_in-what-clock-the-source-runs-on"><code>zone_in:</code></a></td>
+</tr>
 </tbody>
 </table>
 <h3 id="fieldmapping-two-forms">FieldMapping — two forms<a class="headerlink" href="#fieldmapping-two-forms" title="Permanent link">&para;</a></h3>
@@ -3711,6 +3734,20 @@ there is nothing there to attach one to and nothing is refused.</p>
 <td>list of field quality rules</td>
 <td>no (<code>[]</code>)</td>
 <td>See <a href="#field-quality-rules">Field quality rules</a></td>
+</tr>
+<tr>
+<td>simple</td>
+<td><code>currency_in</code></td>
+<td>ISO-4217 code, or <code>{column: &lt;name&gt;}</code></td>
+<td>no</td>
+<td>What the source holds before a <code>convert</code> step — see <a href="../transforms/#currency_in-what-the-source-holds"><code>currency_in:</code></a></td>
+</tr>
+<tr>
+<td>simple</td>
+<td><code>zone_in</code></td>
+<td>IANA zone name</td>
+<td>no</td>
+<td>What clock the source writes its wall clocks on. Required where a parsed timestamp's <em>position</em> is read and the chain does not <code>to_utc</code> — see <a href="../transforms/#zone_in-what-clock-the-source-runs-on"><code>zone_in:</code></a></td>
 </tr>
 <tr>
 <td>recipe</td>

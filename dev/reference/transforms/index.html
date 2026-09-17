@@ -1540,6 +1540,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#zone_in-what-clock-the-source-runs-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>zone_in:</code> — what clock the source runs on
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1848,6 +1859,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#zone_in-what-clock-the-source-runs-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>zone_in:</code> — what clock the source runs on
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2145,7 +2167,7 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 <td><code>parse_ts</code></td>
 <td>format (str)</td>
 <td>string → timestamp</td>
-<td><code>[{parse_ts: ISO8601}]</code> — parse a timestamp as a <strong>local wall clock</strong>; <code>ISO8601</code> means the engine's native parse, any other string is an explicit format. Text carrying a UTC offset is refused as NULL — see below</td>
+<td><code>[{parse_ts: ISO8601}]</code> — parse a timestamp as a <strong>local wall clock</strong>; <code>ISO8601</code> means the engine's native parse, any other string is an explicit format. Text carrying a UTC offset is refused as NULL, and a parsed wall clock read for its <em>position</em> needs a declared zone — both below</td>
 </tr>
 <tr>
 <td><code>parse_date</code></td>
@@ -2164,9 +2186,9 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 <h3 id="a-timestamp-that-states-its-own-offset">A timestamp that states its own offset<a class="headerlink" href="#a-timestamp-that-states-its-own-offset" title="Permanent link">&para;</a></h3>
 <p><code>parse_ts</code> reads a local wall clock, and <code>to_utc</code> is the only door into UTC. So
 <code>2026-01-06T12:00:00+01:00</code> is text that says something the transform is not allowed to
-believe. Which zone a column is written in is the spec's statement to make — the absence
-of a <code>to_utc</code> says UTC, its presence says the zone it names — and here the data
-contradicts it.</p>
+believe. Which zone a column is written in is the spec's statement to make — <code>to_utc</code> names
+it, or <a href="#zone_in-what-clock-the-source-runs-on"><code>zone_in:</code></a> declares it — and here the data
+contradicts whatever the spec said.</p>
 <p>Every engine bloomery targets resolves that disagreement the same silent way — it drops
 the offset and keeps <code>12:00</code>, an hour off the instant the row actually carries, with
 nothing downstream able to see it. bloomery produces <strong>NULL</strong> for such a value instead,
@@ -2192,6 +2214,53 @@ before this landed and produces NULLs after it. That is the point of the change,
 is still a value moving under you: check the affected columns with a <code>coercible</code> rule
 before you promote the upgrade.</p>
 <p><code>parse_date: ISO8601</code> is unaffected — an ISO date has no time and therefore no offset.</p>
+<h3 id="zone_in-what-clock-the-source-runs-on"><code>zone_in:</code> — what clock the source runs on<a class="headerlink" href="#zone_in-what-clock-the-source-runs-on" title="Permanent link">&para;</a></h3>
+<p><strong>A wall clock read for its position is refused unless something says which clock it
+came off.</strong> <code>parse_ts</code> cannot know, and the <code>timestamp</code> type calls whatever it produces
+UTC — so a feed publishing local times with no zone on them compiles clean and answers
+with an order placed at 21:30 on 31 January in New York counted as a January order. It is
+02:30 on 1 February. No row is null, nothing is duplicated, and February is short by that
+order's revenue.</p>
+<p>A converting chain has already said it: <code>{to_utc: America/New_York}</code> names the clock the
+wall clock was written on. What has nowhere to go is the other claim — <em>this feed really
+does write UTC</em> — and <code>zone_in:</code> is that place, on the mapping's field beside
+<a href="#currency_in-what-the-source-holds"><code>currency_in:</code></a>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># mapping.yaml</span>
+<span class="nt">placed_at</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.placed_at"</span>
+<span class="w">  </span><span class="nt">zone_in</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">UTC</span>
+<span class="w">  </span><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_ts</span><span class="p">:</span><span class="w"> </span><span class="nv">ISO8601</span><span class="p p-Indicator">}]</span>
+</code></pre></div>
+<p><strong>It is only asked for where the instant's position decides an answer</strong> — a mart's date
+role, a comparison against a literal instant in a metric's expression or <code>filter:</code>, an
+as-of anchor, a rollup's kept bucket. A timestamp that is carried, projected, or compared
+with another column has no boundary to fall the wrong side of, and declaring a zone for it
+would state a fact nothing reads. Where the declaration <em>is</em> missing, the refusal is
+<a href="../errors/"><code>UndeclaredZone</code></a>, and it names both spellings that fix it.</p>
+<p><strong>On the mapping, never on the canonical field.</strong> A canonical <code>placed_at</code> fed by a New
+York feed and a London feed runs on two clocks, and a field-level key would have one
+answer for two facts — the same argument <code>currency_in:</code> is here for. Each mapping declares
+its own:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># mapping_uk.yaml</span>
+<span class="nt">placed_at</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.placed"</span>
+<span class="w">  </span><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_ts</span><span class="p">:</span><span class="w"> </span><span class="nv">ISO8601</span><span class="p p-Indicator">},</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">to_utc</span><span class="p">:</span><span class="w"> </span><span class="nv">Europe/London</span><span class="p p-Indicator">}]</span>
+
+<span class="c1"># mapping_us.yaml</span>
+<span class="nt">placed_at</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.placed"</span>
+<span class="w">  </span><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_ts</span><span class="p">:</span><span class="w"> </span><span class="nv">ISO8601</span><span class="p p-Indicator">},</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">to_utc</span><span class="p">:</span><span class="w"> </span><span class="nv">America/New_York</span><span class="p p-Indicator">}]</span>
+</code></pre></div>
+<p><strong>Both spellings together are checked, not merely allowed.</strong> <code>zone_in: Europe/London</code>
+beside <code>{to_utc: Europe/London}</code> is a redundancy the compiler reads; a disagreement
+between them is refused naming both, because one of the two is wrong and nothing in the
+spec says which. A non-UTC <code>zone_in:</code> with nothing converting it is refused for the
+opposite reason: the declaration is right and the instant is still wrong.</p>
+<p><strong>What this does not check is whether the zone is the true one.</strong> A <code>Europe/London</code> on a
+New York feed shifts every row by five hours with the compiler's full blessing. The
+question the declaration answers is <em>what clock does this source system run on</em>, which is
+written in that system's documentation rather than in its rows — so it is a question with
+a findable answer, and bloomery can only check that somebody answered it.</p>
 <h2 id="null-handling-and-json">Null handling and JSON<a class="headerlink" href="#null-handling-and-json" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

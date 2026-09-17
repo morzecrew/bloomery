@@ -1990,6 +1990,7 @@ pulling in any pipeline stage.</p>
 │   ├── UnexportedImport
 │   ├── UnknownUpstream
 │   ├── ImportCollision
+│   ├── UndeclaredZone
 │   ├── QuarantineRetentionMissing
 │   ├── DedupeTieBreakMissing
 │   ├── DedupeDispositionConflict
@@ -2205,6 +2206,11 @@ pulling in any pipeline stage.</p>
 <td><code>ImportCollision</code></td>
 <td>guardrails</td>
 <td>A name a project declares is also one it imports — two things of one kind answering to one name, where any precedence rule would be invisible from the other project's file</td>
+</tr>
+<tr>
+<td><code>UndeclaredZone</code></td>
+<td>guardrails</td>
+<td>A timestamp parsed from a wall clock nothing declares a zone for, whose absolute position is then read — a date role, a comparison against a literal instant, or an as-of anchor. Declare it with <code>zone_in: UTC</code> where the source's wall clocks really are UTC, or <code>{to_utc: &lt;zone&gt;}</code> naming the clock they run on. The compiler checks that the assertion exists, never that it is true</td>
 </tr>
 <tr>
 <td><code>QuarantineRetentionMissing</code></td>
