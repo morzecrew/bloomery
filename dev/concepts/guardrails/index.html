@@ -797,6 +797,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Additivity">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#which-rows-the-ratio-is-about" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Which rows the ratio is about
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1811,6 +1828,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Additivity">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#which-rows-the-ratio-is-about" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Which rows the ratio is about
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2059,6 +2093,40 @@ wrongly — at <code>0.212.0</code>, a measure declaring <code>agg: average</cod
 clean and answers <code>55.00</code>, beside a <code>ratio</code> metric over the same rows that answers <code>32.50</code>
 (<a href="https://github.com/morzecrew/bloomery/tree/main/comparisons/metricflow">the reproduction</a>).
 That refusal stays here.</p>
+<h3 id="which-rows-the-ratio-is-about">Which rows the ratio is about<a class="headerlink" href="#which-rows-the-ratio-is-about" title="Permanent link">&para;</a></h3>
+<p><code>SUM(num) / NULLIF(SUM(den), 0)</code> guards the case where the <em>total</em> denominator is zero.
+It says nothing about a <strong>row</strong> whose denominator is zero, and that row is a different
+failure: a shipment cancelled after the carrier charged for it contributes <code>40.00</code> of cost
+and <code>0</code> parcels, so sum-over-sum charges its cost to the parcels somebody else moved. The
+total denominator is <code>40</code>, nothing is null, nothing divides by zero, and the answer is
+wrong.</p>
+<p>There are two right answers and they are spelled identically, which is why bloomery
+refuses rather than choosing:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># "per unit, over the units that exist" — restrict both operands</span>
+<span class="nt">carrier_cost</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">filter</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">dimension</span><span class="p">:</span><span class="w"> </span><span class="nv">parcels</span><span class="p p-Indicator">,</span><span class="nt"> op</span><span class="p">:</span><span class="w"> </span><span class="nv">gt</span><span class="p p-Indicator">,</span><span class="nt"> values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">]}]</span>
+<span class="nt">parcels</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">filter</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">dimension</span><span class="p">:</span><span class="w"> </span><span class="nv">parcels</span><span class="p p-Indicator">,</span><span class="nt"> op</span><span class="p">:</span><span class="w"> </span><span class="nv">gt</span><span class="p p-Indicator">,</span><span class="nt"> values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">]}]</span>
+
+<span class="c1"># or declare the field positive once, for every metric over it</span>
+<span class="nt">parcels</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">quality</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">rule</span><span class="p">:</span><span class="w"> </span><span class="nv">range</span><span class="p p-Indicator">,</span><span class="nt"> min</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">quarantine</span><span class="p p-Indicator">}]</span>
+
+<span class="c1"># "total spend per unit moved, overheads included" — say so</span>
+<span class="nt">cost_per_parcel</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">additivity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ratio</span>
+<span class="w">  </span><span class="nt">ratio</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">numerator</span><span class="p">:</span><span class="w"> </span><span class="nv">carrier_cost</span><span class="p p-Indicator">,</span><span class="nt"> denominator</span><span class="p">:</span><span class="w"> </span><span class="nv">parcels</span><span class="p p-Indicator">,</span><span class="nt"> includes_zero_denominator</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p>The disposition is what makes the second one a premise: <code>quarantine</code> and <code>fail</code> remove the
+row from the relation the ratio sums, while <code>flag</code> and <code>repair</code> leave it there, so a rule
+at either of those asserts nothing about what was summed.</p>
+<p><strong>A ratio whose denominator counts rows is not refused.</strong> <code>COUNT(order_id)</code> over a required
+column counts every row the numerator sums, so the premise holds by construction and there
+is nothing to declare — which is most ratios, and the reason this refusal is rarer than it
+sounds.</p>
+<p><strong>The operands must also agree with each other.</strong> A numerator restricted to one row set and
+a denominator to another is a quotient of two quantities about different things, refused
+whether or not a zero is involved.</p>
 <h2 id="path-conflict-the-guardrail-that-does-not-raise">Path conflict: the guardrail that does not raise<a class="headerlink" href="#path-conflict-the-guardrail-that-does-not-raise" title="Permanent link">&para;</a></h2>
 <p>When a field has both a direct source column and a satisfiable recorded derivation, any
 silent choice is wrong — the two can disagree, and whichever the compiler picked, the

@@ -1991,6 +1991,8 @@ pulling in any pipeline stage.</p>
 │   ├── UnknownUpstream
 │   ├── ImportCollision
 │   ├── UndeclaredZone
+│   ├── UndeclaredRatioRows
+│   ├── RatioOperandsDisagree
 │   ├── QuarantineRetentionMissing
 │   ├── DedupeTieBreakMissing
 │   ├── DedupeDispositionConflict
@@ -2211,6 +2213,16 @@ pulling in any pipeline stage.</p>
 <td><code>UndeclaredZone</code></td>
 <td>guardrails</td>
 <td>A timestamp parsed from a wall clock nothing declares a zone for, whose absolute position is then read — a date role, a comparison against a literal instant, or an as-of anchor. Declare it with <code>zone_in: UTC</code> where the source's wall clocks really are UTC, or <code>{to_utc: &lt;zone&gt;}</code> naming the clock they run on. The compiler checks that the assertion exists, never that it is true</td>
+</tr>
+<tr>
+<td><code>UndeclaredRatioRows</code></td>
+<td>guardrails</td>
+<td>A ratio whose denominator can be zero on a row, with nothing saying whether that row belongs in it — the row contributes to the numerator and nothing to the denominator, so its amount is charged to the units other rows carried. Restrict both operands, declare the field positive at a disposition that removes the row, or declare <code>includes_zero_denominator: true</code> for the total-over-units reading</td>
+</tr>
+<tr>
+<td><code>RatioOperandsDisagree</code></td>
+<td>guardrails</td>
+<td>A ratio whose numerator and denominator are restricted to different row sets — a quotient of two quantities about different things, which is wrong whether or not a zero is involved</td>
 </tr>
 <tr>
 <td><code>QuarantineRetentionMissing</code></td>
