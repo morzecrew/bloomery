@@ -103,6 +103,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0068 | Caller-assembled spec history | `7fe697d` |
 | 0069 | Spec timeline | `79658f4` |
 | 0070 | Mechanical imports and per-relationship provenance | `c771ff0` |
+| 0074 | Declared source timezone | `fb4c6ac` |
 
 ## Not in the table
 

@@ -2,7 +2,7 @@
 
 - **Status:** 📝 Draft — design only, nothing built. Converts corpus case
   `009-null-denominator` from `unguarded` to refused, which with
-  [RFC 0074](0074-declared-source-timezone.md) closes both cases holding
+  RFC 0074 (declared source timezone; retired at `fb4c6ac`) closes both cases holding
   [RFC 0042](0042-semantic-bug-corpus.md) open.
 - **Scope:** Which rows a ratio is about, and what bloomery does when a row contributes to
   the numerator and nothing to the denominator. Touches `semantic/additivity.py` (R012's

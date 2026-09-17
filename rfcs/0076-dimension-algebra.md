@@ -20,7 +20,7 @@
   dimensions; retired at `33bc4f9`), RFC 0058 (rollup marts; retired at `efba2b6`),
   RFC 0015 (query vocabulary; retired at `33bc4f9`).
 - **Origin:** Named in the ordering as the third of a group with
-  [RFC 0074](0074-declared-source-timezone.md) and
+  RFC 0074 (declared source timezone; retired at `fb4c6ac`) and
   [RFC 0075](0075-a-ratio-over-one-row-set.md). Those two give a *value* the fact it was
   missing; this one gives a *dimension* the facts it was missing, and it is much larger
   because dimensions relate to each other and values do not.
