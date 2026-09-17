@@ -1,0 +1,304 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0014
+title: BigQuery dialect port
+kind: design
+status: draft
+implementation: none
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  A `bigquery` dialect port for bloomery, its rewrite surface, and the tier ladder that
+  establishes it, carried across from `rfcs/0048-bigquery-dialect.md` with that document's
+  own grades intact. BigQuery is the cheapest of the four cloud engines to make
+  authoritative: a dry run is a full parse, bind and type check that executes nothing and
+  scans nothing, so the real service's own compiler is reachable for the cost of an API
+  call. The work is not test infrastructure; it is GoogleSQL's type and timestamp
+  semantics, and one row — D-1, the `DATETIME` against `TIMESTAMP` choice — carries most
+  of the risk.
+motivation: |
+  bloomery ships three dialects and every one of them runs in a container, which is the
+  assumption the engine tier was built on. BigQuery breaks it, and is still the first of
+  the four cloud engines worth taking, because it is the one whose authoritative layer is
+  nearly free: `goccy/bigquery-emulator` gives a local rung that executes rows, and a dry
+  run gives the real service's parser, binder and type resolution without executing or
+  scanning anything.
+
+  The gap this closes is not that bloomery cannot emit GoogleSQL — SQLGlot has a generator.
+  It is that nothing has decided what bloomery's zoneless UTC `timestamp` means on an
+  engine that distinguishes an instant from a wall clock, what its safe cast means on an
+  engine whose `SAFE_CAST` must survive the `Cast → TryCast` rewrite, or what a declared
+  `decimal(p, s)` may express on an engine with two decimal types and no floats allowed
+  on the way in. Each of those is answered by a default today, and a default that happens
+  to work on the fixture corpus is indistinguishable from a decision until the day it
+  stops working.
+current_state: |
+  Three ports ship — `src/bloomery/dialects/duckdb.py`, `postgres.py` and `trino.py` —
+  behind the five-method `DialectPort` protocol in `src/bloomery/dialects/base.py`, wired
+  into the immutable default mapping in `src/bloomery/dialects/__init__.py`.
+  `DialectFeature` is the capability vocabulary a port declares against, and
+  `PATTERN_TARGET_DIALECTS` in `src/bloomery/quality/pattern.py` is the tuple
+  `("duckdb", "postgres", "trino")`.
+
+  Nothing of this design has landed. There is no `src/bloomery/dialects/bigquery.py`, no
+  `tests/unit/test_dialects/test_bigquery.py`, no `bigquery` directory anywhere under
+  `tests/golden/`, and no module under `tests/engines/` that names the engine.
+  `git log` over `src/bloomery/dialects/` runs from the initial dialect milestone through
+  the most recent landing without a commit that begins the port, and no file under
+  `tasks/` or `logs/` executes this design. Every phase below is therefore unbuilt.
+
+  The apparatus a fourth port would join is in place: `tests/engines/` holds the Postgres
+  and Trino modules, each pinning its container image by exact tag, and `tests/support/`
+  holds the shared batteries they run, including `type_conformance.py` — the
+  declared-against-produced corpus a new port has to satisfy. What is missing there is a
+  rung for something that is not the engine: the marker table in `pyproject.toml` declares
+  six tiers and `engine(name)` means Docker plus the real engine, so nothing today
+  distinguishes a test that ran against an engine from one that ran against something
+  engine-shaped.
+
+  The only mentions of BigQuery in the tree are prose. Two source modules and two
+  documentation pages say dbt's Python models run on Snowflake, BigQuery and Databricks
+  and that none of bloomery's dialects is one of them; a third page estimates the port at
+  a week or more and names `STRUCT` and `ARRAY` semantics and the partition model as what
+  makes it costlier than the shipped three.
+goals: |
+  A `bigquery` port whose every rewrite point is a decision somebody made rather than a
+  default somebody inherited, and a ladder under it where each rung's name states exactly
+  what a green run proves and nothing more.
+
+  The dry-run lane built early rather than last, because it is the cheapest authoritative
+  signal any of the four cloud ports has and it can validate the whole fixture corpus
+  rather than a subset — which is the fact that makes "no local container" a non-blocker
+  for this engine instead of a reason to defer it.
+non_goals: |
+  The validation method itself. The ladder, the surrogate marker, the credential
+  discipline and where a live harness may live are settled in
+  `rfcs/0046-validating-a-dialect-port.md`; this document applies them and does not
+  restate them, so a reader chasing why rung 4 is never the oracle should read that file
+  rather than this one.
+
+  Widening the GoogleSQL surface beyond what bloomery emits — a port covers the
+  constructions the compiler produces, not the dialect — and arguing that all four cloud
+  ports should exist. This one is taken because its authoritative layer is cheap, not
+  because the set is complete.
+design:
+  - key: the-rewrite-surface
+    md: |
+      The port's risk concentrates at the handful of points where bloomery's shared
+      rewrites meet GoogleSQL. This is the source document's own list, ordered by what
+      each can cost.
+
+      - **`DATETIME` against `TIMESTAMP`.** BigQuery distinguishes them, bloomery has one
+        `timestamp` that is UTC and zoneless, and SQLGlot has a default. The port maps
+        this deliberately — D-1.
+      - **`SAFE_CAST`**, on which the quality system's NULL-on-failure lowering depends.
+        The `TRY_CAST`-shaped lowering needs a GoogleSQL spelling, and the shape has to
+        survive the `Cast → TryCast` rewrite the way it does on the other three ports —
+        D-2.
+      - **ISO parsing and the offset guard**, whose `SUBSTRING(x, 11)` window and two
+        `LIKE`s must render natively and mean the same thing they mean elsewhere.
+      - **`NUMERIC` and `BIGNUMERIC`** precision and scale boundaries, against bloomery's
+        no-floats rule and its declared `decimal(p, s)` — D-7.
+      - **`SHA256` returns `BYTES`**, so `text_sha256`'s lowercase-hex contract needs a
+        hex encoding step. The same shape Trino needed, and for the same reason: the
+        digest feeds `reject_id`, which has to agree across engines or the reject tables
+        two ports produce cannot be compared.
+      - **Regexp capture behaviour**, **JSON extraction and its result types**, **Unicode
+        normalization**, **array support** for the `ARRAY` dialect feature, **backtick
+        identifier quoting**, division and aggregate result types, date and timestamp
+        truncation, timezone conversion, and null behaviour.
+
+      Fixtures are owed for `STRING`, `INT64`, `BOOL`, `DATE`, `DATETIME` and `TIMESTAMP`,
+      and explicitly for the zoneless-UTC invariant.
+  - key: local-execution-and-the-emulator
+    md: |
+      `goccy/bigquery-emulator` runs as a container with no Google Cloud project and no
+      credentials:
+
+      ```bash
+      docker run --rm -p 9050:9050 -p 9060:9060 \
+        ghcr.io/goccy/bigquery-emulator:<pinned> --project=test
+      ```
+
+      REST on `9050`, gRPC on `9060`. Wrapped in a Testcontainers fixture beside the
+      Postgres and Trino modules, it covers generated `SELECT` execution, seed data and
+      fixture marts, joins and aggregates, common date and time operations, `SAFE_CAST`
+      where supported, basic JSON, regexp, arrays, and the quality and quarantine queries.
+
+      It is an independent implementation with incomplete API and SQL coverage. That makes
+      it rung 4 — evidence, surrogate-marked, never the oracle — and it makes the version
+      pin non-optional: `latest` is not a lane, because a tier whose engine version can
+      change under it cannot tell a regression from an upgrade. D-3 records both halves,
+      and D-6 leaves open the one thing measurement should settle rather than argument:
+      whether the lane is cheap enough and catches enough to earn a slot on pull requests.
+  - key: the-authoritative-layers
+    md: |
+      A dry run validates a query and estimates its bytes without executing it:
+
+      ```python
+      job_config = bigquery.QueryJobConfig(dry_run=True, use_query_cache=False)
+      job = client.query(sql, job_config=job_config)
+      ```
+
+      It reaches the real service, so it is a better acceptance check than SQLGlot and
+      better than the emulator: the engine's own parser, binder and type resolution
+      answering, at negligible cost and with nothing scanned. Of the four cloud ports this
+      is the cheapest such layer, and it is why none of them is blocked on the absence of
+      a container.
+
+      It only means something if there is something to resolve against. A dry run over a
+      query that references no table validates syntax and roughly what rung 3 already
+      proves, while reading in a report as the authoritative lane — so a tiny stable test
+      dataset exists before the lane does. That is D-5.
+
+      The small execution corpus then covers what a dry run cannot settle, because a dry
+      run never produces a value: exact timestamp instants, decimal results and their
+      scale, null propagation, `SAFE_CAST` behaviour, regexp captures, JSON extraction,
+      the SHA-256 hex casing, Unicode normalization, and whether a quarantined row was in
+      fact quarantined. Tiny tables, explicit byte limits.
+  - key: ci-identity
+    md: |
+      Workload Identity Federation with GitHub OIDC, not a long-lived service-account JSON
+      key — D-4. The CI identity needs three things and no more: issue query jobs and dry
+      runs, read metadata for the dedicated test dataset, and execute the tiny live corpus
+      where it is enabled.
+
+      The dry-run job and the execution job are separate jobs, so the default cloud lane
+      cannot scan or bill a large dataset by accident. Neither is reachable from an
+      untrusted pull request and both sit behind a GitHub Environment, which is the method
+      document's rule and this port's first use of it.
+
+      Both lanes skip with a stated reason when their variables are absent rather than
+      failing. That is what keeps a fork's pull request green without a credential, and it
+      is also what makes the acceptance command of the phases that build them run quiet in
+      a sandbox that has no credential at all.
+tests: |
+  `tests/unit/test_dialects/test_bigquery.py` — the port's rewrites, its declared
+  capabilities, and the rung-3 sanity that every rendered statement re-parses under
+  SQLGlot's `bigquery` reader.
+
+  `tests/golden/test_sqlmesh_dialects.py`, with checked-in artifacts under
+  `tests/golden/<fixture>/sqlmesh/bigquery/` — byte-stable output per fixture, on the
+  shared corpus and not a port-native one.
+
+  `tests/support/bigquery.py` — connection, submission, polling and row canonicalization
+  for the live lanes. Test apparatus, never `src/`.
+
+  `tests/engines/test_bigquery_surrogate.py` — the emulator rung, marked so that a green
+  run cannot read as engine conformance.
+
+  `tests/engines/test_bigquery_live.py` — the dry-run lane, and after it the small
+  execution corpus.
+
+  Fixtures are owed for `STRING`, `INT64`, `BOOL`, `DATE`, `DATETIME` and `TIMESTAMP`, and
+  explicitly for the zoneless-UTC invariant: that is the one case a port can be green on
+  everything else and still be wrong about.
+docs: |
+  None the design names, and one it implies. The pages that mention BigQuery today say
+  only that dbt's Python models run there and bloomery's dialects do not, and a reference
+  page carries a porting-cost estimate for an engine bloomery does not target. A shipped
+  port makes both stale, and the phase that lands the port owns the edit rather than
+  leaving it to whoever next reads the page.
+out_of_scope: |
+  The other three cloud ports. Snowflake, Redshift and Databricks share this document's
+  method and none of them shares its risks; each is its own document, none depends on
+  another, and nothing here should be read as scheduling them.
+
+  Any engine driver, SDK or Spark session inside `src/bloomery`. The package is a pure
+  compiler with no I/O and a live harness is test apparatus — the method document's
+  boundary, not this port's to revisit, and the reason the harness paths above all begin
+  with `tests/`.
+risks: |
+  **The `DATETIME` against `TIMESTAMP` choice is the highest-risk line, and its failure
+  mode is silence.** A SQLGlot default that happens to work on the fixture corpus reads as
+  a decision until a value crosses a zone under aggregation or comparison, at which point
+  the wrong answer is already in somebody's mart. D-1 locks the choice; the mitigation is
+  that the zoneless-UTC invariant gets its own fixture rather than riding on one that
+  happens to exercise it.
+
+  **A green emulator run is the second.** The emulator is an independent implementation
+  with incomplete API and SQL coverage, and the damage is not a wrong result — it is a
+  right-looking one quoted six months later as engine conformance. D-3 keeps it off the
+  oracle seat, and the surrogate marking keeps the claim out of the test's name, which is
+  where the claim actually gets made.
+
+  **A dry-run lane built before a dataset exists validates syntax and little else** while
+  reading as authoritative, which is the worst of both. D-5 requires the dataset first.
+
+  **A `SAFE_CAST` that does not survive the `Cast → TryCast` rewrite** turns a
+  quality-carrying entity back into produce-or-raise on one engine, silently: the bad row
+  aborts the run instead of landing in quarantine. D-2 locks the contract, and the
+  coercion fixtures in the execution corpus are what catch a regression in it.
+sections:
+  - key: provenance
+    md: |
+      This document is a translation of `rfcs/0048-bigquery-dialect.md`, bloomery's own
+      design authority for the port, carried into the corpus so that a minted task can
+      inherit it. Nothing here is a redesign.
+
+      - **Source.** The file `rfcs/0048-bigquery-dialect.md`, listed in `rfcs/INDEX.md`
+        with status *Draft* — proposed, not scheduled. Its validation method is
+        `rfcs/0046-validating-a-dialect-port.md`, itself a draft; that document's rows
+        D1 through D5 are applied here rather than restated, and its rows D8 and D9 are
+        the two open questions below.
+      - **Grades.** All seven rows are the source document's own, in its own order and at
+        its own grades: its rows D1, D2 and D3 are `LOCKED`, D4 and D5 are `ASSUMED`, D6
+        and D7 are `OPEN`. No grade was raised or lowered in the carry, and no row was
+        added that the source did not write.
+      - **What landed.** Nothing, in no pull request. `git log` over
+        `src/bloomery/dialects/` holds no commit that begins the port, the tree holds no
+        file the design calls for, and `implementation` therefore stands at `none` with
+        every phase below unbuilt.
+      - **Tasks and logs.** No file under `tasks/` or `logs/` executes this design.
+        `T-0048` shares its number by coincidence and executes an unrelated design about
+        logging and the advisory channel.
+      - **Citations.** The source document's rows are named in prose as `D1` through `D7`
+        of that file, in words rather than in the corpus grammar, because that file is
+        outside the corpus and a citation into it would resolve to nothing. `cites` is
+        empty on every row for the same reason, and `informed_by` names only the standing
+        baseline this repository already carries.
+alternatives:
+  - option: >-
+      Accept whatever SQLGlot's `bigquery` generator produces for bloomery's `timestamp`,
+      and document the DATETIME/TIMESTAMP distinction as a caveat.
+    rejected_because: >-
+      The default is not wrong on the fixture corpus, which is exactly the problem:
+      it is indistinguishable from a decision right up until a value crosses a zone
+      under aggregation or comparison, and by then the wrong instant has been computed
+      rather than refused. One spec meaning two things on two engines, announced nowhere,
+      is the failure the port layer exists to prevent.
+  - option: >-
+      Validate the port against `goccy/bigquery-emulator` alone and skip the dry-run
+      lane, since the emulator actually executes rows and a dry run does not.
+    rejected_because: >-
+      The emulator is an independent implementation with incomplete API and SQL coverage,
+      so it can only ever be evidence; the dry run is the real service's own compiler
+      and costs an API call. On this engine the tempting shortcut is the opposite
+      of the usual one — skipping the emulator is defensible, skipping the dry run
+      leaves the port with no authoritative layer at all.
+  - option: >-
+      Authenticate the CI lanes with a long-lived service-account JSON key held in
+      repository secrets.
+    rejected_because: >-
+      It is the credential most likely to outlive the maintainer who created it, and
+      it buys only setup time. The trade is operational rather than semantic, so a
+      project without federation configured may start with a scoped key and a rotation
+      note — that is the departure D-4's grade licenses, not a second way of doing
+      it forever.
+questions:
+  - id: Q-1
+    text: >-
+      Whether this port ships in-tree or as an extension package registered through
+      `register_dialect`. The method document leaves it open for the corpus and this
+      is the first port that forces an answer, since moving a shipped dialect between
+      the two is a breaking change either way.
+  - id: Q-2
+    text: >-
+      Whether rung 4's surrogate claim is a new pytest marker or a parameter on the
+      existing `engine` marker. The requirement is fixed — a surrogate run may not
+      be named like an engine run — and only the spelling is open; whoever builds
+      the emulator lane decides and updates the marker table in `pyproject.toml` with
+      the reason.

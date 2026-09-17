@@ -1,0 +1,311 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      Grain identity is structural, never a display string: a grain is the tuple of
+      its entity determinants, canonicalized and compared structurally, and human-readable
+      names stay available for diagnostics only
+    paths: [src/bloomery/semantic/nodes.py]
+    consequence: >-
+      Every document downstream compares grains — the rollup proof, the measure's
+      origin, the branch join key — so a string-equality identity here would be re-derived,
+      differently, in four places
+    rationale: >-
+      Reversing this after the documents built on it land invalidates their comparisons
+      rather than merely changing this one
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      Refinement is never implicit: a coarser measure is not moved to a finer grain
+      because a join exists, and any future operation that duplicates a measure must
+      be an explicitly named semantic act with its own design, never a fallback
+    paths: [src/bloomery/semantic/closure.py, src/bloomery/semantic/nodes.py]
+    consequence: >-
+      Shipping at order grain stays unsafe on an order item, and a rollup question
+      whose target is finer than its source is refused as a refinement rather than
+      answered
+    rationale: >-
+      This is the guarantee the whole sequence rests on and the one a planner is most
+      tempted to break: SQL will happily produce the row, and the number is plausible
+      and wrong
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      `one_to_many` and `many_to_many` contribute no dependency in the preserving
+      direction, and no heuristic ever contributes one; the closure admits only entity
+      keys, declared `many_to_one` and `one_to_one` relationships, as-of-qualified
+      historical hops, and transitive closure over those
+    paths:
+      - src/bloomery/semantic/closure.py
+      - src/bloomery/semantic/nodes.py
+      - src/bloomery/semantic/proof.py
+    consequence: >-
+      A `one_to_many` read inversely is a `many_to_one` and is admitted as one; read
+      in its declared direction it contributes nothing, and the dependency it did
+      not contribute is kept as a blocked edge so a refusal can name it
+    rationale: >-
+      The value of every proof built on top is exactly the weakest fact admitted here
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The as-of qualification reuses the historical-fanout guardrail's semantic fact
+      rather than restating it
+    paths: [src/bloomery/semantic/historical.py, src/bloomery/marts/flatten.py]
+    consequence: >-
+      Two readings of SCD2 validity in one compiler is the divergence this project
+      has paid for before — one body, two callers
+    rationale: >-
+      Not locked because the guardrail's fact may prove to be shaped for a mart question
+      specifically, in which case execution extracts the shared half and logs the
+      departure; that is the branch that happened, and D-10 records it
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The rollup question is directional — a relation over source grain, target grain
+      and context — and is not graph reachability
+    paths: [src/bloomery/semantic/closure.py]
+    consequence: >-
+      Undirected reachability would accept an order rolling up to an order item on
+      the strength of an edge existing, which D-2 refuses
+    rationale: >-
+      Departing means finding a direction-carrying formulation that is not a relation
+      over those three; the row forbids answering the question by reachability, which
+      is why D-14's diagnosis on the refusal path does not weaken it
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Closure output carries a derivation per member, not a boolean
+    paths: [src/bloomery/semantic/nodes.py, src/bloomery/semantic/closure.py]
+    consequence: >-
+      A proof tree can be built from the closure and a case can be pinned to a rule,
+      both without asking the closure a second question
+    rationale: >-
+      Producing booleans now would mean re-deriving the reason later, from the answer
+  - id: D-7
+    grade: LOCKED
+    text: >-
+      Determinism on the compiler's own terms: sorted tuples, no sets where order
+      can reach output, byte-stable serialization across processes and hash seeds
+    paths: [src/bloomery/semantic/**]
+    consequence: >-
+      A sort key over a value a set deduplicated has to be total over that value,
+      or the tie is decided by the hash seed; the blocked-edge tuple was exactly that
+      defect and the determinism guard's corpus now carries the shape that exposes
+      it
+    rationale: >-
+      The closure is a graph walk, which is where nondeterminism enters this codebase
+      most easily, and its output is destined for evidence artifacts
+    check: >-
+      uv run pytest tests/unit/test_determinism_guard.py -q
+  - id: D-8
+    grade: OPEN
+    text: >-
+      Whether the mart's existing grain refusal is re-implemented on this substrate,
+      and when
+    paths: [src/bloomery/marts/flatten.py]
+    consequence: >-
+      Observable behaviour and golden diagnostics must survive either way, so this
+      is a sequencing question execution may answer: re-implement early and carry
+      the risk of moving a shipped refusal, or leave the mart check alone until the
+      planner work has exercised the substrate
+    rationale: >-
+      Decide it with the first phase that has a reason to touch the mart path, and
+      log the decision
+    superseded_by: D-13
+  - id: D-9
+    grade: LOCKED
+    text: >-
+      The grain model is derived from the project IR, never stored in it: a grain
+      is computed on demand from an entity's declared key and adds no field to any
+      IR node
+    paths: [src/bloomery/semantic/closure.py, src/bloomery/ir/nodes.py]
+    consequence: >-
+      The IR version does not move, no project fingerprint moves and no golden moves,
+      which is what turns preserve-observable-behaviour from an argument into a diff;
+      verified by compiling every fixture, target and dialect on both sides of the
+      branch — 251 cells, byte-identical
+    rationale: >-
+      Every document downstream inherits the constraint, and the first one to put
+      itself on a node spends the whole corpus's fingerprints; proposed by execution,
+      see `logs/T-0017.md`, entry 086
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      The as-of fact lives in one function in the semantic package, and the mart guard
+      reads it from there
+    paths: [src/bloomery/semantic/historical.py, src/bloomery/marts/flatten.py]
+    consequence: >-
+      Anything in this sequence that needs to know whether a historical hop is qualified
+      calls that function; the anchor states it distinguishes are finer than the two
+      sentences the mart needed, which is what a blocked edge carries
+    rationale: >-
+      D-4's second branch is the one that happened: the guardrail's version was shaped
+      for a mart question — it took a via step and a step path and returned guardrail
+      leaves — so the shared half moved down and the mart's historical leaf now dispatches
+      on the anchor state, keeping only the wording; proposed by execution, see `logs/T-0017.md`,
+      entry 087
+  - id: D-11
+    grade: LOCKED
+    text: >-
+      A dependency carries the column it was reached *through*, and an ambiguous path
+      is defined over joined column pairs rather than over relationship names
+    paths: [src/bloomery/semantic/nodes.py]
+    consequence: >-
+      Comparing names alone gets both directions wrong — a billing and a shipping
+      address are both the same dependent column and differ only in the determinant-side
+      column, while one relationship declared in both directions is two names for
+      one meaning: a false refusal and a false proof
+    rationale: >-
+      The proof tree and the case pinning both ask whether this is the same route,
+      and the answer has to be one answer; proposed by execution, see `logs/T-0017.md`,
+      entry 088
+    superseded_by: D-19
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      Nothing is cached; the dependency set is exposed separately from the closure
+      so a caller with many questions builds the set once without the model holding
+      state
+    paths: [src/bloomery/semantic/closure.py]
+    consequence: >-
+      A caller that wants speed builds the set once rather than asking the model to
+      remember
+    rationale: >-
+      D-7 makes a memo keyed on a graph walk a correctness question rather than a
+      performance one, and there is still no measurement to argue from; proposed by
+      execution, see `logs/T-0017.md`, entry 090
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      The mart's grain refusal stays on grain-string equality until a planner has
+      exercised this substrate
+    paths: [src/bloomery/marts/flatten.py]
+    consequence: >-
+      The only thing the mart path takes from this document is the as-of fact; its
+      grain comparison is untouched, and the unit tier pins the decision as well as
+      the behaviour so a later silent migration is visible
+    rationale: >-
+      Supersedes D-8. The substrate has no consumer until the planner design, so moving
+      a shipped refusal onto it now carries the whole of the observable-behaviour
+      risk for none of its benefit. Assumed rather than open because the question
+      has been answered once and re-answering it needs a reason; proposed by execution,
+      see `logs/T-0017.md`, entry 089
+    cites: [D-8]
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      A cardinality-expanding refusal is classified by undirected connectivity over
+      the relationship graph, on the refusal path only
+    paths: [src/bloomery/semantic/closure.py]
+    consequence: >-
+      The classification runs after the closure has already refused and can turn one
+      refusal into a better-worded one and nothing else
+    rationale: >-
+      The obvious implementation — re-closing while admitting `one_to_many` in its
+      declared direction — is near-dead code, because such a relationship joins on
+      the target's foreign key rather than its own, so the target never unfolds. D-5
+      is unchanged: it forbids *answering* the rollup question by reachability. Proposed
+      by execution, see `logs/T-0017.md`, entry 091
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      `many_to_many` names a cardinality this tree does not have — the cardinality
+      enum is `many_to_one`, `one_to_one` and `one_to_many` — so the prose and D-3
+      describe a member no spec can declare and no IR can carry
+    paths: [src/bloomery/ir/nodes.py, src/bloomery/semantic/closure.py]
+    consequence: >-
+      Nothing was built for it and their text stands as written: this row is the correction,
+      not an edit to them
+    rationale: >-
+      The match over admitted directions is exhaustive with no fallthrough, so adding
+      a member fails the type check at the one place that has to decide about it —
+      the prose's claim enforced rather than restated; proposed by execution, see
+      `logs/T-0017.md`, entry 092
+  - id: D-16
+    grade: LOCKED
+    text: >-
+      A versioned entity's declared key does not identify one of its rows, so it contributes
+      no entity-key dependency, and a rollup *out of* such a grain is refused; a historical
+      row is reached by an anchored hop and by nothing else, which is why the as-of
+      basis determines the whole target row rather than only the joined key
+    paths: [src/bloomery/semantic/closure.py, src/bloomery/semantic/nodes.py]
+    consequence: >-
+      Without it a versioned entity's key reads as determining every historical column
+      it carries, with an empty derivation, and every rollup built on that is a number
+      computed over however many versions a key happens to have
+    rationale: >-
+      The relation holds one row per version per key, so the business key selects
+      a set — the fact the historical-fanout guardrail already refuses on a mart's
+      base entity, read about the entity rather than about a join onto it, which is
+      what D-4 asks for. Locked for D-2's reason: it is a false proof, and a plausible
+      wrong number is the failure this sequence exists to prevent. Proposed by execution,
+      see `logs/T-0017.md`, entry 094
+  - id: D-17
+    grade: ASSUMED
+    text: >-
+      The refusal list gains two members, and one of them is not about history: an
+      anchor supplied for a relation that keeps no versions is its own refusal rather
+      than an unqualified historical path, and a source grain naming a versioned entity
+      is its own refusal too
+    paths: [src/bloomery/semantic/nodes.py]
+    consequence: >-
+      There is no history to be unqualified about in the first case, and the repair
+      is to drop the anchor rather than to fix it or to declare the entity versioned
+    rationale: >-
+      The refusal section lists what refusals must *at minimum* distinguish, so adding
+      to it is within the section rather than against it; proposed by execution, see
+      `logs/T-0017.md`, entries 094 and 095
+  - id: D-18
+    grade: ASSUMED
+    text: >-
+      A refusal names only the edges that are holding *this* question, and two anchors
+      for one relationship are refused rather than resolved
+    paths: [src/bloomery/semantic/closure.py, src/bloomery/semantic/nodes.py]
+    consequence: >-
+      A historical refusal is narrowed to the hops the relaxed closure walked and
+      a fan-out refusal to the edges whose removal disconnects the two grains, with
+      the full candidate set as the fallback where two parallel edges are jointly
+      the reason and neither is individually critical
+    rationale: >-
+      The blocked-edge set is project-wide by design, so passing it through a refusal
+      reports a relationship from an unrelated part of the graph as the blocker; and
+      two anchors for one relationship are two readings of one join with no rule for
+      choosing between them, so the context refuses rather than sorting and taking
+      the first. Proposed by execution, see `logs/T-0017.md`, entry 095
+  - id: D-19
+    grade: LOCKED
+    text: >-
+      A dependency carries the whole hop it crossed — the joined column pairs and
+      the instant it read them at — and an ambiguous path is defined over those
+    paths: [src/bloomery/semantic/nodes.py]
+    consequence: >-
+      One column of the hop cannot tell two relationships joining on overlapping pairs
+      apart, and columns without the instant collapse two hops that join identically
+      and are read as of different dates — a tier as of the order date and a tier
+      as of the ship date are two numbers, and the collapse returned a proof where
+      an ambiguity refusal was owed
+    rationale: >-
+      Supersedes D-11, whose narrower form is why it was wrong twice. Locked for D-11's
+      reason, unchanged: the proof tree and the case pinning both ask whether this
+      is the same route, and the answer has to be one answer. Proposed by execution,
+      see `logs/T-0017.md`, entry 093
+    cites: [D-11]
+  - id: D-20
+    grade: LOCKED
+    text: >-
+      The dependency basis has four members, not five: composition is not a basis,
+      because a derivation carries the steps it composed, each with its own basis,
+      and the rule that names a composition is reached from a derivation having more
+      than one step
+    paths: [src/bloomery/semantic/nodes.py, src/bloomery/semantic/proof.py]
+    consequence: >-
+      What D-3 admits is unchanged — transitive closure is still admitted and still
+      proved. What is removed is a spelling with no producer, and the cost of keeping
+      it was concrete: a consumer guard was written against a basis table holding
+      a row nothing could fill, which made one branch of it unreachable and its provenance
+      row a fiction a test could invent back
+    rationale: >-
+      The composition rule stays registered and is now the one rule no basis names;
+      a test pins that asymmetry so it does not read as a stale entry. Added by a
+      later execution on 2026-09-10, see `logs/T-0041.md`

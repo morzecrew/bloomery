@@ -1,0 +1,148 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      No Spark session, engine driver or cloud SDK enters `src/bloomery`; the `databricks`
+      port renders text and nothing else, and every live harness is test apparatus
+      under `tests/support/`
+    paths: [src/bloomery/dialects/**]
+    consequence: >-
+      Installing bloomery never pulls a JVM or a warehouse client, and "bloomery targets
+      Databricks" cannot turn into "bloomery executes Spark"; a port that needs to
+      run something to answer a question has asked the question in the wrong tier
+    rationale: >-
+      The package is a pure compiler from specs to artifacts with no I/O, and the
+      stakes are highest on this engine because Spark is the one surrogate that could
+      plausibly be mistaken for the product
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      PySpark is a test-only optional dependency group, pinned reproducibly in the
+      lockfile and never installed by `uv add bloomery`
+    paths: [pyproject.toml]
+    consequence: >-
+      A user who never targets Databricks pays nothing for this port, and the dependency
+      cannot drift into the runtime set by accident
+    rationale: >-
+      A JVM in the install path of a pure compiler is also a dependency nobody removes
+      later
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      The Spark lane is marked `surrogate("databricks_spark")`, never as the Databricks
+      engine — local Spark checks shared Spark semantics, and only a live warehouse
+      checks the Databricks dialect
+    paths: [tests/engines/test_databricks_surrogate.py, pyproject.toml]
+    consequence: >-
+      A green run in that lane cannot be quoted later as Databricks conformance, because
+      the name a CI log prints already says what was tested
+    rationale: >-
+      The distinction has to survive being read by someone who was not here, which
+      is what the name — not the docstring — decides; the shared method document fixes
+      the requirement and leaves the exact spelling to whoever adds the first surrogate
+      lane, who records the reason in the marker table
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      `DESCRIBE QUERY` is part of the authoritative lane, not an optional extra beside
+      `EXPLAIN EXTENDED`
+    paths: [tests/support/databricks.py, tests/engines/test_databricks_live.py]
+    consequence: >-
+      The declared-versus-produced type contract is checked against the real analyzer
+      without executing anything or scanning any data; without it, type conformance
+      rests on the surrogate, which is precisely where Spark and Databricks SQL are
+      documented to differ
+    rationale: >-
+      No other cloud port in this sequence has an equivalent command, so what is cheap
+      here is unavailable elsewhere and skipping it wastes the one advantage this
+      engine gives
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      No service-principal machine-to-machine OAuth flow is documented as working
+      on Free Edition; the stated fallback is a personal access token if that workspace
+      offers one, otherwise local and manual with unattended CI on a normal workspace
+    paths: [.github/workflows/**, .env.example]
+    consequence: >-
+      A reader setting the lane up is never sent down a path the edition cannot support,
+      and the setup instructions stay true as written
+    rationale: >-
+      Free Edition lacks account-level administration, and a guide that confidently
+      describes an unavailable flow costs a reader more than no guide
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Databricks Free Edition is sufficient to bootstrap the live lane, provided the
+      lane stays small — serverless-only, one `2X-Small` warehouse, fair-use quotas,
+      no SLA
+    paths: [tests/engines/test_databricks_live.py, .github/workflows/**]
+    consequence: >-
+      The port is not blocked on anyone buying a workspace, and the live lane is sized
+      by what the edition can carry rather than by what the offline tiers happen to
+      cover
+    rationale: >-
+      Departing means the conformance suite has outgrown the edition, which is a signal
+      to shrink the suite before it is a signal to buy compute: an authoritative lane
+      large enough to need paid compute has stopped being the small lane the method
+      describes
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The Spark surrogate lane is kept only if it catches defects the offline rungs
+      miss; it is measured over one port's work and dropped on that evidence
+    paths: [tests/support/spark.py, tests/engines/test_databricks_surrogate.py]
+    consequence: >-
+      The lane's cost is justified by what it returns rather than by the plausibility
+      of having it, and dropping it is a recorded outcome rather than neglect
+    rationale: >-
+      A Spark session is a heavy fixture with its own JDK matrix, and the list of
+      expressions it may not speak for is long enough that its coverage may not repay
+      the maintenance
+  - id: D-8
+    grade: OPEN
+    text: >-
+      Which physical timestamp type each logical type maps to, given `TIMESTAMP` and
+      `TIMESTAMP_NTZ` — establish it on the live lane, and pin the surrogate's ANSI
+      mode to the setting that matches whatever is chosen
+    paths: [src/bloomery/dialects/**]
+    consequence: >-
+      The choice is constrained by this repository's zoneless-UTC invariant exactly
+      as it is on the Snowflake and BigQuery ports, and the executor that settles
+      it logs the table it arrived at with the evidence that produced it
+    rationale: >-
+      This design does not guess the mapping; the engine's own analyzer answers it
+      at negligible cost, and a guessed table would be the kind of plausible wrong
+      answer the golden tier freezes
+  - id: D-9
+    grade: OPEN
+    text: >-
+      Whether the port targets Databricks SQL only or claims generic Spark SQL as
+      well — decide it before the first golden artifact
+    paths: [src/bloomery/dialects/**]
+    consequence: >-
+      The answer names the dialect and the emitted artifacts carry the name, so changing
+      it afterwards is a breaking change to every project compiled against it
+    rationale: >-
+      The two are documented as differing in both directions, and one port cannot
+      honestly be both without a capability split
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      No cloud credential is reachable from an untrusted pull request and the default
+      test tiers never require one: the live lane runs on `main`, on a schedule and
+      on manual dispatch behind the `databricks-free` GitHub Environment rather than
+      raw repository secrets, against the dedicated `workspace.bloomery_conformance`
+      catalog and schema, with compile-only and execution jobs kept separate, and
+      a live test skips with a stated reason when the variables are absent rather
+      than failing
+    paths: [.github/workflows/**, .env.example, tests/support/databricks.py]
+    consequence: >-
+      A public pull request cannot run arbitrary SQL under a maintainer's cloud identity,
+      the cheap lane cannot accidentally scan or bill, and a contributor with no credentials
+      sees a stated skip rather than a red suite
+    rationale: >-
+      The source document states this in prose and never graded it, citing the shared
+      method document's locked row for it; graded `ASSUMED` here because this backfill
+      did not settle it, so a departure is a signal to go and read that document rather
+      than a licence

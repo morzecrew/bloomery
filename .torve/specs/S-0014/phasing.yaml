@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The port and its offline rungs
+    intent: >-
+      Add a `bigquery` port beside the three that ship and establish it on the rungs
+      that need no backend: the rewrites, the declared capabilities, byte-stable artifacts,
+      and the sanity that every rendered statement re-parses under SQLGlot's `bigquery`
+      reader. This is where the two locked semantic choices are actually made — what
+      a bloomery `timestamp` becomes on an engine that separates an instant from a
+      wall clock, and what a safe cast spells so that it still yields NULL after the
+      `Cast → TryCast` rewrite — and where the open decimal mapping is measured against
+      the declared-type battery rather than read off the documentation. The zoneless-UTC
+      invariant gets its own fixture rather than riding on one that happens to exercise
+      it, because that is the case the port can be wrong about while everything else
+      is green.
+    scope:
+      - src/bloomery/dialects/bigquery.py
+      - src/bloomery/dialects/__init__.py
+      - src/bloomery/quality/pattern.py
+      - tests/unit/test_dialects/test_bigquery.py
+      - tests/golden/test_sqlmesh_dialects.py
+      - tests/golden/**/bigquery/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_dialects/test_bigquery.py tests/golden/test_sqlmesh_dialects.py
+        -q
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: The dry-run lane
+    intent: >-
+      Build the authoritative layer, which on this engine is the cheap one: a dry
+      run is a full parse, bind and type check that executes nothing and scans nothing,
+      so the real service's own compiler can answer for the whole fixture corpus rather
+      than a subset. The harness lives under `tests/support/` because no cloud SDK
+      enters the package, the dedicated test dataset exists before the lane does so
+      that name and type resolution actually run, and the workflow authenticates by
+      federated identity with the dry-run job kept separate from any job that can
+      scan. The lane skips with a stated reason when its variables are absent rather
+      than failing, which is what keeps it green on a fork's pull request and in a
+      sandbox with no credential.
+    scope:
+      - tests/support/bigquery.py
+      - tests/engines/test_bigquery_live.py
+      - .github/workflows/ci.yml
+      - pyproject.toml
+    acceptance:
+      - >-
+        uv run pytest tests/engines/test_bigquery_live.py -q
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: The surrogate emulator lane
+    intent: >-
+      Wrap `goccy/bigquery-emulator` in a Testcontainers fixture pinned to an exact
+      tag and run the generated `SELECT`s, the fixture marts, the date and time operations,
+      the JSON, regexp and array cases, and the quarantine queries against it. The
+      point of the phase is as much naming as coverage: the lane gets a marker that
+      says surrogate, distinct from the one that means the real engine, so that a
+      green run in a CI log six months from now cannot be read as BigQuery conformance.
+      Whether the lane earns a slot on pull requests is left to this phase to decide
+      and log, on measured runtime and on whether it catches anything the offline
+      rungs miss. Its acceptance is collection rather than execution because the lane
+      needs Docker, which a sandbox does not have; what the command proves is that
+      the module imports and its cases are discoverable, and the lane itself is proven
+      where Docker exists.
+    scope:
+      - tests/engines/test_bigquery_surrogate.py
+      - .github/workflows/ci.yml
+      - pyproject.toml
+    acceptance:
+      - >-
+        uv run pytest tests/engines/test_bigquery_surrogate.py -q --collect-only
+    depends_on:
+      - 1
+    character: routine
+  - phase: 4
+    title: The live execution corpus
+    intent: >-
+      Add the small execution lane for what a dry run cannot settle, because a dry
+      run never produces a value: exact timestamp instants, decimal results and their
+      scale, null propagation, `SAFE_CAST` behaviour, regexp captures, JSON extraction,
+      the SHA-256 hex casing, Unicode normalization, and whether a quarantined row
+      was in fact quarantined. Tiny tables and explicit byte limits, on the shared
+      fixture corpus so that a divergence presents as one fixture behaving differently
+      across ports rather than as two suites nobody can diff. It runs in its own job,
+      separate from the dry-run lane, and skips with a stated reason when its variables
+      are absent.
+    scope: [tests/engines/test_bigquery_live.py, tests/support/bigquery.py]
+    acceptance:
+      - >-
+        uv run pytest tests/engines/test_bigquery_live.py -q
+    depends_on:
+      - 2
+    character: routine

@@ -1,0 +1,89 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      `RedshiftDialect` does not subclass `PostgresDialect`. It may share helper functions;
+      it may not inherit rewrites
+    paths: [src/bloomery/dialects/redshift.py]
+    consequence: >-
+      Subclassing makes every PostgreSQL rewrite silently legal here — `pg_input_is_valid`,
+      the `JSONB` lowering, `regexp_substr`'s argument order, the reserved-word list
+      — and each one is a plausible-looking spelling that Redshift either rejects
+      or reads differently
+    rationale: >-
+      Locked because inheritance is the specific mechanism by which this port becomes
+      wrong while looking finished, and because unpicking it after artifacts ship
+      is a breaking change
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      A green Floci or LocalStack run proves PostgreSQL accepted the query, and the
+      test name says so — the lane carries a surrogate marker and never claims the
+      engine
+    paths: [tests/engines/test_redshift_surrogate.py]
+    consequence: >-
+      Here the surrogate is not merely a different implementation, it is the engine
+      bloomery already ships a port for, so a test named for the engine could be passing
+      entirely on the PostgreSQL scaffold
+    rationale: >-
+      The shared cloud-port validation method already decided that a surrogate is
+      evidence and never the oracle, and that the surrogate rung carries its own marker;
+      this is the port those two rows were written for
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      Fixtures are split into `postgres-compatible` and `redshift-native`, and the
+      native class never runs on the surrogate
+    paths: [tests/support/redshift.py]
+    consequence: >-
+      Without the split, the surrogate lane's coverage number silently includes cases
+      it cannot speak to — which is how a partial lane comes to be read as a full
+      one
+    rationale: >-
+      The split is cheap before there are fixtures and expensive afterwards, which
+      is why it is built in the phase that creates the port rather than the phase
+      that first consumes it
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `SUPER` and PartiQL replace the `JSONB` lowering rather than being layered over
+      it
+    paths: [src/bloomery/dialects/redshift.py]
+    consequence: >-
+      They are different data models, not different spellings, and a translation layer
+      that mostly works is worse than a port that refuses `variant` until it is built
+    rationale: >-
+      Departing means measuring that a subset genuinely maps, and saying which subset
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      LocalStack is optional while bloomery remains a pure compiler
+    paths: [tests/support/redshift.py, tests/engines/test_redshift_surrogate.py]
+    consequence: >-
+      It emulates control-plane and Data API surfaces bloomery does not touch, so
+      no lane is blocked on it
+    rationale: >-
+      It becomes relevant only if a target end-to-end test needs AWS-facing behaviour
+  - id: D-6
+    grade: OPEN
+    text: Whether the port declares `DialectFeature.ARRAY`
+    paths: [src/bloomery/dialects/redshift.py]
+    consequence: >-
+      `_quality_flags` lowers to a delimited string without it — a supported path,
+      but one that changes emitted artifacts and the reject table's shape
+    rationale: >-
+      Establish Redshift's actual collection capability on the live lane and decide
+      from that, not from the PostgreSQL port's answer; whoever builds the port decides
+      it and records the evidence, and the live lane is where it is confirmed
+  - id: D-7
+    grade: OPEN
+    text: >-
+      Which helpers are genuinely shared with the PostgreSQL port
+    paths: [src/bloomery/dialects/redshift.py, src/bloomery/dialects/postgres.py]
+    consequence: >-
+      D-1 forbids inheritance and permits sharing, and the boundary between them is
+      exactly where this port will be tempted back
+    rationale: >-
+      Enumerate the shared helpers explicitly when the port is written, so a later
+      reader can tell a shared abstraction from a leaked assumption

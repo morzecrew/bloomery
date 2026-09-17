@@ -1,0 +1,128 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the port, and the fixture split from the start
+    intent: >-
+      A `redshift` `DialectPort` exists and is registered by name, written against
+      Redshift's own semantics rather than derived from `PostgresDialect`: every PostgreSQL-specific
+      rewrite the existing port carries — `_variant_is_jsonb`, the `JSONB` extraction,
+      `_guarded_try_cast` behind `pg_input_is_valid`, `_zoneless_parse`, the text
+      functions and the reserved-word list — is audited before any of it is reused,
+      and whatever is genuinely shared is a named helper rather than an inherited
+      method. The offline rungs come with it: unit coverage of the rewrites and the
+      declared capabilities, golden artifacts per fixture and target, and the syntax-sanity
+      assertion that the rendered SQL re-parses under the dialect. The fixture classification
+      into `postgres-compatible` and `redshift-native` is built here, in the harness
+      module, although nothing consumes it until the next phase — the split is cheap
+      before there are fixtures and expensive afterwards. Three places in the tree
+      enumerate the shipped dialects by name and must be brought along: the refusal
+      message asserted in the base dialect test, the quality corpus compiled for every
+      shipped dialect in the docs-floor test, and the reference page that opens by
+      saying three dialects ship.
+    scope:
+      - src/bloomery/dialects/redshift.py
+      - src/bloomery/dialects/postgres.py
+      - src/bloomery/dialects/__init__.py
+      - tests/unit/test_dialects/test_redshift.py
+      - tests/unit/test_dialects/test_base.py
+      - tests/unit/test_docs_floor.py
+      - tests/support/redshift.py
+      - tests/golden/test_sqlmesh_dialects.py
+      - tests/golden/*/*/redshift/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_dialects/test_redshift.py tests/unit/test_dialects/test_base.py
+        tests/unit/test_docs_floor.py tests/golden/test_sqlmesh_dialects.py -q
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: the surrogate lane, postgres-compatible only
+    intent: >-
+      The local lane exists and is honest about what it is. The surrogate rung gets
+      its own marker in the tier table, distinct from `engine`, so that a green run
+      in a CI log cannot read as the engine having accepted anything; the lane selects
+      the `postgres-compatible` fixture class alone and the `redshift-native` class
+      is excluded by construction rather than by a reviewer's attention. What the
+      lane covers is the PostgreSQL-compatible subset, provisioning and connection
+      flows, wire-protocol integration and basic DDL and DML — and what it must never
+      be the oracle for is `SUPER`, PartiQL, Redshift-only functions, Redshift type
+      rules and planner behaviour. The acceptance collects the lane rather than running
+      it, because running it needs a Docker daemon the sandbox does not have; what
+      the lane says when it does run is read from a live run of the engine tier.
+    scope:
+      - tests/engines/test_redshift_surrogate.py
+      - tests/support/redshift.py
+      - pyproject.toml
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_dialects/test_redshift.py -q
+      - >-
+        uv run pytest tests/engines/test_redshift_surrogate.py -q --collect-only
+    depends_on:
+      - 1
+    character: routine
+  - phase: 2
+    title: the reference page counts four
+    intent: >-
+      `pages/docs/reference/dialects.md` opens by saying three SQL dialects ship and
+      tabulates the three of them three times over — the shipped set, the logical
+      type mapping and the per-construct divergences. A fourth port that leaves it
+      saying three is exactly the kind of stale page that once cost a shipped dialect
+      its standing with an outside reviewer. It is a sibling of the surrogate lane
+      rather than part of the port phase so that it is written after the port exists
+      and after the capability question the port settles is answered: the page states
+      what `DialectFeature.ARRAY` was decided to be and what that does to `_quality_flags`,
+      and it states plainly that the local lane checks the PostgreSQL-compatible subset
+      and that only the live lane checks the Redshift dialect. Its scope is the page
+      alone, disjoint from the lane beside it, so the two run in parallel.
+    scope: [pages/docs/reference/dialects.md]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_docs_floor.py tests/unit/test_advisories.py
+        -q
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: the authoritative compile rung
+    intent: >-
+      `EXPLAIN` and `EXPLAIN VERBOSE` against a real cluster or Serverless workgroup,
+      building a plan without running it — the first rung that says anything about
+      the `redshift-native` fixture class at all. It is the engine's own parser, binder
+      and type resolution answering, at negligible cost and with nothing scanned,
+      and it is what makes the absence of a container a non-blocker rather than a
+      reason to trust the surrogate further. It catches syntax Redshift rejects, unavailable
+      functions, incompatible argument types and relation and column resolution failures.
+      `EXPLAIN` covers query and DML statements but not arbitrary DDL, so DDL acceptance
+      gets its own small check beside it. The lane skips with a stated reason when
+      the credentials are absent rather than failing, which is what lets its acceptance
+      collect cleanly in a sandbox that has none.
+    scope: [tests/engines/test_redshift_live.py, tests/support/redshift.py]
+    acceptance:
+      - >-
+        uv run pytest tests/engines/test_redshift_live.py -q --collect-only
+      - >-
+        uv run pytest tests/unit/test_dialects/test_redshift.py -q
+    depends_on:
+      - 2
+    character: routine
+  - phase: 4
+    title: the targeted execution corpus
+    intent: >-
+      The small execution corpus that settles what a plan cannot: values. `SUPER`
+      and PartiQL extraction, timestamp conversion, `TRY_CAST` coverage, decimal limits
+      and arithmetic, regexp capture, SHA input and output behaviour, null semantics
+      and quarantine results — each one a construct the previous rung proved acceptable
+      and only a run can prove correct. It stays deliberately small and its tables
+      tiny, because this is the most expensive rung and the one whose cost scales
+      with the corpus rather than with the port. It runs against the same real workgroup
+      and skips on the same absent credentials.
+    scope: [tests/engines/test_redshift_live.py, tests/support/redshift.py]
+    acceptance:
+      - >-
+        uv run pytest tests/engines/test_redshift_live.py -q --collect-only
+      - >-
+        uv run pytest tests/unit/test_dialects/test_redshift.py -q
+    depends_on:
+      - 3
+    character: routine
