@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0001
+title: Standing decisions
+kind: design
+status: draft
+implementation: none
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  The brownfield baseline for bloomery: the standing rows a survey of its last twenty
+  landings and its own declared invariants imply, drafted for a person to edit, commit and
+  accept. The survey found no crossed boundary — scope and secrets measured clean on all
+  twenty — and three gates that never measured a single landing for want of a corpus:
+  test licensing, decision recording and the self-audit count. Those three get the
+  `ASSUMED` rows that give them something to measure once work is minted. Five more rows
+  are read from the tree rather than from a firing: the purity boundary the linter already
+  defends, the RFC corpus discipline, the quality authority, the test tiers and the
+  determinism invariants of the IR. One row stands `LOCKED`, on the boundary the history
+  shows being defended by tooling twice; every other grade is the acceptance edit's call.
+motivation: |
+  torve governs work by inheritance: from acceptance, every row whose declared paths
+  intersect a contract's scope rides into that contract at mint time, and the battery
+  convicts only work minted after — never the tree as it stands and never its history.
+  A repository with no corpus therefore gives a minted task nothing to inherit and three
+  gates nothing to measure. This document is the smallest corpus that changes that.
+current_state: |
+  bloomery already governs itself by hand in the shape torve mechanises: RFCs with graded
+  decision tables under `rfcs/`, task files under `tasks/` declaring the rows and paths a
+  task executes under, and per-task logs under `logs/` whose divergence blocks
+  `log_check.py` verifies. Thirty-six RFCs have been retired on landing. What is missing is
+  the engine's side of it: no contract, no battery, no record the ledger can fold.
+goals: |
+  Rows a person can accept in one review, each with paths read from the tree, so the
+  first minted task inherits the repository's own rules rather than a stranger's.
+non_goals: |
+  Sequencing any work: this document has no phasing and mints nothing. Re-grading the
+  RFC corpus's own rows, which stay where they are until the backfill brings them across.
+design:
+  - key: the-survey-findings
+    md: |
+      - **`scope` and `secrets` measured clean** on all twenty landings walked, newest
+        first from `ad5891d7`. A clean gate measured nothing wrong, so no row follows from
+        either; the boundaries they watch are being held without a corpus.
+      - **`no-test-tampering`, `decisions-reported` and `self-audit` skipped every landing**
+        with the no-task skip: no contract has ever existed here, so the gates had nothing
+        to judge against. Each becomes an `ASSUMED` row (D-3, D-4, D-5) that turns the skip
+        into a measurement once work is minted.
+      - **`acceptance` skipped every landing** because the survey ran without a manifest;
+        the manifest beside this corpus names the commands from now on.
+      - **One boundary the tree defends by tooling**: compilation is a pure function
+        — the determinism invariant `CLAUDE.md` calls non-negotiable — enforced as `TID251`
+        banned imports in `pyproject.toml`, which replaced a hand-rolled AST checker. The gate runs on every
+        pull request through `just quality -s`, and the twenty landings held it. That is
+        the consistent clean record with the boundary visible in the tree that the
+        extraction doctrine accepts as defended, so D-1 stands `LOCKED`; a person may
+        still grade it down.
+      - **Four rows read from the tree's own notes** (`CLAUDE.md`, `logs/README.md`,
+        `rfcs/INDEX.md`, the justfile): the RFC corpus discipline, the single quality
+        authority, the test tiers, and the IR determinism invariants. They are not
+        survey findings; they are what a minted task would otherwise have to rediscover.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: |
+  A row read from prose can be wrong about the tree in a way a firing cannot: every path
+  below was checked against the working tree on 2026-09-17, and none was invented, but
+  the grades are the extraction's reading and the acceptance edit is where they are judged.

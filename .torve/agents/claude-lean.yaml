@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../schemas/agent.json
+# The prefix-diet arm (the artifact's M5), as a profile rather than an edit to
+# the incumbent: the same seat with the two plugins gone, so a paired run says
+# what they are worth instead of an argument doing it.
+#
+# Measured before writing this. Across 118 traces and 1,987 tool calls no
+# attempt has ever invoked a `Skill` or spawned a `Task`, so the 48-entry skill
+# catalog and the 10 agent definitions are read by nobody. But the plugins are
+# not idle: both arrive through `SessionStart` as injected context — 5,623 and
+# 5,057 bytes, about 2,670 tokens — and that text is re-sent with every
+# request. With the catalog entries beside it, roughly 6k of a 32k prefix, and
+# the prefix is 46% of every cache-read token this fleet has spent.
+#
+# What this arm cannot answer on its own: whether the instructions were earning
+# their place. That is the landing rate and the diff, read together, over
+# enough tasks to mean something.
+equipment: []
+prompt_extras: |
+  Prefer the smallest change that makes the acceptance commands pass.

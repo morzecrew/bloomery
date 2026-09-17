@@ -1,0 +1,62 @@
+{
+  "additionalProperties": false,
+  "description": "One provenance, identified so a record can join to it, and \u2014 for\neverything but a document \u2014 a file a person can open (S-0060/D-1).\n\n`id` is stable under renaming (S-0047/D-4): the corpus's is the document\nidentifier, `S-NNNN` (S-0058/D-1), which never changes and is never\nreused (S-0016/D-17); every other kind's is `<kind>/<slug>` and must\nequal the path its file sits at. `ref` is where the source currently\nlives, and `ref` is the field that moves when a thing is renamed \u2014 which\nis the whole reason the id is not the path.",
+  "properties": {
+    "at": {
+      "default": "",
+      "description": "When it arrived, `YYYY-MM-DDTHH:MM:SSZ` (S-0058/D-7); empty when nobody said.",
+      "pattern": "^$|^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "title": "At",
+      "type": "string"
+    },
+    "id": {
+      "description": "`S-NNNN` for a document, `<kind>/<slug>` for a filed source.",
+      "title": "Id",
+      "type": "string"
+    },
+    "kind": {
+      "description": "What this provenance is: a specification, an incident, an audit, a review or an ask.",
+      "enum": [
+        "specification",
+        "incident",
+        "audit",
+        "review",
+        "operator"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "ref": {
+      "default": "",
+      "description": "Where it lives \u2014 a URL, an issue, a commit, a person; the field that moves.",
+      "title": "Ref",
+      "type": "string"
+    },
+    "settled_by": {
+      "description": "The documents holding the rows this source settled, if it settled any (S-0060/D-2).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Settled By",
+      "type": "array"
+    },
+    "summary": {
+      "default": "",
+      "description": "What it said, in prose. Never rules \u2014 those are the corpus's (S-0060/D-2).",
+      "title": "Summary",
+      "type": "string"
+    },
+    "title": {
+      "default": "",
+      "description": "What it is, in a line.",
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "kind"
+  ],
+  "title": "Source",
+  "type": "object"
+}

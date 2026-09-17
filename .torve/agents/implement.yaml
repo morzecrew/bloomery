@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../schemas/agent.json
+# What an implement-role agent is given. The two this engine ships are package
+# data, versioned with it (S-0062/D-6); the rest come from a repository, pinned
+# at a commit, with `select` naming which of the 37 it holds (S-0062/D-1). The commit
+# is in `.torve/pins.yaml` rather than here, so a bump moves one line however many
+# profiles name this source (S-0062/D-13).
+# Declared, never read off the filename (S-0061/D-13): `implement` is an ordinary
+# word, and a seat's own profile that happened to be called this used to become
+# the role's default for every seat in the repository.
+role: implement
+equipment:
+- kind: skill
+  source: torve:working-rules
+- kind: skill
+  source: torve:flag-dont-flip
+- kind: skill
+  source: torve:ratchet-what-you-build
+- kind: skill
+  source: github:mattpocock/skills
+  select: [tdd, diagnosing-bugs, code-review]
+# What the door was carrying (S-0066/D-1, S-0066/D-2). Three harnesses used to
+# read this repository's own skill roots unasked, so an implement seat was given
+# five skills nobody declared. The door is shut in each image; the one of the
+# five a seat wants is declared here instead, and the four that no role wants
+# are dropped on purpose, recorded rather than disappearing with the door:
+#
+#   gitmoji-conventional  a sandbox agent never writes a commit message — the
+#                         engine mints them from the landing record
+#   keep-a-changelog      no gate reads `CHANGELOG.md`, and a scope never names
+#                         it (S-0067/D-7), so an attempt cannot write one
+#   spec-writer           corpus authoring has no agent writer; it is declared
+#                         when a role exists that does the writing
+#   forze-skills          vendored, read by dsh and mimo on every attempt, and
+#                         wanted by no role — it enters by declaration or not
+#                         at all
+#
+# `local:`, because it is a path this repository already versions (S-0062/D-3):
+# the re-declaration is a fetch of tracked bytes into the cache, not a second
+# copy of a third party's repository.
+- kind: skill
+  source: local:.claude/skills/readable-code
+# The first `hook` declaration (S-0066/D-5): declared equipment, never an
+# image edit, and the battery stays the judge — the refusal says a write is
+# outside the contract's scope before the bytes land, and the finishing
+# check blocks a stop that still owes an entry or leaves projection drift,
+# once. The ceiling is what turns a block the model cannot clear into two
+# turns instead of a turn budget (S-0066/D-6). `implement` only, so a red
+# result reads against this declaration and not against the image.
+- kind: hook
+  source: local:.torve/agents/hooks/implement

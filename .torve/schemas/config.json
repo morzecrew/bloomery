@@ -1,0 +1,1199 @@
+{
+  "$defs": {
+    "BrokerConfig": {
+      "additionalProperties": false,
+      "description": "The egress broker (S-0021/the-port): which adapter is in force and what\nit is fed. `none` is today's behaviour named explicitly \u2014 keys pass\nthrough, no metering, no wire routing \u2014 and stays the phase-1 default;\n`torve doctor` names it and says plainly that it leaves S-0001/D-13 unmet\n(S-0021/D-9). Under any other adapter a brokered tier names no credential\n(S-0021/D-1): the broker's provider table is the one channel.\n\nThe two modes are S-0021/D-3's split: `endpoint` (the phase-1 default)\ncloses custody and metering on the daemon's default bridge; `sealed`\nadds containment \u2014 the sandbox joins the user-defined internal Docker\nnetwork named here, whose only host-side address is the broker, and\nevery non-provider destination the run needs is declared under\n`pass_through` and CONNECTed without inspection. The same network is\nnamed in `runtime.network` \u2014 egress policy (this block) and sandbox\nprovisioning (`runtime`) are two views of one fact, and the runner\nvalidator refuses them to disagree (S-0021/D-11).\n\nAn endpoint whose sandboxes are remote \u2014 an OpenSandbox server on\nanother machine \u2014 configures `bind` and, across a NAT or a hostname\nsplit, `advertise`: the loopback/bridge derivation reaches nobody out\nthere, and the remote broker answers non-provider requests only with\na refusal naming the destination \u2014 the pass-through leg is a\nsealed-mode mechanism, authenticated by a topology a remote run does\nnot have.",
+      "properties": {
+        "adapter": {
+          "default": "none",
+          "description": "Which broker adapter is in force: `none` is today's behaviour named explicitly \u2014\nkeys pass through, no metering, no wire routing (S-0021/D-9).",
+          "enum": [
+            "none",
+            "local",
+            "opensandbox"
+          ],
+          "title": "Adapter",
+          "type": "string"
+        },
+        "advertise": {
+          "default": "",
+          "description": "Remote endpoint mode (S-0041/D-6): the host[:port] sandboxes are pointed at, for the\nNAT/hostname split; its port falls back to bind's, and an unset advertise speaks bind\nverbatim. Endpoint-only, like `bind`.",
+          "title": "Advertise",
+          "type": "string"
+        },
+        "bind": {
+          "default": "",
+          "description": "Remote endpoint mode (S-0041/D-6): the host:port the broker thread listens on\ninstead of the loopback/bridge-gateway derivation \u2014 a port is mandatory, because the\nsandbox-side composition of this address happens with no channel to the broker and\ncannot learn an ephemeral one. Endpoint-only: sealed mode's address is the internal\nnetwork's gateway and the name-derived port, a topology, not a configured address. The\nwire is plaintext http \u2014 prompts and diffs cross it exposed unless TLS or a private\nnetwork is the operator's deployment; the engine ships plaintext-capable and says so\nplainly rather than pretend-default.",
+          "title": "Bind",
+          "type": "string"
+        },
+        "cost_tolerance": {
+          "default": 0.25,
+          "description": "A broker-measured cost that diverges from the adapter's self-report by more than\nthis fraction is an engine event (S-0021/D-5).",
+          "title": "Cost Tolerance",
+          "type": "number"
+        },
+        "mode": {
+          "default": "endpoint",
+          "description": "S-0021/D-3's split: `endpoint` closes custody and metering on the daemon's default\nbridge; `sealed` adds containment on an internal Docker network whose only host-side\naddress is the broker.",
+          "enum": [
+            "endpoint",
+            "sealed"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "network": {
+          "default": "",
+          "description": "The user-defined --internal Docker network sealed mode joins; the broker attaches to\nit at its gateway, the sandboxes join it, and nothing on it is reachable except the\nbroker (S-0021/D-3). Empty in endpoint mode; must equal runtime.network when\nsealed.",
+          "title": "Network",
+          "type": "string"
+        },
+        "pass_through": {
+          "description": "Sealed mode only: named hosts the broker will CONNECT to without inspection \u2014 a\npackage index, the forge. An undeclared destination is refused loudly, and the run\nfails rather than succeed through a path nobody meant to leave open (S-0021/D-3).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Pass Through",
+          "type": "array"
+        },
+        "providers": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BrokerProvider"
+          },
+          "description": "provider -> wire facts; the run's routing is a dispatch-checked subset (S-0021/D-4:\nthe broker exposes one loopback route per routed provider). Projected from the\nprovider records at load and not written in the configuration (S-0064/D-1).",
+          "title": "Providers",
+          "type": "object"
+        }
+      },
+      "title": "BrokerConfig",
+      "type": "object"
+    },
+    "BrokerProvider": {
+      "additionalProperties": false,
+      "description": "One routed provider's wire facts (S-0021/two-modes-because-custody-and-containment-are-different-problems): where the broker\nforwards and which environment variable in the broker's own environment\nholds the key \u2014 a name, never a value. The configuration names the\ncredential once; a brokered tier names none (S-0021/D-1).\n\nDerived since S-0064/D-1, never written: the provider record under\n`.torve/providers/` holds these three values beside the roster and the\nclocks, and `load_runner_config` projects them here for the broker, which\nneeds exactly this much and nothing else.",
+      "properties": {
+        "key_env": {
+          "default": "",
+          "description": "The env var name the broker reads the key from.",
+          "title": "Key Env",
+          "type": "string"
+        },
+        "upstream": {
+          "default": "",
+          "description": "The provider's real base URL (http:// or https://).",
+          "title": "Upstream",
+          "type": "string"
+        },
+        "via_proxy": {
+          "default": false,
+          "description": "S-0021/A-1: the broker's own upstream leg tunnels through the host's https_proxy for\nthis provider \u2014 for upstreams unreachable from the host directly (region gating). The\nsandbox never sees a proxy either way; this is the broker's egress, not the run's.",
+          "title": "Via Proxy",
+          "type": "boolean"
+        }
+      },
+      "title": "BrokerProvider",
+      "type": "object"
+    },
+    "Compat": {
+      "additionalProperties": false,
+      "description": "What one route's endpoint does differently, measured and dated in the\nrecord rather than probed at dispatch (S-0064/D-2).\n\nNarrow on purpose: a fact torve can name is validated, and everything\nelse rides as the route's `extra` (S-0064/D-10). The `developer` role is\ndeliberately not here \u2014 torve never builds a request, so the client that\nwould send it decides it (S-0064/D-11).",
+      "properties": {
+        "thinking_format": {
+          "default": "",
+          "description": "How this route returns a model's thinking when it is not the native Anthropic\nblock \u2014 `deepseek` for an endpoint that returns `reasoning_content`. Empty means the\nroute's own dialect form, whatever that is.",
+          "title": "Thinking Format",
+          "type": "string"
+        }
+      },
+      "title": "Compat",
+      "type": "object"
+    },
+    "Equipment": {
+      "additionalProperties": false,
+      "description": "One thing an agent is given (S-0062/D-1).",
+      "properties": {
+        "kind": {
+          "description": "Where the harness puts it. A kind the harness does not accept is refused\nagainst its manifest, not here (S-0062/D-2).",
+          "enum": [
+            "skill",
+            "plugin",
+            "mcp",
+            "hook",
+            "agent"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "ref": {
+          "default": "",
+          "description": "What the source pins it at, in the source's own vocabulary \u2014 a tag, a branch,\na commit. Required for a fetched source and refused for the two that carry a\nversion already.",
+          "title": "Ref",
+          "type": "string"
+        },
+        "select": {
+          "description": "The subset of the source to take; empty takes everything it holds.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Select",
+          "type": "array"
+        },
+        "source": {
+          "description": "`torve:<name>`, `local:<path>` or `github:<owner>/<repo>` (S-0062/D-3).",
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "source"
+      ],
+      "title": "Equipment",
+      "type": "object"
+    },
+    "IntakeConfig": {
+      "additionalProperties": false,
+      "description": "The drafting run's knobs (S-0020). `max_drafts` is S-0020/D-8's\ndecomposition ceiling \u2014 how many contracts one request may yield;\n`iterations` bounds the draft-lint loop like any attempt budget.\n`document_threshold` is the document-threshold rule's starting point \u2014\nthe number of distinct documents whose settled ground a scope must\ncross before the work needs one of its own (S-0030 S-0030/D-3), a\ncalibration knob rather than a truth.",
+      "properties": {
+        "document_threshold": {
+          "default": 2,
+          "description": "The document-threshold rule's starting point \u2014 the number of distinct documents\nwhose settled ground a scope must cross before the work needs one of its own (S-0030\nS-0030/D-3), a calibration knob rather than a truth.",
+          "title": "Document Threshold",
+          "type": "integer"
+        },
+        "iterations": {
+          "default": 3,
+          "description": "The draft-lint loop's budget, bounded like any attempt budget.",
+          "title": "Iterations",
+          "type": "integer"
+        },
+        "max_drafts": {
+          "default": 4,
+          "description": "S-0020/D-8's decomposition ceiling \u2014 how many contracts one request may yield.",
+          "title": "Max Drafts",
+          "type": "integer"
+        }
+      },
+      "title": "IntakeConfig",
+      "type": "object"
+    },
+    "LoopConfig": {
+      "additionalProperties": false,
+      "description": "The manager pass's knobs. Named for the standing loop that is gone\n(S-0019/A-8); the keys stay because a configuration file that has to be\nrewritten to keep working is a worse cost than a section named after\nits ancestor.",
+      "properties": {
+        "pause_escalations": {
+          "default": 1,
+          "description": "A pass mints nothing while this root's escalation queue holds this many, counting\nboth carriers (S-0048/D-5). The queue may drain during a pause; it may not grow.",
+          "title": "Pause Escalations",
+          "type": "integer"
+        },
+        "standing_max_per_tick": {
+          "default": 1,
+          "description": "S-0023 S-0023/D-6: instantiations across every standing job in one pass, so spend\nper unit time stays cadence times a known bound.",
+          "title": "Standing Max Per Tick",
+          "type": "integer"
+        },
+        "tick_budget": {
+          "default": 3600,
+          "description": "Seconds; an adoption lock older than this is stale and broken loudly.",
+          "title": "Tick Budget",
+          "type": "integer"
+        }
+      },
+      "title": "LoopConfig",
+      "type": "object"
+    },
+    "Model": {
+      "additionalProperties": false,
+      "description": "One entry in a provider's roster: what is true of the model wherever it\nis reached.\n\nEverything here is optional because a record is written as it is measured,\nand a value nobody has measured is better absent than guessed. What is\nabsent is unstated, never zero.",
+      "properties": {
+        "context_window": {
+          "default": 0,
+          "description": "How many tokens this model's context holds; 0 is unstated.",
+          "title": "Context Window",
+          "type": "integer"
+        },
+        "id": {
+          "default": "",
+          "description": "What reaches the provider, and what the regime hash records; empty means the roster\nkey is its own id (S-0064/D-3). A slug awkward to type or to use as a path segment gets\na local shorthand, and renaming that shorthand cannot move a regime digest.",
+          "title": "Id",
+          "type": "string"
+        },
+        "max_tokens": {
+          "default": 0,
+          "description": "The cap on one response's tokens; 0 is unstated.",
+          "title": "Max Tokens",
+          "type": "integer"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Price"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What a token costs here. Absent for a seat that genuinely has no per-token cost \u2014 a\nsubscription \u2014 and then the attempt's cost stays unreported rather than invented."
+        },
+        "reasoning": {
+          "description": "The reasoning levels this model has, as words a seat names one of. A list rather\nthan a flag so a seat's choice has something to be refused against; empty is a model\nthat does not reason.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasoning",
+          "type": "array"
+        }
+      },
+      "title": "Model",
+      "type": "object"
+    },
+    "NotifyConfig": {
+      "additionalProperties": false,
+      "description": "Where an interrupt-class escalation is delivered (S-0051).\n\n`none` by default and explicitly (S-0051/D-4): a repository that has not\nchosen a destination sends nothing because somebody decided that, the\nsame shape the broker's `none` adapter takes.\n\nThe URL is the destination itself, not a credential \u2014 a webhook URL is\na bearer secret in practice, so it names an environment variable rather\nthan carrying a value into a committed file (S-0001/D-13).",
+      "properties": {
+        "adapter": {
+          "default": "none",
+          "description": "Which notify adapter is in force: none or webhook.",
+          "title": "Adapter",
+          "type": "string"
+        },
+        "attempts": {
+          "default": 5,
+          "description": "How many deliveries one escalation earns before the relay parks it (S-0051/D-7). A\nqueue that retries forever is a queue that never drains.",
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "timeout_s": {
+          "default": 10.0,
+          "description": "How long one delivery attempt may take, in seconds.",
+          "title": "Timeout S",
+          "type": "number"
+        },
+        "url_env": {
+          "default": "TORVE_NOTIFY_URL",
+          "description": "The name of the environment variable holding the webhook URL the relay posts to \u2014\nthe URL is a bearer secret in practice, so it is named, never carried here\n(S-0001/D-13).",
+          "title": "Url Env",
+          "type": "string"
+        }
+      },
+      "title": "NotifyConfig",
+      "type": "object"
+    },
+    "OpenSandboxConfig": {
+      "additionalProperties": false,
+      "description": "The OpenSandbox server the runtime talks to. The advertised broker\nproxy is not a configured key here (extra=\"forbid\" refuses it in the\nyaml): `RunnerConfig` resolves it once at load from `broker.bind` /\n`broker.advertise` and publishes it on this instance \u2014 one location for\nthe address, the broker block, and one derived read, the runtime's\nproxy-env composition (S-0041/D-6: two adapters, no channel, one fact).",
+      "properties": {
+        "api_key_env": {
+          "default": "OPENSANDBOX_API_KEY",
+          "description": "The name of the environment variable holding the server's API key \u2014 the name, never\nthe key itself: configuration is committed, credentials are not.",
+          "title": "Api Key Env",
+          "type": "string"
+        },
+        "domain": {
+          "default": "localhost:5266",
+          "description": "The host:port of the OpenSandbox server the runtime adapter builds its client\nagainst.",
+          "title": "Domain",
+          "type": "string"
+        }
+      },
+      "title": "OpenSandboxConfig",
+      "type": "object"
+    },
+    "Price": {
+      "additionalProperties": false,
+      "description": "What a model costs, in US dollars per million tokens (S-0064/D-12).\n\nThe engine computes an attempt's cost from this and the token counts\nrather than believing a harness that may not recognise the model it was\npointed at \u2014 measured, claude emits `unrecognized_model` for\nqwen3.8-flash and then prices the attempt off its own Anthropic table.",
+      "properties": {
+        "cache_read": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "US dollars per million tokens read from the prompt cache; absent bills them at the\ninput rate rather than inventing a discount.",
+          "title": "Cache Read"
+        },
+        "cache_write": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "US dollars per million tokens written to the prompt cache; absent bills them at the\ninput rate rather than inventing a surcharge.",
+          "title": "Cache Write"
+        },
+        "input": {
+          "default": 0.0,
+          "description": "US dollars per million input tokens.",
+          "title": "Input",
+          "type": "number"
+        },
+        "output": {
+          "default": 0.0,
+          "description": "US dollars per million output tokens.",
+          "title": "Output",
+          "type": "number"
+        }
+      },
+      "title": "Price",
+      "type": "object"
+    },
+    "PromotionConfig": {
+      "additionalProperties": false,
+      "description": "Landing policy (S-0006/promotion). The operator's `torve merge` is always\nthe recorded approval; `auto_merge` is the opt-in that lets a manager\npass invoke the same lane on the same terms \u2014 it arms the pass's landing\nleg, and every refusal below still applies to it unchanged.\n\n`require_ci` is \u00a73's `ci: green_on_current_head` requirement: the lane\nrefuses to land a candidate whose branch tip is not green on the\nconfigured remote's CI (`scm.repo`), polled with backoff against the\nlightweight runs endpoint (\u00a71). A rebased tree is additionally judged\nby the local battery re-run \u2014 the remote verdict covers the tip the\nremote actually saw.",
+      "properties": {
+        "approvals": {
+          "default": 0,
+          "description": "\u00a73's approvals requirement (T-0060): the lane lands only a candidate with this many\nrecorded approvals of its CURRENT branch tip \u2014 an approval that predates the last push\napproves nothing (S-0006/D-3). Zero requires none: configuring nothing decides\nnothing.",
+          "title": "Approvals",
+          "type": "integer"
+        },
+        "auto_merge": {
+          "default": false,
+          "description": "S-0052/D-2: S-0006/D-2's opt-in, restored with its original default of false. Off, a\nmanager pass never lands and behaves exactly as it did before the landing leg existed \u2014\nlanding stays a human act. On, the pass runs the same `process_lane` `torve merge`\nruns, with the same arguments, so every refusal below refuses a pass's leg exactly as\nit refuses the manual verb.",
+          "title": "Auto Merge",
+          "type": "boolean"
+        },
+        "landing": {
+          "default": "local",
+          "description": "S-0080/D-1: the act that lands a promoted candidate \u2014 `local` fast-forwards the base\nhere, `pull_request` pushes the branch and opens the task's pull request on the forge.\nA term of configuration, never inferred from whether a remote exists or from\n`scm.open_pr`; `local` is the default so a repository configured today lands as it does\ntoday.",
+          "enum": [
+            "local",
+            "pull_request"
+          ],
+          "title": "Landing",
+          "type": "string"
+        },
+        "quiet_window": {
+          "default": 0,
+          "description": "\u00a73's quiet window, in seconds: a landing whose branch tip is younger than this\nrefuses \u2014 pushing resets the window. Zero disables it.",
+          "title": "Quiet Window",
+          "type": "integer"
+        },
+        "require_ci": {
+          "default": false,
+          "description": "\u00a73's `ci: green_on_current_head` requirement: the lane refuses to land a candidate\nwhose branch tip is not green on the configured remote's CI (`scm.repo`).",
+          "title": "Require Ci",
+          "type": "boolean"
+        },
+        "require_review": {
+          "default": false,
+          "description": "\u00a73's review criterion (S-0006/D-14, S-0006/A-3): the lane lands only a candidate\nwhose producing run recorded a concluded review (`reviewed_by` on the run state) \u2014 the\nunconfigured-review bridge never satisfies it.",
+          "title": "Require Review",
+          "type": "boolean"
+        }
+      },
+      "title": "PromotionConfig",
+      "type": "object"
+    },
+    "Provider": {
+      "additionalProperties": false,
+      "description": "One provider, one credential, one file (S-0064/D-1).\n\n`broker.providers.<name>` folded in whole, leaving `broker:` with\n`adapter`, `mode` and `cost_tolerance` \u2014 the three things that are about\nthe broker rather than about a provider. A provider's facts are now\nvalidated, hashed and reviewed like every other file under `.torve/`,\ninstead of being a string the engine sets and never reads.",
+      "properties": {
+        "key_env": {
+          "default": "",
+          "description": "The name of the environment variable holding this provider's credential \u2014 a name,\nnever a value: configuration is committed and credentials are not.",
+          "title": "Key Env",
+          "type": "string"
+        },
+        "models": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Model"
+          },
+          "description": "The roster, keyed by what a seat writes. An empty roster is a provider nothing is\nseated on yet, which is a configuration, not an error.",
+          "title": "Models",
+          "type": "object"
+        },
+        "name": {
+          "default": "",
+          "description": "What a seat resolves this provider by; empty is the filename stem, the same rule\nthe agent profile and the harness manifest follow.",
+          "title": "Name",
+          "type": "string"
+        },
+        "request_timeout_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "How long one request to this provider may take, in seconds; absent leaves the\nharness's own default in force.",
+          "title": "Request Timeout S"
+        },
+        "routes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Route"
+          },
+          "description": "This provider's API dialects, keyed by api name, each with its own base URL and its\nown compat facts.",
+          "title": "Routes",
+          "type": "object"
+        },
+        "schema_version": {
+          "default": 1,
+          "description": "The record's own shape version.",
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "stream_idle_timeout_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "How long a started stream may go silent before it is abandoned, in seconds \u2014 the\nbackstop for a wedged-but-trickling stream; absent leaves the harness's own default.",
+          "title": "Stream Idle Timeout S"
+        },
+        "via_proxy": {
+          "default": false,
+          "description": "The runner's own upstream leg to this provider tunnels through the host's\nhttps_proxy \u2014 for endpoints unreachable from the host directly (region gating). A\nsandbox never sees a proxy either way; this is the host's egress, not the run's.",
+          "title": "Via Proxy",
+          "type": "boolean"
+        }
+      },
+      "title": "Provider",
+      "type": "object"
+    },
+    "ProvidersConfig": {
+      "additionalProperties": false,
+      "description": "Which providers a repository's contents may reach (S-0004/provider-routing-and-data-boundaries):\nrepository contents, fixtures and diffs leave the building for whichever\nprovider an adapter is pointed at, so the policy is explicit and enforced\nat dispatch, before a sandbox exists (S-0004/D-8).",
+      "properties": {
+        "default": {
+          "description": "The providers every repository may reach unless its own entry names another set.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Default",
+          "type": "array"
+        },
+        "never_send": {
+          "description": "gitwildmatch globs whose files are withheld from the worktree the agent sees, so\ntheir contents never leave the building for any provider.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Never Send",
+          "type": "array"
+        },
+        "repositories": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RepositoryProviders"
+          },
+          "description": "Per-repository overrides of the default provider set, keyed by repository.",
+          "title": "Repositories",
+          "type": "object"
+        }
+      },
+      "title": "ProvidersConfig",
+      "type": "object"
+    },
+    "ReapConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "stale_after": {
+          "default": 600,
+          "description": "A non-terminal state with a heartbeat older than this, in seconds, is orphaned.",
+          "title": "Stale After",
+          "type": "number"
+        }
+      },
+      "title": "ReapConfig",
+      "type": "object"
+    },
+    "RepositoryProviders": {
+      "additionalProperties": false,
+      "properties": {
+        "allow": {
+          "description": "The providers this repository's contents may reach; a non-empty list replaces\n`ProvidersConfig.default` for this repository alone (`route_provider`).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Allow",
+          "type": "array"
+        },
+        "deny_reason": {
+          "default": "",
+          "description": "The sentence appended to the ProviderDenied refusal when this repository denies a\nprovider, so the error says why and not only that.",
+          "title": "Deny Reason",
+          "type": "string"
+        }
+      },
+      "title": "RepositoryProviders",
+      "type": "object"
+    },
+    "ReviewConfig": {
+      "additionalProperties": false,
+      "description": "Review triggers (S-0005/triggers). Off by default \u2014 a blocker stopping\nthe run is configuration deciding a consequence (S-0001/D-10), and configuring\nnothing decides nothing. `task_gated` is board-driven; the pull-request\ntriggers admit `torve review pr` as the forge's event delivery.\n`skip_authors` is \u00a74's author skip rule; draft and zero-changed-files\npull requests always skip. `blocker_revisions` (S-0043, S-0001/D-10's framing:\nconfiguration decides the consequence, never the model) bounds how many\nin-run attempts a surviving blocker earns before escalating\n`blocker_finding`; 0 escalates on the first surviving blocker, today's\nbehavior exactly.",
+      "properties": {
+        "blocker_revisions": {
+          "default": 1,
+          "description": "The blocker revision budget (S-0043 S-0043/D-1/D-43.3): in-run attempts, same\nworktree, a surviving blocker spends before escalating. Counted per run, spent only by\nsurviving blockers \u2014 a clean review costs nothing against it. 0 escalates on the first\nsurviving blocker, today's behavior exactly.",
+          "title": "Blocker Revisions",
+          "type": "integer"
+        },
+        "blocks_at": {
+          "default": "major",
+          "description": "The severity that stops a promotion. Three consecutive reviews of this engine's own\nwork found a real defect apiece \u2014 a leg that shipped the next phase's deliverable, a\nleg whose construction took the manager down, a decode error that abandoned every\ncandidate in a lane pass \u2014 and graded all three `major`, so all three promoted. The\nreviewer uses `major` for \"this must be fixed\" and reserves `blocker` for something\nthat has not once occurred in this repository. The grade is the reviewer's reading and\nstays what it recorded; what stops a promotion is configuration's to decide\n(S-0001/D-10), which is what this is.",
+          "enum": [
+            "blocker",
+            "major"
+          ],
+          "title": "Blocks At",
+          "type": "string"
+        },
+        "on": {
+          "description": "The review triggers in force (S-0005/triggers), from `task_gated`, `pr_opened` and\n`pr_synchronized`. Empty is off: configuring nothing decides nothing.",
+          "items": {
+            "type": "string"
+          },
+          "title": "On",
+          "type": "array"
+        },
+        "skip_authors": {
+          "description": "\u00a74's author skip rule: pull requests by these authors are not reviewed; draft and\nzero-changed-files pull requests always skip.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Skip Authors",
+          "type": "array"
+        }
+      },
+      "title": "ReviewConfig",
+      "type": "object"
+    },
+    "Route": {
+      "additionalProperties": false,
+      "description": "One API dialect of one provider (S-0064/D-2): a provider serving two\ndialects is two routes on one credential.",
+      "properties": {
+        "base_url": {
+          "default": "",
+          "description": "Where this dialect is served (http:// or https://). Named `base_url` because that\nis what every client calls it; it was `upstream` while it lived on the broker.",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "compat": {
+          "$ref": "#/$defs/Compat",
+          "description": "The quirks of this route that torve has a name for."
+        },
+        "extra": {
+          "additionalProperties": true,
+          "description": "Values torve has no name for, handed to the image verbatim and unvalidated. A\nquirk nobody has modelled yet does not block a seat, and it stays obvious in review\nwhich values the engine stands behind and which it only carries.",
+          "title": "Extra",
+          "type": "object"
+        }
+      },
+      "title": "Route",
+      "type": "object"
+    },
+    "RuntimeConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "default": "docker",
+          "description": "Which runtime adapter creates the run's sandboxes: docker or opensandbox.",
+          "title": "Adapter",
+          "type": "string"
+        },
+        "agent_timeout": {
+          "default": 1200,
+          "description": "Hard cap per agent attempt, on top of cooperative asks; a tier may name its own\n(S-0035/D-6). Strictly inside `sandbox_timeout`: the sandbox is the outer bound, so an\nagent clock at or past it can never fire and the attempt is booked as an infrastructure\nfailure rather than as an agent that ran out of time.",
+          "title": "Agent Timeout",
+          "type": "number"
+        },
+        "docker": {
+          "default": "",
+          "description": "Docker inside the sandbox (S-0017/docker-inside-the-sandbox, S-0017/D-9). \"socket\"\nmounts the host daemon's socket into every sandbox of the run \u2014 attempt and gates\nalike \u2014 and the image supplies the docker CLI. Host-equivalent capability, granted\nknowingly per repository (S-0017/D-10): a container started over the host socket can\nmount any host path. The nested daemon is the named, deferred stronger mode.\nOpenSandbox refuses any value here.",
+          "enum": [
+            "",
+            "socket"
+          ],
+          "title": "Docker",
+          "type": "string"
+        },
+        "image": {
+          "default": "python:3.13-slim",
+          "description": "The sandbox image every tier that names none of its own runs in (`image_for`).",
+          "title": "Image",
+          "type": "string"
+        },
+        "network": {
+          "default": "",
+          "description": "Docker network mode (\"\" = the daemon's default bridge). \"host\" shares the host's\nnetwork stack, which is what lets a sandbox reach a proxy or VPN listening on the\nhost's loopback \u2014 the operator trades network isolation for the host's egress path,\nknowingly. Docker-only; the OpenSandbox server owns its own egress model\n(S-0003/runtime).",
+          "title": "Network",
+          "type": "string"
+        },
+        "opensandbox": {
+          "$ref": "#/$defs/OpenSandboxConfig",
+          "description": "The OpenSandbox server the runtime talks to when the adapter is opensandbox."
+        },
+        "sandbox_timeout": {
+          "default": 1800,
+          "description": "Platform-enforced lifecycle bound, seconds; a tier may name its own\n(S-0035/D-6).",
+          "title": "Sandbox Timeout",
+          "type": "number"
+        }
+      },
+      "title": "RuntimeConfig",
+      "type": "object"
+    },
+    "ScmConfig": {
+      "additionalProperties": false,
+      "description": "The remote forge (S-0010/two-ports-deliberately-separate). The credential is named, never held:\n`token_env` is the NAME of the environment variable the runner reads at\npush/PR time (S-0001/D-13) \u2014 the value stays in the runner's process and no\nsandbox ever sees it. `repo` is owner/name on the forge.",
+      "properties": {
+        "open_pr": {
+          "default": false,
+          "description": "Whether a landed attempt opens a pull request on the forge; flip per repository once\na remote exists.",
+          "title": "Open Pr",
+          "type": "boolean"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "owner/name on the forge \u2014 the repository pushes, pull requests and the CI check read\nagainst.",
+          "title": "Repo"
+        },
+        "token_env": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The NAME of the environment variable the runner reads at push/PR time (S-0001/D-13);\nthe value stays in the runner's process and no sandbox ever sees it.",
+          "title": "Token Env"
+        }
+      },
+      "title": "ScmConfig",
+      "type": "object"
+    },
+    "SkillsConfig": {
+      "additionalProperties": false,
+      "description": "Role-scoped skill sets (S-0009/trigger-collision-is-the-real-cost, S-0009/D-1)\nmaterialized into the sandbox from package data at dispatch (S-0009/A-1, S-0009/D-7).\n\nNobody writes this any more (S-0061/D-11): the set a role loads is the profile\nnamed for that role, `.torve/agents/<role>.yaml`, and the loader fills this in from\nthose files so every reader keeps the shape it had. A default set and a named set\nwere two mechanisms answering one question in two files.",
+      "properties": {
+        "sets": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": "The skill names each dispatchable role loads, keyed by role \u2014 resolved from the\nrole profiles, never written here. A seat whose own profile names skills overrides\nits role's entry wholesale (`effective_skill_sets`).",
+          "title": "Sets",
+          "type": "object"
+        }
+      },
+      "title": "SkillsConfig",
+      "type": "object"
+    },
+    "SpecsConfig": {
+      "additionalProperties": false,
+      "description": "Where the specification corpus lives (0013 S-0013/A-1, S-0013/D-7; S-0057\nS-0057/D-3): one path, never a list or a glob \u2014 numbering is continuous\nacross a corpus, and two roots mean two counters and a colliding\nidentifier at the first merge (S-0016/D-23). The archive and the schemas are\nits siblings. Read from the runner's configuration per S-0013/D-3, never\nfrom the repository under work.",
+      "properties": {
+        "path": {
+          "default": ".torve/specs",
+          "description": "The one path the specification corpus lives at, relative to the repository root \u2014\nnever a list or a glob (S-0013/A-1, S-0013/D-7, S-0057/D-3).",
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "title": "SpecsConfig",
+      "type": "object"
+    },
+    "StoreConfig": {
+      "additionalProperties": false,
+      "description": "The durable run store (S-0001/D-14, S-0001/D-15): mock for tests and simulation,\nPostgres for real runs (S-0003/D-6). The mock is in-process, so cross-process\nguarantees \u2014 a reaper seeing another runner's leases \u2014 need Postgres.\n\n`dsn_env` names the environment variable holding the DSN; the value never\nenters a committed file.",
+      "properties": {
+        "adapter": {
+          "default": "mock",
+          "description": "Which store adapter backs the durable run: mock or postgres.",
+          "title": "Adapter",
+          "type": "string"
+        },
+        "dsn_env": {
+          "default": "TORVE_PG_DSN",
+          "description": "The name of the environment variable holding the DSN; the value never enters a\ncommitted file.",
+          "title": "Dsn Env",
+          "type": "string"
+        },
+        "heartbeat_divisor": {
+          "default": 3,
+          "description": "How many heartbeats fit in one lease \u2014 the renewal interval is `lease_for` divided\nby this.",
+          "title": "Heartbeat Divisor",
+          "type": "integer"
+        },
+        "lease_for": {
+          "default": 60.0,
+          "description": "Lease duration; cancel asks ride back on renewal.",
+          "title": "Lease For",
+          "type": "number"
+        },
+        "max_run_duration": {
+          "default": 7200.0,
+          "description": "Hard cap on one durable body.",
+          "title": "Max Run Duration",
+          "type": "number"
+        },
+        "run_relation": {
+          "default": "torve_durable_run",
+          "description": "The Postgres table the durable run rows are written to.",
+          "title": "Run Relation",
+          "type": "string"
+        },
+        "schema_name": {
+          "default": "public",
+          "description": "The Postgres schema the run relation lives in.",
+          "title": "Schema Name",
+          "type": "string"
+        }
+      },
+      "title": "StoreConfig",
+      "type": "object"
+    },
+    "TierConfig": {
+      "additionalProperties": false,
+      "description": "One tier's adapter (S-0004/adapters): `tier` on the task maps to an entry\nhere, and the concern leaks no further into the design. The command runs\n*inside* the sandbox (S-0004/D-1) \u2014 the engine never links a harness SDK, it\nonly shells a line into a container it created.\n\n`api_key_env` carries names, never values (S-0001/D-13): the runtime forwards the\nvariables from its own environment, so the secret never transits a spec.\n`auth_volume` is the subscription route (\u00a72, S-0004/D-2): one volume per worker\nslot, `-<slot>` appended, mounted read-write because token refresh writes.",
+      "properties": {
+        "adapter": {
+          "default": "fake",
+          "description": "Which agent adapter this tier runs: fake, api, harness or subscription.",
+          "title": "Adapter",
+          "type": "string"
+        },
+        "agent_timeout": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "S-0035/the-tier-clock, S-0035/D-6: the tier's own agent attempt clock. `None`\n(absent) falls through to the RuntimeConfig global, exactly as today; a named value \u2014\neven 0 \u2014 is the tier's, so the heavy rung and the reviewer seat carry their own clocks\nwithout the operator editing global configuration mid-incident. Rides the profile merge\nlike every other field; read through `agent_timeout_for` where the runner's attempt\nhook takes its timeout.",
+          "title": "Agent Timeout"
+        },
+        "api": {
+          "description": "S-0064/D-4: the API dialects this seat's harness speaks, merged off the manifest. A\nprovider serving none of them is refused when the seat resolves, naming both files.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Api",
+          "type": "array"
+        },
+        "auth_mount": {
+          "default": "/auth",
+          "description": "Where the subscription route's auth volume is mounted in the sandbox, read-write\nbecause token refresh writes (\u00a72, S-0004/D-2).",
+          "title": "Auth Mount",
+          "type": "string"
+        },
+        "auth_volume": {
+          "default": "torve-auth",
+          "description": "The subscription route's volume (\u00a72, S-0004/D-2): one volume per worker slot,\n`-<slot>` appended.",
+          "title": "Auth Volume",
+          "type": "string"
+        },
+        "base_url": {
+          "default": "",
+          "description": "S-0064/D-1: where this seat's dialect is served, merged off the provider record. The\nbroker's loopback route replaces it at dispatch when one is in force \u2014 brokered and\ndirect differ in this value and never in whether a variable is there (S-0064/D-8).",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "cache_volume": {
+          "default": "",
+          "description": "S-0035/the-derived-cache-volume, S-0035/D-4: a named tier opts its run's sandboxes\ninto the derived-cache volume `cache_volume-<worker_slot>` \u2014 slot-suffixed like the\nauth volume, so two concurrent workers never share a cache \u2014 mounted read-write at\nthe fixed CACHE_MOUNT with the toolchain cache homes pointed at it by the runtime\nadapter. Empty (the default) is cold exactly as today. The volume holds derived state\nonly: deleting it may change nothing but wall clock (S-0035/D-1), and shadow replays\nnever mount it (S-0035/D-3 \u2014 the exclusion is applied where the mount is composed,\nunder the runner's `shadow` flag).",
+          "title": "Cache Volume",
+          "type": "string"
+        },
+        "character_routing": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "S-0034 S-0034/D-3: character -> variant, resolved once at dispatch\n(`resolve_character_tier`) before anything reads `tier_name_for`. A value is this\nseat's own variant suffix, the same bare shape a contract's `tier_variant` already\ncarries (S-0027/D-3) \u2014 character routing never reassigns a task to a different seat.\nAn unmapped or undeclared character falls through to the seat default.",
+          "title": "Character Routing",
+          "type": "object"
+        },
+        "context_window": {
+          "default": 0,
+          "description": "S-0064/D-1: the model's window, merged off the roster; 0 is unstated.",
+          "title": "Context Window",
+          "type": "integer"
+        },
+        "dialect": {
+          "default": "",
+          "description": "S-0064/D-4: which of its harness's dialects this seat reaches, when the harness and\nthe provider share more than one. Empty resolves to the single shared dialect, and is\nrefused when there is a choice to make \u2014 the engine picking would be a decision in the\none place nobody would look for it.",
+          "title": "Dialect",
+          "type": "string"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "S-0063/D-10: the knobs this seat's image reads, merged off the manifest. Set\ninto the sandbox and never interpreted here.",
+          "title": "Env",
+          "type": "object"
+        },
+        "equip_root": {
+          "default": "",
+          "description": "S-0063/D-19: where this seat's harness reads equipment from inside the workspace,\nmerged off the manifest. The engine excludes it in the worktree so an attempt commits\nits own work and nothing else.",
+          "title": "Equip Root",
+          "type": "string"
+        },
+        "equipment": {
+          "description": "S-0062/D-1: everything the seat's profile gives its agent, one item per thing.\nThe role's own profile contributes a layer under this one, merged per task\n(S-0062/D-12), because the role varies within a seat.",
+          "items": {
+            "$ref": "#/$defs/Equipment"
+          },
+          "title": "Equipment",
+          "type": "array"
+        },
+        "harness": {
+          "default": "",
+          "description": "S-0061/D-2/D-3: the harness manifest this seat is reached through, by name \u2014\n`.torve/harnesses/<name>.yaml`. Resolution happens on the raw mapping in\n`load_runner_config`, before this model validates, so by the time a `TierConfig`\nexists the manifest's fields are already merged onto it; the name is kept so\n`config_hash` and `torve doctor` can both say where a value came from.",
+          "title": "Harness",
+          "type": "string"
+        },
+        "image": {
+          "default": "",
+          "description": "The tier's sandbox image \u2014 harness identity is the image\n(S-0017/configuration-routes-by-nature, S-0017/D-4). Empty falls back to\nruntime.image.",
+          "title": "Image",
+          "type": "string"
+        },
+        "key_env": {
+          "default": "",
+          "description": "S-0064/D-9: the variable holding this provider's credential, merged off the record. A\nname, never a value: the runtime forwards it by name and the secret never transits\ntorve or the spec.",
+          "title": "Key Env",
+          "type": "string"
+        },
+        "kinds": {
+          "description": "S-0063/D-4: the equipment kinds this seat's harness accepts, merged off the\nmanifest. A kind the profile declares and this does not name is refused when the\nseat resolves; how each reaches the harness is the image's own `equip`.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Kinds",
+          "type": "array"
+        },
+        "max_tokens": {
+          "default": 0,
+          "description": "S-0064/D-1: the cap on one response, merged off the roster; 0 is unstated.",
+          "title": "Max Tokens",
+          "type": "integer"
+        },
+        "model": {
+          "default": "",
+          "description": "The model, recorded in telemetry and named to the image as `TORVE_MODEL`.",
+          "title": "Model",
+          "type": "string"
+        },
+        "model_id": {
+          "default": "",
+          "description": "S-0064/D-3: what actually reaches the provider. The seat writes a roster key, which\nmay be a local shorthand for a slug that is awkward to type; this is what travels.",
+          "title": "Model Id",
+          "type": "string"
+        },
+        "prepare": {
+          "default": "",
+          "description": "S-0062/D-7: the command run in the sandbox before the agent, on its own clock \u2014\na non-zero exit is an infrastructure failure and convicts nothing.",
+          "title": "Prepare",
+          "type": "string"
+        },
+        "profile": {
+          "default": "",
+          "description": "S-0061/D-1/D-3: the agent profile this seat runs, by name \u2014\n`.torve/agents/<name>.yaml`, merged the same way and kept for the same reason. Empty\nresolves the profile that declares the task's role (S-0061/D-11, S-0061/D-13).",
+          "title": "Profile",
+          "type": "string"
+        },
+        "prompt_extras": {
+          "default": "",
+          "description": "S-0029/equipment-on-the-tier, S-0029/D-1: the block appended to the built prompt\nafter the charter's base working rules, which stay unaddressable from configuration.\nOne string since S-0061/A-5.",
+          "title": "Prompt Extras",
+          "type": "string"
+        },
+        "provider": {
+          "default": "",
+          "description": "The routing identity (\u00a76b); empty only for fake.",
+          "title": "Provider",
+          "type": "string"
+        },
+        "reasoning": {
+          "default": "",
+          "description": "S-0064/D-5, S-0064/D-6: how hard this seat's model should think, as one of the levels\nthat model declares. The seat's and never the profile's: a profile is what the agent is\nand must survive being seated on a model that does not reason at all, and a level has to\nvalidate against the model. Empty leaves the harness's own default in force.",
+          "title": "Reasoning",
+          "type": "string"
+        },
+        "request_timeout_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "S-0064/D-1: how long one request may take, merged off the record.",
+          "title": "Request Timeout S"
+        },
+        "retry_variant": {
+          "default": "",
+          "description": "S-0027/D-11: the dotted tier this seat's attempt resolves to after a gate-red \u2014 one\nrung, not a chain. Empty means an attempt that gates red is retried under the same\ntier, today's behaviour. S-0034/D-6 keeps this scalar as sugar for the functional key\nof the mapping below.",
+          "title": "Retry Variant",
+          "type": "string"
+        },
+        "retry_variants": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "S-0034/D-6: the retry rungs keyed by axis \u2014 which conviction routes the next attempt\nwhere. Every reader takes the merged view through `resolved_retry_variants()`, so no\nsurface sees only the functional rung; `boundary` may not name a rung here at all\n(S-0034/D-7).",
+          "propertyNames": {
+            "enum": [
+              "functional",
+              "boundary",
+              "compliance",
+              "form"
+            ]
+          },
+          "title": "Retry Variants",
+          "type": "object"
+        },
+        "route": {
+          "default": "",
+          "description": "S-0064/D-2: what the broker calls this seat's route \u2014 provider and dialect together,\nbecause a provider serving two dialects is two upstreams. Derived, never written.",
+          "title": "Route",
+          "type": "string"
+        },
+        "sandbox_timeout": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "S-0035/the-tier-clock, S-0035/D-6: the tier's own sandbox lifecycle clock. `None`\n(absent) falls through to the RuntimeConfig global, exactly as today; a named value \u2014\neven 0 \u2014 is the tier's. Rides the profile merge like every other field; read through\n`sandbox_timeout_for` where the review lane takes its timeout.",
+          "title": "Sandbox Timeout"
+        },
+        "skills": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "S-0029/equipment-on-the-tier, S-0029/D-1: the package-data skill names this seat's\nagent materializes, derived from `equipment` (S-0062/D-1) \u2014 `None` is a seat whose\nprofile named none, which falls through to the profile declaring the task's role\n(S-0061/D-11). Names resolve through the same `materialize` path with the same\nrefusals (S-0029/D-2).",
+          "title": "Skills"
+        },
+        "stream_idle_timeout_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "S-0064/D-1: how long a started stream may go silent, merged off the record.",
+          "title": "Stream Idle Timeout S"
+        }
+      },
+      "title": "TierConfig",
+      "type": "object"
+    },
+    "TracesConfig": {
+      "additionalProperties": false,
+      "description": "Retention bounds for the durable trace store (S-0039/retention, S-0039/D-3):\nthe reaper's pass sheds traces oldest-first past either bound. Both\nknobs are operator's \u2014 trace volume is a property of the fleet, not the\nengine \u2014 and the defaults are the drafting values, pending the owner's\nread of dogfood volume. A bound set to zero is kept literal, not taken\nas \"disabled\": zero days or zero megabytes means keep nothing, and the\npass reports every trace it shed.",
+      "properties": {
+        "keep_days": {
+          "default": 30,
+          "description": "The age bound: the reaper's pass sheds traces older than this many days,\noldest-first. Zero is kept literal \u2014 keep nothing \u2014 not taken as \"disabled\".",
+          "title": "Keep Days",
+          "type": "integer"
+        },
+        "max_mb": {
+          "default": 512,
+          "description": "The size bound: the reaper's pass sheds traces oldest-first until the store fits in\nthis many megabytes. Zero is kept literal \u2014 keep nothing \u2014 not taken as\n\"disabled\".",
+          "title": "Max Mb",
+          "type": "integer"
+        }
+      },
+      "title": "TracesConfig",
+      "type": "object"
+    },
+    "VcsConfig": {
+      "additionalProperties": false,
+      "description": "Local git at the runner boundary (S-0010/signing). The signing key is a\npath to an SSH private key the RUNNER holds \u2014 it is never mounted into a\nsandbox, and the signature attests \"Torve produced this under its task\",\nnever that a human reviewed it. Unset means unsigned.",
+      "properties": {
+        "signing_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The path to an SSH private key the runner holds and signs its commits with; unset\nmeans unsigned (S-0010/signing).",
+          "title": "Signing Key"
+        }
+      },
+      "title": "VcsConfig",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "base": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The base ref for worktrees; None means the first of origin/main and main that\nexists.",
+      "title": "Base"
+    },
+    "broker": {
+      "$ref": "#/$defs/BrokerConfig",
+      "description": "The egress broker: which adapter is in force and what it is fed (S-0021/the-port)."
+    },
+    "intake": {
+      "$ref": "#/$defs/IntakeConfig",
+      "description": "The drafting run's knobs (S-0020)."
+    },
+    "loop": {
+      "$ref": "#/$defs/LoopConfig",
+      "description": "The manager pass's knobs (S-0019/A-8)."
+    },
+    "notify": {
+      "$ref": "#/$defs/NotifyConfig",
+      "description": "Where an interrupt-class escalation is delivered (S-0051)."
+    },
+    "poison_ceiling": {
+      "default": 3,
+      "description": "How many times a task may be dispatched before it is escalated; checked before\ndispatch, and a reached ceiling escalates, never retries.",
+      "title": "Poison Ceiling",
+      "type": "integer"
+    },
+    "promotion": {
+      "$ref": "#/$defs/PromotionConfig",
+      "description": "Landing policy: what a candidate must satisfy before the lane lands it\n(S-0006/promotion)."
+    },
+    "provider_records": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Provider"
+      },
+      "description": "Every provider record under `.torve/providers/`, resolved at load and never written\nin this file (S-0064/D-1) \u2014 what one credential buys: the clocks, the routes and the\nmodel roster. `providers` above is the policy over these; this is the facts.",
+      "title": "Provider Records",
+      "type": "object"
+    },
+    "providers": {
+      "$ref": "#/$defs/ProvidersConfig",
+      "description": "Which providers a repository's contents may reach, enforced at dispatch\n(S-0004/D-8)."
+    },
+    "reap": {
+      "$ref": "#/$defs/ReapConfig",
+      "description": "When the reaper treats a non-terminal run as orphaned."
+    },
+    "review": {
+      "$ref": "#/$defs/ReviewConfig",
+      "description": "Review triggers and what a review's findings cost (S-0005/triggers)."
+    },
+    "runtime": {
+      "$ref": "#/$defs/RuntimeConfig",
+      "description": "The sandbox runtime: which adapter creates sandboxes, in what image, under what\nclocks."
+    },
+    "schema_version": {
+      "default": 1,
+      "description": "The engine's shape version this configuration is read under.",
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scm": {
+      "$ref": "#/$defs/ScmConfig",
+      "description": "The remote forge: the repository, the named credential and whether attempts open\npull requests (S-0010/two-ports-deliberately-separate)."
+    },
+    "skills": {
+      "$ref": "#/$defs/SkillsConfig",
+      "description": "The role-scoped skill sets materialized into the sandbox at dispatch\n(S-0009/D-1)."
+    },
+    "specs": {
+      "$ref": "#/$defs/SpecsConfig",
+      "description": "Where the specification corpus lives (S-0013/D-7, S-0057/D-3)."
+    },
+    "store": {
+      "$ref": "#/$defs/StoreConfig",
+      "description": "The durable run store (S-0001/D-14, S-0001/D-15)."
+    },
+    "tiers": {
+      "additionalProperties": {
+        "$ref": "#/$defs/TierConfig"
+      },
+      "description": "The adapter mapping a task's `tier` resolves against (S-0004/adapters), keyed by the\nseat literal or the dotted `seat.variant` (S-0027/D-3).",
+      "title": "Tiers",
+      "type": "object"
+    },
+    "traces": {
+      "$ref": "#/$defs/TracesConfig",
+      "description": "Retention bounds for the durable trace store (S-0039/retention, S-0039/D-3)."
+    },
+    "unmeasured_images": {
+      "default": "refuse",
+      "description": "Whether a tier may dispatch under an image no paired replay verdict has measured\n(S-0027 S-0027/D-7, as amended). `refuse` is the rule as written: a definition edit\nmust not quietly change what a seat runs under. `allow` is for a repository rebuilding\nits own engine, where the images change faster than verdicts can be recorded \u2014 the\ndispatch still records the unmeasured digest as an engine event, so the reading stays\nhonest and the measurement stays owed.",
+      "enum": [
+        "refuse",
+        "allow"
+      ],
+      "title": "Unmeasured Images",
+      "type": "string"
+    },
+    "vcs": {
+      "$ref": "#/$defs/VcsConfig",
+      "description": "Local git at the runner boundary \u2014 the commit signing key (S-0010/signing)."
+    },
+    "worker_slot": {
+      "default": 0,
+      "description": "Names this worker's auth volume (S-0004/D-2); slots are stable, tasks are not.",
+      "title": "Worker Slot",
+      "type": "integer"
+    }
+  },
+  "title": "RunnerConfig",
+  "type": "object"
+}

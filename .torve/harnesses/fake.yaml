@@ -1,0 +1,5 @@
+# yaml-language-server: $schema=../schemas/harness.json
+# The harness that runs nothing (S-0004): every seat in this repository is on it
+# until a real tier is measured. It names an adapter and no command, which is the
+# one combination `fake` permits.
+adapter: fake

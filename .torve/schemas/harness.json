@@ -1,0 +1,74 @@
+{
+  "additionalProperties": false,
+  "description": "How a model is reached (S-0061/D-2) \u2014 and never which model.\n\nOne image runs several models, so choosing among them is the seat's; what\nbelongs here is everything that would be identical whichever model the\nseat picks.",
+  "properties": {
+    "adapter": {
+      "default": "fake",
+      "description": "Which agent adapter this harness drives: fake, api, harness or subscription.",
+      "title": "Adapter",
+      "type": "string"
+    },
+    "api": {
+      "description": "The API dialects this harness speaks (S-0064/D-4). A seat whose provider serves no\ndialect named here is refused when the seat resolves, naming both files \u2014 the same\nrefusal `kinds` performs for equipment, for the same reason: a capability the manifest\ndoes not claim is one the seat must not assume.\n\ntorve's own keys, never a harness's spelling: `openai` means Chat Completions, and an\nimage maps it to whatever its harness calls it. A harness naming none speaks none,\nwhich is what `fake` is.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Api",
+      "type": "array"
+    },
+    "auth_mount": {
+      "default": "/auth",
+      "description": "Where that volume is mounted, read-write because token refresh writes.",
+      "title": "Auth Mount",
+      "type": "string"
+    },
+    "auth_volume": {
+      "default": "torve-auth",
+      "description": "The subscription route's volume; one per worker slot, `-<slot>` appended.",
+      "title": "Auth Volume",
+      "type": "string"
+    },
+    "env": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "The knobs this harness's image reads \u2014 `{\"CLAUDE_PERMISSION_MODE\": \"...\"}`\n(S-0063/D-10). Torve sets them and never interprets them; a knob that is not here\nis a rebuild, because a flag that changes what an agent may do is a regime change\nthe digest should carry.",
+      "title": "Env",
+      "type": "object"
+    },
+    "equip_root": {
+      "default": "",
+      "description": "Where this harness reads equipment that has to be written somewhere it looks\n(S-0063/D-19), named to the image as `TORVE_EQUIP_ROOT`.\n\nTorve's own, never a path the repository owns: dsh watches `.agents/skills` and\nclaude reads `.claude/skills`, both of which repositories keep their *own* reviewed\nskills in, and writing there overwrites them.\n\nA leading `~` or `/` is a path outside the workspace \u2014 `~/.claude/skills` is the\nbest case, because nothing lands in the repository at all and there is nothing to\nhide from the commit. Anything else is relative to the workspace, which is what a\nharness watching its working directory forces, and the engine excludes it there.",
+      "title": "Equip Root",
+      "type": "string"
+    },
+    "image": {
+      "default": "",
+      "description": "The sandbox image, which is what harness identity actually is (S-0017/D-4).\nEmpty falls back to `runtime.image`.",
+      "title": "Image",
+      "type": "string"
+    },
+    "kinds": {
+      "description": "Which equipment kinds this harness accepts (S-0063/D-4). A kind a profile\ndeclares and this does not name is refused at load, naming both files; how each\nreaches the harness is the image's `equip` (S-0063/D-3), not a template here.\nA harness naming no kind takes no equipment, which is what `fake` is.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Kinds",
+      "type": "array"
+    },
+    "name": {
+      "default": "",
+      "description": "What a seat resolves this manifest by (S-0061/D-12); empty is the filename stem.",
+      "title": "Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": 1,
+      "description": "The manifest's own shape version.",
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "title": "HarnessManifest",
+  "type": "object"
+}

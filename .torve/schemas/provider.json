@@ -1,0 +1,206 @@
+{
+  "$defs": {
+    "Compat": {
+      "additionalProperties": false,
+      "description": "What one route's endpoint does differently, measured and dated in the\nrecord rather than probed at dispatch (S-0064/D-2).\n\nNarrow on purpose: a fact torve can name is validated, and everything\nelse rides as the route's `extra` (S-0064/D-10). The `developer` role is\ndeliberately not here \u2014 torve never builds a request, so the client that\nwould send it decides it (S-0064/D-11).",
+      "properties": {
+        "thinking_format": {
+          "default": "",
+          "description": "How this route returns a model's thinking when it is not the native Anthropic\nblock \u2014 `deepseek` for an endpoint that returns `reasoning_content`. Empty means the\nroute's own dialect form, whatever that is.",
+          "title": "Thinking Format",
+          "type": "string"
+        }
+      },
+      "title": "Compat",
+      "type": "object"
+    },
+    "Model": {
+      "additionalProperties": false,
+      "description": "One entry in a provider's roster: what is true of the model wherever it\nis reached.\n\nEverything here is optional because a record is written as it is measured,\nand a value nobody has measured is better absent than guessed. What is\nabsent is unstated, never zero.",
+      "properties": {
+        "context_window": {
+          "default": 0,
+          "description": "How many tokens this model's context holds; 0 is unstated.",
+          "title": "Context Window",
+          "type": "integer"
+        },
+        "id": {
+          "default": "",
+          "description": "What reaches the provider, and what the regime hash records; empty means the roster\nkey is its own id (S-0064/D-3). A slug awkward to type or to use as a path segment gets\na local shorthand, and renaming that shorthand cannot move a regime digest.",
+          "title": "Id",
+          "type": "string"
+        },
+        "max_tokens": {
+          "default": 0,
+          "description": "The cap on one response's tokens; 0 is unstated.",
+          "title": "Max Tokens",
+          "type": "integer"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Price"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What a token costs here. Absent for a seat that genuinely has no per-token cost \u2014 a\nsubscription \u2014 and then the attempt's cost stays unreported rather than invented."
+        },
+        "reasoning": {
+          "description": "The reasoning levels this model has, as words a seat names one of. A list rather\nthan a flag so a seat's choice has something to be refused against; empty is a model\nthat does not reason.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasoning",
+          "type": "array"
+        }
+      },
+      "title": "Model",
+      "type": "object"
+    },
+    "Price": {
+      "additionalProperties": false,
+      "description": "What a model costs, in US dollars per million tokens (S-0064/D-12).\n\nThe engine computes an attempt's cost from this and the token counts\nrather than believing a harness that may not recognise the model it was\npointed at \u2014 measured, claude emits `unrecognized_model` for\nqwen3.8-flash and then prices the attempt off its own Anthropic table.",
+      "properties": {
+        "cache_read": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "US dollars per million tokens read from the prompt cache; absent bills them at the\ninput rate rather than inventing a discount.",
+          "title": "Cache Read"
+        },
+        "cache_write": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "US dollars per million tokens written to the prompt cache; absent bills them at the\ninput rate rather than inventing a surcharge.",
+          "title": "Cache Write"
+        },
+        "input": {
+          "default": 0.0,
+          "description": "US dollars per million input tokens.",
+          "title": "Input",
+          "type": "number"
+        },
+        "output": {
+          "default": 0.0,
+          "description": "US dollars per million output tokens.",
+          "title": "Output",
+          "type": "number"
+        }
+      },
+      "title": "Price",
+      "type": "object"
+    },
+    "Route": {
+      "additionalProperties": false,
+      "description": "One API dialect of one provider (S-0064/D-2): a provider serving two\ndialects is two routes on one credential.",
+      "properties": {
+        "base_url": {
+          "default": "",
+          "description": "Where this dialect is served (http:// or https://). Named `base_url` because that\nis what every client calls it; it was `upstream` while it lived on the broker.",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "compat": {
+          "$ref": "#/$defs/Compat",
+          "description": "The quirks of this route that torve has a name for."
+        },
+        "extra": {
+          "additionalProperties": true,
+          "description": "Values torve has no name for, handed to the image verbatim and unvalidated. A\nquirk nobody has modelled yet does not block a seat, and it stays obvious in review\nwhich values the engine stands behind and which it only carries.",
+          "title": "Extra",
+          "type": "object"
+        }
+      },
+      "title": "Route",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One provider, one credential, one file (S-0064/D-1).\n\n`broker.providers.<name>` folded in whole, leaving `broker:` with\n`adapter`, `mode` and `cost_tolerance` \u2014 the three things that are about\nthe broker rather than about a provider. A provider's facts are now\nvalidated, hashed and reviewed like every other file under `.torve/`,\ninstead of being a string the engine sets and never reads.",
+  "properties": {
+    "key_env": {
+      "default": "",
+      "description": "The name of the environment variable holding this provider's credential \u2014 a name,\nnever a value: configuration is committed and credentials are not.",
+      "title": "Key Env",
+      "type": "string"
+    },
+    "models": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Model"
+      },
+      "description": "The roster, keyed by what a seat writes. An empty roster is a provider nothing is\nseated on yet, which is a configuration, not an error.",
+      "title": "Models",
+      "type": "object"
+    },
+    "name": {
+      "default": "",
+      "description": "What a seat resolves this provider by; empty is the filename stem, the same rule\nthe agent profile and the harness manifest follow.",
+      "title": "Name",
+      "type": "string"
+    },
+    "request_timeout_s": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "How long one request to this provider may take, in seconds; absent leaves the\nharness's own default in force.",
+      "title": "Request Timeout S"
+    },
+    "routes": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Route"
+      },
+      "description": "This provider's API dialects, keyed by api name, each with its own base URL and its\nown compat facts.",
+      "title": "Routes",
+      "type": "object"
+    },
+    "schema_version": {
+      "default": 1,
+      "description": "The record's own shape version.",
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "stream_idle_timeout_s": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "How long a started stream may go silent before it is abandoned, in seconds \u2014 the\nbackstop for a wedged-but-trickling stream; absent leaves the harness's own default.",
+      "title": "Stream Idle Timeout S"
+    },
+    "via_proxy": {
+      "default": false,
+      "description": "The runner's own upstream leg to this provider tunnels through the host's\nhttps_proxy \u2014 for endpoints unreachable from the host directly (region gating). A\nsandbox never sees a proxy either way; this is the host's egress, not the run's.",
+      "title": "Via Proxy",
+      "type": "boolean"
+    }
+  },
+  "title": "Provider",
+  "type": "object"
+}

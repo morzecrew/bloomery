@@ -1,0 +1,85 @@
+{
+  "$defs": {
+    "FleetAttention": {
+      "additionalProperties": false,
+      "description": "The shared budget (\u00a75.1, S-0024/D-2): triage debt measured once, across\nevery repository, because the operator triaging it exists once.",
+      "properties": {
+        "pause_escalations": {
+          "default": 1,
+          "description": "How many open escalations pause the fleet \u2014 one budget across every repository,\nbecause the operator triaging them exists once.",
+          "title": "Pause Escalations",
+          "type": "integer"
+        }
+      },
+      "title": "FleetAttention",
+      "type": "object"
+    },
+    "FleetRepository": {
+      "additionalProperties": false,
+      "description": "One manifest entry. `trust` names the capability class a repository\nis granted (\u00a75.3) \u2014 never defaulted, since a class nobody wrote down is\na grant nobody reviewed.",
+      "properties": {
+        "partition": {
+          "default": "",
+          "description": "Which board this root's contracts are minted onto (S-0048/D-1). Declared here and\nnever derived: a partition read off the git remote is convenient and wrong for a\nrepository with no remote, with two, or with one that changed; declared *here*\nrather than in the root for S-0013/D-3's reason, since a repository choosing its own\npartition could mint onto a board it was never given. Empty is legal because\n`torve fleet tick` neither reads nor needs it, and the resident loop refuses an\nempty one before the root is served (S-0048/D-2).",
+          "title": "Partition",
+          "type": "string"
+        },
+        "root": {
+          "description": "Where the repository sits on this machine; `path` resolves it.",
+          "title": "Root",
+          "type": "string"
+        },
+        "trust": {
+          "description": "The capability class this repository is granted (\u00a75.3), never defaulted \u2014 a class\nnobody wrote down is a grant nobody reviewed.",
+          "enum": [
+            "own",
+            "reviewed",
+            "untrusted"
+          ],
+          "title": "Trust",
+          "type": "string"
+        }
+      },
+      "required": [
+        "root",
+        "trust"
+      ],
+      "title": "FleetRepository",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The operator's own file (S-0024): which roots this machine ticks, how\nmuch attention each may consume, and in what order. It stays on the\nmachine because that is what genuinely varies by machine \u2014 the repository\nunder work never gets to argue with it.",
+  "properties": {
+    "attention": {
+      "$ref": "#/$defs/FleetAttention",
+      "description": "The triage budget shared across every root."
+    },
+    "order": {
+      "default": "manifest",
+      "description": "The ticking order \u2014 deterministic, never a priority field (S-0024/D-4): a fleet\nthat ticks roots in a chosen order is one configuration change away from being a\nscheduler with opinions.",
+      "enum": [
+        "manifest",
+        "alphabetical"
+      ],
+      "title": "Order",
+      "type": "string"
+    },
+    "repositories": {
+      "description": "The roots this machine ticks, in the order they are written unless `order` says\notherwise.",
+      "items": {
+        "$ref": "#/$defs/FleetRepository"
+      },
+      "title": "Repositories",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": 1,
+      "description": "The manifest's own shape version (T-0321) \u2014 the fleet declared none at all, so\na reader had nothing to refuse an older file by.",
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "title": "FleetManifest",
+  "type": "object"
+}

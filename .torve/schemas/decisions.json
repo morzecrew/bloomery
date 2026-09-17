@@ -1,0 +1,965 @@
+{
+  "$defs": {
+    "Alternative": {
+      "additionalProperties": false,
+      "description": "One rejected option: the negative space every executor re-proposes\nwhen nobody told it the option was closed.",
+      "properties": {
+        "cites": {
+          "description": "The identifiers the rejection rests on.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Cites",
+          "type": "array"
+        },
+        "option": {
+          "description": "The option that was on the table.",
+          "title": "Option",
+          "type": "string"
+        },
+        "rejected_because": {
+          "description": "Why it was closed.",
+          "title": "Rejected Because",
+          "type": "string"
+        }
+      },
+      "required": [
+        "option",
+        "rejected_because"
+      ],
+      "title": "Alternative",
+      "type": "object"
+    },
+    "Amendment": {
+      "additionalProperties": false,
+      "description": "One amendment: its number and date, the typed diff (empty for an\nexecution finding that changed nothing typed), and the words.",
+      "properties": {
+        "at": {
+          "default": "",
+          "description": "The instant it was appended, `YYYY-MM-DDTHH:MM:SSZ` (S-0058/D-7).",
+          "pattern": "^$|^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "title": "At",
+          "type": "string"
+        },
+        "changes": {
+          "description": "The typed diff; empty for an execution finding that changed nothing typed.",
+          "items": {
+            "$ref": "#/$defs/Change"
+          },
+          "title": "Changes",
+          "type": "array"
+        },
+        "id": {
+          "description": "`A-n`, numbered per document (S-0058/D-1).",
+          "title": "Id",
+          "type": "string"
+        },
+        "md": {
+          "default": "",
+          "description": "The entry's own words, markdown.",
+          "title": "Md",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "description": "What the amendment did, in a line.",
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Amendment",
+      "type": "object"
+    },
+    "Budget": {
+      "additionalProperties": false,
+      "description": "What an attempt may spend (S-0001/domain); None on an axis is no bound there.",
+      "properties": {
+        "iterations": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The most attempts the loop makes before it escalates; a drafting run's drafts.",
+          "title": "Iterations"
+        },
+        "tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The tokens the broker lets an attempt spend, enforced mid-run (S-0045/D-4).",
+          "title": "Tokens"
+        },
+        "wallclock_minutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The wall-clock bound of an attempt, in minutes \u2014 declared, read by no leg yet.",
+          "title": "Wallclock Minutes"
+        }
+      },
+      "title": "Budget",
+      "type": "object"
+    },
+    "Change": {
+      "additionalProperties": false,
+      "description": "One typed edit an amendment made (S-0053/D-4): the prior value is read at\namendment time, which is the only moment it exists.",
+      "properties": {
+        "after": {
+          "default": null,
+          "description": "The value after.",
+          "title": "After"
+        },
+        "before": {
+          "default": null,
+          "description": "The prior value, read at amendment time.",
+          "title": "Before"
+        },
+        "field": {
+          "description": "The field that moved.",
+          "title": "Field",
+          "type": "string"
+        },
+        "subject": {
+          "description": "The identifier the edit changed.",
+          "title": "Subject",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject",
+        "field"
+      ],
+      "title": "Change",
+      "type": "object"
+    },
+    "Decision": {
+      "additionalProperties": false,
+      "description": "One decision row, whole (S-0056/D-2): grade, text and paths \u2014 the three\nfields a contract copies at mint \u2014 with its consequence, rationale,\ncitations, check and the stamp the tool last wrote on it.",
+      "properties": {
+        "check": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A command whose exit code judges the row; authored, never derived (S-0053/D-15).",
+          "title": "Check"
+        },
+        "check_state": {
+          "default": "shadow",
+          "description": "The check's gate state, promoted per row by amendment (S-0054/D-4).",
+          "enum": [
+            "shadow",
+            "blocking"
+          ],
+          "title": "Check State",
+          "type": "string"
+        },
+        "check_twin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The test that proves the check can fail (S-0054/D-4).",
+          "title": "Check Twin"
+        },
+        "cites": {
+          "description": "The identifiers this row builds on.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Cites",
+          "type": "array"
+        },
+        "consequence": {
+          "default": "",
+          "description": "What follows from the decision \u2014 the reason handed to the executor beside the rule.",
+          "title": "Consequence",
+          "type": "string"
+        },
+        "fingerprint": {
+          "default": "",
+          "description": "`<content>/<rule>` as `stamp` writes it, empty until the tool has changed\nthe row once; `fingerprint_drift` reads it (S-0053/D-5).",
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "grade": {
+          "description": "LOCKED, ASSUMED or OPEN (S-0007/D-13).",
+          "enum": [
+            "LOCKED",
+            "ASSUMED",
+            "OPEN"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "id": {
+          "description": "`D-n` inside its own document, `S-NNNN/D-n` in memory (S-0058/D-1).",
+          "title": "Id",
+          "type": "string"
+        },
+        "paths": {
+          "description": "The area the row governs; a LOCKED row must declare one.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Paths",
+          "type": "array"
+        },
+        "rationale": {
+          "default": "",
+          "description": "Why the row was decided this way; never copied onto a contract.",
+          "title": "Rationale",
+          "type": "string"
+        },
+        "superseded_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The row that replaced this one, once it is retired.",
+          "title": "Superseded By"
+        },
+        "text": {
+          "description": "The decision itself \u2014 the sentence a contract copies at mint.",
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "grade",
+        "text"
+      ],
+      "title": "Decision",
+      "type": "object"
+    },
+    "DesignSection": {
+      "additionalProperties": false,
+      "description": "One prose section: the key a log cites and a markdown body the\nengine never parses (S-0053/D-3, S-0056/D-3). The heading is the key and the\nnumber is the position (S-0057/D-2); order is the list's.",
+      "properties": {
+        "key": {
+          "description": "The key a log cites, `S-NNNN/<key>`; the heading is derived from it.",
+          "title": "Key",
+          "type": "string"
+        },
+        "md": {
+          "default": "",
+          "description": "The markdown body the engine never parses.",
+          "title": "Md",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "DesignSection",
+      "type": "object"
+    },
+    "GradedRow": {
+      "additionalProperties": false,
+      "description": "One inherited row as a landing keeps it (S-0059/D-10): the identifier\nand the grade the contract carried, which is what the `Torve-Decisions`\ntrailer used to say and what outlives the task directory.",
+      "properties": {
+        "grade": {
+          "description": "The grade the contract inherited at mint.",
+          "enum": [
+            "LOCKED",
+            "ASSUMED",
+            "OPEN"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "id": {
+          "description": "The row's identifier, `S-NNNN/D-n`; local inside its own document.",
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "grade"
+      ],
+      "title": "GradedRow",
+      "type": "object"
+    },
+    "InheritedDecision": {
+      "additionalProperties": false,
+      "description": "One row as a contract carries it (charter \u00a73; S-0054 S-0054/D-1): grade,\ntext and paths copied at mint and fingerprinted; `consequence` beside\nthem so the executor gets the reason, and `check` \u2014 a command whose\nexit code judges the row \u2014 which the runner appends to the battery as\na `decision:<id>` gate at `check_state`, with `check_twin` the test\nthat proves the check can fail (S-0054/D-4). A contract minted before\nS-0054 loads with the four defaults, which is the old behaviour.",
+      "properties": {
+        "check": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A command whose exit code judges the row, run as the `decision:<id>` gate (S-0054/D-4).",
+          "title": "Check"
+        },
+        "check_state": {
+          "default": "shadow",
+          "description": "The check's gate state: `shadow` until an amendment promotes it (S-0054/D-4).",
+          "enum": [
+            "shadow",
+            "blocking"
+          ],
+          "title": "Check State",
+          "type": "string"
+        },
+        "check_twin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The test that proves the check can fail (S-0054/D-4).",
+          "title": "Check Twin"
+        },
+        "consequence": {
+          "default": "",
+          "description": "Why the row exists \u2014 the reason beside the rule, so the executor gets both (S-0054/D-1).",
+          "title": "Consequence",
+          "type": "string"
+        },
+        "grade": {
+          "description": "The row's grade as it stood at mint \u2014 copied, so the executor reads what the author settled.",
+          "enum": [
+            "LOCKED",
+            "ASSUMED",
+            "OPEN"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "id": {
+          "description": "The row's global identifier, `S-NNNN/D-n`.",
+          "title": "Id",
+          "type": "string"
+        },
+        "paths": {
+          "description": "The area the row governs, declared; what enables the silence check.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Paths",
+          "type": "array"
+        },
+        "text": {
+          "description": "The decision's text as it stood at mint.",
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "grade",
+        "text"
+      ],
+      "title": "InheritedDecision",
+      "type": "object"
+    },
+    "Invariant": {
+      "additionalProperties": false,
+      "description": "A statement with the paths it holds over and the command that proves\nit.",
+      "properties": {
+        "check": {
+          "description": "The command that proves it; exit 0 is holding.",
+          "title": "Check",
+          "type": "string"
+        },
+        "id": {
+          "description": "`I-n` inside its own document, `S-NNNN/I-n` in memory.",
+          "title": "Id",
+          "type": "string"
+        },
+        "paths": {
+          "description": "Where it holds.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Paths",
+          "type": "array"
+        },
+        "statement": {
+          "description": "What must hold, over the paths.",
+          "title": "Statement",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "statement",
+        "check"
+      ],
+      "title": "Invariant",
+      "type": "object"
+    },
+    "Landing": {
+      "additionalProperties": false,
+      "description": "What one task found, kept beside the rows it informs (S-0057/D-7): the\ntask, its phase and attempt, the commit when the lander knew it (the\nrunner's rides in the candidate commit whose trailers name the task,\nso it leaves the field empty), when, by whom, and the log's entries.",
+      "properties": {
+        "agent": {
+          "default": "",
+          "description": "Who landed it \u2014 the agent identity the runner composes, or a session.",
+          "title": "Agent",
+          "type": "string"
+        },
+        "at": {
+          "description": "The instant of the landing, `YYYY-MM-DDTHH:MM:SSZ` (S-0058/D-7).",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "title": "At",
+          "type": "string"
+        },
+        "attempt": {
+          "default": 1,
+          "description": "The attempt that landed.",
+          "minimum": 1,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "base": {
+          "default": "",
+          "description": "The commit the attempt built on, from the log's pin (S-0058/D-12).",
+          "title": "Base",
+          "type": "string"
+        },
+        "commit": {
+          "default": "",
+          "description": "The commit the work landed in, when the lander knew it (S-0058/D-12).",
+          "title": "Commit",
+          "type": "string"
+        },
+        "decisions": {
+          "description": "The rows the contract carried, with their grades (S-0059/D-10).",
+          "items": {
+            "$ref": "#/$defs/GradedRow"
+          },
+          "title": "Decisions",
+          "type": "array"
+        },
+        "entries": {
+          "description": "The task log's entries, kept here beside the rows they cite (S-0057/D-7).",
+          "items": {
+            "$ref": "#/$defs/LogEntry"
+          },
+          "title": "Entries",
+          "type": "array"
+        },
+        "phase": {
+          "default": 0,
+          "description": "The phase its contract was minted from; 0 when none was.",
+          "title": "Phase",
+          "type": "integer"
+        },
+        "task": {
+          "description": "The task that landed, `T-NNNN`.",
+          "title": "Task",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task",
+        "at"
+      ],
+      "title": "Landing",
+      "type": "object"
+    },
+    "LogEntry": {
+      "additionalProperties": false,
+      "description": "One divergence entry as the task log carries it and a landing keeps\nit (S-0057/D-7): the row it cites, what reality said, the evidence, what\nthe executor did. `class` is the log's key; the field is `entry_class`\nbecause the word is Python's.",
+      "properties": {
+        "action": {
+          "description": "What the executor did: halted, departed or decided.",
+          "enum": [
+            "halted",
+            "departed",
+            "decided"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "at": {
+          "default": "",
+          "description": "The instant the entry was written (S-0058/D-7).",
+          "title": "At",
+          "type": "string"
+        },
+        "attempt": {
+          "default": 1,
+          "description": "The attempt that wrote it.",
+          "minimum": 1,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "claim": {
+          "description": "What reality said.",
+          "title": "Claim",
+          "type": "string"
+        },
+        "class": {
+          "default": "discovery",
+          "description": "`class` in the log: discovery, spec-gap, drift or irreducible.",
+          "enum": [
+            "discovery",
+            "spec-gap",
+            "drift",
+            "irreducible"
+          ],
+          "title": "Class",
+          "type": "string"
+        },
+        "decision": {
+          "description": "The row the entry cites, `S-NNNN/D-n`; local inside the row's own document.",
+          "title": "Decision",
+          "type": "string"
+        },
+        "evidence": {
+          "description": "A `path:line` citation or a backticked command with its output (S-0005/D-4).",
+          "title": "Evidence",
+          "type": "string"
+        },
+        "grade": {
+          "description": "The row's grade as the executor read it, or UNLISTED when no document lists it.",
+          "enum": [
+            "LOCKED",
+            "ASSUMED",
+            "OPEN",
+            "UNLISTED"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "kind": {
+          "default": "resolved",
+          "description": "What happened: contradicted, departed, resolved or blocked.",
+          "enum": [
+            "contradicted",
+            "departed",
+            "resolved",
+            "blocked"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "notes": {
+          "default": "",
+          "description": "Anything else the reader of the log should know.",
+          "title": "Notes",
+          "type": "string"
+        },
+        "proposal": {
+          "default": "",
+          "description": "The row the executor proposes for the author to append.",
+          "title": "Proposal",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "grade",
+        "claim",
+        "evidence",
+        "action"
+      ],
+      "title": "LogEntry",
+      "type": "object"
+    },
+    "Phase": {
+      "additionalProperties": false,
+      "description": "One mintable unit of the phasing: what `torve plan` derives a\ncontract from.",
+      "properties": {
+        "acceptance": {
+          "description": "The acceptance commands the contract gets; exit 0 is satisfied.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Acceptance",
+          "type": "array"
+        },
+        "character": {
+          "anyOf": [
+            {
+              "enum": [
+                "structural",
+                "routine"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The phase's structural or routine character, copied onto its contracts (S-0034/D-1).",
+          "title": "Character"
+        },
+        "depends_on": {
+          "description": "The phases that must land first.",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "intent": {
+          "description": "One paragraph: what changes and why \u2014 never steps (S-0001/D-7).",
+          "minLength": 1,
+          "title": "Intent",
+          "type": "string"
+        },
+        "phase": {
+          "description": "The phase number; the tasks of one phase are disjoint and may run in parallel.",
+          "minimum": 1,
+          "title": "Phase",
+          "type": "integer"
+        },
+        "scope": {
+          "description": "The allow globs the contract gets; a LOCKED row's paths must fit inside them.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Scope",
+          "type": "array"
+        },
+        "tier_variant": {
+          "default": "",
+          "description": "The seat variant the contract routes to, when one is named (S-0027/D-3).",
+          "title": "Tier Variant",
+          "type": "string"
+        },
+        "title": {
+          "description": "The contract's short name (S-0007/A-1).",
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "phase",
+        "title",
+        "intent",
+        "scope"
+      ],
+      "title": "Phase",
+      "type": "object"
+    },
+    "Question": {
+      "additionalProperties": false,
+      "description": "One entry of a `yaml questions` fence.",
+      "properties": {
+        "id": {
+          "description": "`Q-n` inside its own document, `S-NNNN/Q-n` in memory.",
+          "title": "Id",
+          "type": "string"
+        },
+        "settled_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The amendment or row that settled it.",
+          "title": "Settled By"
+        },
+        "status": {
+          "default": "open",
+          "description": "`open` until something settles it.",
+          "enum": [
+            "open",
+            "settled"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "text": {
+          "description": "The question left open.",
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "Question",
+      "type": "object"
+    },
+    "Scope": {
+      "additionalProperties": false,
+      "description": "allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty\nallow means unconstrained (S-0002/scope-in-detail).",
+      "properties": {
+        "allow": {
+          "description": "Globs of what the task may touch, gitwildmatch; empty means unconstrained.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Allow",
+          "type": "array"
+        },
+        "deny": {
+          "description": "Globs the task may not touch; deny wins over allow.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Deny",
+          "type": "array"
+        }
+      },
+      "title": "Scope",
+      "type": "object"
+    },
+    "Task": {
+      "additionalProperties": false,
+      "description": "The task contract, `.torve/tasks/T-NNNN/contract.yaml` (S-0001/domain, \u00a76).\n\n`decisions` has no default on purpose: an empty list is legal but must be\nexplicit (S-0007/D-5), so `decisions-reported` can distinguish \"none apply\"\nfrom \"the field was forgotten\".",
+      "properties": {
+        "acceptance": {
+          "description": "Shell commands; exit 0 is satisfied.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Acceptance",
+          "type": "array"
+        },
+        "budget": {
+          "$ref": "#/$defs/Budget",
+          "description": "What an attempt may spend."
+        },
+        "character": {
+          "anyOf": [
+            {
+              "enum": [
+                "structural",
+                "routine"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The phase's declared structural or routine character, copied verbatim from\nthe phasing entry at mint (S-0034/D-1). Absent by default \u2014 a task with no\ncharacter routes on the seat alone, same as one with no tier_variant.",
+          "title": "Character"
+        },
+        "decisions": {
+          "description": "The rows inherited at mint, grade and paths copied (S-0007/D-5); an empty\nlist is legal but must be explicit.",
+          "items": {
+            "$ref": "#/$defs/InheritedDecision"
+          },
+          "title": "Decisions",
+          "type": "array"
+        },
+        "depends_on": {
+          "description": "The tasks that must land before this one dispatches.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "id": {
+          "description": "`T-NNNN`, minted once and never reused.",
+          "title": "Id",
+          "type": "string"
+        },
+        "intent": {
+          "default": "",
+          "description": "One paragraph: what changes and why \u2014 never steps (S-0001/D-7, S-0001/A-4).\nOptional until the S-0001/A-4 execution makes minting enforce it; contracts\nminted before the amendment carry none.",
+          "title": "Intent",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set only at adoption of a decomposition's children (S-0026/D-5): projections\ngroup by it; dispatch, lane and store never read it \u2014 ordering stays\ndepends_on alone.",
+          "title": "Parent"
+        },
+        "phase": {
+          "default": 0,
+          "description": "The phasing entry the contract was minted from; 0 when no phase minted it.",
+          "title": "Phase",
+          "type": "integer"
+        },
+        "role": {
+          "default": "implement",
+          "description": "What the run does: implement, review (S-0005/D-9), revert (S-0010) or draft (S-0020).",
+          "enum": [
+            "implement",
+            "review",
+            "revert",
+            "draft"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": 2,
+          "description": "The contract's shape version: 2 names the document as `spec` (S-0059/D-1).",
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope",
+          "description": "What the attempt may and may not touch (S-0002/scope-in-detail)."
+        },
+        "source": {
+          "anyOf": [
+            {
+              "pattern": "^(?:S-\\d{4}|(?:incident|audit|review|operator)/[a-z0-9][a-z0-9.-]*)$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What asked for the work (S-0060/D-3): a source identifier, `S-NNNN` or\n`<kind>/<slug>`, never parsed for inheritance. `spec` says whose rows this\ncontract inherits and this says why it exists; a contract may carry both,\neither or neither, and the record reads this before `spec` before\n`operator`.",
+          "title": "Source"
+        },
+        "spec": {
+          "anyOf": [
+            {
+              "pattern": "^S-\\d{4}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The document the contract was minted from, by identifier and never by path\n(S-0059/D-1) \u2014 `document_dir` is the one lookup that finds it. None is the\ndocument-less lane: an operator's ask, a standing job.",
+          "title": "Spec"
+        },
+        "targets": {
+          "description": "The tasks a review examines (S-0005/the-review-contract, S-0005/D-9) or the\ntasks and shas a revert undoes (S-0010/revert-as-a-role): the contract shape\nis parameterised by role, no new mechanism. Only those two roles carry targets.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Targets",
+          "type": "array"
+        },
+        "tier": {
+          "default": "executor",
+          "description": "The seat that runs it \u2014 planner, executor or reviewer (S-0004).",
+          "enum": [
+            "planner",
+            "executor",
+            "reviewer"
+          ],
+          "title": "Tier",
+          "type": "string"
+        },
+        "tier_variant": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "An optional dotted variant under the seat (S-0027/D-3), resolved as\n`tier.variant` in the tiers mapping \u2014 a variant refines a seat, never invents\none, and role semantics still key on `tier` alone. Naming a variant that is\nnot configured is a refused dispatch, not a fallback.",
+          "title": "Tier Variant"
+        },
+        "title": {
+          "default": "",
+          "description": "A short human name (S-0007/A-1): the landing subject and every board row read\nit; empty falls back to the intent's first line. The planner mints it from the\nphase title; a drafter may set it.",
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "decisions"
+      ],
+      "title": "Task",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "decisions.yaml of a specification directory (S-0057).",
+  "properties": {
+    "decisions": {
+      "description": "The rows a contract inherits.",
+      "items": {
+        "$ref": "#/$defs/Decision"
+      },
+      "title": "Decisions",
+      "type": "array"
+    },
+    "invariants": {
+      "description": "What must hold, each with the command that proves it.",
+      "items": {
+        "$ref": "#/$defs/Invariant"
+      },
+      "title": "Invariants",
+      "type": "array"
+    },
+    "retired": {
+      "description": "This document's own rows that no longer stand.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Retired",
+      "type": "array"
+    }
+  },
+  "required": [],
+  "title": "decisions",
+  "type": "object"
+}

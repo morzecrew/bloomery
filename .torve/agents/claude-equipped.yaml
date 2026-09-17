@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../schemas/agent.json
+# What the agent is, for a seat on the claude image (S-0061/D-1), as one list
+# of equipment (S-0062/D-1). It names no skill and no role, so the profile that
+# declares the task's role supplies those under this layer (S-0062/D-12) — this file adds,
+# it does not replace.
+#
+# The refs are the pins, and nothing else pins them: the image bakes no clone
+# (S-0063/D-9). `torve equip` fetches each into the cache host-side, the seat
+# mounts it read-only, and the image's own `equip` turns the manifest into the
+# flags claude takes (S-0063/D-3).
+equipment:
+- kind: plugin
+  source: github:JuliusBrussee/caveman
+  ref: 81536f57b330
+- kind: plugin
+  source: github:DietrichGebert/ponytail
+  ref: v4.9.0
+prompt_extras: |
+  Prefer the smallest change that makes the acceptance commands pass.

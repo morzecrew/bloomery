@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=schemas/config.json
+# Runner configuration for bloomery under torve. Read from this repository's
+# root by every verb (`--root .`); the gate manifest is `gates.yaml` beside it.
+# Copied from torve's own configuration on 2026-09-17 and cut to what this
+# repository uses: one live seat, the local broker, and the landing act this
+# repository's process already has — a pull request a person merges.
+schema_version: 1
+
+runtime:
+  adapter: docker
+  image: python:3.13-slim
+  sandbox_timeout: 2700      # strictly outside agent_timeout, refused otherwise
+  agent_timeout: 2200        # hard cap per agent attempt, seconds
+  network: host              # this host's egress runs through a local proxy
+
+store:
+  adapter: postgres
+  dsn_env: TORVE_PG_DSN      # the name of the variable, never the DSN itself
+  lease_for: 60
+  max_run_duration: 7200
+
+unmeasured_images: allow     # the images are torve's, measured over torve's own work
+
+poison_ceiling: 3
+
+reap:
+  stale_after: 600
+
+# Nothing reaches this repository's `main` except through a merged pull
+# request (S-0080/D-1): the lane pushes the candidate, opens the task's pull
+# request and stops. Merging is a person's act on the forge, and the engine
+# reads what the person did on a later pass. `main` is pushed, so no `base`
+# override: worktrees are cut from `origin/main` after a fetch.
+promotion:
+  landing: pull_request
+
+scm:
+  repo: morzecrew/bloomery
+  open_pr: true              # the forge leg pushes and opens; credentials are `gh`'s on the host
+
+tiers:
+  planner: {harness: fake}
+  executor:
+    harness: claude-subscription
+    profile: claude-equipped
+    model: claude-opus-5
+    provider: anthropic
+  reviewer: {harness: fake}
+
+broker:
+  adapter: local
+  mode: endpoint
+  cost_tolerance: 0.25
+
+providers:
+  default: [anthropic]
+  repositories: {}
+  never_send: []
