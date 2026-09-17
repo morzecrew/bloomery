@@ -358,7 +358,7 @@ def _numeric(value: object) -> Decimal | None:
 
 
 def _dimension_source(metric: MetricIR, project: ProjectIR) -> dict[str, str]:
-    """Each dimension this metric can be filtered on, as the entity column it
+    """Each dimension this metric can be filtered on, as the entity column(s) it
     resolves to.
 
     A mart's dimension name is not canonical: the flattener prefixes a joined
@@ -368,20 +368,30 @@ def _dimension_source(metric: MetricIR, project: ProjectIR) -> dict[str, str]:
     refuses a correct ratio (logs/T-0063.md).
 
     Read from every mart carrying the metric, because that is the set whose
-    filters were checked against it (RFC 0034 D9). Where two of them spell one
-    dimension name over different columns the later mart wins, by the sorted
-    order ``ProjectIR.marts`` is already in — deterministic, and a tie this
-    rule does not try to break: a name meaning two things across the marts that
-    carry one measure is a modelling problem with its own refusal to grow, not
-    a row-set question.
+    filters were checked against it (RFC 0034 D9).
+
+    **A name that means two columns resolves to both of them**, joined, rather
+    than to whichever mart came last. Two same-grain marts may flatten
+    different entities under one prefix — `{via: shipment_of_carrier, prefix:
+    via_}` beside `{via: shipment_of_depot, prefix: via_}` — and then `via_tier`
+    is carrier tier on one mart and depot tier on the other. Picking one made
+    two restrictions that mean different things compare equal; carrying both
+    makes the identity what the name can mean *for this metric*, so two
+    operands agree exactly when every mart that can answer them agrees
+    (PR #127).
     """
 
-    return {
-        column.name: f"{column.source_entity}.{column.source_column}"
-        for mart in project.marts
-        if metric.name in mart.measures
-        for column in mart.columns
-    }
+    meanings: dict[str, set[str]] = {}
+
+    for mart in project.marts:
+        if metric.name not in mart.measures:
+            continue
+        for column in mart.columns:
+            meanings.setdefault(column.name, set()).add(
+                f"{column.source_entity}.{column.source_column}"
+            )
+
+    return {name: "|".join(sorted(columns)) for name, columns in meanings.items()}
 
 
 # ....................... #

@@ -21,7 +21,11 @@ from support.planning import variant_ir
 from bloomery.errors import GuardrailError, RatioOperandsDisagree, UndeclaredRatioRows
 from bloomery.semantic import RULES, Proof, Refutation, prove_ratio_rows
 from bloomery.ir import OnFail
-from bloomery.semantic.additivity import _REMOVING, RatioRowsRefusal
+from bloomery.semantic.additivity import (
+    _REMOVING,
+    RatioRowsRefusal,
+    _dimension_source,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -620,3 +624,126 @@ def test_an_expression_naming_no_column_of_the_entity_resolves_to_nothing() -> N
     assert isinstance(refutation, Refutation)
     # Named by the metric, because the expression resolved to no column.
     assert "'parcels'" in str(refutation.obligations[0].required)
+
+
+AMBIGUOUS_MODEL = """
+spec_version: 1
+entities:
+  shipment:
+    grain: one row per shipment
+    key: [shipment_id]
+    fields:
+      shipment_id: {type: string, required: true}
+      carrier_id: {type: string}
+      depot_id: {type: string}
+      carrier_cost: {type: "decimal(12,2)", required: true}
+      parcels: {type: int, required: true}
+      shipped_on: {type: date, required: true}
+  carrier:
+    grain: one row per carrier
+    key: [carrier_id]
+    fields:
+      carrier_id: {type: string, required: true}
+      tier: {type: string}
+  depot:
+    grain: one row per depot
+    key: [depot_id]
+    fields:
+      depot_id: {type: string, required: true}
+      tier: {type: string}
+relationships:
+  - name: shipment_of_carrier
+    from: shipment
+    to: carrier
+    via: {carrier_id: carrier_id}
+    cardinality: many_to_one
+  - name: shipment_of_depot
+    from: shipment
+    to: depot
+    via: {depot_id: depot_id}
+    cardinality: many_to_one
+"""
+
+
+def test_a_dimension_name_two_marts_spell_over_two_columns_resolves_to_both() -> None:
+    """Two same-grain marts may flatten *different* entities under one prefix,
+    and then one dimension name means two columns.
+
+    Resolving it to whichever mart sorted last made two restrictions that mean
+    different things compare equal — a ratio accepted over operands about
+    different row sets, which is the defect this leg exists to refuse. The
+    identity is what the name can mean for this metric, so two operands agree
+    exactly when every mart that can answer them agrees (PR #127).
+    """
+
+    sources = {
+        "entity_model": AMBIGUOUS_MODEL,
+        "mapping": """
+mapping_version: 1
+source: carrier__shipments
+target: shipment
+key:
+  shipment_id: {from: "$.id", transform: [to_string]}
+fields:
+  carrier_id: {from: "$.carrier", transform: [to_string]}
+  depot_id: {from: "$.depot", transform: [to_string]}
+  carrier_cost: {from: "$.cost"}
+  parcels: {from: "$.parcels", transform: [to_int]}
+  shipped_on: {from: "$.shipped_on", transform: [{parse_date: ISO8601}]}
+""",
+        "mapping_carrier": """
+mapping_version: 1
+source: carrier__carriers
+target: carrier
+key:
+  carrier_id: {from: "$.id", transform: [to_string]}
+fields:
+  tier: {from: "$.tier"}
+""",
+        "mapping_depot": """
+mapping_version: 1
+source: carrier__depots
+target: depot
+key:
+  depot_id: {from: "$.id", transform: [to_string]}
+fields:
+  tier: {from: "$.tier"}
+""",
+        "marts": """
+marts_version: 1
+marts:
+  by_carrier:
+    grain: shipment
+    base: shipment
+    measures: [carrier_cost, parcels]
+    flatten:
+      - {via: shipment_of_carrier, prefix: via_}
+      - {date: shipped_on, role: shipped}
+  by_depot:
+    grain: shipment
+    base: shipment
+    measures: [carrier_cost, parcels]
+    flatten:
+      - {via: shipment_of_depot, prefix: via_}
+      - {date: shipped_on, role: shipped}
+""",
+        "metrics": METRICS.replace(
+            '    expr: "parcels"\n',
+            '    expr: "parcels"\n'
+            "    filter:\n      - {dimension: via_tier, op: eq, values: ['gold']}\n",
+        )
+        .replace(
+            '    expr: "carrier_cost"\n',
+            '    expr: "carrier_cost"\n'
+            "    filter:\n      - {dimension: via_tier, op: eq, values: ['gold']}\n",
+        )
+        .replace(
+            "ratio: {numerator: carrier_cost, denominator: parcels}",
+            "ratio: {numerator: carrier_cost, denominator: parcels, "
+            "includes_zero_denominator: true}",
+        ),
+    }
+    ir = _drafted(load_project(sources))
+    (parcels,) = (metric for metric in ir.metrics if metric.name == "parcels")
+
+    assert _dimension_source(parcels, ir)["via_tier"] == "carrier.tier|depot.tier"
