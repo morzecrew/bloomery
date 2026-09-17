@@ -2,13 +2,13 @@
 id: S-0017
 title: Semantic grain model and functional dependencies
 kind: design
-status: draft
+status: accepted
 implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []
 superseded_by: null
-owner: author role
+owner: Lev Litvinov
 schema_version: 4
 summary: |
   Grain is structural identity rather than a display string, and rollup safety is proved

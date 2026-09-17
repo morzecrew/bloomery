@@ -425,6 +425,16 @@
           "description": "\u00a73's review criterion (S-0006/D-14, S-0006/A-3): the lane lands only a candidate\nwhose producing run recorded a concluded review (`reviewed_by` on the run state) \u2014 the\nunconfigured-review bridge never satisfies it.",
           "title": "Require Review",
           "type": "boolean"
+        },
+        "unit": {
+          "default": "task",
+          "description": "S-0083/D-1: what one pull request carries \u2014 `task` opens one per task, `document`\nlands every phase of a document onto the document's own branch behind one pull\nrequest. A term of configuration, never inferred from whether the ready candidates\nhappen to share a document; `task` is the default so a repository configured today\nkeeps landing as it does today. S-0083/D-2: ignored under `landing: local` rather\nthan refused \u2014 a local landing has no pull request to be one per anything \u2014 so a\nrepository moving between the modes edits one key.",
+          "enum": [
+            "task",
+            "document"
+          ],
+          "title": "Unit",
+          "type": "string"
         }
       },
       "title": "PromotionConfig",

@@ -33,6 +33,12 @@ reap:
 # override: worktrees are cut from `origin/main` after a fetch.
 promotion:
   landing: pull_request
+  # One pull request per document (S-0083/D-1): every phase of a document lands
+  # onto the document's own branch, `torve/S-NNNN`, by the local lane; the pull
+  # request opens at the first landing and is refreshed at each; a person merges
+  # once. A task's worktree is cut from that branch's tip, so the next phase never
+  # waits on a merge. `task` would open one pull request per task.
+  unit: document
 
 scm:
   repo: morzecrew/bloomery
