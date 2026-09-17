@@ -344,3 +344,47 @@ def test_restoring_the_capture_group_does_not_mutate_the_input() -> None:
     DuckDBDialect().render(node)
     assert node.sql() == before
     assert node.find(exp.RegexpExtract).args.get("group") is None  # still the demoted form
+
+
+# ....................... #
+# `utc_now` — the engine's instant as a zoneless UTC timestamp (RFC 0060 P1)
+
+
+@pytest.mark.parametrize(
+    ("dialect", "expected"),
+    [
+        ("duckdb", "CAST(TIMEZONE('UTC', CURRENT_TIMESTAMP) AS TIMESTAMP)"),
+        ("postgres", "CAST(TIMEZONE('UTC', CURRENT_TIMESTAMP) AS TIMESTAMP)"),
+        ("trino", "CAST(AT_TIMEZONE(CURRENT_TIMESTAMP, 'UTC') AS TIMESTAMP)"),
+    ],
+)
+def test_utc_now_states_the_zone_on_every_port(dialect: str, expected: str) -> None:
+    """`timestamp` is always UTC and zoneless here, and every engine's
+    `CURRENT_TIMESTAMP` is zone-*aware* instead.
+
+    The two wrong answers are both plausible. A bare `CURRENT_TIMESTAMP`
+    written into a text column carries an offset — measured on DuckDB through
+    dbt: `2026-09-17 19:18:21.796404+03`, which the D21 audit refuses. And
+    `CAST(CURRENT_TIMESTAMP AS TIMESTAMP)` keeps the *session's* wall clock,
+    which is the RFC 0028 §2 defect in a shape that looks like the fix.
+
+    Trino's spelling is different rather than cosmetically so: it has no
+    `timezone(zone, ts)`, and `with_timezone` — the function the port's other
+    UTC door uses — states the zone of a *zoneless* value and is a type error
+    on an instant that already has one.
+    """
+    assert get_dialect(dialect).render(get_dialect(dialect).utc_now()) == expected
+
+
+def test_utc_now_is_not_rewritten_by_the_ports_zone_door() -> None:
+    """The ports rewrite every `exp.AtTimeZone` into their own door into the
+    `timestamp` type, and that door is for a zoneless *local* value being told
+    which clock it came off.
+
+    Spelling `utc_now` as an `AtTimeZone` therefore double-converted on DuckDB
+    and PostgreSQL — `CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'UTC'`,
+    zone-aware again — and handed Trino's `with_timezone` an instant. This is
+    what pins the spelling as a function call rather than as that node.
+    """
+    for name in ("duckdb", "postgres", "trino"):
+        assert "AT TIME ZONE" not in get_dialect(name).render(get_dialect(name).utc_now())
