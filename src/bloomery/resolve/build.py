@@ -113,6 +113,7 @@ from bloomery.resolve.resolution import Resolution, resolve
 from bloomery.resolve.steps import lower_steps, step_entities
 from bloomery.semantic import Conversion, Refutation, consequence_of, prove_conversion
 from bloomery.spec.catalog import Catalog
+from bloomery.spec.common import UTC_ZONES
 from bloomery.spec.mapping import (
     ALIAS_BOUND,
     CurrencyColumn,
@@ -1033,6 +1034,91 @@ def _materialization(entity: Entity) -> Materialization:
 # ....................... #
 
 
+def _zone_declaration(
+    source: KeyField | SimpleFieldMapping,
+    declared: LogicalType,
+    *,
+    column: str,
+    source_path: str,
+) -> str | None:
+    """This path's ``zone_in:``, cross-checked against the chain beside it
+    (RFC 0074 §5.2), or ``None`` where the mapping declared nothing.
+
+    Three refusals, and each is a *disagreement* rather than an omission —
+    R018 owns the omission, one commit later, where it can see whether the
+    value ever reaches a boundary. What is checkable here is only what this one
+    field says about itself:
+
+    * a zone on a column that is not a timestamp. Nothing it could be a fact
+      about; almost always the key on the wrong line.
+    * a zone that disagrees with the chain's ``to_utc``. Two spellings of one
+      truth, which is the shape D4 exists to keep out — and reporting both is
+      the whole difference between a redundancy that is checked and one that is
+      not.
+    * a non-UTC zone with nothing converting it. The declaration is right and
+      the instant is still wrong, which is worse than silence: it reads as
+      handled.
+
+    A chain carrying a ``step:`` link is exempt from the third, because a
+    spliced ``sql_macro`` may hold the ``to_utc`` this cannot see (RFC 0017
+    D51) — and a refusal that a correct project cannot satisfy is the one kind
+    this design cannot afford, since the author's only escape would be dropping
+    the declaration. R018 keeps the pressure from the other side: the same
+    field with no declaration at all is refused where it is consumed.
+    """
+
+    zone = source.zone_in
+
+    if zone is None:
+        return None
+
+    if not isinstance(declared, TimestampType):
+        msg = (
+            f"zone_in: {zone!r} on column {column!r}, which is "
+            f"{render_type(declared)} rather than a timestamp — a zone is what a wall "
+            "clock was written on, and a value that is not an instant has none "
+            "(RFC 0074 §5.2). Fix: drop the declaration, or move it to the timestamp "
+            "field it belongs to"
+        )
+        raise ResolutionError(msg, source_path=source_path)
+
+    converted = tuple(
+        str(step.args[0]) for step in source.transform if step.name == "to_utc" and step.args
+    )
+
+    if converted:
+        # Compared as *zones*, not as spellings: `UTC` and `Etc/UTC` are one
+        # zone under two names, and refusing `zone_in: Etc/UTC` beside
+        # `{to_utc: UTC}` would report a disagreement between two statements
+        # that agree (PR #126). Everything else is compared literally, which is
+        # what `to_utc` itself does — the argument reaches SQL as written.
+        if not any(zone == one or {zone, one} <= UTC_ZONES for one in converted):
+            named = ", ".join(repr(one) for one in converted)
+            msg = (
+                f"zone_in: {zone!r} on column {column!r} disagrees with the chain, which "
+                f"converts from {named} — two statements of one fact, and nothing here "
+                "says which is right (RFC 0074 §5.2). Fix: correct whichever is wrong, or "
+                "drop zone_in: and let to_utc be the declaration"
+            )
+            raise ResolutionError(msg, source_path=source_path)
+
+        return zone
+
+    if zone in UTC_ZONES or any(step.step is not None for step in source.transform):
+        return zone
+
+    msg = (
+        f"zone_in: {zone!r} on column {column!r}, and nothing in the chain converts out "
+        "of it — the declaration is right and the instant is still wrong, which reads as "
+        "handled (RFC 0074 §5.2). Fix: add {to_utc: "
+        f"{zone}}} to the chain, or declare the zone the values are actually in"
+    )
+    raise ResolutionError(msg, source_path=source_path)
+
+
+# ....................... #
+
+
 def _build_source(
     entity_name: str,
     entity: Entity,
@@ -1119,6 +1205,12 @@ def _build_source(
                 transform=tuple(
                     TransformStepIR(name=s.name, args=s.args) for s in key_field.transform
                 ),
+                zone_in=_zone_declaration(
+                    key_field,
+                    declared,
+                    column=field_name,
+                    source_path=f"{doc}: key.{field_name}",
+                ),
             )
         )
 
@@ -1185,6 +1277,12 @@ def _build_source(
                     source_path=field_mapping.from_,
                     transform=tuple(
                         TransformStepIR(name=s.name, args=s.args) for s in field_mapping.transform
+                    ),
+                    zone_in=_zone_declaration(
+                        field_mapping,
+                        declared,
+                        column=field_name,
+                        source_path=f"{doc}: fields.{field_name}",
                     ),
                 )
             )

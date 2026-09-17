@@ -85,6 +85,7 @@ __all__ = [
     "UnexportedImport",
     "UnknownStep",
     "UnknownUpstream",
+    "UndeclaredZone",
     "UnprovableRollup",
     "StepDeterminismError",
     "StepContractViolation",
@@ -551,6 +552,30 @@ class ImportCollision(GuardrailError):
     wins — is a rule every reader has to know before they can read a
     reference, and whichever way it points, the other project's author cannot
     see it from their own file.
+    """
+
+
+class UndeclaredZone(GuardrailError):
+    """Guardrail stage (RFC 0074 §5.3, R018): a timestamp parsed from a wall
+    clock nothing declares, whose absolute position is then read.
+
+    ``parse_ts`` reads a wall clock and cannot know which clock; the type
+    system then calls the result UTC. Where the value is only carried that
+    costs nothing, and where its position decides an answer — a bucket
+    boundary, a comparison against a literal instant, an as-of anchor — it is
+    a wrong number with every check passing: an order placed at 21:30 in New
+    York lands in the wrong month, and no row is null, duplicated or lost.
+
+    Its own class rather than a reuse of the undeclared-currency refusal, whose
+    shape it copies. That one refuses a *conversion*; this refuses a
+    *consumption*, and the repair names ``zone_in:`` or ``to_utc`` rather than
+    a currency — an author who is handed one message for both learns that the
+    compiler has an opinion about denominations in general and not what to type.
+
+    **What it does not check:** that the declared zone is the right one. A
+    ``Europe/London`` on a New York feed shifts every row by five hours with
+    full compiler blessing. The check is that the assertion exists and is
+    well-formed, never that it is true.
     """
 
 

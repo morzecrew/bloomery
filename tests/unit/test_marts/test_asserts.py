@@ -57,6 +57,7 @@ fields:
   order_date:
     from: "$.order_date"
     transform: [{parse_ts: ISO8601}]
+    zone_in: UTC
 """
 
 

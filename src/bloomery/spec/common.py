@@ -55,6 +55,9 @@ __all__ = [
     "StepUse",
     "TypeString",
     "USE_PATTERN",
+    "UTC_ZONES",
+    "ZONE_NAME_PATTERN",
+    "ZoneName",
     "flatten_collected",
     "load_yaml_mapping",
     "source_path_from_loc",
@@ -266,6 +269,28 @@ TypeString = Annotated[str, StringConstraints(pattern=TYPE_STRING_PATTERN)]
 PartitionSpecString = Annotated[str, StringConstraints(pattern=PARTITION_SPEC_PATTERN)]
 JsonPath = Annotated[str, StringConstraints(pattern=JSONPATH_PATTERN)]
 CurrencyCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]
+
+#: An IANA zone name — ``UTC``, ``America/New_York``,
+#: ``America/Argentina/Buenos_Aires`` (RFC 0074 §5.2).
+#:
+#: **Shape, not membership.** Validating against the shipped zone database
+#: would read the filesystem, which compilation does not do (RFC 0003), and
+#: would make acceptance a fact about the machine: ``zoneinfo.TZPATH`` names
+#: four directories and what they hold differs between them. The zone that is
+#: *used* — ``to_utc``'s argument — already reaches SQL unchecked and is the
+#: engine's to refuse; checking the one that is merely *declared* against a
+#: database would put the stricter gate on the weaker claim
+#: (logs/T-0062.md, the unlisted row).
+ZONE_NAME_PATTERN = r"^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}$"
+ZoneName = Annotated[str, StringConstraints(pattern=ZONE_NAME_PATTERN)]
+
+#: The spellings that mean "this wall clock is already UTC" — the claim
+#: ``zone_in:`` exists to carry, which no ``to_utc`` step can express because
+#: ``to_utc: UTC`` converts nothing and nobody writes it (RFC 0074 §5.2).
+#: Two rather than one because ``Etc/UTC`` is the same zone under the name the
+#: database files it as, and refusing it would teach the author that the key
+#: wants a spelling rather than a fact.
+UTC_ZONES = frozenset({"UTC", "Etc/UTC"})
 MemberName = Annotated[str, AfterValidator(_reject_reserved_member)]
 
 #: An authored SQL expression — a recipe body, a metric expression, a

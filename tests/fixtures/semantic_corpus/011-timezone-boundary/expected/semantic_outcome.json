@@ -1,7 +1,8 @@
 {
   "zoneless": {
-    "outcome": "unguarded",
-    "rule": "RFC 0042 D5"
+    "outcome": "refused",
+    "error": "UndeclaredZone",
+    "rule": "R018"
   },
   "anchored": {
     "outcome": "accepted",

@@ -45,7 +45,7 @@ fields:
       - {to_decimal: [12, 2]}
 
   # Already UTC on this side of the migration.
-  ordered_at: {from: "$.payload.created_at", transform: [{parse_ts: ISO8601}]}
+  ordered_at: {from: "$.payload.created_at", transform: [{parse_ts: ISO8601}], zone_in: UTC}
 
   gift_note: {from: "$.payload.gift_note", transform: [to_string]}
 

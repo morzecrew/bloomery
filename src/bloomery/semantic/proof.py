@@ -326,6 +326,15 @@ class Rule:
 #: that evaluating the expression after the aggregate is the declared number
 #: rather than a row-level one aggregated afterwards.
 #:
+#: R018 is the zone obligation (RFC 0074 §5.3). It is the only rule here that
+#: fires on a *use* rather than on an operation: nothing is wrong with parsing
+#: a wall clock, and nothing is wrong with carrying one — what needs an
+#: argument is reading its absolute position, because a bucket boundary, a
+#: comparison against a literal instant and an as-of anchor are the three
+#: places five hours change the answer. Scoped to the use rather than to the
+#: time dimension deliberately: corpus case 011 fails at the comparison, and
+#: its mart's date role is incidental.
+
 #: R013 is the rollup mart's obligation (RFC 0058 §5.2, D12). It stands beside
 #: R011 rather than under it: R011 asks whether an additive measure may be
 #: summed across a rollup *its grain proof permits*, and a rollup mart has no
@@ -371,6 +380,10 @@ RULES: Final[dict[str, Rule]] = {
         Rule(
             "R017",
             "a declared offset reads the same measure at a shifted range, absent where it has no rows",
+        ),
+        Rule(
+            "R018",
+            "a timestamp whose absolute position is consumed was parsed from a declared zone",
         ),
     )
 }

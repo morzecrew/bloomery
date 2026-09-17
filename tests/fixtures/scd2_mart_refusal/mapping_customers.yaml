@@ -5,4 +5,4 @@ key:
   customer_id: {from: "$.id", transform: [to_string]}
 fields:
   segment: {from: "$.segment"}
-  signed_up_at: {from: "$.signed_up_at", transform: [{parse_ts: ISO8601}]}
+  signed_up_at: {from: "$.signed_up_at", transform: [{parse_ts: ISO8601}], zone_in: UTC}

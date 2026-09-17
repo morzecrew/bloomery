@@ -53,7 +53,7 @@ someone will maintain the reproduction.
 | `009-null-denominator` | `restricted` | `NATIVE-PLAN` <br> R012 | `UNKNOWN` |
 | `010-many-to-many-bridge` | `bridged` | `NATIVE-PREVENT` <br> `GrainViolation`, RFC 0010 D2 | `UNKNOWN` |
 | `010-many-to-many-bridge` | `per_order` | `NATIVE-PLAN` <br> R011 | `UNKNOWN` |
-| `011-timezone-boundary` | `zoneless` | **`NOT-REPRESENTED`** <br> RFC 0042 D5 | `UNKNOWN` |
+| `011-timezone-boundary` | `zoneless` | `NATIVE-PREVENT` <br> `UndeclaredZone`, R018 | `UNKNOWN` |
 | `011-timezone-boundary` | `anchored` | `NATIVE-PLAN` <br> R011 | `UNKNOWN` |
 | `012-rollup-recounts-identities` | `rolled` | `NATIVE-PREVENT` <br> `UnprovableRollup`, R013 | `UNKNOWN` |
 | `012-rollup-recounts-identities` | `detail` | `NATIVE-PLAN` <br> R008 | `UNKNOWN` |
@@ -95,14 +95,15 @@ measured rather than asserted.
 
 ## Where bloomery loses
 
-Two rows, both `NOT-REPRESENTED`, both meaning bloomery compiles the request and returns a
-number that is wrong:
+One row, `NOT-REPRESENTED`, meaning bloomery compiles the request and returns a number that
+is wrong:
 
 - **`009-null-denominator` / `declared`** — a ratio whose denominator can be zero or null.
-- **`011-timezone-boundary` / `zoneless`** — a daily aggregate over timestamps with no zone
-  anchor.
 
-They are pinned as `unguarded` in the corpus and run in the default suite that way, so the
-wrong number is asserted rather than tolerated. Neither has been measured on any other
-column, so nothing here says another system does better — only that bloomery does not do
-this yet.
+It is pinned as `unguarded` in the corpus and runs in the default suite that way, so the
+wrong number is asserted rather than tolerated. It has not been measured on any other column,
+so nothing here says another system does better — only that bloomery does not do this yet.
+
+`011-timezone-boundary` / `zoneless` was the second such row and is now `NATIVE-PREVENT`
+(RFC 0074, R018). The cell moved because the rule landed, and the row it moved from is what
+made the gap citable while it was open.
