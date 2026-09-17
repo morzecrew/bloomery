@@ -1,0 +1,267 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0009
+title: Continuous fuzzing in CI
+kind: design
+status: draft
+implementation: none
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  Where the fuzz corpus lives between runs, which workflows run which targets for how long,
+  and the weekly replay job that checks byte-identical output across processes and hash
+  seeds — the determinism claim no in-process assertion can reach.
+
+  The lane runs plain Atheris on `actions/setup-python`, not ClusterFuzzLite: both
+  OSS-Fuzz base-image tags ship Python 3.11.13, `pyproject.toml` requires `>=3.12,<3.15`,
+  and atheris 3.1.0 ships no cp311 wheel and no source distribution — so the container path
+  needs a hand-maintained CPython build from day one. The corpus lives in `actions/cache`,
+  seeded from `examples/**` and `tests/golden/**` so its floor tracks the examples rather
+  than drifting from them. Three jobs: a nightly batch matrixed over `PYTHONHASHSEED`, a
+  weekly replay job that verifies rather than explores, and a short non-blocking PR job.
+  ClusterFuzzLite is the demand-gated upgrade, priced here and not taken now.
+motivation: |
+  **Without persistent storage, a fuzzer does nothing.** Random bytes essentially never
+  survive `yaml.safe_load`, so a run starting from an empty corpus spends its whole budget
+  rediscovering that YAML has syntax. The corpus — not the CPU — is the asset, and it is
+  the single highest-leverage thing here.
+
+  **The determinism promise is not testable in one process.** The retired determinism
+  contract (`rfcs/RETIRED.md` row 0003, readable at `33bc4f9`) requires byte-identical
+  artifacts across processes and across `PYTHONHASHSEED`. `tests/unit/test_determinism_guard.py`
+  already makes that claim, but over one hand-written fixture. The replay job is where the
+  headline promise finally gets tested at scale — against thousands of inputs a fuzzer
+  selected for being *interesting* rather than inputs a person thought of — and notably it
+  needs no fuzzing infrastructure at all: it is an ordinary script.
+
+  **Findings arrive on a schedule a laptop does not keep.** Fuzzing pays over weeks. A
+  local lane is where targets are written and debugged; continuous running is where they
+  earn out.
+current_state: |
+  Nothing in this document has landed. There is no `fuzz/` directory, no fuzzing workflow
+  under `.github/workflows/` (the seven there are `ci.yml`, `codeql.yml`,
+  `dependency-review.yml`, `docs-dev.yaml`, `docs-release.yaml`, `release.yaml`,
+  `scorecard.yaml`), and no `pages/docs/contributing/` tree — `pages/docs/` holds
+  `concepts`, `get-started`, `how-to`, `reference` and `assets` alone. `git log` over
+  `fuzz`, `.github/workflows/fuzz.yml` and `pages/docs/contributing/fuzzing.md` is empty.
+  All four phases of the source RFC remain.
+
+  The targets this schedules do not exist either: `rfcs/0071-fuzzing-the-compile-boundary.md`
+  is still marked Draft in `rfcs/INDEX.md`, and this document is gated on that document's
+  P1 — there is no point running in CI what has not run on a laptop.
+
+  What does exist is the thing the replay job scales up: `tests/unit/test_determinism_guard.py`
+  parses `tests/fixtures/minimal`, builds a hand-constructed IR and runs `compile_project`
+  in two subprocesses under different `PYTHONHASHSEED` values, asserting byte-identical
+  stdout. One fixture, one shape; the replay job applies the same check to whatever the
+  corpus has accumulated.
+
+  The measurement the source RFC rests on, taken against the live images and package index
+  rather than the originating note's metadata: `base-builder-python:latest` and
+  `base-builder-python:ubuntu-24-04` both ship **Python 3.11.13**; `pyproject.toml`
+  declares `requires-python = ">=3.12,<3.15"`; `pip3 install .` in the base image **fails**
+  with hatchling erroring on metadata preparation under 3.11; atheris **3.0.0** is
+  preinstalled there and is the last release with a cp311 wheel; atheris **3.1.0** ships
+  cp312/cp313/cp314 wheels and **no sdist at all**. The base image is pinned to the one
+  interpreter bloomery cannot run on, and to the one atheris release that still supports it.
+
+  Also relevant: `main` runs a `Required Continuous Integration` status check, and the
+  repository displays an OpenSSF Scorecard badge whose `Fuzzing` check looks for
+  ClusterFuzzLite or OSS-Fuzz specifically. This document leaves that check unsatisfied,
+  deliberately.
+goals: |
+  - Persist the corpus between runs, so week two is better than week one.
+  - Test the determinism claim across processes and hash seeds, at corpus scale.
+  - Keep the nightly cost inside a public repository's free runner budget, well clear of
+    the six-hour job cap.
+  - Report findings somewhere a person actually reads.
+  - Depend on nothing whose breakage silently produces a green check.
+non_goals: |
+  - **Crash deduplication and coverage dashboards.** Genuinely useful, genuinely
+    ClusterFuzzLite's; priced in the design and revisited only on demand.
+  - **The Scorecard `Fuzzing` check.** A badge is not a reason to maintain a CPython build.
+  - **Blocking PRs.** The PR job is non-blocking on purpose, and for longer than feels
+    comfortable.
+  - **Self-hosted runners.** A 2-vCPU runner is not the bottleneck; a bad corpus is.
+design:
+  - key: plain-atheris-over-clusterfuzzlite
+    md: |
+      ClusterFuzzLite buys crash deduplication, a hosted coverage report on `gh-pages`,
+      PR-diff targeting (`mode: code-change`) and SARIF. It costs a hand-built CPython 3.12
+      in a Dockerfile with atheris reinstalled against it, both to be re-fixed whenever
+      upstream reorganises the base images, plus a managed corpus sync to a second
+      repository behind a PAT. Plain Atheris costs `python-version: '3.13'`, one line, and
+      `actions/cache`; it gives up dedup, coverage, PR-diff targeting and SARIF, and leaves
+      the job's own log as the only place a silent failure shows.
+
+      Every target, oracle, seed and dictionary is **unchanged** either way — they are
+      libFuzzer arguments and an Atheris `TestOneInput`, not ClusterFuzzLite API. That is
+      what makes this reversible: adopting ClusterFuzzLite later is writing a Dockerfile and
+      three workflows, not rewriting the lane.
+
+      What we give up is real, and coverage reporting is the loss that matters. It is the
+      only signal separating *"found nothing because the code is correct"* from *"found
+      nothing because it never reached the code"*, and D-4 keeps a locally-runnable
+      substitute rather than pretending the question does not exist.
+  - key: the-corpus-and-its-seeds
+    md: |
+      `actions/cache`, keyed per target, restored at job start and saved at job end. Chosen
+      over a dedicated storage repository because it needs no second repository, no
+      fine-grained PAT, and no secret in a workflow that runs deliberately hostile input —
+      and the token is the part of that arrangement worth avoiding. The eviction rule (seven
+      days without access, 10 GB per repository) is comfortable for a nightly job; if either
+      bound bites, D-3 says what replaces it.
+
+      Seeds are built from the tree rather than committed twice: a script copies
+      `examples/**` and `tests/golden/**` YAML into each target's seed directory, so the
+      corpus floor tracks the examples instead of drifting from them.
+  - key: the-nightly-batch
+    md: |
+      One workflow, on a schedule and on `workflow_dispatch`, matrixed over
+      `PYTHONHASHSEED: ['0', '1', 'random']` with `fail-fast: false`. The three entries share
+      one corpus, which is the point: an input discovered under one seed is replayed under the
+      others the following night, so a hash-order bug surfaces within a day of becoming
+      reachable. Roughly fifty minutes of runner time a night across the matrix.
+
+      The job prints the corpus entry count before and after, so a cache that has stopped
+      round-tripping is visible rather than green.
+  - key: the-replay-job
+    md: |
+      Distinct from fuzzing, weekly, and the highest-value job here. Fuzzing explores;
+      **replay verifies** — it takes the accumulated corpus and applies the checks too slow
+      for the fuzzing loop:
+
+      - compile each input in **two separate processes** under different `PYTHONHASHSEED`
+        and diff artifacts byte for byte — the full cross-process claim, which no in-process
+        target can make;
+      - compile to all three targets across all three dialects;
+      - assert artifact ordering is stable independently of compile order.
+
+      `fuzz/replay.py` is an ordinary script — no instrumentation, no libFuzzer — so it runs
+      at full speed and can afford subprocesses. It exits non-zero with a diff on any
+      divergence. It is also the one job here worth keeping if everything else in this
+      document were deleted, which is why D-2 puts it in P1. It needs no corpus to start: it
+      can replay `examples/` and `tests/golden/` on day one and pick up the fuzz corpus when
+      it exists.
+  - key: the-pr-job
+    md: |
+      A short run on pull requests touching `src/**` or `fuzz/**`, with `concurrency`
+      cancelling superseded runs. **Non-blocking for at least a month**, and longer if
+      findings are still arriving: the early weeks are when the harness is wrong, and a red
+      required check on every pull request during that period is how fuzzing setups get
+      deleted. D-5 makes promotion a deliberate act with a stated condition rather than a
+      thing someone eventually does.
+tests: |
+  This is infrastructure, so the tests are about whether the jobs can lie.
+
+  - **The batch job must fail on a planted crash.** Commit a deliberately escaping input to
+    the seed corpus on a scratch branch and confirm the job goes red. A scheduled job that
+    has never been observed failing is not known to work — and the upstream tooling this
+    document declines has a *reported* silent-failure mode of exactly this shape.
+  - **The replay job must fail on a planted nondeterminism.** Sabotage an emitter to sort by
+    a set, and confirm the cross-seed diff catches it. The same discipline
+    `tests/unit/test_determinism_guard.py` already applies to one fixture, applied to the
+    corpus.
+  - **Corpus growth is asserted, not assumed.** The batch job prints the corpus entry count
+    before and after; a run where it never changes across a week is reported, since it means
+    the cache is not round-tripping.
+  - **Not tested:** that the corpus is representative. That needs coverage measurement,
+    which is D-4's locally-runnable job.
+docs: |
+  `pages/docs/contributing/fuzzing.md` — the page the targets document's first phase creates
+  — gains a short section on what runs when, and how to fetch a crashing input from a failed
+  run. No user-facing page changes; `pages/docs/` gains no other tree.
+out_of_scope: |
+  - **The targets themselves.** `rfcs/0071-fuzzing-the-compile-boundary.md` writes them;
+    this document schedules them.
+  - **Schema-directed generation.** `rfcs/0073-generating-from-the-spec-schema.md`.
+  - **Fuzzing the container-backed examples.** A container per execution destroys
+    throughput; the execution and e2e tiers own engines actually running.
+  - **Automatic issue filing from findings.** Triage is a person's job, and a bot that files
+    a duplicate crash nightly is how the finding stream gets muted.
+  - **Any change under `src/bloomery/`.** This document adds workflows and a corpus store
+    and changes no shipped code and no target.
+risks: |
+  - **The lane rots quietly.** The chief risk of every scheduled job, and the reason the
+    planted-failure tests exist rather than a green badge.
+  - **Cache eviction resets the corpus.** Costs weeks of accumulated exploration and is
+    invisible in a green run. Mitigated by the entry-count assertion; D-3 names the
+    escalation.
+  - **Duplicate crashes drown the signal.** The concrete cost of declining dedup. If one
+    defect produces dozens of inputs a night, that is a trigger for the upgrade rather than a
+    reason to stop reporting.
+  - **No coverage report means the corpus can plateau unnoticed.** D-4's local job is the
+    mitigation, and it is weaker than the hosted one — it runs when someone remembers.
+  - **Forgoing the Scorecard `Fuzzing` check.** The badge is visible, and this document
+    leaves that check unsatisfied while the project does more fuzzing than before, which
+    reads backwards to anyone reading only the badge. Accepted, and stated so it is a
+    decision rather than an oversight.
+  - **Findings arrive faster than they are triaged.** Then the schedule is wrong, not the
+    targets: reduce the cadence rather than widening the expected-exception tuple, which the
+    targets document forbids anyway.
+sections:
+  - key: provenance
+    md: |
+      This document carries `rfcs/0072-continuous-fuzzing-in-ci.md` across unchanged in
+      substance. That RFC is numbered 0072, is marked **📝 Draft** in `rfcs/INDEX.md` line
+      125, and has landed nothing: no phase of it appears in any pull request, `tasks/` holds
+      no task naming it, and `logs/` holds no entry naming it. Its decision table's seven
+      rows are carried here as D-1 … D-7 in the same order and with the grades it gives
+      them; their text is tightened, not re-graded, and no row was added that it did not
+      write. Its four unresolved questions become Q-1 … Q-3 (its first two questions share
+      one subject and stay two rows; its third is Q-3).
+
+      It is gated on the first phase of `rfcs/0071-fuzzing-the-compile-boundary.md`, also
+      Draft and also unlanded, which supplies the targets, oracles and seeds this schedules.
+      The cross-process determinism claim the replay job tests belongs to the retired
+      determinism contract, `rfcs/RETIRED.md` row 0003, readable at `33bc4f9`.
+
+      Both documents descend from one external design note that proposed ClusterFuzzLite on
+      the OSS-Fuzz base image. Its compatibility branch was written as a contingency;
+      measurement showed it is the only branch, and that changed the recommendation rather
+      than the plan.
+  - key: the-upgrade-path
+    md: |
+      The source RFC's fourth phase — revisiting ClusterFuzzLite — is demand-gated and mints
+      nothing. It has no files to touch and no acceptance to run until one of three triggers
+      fires: duplicate crashes becoming the dominant triage cost, the corpus plateauing with
+      no way to see where it reaches, or the base image gaining a tag on Python 3.12 or
+      later. It is therefore carried here as prose and as D-1's stated route back, not as a
+      phase; when a trigger fires, the response is to re-measure the interpreter and wheel
+      facts recorded in `current_state` rather than to trust them, since they have a shelf
+      life.
+alternatives:
+  - option: ClusterFuzzLite now, source-build and all.
+    rejected_because: >-
+      Rejected on the measurement in `current_state`, not on principle. It buys dedup,
+      coverage and PR-diff targeting for a hand-maintained interpreter build that
+      must be built once and maintained thereafter; taken *after* the lane has proven
+      it finds things, the same purchase is much easier to justify.
+  - option: Nightly runs with no persistence.
+    rejected_because: >-
+      It is the shape that produces a green check every night having discovered nothing,
+      which is worse than no job, because it reads as coverage.
+  - option: >-
+      A dedicated corpus repository and a fine-grained PAT from the start.
+    rejected_because: >-
+      Premature. It is D-3's answer if `actions/cache` proves too small — a real possibility,
+      just not one to build for before it happens — and it puts a token in a workflow
+      that runs deliberately hostile input.
+questions:
+  - id: Q-1
+    text: >-
+      Does `actions/cache` hold a fuzzing corpus comfortably? The bounds look ample
+      on paper; nobody has run it here. One month of nightly runs answers it, and
+      D-3 pre-commits the response either way.
+  - id: Q-2
+    text: >-
+      What cadence does the replay job want? Weekly is a guess. Its runtime grows
+      with the corpus, and the first month's numbers settle it.
+  - id: Q-3
+    text: >-
+      Where does a finding get reported? A failed scheduled job notifies whoever owns
+      the repository and nobody else. Whether that is enough, or whether it wants
+      an issue, is unsettled — and deliberately not answered by filing one automatically.

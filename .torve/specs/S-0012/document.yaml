@@ -1,0 +1,286 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0012
+title: >-
+  Validating a dialect port against an engine we cannot run
+kind: design
+status: draft
+implementation: none
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  How a dialect port earns confidence when the engine is a hosted service rather than a
+  container: the six-rung ladder, the rule that a surrogate is evidence and the engine's
+  own compiler is the oracle, and the naming discipline that keeps a green rung honest.
+
+  bloomery ships three dialects and every one of them runs in a container, so the tier
+  ladder was built on a container being available. Snowflake, BigQuery, Redshift and
+  Databricks break that: each has something local — an emulator, a surrogate engine, a
+  Postgres-backed shim — and none of those things is the engine. This document is the
+  shared half of the four per-engine designs, carried here so it cannot drift into four
+  differing accounts: the ladder that replaces the missing container, the rung that makes
+  the absence of one a non-blocker, and the rules that stop a passing surrogate being
+  quoted later as engine conformance. No new dialect ships here.
+motivation: |
+  The failures that have hurt this codebase are the ones where a spelling was accepted by
+  one engine and meant something else on another, and Tier 5 — the engine matrix over
+  testcontainers — is the layer that has caught them. A port validated against an emulator
+  alone is validated against a different implementation of a similar language, so the
+  defect class the engine tier exists to catch passes straight through. Worse, the failure
+  is not a wrong result but a green one, and a green lane named after an engine is read as
+  that engine's conformance by everyone downstream of it.
+
+  Every one of the four engines can validate a statement without executing it — Snowflake's
+  `EXPLAIN USING JSON`, BigQuery's dry run, Redshift's `EXPLAIN`, Databricks' `EXPLAIN
+  EXTENDED` and `DESCRIBE QUERY`. That is the engine's own parser, binder and type checker
+  answering, at negligible cost and with nothing scanned. It is a better acceptance oracle
+  than any emulator, and it is the reason none of these ports is blocked on a container
+  that does not exist. Writing that down once, before any of the four is attempted, is what
+  keeps the four from each inventing their own answer.
+current_state: |
+  Measured against the working tree on 2026-09-18, at `9e44779d`:
+
+  - **Three dialects ship, all containerised.** `src/bloomery/dialects/` holds `duckdb.py`,
+    `postgres.py` and `trino.py` over `base.py`; `tests/engines/` holds the Postgres and
+    Trino tier, fourteen files behind `@pytest.mark.engine(name)`.
+  - **The port surface is eight members**, not the five the source document measured at
+    `6d9361f`: `DIALECT_PORT_MEMBERS` in `dialects/base.py` names `begin_transaction`,
+    `json_object`, `name`, `physical_type`, `render`, `supports`, `text_sha256` and
+    `utc_now`. Port complexity is still not in the interface — it is in the rewrites each
+    `render` applies.
+  - **`DialectFeature` is nine capabilities**, also grown since: `JSON_EXTRACT`,
+    `TIMEZONE_CONVERT`, `REGEXP_EXTRACT`, `VARIANT_TYPE`, `ARRAY`, `TRY_CAST`,
+    `UNICODE_NORMALIZE`, `JSON_OBJECT_POSITIONAL` and `NULL_SAFE_EQUALITY`. A dialect
+    lacking `ARRAY` still lowers `_quality_flags` to a delimited string instead.
+  - **The shared rewrite points exist and are the real port surface.** `strip_iso_text` and
+    `space_separated` (the ISO separator and offset guard), `utc_from_zone` (the
+    zoneless-UTC invariant), `capture_group`, `text_sha256`, `json_object` and the
+    NFC-normalize transform are all live in `dialects/base.py` and used by all three ports.
+    A new port's risk list is largely "what does this engine do at each of those points".
+  - **Extension dialects are already supported.** `register_dialect` in
+    `dialects/__init__.py` takes a `DialectPort` from outside the package and checks it
+    against `DIALECT_PORT_MEMBERS`. A cloud port does not have to be in-tree to exist.
+  - **The marker table has no surrogate rung.** The eight markers in `pyproject.toml` are
+    `unit`, `golden`, `property`, `execution`, `engine(name)`, `e2e`, `chaos` and `perf`.
+    `engine(name)` means Docker plus the real engine, and nothing distinguishes "ran
+    against the engine" from "ran against something engine-shaped".
+  - **No cloud lane exists in any form.** No `surrogate` marker, no `tests/support/`
+    harness for any of the four engines, no cloud driver in any dependency group, and the
+    seven workflows under `.github/workflows/` carry no live lane.
+  - **`.env` is already gitignored** (`.gitignore:151`), so the per-engine credential
+    instructions in the four dialect documents need add nothing there.
+goals: |
+  One shared account of how a hosted-engine port is validated, so the four per-engine
+  designs carry only what is genuinely their own. Concretely: a ladder whose every rung
+  states honestly what a green result proves, a rule that fixes which rung is the oracle,
+  and the naming, harness-placement and credential discipline that keeps the distinction
+  visible in a CI log read six months later.
+non_goals: |
+  Shipping a dialect. Scheduling any of the four per-engine designs, or arguing that all
+  four should exist. Choosing between an in-tree port and an extension package, which is
+  left open below. Changing the existing DuckDB, Postgres or Trino lanes, which have a
+  container and do not need this ladder.
+design:
+  - key: the-ladder
+    md: |
+      Six rungs, and the honest statement of what a green rung proves:
+
+      | # | Rung | Backend | On PR? | Proves |
+      |---|---|---|---|---|
+      | 1 | Unit | none | yes | the port's rewrites and declared capabilities |
+      | 2 | Golden | none | yes | byte-stable artifacts for (fixture × target × dialect) |
+      | 3 | Syntax sanity | SQLGlot | yes | the generated SQL re-parses under that dialect |
+      | 4 | Surrogate execution | emulator / Spark / Postgres shim | per port | *something* executes it and returns rows |
+      | 5 | Authoritative compile | the real engine, no execution | no | the engine's own parser, binder and type checker accept it |
+      | 6 | Authoritative execution | the real engine | no | selected runtime semantics |
+
+      Rung 3 is cheap and belongs on every pull request:
+
+      ```python
+      sql = SomeDialect().render(node)
+      assert sqlglot.parse_one(sql, read="<dialect>") is not None
+      ```
+
+      It catches malformed output and generator regressions, and it proves nothing about
+      the engine — SQLGlot is deliberately broader and more permissive than any live
+      warehouse.
+
+      Rung 6 exists because rung 5 cannot settle *values*: a timestamp's instant, a
+      decimal's scale, a regexp capture, a SHA's hex casing, whether a quarantined row was
+      quarantined. Keep it deliberately small and its tables tiny.
+  - key: the-authoritative-compile-rung
+    md: |
+      Rung 5 is the one that changes the economics. Every one of the four engines can
+      validate a statement without running it:
+
+      | Engine | Verb |
+      |---|---|
+      | Snowflake | `EXPLAIN USING JSON` |
+      | BigQuery | dry run |
+      | Redshift | `EXPLAIN` |
+      | Databricks | `EXPLAIN EXTENDED`, `DESCRIBE QUERY` |
+
+      That is the engine's own compiler answering — parser, binder and type resolution —
+      at negligible cost and with no data scanned. It is a better acceptance oracle than
+      any emulator, and it is why none of these ports is blocked on the absence of a
+      container. A port that skips it has no authoritative layer at all: rungs 1–4 between
+      them never once ask the engine anything.
+  - key: naming-so-a-green-rung-cannot-overstate-itself
+    md: |
+      A surrogate is not the engine, and the place that claim gets made is a test name. A
+      Postgres-backed Redshift shim marked `engine("redshift")` reads, in a CI log and in a
+      report six months later, as "Redshift passed". Rung 4 therefore gets its own marker,
+      distinct from `engine`:
+
+      ```python
+      @pytest.mark.surrogate("redshift_postgres")
+      def test_postgres_compatible_subset(...): ...
+      ```
+
+      The same discipline applies to prose: a document may say *"local Spark checks shared
+      Spark semantics; only live Databricks SQL checks the Databricks dialect."* It may not
+      say the Databricks dialect is tested locally.
+  - key: credentials-and-ci
+    md: |
+      - **`just test` never requires a cloud credential.** The default tiers stay offline,
+        as they are today.
+      - **A live lane never runs on an untrusted pull request.** GitHub does not expose
+        secrets to fork pull-request workflows, and a public contribution must not be able
+        to run arbitrary SQL under a maintainer's cloud identity. `pull_request_target`
+        executing contributor code is not an acceptable workaround.
+      - **Live lanes run on `main`, on release changes, on a schedule, and on manual
+        dispatch**, behind a GitHub Environment rather than raw repository secrets, so
+        protection rules apply and the credential is isolated from unrelated jobs.
+      - **Compile-only and execution lanes are separate jobs**, so the default cloud lane
+        cannot accidentally scan or bill.
+      - **Federated identity over long-lived keys** where the provider supports it —
+        Workload Identity Federation with GitHub OIDC for BigQuery, OAuth M2M for
+        Databricks — and a scoped token only where it does not.
+      - Tests **skip with a stated reason** when the variables are absent, never fail:
+
+      ```python
+      if not all(os.getenv(name) for name in required):
+          pytest.skip("live <engine> credentials are not configured")
+      ```
+  - key: where-the-harness-lives
+    md: |
+      No engine driver, no Spark session and no cloud SDK enters `src/bloomery`. bloomery
+      is `specs → IR → artifacts`, a pure function with no I/O, and a live harness is test
+      apparatus:
+
+      ```text
+      tests/support/<engine>.py      # connection, submission, polling, row canonicalization
+      tests/engines/test_<engine>_*.py
+      ```
+
+      Drivers are test-only optional dependency groups, never installed for
+      `uv add bloomery`. This is also the boundary that stops "bloomery targets Databricks"
+      turning into "bloomery executes Spark".
+tests: |
+  The per-engine documents own their fixtures. What this one requires of all four is that
+  the existing shared fixture corpus under `tests/fixtures/` is what the rungs run, not a
+  per-engine corpus, so a divergence shows up as one fixture behaving differently across
+  ports rather than as two suites nobody can diff. The rungs themselves live in
+  `tests/engines/test_<engine>_*.py` over harnesses in `tests/support/<engine>.py`.
+
+  What is proved here rather than by a per-engine document is the selector: a guard test
+  reading the marker table in `pyproject.toml` and refusing a tree where the fourth rung
+  has no name of its own, in the shape `tests/unit/test_purity_guard.py` already uses to
+  hold a `pyproject.toml` claim.
+docs: |
+  The marker table in `pyproject.toml` is the one place the tier ladder is written down for
+  a person running the suite, and whoever adds the first surrogate lane updates it with the
+  reason. `tests/README.md` describes the tiers and gains the fourth rung's distinction
+  when it is spelled.
+out_of_scope: |
+  Each engine's own risks, spellings, type mappings and fixture gaps: those are the four
+  per-engine documents' subject, and this one deliberately carries only what they share.
+  Also out: the existing container-backed engine tier, which is not changed here, and any
+  claim about how many of the four ports are wanted.
+risks: |
+  - **The shared half drifts anyway.** Four documents each restating the ladder is exactly
+    the failure this one exists to prevent, and nothing mechanical stops a per-engine
+    document re-deciding a rung. Mitigated by the rows below governing the paths all four
+    would land in, so a port that departs from them departs from a graded row rather than
+    from prose.
+  - **A green surrogate is quoted as conformance.** The rule is a naming rule, and naming
+    rules are held by review rather than by tooling until the marker exists. Mitigated by
+    the marker being a graded row rather than a convention, so the first surrogate lane
+    either carries it or logs a departure.
+  - **The compile rung is assumed uniform across four engines.** Each of the four verbs was
+    read from vendor documentation rather than run; if one of them turns out to bind less
+    than claimed, that port's authoritative layer is weaker than this document promises.
+    Mitigated by the per-engine documents being where each verb is actually exercised, and
+    by the row below being the one an executor would halt on.
+sections:
+  - key: provenance
+    md: |
+      Carried across from `rfcs/0046-validating-a-dialect-port.md`, numbered 0046 in that
+      corpus, whose status in `rfcs/INDEX.md` is **📝 Draft — proposed**. It is the root of
+      the cloud-dialect sequence: `rfcs/0047-snowflake-dialect.md`,
+      `rfcs/0048-bigquery-dialect.md`, `rfcs/0049-redshift-dialect.md` and
+      `rfcs/0050-databricks-dialect.md` each cite it and carry their own engine's risks.
+
+      **Nothing of it has landed.** Its single commit is `f1fe05ac`, which adopted the
+      five-document cloud-dialect validation sequence as prose; no pull request carries any
+      code from it. No task file under `tasks/` and no log under `logs/` names it —
+      `tasks/T-0046.json` and `logs/T-0046.md` are an unrelated task number, executing the
+      spec-timeline design.
+
+      **Its phasing section declares that it lands alone**: it is method, and it constrains
+      four documents that are not scheduled. It therefore names no numbered phase, and the
+      phasing here is not a transcription of one. It is the single tree-level gap the
+      document's own current-state section names and does not delegate — the marker table
+      having no surrogate rung — minted as one phase, so that the rows have a scope to be
+      inherited into. Everything else the ladder asks for is a lane over an engine, which
+      belongs to whichever of the four per-engine documents is executed first; those are
+      not scheduled and nothing here schedules them.
+
+      The nine rows below are that document's nine, carried with the grades it gives them
+      and with paths read from the working tree. Two facts in its current-state section
+      have drifted since it was written at `6d9361f` — the port surface has grown from five
+      members to eight and `DialectFeature` from five capabilities to nine — and the
+      current-state section here records what is there now rather than what it recorded.
+      Nothing about the ladder depends on either number.
+alternatives:
+  - option: >-
+      Mark a surrogate lane `engine("<name>")`, keeping one selector for the whole
+      matrix
+    rejected_because: >-
+      The claim a test makes is its name, in a CI log and in a report nobody re-reads
+      the body of. One selector is convenient for whoever writes the lane and misleading
+      for everyone who later reads that it passed.
+  - option: >-
+      Block each cloud port until a faithful local container exists
+    rejected_because: >-
+      All four engines expose a compile-only verb, which is the engine's own compiler
+      at negligible cost. Waiting for a container that may never exist forgoes a better
+      oracle than the container would have been.
+  - option: >-
+      Put the engine driver, cloud SDK or Spark session in `src/bloomery` so the package
+      can execute what it emits
+    rejected_because: >-
+      The package is a pure compiler with no I/O, and installing it must not pull
+      a JVM or a cloud SDK. It is also the boundary that keeps "targets Databricks"
+      from becoming "executes Spark".
+  - option: >-
+      Use `pull_request_target` so a fork's pull request can run the live lanes
+    rejected_because: >-
+      It executes contributor code with access to secrets. Named here explicitly so
+      it is not proposed later as a convenience once the live lanes are found to skip
+      on forks.
+  - option: >-
+      Give each cloud port its own fixture corpus, shaped to that engine
+    rejected_because: >-
+      A divergence then presents as two suites nobody can diff. One shared corpus
+      makes it present as one fixture behaving differently across ports, which is
+      comparable.
+questions:
+  - id: Q-1
+    text: >-
+      How many of the four cloud ports are actually wanted. This document describes
+      how to validate a port; it does not argue that Snowflake, BigQuery, Redshift
+      and Databricks should all exist.

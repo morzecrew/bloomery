@@ -1,0 +1,136 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      An emulator, a surrogate engine or a compatible-wire shim is evidence, never
+      the oracle: the real engine's own compiler is the dialect oracle, and no rung
+      below the authoritative ones may be quoted as engine conformance
+    paths: [tests/engines/**, tests/support/**]
+    consequence: >-
+      A cloud port's acceptance is the authoritative rung's, so a port whose only
+      green lanes are local has not been validated and a review says so; the local
+      lanes stay worth running as the fast signal, and stay unable to close the port
+    rationale: >-
+      Every one of the four engines has something local that runs SQL, and every one
+      of them is an independent implementation of a similar language. Locked because
+      the failure is not a wrong test result — it is a green one, quoted later as
+      engine conformance, and no amount of care at the call site survives a name that
+      already claimed too much
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      Rung 4 carries a `surrogate` marker distinct from `engine`, so a lane backed
+      by an emulator, a Spark session or a Postgres shim cannot select or report as
+      the engine matrix does
+    paths: [pyproject.toml, tests/engines/**]
+    consequence: >-
+      The marker table gains a ninth entry when the first surrogate lane lands, and
+      `engine(name)` keeps meaning Docker plus the real engine; a CI log distinguishes
+      the two without anyone reading a test body
+    rationale: >-
+      The claim a test makes is its name, in a CI log and in a report nobody re-reads
+      the body of. `engine("redshift")` over a Postgres container is D-1 violated
+      in the one place it is invisible
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      The authoritative compile rung exists for every cloud port, because every one
+      of the four engines has one — `EXPLAIN USING JSON`, a dry run, `EXPLAIN`, `EXPLAIN
+      EXTENDED` and `DESCRIBE QUERY` — and a port without it has no authoritative
+      layer at all
+    paths: [tests/engines/**, tests/support/**]
+    consequence: >-
+      Each of the four ports owes a compile lane over the shared corpus before it
+      can be called validated, and the lane costs a parse rather than a scan; the
+      absence of a container stops being a blocker for any of them
+    rationale: >-
+      It is the engine's own parser, binder and type resolution, without executing
+      and without scanning. It is what makes "no local container" a non-blocker, and
+      rungs 1 to 4 between them never once ask the engine anything
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      No engine driver, cloud SDK or Spark session enters `src/bloomery`; live harnesses
+      live in `tests/support/` and their drivers are test-only dependency groups,
+      never installed for `uv add bloomery`
+    paths: [src/bloomery/**, tests/support/**, pyproject.toml]
+    consequence: >-
+      A cloud port adds a port module and a test harness and nothing else to the install
+      path, so the package stays a pure compiler and its dependency closure stays
+      free of a JVM and four vendor SDKs
+    rationale: >-
+      The package is `specs → IR → artifacts`, a pure function with no I/O, and this
+      is also the boundary that stops "bloomery targets Databricks" turning into "bloomery
+      executes Spark"
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      No cloud credential is reachable from an untrusted pull request and `just test`
+      never requires one: live lanes run on `main`, releases, schedules and manual
+      dispatch, behind a GitHub Environment, with compile-only and execution lanes
+      as separate jobs
+    paths: [.github/workflows/**, justfile]
+    consequence: >-
+      A fork's pull request runs the offline tiers and skips the live ones with a
+      stated reason, and the default cloud lane cannot accidentally scan or bill;
+      the credential is isolated from unrelated jobs by the Environment's protection
+      rules
+    rationale: >-
+      GitHub does not expose secrets to fork pull-request workflows, and a public
+      contribution must not run arbitrary SQL under a maintainer's cloud identity.
+      `pull_request_target` executing contributor code is named here so it is not
+      proposed later as a convenience
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      All six rungs run the shared fixture corpus rather than a per-engine one; a
+      port-native fixture is added alongside, never instead, where an engine surface
+      has no shared analogue
+    paths: [tests/fixtures/**, tests/engines/**]
+    consequence: >-
+      A divergence presents as one fixture behaving differently across ports, which
+      is comparable; departing means an engine surface with genuinely no shared analogue,
+      such as `VARIANT` or `SUPER`
+    rationale: >-
+      Two corpora produce two suites nobody can diff, and the defects that matter
+      here are exactly the ones visible only when the same input is put to two engines
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      Rungs 1 to 3 are required on every pull request, rung 4 is per port, and rungs
+      5 and 6 never are
+    paths: [.github/workflows/ci.yml, pyproject.toml, justfile]
+    consequence: >-
+      The default lane stays offline and fast, and a port's authoritative evidence
+      is gathered on `main` and on demand rather than per commit
+    rationale: >-
+      The split follows cost and trust rather than value. Not locked because an engine
+      whose surrogate is both cheap and faithful may earn a pull-request slot, and
+      the Snowflake document's OSS emulator is the likely first case
+  - id: D-8
+    grade: OPEN
+    text: >-
+      Whether a cloud port ships in-tree or as an extension package registered through
+      `register_dialect`; decide it before the first cloud port lands
+    paths: [src/bloomery/dialects/**]
+    consequence: >-
+      Moving a shipped dialect between the two is a breaking change either way, so
+      the choice is cheap now and expensive later
+    rationale: >-
+      `register_dialect` already accepts a `DialectPort` from outside the package,
+      and the two paths differ in dependency weight, release cadence and who is on
+      the hook when a hosted engine changes under a shipped port
+  - id: D-9
+    grade: OPEN
+    text: >-
+      Whether `surrogate` is a new pytest marker or a parameter on `engine`; whoever
+      adds the first surrogate lane decides and updates the marker table with the
+      reason
+    paths: [pyproject.toml]
+    consequence: >-
+      Either spelling satisfies D-2, and the parameter form keeps one selector for
+      the whole matrix at the cost of a marker whose meaning depends on an argument
+    rationale: >-
+      D-2 fixes the requirement, not the spelling; `@pytest.mark.engine("redshift",
+      surrogate=True)` meets it as well as a separate marker does

@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      Continuous fuzzing runs plain Atheris on `actions/setup-python`, not ClusterFuzzLite:
+      no Dockerfile, no OSS-Fuzz base image, no hand-built interpreter
+    paths: [.github/workflows/**]
+    consequence: >-
+      No crash deduplication, no hosted coverage report, no PR-diff targeting, no
+      SARIF, and the OpenSSF Scorecard `Fuzzing` check stays unsatisfied while the
+      project does more fuzzing than before
+    rationale: >-
+      Measurement, not preference: both base-image tags ship Python 3.11.13, `pyproject.toml`
+      requires `>=3.12,<3.15` and `pip3 install .` fails there under hatchling, and
+      atheris 3.1.0 ships no cp311 wheel and no source distribution — so the container
+      path needs a hand-maintained CPython build from day one, in a base image whose
+      layout is upstream's to reorganise. Revisited by re-measuring those facts, never
+      by re-arguing them
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      The replay job lands in the first phase, before or alongside the batch job;
+      no phase slip may reorder it behind the fuzzing jobs
+    paths: [.github/workflows/**]
+    consequence: >-
+      The cross-process determinism claim gets tested at corpus scale first, and the
+      lane has something worth keeping even if every fuzzing job here is later dropped
+    rationale: >-
+      It is the only thing in this document that tests the retired determinism contract's
+      cross-process claim, which no in-process target can make, and it needs no fuzzing
+      infrastructure at all — an ordinary script and a workflow
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The corpus lives in `actions/cache`, keyed per target, not in a storage repository
+      behind a fine-grained token
+    paths: [.github/workflows/**]
+    consequence: >-
+      No second repository, no PAT, and no secret in a workflow that runs deliberately
+      hostile input; the cost is that cache eviction silently resets weeks of exploration
+    rationale: >-
+      Assumed on stated bounds — seven days without access, 10 GB per repository —
+      that nobody has exercised here. If eviction or size bites, the departure is
+      a dedicated corpus repository with a token scoped to that repository alone,
+      never one that can write to bloomery
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Coverage over the fuzz corpus is measured by a locally-runnable lane rather
+      than a hosted report
+    paths: [justfile]
+    consequence: >-
+      The only signal separating "found nothing because the code is correct" from
+      "found nothing because it never reached the code" runs when someone remembers,
+      not on a schedule
+    rationale: >-
+      Weaker than the hosted report, and accepted because the alternative is D-1's
+      container. Depart if the corpus plateaus and nobody can say which modules it
+      reaches
+  - id: D-5
+    grade: OPEN
+    text: >-
+      When the pull-request fuzzing job becomes a required check — not before a month
+      non-blocking, and not while the harness is still producing findings per week
+    paths: [.github/workflows/**]
+    consequence: >-
+      Promotion is a deliberate act with a stated condition rather than a thing someone
+      eventually does, and a red required check during the weeks when the harness
+      is wrong is how fuzzing setups get deleted
+    rationale: >-
+      The actual condition is a judgement about whether a red check would be believed;
+      execution states the condition it used
+  - id: D-6
+    grade: OPEN
+    text: >-
+      Nightly duration and matrix width — three hash seeds is the shape D-1's reasoning
+      wants, and the per-entry time budget is set from the first week's execution
+      counts
+    paths: [.github/workflows/**]
+    consequence: >-
+      The budget must stay well clear of the six-hour job cap and inside a public
+      repository's free runner minutes; the execution counts that set it are also
+      how a silently-failing job gets noticed
+    rationale: >-
+      The per-entry budget in the source RFC is a guess, and a guess that is never
+      replaced by a measurement is how a job comes to run for nothing
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      Fuzz seeds are generated from `examples/**` and `tests/golden/**` at build time
+      rather than committed a second time under `fuzz/`
+    paths: [examples/**, tests/golden/**]
+    consequence: >-
+      The corpus floor tracks the examples instead of drifting from them, so a new
+      example is a new seed without anyone copying it
+    rationale: >-
+      Depart if generation proves slower than the run it seeds

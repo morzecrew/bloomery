@@ -1,0 +1,339 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0010
+title: Generating from the spec schema
+kind: design
+status: draft
+implementation: none
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  Documents generated from bloomery's exported JSON Schema reach the guardrails that
+  mutated bytes almost never survive to; this places that generator in the property tier
+  rather than the fuzz lane. The tier already owns valid input by definition, already
+  carries both dependencies a generator needs, and already measures schema/parser drift —
+  over a fixed corpus's neighbourhood rather than over the space. The generator's most
+  valuable output is that same drift measurement with the sampling fixed, so it extends
+  `tests/property/test_schema_agreement.py` instead of standing beside it. The one number
+  that decides whether any of it worked is the fraction of generated documents that reach
+  resolution rather than dying at the parser.
+motivation: |
+  The guardrails are the under-reached half of the compiler. Grain fan-out, additivity,
+  unit mixing, tax-basis collision — the sixteen guardrail modules under
+  `src/bloomery/guardrails/` bloomery exists for — sit behind several documents parsing,
+  cross-resolving and type-checking. A mutated byte string dies long before that, and the
+  fraction of mutations that survive to resolution shrinks as the spec surface grows:
+  `SpecKind` names nine kinds, three of them added by designs later than the schema export
+  this generator would read.
+
+  bloomery has an unusual asset against that. `all_spec_schemas()` and
+  `spec_json_schema(kind)` in `src/bloomery/schema.py` are library calls that hand back a
+  maintained, machine-readable grammar of valid input — a shipped feature, needing no CLI
+  step and no filesystem. Generating from it means every execution reaches the guardrails
+  instead of dying at the parser.
+
+  And the gap it lands in is already named. The schema is a pre-filter and the parser is
+  the authority — row D10 of the retired authoring-ergonomics document, number 0020,
+  readable at `d5b6f16` — and `tests/property/test_schema_agreement.py` says the
+  consequence out loud in its own module docstring: two validators over one grammar
+  drift, the drift is invisible until it reaches a user, and then it reads as bloomery
+  being arbitrary. That module measures the drift by mutating a fixed corpus of the
+  documentation examples. Generating from the schema measures the same drift over the
+  space. It is the same question with the sampling fixed.
+current_state: |
+  Verified against the working tree on 2026-09-18, and the reason this document exists
+  separately from the fuzzing document `rfcs/0071-fuzzing-the-compile-boundary.md`.
+
+  - **Both dependencies are already installed, for this purpose.** The `dev` group in
+    `pyproject.toml` carries `hypothesis>=6.130` and `jsonschema>=4.23`, the latter
+    annotated *"Test-only, and only for the schema-agreement property"* with the
+    pre-filter row named in the comment.
+  - **The property tier is ten test modules** under `tests/property/`, marked `property`
+    and described in `pyproject.toml` as tier 3, "Hypothesis property test over generated
+    valid projects". `tests/README.md` describes it the same way.
+  - **Schema/parser agreement is already tested, and does not generate.**
+    `tests/property/test_schema_agreement.py` is 488 lines. It samples a fixed corpus of
+    documentation examples and mutates it three ways — an unknown top-level key, a scalar
+    replaced by a mapping, an out-of-enum value — under a deliberately small example
+    budget whose comment says the count is what the tier can afford, not a claim to
+    exhaustiveness.
+  - **The known divergences are recorded there, not tolerated.** A float `tolerance` the
+    schema accepts and the parser refuses, and an `agg` that is a closed set on a mart and
+    a bare string on a metric, each with the reason the direction is legitimate.
+  - **The schema is reachable in-process.** `all_spec_schemas()` and
+    `spec_json_schema(kind)`, with `VERSION_KEYS` published from the one table in
+    `src/bloomery/schema.py` rather than re-typed per consumer.
+  - **There are eight project kinds, not five.** `SpecKind` names nine; the catalog is
+    loaded separately, leaving eight documents `load_project` dispatches on by version
+    key. The source document's second phase says "the five project kinds", which predates
+    the exposures, exports and imports kinds now in that enum. The phasing below carries
+    the count the tree has.
+  - **`hypothesis-jsonschema` is not a dependency.** Its `from_schema()` would do this off
+    the shelf and satisfies the existing pins, but its last release was February 2024.
+  - **Nothing has landed.** `rfcs/INDEX.md` carries the source document as Draft, no task
+    file under `tasks/` and no log under `logs/` names it, and `git log` over
+    `tests/property/` shows no generation work. All three phases below remain.
+goals: |
+  Reach the guardrails with generated specs, at a rate mutation cannot achieve. Measure
+  schema/parser drift over the generated space rather than over the corpus's
+  neighbourhood, and extend the module that already makes that measurement instead of
+  duplicating it. Keep generated specs runnable in the default test tiers, so the check
+  fires on every pull request rather than nightly.
+non_goals: |
+  **Finding parser-level bugs.** Schema-valid generation cannot produce input the schema
+  forbids, so it will never find them. That is the text layer of
+  `rfcs/0071-fuzzing-the-compile-boundary.md`, and the two are deliberately run together.
+
+  **Replacing that document's targets.** Disjoint bug sets, structurally rather than
+  incidentally: one can only produce input the schema permits, the other mostly produces
+  input it forbids.
+
+  **Asserting the parser accepts everything the schema does.** The converse is false on
+  purpose: parse validates shape and grammar only, so the schema is legitimately stricter
+  wherever it carries a closed set the parser checks later.
+
+  **A second declaration of the spec model.** A structure-aware fuzzer over a protobuf
+  mirror buys a mature mutator at the cost of a second grammar that can drift from the
+  exported one, for a project that already exports JSON Schema.
+design:
+  - key: why-the-property-tier
+    md: |
+      The seam is already drawn, as a rule, by
+      `rfcs/0071-fuzzing-the-compile-boundary.md`: the fuzzer owns the text layer and the
+      accept/refuse boundary; the property tier owns the semantic layer inside valid
+      space. Schema-directed generation produces valid input by construction, so it is on
+      the property tier's side of a line this corpus drew before either document existed.
+      D-1 applies that rule rather than carving an exception into it — which is why it is
+      LOCKED at the grade the source document gave it, and why D-5 exists to name what
+      would reopen it.
+
+      Three consequences, all in the tier's favour:
+
+      - **It runs in the default tiers**, on every pull request, in seconds — not nightly
+        against a cached corpus. A cheap check that runs often beats an expensive one that
+        runs late.
+      - **Shrinking.** Hypothesis minimises a failing spec to something a person can read.
+        A fuzzer's crash minimiser does this for bytes; Hypothesis does it for
+        *structure*, which is what a generated spec is.
+      - **Zero new infrastructure.** Both dependencies are installed. The fuzz route needs
+        a target, a seed corpus, a dictionary and a scheduled slot to run the same
+        generator.
+
+      What is genuinely lost is coverage-guided feedback: Hypothesis cannot steer toward
+      an unexplored guardrail branch the way a coverage-guided fuzzer steers toward an
+      unexplored line. Q-1 keeps that open rather than dismissing it.
+  - key: what-is-asserted
+    md: |
+      Two properties over generated documents, and the asymmetry between them is the whole
+      design.
+
+      **Totality.** Any schema-valid document either compiles or raises a `BloomeryError`
+      carrying a `source_path`. Nothing else. This is the boundary oracle of
+      `rfcs/0071-fuzzing-the-compile-boundary.md`, restated over valid input instead of
+      mutated bytes — and it is the property that reaches the guardrails, because a
+      generated document that resolves is one that got far enough to be refused for a
+      *semantic* reason.
+
+      **Drift, one direction only.** What the parser refuses, the schema should refuse too,
+      for the mutation classes JSON Schema can express. The converse is not asserted
+      (D-4). A generated document that parses and the schema rejects is a finding; one the
+      schema accepts and the parser refuses is either a divergence already named at the
+      bottom of `tests/property/test_schema_agreement.py` — the float `tolerance`, the
+      free metric `agg` — or a new one to name in the same place.
+
+      The corpus strategy stays. A corpus of real documentation examples asserts something
+      a generator does not: that the spelling the docs teach is accepted. The generated
+      strategy grows alongside it, in the same module (D-2).
+  - key: the-generator
+    md: |
+      Two routes, and D-3 leaves the choice to execution with a stated tiebreak rather
+      than pretending the answer is readable from here.
+
+      `from_schema()` from `hypothesis-jsonschema` does this off the shelf and satisfies
+      the repository's existing pins, but has not been released since February 2024. The
+      alternative is a small hand-written strategy over the subset of JSON Schema bloomery
+      actually emits — narrow, because the schemas are generated from Pydantic models
+      rather than hand-written, so the vocabulary is closed and known. Q-2 is an hour's
+      work and decides this outright by enumerating it.
+
+      The trade is a stale third-party dependency against a maintained local one, and the
+      tiebreak is capability, not release cadence: measure what fraction of generated
+      documents reach the resolver. A generator that produces schema-valid noise refused
+      at the first cross-reference has not solved the problem this document exists for,
+      whichever route produced it.
+
+      That fraction is the deliverable, and it is reported rather than assumed:
+
+      ```text
+      generated: <n>   parsed: <n>   resolved: <n> (<pct>)   refused by a guardrail: <n>
+      ```
+
+      No number above is measured yet — the shape is the obligation, and a run that cannot
+      print the resolved count has measured nothing.
+  - key: cross-document-consistency
+    md: |
+      A generated `marts.yaml` referencing a generated `entity_model.yaml` requires the
+      generator to know names in both — otherwise every document is refused at resolution
+      and nothing reaches the guardrails. This is the one thing schema-directed generation
+      does *not* get for free from the schema, and it is probably the real difficulty of
+      the whole document.
+
+      D-6 assumes the obvious shape: generate a pool of names first and have each document
+      draw from it, rather than generating each document independently and hoping the
+      references meet. It is ASSUMED rather than LOCKED because the pool constrains the
+      generated space, and if it constrains it more than it buys, an executor should depart
+      and say so. Q-3 stays open: whether cross-consistency is *needed* at all is settled
+      by the reach fraction on one kind, which is why phase 1 generates one document and
+      phase 2 generates the set.
+  - key: running-both-deliberately
+    md: |
+      Schema-directed generation and the text-layer targets of
+      `rfcs/0071-fuzzing-the-compile-boundary.md` find disjoint bug sets, and the
+      disjointness is structural rather than incidental. Neither subsumes the other, and
+      dropping either because the other is green is the mistake this section exists to
+      prevent.
+
+      One coupling runs between them, in the fuzzer's direction: a minimised corpus entry
+      that is *valid* and structurally interesting is a free example for this tier.
+tests: |
+  - **The generator must reach the guardrails, measured.** Report the fraction of generated
+    documents that reach resolution and the fraction refused by a guardrail rather than by
+    the parser. That number is the deliverable — a generator that does not move it has not
+    done its job — and reporting it is what distinguishes this from a check that passes
+    because it never got anywhere.
+  - **Sabotage.** Widen a guardrail to accept a violation it should refuse; the totality
+    property must go red. A property that cannot be made to fail is measuring nothing.
+  - **The known divergences stay named.** The float `tolerance` and the free metric `agg`
+    are asserted as *expected* divergences, so closing one turns the suite red and forces
+    the note to be removed rather than left lying.
+  - **Not tested: that generated documents are realistic.** They are not, and do not need
+    to be — the production-shaped cases belong to the semantic bug corpus, number 0042,
+    retired and readable at `99318be`.
+docs: |
+  None user-facing: this generates test input and changes nothing bloomery does.
+  `tests/README.md` gains the generated strategy in its property-tier description. If
+  `hypothesis-jsonschema` is adopted, its `dev`-group entry carries the same explanatory
+  comment style `jsonschema` already has — *why* it is there, not merely that it is.
+out_of_scope: |
+  - **The text-layer fuzz targets** — `rfcs/0071-fuzzing-the-compile-boundary.md`.
+    Explicitly complementary; this document would be wrong to subsume them.
+  - **Corpus storage and scheduling** — `rfcs/0072-continuous-fuzzing-in-ci.md`. Everything
+    here runs in the default test tiers, which need neither.
+  - **Generating catalogs.** The catalog is a separate document with a separate schema and
+    a different trust story, loaded by its own entry point. Reachable by the same
+    mechanism; deferred until the project-document generator is earning.
+  - **Fixing divergences the generator finds.** Each is its own decision — the schema
+    tightens, the parser loosens, or the divergence is named. That call belongs to the
+    pre-filter row, not here.
+risks: |
+  - **A generator that produces schema-valid noise.** The dominant failure mode: documents
+    that pass the schema and die at the first cross-reference, reaching the guardrails no
+    more often than mutation did. The reach fraction is the instrument, which is why it is
+    reported rather than assumed.
+  - **`hypothesis-jsonschema` is unmaintained.** Two years without a release. It works
+    today against the repository's pins; a Hypothesis major could end that with no upstream
+    to fix it. D-3's tiebreak is deliberately about capability rather than release cadence,
+    but the risk is real.
+  - **Duplicating the module it should extend.** Two modules asserting overlapping things
+    about the same pair of validators is the drift that module exists to prevent,
+    reproduced one level up. D-2 is LOCKED for that reason.
+  - **Slow property tests degrade the default tiers.** They run on every pull request; a
+    generator that makes them slow gets deadline-tuned down until it explores nothing.
+    Budget it explicitly, and move it to the scheduled lane if it cannot fit.
+  - **The seam is drawn wrong.** If coverage-guided feedback turns out to matter more than
+    shrinking and per-pull-request cadence, this is a fuzz target after all. D-5 names the
+    signal rather than leaving the decision unrevisitable.
+  - **This document being read as a redesign.** It is a carry-across: the grades are the
+    source document's own, and the paths and counts are the tree's.
+sections:
+  - key: provenance
+    md: |
+      This document carries `rfcs/0073-generating-from-the-spec-schema.md` across into the
+      corpus torve reads. That file is number 0073 in bloomery's own hand-kept corpus,
+      status Draft in `rfcs/INDEX.md`, and it is the accepted design authority for this
+      work; nothing about the design is decided here.
+
+      **What was carried.** All six rows of its decision table, each at the grade the
+      source gives it — two LOCKED, two ASSUMED, two OPEN — with its text tightened to one
+      sentence a contract can carry and `paths` read from the working tree rather than from
+      the prose. Its three unresolved questions became Q-1 to Q-3. Its non-goals and the
+      option its origin note proposed became the `alternatives` list, each with the
+      trade-off that lost. No row was added, re-graded or dropped.
+
+      **What landed: nothing.** `rfcs/INDEX.md` lists the source as Draft; no task file
+      under `tasks/` and no log under `logs/` names it; `git log` over `tests/property/`
+      names no generation work, its most recent touches being the declared-consumers
+      change (pull request 100) and the grain-as-structural-identity change (pull request
+      78), neither of which is this design. All three phases of its phasing block therefore
+      appear in `phasing.yaml`, none retired as landed.
+
+      **What was corrected against the tree.** The source's second phase says "the five
+      project kinds"; `SpecKind` in `src/bloomery/schema.py` names nine, eight of them
+      project documents, the count having grown after that sentence was written. The
+      phasing carries eight.
+
+      **Citations.** The source document and its neighbours are named by file path here,
+      and its rows as "row D<n> of that document", because bloomery's own citation grammar
+      is retired in this corpus. `cites` is empty on every row for the same reason: the
+      identifiers the rows descend from are not corpus identifiers. `informed_by` names
+      S-0001, the standing baseline, whose rows on the test tiers and the single quality
+      authority every phase below inherits.
+alternatives:
+  - option: >-
+      A seventh fuzz target, `fuzz_schema_directed.py`, with a hand-written `generate_from_schema(schema,
+      fdp)` driving every choice from fuzzer bytes — the placement the external fuzzing
+      note proposed
+    rejected_because: >-
+      It produces valid input by construction, which is the property tier's territory
+      by a rule the corpus already states. It would need a target, a seed corpus,
+      a dictionary and a scheduled slot to run the same generator, and would trade
+      structural shrinking and per-pull-request cadence for coverage feedback nobody
+      has yet measured a need for. The note's diagnosis holds; its placement does
+      not, for reasons only visible from inside the repository — both dependencies
+      are already installed, in a tier whose stated job is generated valid input.
+  - option: >-
+      A structure-aware fuzzer over a protobuf mirror of the spec model, with a mature
+      off-the-shelf mutator
+    rejected_because: >-
+      It buys the mutator at the cost of a second declaration of the spec, maintained
+      by hand beside the JSON Schema the project already exports from its Pydantic
+      models. Two grammars for one language drift, and this document exists because
+      two *validators* for one grammar already do.
+  - option: >-
+      A new property module beside `tests/property/test_schema_agreement.py`, generating
+      documents and asserting drift on its own
+    rejected_because: >-
+      Two modules asserting overlapping things about one pair of validators is precisely
+      the drift the existing module exists to measure, reproduced one level up. The
+      generated strategy is cheap to add to that module and expensive to keep honest
+      beside it.
+  - option: >-
+      Asserting both directions of agreement — that the schema accepts everything
+      the parser does, as well as the reverse
+    rejected_because: >-
+      The converse is false on purpose: parse validates shape and grammar only, so
+      the schema is legitimately stricter wherever it carries a closed set the parser
+      checks later. Asserting it would turn the schema's deliberate strictness into
+      a permanent red, and the two named divergences into bugs they are not.
+questions:
+  - id: Q-1
+    text: >-
+      Does coverage-guided feedback matter for reaching guardrail branches? Hypothesis
+      explores by generation and a coverage-guided fuzzer by feedback; which reaches
+      a deep guardrail faster is an empirical question nobody here has measured. The
+      reach fraction, compared against the fuzz targets on the same corpus, is the
+      measurement.
+  - id: Q-2
+    text: >-
+      How much of the emitted JSON Schema vocabulary needs support? The schemas are
+      generated from Pydantic models, so the vocabulary is closed — but nobody has
+      enumerated it. Enumerating it decides D-3 outright, and is about an hour's work.
+  - id: Q-3
+    text: >-
+      Do generated documents need to be cross-consistent at all, or does one kind
+      at a time reach the guardrails often enough to be worth running? Phase 1's reach
+      fraction on a single document answers it before phase 2 pays for the shared
+      pool.
