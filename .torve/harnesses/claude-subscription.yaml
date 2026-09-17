@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=../schemas/harness.json
+# Claude Code on a subscription (S-0004/D-2), and nothing is mounted
+# (S-0063/D-18). Which credential reaches the sandbox is the run's business, not
+# this file's: under a broker the seat names none at all — the run-scoped token
+# arrives as `TORVE_BROKER_TOKEN` and the image's own `run` maps it onto
+# `ANTHROPIC_AUTH_TOKEN`, so the real key never leaves the host. Unbrokered, a
+# seat names its variable here and it is forwarded by name.
+#
+# No command. How claude is started — the auth link, the print-mode flags, the
+# broker's two names mapped onto ANTHROPIC_BASE_URL — lives in the image's own
+# `/opt/torve/run`, which is the only thing in the system that already knows
+# what harness it contains (S-0063/D-1). The engine names the attempt through
+# five environment variables and invokes `equip` and then `run`.
+#
+# `kinds` is what the capability map kept: a profile declaring a kind this
+# harness has no channel for is refused at load, naming both files, without
+# anyone having to pull an image to find out (S-0063/D-4). Which flag carries
+# each is `/opt/torve/equip`, beside the harness that knows.
+#
+# `env` is the knob surface (S-0063/D-10). `CLAUDE_PERMISSION_MODE` is
+# bypassPermissions and not acceptEdits: acceptEdits auto-approves file writes
+# and a handful of filesystem commands, and *denies* every other Bash call. In
+# print mode a denial is not a prompt and not a hang — it is a silent refusal,
+# so an attempt would look like a model that would not work rather than a seat
+# that was not permitted to.
+#
+# The other two knobs are the cap on what one tool result may return
+# (S-0076/D-4), set at claude's own result boundary rather than asked for in the
+# prompt: the growth term stops being whichever command dumped the most,
+# whichever tool that command used. One cap in each knob's own unit — 20,000
+# characters is the 5,000 tokens beside it — and both are below claude's
+# defaults of 30,000 and 25,000, which is the tightening. `BASH_MAX_OUTPUT_LENGTH`
+# is where the `cat` and `sed` reads cross (measured: 237 of the corpus's file
+# reads) and `MAX_MCP_OUTPUT_TOKENS` is where a declared server's answer does.
+# Claude's own reader is capped by the harness itself and takes no knob, so the
+# reading advice in the prompt names the shell forms beside it rather than
+# leaving the half a knob does not reach to nothing.
+#
+# `CLAUDE_TOOLS` is the fourth knob and the largest of the four (S-0077). Claude
+# declares twenty-three built-in tools and every declaration rides the system
+# prompt into every request of the attempt, so an unused one is not free once —
+# it is paid `N` times. Measured on the paired arm this replaced: the prefix
+# fell 32,501 to 9,803 tokens when six names were declared instead of
+# twenty-three, which is about 1,147 tokens per withdrawn declaration against
+# 554 for a kept one. Over 118 traces and 2,135 tool calls, an attempt of this
+# engine's used nine names; `Skill` and `Task` were declared on every request
+# and never once called.
+#
+# Six rather than nine: the todo trio is the difference, and it is withdrawn
+# because the contract the engine stages already carries the plan. Glob and Grep
+# are kept although the corpus shows the models reaching for shell `grep`
+# instead — withdrawing a tool the prompt never told them to stop using would
+# cost reads nobody asked to lose. Putting any of them back is one word here.
+adapter: subscription
+image: claude-sandbox:2.1.252
+# Skills load from a skills root, never from `--add-dir`: measured, a session
+# given five through that flag listed only claude's built-ins. `~` is HOME,
+# which is the sandbox's `/tmp` — outside the workspace, so nothing lands in the
+# repository and there is nothing to hide from the commit. The repository's own
+# `.claude/skills` is untouched (S-0063/D-19).
+equip_root: ~/.claude/skills
+kinds: [skill, plugin, mcp, hook, agent]
+env:
+  CLAUDE_PERMISSION_MODE: bypassPermissions
+  BASH_MAX_OUTPUT_LENGTH: "20000"
+  MAX_MCP_OUTPUT_TOKENS: "5000"
+  CLAUDE_TOOLS: Bash,Read,Edit,Write,Glob,Grep
+
+# Claude Code speaks the Anthropic Messages dialect and only that, so a seat
+# pairing it with a provider serving no anthropic route is refused at load
+# (S-0064/D-4) rather than by an attempt that dialled and got a 404.
+api: [anthropic]

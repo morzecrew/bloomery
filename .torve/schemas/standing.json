@@ -1,0 +1,148 @@
+{
+  "$defs": {
+    "Scope": {
+      "additionalProperties": false,
+      "description": "allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty\nallow means unconstrained (S-0002/scope-in-detail).",
+      "properties": {
+        "allow": {
+          "description": "Globs of what the task may touch, gitwildmatch; empty means unconstrained.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Allow",
+          "type": "array"
+        },
+        "deny": {
+          "description": "Globs the task may not touch; deny wins over allow.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Deny",
+          "type": "array"
+        }
+      },
+      "title": "Scope",
+      "type": "object"
+    },
+    "Trigger": {
+      "additionalProperties": false,
+      "description": "One predicate (S-0023/D-8, S-0023/A-1): `command` runs a shell line in the\nsandbox, exit code as the answer; `path-digest` digests every file\n`paths` reaches (gitwildmatch, the same dialect `Scope.allow` uses) and\nis due when that digest differs from the one recorded at the job's last\nfiring; `flake-threshold` sums telemetry's `flaky_count_by_command` and\nis due when any command not already in the gate manifest's quarantine\nlist crosses `threshold` \u2014 the engine reading its own records, where an\ninline script would have to re-parse them with less than the engine\nknows.",
+      "properties": {
+        "kind": {
+          "default": "command",
+          "description": "Which predicate the tick evaluates: `command`, `path-digest` or `flake-threshold`\n(S-0023/D-8, S-0023/A-1).",
+          "enum": [
+            "command",
+            "path-digest",
+            "flake-threshold"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "paths": {
+          "description": "The gitwildmatch patterns a `path-digest` predicate digests \u2014 the same dialect\n`Scope.allow` uses; a path-digest predicate with none is refused.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Paths",
+          "type": "array"
+        },
+        "run": {
+          "default": "",
+          "description": "The shell line a `command` predicate runs in the sandbox, exit code as the answer;\na command predicate with none is refused.",
+          "title": "Run",
+          "type": "string"
+        },
+        "threshold": {
+          "default": 3,
+          "description": "The count a `flake-threshold` predicate is due at: a command not already in the gate\nmanifest's quarantine list whose summed `flaky_count_by_command` crosses this.",
+          "title": "Threshold",
+          "type": "integer"
+        }
+      },
+      "title": "Trigger",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One recurring job (S-0023/the-standing-contract): a task contract minus its id,\nwith a trigger where a phasing block would be. `name` keys the bounds\nbelow across firings, so two files must never share one (S-0023/D-5's\ncomparability depends on it).",
+  "properties": {
+    "acceptance": {
+      "description": "The acceptance commands the minted contract carries, exactly as a task contract's\ndo.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Acceptance",
+      "type": "array"
+    },
+    "cooldown_hours": {
+      "default": 0.0,
+      "description": "How long after the job's last firing it may fire again, in hours; 0 imposes no\nwait.",
+      "title": "Cooldown Hours",
+      "type": "number"
+    },
+    "decisions_from": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The document whose rows this job's contracts inherit, by number or identifier.",
+      "title": "Decisions From"
+    },
+    "intent": {
+      "default": "",
+      "description": "The intent the minted contract carries, exactly as a task contract's does.",
+      "title": "Intent",
+      "type": "string"
+    },
+    "max_open": {
+      "default": 1,
+      "description": "How many of this job's instances may be unresolved \u2014 neither landed nor abandoned \u2014\nbefore the tick stops minting more (S-0023/D-11).",
+      "title": "Max Open",
+      "type": "integer"
+    },
+    "name": {
+      "description": "The job's name, which keys the bounds below across firings, so two files must never\nshare one (S-0023/D-5's comparability depends on it).",
+      "title": "Name",
+      "type": "string"
+    },
+    "scope": {
+      "$ref": "#/$defs/Scope",
+      "description": "The scope the minted contract carries, exactly as a task contract's does."
+    },
+    "source": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "What asked for this job's work (S-0060/D-5): a source identifier the tree\nholds, so the contracts a recurring job mints say which job minted them.",
+      "title": "Source"
+    },
+    "strike_limit": {
+      "default": 3,
+      "description": "S-0023/D-6's fourth bound: self-disable after this many consecutive non-landings.\nS-0023 names it as a global `standing.strike_limit` default; this phase's scope\nexcludes src/torve/config/runconfig.py, so it lives here instead, per job (departed,\nS-0023/D-6, see log.yaml).",
+      "title": "Strike Limit",
+      "type": "integer"
+    },
+    "trigger": {
+      "$ref": "#/$defs/Trigger",
+      "description": "The deterministic predicate the tick evaluates to decide whether this job is due \u2014\nwhere a phasing block would be."
+    }
+  },
+  "required": [
+    "name",
+    "trigger"
+  ],
+  "title": "StandingContract",
+  "type": "object"
+}

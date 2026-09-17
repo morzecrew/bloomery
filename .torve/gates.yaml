@@ -1,0 +1,108 @@
+# yaml-language-server: $schema=schemas/gates.json
+# Gate manifest for bloomery under torve. The battery judges every attempt's
+# diff and worktree before the lane opens a pull request; `just quality -s`
+# and CI stay the repository's own authority and are not restated here — the
+# entries below name the pieces of it a sandboxed attempt can run.
+#
+# Every `timeout` is a measured cost with headroom, never a round number picked
+# at the keyboard. Measured on 2026-09-17 on this host, one run each over
+# `main` at ad5891d7 with a warm uv cache: ruff 0.0s, ruff format 0.1s,
+# mypy 0.4s, lint-imports 0.2s, check_rfc_corpus 0.3s, the default test tiers
+# 167.8s. Cold-cache mypy and a first `uv sync` inside a fresh worktree are
+# not in those numbers, which is the headroom.
+#
+# No `sabotage` twin is named on any entry: this repository ships no test that
+# reddens when a gate stops working, and a manifest that names a twin for any
+# gate refuses the twinless rest. The load warns; the battery runs.
+#
+# `spec-valid` (`torve spec check`) is deliberately absent. The checker's tree
+# scan reads every `RFC NNNN` citation in `src/` and `pages/` as torve's own
+# legacy grammar — 1,208 findings on a tree that cites its design corpus that
+# way on purpose. The gate enters when the scan is the adopter's to scope
+# (filed as an operator source in torve's own corpus).
+schema_version: 1
+
+scope:
+  allow: []
+  deny: []
+
+gates:
+  - name: scope
+    run: "@scope"
+    state: blocking
+    origin: structural
+    axis: boundary
+    timeout: 6
+  - name: secrets
+    run: "@secrets"
+    state: blocking
+    origin: structural
+    timeout: 6
+  - name: no-test-tampering
+    run: "@no-test-tampering"
+    state: blocking
+    origin: structural
+    timeout: 6
+  - name: decisions-reported
+    run: "@decisions-reported"
+    state: blocking
+    origin: structural
+    axis: compliance
+    timeout: 6
+  - name: self-audit
+    run: "@self-audit"
+    state: shadow
+    origin: structural
+    axis: compliance
+    timeout: 6
+  # `just quality -s`'s first two lines, over `src` as the house convention has
+  # it (lint and type tooling target src only). Enters at shadow; CI already
+  # holds it blocking on the pull request the lane opens.
+  - name: lint
+    run: "uv run ruff check src && uv run ruff format --check src"
+    input: worktree
+    state: shadow
+    origin: structural
+    axis: form
+    # 0.1s measured; 7 is what a process start costs when nothing is cached.
+    timeout: 7
+  - name: types
+    run: "uv run mypy src"
+    input: worktree
+    state: shadow
+    origin: structural
+    # 0.4s warm; a cold mypy cache on this package is the headroom.
+    timeout: 120
+  - name: layering
+    run: "uv run lint-imports"
+    input: worktree
+    state: shadow
+    origin: structural
+    # 0.2s measured.
+    timeout: 9
+  # The repository's own corpus discipline: a citation names a live RFC or a
+  # retired one readable at the commit RETIRED.md names.
+  - name: rfc-corpus
+    run: "uv run python tools/check_rfc_corpus.py ."
+    input: worktree
+    state: shadow
+    origin: structural
+    axis: form
+    # 0.3s measured.
+    timeout: 9
+  - name: acceptance
+    run: "@task.acceptance"
+    state: blocking
+    origin: structural
+    # The default test tiers measure 167.8s; the cap holds a first `uv sync`
+    # in a fresh worktree beside them. A contract naming the whole suite is
+    # the dearest thing in the battery and sorts last, where it belongs.
+    timeout: 600
+    # Fallback for runs with no task contract: what `just quality -s` and
+    # `just test` run, minus the tools a sandbox does not carry.
+    commands:
+      - "uv run ruff check src"
+      - "uv run ruff format --check src"
+      - "uv run mypy src"
+      - "uv run lint-imports"
+      - "uv run pytest -m \"not engine and not e2e and not chaos and not perf\" --refusal-census -q"

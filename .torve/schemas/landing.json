@@ -1,0 +1,199 @@
+{
+  "$defs": {
+    "GradedRow": {
+      "additionalProperties": false,
+      "description": "One inherited row as a landing keeps it (S-0059/D-10): the identifier\nand the grade the contract carried, which is what the `Torve-Decisions`\ntrailer used to say and what outlives the task directory.",
+      "properties": {
+        "grade": {
+          "description": "The grade the contract inherited at mint.",
+          "enum": [
+            "LOCKED",
+            "ASSUMED",
+            "OPEN"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "id": {
+          "description": "The row's identifier, `S-NNNN/D-n`; local inside its own document.",
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "grade"
+      ],
+      "title": "GradedRow",
+      "type": "object"
+    },
+    "LogEntry": {
+      "additionalProperties": false,
+      "description": "One divergence entry as the task log carries it and a landing keeps\nit (S-0057/D-7): the row it cites, what reality said, the evidence, what\nthe executor did. `class` is the log's key; the field is `entry_class`\nbecause the word is Python's.",
+      "properties": {
+        "action": {
+          "description": "What the executor did: halted, departed or decided.",
+          "enum": [
+            "halted",
+            "departed",
+            "decided"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "at": {
+          "default": "",
+          "description": "The instant the entry was written (S-0058/D-7).",
+          "title": "At",
+          "type": "string"
+        },
+        "attempt": {
+          "default": 1,
+          "description": "The attempt that wrote it.",
+          "minimum": 1,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "claim": {
+          "description": "What reality said.",
+          "title": "Claim",
+          "type": "string"
+        },
+        "class": {
+          "default": "discovery",
+          "description": "`class` in the log: discovery, spec-gap, drift or irreducible.",
+          "enum": [
+            "discovery",
+            "spec-gap",
+            "drift",
+            "irreducible"
+          ],
+          "title": "Class",
+          "type": "string"
+        },
+        "decision": {
+          "description": "The row the entry cites, `S-NNNN/D-n`; local inside the row's own document.",
+          "title": "Decision",
+          "type": "string"
+        },
+        "evidence": {
+          "description": "A `path:line` citation or a backticked command with its output (S-0005/D-4).",
+          "title": "Evidence",
+          "type": "string"
+        },
+        "grade": {
+          "description": "The row's grade as the executor read it, or UNLISTED when no document lists it.",
+          "enum": [
+            "LOCKED",
+            "ASSUMED",
+            "OPEN",
+            "UNLISTED"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "kind": {
+          "default": "resolved",
+          "description": "What happened: contradicted, departed, resolved or blocked.",
+          "enum": [
+            "contradicted",
+            "departed",
+            "resolved",
+            "blocked"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "notes": {
+          "default": "",
+          "description": "Anything else the reader of the log should know.",
+          "title": "Notes",
+          "type": "string"
+        },
+        "proposal": {
+          "default": "",
+          "description": "The row the executor proposes for the author to append.",
+          "title": "Proposal",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "grade",
+        "claim",
+        "evidence",
+        "action"
+      ],
+      "title": "LogEntry",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "What one task found, kept beside the rows it informs (S-0057/D-7): the\ntask, its phase and attempt, the commit when the lander knew it (the\nrunner's rides in the candidate commit whose trailers name the task,\nso it leaves the field empty), when, by whom, and the log's entries.",
+  "properties": {
+    "agent": {
+      "default": "",
+      "description": "Who landed it \u2014 the agent identity the runner composes, or a session.",
+      "title": "Agent",
+      "type": "string"
+    },
+    "at": {
+      "description": "The instant of the landing, `YYYY-MM-DDTHH:MM:SSZ` (S-0058/D-7).",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "title": "At",
+      "type": "string"
+    },
+    "attempt": {
+      "default": 1,
+      "description": "The attempt that landed.",
+      "minimum": 1,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "base": {
+      "default": "",
+      "description": "The commit the attempt built on, from the log's pin (S-0058/D-12).",
+      "title": "Base",
+      "type": "string"
+    },
+    "commit": {
+      "default": "",
+      "description": "The commit the work landed in, when the lander knew it (S-0058/D-12).",
+      "title": "Commit",
+      "type": "string"
+    },
+    "decisions": {
+      "description": "The rows the contract carried, with their grades (S-0059/D-10).",
+      "items": {
+        "$ref": "#/$defs/GradedRow"
+      },
+      "title": "Decisions",
+      "type": "array"
+    },
+    "entries": {
+      "description": "The task log's entries, kept here beside the rows they cite (S-0057/D-7).",
+      "items": {
+        "$ref": "#/$defs/LogEntry"
+      },
+      "title": "Entries",
+      "type": "array"
+    },
+    "phase": {
+      "default": 0,
+      "description": "The phase its contract was minted from; 0 when none was.",
+      "title": "Phase",
+      "type": "integer"
+    },
+    "task": {
+      "description": "The task that landed, `T-NNNN`.",
+      "title": "Task",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task",
+    "at"
+  ],
+  "title": "Landing",
+  "type": "object"
+}

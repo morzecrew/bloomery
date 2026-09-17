@@ -1,0 +1,154 @@
+#!/bin/sh
+# How this image invokes its harness (S-0063/D-1).
+#
+# The engine does not know how to start claude and should not have to: it
+# names what the attempt is — the prompt, the model, where to leave the
+# result — and this turns that into a command line. A flag that changes what
+# an agent may do moves the image digest, which is what the telemetry already
+# records; a knob an operator turns is an environment variable the manifest
+# sets, and `CLAUDE_PERMISSION_MODE` below is the only one so far.
+set -eu
+
+: "${TORVE_PROMPT:?the engine names the prompt file}"
+: "${TORVE_MODEL:?the engine names the model}"
+: "${TORVE_BASE_URL:?the engine names where to dial}"
+: "${TORVE_API_KEY_ENV:?the engine names the variable holding the credential}"
+: "${TORVE_OUTPUT:?the engine names where the result goes}"
+
+# The credential arrives by name and nothing is mounted (S-0063/D-18):
+# `CLAUDE_CODE_OAUTH_TOKEN` is one token for one attempt, which is the narrower
+# blast radius and costs this seat nothing. A harness with no env form mounts a
+# volume instead, read-write — it refreshes its token mid-session, and a mount
+# it cannot write to does not fail, it hangs.
+#
+# HOME is /tmp, because the container has no passwd entry and claude writes
+# state under it.
+mkdir -p "$HOME/.claude"
+
+# Where this attempt dials, and the key for it. Nothing here asks whether a
+# broker is in force (S-0064/D-8): brokered or direct, the engine names one base
+# URL and one variable holding the credential, and mapping those onto the
+# harness's own names is exactly the translation this file exists for.
+ANTHROPIC_BASE_URL="$TORVE_BASE_URL"
+export ANTHROPIC_BASE_URL
+
+# The engine names the variable rather than carrying the value: `docker -e NAME`
+# reads it out of the invoking environment, so the secret never transits torve.
+eval "ANTHROPIC_AUTH_TOKEN=\${$TORVE_API_KEY_ENV:-}"
+export ANTHROPIC_AUTH_TOKEN
+
+# `bypassPermissions`, not `acceptEdits`: acceptEdits auto-approves file writes
+# and a handful of filesystem commands, and *denies* every other Bash call. In
+# print mode a denial is not a prompt and not a hang — it is a silent refusal,
+# so an attempt would look like a model that would not work rather than a seat
+# that was not permitted to. The sandbox is disposable and runs as the invoking
+# uid, which is what the bypass asks for.
+# `stream-json`, not `json` (S-0066/D-3). The engine's parsing contract is that
+# the last JSON object line wins, and the stream's last line is the same result
+# envelope the single-line mode prints — so this adds lines above it and removes
+# nothing: the totals parse exactly as before, and the per-turn and per-tool
+# lines the burn parser was written for start arriving. The opening line is an
+# inventory of every tool, skill, plugin, MCP server and agent the session
+# actually loaded, which is what makes the door above a checked fact rather than
+# an assertion (S-0066/D-4).
+#
+# `--verbose` is not optional and not cosmetic: measured on claude 2.1.x, `-p`
+# with `--output-format stream-json` and no `--verbose` refuses to start with
+# "When using --print, --output-format=stream-json requires --verbose". The two
+# are one switch here.
+set -- claude -p "$(cat "$TORVE_PROMPT")" \
+    --model "$TORVE_MODEL" \
+    --output-format stream-json --verbose \
+    --permission-mode "${CLAUDE_PERMISSION_MODE:-bypassPermissions}"
+
+# System position (S-0073/D-8). The engine stages the working rules and names
+# the file; this seat's channel for them is `--append-system-prompt`, so they
+# are read above the contract instead of being a file the attempt happens to
+# open on its third call.
+#
+# Appended and not `--system-prompt`: that flag *replaces* claude's own system
+# prompt, and every tool's guidance goes with it — the rules are this
+# repository's, not a substitute for the harness's.
+#
+# Empty is a run with nothing to say there — a composed prompt carries no rules
+# of this engine's and its file is empty rather than absent, so the flag is
+# omitted rather than appending a blank section.
+if [ -s "${TORVE_SYSTEM_PROMPT:-}" ]; then
+    set -- "$@" --append-system-prompt "$(cat "$TORVE_SYSTEM_PROMPT")"
+fi
+
+# Which of claude's built-in tools this seat declares. Every declaration is in
+# the system prompt and therefore multiplied by every request; measured over
+# 118 traces, an attempt of this engine's uses nine tool names and the image
+# declares twenty-three. The engine names the set so a seat can be narrowed
+# without a second image, and the default stays claude's own — narrowing is a
+# decision someone writes down, not a property of running here.
+if [ -n "${CLAUDE_TOOLS:-}" ]; then
+    set -- "$@" --tools "$CLAUDE_TOOLS"
+fi
+
+# The reasoning level the seat asked for (S-0064/D-7). `TORVE_REASONING` is the
+# engine's name for it on every harness; `--effort` is what this one calls it,
+# which is the same translation `equip` does for every other flag.
+#
+# Passed through rather than mapped. The engine refuses a level the provider
+# record does not declare, and claude refuses one it does not take — so a level
+# neither wants dies at boot with claude's own message naming the flag, instead
+# of being quietly dropped by a list in here that a record could outgrow. That
+# list is exactly what made four of `deepseek-v4.1-flash`'s seven levels
+# unreachable on the other image.
+if [ -n "${TORVE_REASONING:-}" ]; then
+    set -- "$@" --effort "$TORVE_REASONING"
+fi
+
+# The door (S-0066/D-1). The worktree arrives carrying files other readers
+# wrote — `.mcp.json`, `.claude/skills`, `.claude/agents`, `CLAUDE.md` — and
+# claude reads every one of them unasked. None is equipment, none is pinned,
+# none is in the regime digest, so two attempts recorded under one digest could
+# have seen different skills. What this seat is given is what its profile
+# declared; the rest is shut here, in the image, because each harness closes
+# its door with its own switch (S-0063/D-3).
+#
+# `user` and not the empty list: the sources gate the *project* tree —
+# `.claude/skills`, `.claude/agents`, `CLAUDE.md` and the two project settings
+# files — while equipment lands under `$HOME/.claude/skills`, which is the user
+# source (S-0063/D-19). Dropping that too would shut the door on what the
+# profile declared, which is the flag interaction to get wrong here.
+#
+# `--strict-mcp-config` ignores every MCP configuration it was not handed, and
+# it needs one to be handed: the empty document is the door, and `equip`
+# appends the seat's own `--mcp-config` after it, so a declared server still
+# loads and `.mcp.json` does not.
+#
+# Not `--bare`, which shuts these doors and others with them — it skips plugin
+# sync and reads no OAuth token, so this seat's own credential route stops
+# working and the equipment goes with it.
+set -- "$@" \
+    --setting-sources user \
+    --mcp-config '{"mcpServers":{}}' \
+    --strict-mcp-config
+
+# What `equip` decided, if anything. Word-splitting is the point: the file
+# holds shell-quoted arguments, one flag pair per equipment item.
+if [ -s /tmp/torve-equip.args ]; then
+    eval "set -- \"\$@\" $(cat /tmp/torve-equip.args)"
+fi
+
+mkdir -p "$(dirname "$TORVE_OUTPUT")"
+
+# Both: the engine parses the stream it captured, and the file is the same
+# bytes without the wrapper's noise around them.
+# The harness's own exit code, not `tee`'s: a pipeline reports its last
+# command, so piping the harness through anything hands the engine a verdict
+# belonging to the pipe — a failed attempt reading as a clean one. POSIX `sh`
+# has no `pipefail`, so the status is carried across by hand, and the harness
+# runs inside an `if` because `set -e` would otherwise kill the subshell
+# before the status could be written.
+rc=/tmp/torve-run.rc
+echo 70 > "$rc"  # EX_SOFTWARE, if nothing overwrites it the pipe lied
+
+{
+    if "$@"; then echo 0 > "$rc"; else echo $? > "$rc"; fi
+} | tee "$TORVE_OUTPUT"
+
+exit "$(cat "$rc")"

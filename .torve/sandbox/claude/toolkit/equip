@@ -1,0 +1,19 @@
+#!/bin/sh
+# How this image takes its equipment (S-0063/D-3).
+#
+# Claude Code has a session flag per kind, so equipping it is composing flags
+# against the paths the engine mounted. dsh renders one `--patch` overlay from
+# the same manifest and mimo runs install commands — the same script name,
+# three answers, each beside the harness that knows.
+#
+# Nothing to equip is not a failure: the mount is absent until the engine
+# fetches equipment, and a seat whose profile declares none never gets one.
+set -eu
+
+ARGS=/tmp/torve-equip.args
+: > "$ARGS"
+
+[ -n "${TORVE_EQUIPMENT:-}" ] || exit 0
+[ -f "$TORVE_EQUIPMENT/manifest.json" ] || exit 0
+
+python3 /opt/torve/equip_flags.py "$TORVE_EQUIPMENT/manifest.json" "$ARGS"

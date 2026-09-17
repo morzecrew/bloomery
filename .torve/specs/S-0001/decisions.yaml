@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      Compilation is a pure function: nothing under `src/bloomery/` performs I/O or
+      reads ambient state — no filesystem, network, `os.environ`, clock or randomness
+      — and an exemption is a single-line `noqa: TID251` where a door is deliberate,
+      never a per-file ignore
+    paths: [src/bloomery/**]
+    consequence: >-
+      The linter refuses the import on every pull request and the cross-hash-seed
+      determinism tests catch what an import name does not; the boundary has been
+      held by tooling since the banned-import table replaced the AST checker, and
+      the twenty surveyed landings held it
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The RFC corpus under `rfcs/` is the design authority for work not yet landed;
+      a landed or rejected RFC is retired — deleted — in the change that completes
+      it, with a row in `rfcs/RETIRED.md` naming a commit the document is readable
+      at, and a retiring RFC takes no new rows
+    paths: [rfcs/**, tools/check_rfc_corpus.py]
+    consequence: >-
+      A change that completes a design is refused by `check_rfc_corpus.py` when its
+      number is neither live nor retired or its commit does not hold the document;
+      thirty-six retirements and two corrections to the gate itself are the history
+      behind the rule
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Departures taken while executing a design are appended to that task's log under
+      `logs/` as divergence blocks and never edited in place; a `LOCKED` row halts,
+      an `ASSUMED` row departs, an `OPEN` or unlisted question decides
+    paths: [logs/**]
+    consequence: >-
+      The decisions-reported gate never measured a landing here; this row is the corpus
+      layer that turns its no-task skip into something that can fire, in the vocabulary
+      the repository's own `log_check.py` already checks
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Every task log declares its drift count, even at zero, and a non-zero count
+      is a finding against the executor rather than against the document
+    paths: [logs/**]
+    consequence: >-
+      The self-audit gate never measured a landing; a missing count and an honest
+      zero read identically, and only one of them is a claim
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Test files are edited only under a task's licence — adding a test is an addition,
+      editing one needs scope — and golden artefacts are regenerated only by `just
+      snapshot-update` and reviewed like source
+    paths: [tests/**]
+    consequence: >-
+      The no-test-tampering gate never measured a landing; an unexplained golden diff
+      fails review here already, and this row gives the gate the same rule to convict
+      on
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `just quality -s` is the single quality authority and CI runs exactly it: ruff
+      and its formatter over `src`, mypy over `src`, import contracts, dead code,
+      dependencies, the RFC corpus check, workflow lint and secrets; lint and type
+      tooling target `src` only
+    paths: [justfile, pyproject.toml, .github/workflows/ci.yml, src/bloomery/**]
+    consequence: >-
+      A task's acceptance names pieces of this list rather than a tool of its own,
+      and a manifest gate that runs a check outside it is measuring something the
+      repository does not
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The default test tiers are unit, golden, property and execution; the engine
+      and e2e tiers need Docker and run in CI, and chaos and perf never run by default
+    paths: [tests/**, pyproject.toml, justfile]
+    consequence: >-
+      An acceptance command that runs the whole suite inside a sandbox with no Docker
+      goes red for reasons unrelated to the change; the marker expression `just test`
+      uses is the one to name
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      IR collections are explicitly sorted tuples, never sets where order can reach
+      output, and no float enters the IR or an emission path — `Decimal` or int only
+      — so the same specs produce byte-identical artifacts across processes and hash
+      seeds
+    paths:
+      - src/bloomery/ir/**
+      - src/bloomery/emit/**
+      - src/bloomery/dialects/**
+      - src/bloomery/transforms/**
+    consequence: >-
+      A change that reaches output through a set or a float is a determinism bug the
+      equivalence and golden tiers catch late and expensively; the rule is cheaper
+      to inherit than to rediscover

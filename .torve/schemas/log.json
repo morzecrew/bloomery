@@ -1,0 +1,150 @@
+{
+  "$defs": {
+    "LogEntry": {
+      "additionalProperties": false,
+      "description": "One divergence entry as the task log carries it and a landing keeps\nit (S-0057/D-7): the row it cites, what reality said, the evidence, what\nthe executor did. `class` is the log's key; the field is `entry_class`\nbecause the word is Python's.",
+      "properties": {
+        "action": {
+          "description": "What the executor did: halted, departed or decided.",
+          "enum": [
+            "halted",
+            "departed",
+            "decided"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "at": {
+          "default": "",
+          "description": "The instant the entry was written (S-0058/D-7).",
+          "title": "At",
+          "type": "string"
+        },
+        "attempt": {
+          "default": 1,
+          "description": "The attempt that wrote it.",
+          "minimum": 1,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "claim": {
+          "description": "What reality said.",
+          "title": "Claim",
+          "type": "string"
+        },
+        "class": {
+          "default": "discovery",
+          "description": "`class` in the log: discovery, spec-gap, drift or irreducible.",
+          "enum": [
+            "discovery",
+            "spec-gap",
+            "drift",
+            "irreducible"
+          ],
+          "title": "Class",
+          "type": "string"
+        },
+        "decision": {
+          "description": "The row the entry cites, `S-NNNN/D-n`; local inside the row's own document.",
+          "title": "Decision",
+          "type": "string"
+        },
+        "evidence": {
+          "description": "A `path:line` citation or a backticked command with its output (S-0005/D-4).",
+          "title": "Evidence",
+          "type": "string"
+        },
+        "grade": {
+          "description": "The row's grade as the executor read it, or UNLISTED when no document lists it.",
+          "enum": [
+            "LOCKED",
+            "ASSUMED",
+            "OPEN",
+            "UNLISTED"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "kind": {
+          "default": "resolved",
+          "description": "What happened: contradicted, departed, resolved or blocked.",
+          "enum": [
+            "contradicted",
+            "departed",
+            "resolved",
+            "blocked"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "notes": {
+          "default": "",
+          "description": "Anything else the reader of the log should know.",
+          "title": "Notes",
+          "type": "string"
+        },
+        "proposal": {
+          "default": "",
+          "description": "The row the executor proposes for the author to append.",
+          "title": "Proposal",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "grade",
+        "claim",
+        "evidence",
+        "action"
+      ],
+      "title": "LogEntry",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The task log's own shape, `.torve/tasks/T-NNNN/log.yaml` (S-0001\n\u00a76): the pin, the derived drift count and the entries \u2014 what `torve\ninit` writes the log's schema from (S-0057/D-5).",
+  "properties": {
+    "base": {
+      "default": "",
+      "description": "The commit the work started from \u2014 the pin's other half (S-0001/D-36).",
+      "title": "Base",
+      "type": "string"
+    },
+    "drift_count": {
+      "default": 0,
+      "description": "The entries classed drift, declared so the gate can compare its own count.",
+      "title": "Drift Count",
+      "type": "integer"
+    },
+    "entries": {
+      "description": "The divergence entries, in the order they were written.",
+      "items": {
+        "$ref": "#/$defs/LogEntry"
+      },
+      "title": "Entries",
+      "type": "array"
+    },
+    "repo": {
+      "default": "",
+      "description": "The repository the evidence resolves against, `owner/name` \u2014 the pin (S-0001/D-36).",
+      "title": "Repo",
+      "type": "string"
+    },
+    "schema_version": {
+      "description": "The log's shape version: 2 says `base` (S-0059/D-8); 1 said `base_sha`.",
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "task": {
+      "description": "The task the log belongs to, `T-NNNN`.",
+      "title": "Task",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "task"
+  ],
+  "title": "TaskLog",
+  "type": "object"
+}

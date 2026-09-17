@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../schemas/agent.json
+# Declared, never read off the filename (S-0061/D-13): `revert` is an ordinary
+# word, and a seat's own profile that happened to be called this used to become
+# the role's default for every seat in the repository.
+role: revert
+equipment:
+- kind: skill
+  source: torve:working-rules
+- kind: skill
+  source: torve:flag-dont-flip
