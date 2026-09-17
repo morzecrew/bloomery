@@ -288,28 +288,55 @@ published one.
     name their relations through `ref()`. Executing them — and executing retention
     deletes — is the caller's job. The package never touches a warehouse.
 
-!!! warning "`quarantine:` and `scd: type2` do not compose"
+### Replaying onto a historical entity
 
-    An entity that keeps history natively is refused if it also quarantines, on **every**
-    target. Replay's merge admits a row by the entity's own columns, and a type 2 relation
-    carries more than those: the validity interval the framework maintains, plus dbt's
-    `dbt_scd_id`. The merge names none of them, so it would insert a version with a NULL
-    interval — a row that is present, queryable, and skipped by every as-of join, with the
-    merge reporting success.
+An entity that keeps history natively — `scd: type2` — may quarantine, and the route a
+recovered row takes back is different from every other entity's.
 
-    Filling those columns is not available to a compiler: `dbt_scd_id` is a hash dbt
-    computes and owns. So the combination is refused rather than approximated — a
-    `ResolutionError` naming both halves.
+Its relation belongs to the target framework: a `SCD_TYPE_2_BY_COLUMN` model on SQLMesh, a
+snapshot on dbt. Replay's usual `MERGE` admits a row by the entity's own columns, and a
+type 2 relation carries more than those — the validity interval the framework maintains,
+plus dbt's `dbt_scd_id`. A merge that names none of them inserts a version with a NULL
+interval: a row that is present, queryable, and skipped by every as-of join, with the
+statement reporting success. Filling those columns is not available to a compiler, because
+`dbt_scd_id` is a hash dbt computes and owns.
 
-    **Which half to give up depends on which you need.** If the history matters more,
-    declare the entity `scd: type1` and keep `quarantine:` — you lose versioning and keep
-    the reject table and replay. If the recovery matters more, keep `scd: type2` and
-    reduce the entity's rules to `flag`: no row is diverted, `_quality_flags` still
-    records every failure, and the quality mart still counts them.
+So replay writes the recovered row **back to bronze**, as a new delivery, and the ordinary
+pipeline admits it. The framework then versions it with the interval the framework assigns,
+which is the point of routing through it rather than around it.
 
-    This is unbuilt rather than wrong. A recovered row has to reach the entity through
-    whatever produces its versions, so the framework does the versioning it owns, and
-    that route does not exist yet.
+!!! note "The entity does not change when you run replay"
+
+    Running `replay/<entity>.sql` — or `dbt run-operation replay_<entity>` — leaves a type 2
+    entity untouched, and that is the design rather than a failure. The recovered row appears
+    on the **next** build, when the framework versions it, and its reject row resolves on the
+    replay after that. The artifact's own header says so where you will meet it.
+
+**The re-delivery keeps the original row's `_source_row_id`** and carries a reserved
+`_load_id` of `__replay__`, which is what an operator greps for to find the rows replay
+delivered. The identity is reused deliberately: it is what lets the reject row be marked
+resolved once the row has arrived, rather than being re-delivered forever under a new one.
+
+!!! warning "The route needs two declarations, and refuses without them"
+
+    A quarantining `scd: type2` entity is a `ResolutionError` unless both hold:
+
+    - **it declares `dedupe:`** — the re-delivery shares an identity with the original, so
+      without a dedupe both reach the entity and one source row becomes two;
+    - **it declares no `redact:`** — what replay re-delivers is the reject row's stored
+      payload, and that payload has the redacted columns removed. Writing it back would put
+      a row into your landing zone whose redacted column is NULL and whose metadata says it
+      was delivered. The value is gone from the only copy replay can reach.
+
+    Either way the message names the half to fix, and `scd: type1` remains the answer for a
+    project that wants neither.
+
+!!! note "Replay writes to bronze, which is yours"
+
+    This is the one statement bloomery emits that writes outside the layers it builds. It is
+    still text you run — the package never touches a warehouse — but it targets the relation
+    your ingestion owns, and it only exists for an entity that declares both `scd: type2`
+    and `quarantine:`.
 
 `plan()` knows about all of this. Adding, removing, or changing a rule, changing a
 disposition in either direction, and changing `dedupe` all classify as `RESTATING`, and

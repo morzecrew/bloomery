@@ -1263,22 +1263,39 @@ unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
 """
 
 
-def test_a_type_two_entity_may_not_quarantine() -> None:
-    """Replay and native SCD2 have never composed, and nothing said so.
+def test_a_type_two_entity_that_quarantines_and_dedupes_compiles() -> None:
+    """The pair the compiler used to refuse outright (RFC 0060 P1).
 
-    Replay's merge admits a re-evaluated row by the entity's own columns
-    (RFC 0016 §5.6). A type 2 relation carries more than those: the validity
-    interval its framework maintains, plus dbt's `dbt_scd_id`. The merge names
-    none of them.
+    Replay no longer merges a recovered row into a type 2 entity — it writes it
+    back to bronze as a new delivery and the framework versions it — so the
+    combination that had no route now has one, and the broad refusal is gone.
+    What is left are the two conditions that route needs, pinned below.
+    """
+    ir = build_project_ir(
+        load_project(
+            {
+                "entity_model": _SNAPSHOT_QUARANTINE_MODEL.replace(
+                    "    quarantine: {retention: 90d}\n",
+                    "    dedupe: {keep: latest_by, field: _ingested_at, tie_break: [_load_id]}\n"
+                    "    quarantine: {retention: 90d}\n",
+                ),
+                "mapping": _SNAPSHOT_QUARANTINE_MAPPING,
+            }
+        )
+    )
+    entity = next(e for e in ir.entities if e.name == "customer")
+    assert entity.scd is SCDKind.TYPE2
+    assert entity.quarantine is not None
 
-    Measured before this refusal was written, on both targets: the merge
-    **succeeds** and inserts a version with `valid_from`, `valid_to` and
-    `dbt_scd_id` all NULL. The row is present and queryable and invisible to
-    every as-of join, which is what gives a type 2 relation its meaning — a
-    plausible-but-wrong answer produced by an artifact bloomery emitted and
-    told the operator to run.
 
-    Refused at resolve rather than per emitter, because it is true of both.
+def test_a_type_two_quarantine_without_dedupe_is_refused() -> None:
+    """The re-delivery keeps the original's `_source_row_id`, so two bronze
+    rows carry one identity — and the D21 ingestion audit is a blocking count
+    over exactly that column.
+
+    `dedupe:` is what collapses the pair; without it the second delivery stops
+    the run on correct data, which is the false refusal a generated audit must
+    never produce. Refused at compile instead, where an author can act on it.
     """
     with pytest.raises(ResolutionError) as caught:
         build_project_ir(
@@ -1291,11 +1308,35 @@ def test_a_type_two_entity_may_not_quarantine() -> None:
         )
     message = str(caught.value)
     assert "scd: type2" in message
-    assert "quarantine" in message
-    # It names *why*, not merely that the pair is refused: the fix a reader
-    # picks depends on which half they can give up.
-    assert "valid_from" in message
-    assert "dbt_scd_id" in message
+    assert "dedupe" in message
+    # It names *why*, not merely that the pair is refused: the identity is
+    # reused on purpose, and that is what makes the audit the obstacle.
+    assert "_source_row_id" in message
+
+
+def test_a_type_two_quarantine_that_redacts_is_refused() -> None:
+    """What replay re-delivers is the reject row's `raw`, and `raw` is the
+    payload minus every redacted column.
+
+    Writing it back would put a row into the caller's landing zone whose
+    redacted column is NULL and whose metadata says it was delivered — a
+    redaction laundered into what reads as a genuine delivery. The value is
+    gone from the only copy replay can reach, so there is nothing to narrow.
+    """
+    redacting = _SNAPSHOT_QUARANTINE_MODEL.replace(
+        "    quarantine: {retention: 90d}\n",
+        "    dedupe: {keep: latest_by, field: _ingested_at, tie_break: [_load_id]}\n"
+        '    quarantine: {retention: 90d, redact: ["$.email"]}\n',
+    )
+    with pytest.raises(ResolutionError) as caught:
+        build_project_ir(
+            load_project(
+                {"entity_model": redacting, "mapping": _SNAPSHOT_QUARANTINE_MAPPING}
+            )
+        )
+    message = str(caught.value)
+    assert "redact" in message
+    assert "scd: type2" in message
 
 
 def test_a_type_two_entity_that_only_flags_still_compiles() -> None:

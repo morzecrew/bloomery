@@ -26,7 +26,13 @@ from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir import MartJoinIR
 from bloomery.marts import HAS_QUALITY_FLAGS
 from bloomery.naming import DefaultNaming
-from bloomery.quality import FLAGS_COLUMN, INGESTION_METADATA, OK_COLUMN, REJECT_COLUMNS
+from bloomery.quality import (
+    FLAGS_COLUMN,
+    INGESTION_METADATA,
+    OK_COLUMN,
+    REJECT_COLUMNS,
+    REPLAY_LOAD_ID,
+)
 from bloomery.typing import BoolType
 from support.compiling import compile_fixture, extract_select, load_fixture
 from support.plan_ir import column as plan_column
@@ -43,6 +49,11 @@ FIXTURE = "semi_additive_inventory"
 def _artifact(path: str, *, dialect: str = "duckdb") -> str:
     artifacts = compile_fixture(FIXTURE, dialect=dialect)
     return next(a.content for a in artifacts if a.path == path)
+
+
+def _replay_artifact(fixture: str, entity: str) -> str:
+    artifacts = compile_fixture(fixture, dialect="duckdb")
+    return next(a.content for a in artifacts if a.path == f"replay/{entity}.sql")
 
 
 # ....................... #
@@ -371,6 +382,101 @@ def test_replay_merges_by_the_pipeline_dedupe_order() -> None:
     assert "_replay._ingested_at > _target._ingested_at" in content
     # Replay re-runs the *current mapping* against raw — the same expressions.
     assert "TRY_CAST(raw ->> '$.on_hand' AS BIGINT) AS stock_level" in content
+
+
+def test_the_generated_audits_count_current_versions_on_a_historical_entity() -> None:
+    """Both blocking audits count rows of the entity relation, and on
+    `scd: type2` a row is a *version*.
+
+    Reproduced on dbt before the scope existed: an ordinary second delivery
+    changing one customer's segment failed `customer_ingestion_metadata` — two
+    versions share a `_source_row_id` — **and** `customer_conservation` — two
+    versions counted against one surviving bronze row. Both are blocking, and
+    both fired on correct data.
+
+    Older than the replay route that met it: `scd: type2` with `dedupe:` has
+    always compiled and always generated these audits. RFC 0060 P1 only makes
+    a second version the expected outcome rather than an eventual one.
+    """
+    artifacts = compile_fixture("scd2_replay", dialect="duckdb")
+    bodies = {
+        a.path: a.content for a in artifacts if a.path.startswith("audits/")
+    }
+    assert bodies, sorted(a.path for a in artifacts)
+
+    for path, body in bodies.items():
+        assert "valid_to IS NULL" in body, path
+
+
+def test_a_type_one_entity_audits_every_row_it_has() -> None:
+    """The scope is a property of the relation, not of the audit.
+
+    A type 1 entity holds one row per key and nothing closes anything, so
+    filtering on a validity interval there would read a column the relation
+    does not have.
+    """
+    for path in ("audits/inventory_level_ingestion_metadata.sql",):
+        assert "valid_to" not in _artifact(path)
+
+
+def test_replay_on_a_historical_entity_writes_to_bronze_instead_of_merging() -> None:
+    """RFC 0060 D2: the entity's relation belongs to the framework on
+    ``scd: type2``, so replay does not write to it at all.
+
+    A MERGE naming the entity's columns inserts a version with no validity
+    interval and, on dbt, no snapshot identity — present, queryable, invisible
+    to every as-of join. The row goes back to bronze instead and the framework
+    versions it. Asserting the absence of the MERGE matters as much as the
+    presence of the INSERT: the statement this replaces reported success.
+    """
+    content = _replay_artifact("scd2_replay", "customer")
+    assert "INSERT INTO bronze.crm__customers" in content
+    # The entity itself, not `customer__reject` — statement 3 merges into that
+    # one and always has.
+    assert "MERGE INTO silver.customer AS _target" not in content
+    # The payload, re-read through the current mapping's own expressions.
+    assert "raw ->> '$.segment'" in content
+    # Not named twice: the mapping acknowledges the metadata columns, so they
+    # are in `raw` as well — and a column named twice in one INSERT is not a
+    # redundancy, it is unrunnable SQL.
+    columns = content[content.index("INSERT INTO") : content.index("\n)\nSELECT")]
+    assert columns.count("_source_row_id") == 1
+
+
+def test_the_re_delivery_keeps_the_identity_and_says_replay_wrote_it() -> None:
+    """The bookkeeping RFC 0060 does not mention and the route rests on.
+
+    ``_load_id`` is outside the reject identity precisely so a re-delivery of
+    one source row lands on the same reject row (RFC 0016 D21) — which is what
+    lets the resolution stamp find it once the framework has admitted it. A
+    fresh row identity would mint a second reject row per run and leave the
+    first unresolvable, so the original ``_source_row_id`` is carried through
+    and only the load says this was replay.
+    """
+    content = _replay_artifact("scd2_replay", "customer")
+    body = content[content.index("INSERT INTO") : content.index("FROM silver.customer__reject")]
+    assert f"'{REPLAY_LOAD_ID}'" in body
+    # Zoneless UTC, stated rather than inherited. A bare `CURRENT_TIMESTAMP` is
+    # zone-*aware* on every shipped engine, so the value written into bronze
+    # carries an offset the project's own D21 audit refuses; casting it instead
+    # keeps the session's wall clock, which is the RFC 0028 §2 defect. Measured
+    # on dbt before this line existed: the emitted ingestion test failed on
+    # `2026-09-17 19:18:21.796404+03`.
+    assert "CAST(TIMEZONE('UTC', CURRENT_TIMESTAMP) AS TIMESTAMP)" in body
+    # The identity is selected from the reject row, never regenerated.
+    assert "  _source_row_id\n" in body
+
+
+def test_replay_on_a_type_one_entity_still_merges() -> None:
+    """RFC 0060 D4: type 1 replay does not change.
+
+    Its relation is one bloomery's own SELECT defines, so the merge names every
+    column there is and is correct. The branch exists to keep the historical
+    entity's route out of the path everybody takes.
+    """
+    content = _artifact("replay/inventory_level.sql")
+    assert "MERGE INTO silver.inventory_level AS _target" in content
+    assert "INSERT INTO bronze." not in content
 
 
 def test_replay_assigns_to_unqualified_target_columns() -> None:

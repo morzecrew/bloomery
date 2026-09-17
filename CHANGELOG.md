@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A historical entity can quarantine, and a recovered row gets back in.**
+  `scd: type2` with `quarantine:` was refused outright, because replay's merge
+  named the entity's own columns and a type 2 relation carries a validity
+  interval its framework maintains — the merge inserted a version with a NULL
+  interval, reported success, and every as-of join stepped over the row.
+
+  Replay now writes the recovered row **back to bronze** as a new delivery, and
+  your framework versions it on its next build. Two consequences worth knowing
+  before you declare the pair:
+
+    - **The entity does not change when you run replay.** The row appears on
+      the next `dbt snapshot` or SQLMesh run, with the interval the framework
+      assigns, and its reject row resolves on the replay after that. The
+      artifact's own header says so.
+    - **The route needs `dedupe:` and refuses `redact:`.** The re-delivery
+      keeps the original row's `_source_row_id` — that is what lets the reject
+      row resolve rather than being re-delivered forever — so without a dedupe
+      one source row becomes two. And what replay re-delivers is the stored
+      payload, which has the redacted columns removed; writing it back would
+      put a row into your landing zone whose redacted column is NULL and whose
+      metadata says it was delivered.
+
+  The re-delivery carries a reserved `_load_id` of `__replay__`, which is what
+  to grep for to find the rows replay delivered.
+
+
 - **`bloomery import` — relationships out of a MetricFlow semantic manifest.**
   If your team already runs MetricFlow, the relationships between your tables
   are written down; this reads them out rather than asking you to type them
@@ -348,6 +374,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `quality: [{rule: not_null, on_fail: quarantine}]`.
 
 ### Changed
+
+- **`DialectPort` gained a required member, `utc_now()`.** A port registered
+  through `register_dialect()` must now answer with the engine's current
+  instant as a **zoneless UTC** timestamp — every engine's `CURRENT_TIMESTAMP`
+  is zone-aware, and the value bloomery writes into bronze on replay has to be
+  the one `timestamp` means here.
+
+  **Migration, if you maintain a port:** subclass `SQLGlotDialect`, which
+  supplies a default spelled `CAST(timezone('UTC', CURRENT_TIMESTAMP) AS
+  TIMESTAMP)`, or implement the member. A port that does neither is refused at
+  `register_dialect()` by name rather than failing later at compile. The three
+  shipped ports are unaffected.
+
+- **The generated blocking audits now count the *current* version of a
+  historical entity.** Both of them count rows of the entity relation, and on
+  `scd: type2` a row is a version — so a source row that changed twice failed
+  the duplicate-identity audit and the conservation audit at once, on correct
+  data. Reachable before this release wherever a type 2 entity declared
+  `dedupe:`.
 
 - **`classification:` is now checked against your `grants:`.** It was metadata
   and a Cube visibility hint; it is now the compiler's business what happens to

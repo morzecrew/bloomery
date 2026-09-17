@@ -192,11 +192,18 @@ unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
 
 
 def _snapshot_that_quarantines() -> object:
-    """The pair the data-quality page says does not compose.
+    """The pair the data-quality page says needs two declarations, missing one.
 
-    Built here rather than taken from a fixture because the corpus has none —
-    which is why the combination went unnoticed until replay's merge was read
-    against a type 2 relation's actual column set.
+    The combination itself stopped being refused when replay gained a route
+    onto a historical entity (RFC 0060 P1): the recovered row goes back to
+    bronze and the framework versions it. What is still refused is this
+    project — `scd: type2` with `quarantine:` and **no `dedupe:`** — because
+    the re-delivery reuses the original's `_source_row_id` and nothing would
+    collapse the pair.
+
+    Built here rather than taken from a fixture because the page's claim is
+    about a project a reader might write, and `scd2_replay` is the one that
+    declares both.
     """
     return build_project_ir(load_project(_SNAPSHOT_QUARANTINE))
 
