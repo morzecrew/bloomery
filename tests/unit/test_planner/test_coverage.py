@@ -909,12 +909,26 @@ def test_a_measure_class_p1_holds_back_declines_the_composed_path() -> None:
 #: `shipping_count` re-declared in each class RFC 0041 §8 holds back — one
 #: edit per class, so the tests below run against every held-back state of the
 #: vocabulary rather than the one a fixture happened to contain.
+#: The ratio above these operands is not what any of these tests is about, and
+#: re-shaping one of its operands makes R019 ask which rows it covers — a
+#: distinct count over a nullable `customer_id` misses the orders that have
+#: none. The declaration states a reading so the variant compiles and the
+#: subject stays the plan (RFC 0075).
+_ROW_SET_DECLARED = (
+    "    ratio: {numerator: line_discount, denominator: shipping_count}",
+    "    ratio: {numerator: line_discount, denominator: shipping_count, "
+    "includes_zero_denominator: true}",
+)
+
 _HELD_BACK = {
     "distinct_count": (
-        "  shipping_count:\n    grain: order\n    additivity: additive\n    agg: count\n"
-        '    expr: "order_id"\n',
-        "  shipping_count:\n    grain: order\n    additivity: distinct_count\n"
-        '    agg: count_distinct\n    expr: "customer_id"\n',
+        (
+            "  shipping_count:\n    grain: order\n    additivity: additive\n    agg: count\n"
+            '    expr: "order_id"\n',
+            "  shipping_count:\n    grain: order\n    additivity: distinct_count\n"
+            '    agg: count_distinct\n    expr: "customer_id"\n',
+        ),
+        _ROW_SET_DECLARED,
     ),
     "semi_additive": (
         "  shipping_count:\n    grain: order\n    additivity: additive\n    agg: count\n"
@@ -953,9 +967,20 @@ def test_a_metric_with_its_own_restriction_declines_the_composed_path() -> None:
     ir = _variant(
         "cross_mart_branches",
         metrics=(
-            '  shipping_count:\n    grain: order\n',
-            '  shipping_count:\n    grain: order\n'
-            "    filter:\n      - {dimension: region, op: eq, values: ['EU']}\n",
+            (
+                "  shipping_count:\n    grain: order\n",
+                "  shipping_count:\n    grain: order\n"
+                "    filter:\n      - {dimension: region, op: eq, values: ['EU']}\n",
+            ),
+            # The restriction lands on one operand of `discount_per_order`, and
+            # R019 refuses a ratio whose operands are about different row sets
+            # — which is not this test's subject, so the other operand carries
+            # the same restriction under its own mart's name for the column.
+            (
+                "  line_discount:\n    grain: order_item\n",
+                "  line_discount:\n    grain: order_item\n"
+                "    filter:\n      - {dimension: order_region, op: eq, values: ['EU']}\n",
+            ),
         ),
     )
 
@@ -1164,12 +1189,28 @@ def test_a_component_carrying_its_own_restriction_declines_the_composed_path() -
     reached this line, and no request in the corpus builds a ratio over a
     restricted operand (logs/T-0027.md, finding 6).
     """
+    # Both operands, not one: a ratio restricted on the numerator alone is a
+    # quotient of two quantities about different row sets and R019 refuses it
+    # (RFC 0075 §5.2). What this test is about survives — the *component* still
+    # carries a restriction, which is the thing the composed path has to
+    # decline — and the project it is built from is one a compiler accepts.
+    # The same restriction, spelled as each operand's own mart addresses it:
+    # the order-items mart prefixes the joined order column as `order_region`
+    # and the orders mart carries it as `region`. R019 compares what they
+    # resolve to rather than what they are called, so this is one row set.
     ir = _variant(
         "cross_mart_branches",
         metrics=(
-            "  line_discount:\n    grain: order_item\n",
-            "  line_discount:\n    grain: order_item\n"
-            "    filter:\n      - {dimension: order_region, op: eq, values: ['EU']}\n",
+            (
+                "  line_discount:\n    grain: order_item\n",
+                "  line_discount:\n    grain: order_item\n"
+                "    filter:\n      - {dimension: order_region, op: eq, values: ['EU']}\n",
+            ),
+            (
+                "  shipping_count:\n    grain: order\n",
+                "  shipping_count:\n    grain: order\n"
+                "    filter:\n      - {dimension: region, op: eq, values: ['EU']}\n",
+            ),
         ),
     )
 

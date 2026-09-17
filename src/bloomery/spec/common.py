@@ -450,6 +450,17 @@ class RatioSpec(SpecModel):
 
     numerator: str
     denominator: str
+    #: Which rows this ratio is about, where a row can contribute to the
+    #: numerator and nothing to the denominator (RFC 0075 D2).
+    #:
+    #: ``true`` is the *inclusive* reading — "total over units, overheads
+    #: included" — and it is a declaration rather than a switch: a shipment
+    #: that moved no parcels still cost money, and an author who means that
+    #: number says so. The default is not the other reading; it is **no
+    #: reading**, which R019 refuses until one is stated, because the two
+    #: answers are spelled identically today and picking one is a decision
+    #: about somebody's business that a compiler has no standing to make (D1).
+    includes_zero_denominator: bool = False
 
 
 # ....................... #

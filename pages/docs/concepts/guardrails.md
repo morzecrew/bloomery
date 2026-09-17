@@ -166,6 +166,48 @@ clean and answers `55.00`, beside a `ratio` metric over the same rows that answe
 ([the reproduction](https://github.com/morzecrew/bloomery/tree/main/comparisons/metricflow)).
 That refusal stays here.
 
+### Which rows the ratio is about
+
+`SUM(num) / NULLIF(SUM(den), 0)` guards the case where the *total* denominator is zero.
+It says nothing about a **row** whose denominator is zero, and that row is a different
+failure: a shipment cancelled after the carrier charged for it contributes `40.00` of cost
+and `0` parcels, so sum-over-sum charges its cost to the parcels somebody else moved. The
+total denominator is `40`, nothing is null, nothing divides by zero, and the answer is
+wrong.
+
+There are two right answers and they are spelled identically, which is why bloomery
+refuses rather than choosing:
+
+```yaml
+# "per unit, over the units that exist" — restrict both operands
+carrier_cost:
+  filter: [{dimension: parcels, op: gt, values: [0]}]
+parcels:
+  filter: [{dimension: parcels, op: gt, values: [0]}]
+
+# or declare the field positive once, for every metric over it
+parcels:
+  quality: [{rule: range, min: 1, on_fail: quarantine}]
+
+# "total spend per unit moved, overheads included" — say so
+cost_per_parcel:
+  additivity: ratio
+  ratio: {numerator: carrier_cost, denominator: parcels, includes_zero_denominator: true}
+```
+
+The disposition is what makes the second one a premise: `quarantine` and `fail` remove the
+row from the relation the ratio sums, while `flag` and `repair` leave it there, so a rule
+at either of those asserts nothing about what was summed.
+
+**A ratio whose denominator counts rows is not refused.** `COUNT(order_id)` over a required
+column counts every row the numerator sums, so the premise holds by construction and there
+is nothing to declare — which is most ratios, and the reason this refusal is rarer than it
+sounds.
+
+**The operands must also agree with each other.** A numerator restricted to one row set and
+a denominator to another is a quotient of two quantities about different things, refused
+whether or not a zero is involved.
+
 ## Path conflict: the guardrail that does not raise
 
 When a field has both a direct source column and a satisfiable recorded derivation, any

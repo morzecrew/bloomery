@@ -296,7 +296,18 @@ def quality_metrics() -> tuple[MetricIR, ...]:
             additivity=Additivity.RATIO,
             agg=None,
             expr=None,
-            ratio=Ratio(numerator="quality_rows_quarantined", denominator="quality_rows_evaluated"),
+            # Which rows the rate is about (RFC 0075 R019), stated because
+            # bloomery asks it of every ratio including its own. A group with
+            # nothing evaluated quarantined nothing either, so it contributes
+            # zero to both operands and including it changes no number — which
+            # is why the inclusive reading is the honest one here rather than a
+            # restriction that would drop rows the mart went to the trouble of
+            # producing.
+            ratio=Ratio(
+                numerator="quality_rows_quarantined",
+                denominator="quality_rows_evaluated",
+                includes_zero_denominator=True,
+            ),
             semi_additive=None,
             description=_DESCRIPTIONS[_RATE_METRIC],
             depends_on=("quality_rows_evaluated", "quality_rows_quarantined"),

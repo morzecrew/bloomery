@@ -15,7 +15,12 @@ MetricFlow or SQL syntax (§8), which the import contract enforces rather than
 this docstring promising.
 """
 
-from bloomery.semantic.additivity import prove_additive_rollup, prove_ratio_reconstruction
+from bloomery.semantic.additivity import (
+    RatioRowsRefusal,
+    prove_additive_rollup,
+    prove_ratio_reconstruction,
+    prove_ratio_rows,
+)
 from bloomery.semantic.closure import (
     MAX_DERIVATIONS,
     can_roll_up,
@@ -101,6 +106,8 @@ __all__ = [
     "prove_mart_rollup",
     "prove_measure_rollup",
     "prove_ratio_reconstruction",
+    "prove_ratio_rows",
+    "RatioRowsRefusal",
     "Conversion",
     "DenominationRefusal",
     "SemanticJudgement",

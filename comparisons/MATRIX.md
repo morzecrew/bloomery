@@ -49,7 +49,8 @@ someone will maintain the reproduction.
 | `007-distinct-users-fanout` | `declared` | `NATIVE-PLAN` <br> RFC 0038 D1 | `UNKNOWN` |
 | `008-ratio-rollup` | `naive` | `NATIVE-PREVENT` <br> `FalseAdditivityClaim`, RFC 0038 D2 | `NOT-REPRESENTED` <br> returns `3.5`; validator clean |
 | `008-ratio-rollup` | `declared` | `NATIVE-PLAN` <br> R012 | `NATIVE-PLAN` <br> `ratio` metric returns `3.25` |
-| `009-null-denominator` | `declared` | **`NOT-REPRESENTED`** <br> RFC 0042 D5 | `UNKNOWN` |
+| `009-null-denominator` | `declared` | `NATIVE-PREVENT` <br> `UndeclaredRatioRows`, R019 | `UNKNOWN` |
+| `009-null-denominator` | `inclusive` | `NATIVE-PLAN` <br> R019 | `UNKNOWN` |
 | `009-null-denominator` | `restricted` | `NATIVE-PLAN` <br> R012 | `UNKNOWN` |
 | `010-many-to-many-bridge` | `bridged` | `NATIVE-PREVENT` <br> `GrainViolation`, RFC 0010 D2 | `UNKNOWN` |
 | `010-many-to-many-bridge` | `per_order` | `NATIVE-PLAN` <br> R011 | `UNKNOWN` |
@@ -95,15 +96,17 @@ measured rather than asserted.
 
 ## Where bloomery loses
 
-One row, `NOT-REPRESENTED`, meaning bloomery compiles the request and returns a number that
-is wrong:
+**No rows, at the time of writing.** That is a statement about this corpus and nothing
+wider: it holds over twelve cases somebody chose, and the next case added is as likely to
+open a gap as to close one. A matrix with an empty column here is a matrix whose cases have
+been answered, not a compiler that cannot be wrong.
 
-- **`009-null-denominator` / `declared`** — a ratio whose denominator can be zero or null.
+Two rows sat here and both moved, which is what the column is for:
 
-It is pinned as `unguarded` in the corpus and runs in the default suite that way, so the
-wrong number is asserted rather than tolerated. It has not been measured on any other column,
-so nothing here says another system does better — only that bloomery does not do this yet.
+- **`011-timezone-boundary` / `zoneless`** — now `NATIVE-PREVENT` (RFC 0074, R018).
+- **`009-null-denominator` / `declared`** — now `NATIVE-PREVENT` (RFC 0075, R019), and the
+  case gained an `inclusive` arm: `4.00` was the wrong answer to "what does it cost to move
+  a parcel" and is the right one to a question an author can now write down.
 
-`011-timezone-boundary` / `zoneless` was the second such row and is now `NATIVE-PREVENT`
-(RFC 0074, R018). The cell moved because the rule landed, and the row it moved from is what
-made the gap citable while it was open.
+Each was pinned `unguarded` while it was open, so the wrong number was asserted rather than
+tolerated, and the row is what made the gap citable until the rule landed.

@@ -47,19 +47,28 @@ def fixture_mart(fixture: str, name: str) -> MartIR:
     return next(mart for mart in fixture_ir(fixture).marts if mart.name == name)
 
 
-def variant_ir(name: str, **edits: tuple[str, str]) -> ProjectIR:
+def variant_ir(name: str, **edits: tuple[str, ...]) -> ProjectIR:
     """One fixture's sources with substitutions applied, built into IR.
 
     A variant rather than a fixture directory: what a test needs is often a
     *shape* the corpus does not otherwise contain, and adding a fixture for
     each would move parity rows for a reason unrelated to what is asserted
     (logs/T-0026.md, D-167). Each keyword names a document and gives the
-    ``(old, new)`` pair to substitute; the anchor must be present.
+    ``(old, new)`` pair to substitute, or several such pairs; the anchor must
+    be present.
+
+    Several pairs per document because one edit can make a *second* one
+    necessary: turning a counting measure into one over a nullable column
+    leaves the ratio above it needing a row-set declaration (R019), and that
+    declaration belongs in the variant rather than in the shared fixture,
+    which does not need it.
     """
     sources = dict(fixture_sources(name))
-    for document, (old, new) in edits.items():
-        assert old in sources[document], f"{document}: anchor not found"
-        sources[document] = sources[document].replace(old, new)
+    for document, edit in edits.items():
+        pairs = (edit,) if isinstance(edit[0], str) else edit
+        for old, new in pairs:
+            assert old in sources[document], f"{document}: anchor not found"
+            sources[document] = sources[document].replace(old, new)
     catalog_path = FIXTURES / name / "catalog.yaml"
 
     return build_project_ir(

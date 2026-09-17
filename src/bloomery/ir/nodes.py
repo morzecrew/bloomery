@@ -914,6 +914,10 @@ class Ratio:
 
     numerator: str
     denominator: str
+    #: The author's answer to "which rows is this ratio about" (RFC 0075 D2),
+    #: carried verbatim. Appended last so a positional construction keeps
+    #: binding what it bound before.
+    includes_zero_denominator: bool = False
 
 
 # ....................... #
@@ -1546,8 +1550,9 @@ class ProjectIR:
     before and after the field existed, and two compilers of different shape
     would agree on both the version and the fingerprint while disagreeing about
     what an IR holds. Version 18 (RFC 0074 §5.2) adds ``zone_in`` to every
-    :class:`SourceFieldIR` — a declaration no SELECT reads, moving every
-    fingerprint for version 14's reason and no other.
+    :class:`SourceFieldIR` — a declaration no SELECT reads, moving every    fingerprint for version 14's reason and no other. Version 19 (RFC 0075 D2) adds
+    ``includes_zero_denominator`` to every :class:`Ratio`, which is the same
+    shape again: a declaration, read by a rule rather than by a SELECT.
     The bump is
     the point — every artifact's fingerprint header moves, and ``plan()``
     refuses to diff across versions rather than misreading one as the other.
@@ -1570,7 +1575,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 18
+    bloomery_ir_version: int = 19
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

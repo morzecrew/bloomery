@@ -1,10 +1,16 @@
 {
   "declared": {
-    "outcome": "unguarded",
-    "rule": "RFC 0042 D5"
+    "outcome": "refused",
+    "error": "UndeclaredRatioRows",
+    "rule": "R019"
   },
   "restricted": {
     "outcome": "accepted",
     "rule": "R012"
+  },
+  "inclusive": {
+    "outcome": "accepted",
+    "rule": "R019",
+    "answer": "naive"
   }
 }

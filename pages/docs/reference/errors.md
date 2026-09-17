@@ -42,6 +42,8 @@ BloomeryError
 │   ├── UnknownUpstream
 │   ├── ImportCollision
 │   ├── UndeclaredZone
+│   ├── UndeclaredRatioRows
+│   ├── RatioOperandsDisagree
 │   ├── QuarantineRetentionMissing
 │   ├── DedupeTieBreakMissing
 │   ├── DedupeDispositionConflict
@@ -114,6 +116,8 @@ BloomeryError
 | `UnknownUpstream` | guardrails | A project declares an import from an upstream this compile was not given — how the upstream reaches a compile is the caller's, so what was passed is the whole world, and the message names it |
 | `ImportCollision` | guardrails | A name a project declares is also one it imports — two things of one kind answering to one name, where any precedence rule would be invisible from the other project's file |
 | `UndeclaredZone` | guardrails | A timestamp parsed from a wall clock nothing declares a zone for, whose absolute position is then read — a date role, a comparison against a literal instant, or an as-of anchor. Declare it with `zone_in: UTC` where the source's wall clocks really are UTC, or `{to_utc: <zone>}` naming the clock they run on. The compiler checks that the assertion exists, never that it is true |
+| `UndeclaredRatioRows` | guardrails | A ratio whose denominator can be zero on a row, with nothing saying whether that row belongs in it — the row contributes to the numerator and nothing to the denominator, so its amount is charged to the units other rows carried. Restrict both operands, declare the field positive at a disposition that removes the row, or declare `includes_zero_denominator: true` for the total-over-units reading |
+| `RatioOperandsDisagree` | guardrails | A ratio whose numerator and denominator are restricted to different row sets — a quotient of two quantities about different things, which is wrong whether or not a zero is involved |
 | `QuarantineRetentionMissing` | guardrails | An entity with a `quarantine` disposition and no `quarantine:` block — reject rows hold raw payloads, so retention is required and never defaulted |
 | `DedupeTieBreakMissing` | guardrails | `dedupe: {keep: latest_by}` without `tie_break` — rows sharing a timestamp would make the winner arbitrary |
 | `DedupeDispositionConflict` | guardrails | A `coercible` rule weaker than `fail` on a field named by `dedupe.field`/`tie_break`, where an uncastable value leaves the dedupe order undefined |

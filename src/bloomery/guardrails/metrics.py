@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from sqlglot import exp
 
@@ -26,9 +26,12 @@ from bloomery.errors import (
     GuardrailError,
     InvalidMetricShape,
     MetricFilterInvalid,
+    RatioOperandsDisagree,
+    UndeclaredRatioRows,
     guaranteed,
 )
 from bloomery.ir import COMPUTED, Additivity
+from bloomery.semantic import RatioRowsRefusal, Refutation, prove_ratio_rows
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -419,6 +422,52 @@ def _check_aliases(metric: MetricIR, path: str) -> list[GuardrailError]:
 # ....................... #
 
 
+#: Which refusal class each of R019's two legs reaches an author as. Kept as a
+#: table rather than as a branch, for the reason the denomination consequences
+#: are one: a reason added to the rule and not here would take its neighbour's
+#: class, and an author would be told to fix the question they did not get
+#: wrong (RFC 0075 §5.2).
+_RATIO_ROW_REFUSALS: Final[dict[str, type[GuardrailError]]] = {
+    RatioRowsRefusal.UNDECLARED_ROWS.value: UndeclaredRatioRows,
+    RatioRowsRefusal.OPERANDS_DISAGREE.value: RatioOperandsDisagree,
+}
+
+
+def _check_ratio_rows(metric: MetricIR, draft: ProjectIR, path: str) -> list[GuardrailError]:
+    """R019 over one metric: which rows this ratio is about (RFC 0075 §5.1).
+
+    The proof decides and this reports, which is the shape RFC 0074's zone
+    guard took and R009's denomination check before it: an accepted ratio rests
+    on the rule rather than on a guardrail staying quiet.
+
+    Asked of every ratio rather than of the ones a mart carries, unlike the
+    filter checks above. A ratio that no mart lists is still a metric an author
+    can request through the planner, and the row question is about the metric's
+    own declaration rather than about where it is stored.
+    """
+
+    if metric.ratio is None:
+        return []
+
+    answer = prove_ratio_rows(metric, draft)
+
+    if not isinstance(answer, Refutation):
+        return []
+
+    (obligation,) = answer.obligations
+
+    return [
+        _RATIO_ROW_REFUSALS[answer.reason](
+            f"{obligation.found} (RFC 0075 R019) — required: {obligation.required}. "
+            f"Fix: {answer.remediation}",
+            source_path=path,
+        )
+    ]
+
+
+# ....................... #
+
+
 def check_metrics(draft: ProjectIR) -> list[GuardrailError]:
     """Every metric-shape and metric-filter violation across the draft.
 
@@ -435,6 +484,7 @@ def check_metrics(draft: ProjectIR) -> list[GuardrailError]:
     for metric in draft.metrics:
         path = f"metrics: metrics.{metric.name}"
         violations.extend(_check_shape(metric, path))
+        violations.extend(_check_ratio_rows(metric, draft, path))
 
         for mart in draft.marts:
             if metric.name not in mart.measures:

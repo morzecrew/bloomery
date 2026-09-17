@@ -61,10 +61,24 @@ together are the reason **R012 is not enough on its own**.
 ## Expected bloomery behaviour
 
 - **declared** — the ratio declared correctly over correctly declared operands is
-  **`unguarded`**: it satisfies R012, compiles, plans, and returns 4.00. Nothing bloomery
-  checks today looks at whether a zero-denominator row belongs in the numerator, and the
-  corpus says so rather than pretending otherwise (RFC 0042 §8's gate). **RFC 0042 D5** is
-  the decision a future rule converting this case would answer to.
+  **refused**, with `UndeclaredRatioRows`. **R019** is the rule: a ratio is over one row
+  set, and every row in it has a non-zero denominator. This one satisfies R012 exactly —
+  additive operands, each rolling up — and R012 is about *how* a ratio is rebuilt rather
+  than which rows belong in it, which is why a second rule was needed rather than a
+  stronger reading of the first.
+
+  The refusal names both fixes and picks neither. That is the point: the two readings below
+  are both metrics somebody wants, and until this rule existed they were spelled
+  identically and bloomery answered one of them without being asked.
+
+  This arm was `unguarded` until then, and the corpus asserted the wrong number rather than
+  pretending a guard existed — RFC 0042 D5 named the decision the converting rule would
+  answer to.
 - **restricted** — the same ratio whose operands declare the rows they are about is
-  **accepted** and returns 3.00, on **R012**. The restriction is a spec fact, which is what makes the
-  correct answer reachable without a new rule.
+  **accepted** and returns 3.00, on **R012**. The restriction is a spec fact, which is what
+  makes the correct answer reachable without a new rule; R019 reads it and discharges.
+- **inclusive** — the same ratio declaring `includes_zero_denominator: true` is
+  **accepted** and returns **4.00**, on **R019**. It is the other reading — "total carrier
+  spend per parcel moved, overheads included" — and the number is the one this case pins as
+  `naive`, which is the whole point of the arm: 4.00 is a wrong answer to "what does it cost
+  to move a parcel" and a right one to a question an author has now written down.
