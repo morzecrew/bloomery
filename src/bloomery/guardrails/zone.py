@@ -117,8 +117,9 @@ def _is_instant_literal(side: exp.Expression) -> bool:
     """Whether this side of a comparison fixes a point on the clock.
 
     Two shapes, and both are one authored ``TIMESTAMP '…'``: the canonical form
-    is a cast around a string, and a bare string literal compared to a
-    timestamp column is the same comparison with the cast left to the engine.
+    is a cast around a string, and a bare string literal compared to a column
+    holding an instant is the same comparison with the cast left to the
+    engine.
     A side naming a *column* is neither — two columns compared have no literal
     to be in the wrong zone, which is why R018 does not fire there.
     """
