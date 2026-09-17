@@ -344,12 +344,24 @@ _REPLAY_ENVELOPE = jinja2.Template(
 -- fingerprint: {{ fingerprint }}
 -- Quarantine replay for {{ entity }} (RFC 0016 §5.6). bloomery emits this
 -- artifact and never executes it: run the statements below, in order, as one
--- unit of work — the passers merge, the rows that made it resolve, and the
+{% if redelivers %}-- unit of work — the passers are re-delivered to bronze, the rows that made it
+-- resolve, and the rest have their failed_rules and last_seen re-stamped from
+-- the very same evaluation. Winners are decided by the pipeline's own dedupe
+-- total order, so re-running replay re-derives identical semantic state (D22).
+-- Retention — never replay — deletes reject rows; resolved rows are kept as
+-- audit history.
+--
+-- This entity's history is the framework's ({{ entity }} is scd: type2), so a
+-- recovered row does NOT appear in it when you run this. It appears when the
+-- framework next builds the entity, versioned with the interval the framework
+-- assigns (RFC 0060 D2, D8) — and its reject row resolves on the replay after
+-- that. Nothing has gone wrong if the entity is unchanged here.
+{% else %}-- unit of work — the passers merge, the rows that made it resolve, and the
 -- rest have their failed_rules and last_seen re-stamped from the very same
 -- evaluation. Winners are decided by the pipeline's own dedupe total order, so
 -- re-running replay re-derives identical semantic state (D22). Retention —
 -- never replay — deletes reject rows; resolved rows are kept as audit history.
-{% for statement in statements %}
+{% endif %}{% for statement in statements %}
 {{ statement }};
 {% endfor %}
 """,
@@ -1062,6 +1074,7 @@ def _replay_artifact(entity: EntityIR, ctx: EmitContext) -> EmittedArtifact:
         fingerprint=ctx.fingerprint,
         entity=entity.name,
         statements=[ctx.dialect.render(statement) for statement in replay_statements(entity, ctx)],
+        redelivers=entity.scd is SCDKind.TYPE2,
     )
     return EmittedArtifact.create(
         path=f"replay/{entity.name}.sql",

@@ -31,6 +31,7 @@ __all__ = [
     "FLAGS_COLUMN",
     "INGESTION_METADATA",
     "OK_COLUMN",
+    "REPLAY_LOAD_ID",
     "REPAIRS_COLUMN",
     "PIPELINE_STAGES",
     "REJECT_SUFFIX",
@@ -91,6 +92,21 @@ UNKNOWN_MEMBER = "__unknown__"
 #: properties — data facts no compiler can check — become a generated blocking
 #: audit.
 INGESTION_METADATA: tuple[str, ...] = ("_ingested_at", "_load_id", "_source_row_id")
+
+#: The ``_load_id`` a replayed delivery carries (RFC 0060 §5.2, D2). A recovered
+#: row reaches a framework-maintained ``scd: type2`` entity by being written
+#: back to bronze as a new delivery, and a delivery needs a load to belong to.
+#:
+#: **Its ``_source_row_id`` is the original's**, deliberately: ``_load_id`` is
+#: outside the reject identity (RFC 0016 D21) exactly so that re-deliveries of
+#: one source row land on the same reject row, which is what makes replay
+#: idempotent. A fresh row identity would mint a second reject row per run and
+#: leave the first unresolvable.
+#:
+#: Reserved rather than authored, and spelled like :data:`UNKNOWN_MEMBER` for
+#: the same reason: it has to be a value no real load can carry, and it is what
+#: an operator greps for to find the rows replay delivered.
+REPLAY_LOAD_ID = "__replay__"
 
 #: The fixed pipeline order (RFC 0016 §5.4, D7) — declared once, never
 #: per-field, never configurable. Dedupe sits *before* the rules deliberately:

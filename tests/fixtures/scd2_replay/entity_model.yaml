@@ -1,0 +1,43 @@
+# The replay-on-a-historical-entity fixture (RFC 0060 §5.2). `scd2_as_of` plus
+# the thing that fixture deliberately leaves out: a quarantine policy on the
+# historical dimension, which is the pair nothing in this corpus combined and
+# which the compiler refused outright until R0060 P1 gave it a route.
+#
+# `segment` carries a quarantining rule, so a customer delivered with an
+# unknown segment is diverted to `customer__reject` rather than versioned. The
+# route back is replay — and because `customer` is `scd: type2`, replay writes
+# the recovered row to bronze instead of merging it into the entity, so the
+# framework versions it and the mart's as-of join can find it.
+#
+# `dedupe:` is required here, not decoration: the re-delivery keeps the
+# original's `_source_row_id`, which puts two bronze rows under one identity
+# and would trip the blocking ingestion audit without it.
+spec_version: 1
+entities:
+  customer:
+    grain: one row per customer
+    key: [customer_id]
+    scd: type2
+    fields:
+      customer_id: {type: string, required: true}
+      segment: {type: string}
+      signed_up_at: {type: timestamp}
+    dedupe: {keep: latest_by, field: _ingested_at, tie_break: [_load_id]}
+    quarantine: {retention: 90d}
+    quality:
+      - {rule: expression, name: segment_known,
+         expr: "segment IN ('smb', 'ent')", on_fail: quarantine}
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      customer_id: {type: string}
+      amount: {type: "decimal(12,4)"}
+      order_date: {type: date}
+relationships:
+  - name: order_of_customer
+    from: order
+    to: customer
+    via: {customer_id: customer_id}
+    cardinality: many_to_one

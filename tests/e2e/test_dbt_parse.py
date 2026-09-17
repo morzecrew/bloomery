@@ -37,7 +37,14 @@ import pathlib
 
 import pytest
 
-from support.compiling import compile_fixture, resolve_dbt_references
+from support.compiling import (
+    compile_fixture,
+    fixture_sources,
+    load_fixture,
+    resolve_dbt_references,
+)
+
+from bloomery import Target, compile_project, load_project
 
 pytestmark = pytest.mark.e2e
 
@@ -69,6 +76,9 @@ FIXTURES = (
     "quality_precedence",
     "role_playing_dates",
     "scd2_customers",
+    # RFC 0060 P1: the pair nothing combined — a historical entity with a
+    # quarantine policy — whose replay writes to bronze instead of merging.
+    "scd2_replay",
 )
 
 PROFILES = """\
@@ -594,3 +604,123 @@ def test_dbt_reads_the_annotations_it_was_given(tmp_path: pathlib.Path) -> None:
         if "classification" in assertions:
             order = next(n for n in nodes.values() if n["name"] == "order")
             assert order["columns"]["customer_id"]["meta"] == {"classification": "pii"}
+
+
+# ....................... #
+# Replay on a historical entity (RFC 0060 P1)
+
+_NARROW = "\"segment IN ('smb', 'ent')\""
+_WIDE = "\"segment IN ('smb', 'ent', 'startup')\""
+
+#: ``c2`` arrives with a segment the spec does not know, so it is diverted and
+#: never versioned. The orders are dated after every version dbt will write:
+#: dbt stamps a version with its own wall clock, and an order dated in the past
+#: is reachable from no version at all — the apparatus failure that made every
+#: route read as invisible when this was first measured (logs/T-0057.md).
+_CUSTOMERS = (
+    {"customer_id": "c1", "segment": "smb", "signed_up_at": "2023-01-15T00:00:00"},
+    {"customer_id": "c2", "segment": "startup", "signed_up_at": "2023-05-02T00:00:00"},
+)
+_ORDERS = (
+    {"id": "o1", "customer_id": "c1", "amount": "100.00", "order_date": "2099-03-10"},
+    {"id": "o2", "customer_id": "c2", "amount": "250.00", "order_date": "2099-09-20"},
+)
+
+
+def _write_replay_project(root: pathlib.Path, database: pathlib.Path, *, wide: bool) -> None:
+    """The emitted project, with the quarantine rule optionally widened.
+
+    The widening is a **spec** edit, which is what replay is for: the diverted
+    row's payload is in the reject table, and re-running the current mapping
+    against it is how the row comes back. Editing bronze instead would prove
+    nothing — a row that can be fixed in bronze never needed replay.
+    """
+    sources = dict(fixture_sources("scd2_replay"))
+
+    if wide:
+        assert _NARROW in sources["entity_model"]
+        sources["entity_model"] = sources["entity_model"].replace(_NARROW, _WIDE)
+
+    _, catalog = load_fixture("scd2_replay")
+    artifacts = compile_project(
+        load_project(sources), target=Target.DBT, dialect="duckdb", catalog=catalog
+    )
+
+    for artifact in artifacts:
+        path = root / artifact.path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(artifact.content, encoding="utf-8")
+
+    (root / "profiles.yml").write_text(PROFILES.format(path=str(database)), encoding="utf-8")
+
+
+def _segments(database: pathlib.Path) -> dict[str, str | None]:
+    import duckdb
+
+    connection = duckdb.connect(str(database))
+    try:
+        return {
+            str(order): segment
+            for order, segment in connection.execute(
+                "SELECT order_id, customer_segment FROM gold.mart_orders"
+            ).fetchall()
+        }
+    finally:
+        connection.close()
+
+
+def test_the_as_of_join_finds_a_row_recovered_through_bronze(tmp_path: pathlib.Path) -> None:
+    """RFC 0060 D3, and the only assertion the design accepts.
+
+    Not a row count, and not the row's presence in the snapshot: the defect
+    this phase removes was a row that **landed** — merged past dbt with a NULL
+    validity interval, reported as a success, and stepped over by every as-of
+    join. A presence assertion passes against that. So the claim is the mart's
+    own as-of join, run after dbt has versioned the row.
+
+    The middle assertion is what makes the last one mean something: right after
+    the replay macro runs, the snapshot still does not carry ``c2``. Replay did
+    not write it there and never will — dbt does, on the next build, with the
+    interval dbt assigns (D2, D8).
+    """
+    database = tmp_path / "warehouse.duckdb"
+    _write_replay_project(tmp_path, database, wide=False)
+    _seed_sources(database, "scd2_replay")
+    _insert(
+        database,
+        (
+            *(("crm__customers", _row(row)) for row in _CUSTOMERS),
+            # No ingestion metadata on the fact: only an entity with a reject
+            # table or a dedupe requires the contract (RFC 0016 D21), and
+            # `order` declares neither.
+            *(("shop__orders", dict(row)) for row in _ORDERS),
+        ),
+    )
+    assert _run(tmp_path, "build").success
+
+    # The diverted row has no version, so its order is attributed to nothing.
+    assert _segments(database) == {"o1": "smb", "o2": None}
+
+    _write_replay_project(tmp_path, database, wide=True)
+    assert _run(tmp_path, "run-operation", "replay_customer").success
+
+    # Replay wrote to bronze, not to the snapshot — this is the step whose
+    # apparent inaction the artifact's own header warns an operator about.
+    assert _segments(database) == {"o1": "smb", "o2": None}
+
+    assert _run(tmp_path, "build").success
+    assert _segments(database) == {"o1": "smb", "o2": "startup"}
+
+
+def _row(values: dict[str, str]) -> dict[str, object]:
+    """One bronze delivery: the mapped columns plus the ingestion metadata the
+    contract requires (RFC 0016 D21). The row identity is stable per row
+    because replay re-delivers under it."""
+    import datetime
+
+    return {
+        **values,
+        "_ingested_at": datetime.datetime(2024, 1, 1),
+        "_load_id": "load-1",
+        "_source_row_id": values["customer_id"],
+    }

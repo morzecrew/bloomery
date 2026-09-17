@@ -197,7 +197,7 @@ def test_a_non_sqlglot_dialect_is_probed_under_its_own_name() -> None:
         """A port written by hand rather than by subclassing `SQLGlotDialect`,
         which is the shape this test exists to exercise.
 
-        It implements every `DialectPort` member — including the three this
+        It implements every `DialectPort` member — including the four this
         test never calls — because `register_dialect` refuses a partial port:
         the registry is global, so a port that satisfies one code path and
         omits what another needs is an `AttributeError` waiting for whoever
@@ -220,6 +220,9 @@ def test_a_non_sqlglot_dialect_is_probed_under_its_own_name() -> None:
             return value
 
         def json_object(self, pairs: object) -> Expression:  # pragma: no cover
+            return exp.Null()
+
+        def utc_now(self) -> Expression:  # pragma: no cover — never called
             return exp.Null()
 
     dialects_module.register_dialect(Bespoke())

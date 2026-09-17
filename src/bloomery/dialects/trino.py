@@ -130,6 +130,23 @@ class TrinoDialect(SQLGlotDialect):
 
     # ....................... #
 
+    def utc_now(self) -> Expression:
+        """``CAST(at_timezone(CURRENT_TIMESTAMP, 'UTC') AS TIMESTAMP)``.
+
+        Trino has no ``timezone(zone, ts)``. ``at_timezone`` moves an instant's
+        display to UTC and the cast drops the zone, which is the same two steps
+        the base spelling takes in one function — and deliberately **not**
+        ``with_timezone``, which states the zone of a zoneless value and is a
+        type error on ``CURRENT_TIMESTAMP``, an instant that already has one.
+        """
+
+        return exp.cast(
+            exp.func("at_timezone", exp.CurrentTimestamp(), exp.Literal.string("UTC")),
+            exp.DataType.build("TIMESTAMP"),
+        )
+
+    # ....................... #
+
     def json_object(self, pairs: Sequence[tuple[str, Expression]]) -> Expression:
         """``JSON_OBJECT(KEY 'k' VALUE v, …)`` — the SQL-standard spelling.
 

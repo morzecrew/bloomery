@@ -370,6 +370,7 @@ DIALECT_PORT_MEMBERS: Final = (
     "render",
     "supports",
     "text_sha256",
+    "utc_now",
 )
 
 
@@ -391,6 +392,8 @@ class DialectPort(Protocol):
     def supports(self, feature: DialectFeature) -> bool: ...
 
     def text_sha256(self, value: Expression) -> Expression: ...
+
+    def utc_now(self) -> Expression: ...
 
     def json_object(self, pairs: Sequence[tuple[str, Expression]]) -> Expression: ...
 
@@ -497,6 +500,33 @@ class SQLGlotDialect:
         """
 
         return exp.SHA2(this=value, length=exp.Literal.number(256))
+
+    # ....................... #
+
+    def utc_now(self) -> Expression:
+        """The engine's current instant as a **zoneless UTC** timestamp.
+
+        ``timestamp`` is always UTC and zoneless here (RFC 0004 §5.1), and
+        every engine's ``CURRENT_TIMESTAMP`` is zone-*aware* instead. Casting
+        one to the other keeps the *session's* wall clock, which is the defect
+        RFC 0028 §2 is about — two rows at one instant landing in different
+        days because two readers had different session zones. So the zone is
+        stated rather than inherited.
+
+        Spelled as ``timezone('UTC', …)`` rather than as ``AT TIME ZONE``
+        because the ports rewrite every :class:`exp.AtTimeZone` into their own
+        door into this type (:func:`utc_from_zone`), and that door is for a
+        zoneless *local* value being told which clock it came off. This value
+        is already an instant, so it needs the move and not the statement.
+
+        Measured on DuckDB under ``America/New_York``: this returns ``16:20``
+        where ``CAST(CURRENT_TIMESTAMP AS TIMESTAMP)`` returns ``12:20``.
+        """
+
+        return exp.cast(
+            exp.func("timezone", exp.Literal.string("UTC"), exp.CurrentTimestamp()),
+            exp.DataType.build("TIMESTAMP"),
+        )
 
     # ....................... #
 

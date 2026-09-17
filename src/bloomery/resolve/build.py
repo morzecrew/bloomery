@@ -1652,55 +1652,79 @@ def _direct_agreement_refusals(
 # ....................... #
 
 
-def _snapshot_quarantine(entity_name: str, entity: Entity) -> list[ResolutionError]:
-    """``scd: type2`` with ``quarantine:`` is refused, on **every** target.
+def _snapshot_replay(entity_name: str, entity: Entity) -> list[ResolutionError]:
+    """``scd: type2`` with ``quarantine:``, and the two things that route needs
+    the author to have declared (RFC 0060 §5.2, D2).
 
-    Replay's first statement is a ``MERGE`` that admits a re-evaluated row into
-    the entity, projecting the entity's own columns (RFC 0016 §5.6). A type 2
-    relation is not made of those columns alone: it also carries the validity
-    interval the *framework* maintains — ``valid_from``/``valid_to``, plus
-    dbt's ``dbt_scd_id`` and ``dbt_updated_at``. The merge names none of them,
-    so its ``WHEN NOT MATCHED THEN INSERT`` writes a version with a NULL
-    interval and, on dbt, a NULL snapshot identity.
+    A recovered row cannot be merged into a type 2 entity: that relation is the
+    *framework's*, and a merge naming the entity's columns writes a version
+    with no validity interval and, on dbt, no snapshot identity — present,
+    queryable, and invisible to every as-of join. So replay writes the row back
+    to bronze as a new delivery and the framework versions it on its own next
+    run, which is the whole of RFC 0060's answer.
 
-    **Measured, on both targets, and it does not fail.** The merge reports
-    success and the row lands: no validity interval, so an as-of join steps
-    over it, and a snapshot identity the next run does not recognise. A row
-    that is present, queryable and invisible to the join that gives a type 2
-    relation its meaning is the plausible-but-wrong answer this package refuses
-    rather than approximates — and it arrives through an artifact bloomery
-    wrote and told the operator to run.
+    That route is available on two conditions, and neither is a preference:
 
-    Filling those columns is not the fix available here. ``dbt_scd_id`` is a
-    hash dbt computes and owns; writing bloomery's guess of it would be this
-    compiler inventing another framework's bookkeeping, which is the coupling
-    ``emit/lower`` exists to avoid, and a guess that is wrong produces duplicate
-    versions rather than an error. The honest answer is that replay and native
-    SCD2 have never composed, and no fixture reached the combination to say so.
+    **The entity must declare ``dedupe:``.** The re-delivery keeps the original
+    row's ``_source_row_id``, because ``_load_id`` is outside the reject
+    identity precisely so that re-deliveries land on the same reject row
+    (RFC 0016 D21) — a fresh identity mints a second reject row per run and
+    leaves the first unresolvable. Two bronze rows then share one identity, and
+    the D21 audit is a *blocking* count over ``PARTITION BY [_source,]
+    _source_row_id``. With ``dedupe:`` the pair collapses to one row and the
+    audit is satisfied; without it the second delivery stops the run on correct
+    data, which is the false refusal a generated audit must never produce.
 
-    **Unbuilt rather than wrong**, and the difference matters to whoever meets
-    this message: a recovered row has to reach the entity through whatever
-    produces its versions, so that the framework versions it. That route does
-    not exist. The design for one is a live RFC, so this refusal is a stop-gap
-    with a shape behind it rather than a position.
+    **The entity must not declare ``redact:``.** What replay has to re-deliver
+    is the reject row's ``raw``, and ``raw`` is the payload minus every
+    redacted column. Writing it back would put a row into bronze whose redacted
+    column is NULL and whose metadata says it was delivered — a redaction
+    laundered into what reads as a fresh delivery, in the relation the *caller*
+    owns. There is nothing to narrow here: the redacted value is gone from the
+    only copy replay can reach, by design.
 
-    Not the same refusal as the merged-``type2`` one above: that is about a
-    collision audit over two sources, this about the replay merge, and an
-    entity can meet either alone.
+    Both are refusals an author can act on, which the one they replace was not:
+    that one said to give up history or give up recovery, and named no third
+    thing to do. Not the same refusal as the merged-``type2`` one above, which
+    is about a collision audit over two sources.
     """
     if entity.scd != "type2" or entity.quarantine is None:
         return []
 
-    msg = (
-        f"entity {entity_name!r} declares 'scd: type2' and a quarantine policy. Replay "
-        "merges a re-evaluated row into the entity by its columns (RFC 0016 §5.6), and a "
-        "type 2 relation also carries the validity interval its framework maintains — so "
-        "the merge would insert a version with no valid_from/valid_to (and, on dbt, no "
-        "dbt_scd_id), which reports success and is skipped by every as-of join. Fix: "
-        "declare the entity 'scd: type1', or reduce its rules to flag dispositions and "
-        "drop the quarantine block"
-    )
-    return [ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.quarantine")]
+    errors: list[ResolutionError] = []
+    where = f"entity_model: entities.{entity_name}"
+
+    if entity.dedupe is None:
+        errors.append(
+            ResolutionError(
+                f"entity {entity_name!r} declares 'scd: type2' and a quarantine policy, and "
+                "no 'dedupe:'. A recovered row reaches a type 2 entity by being re-delivered "
+                "to bronze, keeping its '_source_row_id' so the reject row it came from can "
+                "be resolved (RFC 0016 D21, RFC 0060 D2) — which puts two rows with one "
+                "identity in bronze, and the blocking ingestion audit stops the run on "
+                "correct data unless a dedupe collapses them. Fix: declare 'dedupe:' on the "
+                "entity, or declare it 'scd: type1'",
+                source_path=f"{where}.dedupe",
+            )
+        )
+
+    if entity.quarantine.redact:
+        errors.append(
+            ResolutionError(
+                f"entity {entity_name!r} declares 'scd: type2', a quarantine policy and "
+                f"{len(entity.quarantine.redact)} redacted "
+                f"{'path' if len(entity.quarantine.redact) == 1 else 'paths'}. A recovered "
+                "row is re-delivered to bronze from the reject row's 'raw', and 'raw' is "
+                "the payload with the redacted columns removed — so the delivery would "
+                "carry NULL where the redaction was, in a relation the caller owns, and "
+                "read as a genuine one (RFC 0060 §5.2). The redacted value is gone from the "
+                "only copy replay can reach. Fix: drop 'redact:', or declare the entity "
+                "'scd: type1'",
+                source_path=f"{where}.quarantine.redact",
+            )
+        )
+
+    return errors
 
 
 # ....................... #
@@ -2067,7 +2091,7 @@ def _build_entities(
                 steps,
             ),
             *_validity_collisions(entity_name, project.entity_model.entities[entity_name]),
-            *_snapshot_quarantine(entity_name, project.entity_model.entities[entity_name]),
+            *_snapshot_replay(entity_name, project.entity_model.entities[entity_name]),
             *_shadow_collisions(
                 entity_name,
                 project.entity_model.entities[entity_name],

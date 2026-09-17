@@ -23,11 +23,13 @@ from bloomery.emit.lower.predicates import as_of_conditions
 from bloomery.errors import EmitError, UnsupportedByTarget, guaranteed
 from bloomery.ir import (
     SOURCE_COLUMN,
+    VALID_TO,
     EntityIR,
     FxRatesIR,
     Layer,
     OnFail,
     QualityRuleIR,
+    SCDKind,
     SourceIR,
     SqlExpr,
 )
@@ -38,6 +40,7 @@ from bloomery.quality import (
     REJECT_COLUMNS,
     REJECT_SUFFIX,
     REPAIRS_COLUMN,
+    REPLAY_LOAD_ID,
     ROW_ID_COLUMN,
     SUPERSEDED_RULE,
     branch_alias,
@@ -1635,6 +1638,11 @@ def metadata_audit_select(
         )
         .from_(_this_model(alias="", relation=relation))
     )
+    current = _current_version(entity)
+
+    if current is not None:
+        counted = counted.where(current)
+
     return (
         exp.Select()
         .select(exp.Star())
@@ -1812,6 +1820,43 @@ def conservation_audit(entity: EntityIR) -> bool:
 # ....................... #
 
 
+def _current_version(entity: EntityIR) -> Expression | None:
+    """``valid_to IS NULL`` on a historical entity, and nothing otherwise.
+
+    The generated audits count **rows** of the entity relation, and on
+    ``scd: type2`` a row is a *version*: the framework keeps every one of them
+    and closes the interval of the previous. So a source row that changes twice
+    is two rows sharing one ``_source_row_id``, which the D21 duplicate-identity
+    audit reports as a violation, and two rows counted against one surviving
+    bronze row, which the conservation audit reports as a loss. Both are
+    blocking, and both are wrong — the correct data is the audit's own subject.
+
+    Reproduced on dbt before this existed: an ordinary second delivery changing
+    one customer's segment failed `customer_ingestion_metadata` **and**
+    `customer_conservation` on the next build, with a snapshot holding exactly
+    the two versions it should.
+
+    Scoping to the current version restores what each audit means. One row per
+    key is current at any time, so "the identity is unique per source row" and
+    "every surviving bronze row is in the entity or diverted" are both claims
+    about that population and about no other.
+
+    This is older than the replay route that met it: an entity may declare
+    ``dedupe:`` without ``quarantine:``, which requires the metadata contract
+    and generates both audits, and ``scd: type2`` with ``dedupe:`` has always
+    compiled. RFC 0060 P1 only makes a second version the *expected* outcome
+    rather than an eventual one.
+    """
+
+    if entity.scd is not SCDKind.TYPE2:
+        return None
+
+    return exp.Is(this=exp.column(VALID_TO), expression=exp.null())
+
+
+# ....................... #
+
+
 def conservation_audit_select(
     entity: EntityIR, ctx: EmitContext, *, relation: str = THIS_MODEL
 ) -> exp.Select:
@@ -1890,11 +1935,12 @@ def conservation_audit_select(
         .from_(_SURVIVORS_CTE)
         .subquery(),
     )
+    current = _current_version(entity)
     entity_rows = exp.Subquery(
         this=exp.Select()
         .select(exp.Count(this=exp.Star()))
         .from_(_this_model(_ENTITY_ALIAS, relation))
-        .where(in_scope)
+        .where(in_scope if current is None else conjunction([in_scope, current]))
     )
     counted = (
         exp.Select()
@@ -2257,6 +2303,199 @@ def _candidate_wins(entity: EntityIR) -> Expression:
 # ....................... #
 
 
+def _redelivery(entity: EntityIR, origin: SourceIR, ctx: EmitContext) -> exp.Insert:
+    """One source's recovered rows, written back to bronze as a new delivery
+    (RFC 0060 §5.2, D2) — replay's first statement for a ``scd: type2`` entity.
+
+    The entity's relation is the *framework's*: ``SCD_TYPE_2_BY_COLUMN`` on
+    SQLMesh, a snapshot on dbt. Merging into it writes a version with no
+    validity interval and, on dbt, no snapshot identity — a row that is
+    present, queryable and invisible to every as-of join, which is the only
+    reason a type 2 relation exists. So the row does not go to the entity at
+    all: it goes back to bronze, and the framework versions it on its next run
+    with its own bookkeeping (D1, D8).
+
+    **The delivery keeps the original's ``_source_row_id``.** ``_load_id`` is
+    outside the reject identity precisely so that re-deliveries of one source
+    row land on the same reject row (RFC 0016 D21), which is what lets the
+    resolution stamp find this row once the framework has admitted it — one
+    replay run later, without a new column or a new reject state. A fresh
+    identity would mint a second reject row per run and leave the first
+    unresolvable forever, which is §9's "a row that re-enters on every run".
+
+    ``_ingested_at`` is the executing engine's clock, as statements 2 and 3
+    already read it (RFC 0003: bloomery emits the statement, the caller runs
+    it). It is what makes the re-delivery the most recent one, so ``dedupe``
+    prefers it, and it is what advances ``last_seen`` — the clock retention
+    ages an unresolved reject row from, so the window between the delivery and
+    the framework admitting it cannot age the row out.
+
+    **One statement per source** (RFC 0035 §5.3): an INSERT's target table
+    cannot be data-dependent, and a merged entity's reject table holds rows
+    from several relations. The admitted set is still computed over the *union*
+    — a rule evaluated per source would judge a row the merged relation does
+    not contain (RFC 0024 D6) — and the pair filters it back down here.
+
+    What is written is the reject row's ``raw``, which is the payload rather
+    than the row: a bronze column the mapping neither maps nor acknowledges is
+    absent, having no name a compiler with no catalog could write. A redacted
+    column would be absent too, and that one is refused rather than written —
+    see ``_snapshot_replay`` in :mod:`bloomery.resolve.build`.
+    """
+    bronze_namespace, bronze_relation = ctx.naming.relation(origin.relation, Layer.BRONZE)
+    reject_namespace, reject_rel = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
+    # Minus the ingestion metadata, which the payload carries whenever the
+    # mapping acknowledges those bronze columns (`unmapped:`) and which this
+    # statement writes for itself — naming a column twice in one INSERT is not
+    # a redundancy, it is unrunnable SQL.
+    payload = tuple(
+        name for name in _payload_columns(entity, origin) if name not in INGESTION_METADATA
+    )
+
+    admitted = (
+        exp.Select()
+        .select(*_replay_identity(entity, table=_REPLAY_ALIAS))
+        .from_(
+            _quality_pipeline(
+                entity, ctx, _extract_select(entity, ctx, from_payload=True)
+            ).subquery(alias=_REPLAY_ALIAS)
+        )
+    )
+    # No `resolved_at IS NULL` here: the candidate extract already carries it
+    # (:func:`_branch_select`'s ``from_payload`` arm), so a resolved row cannot
+    # be in ``admitted`` to begin with. A sweep found the outer copy could be
+    # removed without turning any test red, which is what a second guard looks
+    # like from the outside — and a line kept for the sentence it lets a reader
+    # read is a line the next sweep reports again.
+    conditions: list[Expression] = [
+        exp.In(
+            this=_identity_operand(entity, table=None, provenance="source_relation"),
+            query=admitted.subquery(),
+        ),
+    ]
+
+    if len(entity.sources) > 1:
+        # Which branch's payload this is. On a single-source entity every
+        # reject row is that source's, so the filter degenerates away exactly
+        # as the identity operand does.
+        conditions.insert(
+            1,
+            exp.EQ(
+                this=exp.column("source_relation"),
+                expression=exp.Literal.string(origin.relation),
+            ),
+        )
+
+    values: list[Expression] = [_from_payload(exp.column(name)) for name in payload]
+    # In `INGESTION_METADATA` order, which is what the column list below names.
+    values.extend(
+        (
+            # Zoneless UTC, because that is what `timestamp` means here
+            # (RFC 0004 §5.1) and bronze's `_ingested_at` is read as one. A bare
+            # `CURRENT_TIMESTAMP` is zone-*aware* on every shipped engine, and
+            # the D21 audit refuses an offset-bearing value — measured: the
+            # emitted test failed on `2026-09-17 19:18:21.796404+03`. The
+            # interpretation node is what each port rewrites into its own
+            # spelling of the door into that type.
+            ctx.dialect.utc_now(),
+            exp.Literal.string(REPLAY_LOAD_ID),
+            exp.column(ROW_ID_COLUMN),
+        )
+    )
+
+    return exp.Insert(
+        this=exp.Schema(
+            this=exp.table_(bronze_relation, db=bronze_namespace),
+            expressions=[exp.column(name) for name in (*payload, *INGESTION_METADATA)],
+        ),
+        expression=(
+            exp.Select()
+            .select(*values)
+            .from_(exp.table_(reject_rel, db=reject_namespace))
+            .where(conjunction(conditions))
+        ),
+    )
+
+
+# ....................... #
+
+
+def _replay_merge(entity: EntityIR, ctx: EmitContext) -> exp.Merge:
+    """Replay's first statement for an entity whose relation bloomery's own
+    SELECT defines (``scd: type1``): the MERGE that admits the passers.
+
+    Split out of :func:`replay_statements` when the historical entity gained
+    a route of its own (RFC 0060 D4). The statement is unchanged — D4 keeps
+    type 1 replay exactly as it was, and a shared rewrite would put the
+    branch nobody needs in the path everybody takes.
+    """
+    entity_namespace, entity_relation = ctx.naming.relation(entity.name, Layer.SILVER)
+    columns = [
+        *(column.name for column in entity.columns),
+        # A merged entity's relation carries provenance, so the MERGE has to
+        # write it — and `_candidate_wins` compares by it (RFC 0024 D35), which
+        # a source that did not project it could not answer.
+        *((SOURCE_COLUMN,) if len(entity.sources) > 1 else ()),
+        *INGESTION_METADATA,
+        FLAGS_COLUMN,
+        OK_COLUMN,
+    ]
+    non_key = [name for name in columns if name not in entity.key]
+
+    wins = _candidate_wins(entity)
+    matched = exp.When(
+        matched=True,
+        condition=wins,
+        then=exp.Update(
+            expressions=[
+                # The **left** side of a MERGE ``SET`` is deliberately
+                # unqualified. Standard SQL says the assignment target is a
+                # bare column of the merge target — DuckDB, Postgres and Trino
+                # all reject a qualified one outright ("Qualified column names
+                # in UPDATE .. SET not supported"), and only a couple of
+                # engines accept it as an extension. Qualifying it here made
+                # the emitted replay artifact unrunnable on every shipped
+                # dialect; caught by the execution tier (RFC 0016 §6), which is
+                # what that tier is for. The right side stays qualified — it
+                # names the *source* row and would be ambiguous otherwise.
+                exp.EQ(
+                    this=exp.column(name),
+                    expression=exp.column(name, table=_REPLAY_ALIAS),
+                )
+                for name in non_key
+            ]
+        ),
+    )
+    not_matched = exp.When(
+        matched=False,
+        then=exp.Insert(
+            this=exp.Tuple(expressions=[exp.column(name) for name in columns]),
+            expression=exp.Tuple(
+                expressions=[exp.column(name, table=_REPLAY_ALIAS) for name in columns]
+            ),
+        ),
+    )
+    merge = exp.Merge(
+        this=exp.table_(entity_relation, db=entity_namespace, alias=_TARGET_ALIAS),
+        using=_replay_candidates(entity, ctx).subquery(alias=_REPLAY_ALIAS),
+        on=conjunction(
+            [
+                exp.EQ(
+                    this=exp.column(name, table=_TARGET_ALIAS),
+                    expression=exp.column(name, table=_REPLAY_ALIAS),
+                )
+                for name in entity.key
+            ]
+        ),
+        whens=exp.Whens(expressions=[matched, not_matched]),
+    )
+
+    return merge
+
+
+# ....................... #
+
+
 def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, ...]:
     """The replay artifact (RFC 0016 §5.6, D22): one MERGE and two updates.
 
@@ -2316,64 +2555,10 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
     """
     entity_namespace, entity_relation = ctx.naming.relation(entity.name, Layer.SILVER)
     reject_namespace, reject_rel = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
-    columns = [
-        *(column.name for column in entity.columns),
-        # A merged entity's relation carries provenance, so the MERGE has to
-        # write it — and `_candidate_wins` compares by it (RFC 0024 D35), which
-        # a source that did not project it could not answer.
-        *((SOURCE_COLUMN,) if len(entity.sources) > 1 else ()),
-        *INGESTION_METADATA,
-        FLAGS_COLUMN,
-        OK_COLUMN,
-    ]
-    non_key = [name for name in columns if name not in entity.key]
-
-    wins = _candidate_wins(entity)
-    matched = exp.When(
-        matched=True,
-        condition=wins,
-        then=exp.Update(
-            expressions=[
-                # The **left** side of a MERGE ``SET`` is deliberately
-                # unqualified. Standard SQL says the assignment target is a
-                # bare column of the merge target — DuckDB, Postgres and Trino
-                # all reject a qualified one outright ("Qualified column names
-                # in UPDATE .. SET not supported"), and only a couple of
-                # engines accept it as an extension. Qualifying it here made
-                # the emitted replay artifact unrunnable on every shipped
-                # dialect; caught by the execution tier (RFC 0016 §6), which is
-                # what that tier is for. The right side stays qualified — it
-                # names the *source* row and would be ambiguous otherwise.
-                exp.EQ(
-                    this=exp.column(name),
-                    expression=exp.column(name, table=_REPLAY_ALIAS),
-                )
-                for name in non_key
-            ]
-        ),
-    )
-    not_matched = exp.When(
-        matched=False,
-        then=exp.Insert(
-            this=exp.Tuple(expressions=[exp.column(name) for name in columns]),
-            expression=exp.Tuple(
-                expressions=[exp.column(name, table=_REPLAY_ALIAS) for name in columns]
-            ),
-        ),
-    )
-    merge = exp.Merge(
-        this=exp.table_(entity_relation, db=entity_namespace, alias=_TARGET_ALIAS),
-        using=_replay_candidates(entity, ctx).subquery(alias=_REPLAY_ALIAS),
-        on=conjunction(
-            [
-                exp.EQ(
-                    this=exp.column(name, table=_TARGET_ALIAS),
-                    expression=exp.column(name, table=_REPLAY_ALIAS),
-                )
-                for name in entity.key
-            ]
-        ),
-        whens=exp.Whens(expressions=[matched, not_matched]),
+    admit: tuple[Expression, ...] = (
+        tuple(_redelivery(entity, origin, ctx) for origin in entity.sources)
+        if entity.scd == "type2"
+        else (_replay_merge(entity, ctx),)
     )
     resolve = exp.Update(
         this=exp.table_(reject_rel, db=reject_namespace),
@@ -2450,4 +2635,4 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
             ]
         ),
     )
-    return (merge, resolve, still_failing)
+    return (*admit, resolve, still_failing)

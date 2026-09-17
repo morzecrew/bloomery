@@ -306,11 +306,17 @@ def test_the_corpus_is_the_size_it_claims_to_be() -> None:
     """A parity run is green whether it replayed 991 requests or none, so the
     size is asserted rather than reported. Found worth pinning because the
     generator reads fixtures: one that stops carrying marts shrinks the corpus
-    silently, and the suite keeps passing on what is left."""
+    silently, and the suite keeps passing on what is left.
+
+    It grew by 186 when `scd2_replay` landed (RFC 0060 P1). Those rows were
+    **appended** to the baseline rather than regenerated into it: a fixture
+    that does not exist at the merge base has no merge-base outcome to
+    contradict, and regenerating the whole file would have erased the sixteen
+    conversions below, which are the only thing it is kept for."""
     outcomes = _outcomes()
 
     assert len(outcomes) == len(_baseline())
-    assert len(outcomes) == 1007
+    assert len(outcomes) == 1193
 
 
 #: What RFC 0041 P2 licenses, as moves rather than as a list of keys: the rule
