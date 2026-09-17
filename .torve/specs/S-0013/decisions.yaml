@@ -1,0 +1,119 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      The Snowflake timestamp mapping preserves bloomery's zoneless-UTC invariant
+      — a bloomery `timestamp` is UTC and zoneless whatever Snowflake calls it — and
+      `TIMESTAMP_LTZ` is never what a `timestamp` lowers to
+    paths: [src/bloomery/dialects/**]
+    consequence: >-
+      `TIMESTAMP_LTZ` renders against the session zone, so the mapping that reached
+      for it would land one instant on two dates for two readers; the port halts and
+      surfaces the conflict rather than choosing, and every timestamp fixture must
+      read as the same instant on Snowflake as on the three shipped ports
+    rationale: >-
+      Row D1 of `rfcs/0047-snowflake-dialect.md`, carried at the grade that document
+      gives it. The reader-dependence this removes was removed once already at real
+      cost — the retirement `rfcs/RETIRED.md` records as 0028 at `558b31c` — and it
+      is not this port's decision to revisit: a port that "usefully" picked `LTZ`
+      would reintroduce a shipped defect on one engine only, where the other three
+      look fine
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      Nothing is inherited from the PostgreSQL or the Trino port without being measured
+      on Snowflake: each of the six rewrite points is re-established here from evidence
+    paths: [src/bloomery/dialects/**, tests/unit/test_dialects/**]
+    consequence: >-
+      A rewrite this port applies is a rewrite something measured on Snowflake asked
+      for, so a copied `TO_UTF8`/`TO_HEX`/`LOWER` or a copied separator rewrite is
+      a finding even when the tests are green; the reverse also holds, and a rewrite
+      point Snowflake needs nothing for is answered by a capability flag or by nothing
+      at all
+    rationale: >-
+      Row D2 of `rfcs/0047-snowflake-dialect.md`. Snowflake has native primitives
+      for much of what those two needed workarounds for, and a carried-over workaround
+      is at best dead weight and at worst a rewrite that changes meaning on an engine
+      nobody measured it against
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The OSS emulator `ghcr.io/sivchari/snowflake-emulator` is the default local
+      lane and LocalStack for Snowflake is optional
+    paths: [tests/engines/**, tests/support/**]
+    consequence: >-
+      The default lane needs no token and no licence, which is the only thing that
+      makes it a candidate for a per-pull-request slot at all, since a lane requiring
+      a secret cannot run on a fork pull request; departing means the OSS emulator's
+      documented gaps — no distributed execution, no meaningful access control, no
+      warehouse management, no guaranteed transaction isolation — reaching a fixture
+      that matters, in which case LocalStack becomes the default and its token constraint
+      follows it
+    rationale: >-
+      Row D3 of `rfcs/0047-snowflake-dialect.md`, `ASSUMED` there and here: it is
+      a judgement about two emulators' documented behaviour, and building against
+      them is what settles it
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Both emulators carry the `surrogate` marker, distinct from `engine`, and neither
+      gates a release
+    paths: [tests/engines/**, pyproject.toml]
+    consequence: >-
+      `engine("snowflake")` over an emulator is the claim made in the one place it
+      is invisible — a test name in a CI log — so the tier table grows a rung rather
+      than reusing one, and a green surrogate lane can never be quoted as engine conformance
+    rationale: >-
+      Row D4 of `rfcs/0047-snowflake-dialect.md`. The shared method in `rfcs/0046-validating-a-dialect-port.md`
+      already requires it; the source records it again because Snowflake is the port
+      where the local story is good enough to tempt an exception
+  - id: D-5
+    grade: OPEN
+    text: >-
+      Whether the LocalStack lane is maintained at all is decided from the defects
+      each emulator found that the other missed, after one port's worth of work, and
+      not before
+    paths: [tests/engines/**, tests/support/**]
+    consequence: >-
+      Two emulators is two maintenance surfaces, two pinned versions and two sets
+      of documented gaps to know; whoever runs both counts what each caught and records
+      the count, and a decision taken before that evidence exists is the thing this
+      row refuses
+    rationale: >-
+      Row D5 of `rfcs/0047-snowflake-dialect.md`, `OPEN` there: the source deliberately
+      delegates it to whoever builds both lanes
+  - id: D-6
+    grade: OPEN
+    text: >-
+      The concrete type map — which Snowflake type each bloomery logical type lowers
+      to, `VARIANT` and the decimal bounds included — is decided by whoever measures
+      it, under D-1's constraint
+    paths: [src/bloomery/dialects/**]
+    consequence: >-
+      `physical_type` is a one-way door once artifacts exist in the wild, so the table
+      is written from measurements rather than guessed in prose; D-1 fixes the timestamp
+      constraint and nothing else about the map is fixed, including whether `VariantType`
+      keeps the base adapter's `JSON` or becomes `VARIANT`
+    rationale: >-
+      Row D6 of `rfcs/0047-snowflake-dialect.md`, `OPEN` there. The source states
+      plainly that it does not guess this table, and the reason is the one-way door
+      rather than lack of interest
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      No Snowflake credential — the LocalStack auth token included — enters the repository
+      or is reachable from an untrusted pull request, and a lane that finds none skips
+      with a stated reason rather than failing
+    paths: [tests/support/**, .github/workflows/**]
+    consequence: >-
+      The token is read from the environment and `.env` is already gitignored, so
+      the harness adds nothing there; the live lanes run on `main`, on releases, on
+      a schedule and on manual dispatch behind a GitHub Environment, and a red lane
+      on a missing variable would train people to ignore the lane
+    rationale: >-
+      Not a row of `rfcs/0047-snowflake-dialect.md`'s decision table — it is that
+      document's own prose, which says the token "must never be committed" and gives
+      the compose fragment that reads it from the environment. A rule stated in prose
+      is inherited by nobody, so it is given a row; graded `ASSUMED` rather than `LOCKED`
+      because the author never graded it

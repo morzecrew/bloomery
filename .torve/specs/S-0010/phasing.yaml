@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: One kind, one property
+    intent: >-
+      Generate `entity_model.yaml` documents from the exported JSON Schema and assert
+      totality over them — any schema-valid document either compiles or raises a `BloomeryError`
+      carrying a `source_path`, and nothing else — reporting the fraction that reaches
+      resolution and the fraction a guardrail refuses rather than the parser. One
+      kind needs no cross-document consistency, so this phase settles D-3 on the measured
+      reach fraction before the harder pooled-name problem is touched, and its sabotage
+      check — widening a guardrail until the totality property goes red — proves the
+      property can fail at all. The assertions extend `tests/property/test_schema_agreement.py`
+      under D-2; a shared strategy helper may live under `tests/support/`, and adopting
+      `hypothesis-jsonschema` adds its annotated `dev`-group entry to `pyproject.toml`.
+    scope: [tests/property/**, tests/support/**, pyproject.toml]
+    acceptance:
+      - >-
+        uv run pytest tests/property/test_schema_agreement.py -q
+    character: structural
+  - phase: 2
+    title: The project document set
+    intent: >-
+      Extend the generator to the eight project kinds `load_project` dispatches on,
+      drawing entity, mart, metric and mapping names from one generated pool so that
+      a generated `marts.yaml` referring to a generated `entity_model.yaml` resolves
+      instead of dying at the first cross-reference (D-6). This is the phase that
+      actually reaches the guardrails, so it reports the set's reach fraction separately
+      from phase 1's single-kind number rather than folding the two together, and
+      it is where a pool that constrains the generated space more than it buys shows
+      up as a departure to log.
+    scope: [tests/property/**, tests/support/**]
+    acceptance:
+      - >-
+        uv run pytest tests/property/test_schema_agreement.py -q
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: The drift property
+    intent: >-
+      Add the generated-space half of the drift measurement to `tests/property/test_schema_agreement.py`:
+      what the parser refuses over generated documents, the schema should refuse too,
+      in that direction only (D-4), with the float `tolerance` and the free-string
+      metric `agg` still asserted as expected divergences so that closing one goes
+      red. It waits for phase 2 because a generator not yet known to produce documents
+      worth validating twice would measure the sampling rather than the drift, and
+      the existing corpus strategy stays beside the generated one.
+    scope: [tests/property/**]
+    acceptance:
+      - >-
+        uv run pytest tests/property/test_schema_agreement.py -q
+    depends_on:
+      - 2
+    character: routine

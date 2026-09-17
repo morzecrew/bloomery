@@ -1,0 +1,298 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0016
+title: Databricks SQL dialect port
+kind: design
+status: draft
+implementation: none
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  A `databricks` dialect port validated against the engine's own compiler rather than
+  against a local surrogate, because no Databricks SQL warehouse runs in a container.
+  Local Spark shares much of the language and is a different product, so it is labelled a
+  surrogate and never named as the engine; the authoritative layer is `EXPLAIN EXTENDED`
+  and `DESCRIBE QUERY` submitted to a live warehouse, and the second of those returns the
+  result schema, which is what lets type conformance be checked against the real analyzer
+  without executing anything. Databricks Free Edition is enough to bootstrap that lane and
+  not enough to run the generated corpus on it. This document also settles what does not
+  happen: PySpark is a test-only optional dependency, bloomery never executes Spark, and
+  no engine driver enters the package.
+motivation: |
+  bloomery ships three dialects and every one of them runs in a container, so the tier that
+  has caught the port defects the cheaper tiers cannot see is the one that starts a real
+  engine. Databricks breaks that assumption outright: there is no Databricks SQL Warehouse
+  in Docker, and the nearest local thing — a Spark session — is an independent
+  implementation of a similar language. A port validated against it alone would be
+  validated against something else, and the failures that have hurt in this codebase are
+  exactly the ones where a spelling was accepted by one engine and meant something else on
+  another. The cost of getting this wrong is not a red test; it is a green one, quoted six
+  months later as Databricks conformance by someone who was not here.
+current_state: |
+  Nothing of this design has landed. `src/bloomery/dialects/` holds `base.py`, `duckdb.py`,
+  `postgres.py` and `trino.py`, and `register_dialect` in that package's `__init__.py`
+  already accepts a port from outside the tree. There is no `databricks.py`, no
+  `tests/support/databricks.py`, no `tests/support/spark.py`, no `.env.example`, no
+  Databricks workflow under `.github/workflows/`, and `pyproject.toml` declares neither a
+  `databricks-test` dependency group nor a surrogate marker beside its six tiers — its
+  marker table stops at `engine(name)`, which means Docker and the real engine, so nothing
+  today distinguishes "ran against the engine" from "ran against something engine-shaped".
+  `src/bloomery/runtime/sql_client.py` wires `duckdb`, `postgres` and `trino` onto the
+  planner renderers its upstream ships and names databricks among the ones that slot in
+  when a port exists. `.env` is gitignored already. No task has ever been minted against
+  this design and no log names it.
+goals: |
+  A `databricks` port whose rewrites are covered offline, an authoritative lane that asks
+  the real engine's parser, binder and type resolver whether the generated SQL is
+  acceptable, and a surrogate lane that is honest about being one — or is dropped, on
+  evidence, if it catches nothing the offline rungs miss.
+non_goals: |
+  Making bloomery able to execute Spark, or anything else. Shipping the other three cloud
+  ports, which carry their own risks and their own documents. Deciding how many of the four
+  are wanted at all. Running the generated or property corpus against a live warehouse.
+design:
+  - key: the-rewrite-surface
+    md: |
+      The port's risk is concentrated in a small number of rewrite points that already
+      exist for the three shipped dialects, plus what this engine does at each:
+
+      - **`TIMESTAMP` versus `TIMESTAMP_NTZ`**, against the zoneless-UTC invariant this
+        repository holds across every dialect. The same shape, and the same risk, as the
+        first row of `rfcs/0047-snowflake-dialect.md` and of
+        `rfcs/0048-bigquery-dialect.md`.
+      - **ISO-8601 parsing**, and the offset guard that refuses an offset-bearing timestamp
+        text rather than silently reinterpreting it.
+      - **`try_cast`**, against the NULL-on-failure contract the quality layer depends on.
+      - **`VARIANT` and semi-structured behaviour**, and the JSON functions beside it.
+      - **Regexp functions and capture indexes**; **arrays**, which decide whether the port
+        declares the array capability or lowers quality flags to a delimited string;
+        **timezone functions**; **SHA functions and binary-to-hex**; **decimal precision
+        and division**.
+      - **ANSI mode**, which changes cast and arithmetic behaviour and must be pinned in
+        any surrogate session rather than inherited from whatever the fixture started with.
+      - **Functions in Databricks SQL but not in generic Spark, and the reverse** — the
+        divergence list a local Spark session cannot see, because it is the thing being
+        diverged from.
+  - key: bloomery-does-not-gain-spark
+    md: |
+      PySpark is a test-only optional dependency and core bloomery never executes Spark.
+      The package is `specs → IR → artifacts`, a pure function with no I/O, and the
+      dependency group is pinned in the lockfile and never installed for `uv add bloomery`:
+
+      ```toml
+      [dependency-groups]
+      databricks-test = ["pyspark>=4,<5"]
+      ```
+
+      The harness lives in `tests/support/spark.py` and owns the session lifecycle,
+      deterministic session settings, timezone, ANSI mode, fixture registration and result
+      canonicalization. Adding Spark execution to the package instead would make
+      installation much heavier, put JVM and runtime concerns into a pure compiler library,
+      blur compilation and execution, constrain the supported Python and JDK combinations,
+      raise CI cost for every user who never targets Databricks, and — the one that matters
+      most — create the impression that Spark is the Databricks engine.
+  - key: the-surrogate-lane-and-its-boundary
+    md: |
+      The Spark lane carries a marker that says what it is, and the marker is the claim
+      a reader meets first:
+
+      ```python
+      @pytest.mark.surrogate("databricks_spark")
+      def test_timestamp_semantics(...): ...
+      ```
+
+      Good surrogate candidates: joins, filters, `CASE`, aggregates, windows, common casts,
+      regexp, arrays, basic date and timestamp expressions, null propagation, arithmetic.
+
+      Excluded, or marked separately so the exclusion is visible: Databricks `VARIANT`,
+      Unity Catalog semantics, Databricks SQL-only functions, serverless-specific
+      behaviour, optimizer behaviour, and any expression known to diverge from upstream
+      Spark. The excluded list is long, which is why the lane has to earn its place rather
+      than be assumed into it.
+  - key: the-authoritative-layers
+    md: |
+      Two commands, and the second is unusually valuable here:
+
+      ```sql
+      EXPLAIN EXTENDED <query>;   -- parsing, analysis, planning
+      DESCRIBE QUERY <query>;     -- output column names and types
+      ```
+
+      `DESCRIBE QUERY` returns the result schema. That matters because this compiler
+      asserts type conformance alongside syntax, and it is the closest thing any of the
+      four cloud ports has to a declared-versus-produced check that costs no execution and
+      scans no data.
+
+      Above them sits a deliberately small runtime corpus, with tiny tables: timezone
+      normalization, timestamp parsing, decimals, regexp capture, `try_cast`, JSON and
+      `VARIANT`, arrays, SHA-to-hex, null behaviour, quarantine rows. It exists because the
+      compile lane cannot settle values — an instant, a scale, a capture, a hex casing,
+      whether a row was quarantined.
+
+      The harness lives at `tests/support/databricks.py`: read the environment, submit to
+      the statement execution API, poll, normalize rows, surface the engine's own errors,
+      enforce a timeout, and optionally run the two commands above.
+  - key: the-environment-contract
+    md: |
+      Five variables, and a smoke test that proves the connection and nothing about the
+      dialect:
+
+      ```text
+      DATABRICKS_HOST   DATABRICKS_TOKEN   DATABRICKS_SQL_WAREHOUSE_ID
+      DATABRICKS_CATALOG   DATABRICKS_SCHEMA
+      ```
+
+      The first two are the vendor's own unified-auth names; the third is required by the
+      statement execution request and is also the harness's. `.env` is gitignored already,
+      so an `.env.example` carrying the names with empty values is the whole of what the
+      repository gains:
+
+      ```bash
+      curl --fail-with-body -X POST "${DATABRICKS_HOST}/api/2.0/sql/statements" \
+        -H "Authorization: Bearer ${DATABRICKS_TOKEN}" -H "Content-Type: application/json" \
+        -d "{\"warehouse_id\":\"${DATABRICKS_SQL_WAREHOUSE_ID}\",
+             \"statement\":\"SELECT 1\",\"wait_timeout\":\"30s\"}"
+      ```
+  - key: free-edition-and-its-authentication-caveat
+    md: |
+      Free Edition gives serverless-only compute, one SQL warehouse capped at `2X-Small`,
+      fair-use quotas, no SLA and administrative limitations. That is enough for a small
+      conformance suite and not enough to run the generated or property corpus
+      continuously.
+
+      The vendor recommends OAuth for automation, and Free Edition lacks account-level
+      administration — so a service-principal machine-to-machine flow must not be
+      documented as guaranteed to work there. The priority is: machine-to-machine OAuth on
+      a normal workspace; user-to-machine OAuth for local interactive use; a workspace
+      personal access token for Free Edition CI only if that workspace exposes token
+      creation. If it does not, Free Edition tests stay local and manual and unattended CI
+      uses a normal workspace.
+
+      A personal access token gets the shortest practical lifetime, is scoped to the test
+      workspace, rotates when maintainers change, is revoked immediately if exposed, and
+      never appears in `.env.example`, workflow YAML, issue text or a snapshot.
+  - key: the-ci-lane
+    md: |
+      Manual dispatch, `push` to `main` under the dialects package, and a schedule — behind
+      a GitHub Environment named `databricks-free` rather than raw repository secrets, so
+      protection rules apply and the credential is isolated from unrelated jobs. A
+      dedicated catalog and schema, `workspace.bloomery_conformance`, so the tests never
+      touch a notebook or demo table. The compile-only and execution lanes are separate
+      jobs, so the cheaper lane cannot accidentally scan or bill. No cloud credential is
+      reachable from an untrusted pull request, and the default test tiers never require
+      one: a live test skips with a stated reason when the variables are absent rather than
+      failing.
+tests: |
+  Offline, and on every pull request: `tests/unit/test_dialects/test_databricks.py` covers
+  the port's rewrites and its declared capabilities, and holds the re-parse assertion that
+  puts the generated SQL back through the SQL-generation library under this dialect —
+  cheap, and proof of nothing about the engine. `tests/golden/` gains the fixture cells
+  that render through the new port, regenerated only by the snapshot recipe and reviewed
+  like source.
+
+  Off by default, and never on an untrusted pull request:
+  `tests/engines/test_databricks_live.py` submits the shared fixture corpus through
+  `tests/support/databricks.py` to a live warehouse, asserting first that the two
+  authoritative commands accept the statement and that `DESCRIBE QUERY` agrees with the
+  declared types, and then the small runtime corpus.
+  `tests/engines/test_databricks_surrogate.py` runs the shared subset through
+  `tests/support/spark.py` under a `surrogate` marker, if that lane survives its own
+  measurement.
+docs: |
+  An `.env.example` carrying the five variable names with empty values, and the setup
+  guidance that states the authentication priority and says plainly which flow is not
+  available on Free Edition. The marker table in `pyproject.toml` gains the surrogate rung
+  with the reason for its spelling recorded beside it.
+out_of_scope: |
+  Spark execution inside bloomery, in any form — the package stays a pure compiler. The
+  Snowflake, BigQuery and Redshift ports, which have their own documents. Whether a cloud
+  port ships in-tree or as an extension package: `register_dialect` already accepts either,
+  and the choice belongs to the shared method document, not here.
+risks: |
+  **A green surrogate quoted as engine conformance.** This is the failure this design is
+  shaped around, and the mitigation is a name rather than a docstring: the lane is marked
+  `surrogate`, never `engine`, so the overstatement cannot survive being read in a CI log
+  by someone who was not here.
+
+  **The conformance suite outgrowing Free Edition.** Mitigated by treating that as a signal
+  to shrink the suite before it is a signal to buy a workspace: an authoritative lane large
+  enough to need paid compute has stopped being the small lane the method describes.
+
+  **A credential leaking through a workflow or a snapshot.** Mitigated by a GitHub
+  Environment rather than raw secrets, a token scoped to a test workspace with the shortest
+  practical lifetime, and the rule that it never appears in an example file, a workflow, an
+  issue or a checked-in artifact.
+
+  **The surrogate lane costing more than it returns.** A Spark session is a heavy fixture
+  with its own JDK matrix and a long exclusion list. Mitigated by making its retention
+  conditional on measurement over one port's work rather than on the plausibility of the
+  idea.
+sections:
+  - key: provenance
+    md: |
+      Carried across from `rfcs/0050-databricks-dialect.md`, numbered 0050 in that corpus,
+      where its status row reads "Draft — proposed, not scheduled". Its validation method
+      — the six-rung ladder, the surrogate-naming discipline and the credential rules — is
+      the separate document `rfcs/0046-validating-a-dialect-port.md`, which is also a
+      draft and which the four cloud-port documents share so the shared half cannot drift
+      into four differing accounts.
+
+      **Nothing has landed.** No pull request has implemented any part of this design: a
+      walk of the history under `src/bloomery/dialects/` reaches nothing that names
+      Databricks, no task file under `tasks/` and no log under `logs/` names the source
+      document, and the tree carries none of the files it describes. The phasing below is
+      therefore the whole of the source document's phasing, and `implementation` is
+      `none`.
+
+      **How the rows map.** Rows D-1 through D-9 carry the eight rows of the source
+      document's decision table, each with the grade the owner gave it. The first of those
+      eight is carried as two rows, D-1 and D-2, because it locks two different surfaces —
+      the package and the dependency declaration — and a single row spanning both would
+      mint a contract that cannot satisfy itself inside one phase's scope. D-10 is added
+      here: the source document states the credential and CI discipline in its prose,
+      citing the shared method document's locked row for it, but never graded it, and an
+      executor that inherits no row about credentials inherits nothing about the one
+      surface where a mistake is not recoverable. It is graded `ASSUMED` because this
+      backfill did not settle it; departing from it is a signal to go and read the method
+      document, not a licence.
+alternatives:
+  - option: >-
+      Add Spark execution to bloomery so the Databricks port can be validated against
+      a real engine locally.
+    rejected_because: >-
+      It makes installation much heavier, puts JVM and runtime concerns into a pure
+      compiler library, blurs compilation and execution, constrains the supported
+      Python and JDK combinations, raises CI cost for users who never target Databricks,
+      and creates the impression that Spark is the Databricks engine — which is the
+      specific confusion this document exists to prevent.
+  - option: >-
+      Mark the local Spark lane with the engine marker, so one selector covers every
+      execution tier.
+    rejected_because: >-
+      The claim a test makes is its name, in a CI log and in a report nobody re-reads
+      the body of. A Spark session named as the Databricks engine is the surrogate
+      boundary violated in the one place it is invisible.
+  - option: >-
+      Treat the Spark surrogate as the oracle and skip the live lane entirely, since
+      the surrogate needs no credential.
+    rejected_because: >-
+      Spark and Databricks SQL are documented to differ in both directions, and the
+      divergence list is exactly what a Spark session cannot see. A port whose only
+      execution evidence is the surrogate has no authoritative layer at all.
+  - option: >-
+      Document a service-principal machine-to-machine OAuth flow for Free Edition,
+      so the setup guide has one recommended path.
+    rejected_because: >-
+      Free Edition lacks account-level administration, and a guide that confidently
+      describes an unavailable flow costs a reader more than no guide. The fallback
+      is stated instead.
+  - option: >-
+      Run the generated and property corpora against the live warehouse, so the authoritative
+      lane covers what the offline tiers cover.
+    rejected_because: >-
+      Free Edition is serverless-only with one small warehouse and fair-use quotas,
+      and the value of the live lane is the engine's own compiler answering, not volume.
+      Keep it small and its tables tiny.

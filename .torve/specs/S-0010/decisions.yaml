@@ -1,0 +1,106 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      Schema-directed generation lands in the property tier under `tests/property/`,
+      never as a fuzz target: it produces valid input by construction, which is the
+      property tier's territory by the seam the corpus already states
+    paths: [tests/property/**]
+    consequence: >-
+      The check runs in the default test tiers on every pull request and shrinks a
+      failing spec to structure a person can read, at the cost of coverage-guided
+      feedback; a contract that proposes a fuzz target for this work is proposing
+      to reopen the seam, which halts under this grade
+    rationale: >-
+      LOCKED because it applies an existing rule rather than making a new one — the
+      fuzzer owns the text layer and the accept/refuse boundary, the property tier
+      owns the semantic layer inside valid space — and because both dependencies are
+      already installed in that tier for this exact purpose. Reversing it means reopening
+      that seam, which D-5 provides for. Carried at the grade the source document
+      gives it.
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      The generated-document strategy and its assertions extend `tests/property/test_schema_agreement.py`,
+      never a sibling module asserting drift of its own
+    paths: [tests/property/test_schema_agreement.py]
+    consequence: >-
+      The existing corpus strategy stays beside the generated one in the same module,
+      because a corpus of real documentation examples asserts something a generator
+      does not — that the spelling the docs teach is accepted; shared generator helpers
+      may live elsewhere under `tests/`, but nothing that asserts agreement may
+    rationale: >-
+      Two modules asserting overlapping things about one pair of validators is precisely
+      the drift that module exists to measure, reproduced one level up. Carried at
+      the grade the source document gives it.
+  - id: D-3
+    grade: OPEN
+    text: >-
+      Whether the generator is `hypothesis-jsonschema`'s `from_schema()` or a hand-written
+      strategy over the subset of JSON Schema bloomery emits is decided by execution,
+      with the tiebreak being the fraction of generated documents that reach the resolver
+      — never the dependency's release date
+    paths: [tests/property/**, tests/support/**, pyproject.toml]
+    consequence: >-
+      Adopting the dependency adds a `dev`-group entry to `pyproject.toml` carrying
+      the same explanatory comment style `jsonschema` already has; declining it puts
+      a maintained strategy in this repository instead. Either way the measured fraction
+      is logged, so the choice is re-decidable on evidence rather than re-argued.
+    rationale: >-
+      The library satisfies the existing pins and has had no release since February
+      2024; the local strategy is narrow because the schemas are Pydantic-generated
+      and the vocabulary is closed. A generator producing schema-valid noise refused
+      at the first cross-reference has solved nothing whichever route produced it,
+      so capability decides. Q-2 enumerates the vocabulary and settles this outright.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Only one direction of agreement is asserted — what the parser refuses, the schema
+      should refuse too, for the mutation classes JSON Schema can express — and a
+      document the schema accepts and the parser refuses is a named divergence, not
+      a failure
+    paths: [tests/property/test_schema_agreement.py]
+    consequence: >-
+      The float `tolerance` and the free-string metric `agg` stay asserted as expected
+      divergences at the bottom of that module, so closing one turns the suite red
+      and forces the note to be removed rather than left lying; a new divergence is
+      named in the same place rather than fixed under this document
+    rationale: >-
+      The schema is a pre-filter and the parser is the authority — row D10 of the
+      retired authoring-ergonomics document, number 0020, readable at `d5b6f16`. ASSUMED
+      rather than LOCKED because that row is the authority here and this one merely
+      inherits it. Carried at the grade the source document gives it.
+  - id: D-5
+    grade: OPEN
+    text: >-
+      What would move this work to a fuzz target after all is stated by execution,
+      the candidate signal being guardrail branches reached materially faster under
+      coverage feedback than under generation
+    paths: [tests/property/**]
+    consequence: >-
+      The row is discharged with whatever was measured — including "no evidence either
+      way" — rather than left implicitly open, so D-1's seam is reopened on a number
+      instead of on an impression
+    rationale: >-
+      D-1 is LOCKED on a rule, and a locked rule with no stated reversal condition
+      is a rule nobody can revisit honestly. Q-1 is the question; this row is the
+      obligation to answer it in the log. Carried at the grade the source document
+      gives it.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Cross-document consistency is produced by generating a pool of names the documents
+      then draw from, rather than generating each document independently and hoping
+      its references resolve
+    paths: [tests/property/**, tests/support/**]
+    consequence: >-
+      The generator is stateful across a project's documents, so the reach fraction
+      for a set is not the fraction for a single kind and the two are reported separately;
+      a pool that constrains the generated space more than it buys is a departure
+      to log against this row, not a bug
+    rationale: >-
+      The obvious shape, and the only one that makes a generated `marts.yaml` referencing
+      a generated `entity_model.yaml` resolve at all — the one thing schema-directed
+      generation does not get for free from the schema. ASSUMED so an executor may
+      depart on evidence. Carried at the grade the source document gives it.

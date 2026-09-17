@@ -1,0 +1,353 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0017
+title: Semantic grain model and functional dependencies
+kind: design
+status: draft
+implementation: complete
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  Grain is structural identity rather than a display string, and rollup safety is proved
+  from functional dependencies that each carry the basis justifying them instead of being
+  inferred from string equality. The vocabulary sits below request planning and above
+  target lowering: entity keys, declared `many_to_one` and `one_to_one` relationships, and
+  as-of-qualified historical hops are the only facts admitted into a closure, every member
+  of which carries a derivation rather than a boolean. `can_roll_up(source, target,
+  context)` is directional and answers with a proof or with a refusal that names the hop
+  that stopped it. Refinement — moving a coarser measure onto a finer grain because a join
+  exists — is refused outright and has no implicit form.
+motivation: |
+  bloomery already knew the facts that imply grain relationships — entity keys,
+  relationship cardinalities, measure origins, SCD validity — and reduced each of them to
+  a separate local check. The mart rule compared grain strings; the fan-out guardrails
+  compared cardinalities; the planner had its own unreachable-at-grain refusal; additivity
+  was modelled at the metric level. None of them shared a vocabulary, so the same
+  underlying fact was re-derived, differently, in four places.
+
+  A measure at `order` grain cannot be copied into an `order_item` mart without
+  duplication, and that refusal is correct. But shipping at `order` grain can be safely
+  aggregated by a customer's country when the model can prove that each order determines
+  one customer, that country is determined by that customer, and that shipping is additive
+  across orders. String inequality between `order` and `country` cannot express that
+  proof; a grain model can. The invariant the whole sequence preserves is that bloomery
+  expands the set of accepted queries only by adding explicit proof rules, and weakens no
+  existing refusal to make room.
+current_state: |
+  **Every phase of this design has landed, and this document is a backfill of what is
+  already in the tree.** It carries the rows and no phasing: the source document was one
+  unit of vocabulary with no phases of its own, and both changes that executed it are on
+  `main`.
+
+  The package is `src/bloomery/semantic/`. Three of its files are this document's:
+  `nodes.py` (428 lines) holds `GrainRef`, `ColumnRef`, `DependencyBasis`,
+  `FunctionalDependency`, `Derivation`, `Determined`, `RefusalReason`, `BlockedEdge`,
+  `DependencySet`, `RollupContext`, `RollupProof` and `RollupRefusal`; `closure.py` (794
+  lines) holds `dependencies`, `closure`, `can_roll_up` and `prove_rollup` with the
+  diagnosis that words a refusal; `historical.py` (96 lines) holds `AsOfState` and
+  `qualify_as_of`, the one reading of SCD2 validity. `proof.py` holds the rule registry
+  and the two tables keyed by basis, which D-20 trimmed. `src/bloomery/marts/flatten.py`
+  reads `AsOfState` and `qualify_as_of` from the package and holds its own grain-string
+  comparison, unmoved, which is D-13.
+
+  The boundary is a gate rather than a docstring: two import contracts in `pyproject.toml`
+  place `semantic` directly above `ir` and below `marts`, and forbid it from reaching
+  `bloomery.dialects` or `bloomery.spec` by direct import.
+
+  `DependencyBasis` has four members — `ENTITY_KEY`, `MANY_TO_ONE`, `ONE_TO_ONE`, `AS_OF`
+  — and `RefusalReason` has eight, the last two of which execution added. Nothing in the
+  compile pipeline consults the closure yet: every test drives it directly, so the whole
+  surface is proved against hand-built and generated IR and against nothing a real spec
+  produced.
+goals: |
+  Structural grain identity rather than a display string. Functional dependencies
+  represented explicitly, each with a stated basis. A deterministic closure that returns
+  derivations rather than booleans. Directional rollup reachability answerable without
+  generating SQL.
+non_goals: |
+  Relaxing any mart rule: the mart contract is unchanged, and a wide mart still refuses a
+  measure whose origin grain is not the mart grain when embedding it would make ordinary
+  aggregation unsafe. Generating query plans, which is the planner design's job on top of
+  this. Inferring cardinality from warehouse data. A general-purpose relational theorem
+  prover.
+design:
+  - key: grain-is-structural-identity
+    md: |
+      A grain is an immutable value whose identity is derived from entity determinants, not
+      a name. Human-readable names remain available for diagnostics — `GrainRef.label`
+      renders one — but nothing compares them. The first implementation restricts authored
+      entity grains to the existing entity grain declaration while representing the
+      normalized determinant internally.
+
+      The representation supports composite grains whether or not the authored syntax
+      exposes every form: an order and its line, a product and warehouse and day, an account
+      and a snapshot day. A composite grain is not a concatenated string; determinants are
+      canonicalized and compared structurally, which is why order-independence of composite
+      equality is a test rather than an assumption.
+  - key: what-contributes-a-dependency
+    md: |
+      A declared `many_to_one` or `one_to_one` from `A` to `B` establishes that an `A` row
+      determines the referenced `B` identity, subject to the historical qualifications
+      below. A `one_to_many` does not establish preservation of the left grain for
+      flattening or rollup, and neither does any heuristic. The closure admits exactly four
+      bases — an entity's own key, a declared `many_to_one` (including a `one_to_many` read
+      inversely, which *is* a `many_to_one`), a declared `one_to_one`, and an as-of-qualified
+      historical hop — and composition over them, which is carried as a derivation of more
+      than one step rather than as a basis of its own (D-20).
+
+      The value of every proof built on top is exactly the weakest fact admitted here, which
+      is why D-3 is locked over the admission rule rather than over any one member.
+  - key: history-is-a-conditional-hop
+    md: |
+      An SCD2 target is not functionally determined by an equality key alone. A valid as-of
+      anchor plus validity semantics establishes a time-qualified dependency, and the grain
+      system consumes the same semantic fact the historical-fanout guardrail uses rather
+      than inventing a second interpretation (D-4, D-10).
+
+      Execution found the fact stated about a relationship *target* and not about the entity
+      itself, which left a versioned entity's own key claiming to determine every historical
+      column it carries — a false proof with an empty derivation. D-16 closes that: a
+      versioned entity contributes no entity-key dependency, an anchored hop determines the
+      whole target row rather than only the joined key, and a rollup *out of* a versioned
+      grain is refused. That is why `AS_OF` is a basis of its own rather than a
+      `many_to_one` carrying an anchor: it determines strictly more.
+  - key: rollup-is-directional
+    md: |
+      The question is `can_roll_up(source_grain, target_grain, context)`, and the direction
+      means that values originating at the source grain may be aggregated to the target
+      grain under the supplied semantic context. It is not arbitrary graph reachability:
+      undirected reachability would accept an order rolling up to an order item on the
+      strength of an edge existing, which D-2 refuses (D-5).
+
+      Refinement is never implicit. Moving a measure from a coarser grain to a finer one is
+      not a rollup, and no implicit operation may duplicate a measure merely because SQL can
+      perform the join. Shipping at order grain therefore remains unsafe on an order item
+      unless a future explicit semantic operation defines a different meaning; this document
+      defines no such operation.
+  - key: closure-and-derivations
+    md: |
+      The closure is a deterministic operation from a grain and a project to the semantic
+      references that grain determines, each with the derivation that reached it. It answers
+      whether a customer's country may be grouped from an order-grain source without
+      fan-out, whether a requested dimension preserves the source row identity, and which
+      relationships are required to reach a dimension.
+
+      Every member carries a derivation, not only a boolean (D-6): a proof tree needs the
+      derivation to build itself, and a case needs it to pin itself to a rule. Producing
+      booleans now would mean re-deriving the reason later, from the answer.
+
+      A derivation carries the whole hop it crossed — the joined column pairs and the
+      instant it read them at — and an ambiguous path is defined over those (D-19). One
+      column of the hop cannot tell two relationships joining on overlapping pairs apart,
+      and columns without the instant collapse two hops that join identically and are read
+      as of different dates: a tier as of the order date and a tier as of the ship date are
+      two numbers, and the collapse returned a proof where an ambiguity refusal was owed.
+
+      Nothing is cached (D-12). The dependency set is exposed separately from the closure so
+      a caller with many questions builds the set once without the model holding state.
+  - key: refusals
+    md: |
+      Structured refusals distinguish, at minimum: an unknown grain; no functional path; a
+      cardinality-expanding path; an unqualified historical path; an ambiguous path whose
+      alternatives imply different semantics; and an attempted refinement of a measure to a
+      finer grain. Execution added two more (D-17): an anchor supplied for a relation that
+      keeps no versions, which is not a history question at all and whose repair is to drop
+      the anchor, and a source grain that names a versioned entity.
+
+      A cardinality-expanding refusal is classified by undirected connectivity over the
+      relationship graph, run only after the closure has already refused (D-14). The obvious
+      implementation — re-closing with `one_to_many` admitted in its declared direction — is
+      near-dead code, because such a relationship's join lands on the target's foreign key
+      rather than its own, so the target never unfolds.
+
+      A refusal names only the edges holding *this* question (D-18). The blocked-edge set is
+      project-wide by design, so passing it through a refusal reports a relationship from an
+      unrelated part of the graph as the blocker; a historical refusal is narrowed to the
+      hops the relaxed closure walked, and a fan-out refusal to the edges whose removal
+      disconnects the two grains.
+  - key: the-api-boundary
+    md: |
+      The grain engine sits below request planning and above raw target lowering. It must
+      not depend on SQLMesh, dbt, Cube, MetricFlow or SQL syntax. Target-specific planners
+      may consume proven grain facts; they may not manufacture them.
+
+      The placement is the enforcement: the layered import contract puts `bloomery.semantic`
+      directly above `bloomery.ir` and below `bloomery.marts`, which is the lowest placement
+      admitting both of its eventual consumers, and a second contract forbids it from
+      importing `bloomery.dialects` or `bloomery.spec` directly. The one edge that already
+      exists is `marts -> semantic`, which is D-4 working.
+  - key: interaction-with-marts
+    md: |
+      This document does not change the mart contract. A wide mart still refuses a measure
+      whose origin grain is not the mart grain when embedding it would make ordinary
+      aggregation unsafe. The grain model should eventually become the implementation
+      substrate for that refusal, but replacing the implementation must preserve observable
+      behaviour and golden diagnostics unless a later design amends them explicitly.
+
+      D-9 is what turns that from an argument into a diff: the grain model is derived from
+      the IR and never stored in it, so no IR node gains a field, the IR version does not
+      move, no project fingerprint moves and no golden moves. D-13 answers the sequencing
+      question D-8 left open — the substrate has no consumer yet, so moving a shipped
+      refusal onto it now carries the whole risk for none of the benefit.
+tests: |
+  `tests/unit/test_semantic/test_closure.py` is the unit tier for the whole vocabulary — 41
+  tests covering direct and transitive `many_to_one` closure, the asymmetry that keeps a
+  `one_to_many` out of the closure in the preserving direction, an SCD2 target with and
+  without a valid anchor, order-independent composite determinant equality, both directions
+  of the ambiguity question (two names for one route, and one dependent column reached two
+  ways), the refusal vocabulary, and the fact that the mart's grain refusal has *not* moved
+  onto this substrate.
+
+  `tests/property/test_grain_properties.py` generates small relationship graphs and checks
+  that an accepted dependency never crosses a cardinality-expanding edge without an
+  explicit rule.
+
+  `tests/unit/test_determinism_guard.py` walks the closure, the dependency set and the
+  rollup question across hash seeds and compares bytes; `tests/support/grain_model.py` is
+  the hand-built project it and the unit tier drive, shapes rather than YAML, and it
+  carries the `one_to_one` case that is the only way one relationship blocks twice in one
+  call.
+
+  `tests/unit/test_semantic/test_proof.py` pins the asymmetry D-20 leaves behind: R005 is
+  registered and named by no basis.
+
+  The existing mart and guardrail suites are the pin that the as-of extraction was a
+  refactor — `tests/unit/test_marts` and `tests/unit/test_guardrails` passed unchanged
+  across it, and sabotaging `qualify_as_of` turns three of them red.
+docs: |
+  `pages/docs/concepts/what-bloomery-proves.md` carries the worked refusal whose basis name
+  D-20 removed; the example was rewritten against the emitted template and is now held by a
+  docs-floor test rather than by a hand copy.
+out_of_scope: |
+  Stated once for the whole semantic-correctness sequence this document roots: multi-measure
+  planning before the multi-grain query design, derived metric rewrites, query SQL
+  generation, inferring cardinality from warehouse data, accepting unsafe marts, and a
+  general-purpose relational theorem prover.
+risks: |
+  **The closure's termination is argued, not proven.** Each member holds at most two
+  derivations and the merge keeps the two smallest by signature, so the held pair is
+  monotone and the fixpoint settles — but that is an argument about a graph walk. The
+  evidence is a hundred generated graphs per property, cycles included, plus a corpus that
+  declares a relationship both ways. No case has failed to terminate and no malicious graph
+  shape has been searched for.
+
+  **The derivation ceiling has no consumer yet.** `MAX_DERIVATIONS` is two. It is safe in
+  the direction that matters — a member with three routes still reports as ambiguous, so
+  the cap can only cause a refusal and never a proof — but a caller that wants to
+  *enumerate* routes will find two of them.
+
+  **Nothing consults this package on the compile path.** The first real fixture to reach it
+  is the planner's, and that is where a mismatch between an entity's declared key as the
+  grain and what a mart means by grain would first show up.
+
+  **A documented refusal is a copy of a string that lives in source.** Two of the entries
+  in `logs/T-0041.md` are that class, both past a self-audit and a review round; the
+  docs-floor gate that closes it landed with them, for one message.
+sections:
+  - key: provenance
+    md: |
+      This document is a backfill. Its source is `rfcs/0037-semantic-grain-model.md`,
+      numbered 0037 in bloomery's own corpus, where it is recorded as complete and retained
+      rather than retired: two live documents there still argue in its vocabulary, and the
+      rule in `rfcs/INDEX.md` is that such a root leaves the directory with the last of its
+      dependants. It is the root of that corpus's semantic-correctness sequence.
+
+      Every row below is carried across with the grade the source gives it. Rows 1 through 8
+      were authored; rows 9 through 19 were proposed by execution and accepted by the owner;
+      row 20 was added by a later execution. Nothing has been re-graded here, and no row has
+      been added that the source does not hold.
+
+      **What landed, and where.** The vocabulary landed whole in `#78`, commit `37718666`:
+      the package, the as-of extraction out of the mart guard, the two import contracts, the
+      unit and property tiers, and the determinism guard's grain cases. The one later change
+      is `#103`, commit `074a5718`, which removed the composition member from the basis
+      vocabulary — that is row 20. The source document declares no phases of its own: it is
+      vocabulary, and what it unblocks is phased in the documents built on it.
+
+      **The execution record.** `logs/T-0017.md` holds the first execution's ten entries at
+      a declared drift of zero, and its self-audit, which found a hash-seed-ordered sort key
+      on a blocked edge, a `match` over a shared enum ending in a catch-all, an unfailable
+      assertion in the test for row 8, and two unreachable branches. `logs/T-0041.md` holds
+      the second at a declared drift of three. `tasks/T-0041.json` is the contract the second
+      executed under, declaring row 3 over three files of the package.
+alternatives:
+  - option: >-
+      Keep grain comparison as string equality and let each consumer widen it
+    rejected_because: >-
+      Four consumers compare grains — the planner's rollup proof, the measure's origin,
+      the branch join key, the mart's refusal — so one identity re-derived four times
+      is four chances to disagree, and disagreement here is a plausible wrong number
+      rather than a crash
+    cites: [D-1]
+  - option: >-
+      Answer the rollup question by graph reachability over the relationship graph
+    rejected_because: >-
+      Undirected reachability accepts a coarser grain rolling up to a finer one on
+      the strength of an edge existing, which is exactly the refinement D-2 forbids;
+      reachability survives only as a diagnosis, run after the closure has already
+      refused
+    cites: [D-2, D-5, D-14]
+  - option: Store the grain on an IR node
+    rejected_because: >-
+      Adding a field moves the IR version, every project fingerprint and every golden,
+      which spends the corpus's fingerprints for a derived view that costs nothing
+      to compute; it is also the constraint the documents downstream are next tempted
+      to break
+    cites: [D-9]
+  - option: Infer cardinality from warehouse data
+    rejected_because: >-
+      A heuristic is the weakest fact admitted into the closure, and the value of
+      every proof built on top is exactly that fact; a dependency this compiler believes
+      is one a person declared or the compiler composed from declarations
+    cites: [D-3]
+  - option: >-
+      Read SCD2 validity a second time inside the grain model
+    rejected_because: >-
+      One body with two readings of the same semantic fact is the divergence this
+      project has paid for before; the shared half moved down into the package and
+      the mart guard now dispatches on it, keeping only the wording
+    cites: [D-4, D-10]
+  - option: >-
+      Compare routes by the names of the relationships they crossed
+    rejected_because: >-
+      Names get both directions wrong at once — one relationship declared in both
+      directions reads as two meanings and refuses falsely, and two routes onto one
+      dependent column read as one meaning and prove falsely
+    cites: [D-11, D-19]
+  - option: >-
+      Return booleans from the closure and reconstruct the reason when a consumer
+      needs it
+    rejected_because: >-
+      Reconstructing a derivation from an answer is deriving it again, differently,
+      in the place least able to check it; the proof tree and the case pinning both
+      need the route, not the verdict
+    cites: [D-6]
+  - option: Cache the closure
+    rejected_because: >-
+      A memo keyed on a graph walk is where a deterministic walk stops being deterministic,
+      and D-7 makes that a correctness question rather than a performance one; there
+      is still no measurement to argue from
+    cites: [D-7, D-12]
+  - option: >-
+      Re-implement the mart's grain refusal on this substrate immediately
+    rejected_because: >-
+      The substrate has no consumer until a planner exercises it, so moving a shipped
+      refusal onto it now carries the whole of the observable-behaviour risk for none
+      of the benefit; the first phase with a reason to touch the mart path is where
+      the question is asked again
+    cites: [D-8, D-13]
+questions:
+  - id: Q-1
+    text: >-
+      Whether the grain representation can be reached without an IR version bump —
+      whether the determinant representation rides existing nodes or adds one, which
+      decides how much of the preserve-observable-behaviour requirement is mechanical.
+    status: settled
+    settled_by: D-9
+  - id: Q-2
+    text: Where the closure is cached, if anywhere.
+    status: settled
+    settled_by: D-12

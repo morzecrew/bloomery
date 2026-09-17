@@ -1,0 +1,274 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0015
+title: Redshift dialect port
+kind: design
+status: draft
+implementation: none
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  A `redshift` `DialectPort` whose whole discipline is that it must not become the
+  PostgreSQL port under another name: no subclassing, fixtures split into a
+  `postgres-compatible` class and a `redshift-native` class, and a local lane that says
+  in its own test names that PostgreSQL accepted the query.
+
+  Redshift is close enough to PostgreSQL to reuse ideas and fixtures, and different
+  enough that inheriting PostgreSQL behaviour without verification is dangerous. Two
+  inheritances run at once here and each one hides the other: a port derived from the
+  PostgreSQL port bloomery already ships, validated against a surrogate that is a
+  PostgreSQL container wearing a Redshift-shaped control plane. Every PostgreSQL-specific
+  rewrite is audited before reuse, the local lane is evidence rather than an oracle, and
+  the engine's own `EXPLAIN` is the first rung that says anything about the
+  `redshift-native` class at all.
+motivation: |
+  bloomery ships three dialects and every one of them runs in a container, so the tier
+  that has caught the port defects the cheaper tiers could not see is the one that runs
+  the real engine. Redshift has no container. What it has instead is the most misleading
+  local story of the four cloud engines: a surrogate that runs SQL, returns rows and goes
+  green, while being the engine bloomery already has a port for.
+
+  The failure this document exists to prevent is therefore not a red test. It is a green
+  one — a Redshift lane whose passes are the PostgreSQL scaffold passing, quoted six
+  months later as Redshift conformance by someone who will not re-read the test body.
+  The discipline is cheap to write down now and expensive to retrofit: the fixture split
+  costs nothing before there are fixtures, and unpicking a subclass after artifacts ship
+  is a breaking change.
+current_state: |
+  Measured against the working tree on 2026-09-18.
+
+  - **Three dialects ship** — `src/bloomery/dialects/duckdb.py`, `postgres.py` and
+    `trino.py`, registered by name in `src/bloomery/dialects/__init__.py`. There is no
+    `redshift.py`, no `tests/unit/test_dialects/test_redshift.py`, no `redshift`
+    directory under `tests/golden/`, and no `tests/support/redshift.py`.
+  - **The port surface is five methods plus `utc_now`** on the `DialectPort` protocol in
+    `src/bloomery/dialects/base.py`; the complexity is not in the interface but in the
+    rewrites each `render` applies.
+  - **`DialectFeature` is five capabilities** — `JSON_EXTRACT`, `TIMEZONE_CONVERT`,
+    `REGEXP_EXTRACT`, `VARIANT_TYPE`, `ARRAY` — and a dialect without `ARRAY` lowers
+    `_quality_flags` to a delimited string instead.
+  - **The PostgreSQL rewrites that are at stake are all present and named** in
+    `src/bloomery/dialects/postgres.py`: `_variant_is_jsonb`, `_jsonb_extraction`,
+    `_guarded_try_cast` behind `pg_input_is_valid`, `_zoneless_parse`, `_pg_text_functions`
+    and the `_RESERVED` word list used for identifier quoting.
+  - **The marker table in `pyproject.toml` has six tiers and no surrogate rung.**
+    `engine(name)` means Docker plus the real engine; nothing today distinguishes "ran
+    against the engine" from "ran against something engine-shaped".
+  - **`tests/engines/` holds PostgreSQL and Trino lanes only**, none of which guards
+    against a missing Docker daemon — an engine-tier file run directly outside
+    `just test`'s marker expression fails on the container, not on a skip.
+  - **The shipped dialects are enumerated in three more places** the tree will refuse
+    silence about: `tests/unit/test_dialects/test_base.py` asserts the exact known-dialect
+    list in a refusal message, `tests/unit/test_docs_floor.py` compiles the quality corpus
+    for all three by name, and `pages/docs/reference/dialects.md` opens by saying three
+    dialects ship.
+  - **Nothing has landed.** No task contract under `tasks/` and no log under `logs/` names
+    this port, and `git log` over every path below is empty. All four phases remain.
+goals: |
+  A `redshift` `DialectPort` that a reader can tell apart from the PostgreSQL port by
+  reading it, validated on a ladder whose every rung states what a green result proves,
+  with the fixture classes split from the first fixture rather than after the corpus
+  exists.
+non_goals: |
+  Deciding how many cloud ports bloomery should have, or re-deciding the shared
+  validation method the four cloud-port documents rest on. Making the local lane better:
+  it is deliberately left as evidence, and no effort is spent widening what it can speak
+  to.
+design:
+  - key: the-double-inheritance
+    md: |
+      The existing PostgreSQL port is a scaffold, not a correctness proof. So is every
+      local Redshift environment: they are PostgreSQL containers wearing a
+      Redshift-shaped control plane, and a query passing one of them proves only that
+      PostgreSQL accepted it.
+
+      That double inheritance — a port derived from PostgreSQL, validated against
+      PostgreSQL — is this document's whole subject. Each half of it conceals the other.
+      A rewrite inherited from the PostgreSQL port renders SQL the surrogate accepts,
+      because the surrogate *is* PostgreSQL; the lane goes green and the inheritance is
+      never questioned. Breaking one half does not help: a hand-written port validated
+      only against the surrogate is checked against the same wrong oracle, and a port
+      that subclasses is wrong even where the oracle is right. Both halves are broken
+      here, by D-1 and by D-2 respectively.
+  - key: the-rewrite-surface
+    md: |
+      Every PostgreSQL-specific rewrite is audited before reuse. The ones bloomery
+      actually has, and what is at stake in each:
+
+      - **`JSONB` lowering and `_variant_is_jsonb`** — Redshift has `SUPER` and PartiQL
+        path semantics, not `JSONB`.
+      - **`pg_input_is_valid`** — the PostgreSQL-specific safe-cast emulation behind
+        `_guarded_try_cast`. Redshift's `TRY_CAST` is a different construct with
+        different coverage.
+      - **`regexp_substr`'s sixth argument** — the capture-group spelling `capture_group`
+        exists for. Redshift's regexp functions and argument order differ.
+      - **The `bytea` SHA spelling**, against Redshift's own SHA input and output types.
+      - **The reserved-word list** used for identifier quoting.
+      - **`_zoneless_parse` and the timezone implementation**, against the zoneless-UTC
+        invariant the IR carries.
+      - Plus: decimal limits and arithmetic; array and collection capability for
+        `DialectFeature.ARRAY`; Unicode normalization support; functions present in
+        PostgreSQL and absent in Redshift, and the reverse.
+
+      Each of these is a plausible-looking spelling. That is the property that makes them
+      dangerous: none of them looks like a guess, and every one of them is one until the
+      engine's own compiler has seen it.
+  - key: the-fixture-split
+    md: |
+      Fixtures are split into two explicitly named classes, because the local lane can
+      only speak to one of them:
+
+      ```text
+      postgres-compatible
+      redshift-native
+      ```
+
+      The split is cheap before there are fixtures and expensive afterwards, which is why
+      it is phase 1 work rather than phase 2 work even though nothing consumes it until
+      phase 2. Without it, the local lane's coverage number silently includes cases it
+      cannot speak to — which is how a partial lane comes to be read as a full one.
+  - key: local-execution-and-what-it-cannot-say
+    md: |
+      **Floci** provides a Redshift-shaped control plane and a PostgreSQL wire-protocol
+      data endpoint, managing a real PostgreSQL container per emulated cluster. It is
+      genuinely useful for provisioning and connection flows, endpoint discovery,
+      wire-protocol integration, dbt and SQLMesh plumbing, basic DDL and DML, and the
+      PostgreSQL-compatible subset.
+
+      It must not be the oracle for `SUPER`, PartiQL, Redshift-only functions, Redshift
+      type rules, planner behaviour, or any construct where the two have diverged.
+
+      **LocalStack Redshift** emulates the AWS control plane and Data API — useful for
+      SDK integration and infrastructure plumbing, and optional while bloomery stays a
+      pure compiler.
+
+      Both are the surrogate rung and both are marked so:
+
+      ```python
+      @pytest.mark.surrogate("redshift_postgres")
+      ```
+  - key: the-authoritative-layers
+    md: |
+      The rung that changes the economics is the engine's own compiler, reached without
+      executing anything:
+
+      ```sql
+      EXPLAIN <query>;
+      EXPLAIN VERBOSE <query>;
+      ```
+
+      against a real cluster or Serverless workgroup, building a plan without running it.
+      It catches syntax Redshift rejects, unavailable functions, incompatible argument
+      types, relation and column resolution failures, and many
+      PostgreSQL-versus-Redshift divergences. `EXPLAIN` covers query and DML statements
+      but not arbitrary DDL, so DDL acceptance needs its own small check.
+
+      The targeted execution corpus then covers what a plan cannot settle — values:
+      `SUPER` and PartiQL extraction, timestamp conversion, `TRY_CAST`, decimals, regexp,
+      SHA behaviour, null semantics, and quarantine results. It stays deliberately small
+      and its tables tiny.
+tests: |
+  - `tests/unit/test_dialects/test_redshift.py` — the port's rewrites and declared
+    capabilities.
+  - `tests/golden/<fixture>/<target>/redshift/` — byte-stable artifacts per fixture and
+    target, driven by the dialect list in `tests/golden/test_sqlmesh_dialects.py`.
+  - `tests/support/redshift.py` — the fixture classification and the connection,
+    submission and row-canonicalization harness.
+  - `tests/engines/test_redshift_surrogate.py` — the local lane, `postgres-compatible`
+    fixtures only.
+  - `tests/engines/test_redshift_live.py` — the authoritative compile rung and the
+    targeted execution corpus against a real cluster or Serverless workgroup.
+docs: |
+  `pages/docs/reference/dialects.md` counts the shipped dialects in its first line and
+  tabulates them three times over; a fourth port that leaves it saying three is a stale
+  page of exactly the kind that once cost a shipped dialect its standing with a reviewer.
+out_of_scope: |
+  The CI lane itself — which workflows run live, behind which GitHub Environment, and
+  under what identity — belongs to the shared validation method for the cloud ports, not
+  here. So does whether a cloud port ships in-tree or as a package registered through
+  `register_dialect`. AWS control-plane and Data API integration is named only to say it
+  stays optional while bloomery is a pure compiler.
+risks: |
+  - **The port drifts back toward PostgreSQL through sharing rather than inheritance.**
+    D-1 forbids the subclass and permits the helper; the boundary between them is where
+    the temptation moves next. D-7 is the mitigation and is deliberately `OPEN`: the
+    shared helpers are enumerated when the port is written, so a later reader can tell a
+    shared abstraction from a leaked assumption.
+  - **The surrogate lane's coverage number is read as the port's.** The fixture split is
+    the mitigation, and it only works if the `redshift-native` class never runs there —
+    which is D-3, and which is why the split is phase 1 rather than phase 2.
+  - **Phases 3 and 4 cannot be proven in a sandbox.** Their acceptance collects the lane
+    without executing it; what the lane actually says is read from a live run, and a
+    green acceptance on those two phases is a weaker claim than on phase 1.
+  - **Every path below was read from the working tree, but most of them do not exist
+    yet.** They are intended areas, not measured ones, and the file names are this
+    document's proposal rather than a fact about the tree.
+sections:
+  - key: provenance
+    md: |
+      This document is a backfill. Its source is `rfcs/0049-redshift-dialect.md`, which
+      stands in bloomery's own corpus with the status `Draft` — proposed, not scheduled —
+      as the index row for it says. It is one of four per-engine documents that rest on
+      the shared cloud-port validation method in
+      `rfcs/0046-validating-a-dialect-port.md`, which is itself Draft; the numbering of
+      that family is 0046 for the method and 0047, 0048, 0049 and 0050 for Snowflake,
+      BigQuery, Redshift and Databricks.
+
+      The carry is a translation, not a redesign. Rows D-1 through D-7 here are rows 1
+      through 7 of that document's decision table in its order and with its grades; the
+      text is the owner's, tightened where a sentence cited a retired document by number.
+      Row 2 there rests on the first two rows of the method document, and row 6 there
+      rests on the flags rule that lowers `_quality_flags` to a delimited string for a
+      dialect without `ARRAY`; both citations are carried as prose rather than as
+      identifiers, because the documents they name are not in this corpus. `cites` is
+      empty on every row for the same reason, and `informed_by` names only S-0001, this
+      repository's standing baseline.
+
+      **No phase has landed.** No pull request, task contract or task log names this
+      port, and `git log` is empty over `src/bloomery/dialects/redshift.py`,
+      `tests/unit/test_dialects/test_redshift.py`, `tests/support/redshift.py` and both
+      `tests/engines/test_redshift_*.py` files. All four phases are therefore carried
+      into `phasing`, and `implementation` is `none`.
+
+      Two things here are not in the source document and are marked as such. The phase
+      scopes name `tests/unit/test_dialects/test_base.py`,
+      `tests/unit/test_docs_floor.py` and `pages/docs/reference/dialects.md`, which the
+      source never mentions and which a fourth dialect must touch — each of the three
+      enumerates the shipped dialects by name. The reference page is a second entry at
+      phase 2 rather than part of the port phase: its scope is disjoint from the lane
+      beside it, so the two run in parallel, and a contract spanning `src/` and `pages/`
+      sizes too large here. And the acceptance commands for phases 2 through 4 collect
+      their lane rather than running it, because those lanes need Docker or a live
+      credential and neither is reachable from the sandbox a contract is executed in.
+alternatives:
+  - option: >-
+      `RedshiftDialect` subclasses `PostgresDialect` and overrides what differs
+    rejected_because: >-
+      It is the one mechanism by which this port becomes wrong while looking finished.
+      Subclassing makes every PostgreSQL rewrite silently legal here, and the ones
+      at stake are exactly the ones a reviewer cannot spot as absent: the `JSONB`
+      lowering, `pg_input_is_valid`, `regexp_substr`'s argument order, the reserved-word
+      list. Unpicking it after artifacts ship is a breaking change. Closed by D-1.
+  - option: >-
+      Mark the local lane `engine("redshift")` and reuse the tier that already exists
+    rejected_because: >-
+      The claim a test makes is its name, read in a CI log and in a report nobody
+      re-opens the body of. `engine("redshift")` over a PostgreSQL container reads
+      as "Redshift passed" and is a scaffold passing. Closed by D-2.
+  - option: >-
+      Layer a `SUPER` and PartiQL translation over the existing `JSONB` lowering
+    rejected_because: >-
+      They are different data models, not different spellings, and a translation layer
+      that mostly works is worse than a port that refuses `variant` until it is built.
+      Closed by D-4, which is `ASSUMED`: departing means measuring that a subset genuinely
+      maps, and saying which subset.
+  - option: >-
+      Wait for a real Redshift container before starting the port
+    rejected_because: >-
+      There is none, and there is no reason to expect one. The engine's own `EXPLAIN`
+      builds a plan without running it, at negligible cost and with no data scanned,
+      which is a better acceptance oracle than any emulator — so the absence of a
+      container does not block this port.

@@ -1,0 +1,396 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0011
+title: Retrieval semantics
+kind: design
+status: draft
+implementation: none
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  Semantic spaces, vector-field annotations and retrieval profiles as their own optional
+  spec kind, so an embedding corpus is refused when its dimensions, its space or its grain
+  disagree. Storage- and vendor-neutral: no vector database, no index, no embedding value
+  ever computed or read. A declared vector dimension is a new logical type, and that is the
+  whole cost of the design rather than a detail of it: the type set has no array member and
+  no float member, so the change reaches the type grammar, the transform domains and every
+  shipped dialect port. One deterministic manifest is emitted by a target of its own.
+  Projects declaring no retrieval spec compile byte-identically.
+motivation: |
+  Retrieval datasets fail in bloomery's signature way: the SQL is right and the answer is
+  not. A column typed as an array of floats whose rows came from two different
+  1536-dimension models is type-valid, indexable, queryable and semantically meaningless.
+  A profile pointing a text query at an image embedding of the same width is mechanically
+  perfect and wrong. A cosine-trained model served against an L2 index answers plausibly
+  and incorrectly. Four failure classes, none of which a type system catches:
+
+  | Failure | What is valid | What is wrong |
+  |---|---|---|
+  | Mixed producers | dimensions agree | half the rows are a different model's space |
+  | Wrong encoder side | dimensions agree | a query encoded as a document, on an asymmetric model |
+  | Wrong space | dimensions agree | a text query against an image embedding |
+  | Wrong metric | the index builds | cosine-trained vectors scored by L2 |
+
+  Each is decidable from the spec alone, which is the test that separates a guardrail from
+  a data-quality rule here. Nothing below needs to read a row.
+current_state: |
+  Nothing of this design has landed. `grep -ril retrieval src tests examples pages` matches
+  nothing; no file under `tasks/` and no log under `logs/` names it. What follows is the
+  tree the design has to grow into, measured on 2026-09-18.
+
+  - **There is no array type and no float type.** `LogicalType` at
+    `src/bloomery/typing/types.py` is a seven-member union — string, int, decimal,
+    bool, date, timestamp, variant. Neither of the two shapes the source proposal offered
+    as a choice exists; whichever is picked, the union grows.
+  - **The spec layer validates the same closed grammar.** `TYPE_STRING_PATTERN` at
+    `src/bloomery/spec/common.py` admits exactly those seven spellings and nothing else,
+    and `parse_type` consumes the same pattern.
+  - **Spec kinds are a closed map, and it has grown.** `_KIND_KEYS` at
+    `src/bloomery/spec/project.py` keys documents by one of eight `<kind>_version` keys:
+    `spec`, `mapping`, `metrics`, `marts`, `steps`, `exposures`, `exports`, `imports`. The
+    source document measured five; three kinds have been added since, which is evidence
+    that adding a kind is a supported move rather than a novel one.
+  - **A manifest-only target already exists.** `Target` at `src/bloomery/compile.py` has
+    four members, and `METRICFLOW` — landed in `2d386226` — emits one semantic manifest and
+    no models, through 921 lines under `src/bloomery/emit/metricflow/__init__.py`. That is
+    structurally what a retrieval manifest is. `ArtifactKind` at
+    `src/bloomery/emit/base.py` already carries `MODEL` for a semantic surface.
+  - **`physical_type` is one method over three tables, not three methods.**
+    `SQLGlotDialect.physical_type` at `src/bloomery/dialects/base.py` computes decimal
+    and otherwise indexes a per-port `scalar_types` mapping; the three shipped ports supply
+    one each in `src/bloomery/dialects/duckdb.py`, `postgres.py` and `trino.py`. The blast radius is
+    real but it is three dictionary entries and a refusal, not three method bodies.
+  - **The transform whitelist is twenty-four built-in specs**, each declaring an input
+    domain; `TransformSpec.input_domain` is at `src/bloomery/transforms/registry.py`.
+  - **The float ban is about values, and its enforcement is not where the source document
+    says.** `.pre-commit-config.yaml` carries no pygrep hook for floats; the ban is held by
+    the type set having no float member and by tests that assert it directly, among them
+    `tests/unit/test_spec/test_quality.py`,
+    `tests/unit/test_steps/test_lowering.py` and
+    `tests/unit/test_planner/test_parse.py`. The rule holds unchanged under this
+    design, because a spec declares a scalar **type name** and an integer count; no float
+    literal enters the IR and no arithmetic is performed on one.
+  - **There is no intake for measured evidence.** `src/bloomery/evidence.py` opens with
+    "Everything knowable about a spec without touching data", and there is no surface
+    anywhere for supplying a null rate or a freshness measurement.
+  - **Grain is prose plus a key.** `EntityIR.grain` is a human sentence; `key` is the tuple
+    that identifies a row. Retrieval grain has to be built on `key`.
+goals: |
+  - A semantic space is a named, reusable declaration: dimensions, scalar type, distance,
+    and the opaque identity of the encoders that produce it.
+  - A field can be declared to live in a space, and the compiler checks that it can.
+  - A retrieval profile declares a corpus, its grain, its vector side, its lexical side,
+    its filters and its projection — and is refused when any of those disagree.
+  - One deterministic manifest, byte-identical across processes and hash seeds.
+  - A project with no retrieval spec is unchanged, to the byte.
+non_goals: |
+  - **Executing anything.** No vector-store client, no vector query, no index build, no
+    object store, no credential, no provider call. The purity boundary is not weakened;
+    the design section on where it would break states the line.
+  - **A vendor target.** A vector-database member of the target enum is refused outright,
+    and the extension seam is where a vendor emitter belongs.
+  - **Computing or reading embeddings.** bloomery never sees a vector value. That is what
+    keeps the float ban intact rather than merely tolerated.
+  - **Runtime-evidence intake.** A real and separable feature over every column, not a
+    retrieval one.
+  - **Multimodal compatibility groups, weighted fusion, index parameters.** Listed under
+    out of scope with what would reopen each.
+design:
+  - key: a-separate-spec-kind
+    md: |
+      The kind is its own document, loaded by its own `<kind>_version` key:
+
+      ```yaml
+      retrieval_version: 1
+
+      semantic_spaces:
+        support_text:
+          dimensions: 1536
+          scalar: float32
+          distance: cosine
+          document_encoder: {family: openai, model: text-embedding-3-small, input_kind: document}
+          query_encoder:    {family: openai, model: text-embedding-3-small, input_kind: query}
+
+      profiles:
+        support_search:
+          relation: {mart: support_search}
+          grain: [chunk_id]
+          vector: {field: embedding, space: support_text}
+          lexical: {fields: [text]}
+          fusion: {method: rrf}
+          filterable: [tenant_id, document_id]
+          return: [chunk_id, document_id, text]
+      ```
+
+      Its own kind rather than optional keys on the entity model, for a reason the source
+      proposal reaches but does not give: `spec_version: 1` is a promise that a document
+      which loads keeps loading, and every optional key added there is a key every future
+      reader of every entity model has to know about. A separate kind is invisible to a
+      project that does not use it, versions on its own clock, and can be refused wholesale
+      by a target that cannot serve it. `_KIND_KEYS` already shows the move being made
+      three times since the source document measured it.
+
+      The encoder identities are **opaque strings compared for equality**. bloomery does not
+      know what `text-embedding-3-small` is, cannot verify it exists, and must never look it
+      up — a compile that consulted a provider would read the network, which the purity
+      boundary forbids outright. What the identity buys is one comparison: two things
+      claiming the same space must name the same producer.
+  - key: the-type-system-cost
+    md: |
+      The field has to carry its dimension, or the cheapest guardrail has nothing to check
+      against:
+
+      ```yaml
+      fields:
+        embedding: {type: "vector(float32, 1536)"}
+      ```
+
+      That is an eighth member of `LogicalType`, and the honest blast radius is:
+
+      | Site | What changes |
+      |---|---|
+      | `src/bloomery/typing/types.py` | an eighth union member, and a dataclass carrying a scalar name and an int |
+      | `src/bloomery/spec/common.py` | `TYPE_STRING_PATTERN` grows an alternative |
+      | `parse_type` / `render_type` | parse and spell the new form |
+      | `assignable` | a vector is assignable to nothing and from nothing |
+      | the transform whitelist | twenty-four input domains, none of which admit it |
+      | each port's `scalar_types` | three tables, three spellings, and a refusal where a dialect has none |
+
+      "A vector accepts no transform" is the cheapest correct default and should stay that
+      way until something needs otherwise: a transform chain over an embedding is a
+      different feature, and admitting one by accident would put float arithmetic inside a
+      lowered expression, which is precisely what the ban exists to stop.
+
+      This cost is the strongest argument for answering Q-1 before building anything. It is
+      not a bolt-on.
+  - key: the-guardrails
+    md: |
+      The refusals are the feature. Ten in the source proposal; they collapse to six that
+      are decidable and distinct, and the collapsing matters — a guardrail nobody can state
+      crisply is one nobody maintains.
+
+      | Refusal | Because |
+      |---|---|
+      | field dimensions differ from space dimensions | the arithmetic cannot run; the cheapest possible catch |
+      | field scalar differs from space scalar | a float32 corpus scored against a float16 query is a silently different space |
+      | a profile's vector field is not a vector type | "any array will do" is how the mixed-model corpus happens |
+      | a field's declared producer differs from its space's producer | dimensions agreeing is not spaces agreeing |
+      | profile grain differs from the corpus relation key | one vector per retrievable item, or the corpus is not a corpus |
+      | a filterable or returned field is absent from the corpus relation | the query cannot be served, and finding out at run time is the failure mode this project exists to move earlier |
+
+      The grain refusal is the one that most resembles bloomery's existing work: it is the
+      grain violation's argument in a different domain, and it lands beside
+      `src/bloomery/guardrails/grain.py`. A mart at document grain carrying chunk embeddings
+      has either duplicated a vector or collapsed several, and both make top-k meaningless.
+      Strict key equality against the corpus relation, the same rule already applied to
+      measures; when the grain vocabulary of `rfcs/0037-semantic-grain-model.md` lands, both
+      can be restated on it at once.
+
+      The source proposal's rule that returned fields must not change grain folds into the
+      grain refusal: a projection that multiplies rows *is* a grain change, and refusing it
+      needs no second rule. Its rule that hybrid retrieval needs both sides is a schema
+      requirement rather than a guardrail — a fusion block is meaningless without both, so
+      the grammar makes it unrepresentable instead of refusing it later. Its rule that
+      searchable is not filterable is a *design* rule, honoured by requiring both
+      declarations, not a check that can fire.
+
+      **Fusion is reciprocal rank fusion only.** It combines ranks, so it needs no shared
+      scale between a lexical score and a cosine similarity.
+  - key: the-manifest
+    md: |
+      One artifact, `retrieval_manifest.json`, sorted keys, deterministic, emitted as
+      `ArtifactKind.MODEL` — a semantic surface, exactly as the existing semantic manifest
+      is. It carries the resolved profile: the relation under the naming policy, the grain,
+      the vector field with its space fully inlined (dimensions, scalar, distance, both
+      encoder identities), the lexical fields, the fusion method, the filters and the
+      projection.
+
+      Inlined rather than referenced, because the consumer is a runtime that has no access
+      to the spec tree: a manifest naming a space and nothing else would make the reader go
+      and find a file bloomery did not emit.
+  - key: a-target-of-its-own
+    md: |
+      The manifest is emitted by a target, on the precedent already in the tree:
+      `Target.METRICFLOW` emits one JSON manifest, no models, and nothing else, and a
+      retrieval manifest is the same shape. The claim that a target must be a concrete
+      artifact ecosystem stopped being true when that member landed.
+
+      The genuine difference is that the existing manifest target names a consumer and this
+      one names an artifact — no framework reads it. That asymmetry in the enum is real,
+      and it is why the row carrying this is graded `ASSUMED` rather than locked.
+
+      A vendor-oriented emitter, if it is ever wanted, is `register_emitter` at
+      `src/bloomery/emit/__init__.py` — the extension seam that already accepts an
+      out-of-tree emitter. It never needs to be in core, and it should not be until it has
+      an artifact contract someone has run.
+  - key: where-the-boundary-would-break
+    md: |
+      Stated so that a future reader can tell a feature from an erosion. This design's line
+      holds because nothing in it reads a vector, a catalog, or a provider. It would break
+      at:
+
+      - computing an embedding, or calling a provider to validate a model name;
+      - reading a vector table's schema to check a column;
+      - emitting an index build that bloomery then runs;
+      - anything that makes compilation depend on which vector store is reachable.
+
+      The first is the tempting one: verifying that `text-embedding-3-small` exists would
+      catch a typo, and would make the compiler a network client and its output a function
+      of the day. The typo is caught instead by comparing two declarations to each other.
+tests: |
+  - **Guardrails:** one refusal test per rule, each on a spec that is otherwise valid, so
+    what fails is the rule under test. They land under `tests/unit/test_guardrails/`, in the
+    shape the sixteen modules already there use.
+  - **Determinism:** the manifest through the existing cross-process, cross-`PYTHONHASHSEED`
+    guard at `tests/unit/test_determinism_guard.py`, which is where an unsorted space or
+    profile collection would surface.
+  - **The unchanged claim, as a test:** `tests/golden/` emits byte-identically with the
+    feature present and unused. This is the acceptance criterion most likely to be asserted
+    in prose and never run, and it is carried as I-1 rather than as a sentence.
+  - **Type-system reach:** a vector column refused by every transform
+    (`tests/unit/test_transforms/test_type_conformance_corpus.py` is where that corpus
+    lives), and a physical spelling per shipped port under `tests/unit/test_dialects/` —
+    three `scalar_types` tables are where "we added a type" turns into "we added a type to
+    three renderers".
+  - **Not tested:** that any runtime consumes the manifest correctly. bloomery cannot make
+    that claim about a consumer it does not ship, and an example that imports a vector
+    database is a dev-only demonstration, never evidence.
+docs: |
+  A concepts page under `pages/docs/concepts/` distinguishing three things a reader will
+  otherwise conflate: a columnar vector **file format**, a vector **runtime**, and
+  bloomery's **logical retrieval semantics**, which name neither. Plus the new kind in
+  `pages/docs/reference/spec-schemas.md` and the guardrail messages in
+  `pages/docs/reference/errors.md`.
+out_of_scope: |
+  - **Runtime-evidence intake** — the null-rate and freshness checks of the source
+    proposal's quality section. There is no surface for measured input, and building one is
+    a general feature over every column. It reopens when such a surface exists for its own
+    reasons.
+  - **Multimodal compatibility groups.** The cross-modal case — a text query against an
+    image corpus in one shared space — needs spaces to be *compatible* rather than equal,
+    which is a third relation between spaces. Named here so the first grammar does not make
+    it impossible: a space is a record, and a compatibility group is a field it can gain.
+  - **Weighted fusion, approximate-index parameters, index DDL, storage URIs.** Physical
+    deployment. Weighted fusion reopens only with a portable normalization contract.
+  - **A physical vector emitter.** It is the extension seam, and it is somebody's
+    downstream package until it has a contract that has been run.
+risks: |
+  - **The type-system change is the whole cost and it is easy to under-price.** The design
+    section names six sites; the transform domains and the three `scalar_types` tables are
+    the ones that get discovered late, because they are where a new logical type stops
+    being a dataclass and starts being three dialects' problem.
+  - **The manifest's consumer does not exist.** Every other artifact bloomery emits is read
+    by a framework that already exists and can reject it. This one is read by whatever the
+    user writes, so nothing external validates the contract — the failure mode is a
+    manifest that is deterministic, well-formed and subtly unusable, discovered by the
+    first integrator. Mitigated only by shipping that integrator as an example, which is a
+    weaker check than a framework's own parser and should be described as such.
+  - **Scope gravity.** Every item under out of scope has an obvious next step, and each one
+    moves toward being a vector-database toolchain. The boundary section exists to make
+    that visible rather than to prevent it.
+  - **The domain question gets answered by accident.** Building phase 1 *is* answering Q-1
+    yes. If the owner is undecided, the correct action is to leave this document in draft,
+    not to start on the small part. Phase 1 is deliberately gated on Q-1 in its intent, and
+    nothing in the phasing settles the question on the owner's behalf.
+  - **This document is a translation and can be misread as a fresh design.** It carries the
+    grades of a source document that is still live and still blocked; the provenance
+    section says exactly what was carried and what was measured afresh.
+sections:
+  - key: provenance
+    md: |
+      This document is a backfill, not a new design. Its source is
+      `rfcs/0053-retrieval-semantics.md`, adopted in commit `f10cfaee` and carried in
+      `rfcs/INDEX.md` as number 0053, "Retrieval semantics", status "Draft" — blocked on the
+      domain question this document carries as Q-1. The source is still live in the tree and
+      is still the owner's authority; nothing here edits it.
+
+      **What was carried.** All thirteen rows of that document's decision table, in order,
+      with the grades the owner gave them: rows D1 through D5 and D10 `LOCKED`, D6 through
+      D9 and D13 `ASSUMED`, D11 and D12 `OPEN`. Row identifiers here are `D-1` through
+      `D-13` and map one-to-one onto rows D1 through D13 of that file. Text was tightened,
+      never re-graded, and no row was added: the schema needed none that the source did not
+      write. The source's own cross-references, which its numbering scheme spells in a
+      grammar this corpus retired, were rewritten as file paths or as plain description.
+
+      **What was measured afresh.** Every path on every row was read from the working tree
+      on 2026-09-18, and the current-state section records three places where the tree has
+      moved since the source was written: the spec-kind map has grown from five keys to
+      eight, `physical_type` is one method over three per-port tables rather than three
+      implementations, and the pre-commit pygrep hook the source names as the float ban's
+      enforcement is not in `.pre-commit-config.yaml` — tests and the type set hold it
+      instead. None of the three changes a grade.
+
+      **What landed.** Nothing. `grep -ril retrieval src tests examples pages` matches no
+      file, `git log --oneline -- rfcs/0053-retrieval-semantics.md` has the single adopting
+      commit and no execution, and no file under `tasks/` or `logs/` names this design —
+      `logs/T-0053.md` shares the number but executes a different document entirely. All
+      three of the source's phases therefore remain, and all three are phased below.
+alternatives:
+  - option: >-
+      Optional retrieval keys on the entity model instead of a separate spec kind
+    rejected_because: >-
+      `spec_version: 1` promises that a document which loads keeps loading, so every
+      optional key added there becomes a key every future reader of every entity model
+      has to know about. The trade-off that lost is real — one kind is one fewer document
+      for a project that wants both — and it loses because the cost falls on every
+      project that wants neither.
+  - option: A vector-database member of the target enum
+    rejected_because: >-
+      A target member is a compatibility promise, and there is no artifact contract
+      anyone has run to make it against. The extension seam at `src/bloomery/emit/__init__.py`
+      accepts an out-of-tree emitter today, so the capability is not lost; what is
+      refused is putting a vendor's name in core before the contract exists.
+  - option: >-
+      Emitting the retrieval manifest alongside another target's artifacts rather
+      than from a target of its own
+    rejected_because: >-
+      It would make a project's retrieval contract depend on which analytical framework
+      it happens to compile for, so a team on one framework would get a different
+      retrieval story from a team on another for reasons that have nothing to do with
+      retrieval. The trade-off given up is a smaller target enum.
+  - option: Weighted fusion beside reciprocal rank fusion
+    rejected_because: >-
+      A weight needs a score-normalization contract to mean anything, and no such
+      contract can be stated portably across a lexical score and a cosine similarity.
+      A weight without one is a number that means something different on every engine,
+      which is worse than the feature's absence.
+  - option: >-
+      Validating an encoder model identity against its provider at compile time
+    rejected_because: >-
+      It would catch a typo, and it would make the compiler a network client and its
+      output a function of the day. The typo is caught instead by comparing a field's
+      declared producer against its space's, which needs no network.
+  - option: >-
+      Keeping the source proposal's ten guardrails as ten
+    rejected_because: >-
+      Three of them are not checks: one folds into the grain rule because a projection
+      that multiplies rows is a grain change, one is a schema requirement the grammar
+      can make unrepresentable, and one is a design rule honoured by requiring two
+      declarations. Six statable rules beat ten overlapping ones, and the cost is
+      that a reader of the source has to be told where the other four went — which
+      this says.
+  - option: >-
+      Runtime-evidence intake shipped under the retrieval heading
+    rejected_because: >-
+      The null-rate and freshness rules describe a surface that does not exist anywhere
+      in the tree, and building it would apply equally to every existing column. Smuggling
+      a general feature in under a retrieval heading would price it wrongly and scope
+      it wrongly.
+questions:
+  - id: Q-1
+    text: >-
+      Is bloomery a compiler for analytical data products, or for semantically validated
+      data products more broadly? This is the owner's decision about what the project
+      is, and no amount of design settles it. Everything in this document is worth
+      building only if the answer is the second, and the first answer is entirely
+      respectable; if it is the first, the correct outcome is to refuse this document
+      and keep retrieval semantics downstream, where a runtime that already knows
+      its own vector store can enforce them.
+  - id: Q-2
+    text: >-
+      What does a spec-version bump mean for a kind nobody has adopted yet? The stability
+      promise is written for kinds in use; this kind starts with no users, and saying
+      so before the first release is cheaper than discovering the promise applies.

@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: Determination and the coarsening proof
+    intent: >-
+      Add `determines:` to the field vocabulary — declared on the determinant, transitively
+      closed by the compiler, refused on a cycle and refused when it names a field
+      the entity does not declare — and the one rule that reads it, R020: a rollup
+      that keeps a determinant of every dropped dimension is a coarsening, so its
+      groups are unions of the parent's. This is the only relation with a consumer
+      that exists today, over a rollup vocabulary that is already shipped, which is
+      why it goes first and why it is worth doing alone: if nothing else here is ever
+      built, `determines:` plus R020 still closes the gap the motivation opens with
+      — a rollup that coarsens proving more than one that merely drops. The relation
+      and the rule are the whole of this phase; the two other surfaces that could
+      read the new fact — the spec differ's impact report and `UnsupportedHierarchy`'s
+      remediation — are named consequences and not work here, and the remediation
+      rewrite is a docs change that follows rather than leads. D-6 is the open question
+      this phase settles first, because where the field lives decides where the parse,
+      the cycle refusal and the closure live; D-7 is settled by building R020 against
+      a real rollup.
+    scope:
+      - src/bloomery/spec/entity.py
+      - src/bloomery/spec/catalog.py
+      - src/bloomery/semantic/closure.py
+      - src/bloomery/semantic/proof.py
+      - src/bloomery/semantic/rollup.py
+      - tests/unit/test_spec/test_entity.py
+      - tests/unit/test_spec/test_catalog.py
+      - tests/unit/test_semantic/test_closure.py
+      - tests/unit/test_semantic/test_proof.py
+      - tests/unit/test_semantic/test_rollup.py
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_spec/test_entity.py tests/unit/test_spec/test_catalog.py
+        tests/unit/test_semantic/test_closure.py tests/unit/test_semantic/test_proof.py
+        tests/unit/test_semantic/test_rollup.py -q
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: A role for any dimension
+    intent: >-
+      Generalize the role: `role_of:` on a flatten step names the dimension a prefixed
+      column family is a role of, for any dimension and not only a date, with `DateRoleStep`
+      kept beside it as the special case whose roles expand into buckets. The prefix
+      stays mandatory — it is what keeps the emitted columns distinct — and `role_of:`
+      adds what the prefix never carried, which is what two prefixes have in common.
+      R021 is the rule that reads it: two roles of one dimension are comparable, so
+      a filter, a join predicate or an assertion across `billing_region` and `shipping_region`
+      has a warrant where today it has two strings. The emitters are the visible half
+      and the only consequence of this document that reaches an artifact — a role-playing
+      non-date dimension emits one shared dimension in Cube and MetricFlow rather
+      than two unrelated column families — so the golden artifacts are where this
+      phase is judged as much as the unit tier. D-5 is what keeps the date path intact:
+      the general role is additive beside `DateRoleStep`, and a project that compiles
+      today compiles unchanged.
+    scope:
+      - src/bloomery/spec/marts.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/marts/flatten.py
+      - src/bloomery/semantic/proof.py
+      - src/bloomery/emit/**
+      - tests/unit/test_spec/test_marts.py
+      - tests/unit/test_marts/**
+      - tests/unit/test_semantic/test_proof.py
+      - tests/unit/test_emit/**
+      - tests/golden/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_spec/test_marts.py tests/unit/test_marts/test_flatten.py
+        tests/unit/test_semantic/test_proof.py tests/unit/test_emit/test_cube.py tests/unit/test_emit/test_metricflow.py
+        tests/golden/test_cube.py tests/golden/test_metricflow_manifest.py -q
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: Conformance between two roles
+    intent: >-
+      Add `same_as:` on a flatten step, naming another mart's role that draws from
+      the same value set, and refuse a dangling name. This phase runs only if D-8
+      resolves that the relation is needed: the in-project case is derivable from
+      `role_of:` and the cross-project case has no consumer until multi-project composition
+      reaches the phase that emits a reference across a project boundary. It is last
+      for that reason and is the relation most likely to be cut, which D-2 makes an
+      outcome rather than a failure — a fact whose consumer never arrives is dropped
+      rather than landed, and this document can complete on its first two phases.
+    scope: [src/bloomery/spec/marts.py, tests/unit/test_spec/test_marts.py]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_spec/test_marts.py -q
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural

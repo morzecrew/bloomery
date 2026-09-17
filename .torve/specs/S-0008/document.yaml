@@ -1,0 +1,483 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0008
+title: Fuzzing the compile boundary
+kind: design
+status: draft
+implementation: none
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  A seventh test lane: coverage-guided fuzz targets under `fuzz/` that feed mutated bytes
+  to `load_project`, `compile_project` and `cli.main` and try to falsify the two promises
+  the compile boundary already makes. Only `BloomeryError` may cross that boundary, and
+  the CLI's reserved internal-error exit code must never be returned; a target that
+  produces either is reporting a documentation lie or a code bug, with no judgement call
+  in between. The lane is Atheris and libFuzzer over the public API, seeded from
+  `examples/` and `tests/golden/`, run by hand through `just`. It adds one dev dependency,
+  a `fuzz/` directory and a `just` lane; no CI, no corpus storage, no container, and no
+  change to shipped code beyond the guard fixes findings force.
+motivation: |
+  The boundary claim is total and only one of its doors has ever been checked.
+  `pages/docs/reference/errors.md` tells a caller that `except BloomeryError` is
+  sufficient, and `src/bloomery/errors.py` roots every refusal there. A total claim about
+  a boundary with a dozen parse sites behind it is exactly what coverage-guided mutation
+  is for.
+
+  PR #111 is the precedent and the shape of the argument. An authored `expr:` reached
+  `sqlglot.parse_one` unguarded and left the boundary as a raw SQLGlot exception, past the
+  `except BloomeryError` the reference promises. It was found by hand across five call
+  sites, and the initial report named four — five doors, not the one reported. A fuzzer
+  does not miss doors; it finds whichever one is reachable.
+
+  **The precedent's fix was better than the report, which is why the premise needs
+  restating.** The external note this design descends from treats the `expr:` sites as the
+  highest-yield target on the grounds that the door count is genuinely uncertain. It is
+  not. The fix landed at the type — `SqlText = Annotated[str, AfterValidator(_parses_as_sql)]`
+  in `src/bloomery/spec/common.py` — and `_parses_as_sql` catches `SqlglotError` **and**
+  `RecursionError`. A guard at the type has no door count.
+
+  So the yield is not behind `SqlText`. It is behind the fact that `SqlText` is one of
+  four different answers this codebase gives to the same question. The `parse_one` call
+  sites sit under four handler disciplines:
+
+  | Handler | Where |
+  |---|---|
+  | `except (SqlglotError, RecursionError)` | `spec/common.py` twice, `resolve/build.py` twice |
+  | `except SqlglotError`, no `RecursionError` | `evidence.py`, `resolve/steps.py` |
+  | `except Exception` | `quality/pattern.py`, `guardrails/quality.py` |
+  | no enclosing handler | the rest |
+
+  `sqlglot.parse_one("(" * 200 + "1" + ")" * 200)` raises `RecursionError`, not a
+  `SqlglotError`. So the second row is a real gap, and the sharper of its two instances is
+  the one in `src/bloomery/evidence.py`, inside `_divides()`, whose own docstring records
+  this exact lesson: `SqlglotError`, not `ParseError`, because an unterminated string
+  literal raises `TokenError`, a sibling of `ParseError` rather than a subclass — so the
+  narrower catch let a third-party exception out of `evaluate`, whose whole contract is
+  that a spec-level problem comes back as a value (`logs/T-0048.md`). The same fix, from
+  the same incident, applied at three sites at two different widths — and the site with
+  the strongest contract got the narrow one. `evaluate()` does not merely promise the
+  right exception type; it promises to return a `SpecEvidence` rather than raise at all.
+
+  **The type-level guard is stack-position dependent, which is measured rather than
+  argued.** The unguarded sites parse text that already passed `_parses_as_sql`, and
+  reading the annotations says that clears them. Running it says otherwise, because
+  `RecursionError` depends on the remaining stack rather than on the expression. A
+  validator running shallow, inside Pydantic during parse, tolerates nesting that the same
+  `parse_one` on the same string rejects when it runs deeper in a call chain. Measured at
+  a recursion limit of 1000: depth 20 is accepted and re-parses; depth 40 is accepted and
+  raises `RecursionError` three hundred frames deeper; depth 60 and beyond is refused at
+  parse. There is a band of authored input that is valid by the type and unparseable at
+  the sites that re-parse it, and a `SqlText` value is a proof about one stack position
+  while every downstream `parse_one` runs at a different one.
+
+  This is the finding that decides the design. It cannot be found by reading — the
+  annotation is right there and says guarded — and it is what a fuzzer running full
+  compiles over generated depth finds by accident. The remaining unguarded sites are
+  mostly legitimate, "mostly" is the operative word, and nobody has checked which. The
+  dangerous case is composition: two individually valid fragments spliced into one
+  expression that is then re-parsed. `quality/pattern.py` renders and re-parses;
+  `resolve/build.py` splices recipe bodies. Validity is not closed under composition, and
+  no per-field validator can see that.
+current_state: |
+  Nothing of this design has landed. There is no `fuzz/` directory, `atheris` appears
+  nowhere in `pyproject.toml`, the `justfile` carries no fuzz lane, `.gitignore` names no
+  corpus or crash directory, and `pages/docs/contributing/` does not exist — the docs tree
+  holds `concepts`, `get-started`, `how-to` and `reference` and nothing else. No task file
+  under `tasks/` and no log under `logs/` names this design.
+
+  The facts the design rests on were re-verified against this tree rather than carried
+  from the source document, and two came back different:
+
+  - **`BloomeryError` roots every refusal.** `src/bloomery/errors.py` holds 72 classes: 68
+    exceptions descending from `BloomeryError`, `BloomeryError` itself, one
+    `BloomeryDeprecationWarning` on `DeprecationWarning`, and two plain value classes that
+    are not exceptions at all. The source document counted 62 — the hierarchy has grown
+    since, and the total claim still holds.
+  - **Three exception classes sit outside the hierarchy, and all three are deliberate.**
+    `CliIoError` in `src/bloomery/cli/io.py` says so in its own docstring: the library's
+    hierarchy is about specs being wrong and a missing directory is about the invocation
+    being wrong, and collapsing the two would stop a script telling "your spec is invalid"
+    from "you typed the path wrong". `_Usage` in `src/bloomery/cli/__init__.py` and
+    `_RecursiveAlias` in `src/bloomery/spec/common.py` are private control-flow signals,
+    each caught by the module that raises it. None of the three reaches a library caller,
+    which is why the harness tuple needs no exemption and why the CLI target's oracle is
+    an exit code rather than an exception type.
+  - **A CLI `main(argv)` returning a code already exists.**
+    `main(argv: Sequence[str] | None = None) -> int` in `src/bloomery/cli/__init__.py`,
+    with argparse's own `SystemExit` caught and passed through. No refactor is needed.
+  - **The exit-code table reserves an internal code.** `EXIT_OK = 0`, `EXIT_REFUSED = 1`,
+    `EXIT_USAGE = 2`, `EXIT_INTERNAL = 3`. A crash is already distinguishable from a
+    refusal by the code's own words.
+  - **`load_project` takes named documents.** `load_project(sources: Mapping[str, str])`
+    in `src/bloomery/spec/project.py`, sorted-name order, failures batched. One fuzzed
+    document among five held valid is directly expressible.
+  - **`SqlText` is the only parser at the spec layer, and it guards four fields.**
+    `Recipe.expr` and `MetricTemplate.expr` in `src/bloomery/spec/catalog.py`,
+    `DerivedSpec.expr` and `Metric.expr` in `src/bloomery/spec/metrics.py`. The four are
+    one door, not four.
+  - **`all_spec_schemas()` is a library call**, in `src/bloomery/schema.py` — a
+    schema-directed generator needs no CLI step and no filesystem.
+  - **Six tiers exist**, declared as pytest markers in `pyproject.toml`: `unit`, `golden`,
+    `property`, `execution`, `engine` and `e2e`, plus a `chaos` mutation meta-test and a
+    `perf` bench lane. `requires-python` is `>=3.12,<3.15`.
+  - **The oracle idiom already ships here under another name.**
+    `tests/property/test_parse_properties.py` asserts the filter parser is total: any
+    generated document either parses or refuses with a reason drawn from
+    `KNOWN_UNSUPPORTED`, and adversarial nesting must reach a `FilterTooComplex` refusal,
+    never a `RecursionError`. That is this design's oracle, one subsystem wide, written by
+    this project before the design existed.
+
+  One fact remains open and does not block anything here: the Python version in the
+  OSS-Fuzz base image, which belongs to `rfcs/0072-continuous-fuzzing-in-ci.md` and to a
+  container this design deliberately does not build.
+goals: |
+  - Make the boundary claim mechanically falsifiable: a target that reports any
+    non-`BloomeryError` escape from `load_project` or `compile_project`.
+  - Make the CLI's own internal-error contract enforceable: the reserved internal exit
+    code is a finding.
+  - Cover the parse sites `SqlText` does not, which is where the evidence points.
+  - Fit the existing tier vocabulary — a lane, seeds from `examples/`, findings that
+    become ordinary tests.
+  - Be useful on a laptop with no CI, no container and no corpus repository.
+non_goals: |
+  - **Memory safety.** Pure Python; the sanitizer choice is a formality.
+  - **Semantic correctness.** A fuzzer knows the compiler contradicted itself; it never
+    knows the right number. That is the execution and equivalence tiers.
+  - **Replacing the property tier.** Disjoint by construction, and stated as a rule rather
+    than a hope.
+  - **Fuzzing sqlglot.** Upstream bugs will be found and reported, but the targets check
+    this project's boundary; fuzzing sqlglot properly means calling it directly.
+  - **A Scorecard fuzzing badge.** A real side effect of the CI design and a bad
+    motivation: a lane that exists for a badge grows a harness tuple wide enough never to
+    fail.
+design:
+  - key: two-oracles-and-the-order-they-earn-their-keep
+    md: |
+      An oracle decides whether an execution was a finding. "Did not raise" is the weakest
+      available and close to worthless on its own. Two are worth encoding first, and both
+      are contract restatements rather than inventions.
+
+      **Boundary totality.** `load_project`, `compile_project` and the planner may raise
+      `BloomeryError` and nothing else. Atheris reports an uncaught exception
+      automatically, so the oracle is implemented by *not catching* the wrong things.
+
+      **Exit-code discipline.** `cli.main(argv)` returns the ok, refused or usage code. The
+      reserved internal code is the CLI reporting its own defect and is a finding by the
+      code's own words.
+
+      Three more are cheap once a target exists, in descending order of what they catch.
+      **Refusal quality**: every `BloomeryError` renders and carries a `source_path` — the
+      batched aggregates are where message-formatting bugs live, since the first refusal
+      formats fine and the twelfth in a batch is what breaks. **In-process determinism**:
+      `compile_project` twice on one `Project`, and once more on a freshly loaded one — the
+      two failures are distinct, compiler state versus caching keyed on object identity,
+      and `LruManifestHydrator` makes the concern live. **Cross-dialect consistency**: a
+      spec is compiled or refused with a named reason on each of duckdb, trino and
+      postgres; differing *refusals* are legitimate, since dialects differ in capability.
+
+      The full determinism claim — across processes and across `PYTHONHASHSEED` — is not
+      assertable in-process and is deliberately deferred to the replay job in
+      `rfcs/0072-continuous-fuzzing-in-ci.md`.
+  - key: the-harness-tuple-and-why-it-must-not-grow
+    md: |
+      The harness holds one tuple, and it is the error reference restated:
+
+      ```python
+      EXPECTED: tuple[type[BaseException], ...] = (BloomeryError,)
+      ```
+
+      Full stop, with no exemptions — `current_state` confirms none are needed. What stays
+      out and why: `yaml.YAMLError`, because the loader owns YAML and a raw parser error
+      reaching a caller is a leaked abstraction; `SqlglotError` and `TokenError`, which are
+      exactly PR #111; `RecursionError`, because catching it hides an unbounded-recursion
+      denial of service — if depth should be bounded, the fix is a limit raising a named
+      error, which is what `FilterTooComplex` already is; `KeyError`, `AttributeError` and
+      `TypeError`, the signature of a spec field read without validation;
+      `UnicodeDecodeError`, `MemoryError`, `OverflowError`; and `AssertionError`, because a
+      harness never catches its own oracle.
+
+      A tuple that grows is a finding about the error taxonomy, not about the fuzzer. Each
+      addition must arrive with either a fix translating the exception into a
+      `BloomeryError`, or a recorded decision that the escape is intended — recorded in
+      `pages/docs/reference/errors.md`, not in a tuple under `fuzz/`. D-3 makes that a
+      review rule rather than a note: widening the tuple and editing the error reference
+      are the same change expressed in two places, and they carry the same bar.
+  - key: the-targets-in-the-order-the-evidence-puts-them
+    md: |
+      Build in this order; do not write them all before running any. D-8 grades the
+      ordering, and the phasing below is the same ordering as mintable units.
+
+      **The parse-door target, `fuzz_parse_doors.py`.** The census in `motivation`
+      generalised: every `parse_one` site outside `_parses_as_sql`, across
+      `src/bloomery/evidence.py`, `src/bloomery/quality/pattern.py`,
+      `src/bloomery/resolve/steps.py`, `src/bloomery/ir/nodes.py`,
+      `src/bloomery/emit/lower/marts.py`, `src/bloomery/resolve/build.py`,
+      `src/bloomery/guardrails/arithmetic.py`, `src/bloomery/guardrails/grain.py` and
+      `src/bloomery/guardrails/quality.py`. Two sub-shapes, and the second is the
+      interesting one. *Direct*: text reaching a site without passing `_parses_as_sql`, of
+      which the two narrow-handler sites are the known instances. *Composed*: two
+      individually valid fragments concatenated or templated into a larger expression which
+      is then re-parsed, which is why the unguarded sites cannot be cleared by reading
+      annotations.
+
+      **The CLI target, `fuzz_cli.py`.** One assertion — the reserved internal exit code
+      never comes back — over fuzzed argv, called **in process**. A subprocess per
+      execution drops throughput by orders of magnitude and loses coverage feedback
+      entirely.
+
+      **The spec-layer target, `fuzz_load_project.py`.** One fuzzed document against five
+      held valid, the kind chosen from the fuzzer's own bytes. Fuzzing all six at once
+      means nearly every input dies at the first document and cross-document resolution —
+      where the interesting guardrails live — is never reached. Holding five valid means a
+      mutation to a mart document can produce a real grain violation against real
+      entities.
+
+      **The promise targets, `fuzz_compile_determinism.py` and `fuzz_cross_dialect.py`**,
+      per the oracle order above.
+
+      **The planner target, `fuzz_metric_request.py`.** Fixed valid IR, fuzzed
+      `MetricRequest`, names drawn half from a known-good pool so the target gets past "no
+      such metric". It carries one assertion worth more than it looks: a plan that renders
+      valid SQL alongside an empty or crashing `Explanation` is a real defect, and the
+      explanation is user-facing and generated deterministically.
+  - key: where-the-code-lives-and-how-it-runs
+    md: |
+      One directory, one file per target, nothing shipped:
+
+      ```text
+      fuzz/
+        _harness.py                  # the tuple, refusal-quality checks, fixture loading
+        fixtures/                    # one valid six-document set, plus expr templates
+        fuzz_<name>.py               # one target each
+        fuzz_<name>_seed_corpus/
+        fuzz_<name>.dict
+      ```
+
+      `just fuzz <target> [seconds]` runs one target with its dictionary and seeds;
+      `just fuzz-repro` and `just fuzz-min` reproduce and minimise a crash. The corpus and
+      crash directories are gitignored. `atheris` joins the dev group: it ships manylinux
+      wheels for cp312, cp313 and cp314, which is exactly this project's `requires-python`
+      window, and needs no local clang.
+
+      **No phase's acceptance runs a target.** A fuzz run is time-boxed rather than
+      pass-or-fail, and a minted contract's acceptance must finish quietly in a sandbox
+      with no Docker. D-9 records this; what a phase's acceptance runs is the test files
+      that phase owns, and the lane stays a `just` lane a person invokes.
+
+      **Only the first phase carries shipped code.** Its scope holds
+      `src/bloomery/evidence.py` and `src/bloomery/resolve/steps.py`, which are the two
+      defects D-7 already names, plus `src/bloomery/errors.py` and
+      `pages/docs/reference/errors.md` for the branch of D-7 that adds a named error. The
+      later phases have no known defect and their scope is the lane and their own tests. A
+      guard fix a later phase's finding forces is an ordinary bug fix that would be made
+      whether or not this lane exists, so it lands outside the phase rather than widening
+      it — and the executor that finds one surfaces it rather than reaching past its scope.
+  - key: seeds-and-dictionaries
+    md: |
+      Random bytes essentially never survive `yaml.safe_load`. Seeds are not an
+      optimisation; without them the lane does nothing.
+
+      `examples/quickstart`, `examples/targets` and `examples/lakehouse` are the backbone.
+      **`examples/refusals` matters most**: specs that look right and cannot be right,
+      sitting exactly on the accept/refuse boundary — a seed that is *just barely* refused
+      is one mutation from being *just barely* accepted, which is where guardrail bugs
+      live. `tests/golden/` inputs and its numbered case corpus come in for the same
+      reason: those cases were chosen for sitting at awkward semantic corners.
+
+      Hand-written pathological seeds cost nothing: empty and whitespace-only; a bare
+      scalar and a top-level list; two hundred levels of nested mappings; a one-megabyte
+      scalar; every key present and every value null; duplicate keys; a byte-order mark, a
+      lone surrogate, a NUL inside a scalar; anchors and aliases including a
+      self-referential one. For the SQL targets, seed with SQL rather than YAML.
+
+      Dictionaries carry the project's own vocabulary — spec keys, `additivity` members,
+      transform names from the transform reference. A dictionary entry naming a real
+      transform reaches code a random identifier never will.
+  - key: the-seam-against-the-property-tier
+    md: |
+      | Tier | Input | Finds |
+      |---|---|---|
+      | `property` | typed generators over the domain model | invariant violations in **valid** space |
+      | the fuzz lane | mutated bytes | behaviour in **invalid and near-valid** space |
+
+      The property tier constructs *model objects* — well-typed values inside valid space.
+      It cannot produce an unterminated SQL string inside a YAML block scalar, because its
+      generators never emit text. That is the seam this lane occupies.
+
+      The fuzzer owns the text layer and the accept/refuse boundary; the property tier owns
+      the semantic layer inside valid space. A finding expressible as a Hypothesis strategy
+      over model objects belongs in the property tier, and D-5 says to put it there. One
+      coupling runs the other way: a minimised corpus entry that is *valid* and structurally
+      interesting is a free property-tier example.
+  - key: triage
+    md: |
+      Four buckets. **Boundary escape** — always a bug; the fix is a guard at the door and
+      PR #111 is the template, which means finding every door sharing that type rather than
+      the reported one. **Contract gap** — the input is genuinely invalid and no named
+      reason exists; that is a design decision, so choose the reason, write it into
+      `pages/docs/reference/errors.md`, and give it a document of its own if the guardrail
+      is new. **Determinism or refusal-quality failure** — an assertion fired; it falsifies
+      a headline promise and blocks a release. **Harness noise** — fix the target, never the
+      expectation tuple.
+
+      Upstream findings are expected as a steady trickle. When a stack terminates inside
+      sqlglot with no bloomery frame at fault: reproduce against sqlglot directly, report
+      it, and **guard it locally anyway**. Catching a class of upstream failure at our own
+      door is the contract, not a workaround.
+
+      Every finding becomes a test, which is D-4. The corpus is unreviewed, unnamed and
+      gets pruned; a finding living only there regresses silently.
+tests: |
+  The lane is test infrastructure, so the question is how we know its oracle works rather
+  than what it covers.
+
+  - **Sabotage before coverage.** Re-narrow `_parses_as_sql` in
+    `src/bloomery/spec/common.py` to `except SqlglotError` and the parse-door target must
+    find it within a bounded run. An oracle that does not catch the reintroduced PR #111
+    is not an oracle. Each target ships with one such known-catchable defect recorded
+    beside it, and phase 1 is not finished until the target has caught its own.
+  - **The narrow-handler findings become unit tests** the moment their guards are widened:
+    a nested body against `src/bloomery/resolve/steps.py` and an authored project against
+    `src/bloomery/evidence.py`, each asserting a `BloomeryError` rather than a
+    `RecursionError`, under `tests/unit/test_steps/` and `tests/unit/test_evidence.py`.
+    Those tests are the deliverable; the target is what found them.
+  - **Reproduction is deterministic.** Replaying a minimised input twice gives the same
+    result, or the target has ambient state and is itself a determinism finding.
+  - **Not tested: that the corpus is any good.** Only a coverage report answers that, and
+    that belongs to `rfcs/0072-continuous-fuzzing-in-ci.md`.
+docs: |
+  `pages/docs/contributing/fuzzing.md` — a new archetype directory. The docs tree has
+  `concepts`, `get-started`, `how-to` and `reference` today, and this page is
+  contributor-facing rather than user-facing, so it belongs in none of them. A how-to in
+  altitude terms: run one target, read a crash, minimise it, file it.
+
+  `CONTRIBUTING.md` gains the lane in its test-tier list. No user-facing page changes
+  beyond `pages/docs/reference/errors.md` when a finding forces a new named error, because
+  nothing here alters what bloomery does.
+
+  One wording caveat the page must respect. The threat model is a data platform ingesting
+  spec YAML from a wide authoring surface, possibly machine-generated. bloomery executes
+  nothing, reads no filesystem outside the CLI and touches no network, so a crash is an
+  availability problem in someone's build and a wrong number is the failure the project
+  exists to prevent. Neither is a vulnerability in the usual sense and the page must not
+  imply otherwise. `SECURITY.md` applies only if an authored spec escapes the pure-function
+  boundary — which would be surprising, and would deserve private handling.
+out_of_scope: |
+  - **CI, corpus persistence, containers, coverage reports** —
+    `rfcs/0072-continuous-fuzzing-in-ci.md`. Without persistent storage every run restarts
+    from zero and never gets past the YAML parser, which is why the two designs are
+    ordered this way rather than merged. That design is gated on phase 1 alone: there is
+    no point running in CI what has not run on a laptop.
+  - **Schema-directed generation** — `rfcs/0073-generating-from-the-spec-schema.md`. The
+    ceiling on seeded mutation is how often it produces schema-valid YAML, and that is a
+    design question with its own answer, including the possibility that it is a
+    property-tier feature. That design is gated on phase 3, since it needs a seeded,
+    exercised harness to measure against.
+  - **The container-backed examples.** A container per execution destroys throughput, and
+    the execution tier already covers engines running.
+  - **`Artifact` value objects, naming helpers, enum lowerings.** No untrusted input
+    reaches them.
+  - **Anything needing a warehouse connection.** The library does not read one.
+risks: |
+  - **The oracle passes because it asserts nothing.** The dominant failure mode of fuzzing
+    setups. Mitigated by the sabotage requirement in `tests` and by D-3, which makes
+    widening the harness tuple a reviewed change rather than a note.
+  - **Findings dry up after week one and the lane rots.** Likely, and survivable: the
+    corpus keeps its value and the phasing front-loads what pays. If targets must be cut,
+    the parse-door target alone retains most of the value, which is why it is phase 1 on
+    its own.
+  - **The narrow guard in `src/bloomery/resolve/steps.py` turns out to be deliberate.**
+    Step manifests are declared trusted input — written by the platform team, never read
+    from disk by bloomery — so that one may be hygiene rather than a defect. The argument
+    does not transfer to `src/bloomery/evidence.py`, which reads an authored `Project`,
+    and D-7 covers both rather than generalising from the weaker case.
+  - **Throughput disappoints.** Atheris on instrumented pure Python runs thousands of
+    executions per second, not millions, and far fewer once each runs a full compile. A
+    bad corpus cannot be brute-forced past, which is why the seed design is long.
+  - **Read as security theatre.** The wording caveat in `docs` exists for this.
+  - **The dev dependency has a compiled extension.** `atheris` ships binary wheels and a
+    contributor on an unusual platform may not get one. It is dev-group and lane-gated, so
+    `just test` is unaffected.
+  - **Misread as a document that carries its own grades.** It does not. Every grade below
+    was set by the source document's owner and carried across unchanged except D-9, which
+    the source never wrote.
+sections:
+  - key: provenance
+    md: |
+      This document is a backfill, not a new design. Its authority is
+      `rfcs/0071-fuzzing-the-compile-boundary.md`, the live document numbered 0071 in
+      bloomery's own corpus, whose status row in `rfcs/INDEX.md` reads Draft. This is a
+      translation of that document into the shape `torve plan` reads; it redesigns nothing.
+
+      **Where it came from.** The file landed in commit `3e23a5f8`, which introduced 0071,
+      0072 and 0073 together as one split of an external design note proposing
+      ClusterFuzzLite for this repository. That commit's subject carries no pull-request
+      number. It changed no source, test or workflow file, and the corpus gate was green at
+      twenty-three live documents. The note was written from the public README and PyPI
+      metadata rather than from the source; its method survived and three of its eight
+      unverified premises came back different from what it assumed.
+
+      **What has landed.** Nothing. No phase of the four below has been executed, no pull
+      request has carried any part of it, and `current_state` records the tree's silence
+      file by file. `implementation` is therefore `none` and the whole phasing stands.
+
+      **What the translation changed.** Rows D-1 through D-8 are the source document's own
+      eight rows in its own order, carrying the grades its owner set — four `LOCKED`, two
+      `ASSUMED`, two `OPEN` — with the text tightened and `paths` read from this tree
+      rather than asserted. D-9 is new, graded `ASSUMED`, and exists because a minted
+      contract needs an acceptance command and a time-boxed fuzz run cannot be one; the
+      source document had no contracts to mint and never had to say it. Line numbers were
+      dropped from every citation, because they rot at the first refactor above them. The
+      source document's own section numbering and its corpus's citation grammar are not
+      reproduced here; where the argument needs a sibling design, this document names the
+      file.
+
+      **What stays behind.** The source document remains the live authority under `rfcs/`
+      and is not edited by this backfill. When these phases land, its retirement follows
+      its own corpus discipline, recorded in `rfcs/RETIRED.md` and governed by
+      `tools/check_rfc_corpus.py`, which is D-2 of S-0001 rather than anything decided
+      here.
+alternatives:
+  - option: >-
+      Hypothesis instead of Atheris, since the property tier already runs it
+    rejected_because: >-
+      One tool is cheaper than two, but Hypothesis shrinks well and has no coverage
+      feedback, so it cannot steer toward an unexplored branch — and the corpus, the
+      accumulating asset that makes a fuzzer better next month than this month, has
+      no equivalent. Where a finding fits Hypothesis, D-5 sends it there.
+  - option: >-
+      Widening the expectation tuple to whatever the first run reports
+    rejected_because: >-
+      The fastest way to a green lane and the reason fuzzing setups become decorative.
+      It converts a falsifiable promise into a record of current behaviour, which
+      is why D-1 is locked and D-3 puts the same review bar on the edit.
+  - option: Fuzzing the emitters directly with hand-built IR
+    rejected_because: >-
+      The emitters receive validated values from this project's own code, so a finding
+      there describes an unreachable state and costs a reviewer the time to prove
+      it unreachable. Reaching them through `compile_project` is the correct route.
+questions:
+  - id: Q-1
+    text: >-
+      Is any reachable call chain deep enough to turn the stack-position band into
+      an escape? The band is measured — depth 40 accepted by the validator, `RecursionError`
+      three hundred frames deeper — and the two narrow handlers are proven at the
+      source. What is not measured is the stack depth at each parse site under a real
+      compile. That is a number obtainable in one instrumented run, and it settles
+      D-7 for every site at once, including whether the unguarded ones need anything
+      at all.
+  - id: Q-2
+    text: >-
+      Do the composed-fragment sites re-parse text that a fragment validator cleared?
+      The parse-door target's second shape assumes yes for `src/bloomery/quality/pattern.py`
+      and `src/bloomery/resolve/build.py`. Reading them settles it, and a negative
+      answer shrinks that target rather than removing it.
+  - id: Q-3
+    text: >-
+      Does the lane want a seventh pytest marker? The six tiers are pytest markers
+      and a libFuzzer target is not a pytest test, so a marker would cover only a
+      replay test over the corpus. D-6 carries it.

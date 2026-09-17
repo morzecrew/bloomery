@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The replay job
+    intent: >-
+      Ship `fuzz/replay.py` and its weekly workflow: an ordinary script, no instrumentation
+      and no libFuzzer, that compiles each corpus input in two separate processes
+      under different `PYTHONHASHSEED` values and diffs artifacts byte for byte, compiles
+      to all three targets across all three dialects, and asserts artifact ordering
+      is stable independently of compile order. It needs no corpus to start — it replays
+      `examples/` and `tests/golden/` on day one and picks up the fuzz corpus when
+      it exists — and it is the whole of D-2, which is why it lands first. This is
+      the cross-process determinism check the project has never had at scale, and
+      `tests/unit/test_determinism_guard.py` is the one-fixture version of it already
+      in the tree.
+    scope:
+      - fuzz/replay.py
+      - .github/workflows/**
+      - tests/unit/test_fuzz_replay.py
+      - pages/docs/contributing/fuzzing.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_fuzz_replay.py tests/unit/test_determinism_guard.py
+        -q
+    character: structural
+  - phase: 2
+    title: The nightly batch
+    intent: >-
+      Ship the scheduled batch workflow: a `PYTHONHASHSEED` matrix of `'0'`, `'1'`
+      and `'random'` with `fail-fast: false`, sharing one `actions/cache` corpus keyed
+      per target and restored at job start and saved at job end, plus the seed generator
+      that copies `examples/**` and `tests/golden/**` YAML into each target's seed
+      directory. The job prints the corpus entry count before and after so a cache
+      that has stopped round-tripping is visible rather than green, and the planted-crash
+      test confirms the job can actually go red.
+    scope:
+      - fuzz/seeds.py
+      - fuzz/corpus.py
+      - .github/workflows/**
+      - tests/unit/test_fuzz_corpus.py
+    acceptance:
+      - uv run pytest tests/unit/test_fuzz_corpus.py -q
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: The non-blocking pull-request job
+    intent: >-
+      Ship the short pull-request run: path-filtered to `src/**` and `fuzz/**`, with
+      `concurrency` cancelling superseded runs, and non-blocking. Promotion to a required
+      check is D-5 and is deliberately not part of this phase — the early weeks are
+      when the harness is wrong, and a red required check during them is how fuzzing
+      setups get deleted.
+    scope: [.github/workflows/**, tests/unit/test_fuzz_workflows.py]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_fuzz_workflows.py -q
+    depends_on:
+      - 2
+    character: routine

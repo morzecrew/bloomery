@@ -1,0 +1,195 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      Retrieval semantics ship as their own spec kind, loaded by a `retrieval_version`
+      key in `_KIND_KEYS`, never as optional keys on the entity model
+    paths: [src/bloomery/spec/**]
+    consequence: >-
+      A project that declares no retrieval document is untouched by the whole design,
+      and a target that cannot serve retrieval refuses the kind wholesale rather than
+      ignoring keys it does not understand
+    rationale: >-
+      `spec_version: 1` promises that a document which loads keeps loading, so every
+      optional key added there is one every future reader of every entity model has
+      to know about; a separate kind versions on its own clock, and the map has already
+      grown from five keys to eight without incident
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      bloomery never computes, reads or validates an embedding value, and never resolves
+      an encoder model identity against a provider; encoder identities are opaque
+      strings compared for equality
+    paths: [src/bloomery/spec/**, src/bloomery/guardrails/**]
+    consequence: >-
+      A typo in a model name is caught by comparing a field's declared producer against
+      its space's, and never by a lookup; a future change that verifies a model name
+      against a provider is the erosion this row exists to halt
+    rationale: >-
+      A compile that consulted a provider would read the network and make the output
+      a function of the day, which the package-wide purity boundary forbids outright;
+      this row states the retrieval-shaped case of that boundary at the two surfaces
+      where the temptation lands
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      A vector's scalar type is a type name and its dimension an int; no float value
+      enters the IR or any emission path, and this design takes no exemption from
+      the float ban
+    paths: [src/bloomery/typing/**, src/bloomery/ir/**]
+    consequence: >-
+      The vector logical type carries a string and an int and nothing else, so no
+      float literal is ever parsed, stored or rendered, and the existing determinism
+      and no-float tests keep passing unchanged
+    rationale: >-
+      A reader stops at the word float32 and concludes the ban is being weakened;
+      it is not, because bloomery never sees a vector value, and the distinction between
+      a type name and a value has to be said before it is assumed away
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      A declared vector dimension requires a new `LogicalType` member, and a vector
+      accepts no transform - its input domain is empty in every transform spec
+    paths:
+      - src/bloomery/typing/**
+      - src/bloomery/spec/**
+      - src/bloomery/transforms/**
+      - src/bloomery/dialects/**
+    consequence: >-
+      The cost is six sites and cannot be avoided by choosing the other shape, because
+      the union has no array member either; admitting a transform over a vector would
+      put float arithmetic inside a lowered expression, which is exactly what the
+      ban stops
+    rationale: >-
+      The seven-member union has no sequence and no float, so the source proposal's
+      choice between a first-class vector type and an annotation over an array is
+      a choice between two shapes that both grow the union; an empty input domain
+      is the cheapest correct default and a transform chain over an embedding is a
+      different feature
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      Fusion is reciprocal rank fusion only in the first version of the kind
+    paths: [src/bloomery/spec/**]
+    consequence: >-
+      A profile declaring any other fusion method is refused by the grammar rather
+      than by a guardrail, and weighted fusion reopens only with a portable normalization
+      contract
+    rationale: >-
+      Reciprocal rank fusion combines ranks, so it needs no shared scale between a
+      lexical score and a cosine similarity; a weight without a normalization contract
+      means something different on every engine
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The retrieval manifest is emitted by a target of its own, not alongside another
+      target's artifacts
+    paths: [src/bloomery/compile.py, src/bloomery/emit/**]
+    consequence: >-
+      A project's retrieval contract is independent of which analytical framework
+      it compiles for, at the cost of a target enum member that names an artifact
+      rather than a consumer
+    rationale: >-
+      The manifest-only target already in the enum set the precedent, emitting one
+      JSON manifest and no models; the asymmetry that this member names an artifact
+      no framework reads is why the row is not locked
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The manifest inlines each profile's space fully rather than referencing it by
+      name
+    paths: [src/bloomery/emit/**]
+    consequence: >-
+      The manifest is larger and repeats a space shared by several profiles, and in
+      exchange it is readable by a consumer that has no access to the spec tree
+    rationale: >-
+      Its reader is a runtime bloomery does not ship; a manifest naming a space and
+      nothing else would send that reader to find a file bloomery did not emit
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      Retrieval grain is strict key equality against the corpus relation's key, the
+      rule already applied to measures
+    paths: [src/bloomery/guardrails/grain.py]
+    consequence: >-
+      A mart at document grain carrying chunk embeddings is refused rather than emitted,
+      and the rule can be restated on the semantic grain vocabulary when that lands
+      rather than waiting for it
+    rationale: >-
+      One vector per retrievable item, or the corpus is not a corpus: a grain mismatch
+      has either duplicated a vector or collapsed several, and both make top-k meaningless
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      Six statable guardrails, not the source proposal's ten - the projection rule
+      folds into the grain rule, the hybrid-needs-both-sides rule becomes a grammar
+      requirement, and the searchable-is-not-filterable rule is a design rule honoured
+      by requiring two declarations
+    paths: [src/bloomery/guardrails/**, src/bloomery/spec/**]
+    consequence: >-
+      A reader of the source proposal will look for four rules that are not here and
+      has to be told where they went; in exchange each remaining rule has one refusal
+      message and one test
+    rationale: >-
+      A guardrail nobody can state crisply is one nobody maintains, and a rule that
+      cannot fire is documentation wearing a check's clothes
+  - id: D-10
+    grade: LOCKED
+    text: >-
+      A vendor-oriented vector emitter is `register_emitter`, out of tree, and stays
+      there until it has an artifact contract someone has run; no vector-database
+      member of the target enum
+    paths: [src/bloomery/compile.py, src/bloomery/emit/__init__.py]
+    consequence: >-
+      The capability is available to anyone who wants it without core carrying a vendor's
+      name or its compatibility promise
+    rationale: >-
+      The extension seam already accepts an out-of-tree emitter addressed by string
+      name, so nothing is lost by refusing the enum member; a target member is a promise,
+      and there is no run contract to make it against
+  - id: D-11
+    grade: OPEN
+    text: >-
+      Whether a vector field may be declared on an entity or only on a mart
+    paths: [src/bloomery/spec/entity.py, src/bloomery/spec/marts.py]
+    consequence: >-
+      Confining it to marts keeps the new type out of the mapping and transform paths
+      entirely, which is most of the type-system cost; allowing it on entities means
+      an embedding produced by a step can be declared where it is produced
+    rationale: >-
+      Only marts are retrieval corpora in practice, but a type that cannot be declared
+      where it is produced is a type declared twice; the executor decides against
+      the code and logs the decision
+  - id: D-12
+    grade: OPEN
+    text: >-
+      Whether `distance` is a property of the semantic space or of the retrieval profile
+    paths: [src/bloomery/spec/**]
+    consequence: >-
+      Putting it on the space is the easier position to relax later, since moving
+      a field from the space to the profile is additive and the reverse is not
+    rationale: >-
+      The space is a property of the model and the metric is a property of how it
+      is served, and the same space is legitimately served under different metrics;
+      the executor decides and logs which
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      Runtime-evidence intake is excluded from this design: no null-rate, freshness
+      or other measured-input rule ships under a retrieval heading
+    paths: [src/bloomery/evidence.py]
+    consequence: >-
+      The evidence module gains nothing from this design, and a future intake surface
+      is priced and scoped as the general feature it is
+    rationale: >-
+      The evidence module is everything knowable about a spec without touching data,
+      and there is no surface anywhere for supplying a measurement; the source proposal's
+      quality rules would apply equally to every existing column
+invariants:
+  - id: I-1
+    statement: >-
+      A project declaring no retrieval document compiles byte-identically with the
+      kind present and unused
+    paths: [tests/golden/**]
+    check: uv run pytest tests/golden -q

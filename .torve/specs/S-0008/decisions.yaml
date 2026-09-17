@@ -1,0 +1,141 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      The harness's expectation tuple is exactly `(BloomeryError,)`, with no exemptions:
+      any other exception crossing `load_project`, `compile_project` or the planner
+      is a finding, and the tuple is never widened to make a run green
+    paths: [fuzz/_harness.py]
+    consequence: >-
+      A boundary escape can only be closed by a fix that translates the exception
+      into a `BloomeryError` or by a recorded decision in `pages/docs/reference/errors.md`;
+      the harness is never the place a finding goes away
+    rationale: >-
+      All 68 exception classes in `src/bloomery/errors.py` descend from `BloomeryError`,
+      and the three that do not — `CliIoError`, `_Usage`, `_RecursiveAlias` — are
+      CLI or private control-flow signals that never reach a library caller, so an
+      exemption would be a hole in the hierarchy rather than a concession to the fuzzer.
+      Locked because widening the tuple is the one edit that silently converts this
+      lane into decoration
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      The CLI oracle is that `main(argv)` never returns the reserved internal exit
+      code, not that it returns one of the ok, refused or usage codes
+    paths: [fuzz/fuzz_cli.py]
+    consequence: >-
+      A genuine internal error is reported as exactly that rather than as a generic
+      out-of-range code, and the target has one assertion whose failure needs no interpretation
+    rationale: >-
+      `src/bloomery/cli/__init__.py` already distinguishes a crash from a refusal
+      in its exit-code table, so the weaker assertion would fire on every genuine
+      internal error and hide the contract that exists. Locked because it is the CLI's
+      own stated contract rather than this design's preference
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      Widening the expectation tuple, or adding a caught exception to any target,
+      carries the same review bar as editing `pages/docs/reference/errors.md`, and
+      must land with either a fix translating the exception into a `BloomeryError`
+      or a recorded decision that the escape is intended
+    paths: [fuzz/**]
+    consequence: >-
+      A finding can never be closed by editing the harness alone; the reviewer sees
+      the taxonomy change the harness change implies, and the error reference and
+      the tuple cannot drift apart
+    rationale: >-
+      Widening the tuple and editing the error reference are the same change expressed
+      in two places. Making it a review rule rather than a note is what stops the
+      dominant failure mode of fuzzing setups, in which the oracle quietly relaxes
+      until it asserts nothing
+    cites: [D-1]
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      Every confirmed finding becomes a checked-in test under an existing tier before
+      the fuzz corpus is relied on to hold it
+    paths: [fuzz/**]
+    consequence: >-
+      The deliverable of a fuzz run is a test in `tests/`, not a file in the corpus
+      directory; a phase is unfinished while a confirmed finding exists only as a
+      corpus entry
+    rationale: >-
+      The corpus is unreviewed, unnamed and pruned, so a finding living only there
+      regresses silently — and the corpus directory is gitignored, which means it
+      does not even survive a clean clone
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      A finding expressible as a Hypothesis strategy over model objects goes to the
+      property tier instead of gaining a fuzz target
+    paths: [fuzz/**]
+    consequence: >-
+      The lane stays the text layer and the accept/refuse boundary, and the number
+      of targets stays small enough that each one is read before it is trusted
+    rationale: >-
+      Believed to keep the seam clean, since the property tier already owns valid
+      space and already runs Hypothesis. Depart if a class of finding is genuinely
+      awkward in both and pick whichever is cheaper
+  - id: D-6
+    grade: OPEN
+    text: >-
+      Whether the lane is a seventh pytest marker or a `just` lane outside pytest
+    paths: [justfile, pyproject.toml]
+    consequence: >-
+      A marker would cover only a replay test over the corpus, so the choice decides
+      whether the corpus is a checked-in test input or a build artifact
+    rationale: >-
+      The six tiers declared in `pyproject.toml` are pytest markers, but a libFuzzer
+      target is not a pytest test. Settled by whether the replay job in `rfcs/0072-continuous-fuzzing-in-ci.md`
+      wants to be invoked through pytest
+  - id: D-7
+    grade: OPEN
+    text: >-
+      Whether each of the two narrow-handler sites gains `RecursionError` or a depth
+      limit raising a named error — decided per site from its reproduction, and logged
+      either way
+    paths: [src/bloomery/evidence.py, src/bloomery/resolve/steps.py]
+    consequence: >-
+      A depth limit raising a named error adds a class to `src/bloomery/errors.py`
+      and an entry to `pages/docs/reference/errors.md`; widening the catch adds neither,
+      and the two sites may legitimately get different answers
+    rationale: >-
+      A depth limit matches `FilterTooComplex`, which is this corpus's existing answer
+      to unbounded nesting, and is the better shape wherever the reproduction shows
+      authored input can reach it; widening the catch is right where it cannot and
+      the fix is hygiene. `src/bloomery/evidence.py` reads an authored `Project` and
+      `src/bloomery/resolve/steps.py` reads a registry declared trusted input, so
+      the argument does not transfer between them
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      Targets are built in the order the evidence puts them — parse doors, then the
+      CLI and the spec layer, then the promise targets, then the planner — and none
+      is written before the previous one has run
+    paths: [fuzz/**]
+    consequence: >-
+      If the lane is cut short, what survives is the target the evidence says pays
+      most, and each target's oracle is proven against a real defect before the next
+      one is written
+    rationale: >-
+      Assumed rather than locked because a cheap target discovered mid-execution may
+      be worth taking out of order. The phasing below is this ordering as mintable
+      units
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      No phase's acceptance command runs a fuzz target: acceptance runs the test files
+      the phase owns, and the lane is invoked by a person through `just`
+    paths: [fuzz/**]
+    consequence: >-
+      A phase can be judged in a sandbox with no Docker and no time budget for mutation,
+      and the sabotage proof that a target catches its own known defect is a step
+      the executor performs and logs rather than a gate the battery runs
+    rationale: >-
+      A fuzz run is time-boxed rather than pass-or-fail, so it has no exit code an
+      acceptance gate can read. The source document had no contracts to mint and never
+      had to say this; it is the one row this backfill added, graded `ASSUMED` because
+      a later replay test over a checked-in corpus could become a real acceptance
+      command
+    cites: [D-6]

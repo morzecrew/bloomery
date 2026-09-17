@@ -1,0 +1,321 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0013
+title: Snowflake dialect port
+kind: design
+status: draft
+implementation: none
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  A `snowflake` `DialectPort`, its rewrite surface, and the fixtures and tiers that
+  establish it, carried across from `rfcs/0047-snowflake-dialect.md`: of the four cloud
+  ports it has the strongest story at both ends, and its risks are semantic rather than
+  architectural.
+
+  Snowflake has native primitives for much of what bloomery needs, so the port does not
+  reproduce the PostgreSQL workarounds; each of the six rewrite points is re-established
+  from evidence measured on Snowflake rather than inherited. Two credible local emulators
+  supply the surrogate rung and neither is the oracle: `EXPLAIN USING JSON` on a real
+  account is, at negligible cost and with no data scanned, and a small execution corpus
+  then covers what a plan cannot settle. Nothing of this design has landed — there is no
+  `snowflake` port in the tree and no Snowflake test — so all four phases stand.
+motivation: |
+  bloomery ships three dialects — DuckDB, PostgreSQL, Trino — and every one of them runs
+  in a container, which is what the engine tier was built on: `tests/engines/` holds
+  thirteen files and every marked test in them is `engine("postgres")` or
+  `engine("trino")`. Snowflake breaks that assumption, and the failures that have actually
+  hurt in this codebase are the ones where a spelling was accepted by one engine and meant
+  something else on another — zoneless UTC and transform types both landed that way, both
+  needed a retirement to undo, and `rfcs/RETIRED.md` records the pair (0028 and 0029, both
+  readable at `558b31c`). A port validated against an emulator alone is validated against
+  a different implementation of a similar language, which is the same class of defect
+  arriving with a green tier in front of it.
+
+  What makes this port worth writing rather than deferring is that Snowflake is the engine
+  where both ends of the ladder are cheap. At the local end there are two documented
+  emulators, one of which needs no token at all. At the authoritative end
+  `EXPLAIN USING JSON` runs the engine's own parser, binder and function resolution without
+  executing and without scanning, which is a better acceptance oracle than any emulator and
+  is why the absence of a container blocks nothing here.
+current_state: |
+  No Snowflake dialect exists. `src/bloomery/dialects/` holds `base.py` (541 lines),
+  `duckdb.py`, `postgres.py` and `trino.py`, and `_defaults`
+  (`src/bloomery/dialects/__init__.py`) registers exactly those three; `git log`
+  over `src/bloomery/dialects/snowflake.py`, `tests/unit/test_dialects/test_snowflake.py`,
+  `tests/support/snowflake.py` and `tests/engines/test_snowflake_*.py` returns nothing on
+  any branch, and `CHANGELOG.md` does not mention the engine. The only occurrences of the
+  word in the tree are prose: two comments in `src/bloomery/runtime/sql_client.py` naming
+  the unimplemented upstream renderers, and the dbt Python-models refusal in
+  `src/bloomery/emit/steps.py` that names Snowflake as one of the three targets it fires
+  on.
+
+  **The port surface is larger than the source document inherited, and two of its six
+  rewrite points are already answered by capability flags.** `DialectPort`, in
+  `src/bloomery/dialects/base.py`, is six methods — `render`, `physical_type`, `supports`,
+  `text_sha256`, `utc_now`, `json_object` — over a `name` and a `begin_transaction`
+  attribute, not five. `DialectFeature` beside it is nine capabilities, not five:
+  `JSON_EXTRACT`, `TIMEZONE_CONVERT`, `REGEXP_EXTRACT`, `VARIANT_TYPE`, `ARRAY`,
+  `TRY_CAST`, `UNICODE_NORMALIZE`, `JSON_OBJECT_POSITIONAL` and `NULL_SAFE_EQUALITY`. So
+  the `TRY_*` family and Unicode normalization are declarations on a `features` frozenset
+  before they are rewrites, and `JSON_OBJECT_POSITIONAL` and `NULL_SAFE_EQUALITY` are two
+  more questions to answer that the source document's list does not name.
+
+  The shared rewrite helpers live in the same file — `space_separated`, `strip_iso_text`,
+  `utc_from_zone` and `capture_group` — and two of them are not a new port's choice:
+  `SQLGlotDialect.render` refuses a tree still carrying the ISO-text marker with
+  `UnsupportedByTarget` and names `strip_iso_text` as the fix, and it applies
+  `capture_group` and `_exact_division` to every tree it renders whether the port asked or
+  not. `physical_type` maps six logical types through `scalar_types` and computes
+  `DECIMAL(p, s)`; on the base adapter `VariantType` lowers to `JSON`, which is one of the
+  concrete answers this port owes. `register_dialect` in
+  `src/bloomery/dialects/__init__.py` already accepts a port from outside the package and
+  refuses one missing a protocol member.
+
+  The tier table in `pyproject.toml` is eight markers and none of them is a surrogate
+  rung: `engine(name)` means Docker plus the real engine. Goldens are laid out
+  `tests/golden/<fixture>/<target>/<dialect>/`, with `sqlmesh/{postgres,trino}` cells on
+  the dialect-sensitive fixtures and duckdb-only elsewhere
+  (`tests/golden/test_sqlmesh_dialects.py`). `tests/support/` holds no per-engine
+  connection module. `.env` is already gitignored, so the credential instructions this
+  port needs add nothing to `.gitignore`.
+goals: |
+  A `snowflake` port whose six rewrite points were each measured on Snowflake, established
+  by the shared fixture corpus at the offline rungs, evidenced by a local emulator lane
+  that claims no more than it proves, and accepted by Snowflake's own compiler through
+  `EXPLAIN USING JSON` — with a small execution corpus for the handful of questions a plan
+  cannot answer.
+non_goals: |
+  No change to the shipped three dialects: this port is additive, and a rewrite that would
+  improve DuckDB, PostgreSQL or Trino is a separate change against those ports. Not the
+  shared validation method, which is `rfcs/0046-validating-a-dialect-port.md`'s and is only
+  applied here. Not the other three cloud ports — BigQuery, Redshift and Databricks each
+  carry their own risks and none of them depends on this one. Not an engine driver inside
+  `src/bloomery`: the package is a pure compiler and every live harness is test apparatus.
+design:
+  - key: the-rewrite-surface
+    md: |
+      Snowflake's port is measured at the same six points every port is, and each one has
+      a known Snowflake question:
+
+      - **Timestamps.** `TIMESTAMP_NTZ`, `TIMESTAMP_TZ` and `TIMESTAMP_LTZ` are three
+        types where bloomery has one. The zoneless-UTC invariant has to be mapped
+        deliberately, and `TIMESTAMP_LTZ`'s session dependence is exactly the
+        reader-dependence that invariant exists to remove.
+      - **ISO parsing and the offset guard.** The `SUBSTRING(…, 11)` window plus two
+        `LIKE`s must render and mean the same thing here, and the separator rewrite may or
+        may not be needed — measure it, do not assume it from Trino. `strip_iso_text` is
+        not optional: `SQLGlotDialect.render` refuses a tree that still carries the marker,
+        so the port states its spelling even when that spelling is the identity.
+      - **`TRY_CAST` and the `TRY_*` family**, which the quality system's NULL-on-failure
+        lowering depends on, and which is a `DialectFeature` declaration before it is a
+        rewrite.
+      - **Regexp capture-group numbering** — the divergence that already needed
+        `capture_group` for PostgreSQL, and which `render` applies to every tree, so the
+        question is whether Snowflake's numbering makes it right or wrong here.
+      - **JSON and `VARIANT` extraction**, and specifically scalar-versus-variant result
+        typing: `VariantType` lowers to `JSON` on the base adapter and Snowflake's answer
+        is `VARIANT`.
+      - **`text_sha256`**, whose contract is lowercase hex, and where Trino already needed
+        `TO_UTF8`/`TO_HEX`/`LOWER` to satisfy it while DuckDB's `SHA256` returns hex
+        directly.
+
+      Also, and each on the same terms: decimal precision, scale and division result
+      types; Unicode normalization; reserved identifiers and quoting; null propagation;
+      `DialectFeature.ARRAY`, whose absence lowers `_quality_flags` to a delimited string
+      instead; and the two capabilities the source document predates,
+      `JSON_OBJECT_POSITIONAL` and `NULL_SAFE_EQUALITY`.
+  - key: local-execution
+    md: |
+      Two credible emulators, with different trade-offs, and neither of them is Snowflake.
+
+      **`ghcr.io/sivchari/snowflake-emulator`** — OSS, no token, documented Testcontainers
+      and GitHub Actions usage, a health endpoint. Documented limits: no distributed
+      execution, no meaningful access control, no warehouse management, no guaranteed
+      transaction isolation.
+
+      **LocalStack for Snowflake** — higher fidelity, and requires an auth token (a
+      Developer token locally, a CI token in CI), which never enters the repository:
+
+      ```yaml
+      services:
+        snowflake:
+          image: localstack/snowflake:<pinned>
+          ports: ["4566:4566", "4510-4559:4510-4559", "443:443"]
+          environment:
+            LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:?}
+      ```
+
+      Readiness is `curl -d '{}' http://snowflake.localhost.localstack.cloud:4566/session`,
+      and mocked `test`/`test` credentials are accepted for emulator connections.
+
+      Both are the surrogate rung — evidence, not the oracle — and both carry the
+      `surrogate` marker, which the tier table does not yet have. The connection,
+      submission, polling and row canonicalization live in `tests/support/snowflake.py`,
+      outside the package, because bloomery is `specs → IR → artifacts` and a live harness
+      is test apparatus.
+  - key: authoritative-layers
+    md: |
+      The acceptance oracle is Snowflake's own compiler:
+
+      ```sql
+      EXPLAIN USING JSON <statement>;
+      ```
+
+      It produces the logical plan without executing, exercising Snowflake's parser, binder
+      and function resolution. Compile-only and execution lanes are separate jobs so the
+      default cloud lane cannot accidentally scan or bill, and a lane that finds no
+      credentials skips with a stated reason rather than failing.
+
+      The small execution corpus then covers what a plan cannot settle — a timestamp's
+      instant, a decimal's scale, a regexp capture, a SHA's hex casing, whether a
+      quarantined row was quarantined: timezone normalization, ISO parsing, decimal
+      division, `TRY_CAST`, regexp extraction, `VARIANT` extraction, Unicode
+      normalization, SHA-256 output, null behaviour and quarantine row disposition. Tiny
+      seed tables; canonicalized rows and types compared against the shared expectations.
+tests: |
+  Five files, and the offline three are the ones that run everywhere:
+
+  ```text
+  tests/unit/test_dialects/test_snowflake.py
+  tests/golden/…/snowflake/…
+  tests/support/snowflake.py
+  tests/engines/test_snowflake_surrogate.py
+  tests/engines/test_snowflake_live.py
+  ```
+
+  Unit and golden run on every pull request, and syntax sanity —
+  `sqlglot.parse_one(rendered, read="snowflake")` — runs there too and proves nothing about
+  the engine. The OSS emulator lane is the candidate for a per-pull-request slot, because
+  it needs no secret and a lane needing one cannot run on a fork pull request at all. The
+  live lanes are manual, `main`, release and scheduled, behind a GitHub Environment rather
+  than raw repository secrets, and `just test` never requires a cloud credential.
+
+  All of it runs the **shared** fixture corpus rather than a Snowflake corpus, so a
+  divergence presents as one fixture behaving differently across ports; a port-native
+  fixture for a surface with no shared analogue — `VARIANT` — is added alongside the shared
+  one, never instead of it.
+docs: ''
+out_of_scope: |
+  **The concrete type map.** Which Snowflake type each bloomery logical type lowers to is
+  deliberately not written here: `physical_type` is a one-way door once artifacts exist in
+  the wild, and guessing it in prose is how a guess becomes a shipped mapping. D-1 fixes
+  the one constraint that is not negotiable and D-6 delegates the rest to whoever measures
+  it. What would change this: the measurements of phase 1 existing.
+
+  **Any documentation change.** The source document scopes none and no phase below touches
+  `pages/`; a user-facing page describing a fourth dialect belongs to whatever change makes
+  the port shippable, which is a question this document leaves to D-5 and D-6.
+
+  **Whether the port ships in-tree or as an extension package.** `register_dialect` accepts
+  either and the two differ in dependency weight, release cadence and who is on the hook
+  when a hosted engine changes under a shipped port. It is the shared method document's
+  open question, not this one's, and the phases below build in-tree because that is where
+  the shared fixture corpus already is.
+risks: |
+  **The risks here are semantic rather than architectural, which is the hardest kind to
+  see.** The port surface is six short methods and a feature set; nothing about adding a
+  fourth one is structurally hard. What can go wrong is a mapping that renders, parses,
+  passes every offline rung and means something slightly different — a session-dependent
+  timestamp, a decimal that rounds one digit earlier, a capture group off by one, an
+  uppercase digest. Every one of those is invisible until a value is compared, which is
+  why the execution corpus exists at all and why it is the last phase rather than an
+  optional one.
+
+  **A green surrogate lane overstating itself is the failure mode this document is most
+  exposed to**, precisely because Snowflake's local story is the best of the four and
+  therefore the most tempting to promote. The mitigation is naming, not care at the call
+  site: a `surrogate` marker distinct from `engine`, and prose that says a local emulator
+  checks emulator semantics.
+
+  **The document being misread as a scheduled port.** It is a draft of a design, and its
+  first two open rows — whether the second emulator is maintained at all, and the concrete
+  type map — are large enough that the port is not shippable on this document alone. A
+  reader who takes the phasing as a commitment will over-read it.
+
+  **Two emulators is two maintenance surfaces**, two pinned versions and two sets of
+  documented gaps to know. D-5 is the row that refuses to settle that before the evidence
+  exists; the cost of leaving it open is that phase 2 may be done twice.
+sections:
+  - key: provenance
+    md: |
+      This document is a backfill, not a new design. Its source is
+      `rfcs/0047-snowflake-dialect.md`, number 0047 in bloomery's own corpus, status
+      **Draft — proposed, not scheduled** in `rfcs/INDEX.md` at the row for that file. The
+      source is live in the tree and is not edited by this translation; nothing here
+      supersedes it, and the corpus retires a document only when the design it argued for
+      has landed.
+
+      **Nothing of it has landed.** `git log` over the five paths its test section names
+      returns nothing on any branch, no `snowflake` entry exists in the dialect registry,
+      and no pull request in the history carries the port — the single commit mentioning
+      the engine at all is `f1fe05ac`, which adopted the four cloud-dialect documents
+      themselves. So no phase is dropped from `phasing.yaml` as landed, and every row below
+      governs paths whose Snowflake half does not exist yet.
+
+      **What changed in translation.** The six rows of the source's decision table are
+      carried across one-to-one as D-1 through D-6, each at the grade the source gives it:
+      two `LOCKED`, two `ASSUMED`, two `OPEN`. Their texts are tightened to drop
+      cross-references, and each row's `rationale` names the source row it came from. One
+      row is added — D-7, `ASSUMED` — because the source states the LocalStack token rule
+      in its prose and never graded it, and a rule stated in prose is inherited by nobody;
+      it is graded down rather than up for exactly that reason. The source's
+      unresolved-questions section is not duplicated as a `questions` list: both of its
+      bullets are the two `OPEN` rows the source itself points at, so they are carried
+      once, as rows.
+
+      **Where the source is out of date about the tree**, the current-state section above
+      says so rather than repeating it: the port surface is six methods and nine
+      capabilities today, against the five and five the source inherited from the shared
+      method document.
+  - key: validation-method
+    md: |
+      The ladder this port is measured on is not defined here. It is
+      `rfcs/0046-validating-a-dialect-port.md`, the root of the four-document cloud
+      sequence, and it carries what the four share so the shared half cannot drift into
+      four differing accounts: six rungs from unit through golden, syntax sanity, surrogate
+      execution, authoritative compile and authoritative execution; the rule that a
+      surrogate is evidence and never the oracle; the marker discipline that keeps a green
+      tier from overstating itself; the credential rules; and the boundary that keeps every
+      driver out of `src/bloomery`.
+
+      That document is also a draft, which is worth stating plainly: this port's method
+      rests on a design that has not been accepted either, and a change to the shared
+      ladder reaches all four ports at once. Applying it here does not re-decide it, and
+      the rows below deliberately carry only what is Snowflake's own.
+alternatives:
+  - option: >-
+      `TIMESTAMP_LTZ` as the mapping for a bloomery `timestamp`, so a Snowflake session
+      renders instants in the reader's own zone
+    rejected_because: >-
+      It is session-dependent by construction: two readers with different session
+      zones land one instant on two dates. That is the defect bloomery removed once
+      already at real cost, and taking it back would reintroduce it on one engine
+      only, where the other three ports look fine. D-1 closes it.
+  - option: >-
+      LocalStack for Snowflake as the default local lane, bought for its higher fidelity
+    rejected_because: >-
+      It needs an auth token — Developer locally, CI in CI — and a lane that needs
+      a secret cannot run on a fork pull request, which is the only thing that would
+      earn a local lane a per-pull-request slot. Kept as the optional second lane
+      under D-3, and the default if the OSS emulator's documented gaps reach a fixture
+      that matters.
+  - option: >-
+      Starting from the PostgreSQL and Trino rewrites, since both already pass the
+      shared corpus
+    rejected_because: >-
+      Snowflake has native primitives for much of what those two needed workarounds
+      for. A carried-over workaround is dead weight at best and at worst a rewrite
+      that quietly changes meaning, and it is measured on neither engine. D-2 closes
+      it.
+  - option: >-
+      Treating a green emulator lane as Snowflake conformance, on the grounds that
+      Snowflake's local story is the best of the four
+    rejected_because: >-
+      Both emulators are independent implementations of a similar language. The failure
+      is not a wrong result but a green one, quoted six months later as engine conformance
+      from a CI log nobody re-reads the body of. D-4 keeps both marked `surrogate`
+      and neither gating a release; the oracle is `EXPLAIN USING JSON` on a real account.

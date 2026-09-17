@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The port and its offline rungs
+    intent: >-
+      Add a `databricks` dialect port beside the three shipped ones and cover it where
+      cover is free: the rewrite points the port must answer for — timestamp types,
+      ISO parsing and the offset guard, `try_cast`, regexp capture indexes, arrays,
+      timezone functions, SHA-to-hex, decimal precision and division — with unit tests
+      over the rewrites and declared capabilities, a re-parse assertion that puts
+      the generated SQL back through the SQL-generation library under this dialect,
+      and the golden cells that render the dialect-sensitive fixtures through the
+      new port. This phase settles the two open rows, because the answer to each names
+      the dialect or fixes a physical type and both are frozen by the first golden
+      artifact. It says nothing about the engine: the SQL-generation library is deliberately
+      broader and more permissive than any live warehouse, and a green run here is
+      a statement about the port's own rewrites.
+    scope: [src/bloomery/dialects/**, tests/unit/test_dialects/**, tests/golden/**]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_dialects tests/golden -q
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: The authoritative live lane
+    intent: >-
+      Ask the real engine whether the generated SQL is acceptable. A harness at `tests/support/databricks.py`
+      reads the five environment variables, submits to the statement execution API,
+      polls, normalizes rows, surfaces the engine's own errors and enforces a timeout;
+      the lane it serves runs `EXPLAIN EXTENDED` and `DESCRIBE QUERY` over the shared
+      fixture corpus, checking that the statement is accepted and that the result
+      schema agrees with the types the compiler declared, and then a deliberately
+      small runtime corpus with tiny tables for the things a compile cannot settle
+      — an instant, a scale, a capture, a hex casing, whether a row was quarantined.
+      It is wired behind a GitHub Environment on `main`, on a schedule and on manual
+      dispatch, with an `.env.example` naming the variables and nothing else, so a
+      contributor without credentials sees a stated skip.
+    scope:
+      - tests/support/databricks.py
+      - tests/engines/test_databricks_live.py
+      - .github/workflows/**
+      - .env.example
+      - pyproject.toml
+    acceptance:
+      - >-
+        uv run pytest tests/engines/test_databricks_live.py -q
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: The Spark surrogate lane, on evidence
+    intent: >-
+      Add the local Spark lane last and conditionally, because it is the only rung
+      in this sequence whose existence rests on measurement rather than on need. A
+      harness at `tests/support/spark.py` owns the session lifecycle and pins the
+      settings a comparison depends on — timezone, ANSI mode, fixture registration,
+      result canonicalization — and the tests it serves carry a marker that names
+      them a surrogate, covering only the shared subset: joins, filters, aggregates,
+      windows, common casts, regexp, arrays, basic date and timestamp expressions,
+      null propagation, arithmetic. What this lane must return is defects the offline
+      rungs missed; if it returns none over this port's work, the outcome is to drop
+      it and record why.
+    scope:
+      - tests/support/spark.py
+      - tests/engines/test_databricks_surrogate.py
+      - pyproject.toml
+    acceptance:
+      - >-
+        uv run pytest tests/engines/test_databricks_surrogate.py -q
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural

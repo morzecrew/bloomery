@@ -1,0 +1,137 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The port and the offline rungs
+    intent: >-
+      A `snowflake` `DialectPort` registered beside the three shipped ones, established
+      by the offline rungs only: its rewrites and declared capabilities under unit
+      test, the dialect-sensitive fixtures rendered into `sqlmesh/snowflake` golden
+      cells beside the existing postgres and trino cells, and syntax sanity — `sqlglot.parse_one(rendered,
+      read="snowflake")` — on every rendering. Each of the six rewrite points is answered
+      here from what was measured on Snowflake rather than copied from the PostgreSQL
+      or Trino port, the timestamp mapping stays zoneless UTC, and the concrete type
+      map is written from those measurements. This phase runs everywhere and needs
+      no container, no emulator and no credential, which is why it is the one that
+      carries both `LOCKED` rows.
+    scope: [src/bloomery/dialects/**, tests/unit/test_dialects/**, tests/golden/**]
+    acceptance:
+      - uv run pytest tests/unit/test_dialects -q
+      - uv run pytest tests/golden -q
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: The OSS emulator surrogate lane
+    intent: >-
+      The default local lane: a `tests/support/snowflake.py` harness carrying connection,
+      submission, polling and row canonicalization, and `tests/engines/test_snowflake_surrogate.py`
+      running the shared fixture corpus against `ghcr.io/sivchari/snowflake-emulator`
+      under a `surrogate` marker the tier table does not have yet. It waits on phase
+      1 because there is nothing to execute until a port renders, and it comes before
+      the live lanes not because it proves more but because it is where iteration
+      is cheap. The lane skips with a stated reason when no emulator is reachable,
+      so the acceptance command is quiet without Docker.
+    scope: [tests/support/**, tests/engines/**, pyproject.toml]
+    acceptance:
+      - >-
+        uv run pytest tests/engines/test_snowflake_surrogate.py -q
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: The authoritative compile lane
+    intent: >-
+      `EXPLAIN USING JSON` against a real Snowflake account, as its own compile-only
+      job separate from any execution job so the default cloud lane cannot scan or
+      bill: the engine's own parser, binder and function resolution accepting or refusing
+      every statement the shared corpus renders. This is the acceptance oracle the
+      surrogate lane is only evidence for, and it waits on phase 2 so that the cheap
+      iteration has already removed what an emulator can catch. Credentials come from
+      the environment behind a GitHub Environment, never from the repository, and
+      the lane skips with a stated reason when they are absent.
+    scope: [tests/engines/**, tests/support/**, .github/workflows/**]
+    acceptance:
+      - >-
+        uv run pytest tests/engines/test_snowflake_live.py -q
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: routine
+  - phase: 4
+    title: The small execution corpus
+    intent: >-
+      The handful of questions a plan cannot settle, executed on a real account against
+      tiny seed tables with canonicalized rows and types compared against the shared
+      expectations: timezone normalization, ISO parsing, decimal division, `TRY_CAST`,
+      regexp extraction, `VARIANT` extraction, Unicode normalization, SHA-256 output,
+      null behaviour and quarantine row disposition. It is deliberately small and
+      last, because it is the only rung that compares values and the only one where
+      a mapping that renders, parses and plans can still be found to mean something
+      else.
+    scope: [tests/engines/**, tests/support/**]
+    acceptance:
+      - >-
+        uv run pytest tests/engines/test_snowflake_live.py -q
+      - uv run mypy src
+    depends_on:
+      - 3
+    character: routine
+contract_example:
+  schema_version: 2
+  id: T-0001
+  spec: S-0013
+  phase: 1
+  role: implement
+  title: The port and the offline rungs
+  intent: >-
+    A `snowflake` `DialectPort` registered beside the three shipped ones, established
+    by the offline rungs only: unit tests over its rewrites and declared capabilities,
+    golden cells for the dialect-sensitive fixtures, and syntax sanity on every rendering.
+  depends_on: []
+  targets: []
+  scope:
+    allow: [src/bloomery/dialects/**, tests/unit/test_dialects/**, tests/golden/**]
+    deny: []
+  acceptance:
+    - uv run pytest tests/unit/test_dialects -q
+    - uv run pytest tests/golden -q
+    - uv run mypy src
+  decisions:
+    - id: D-1
+      grade: LOCKED
+      text: >-
+        The Snowflake timestamp mapping preserves bloomery's zoneless-UTC invariant
+        — a bloomery `timestamp` is UTC and zoneless whatever Snowflake calls it —
+        and `TIMESTAMP_LTZ` is never what a `timestamp` lowers to
+      paths: [src/bloomery/dialects/**]
+      consequence: >-
+        `TIMESTAMP_LTZ` renders against the session zone, so the mapping that reached
+        for it would land one instant on two dates for two readers; the port halts
+        and surfaces the conflict rather than choosing, and every timestamp fixture
+        must read as the same instant on Snowflake as on the three shipped ports
+      check_state: shadow
+    - id: D-2
+      grade: LOCKED
+      text: >-
+        Nothing is inherited from the PostgreSQL or the Trino port without being measured
+        on Snowflake: each of the six rewrite points is re-established here from evidence
+      paths: [src/bloomery/dialects/**, tests/unit/test_dialects/**]
+      consequence: >-
+        A rewrite this port applies is a rewrite something measured on Snowflake asked
+        for, so a copied `TO_UTF8`/`TO_HEX`/`LOWER` or a copied separator rewrite
+        is a finding even when the tests are green
+      check_state: shadow
+    - id: D-6
+      grade: OPEN
+      text: >-
+        The concrete type map — which Snowflake type each bloomery logical type lowers
+        to, `VARIANT` and the decimal bounds included — is decided by whoever measures
+        it, under D-1's constraint
+      paths: [src/bloomery/dialects/**]
+      consequence: >-
+        `physical_type` is a one-way door once artifacts exist in the wild, so the
+        table is written from measurements rather than guessed in prose
+      check_state: shadow
+  budget: {}
+  tier: executor
+  character: structural

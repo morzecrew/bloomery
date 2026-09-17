@@ -1,0 +1,89 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: MetricFlow, the two cases the first column left
+    intent: >-
+      The first MetricFlow pass measured three of the twelve cases and named two it
+      owed and did not run — `009-null-denominator` and `011-timezone-boundary` —
+      where `fill_nulls_with` and `join_to_timespine` are both in the manifest schema
+      and both look relevant. Looking relevant is not a cell. This phase authors the
+      two bundles at the fixed layout, fills only the rows they answer, and leaves
+      every other cell `UNKNOWN`. It finishes the column that already backs a live
+      documentation sentence before a second system is opened, and it is the two rows
+      where bloomery published a wrong number until recently, so the comparison is
+      against the case as it now stands.
+    scope: [comparisons/**, tests/unit/test_comparisons_floor.py]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_comparisons_floor.py -q
+  - phase: 2
+    title: dbt Core, the second column
+    intent: >-
+      dbt Core resolves at `1.12.3` as a dependency of this repository, so a bundle
+      needs no install and D-10's version half applies to it as written — which also
+      means the bundle directory must be added to the gate's distribution map or its
+      version pin goes unchecked. This phase opens the column with the cases MetricFlow
+      already answers, so that the first rows compared across three columns are rows
+      where two of them are already measured, and marks every case it does not run
+      `UNKNOWN`.
+    scope: [comparisons/**, tests/unit/test_comparisons_floor.py]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_comparisons_floor.py -q
+    depends_on:
+      - 1
+  - phase: 3
+    title: SQLMesh, the third column
+    intent: >-
+      SQLMesh resolves at `0.236.1` as a dependency of this repository, so the same
+      argument that makes dbt Core cheap makes this column cheap, and the same distribution
+      map entry is owed. It follows dbt Core rather than running beside it because
+      the table is edited by both and one system at a time is what keeps a half-measured
+      column from being read as a measured one.
+    scope: [comparisons/**, tests/unit/test_comparisons_floor.py]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_comparisons_floor.py -q
+    depends_on:
+      - 2
+contract_example:
+  schema_version: 2
+  id: T-0100
+  spec: S-0006
+  phase: 1
+  role: implement
+  title: MetricFlow, the two cases the first column left
+  intent: >-
+    The first MetricFlow pass measured three of the twelve cases and named two it
+    owed and did not run — `009-null-denominator` and `011-timezone-boundary`. This
+    phase authors the two bundles at the fixed layout, fills only the rows they answer,
+    and leaves every other cell `UNKNOWN`.
+  depends_on: []
+  targets: []
+  scope:
+    allow: [comparisons/**, tests/unit/test_comparisons_floor.py]
+    deny: []
+  acceptance:
+    - >-
+      uv run pytest tests/unit/test_comparisons_floor.py -q
+  decisions:
+    - id: D-1
+      grade: LOCKED
+      text: >-
+        A cell claims a property of a tested configuration, never a property of a
+        product: every claim names the version, the date, the feature set and the
+        configuration it was measured under, and a universal statement of the form
+        "system X cannot do Y" is refused wherever it appears
+      paths: [comparisons/**]
+      consequence: ''
+      check_state: shadow
+    - id: D-2
+      grade: LOCKED
+      text: >-
+        No cell is filled from reputation or memory; an unrun cell says `UNKNOWN`,
+        which is an honest value and the default
+      paths: [comparisons/**]
+      consequence: ''
+      check_state: shadow
+  budget: {}
+  tier: executor

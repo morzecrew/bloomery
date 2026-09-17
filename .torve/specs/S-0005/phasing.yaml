@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The explain surface renders the derivation
+    intent: |
+      `bloomery explain` prints the SQL, the planner's prose explanation and the
+      evidence-grade tally, and no derivation — so the one thing a closed-world checker can
+      say that a guardrail cannot is the one thing the command does not say. The values are
+      already there: a semantic plan carries the proofs of the request it answers, and the
+      vocabulary already renders itself in the numbered form this design shows and serializes
+      itself canonically, with neither renderer reached from outside the semantic package's
+      own tests. This phase wires them to the surface. The human output gains the derivation
+      beside the evidence it already prints, deepest premise first, each step naming the rule
+      that admitted it; the machine-readable output carries the same derivation against
+      stable rule identifiers, so a continuous-integration run can assert on the reasoning
+      rather than on the answer. No request changes outcome and no guardrail is deleted,
+      which is what keeps the parity assertions meaningful and what makes this a reading
+      change rather than a capability one. The planner's prose safety notes stay as they are
+      — they belong to the documents that specified them — and the derivation stands beside
+      them rather than replacing them.
+    scope:
+      - src/bloomery/cli/render.py
+      - src/bloomery/cli/__init__.py
+      - tests/unit/test_cli.py
+    acceptance:
+      - uv run pytest tests/unit/test_cli.py -q
+      - uv run mypy src
+  - phase: 2
+    title: The documentation shows a derivation
+    intent: |
+      The concept page says what the compiler proves and the command page shows what
+      `explain` prints, and both were written while the answer was the absence of a
+      complaint. Once the derivation is on the surface they are the two places a reader meets
+      it before they meet the code: the concept page gains the difference between a guardrail
+      that stayed silent and a proof that closed, including the provenances that may never
+      close one, and the command page gains the rendered derivation as an executed example
+      rather than a transcribed one. Both pages are snippet-checked, which is what makes the
+      example a claim the suite can refuse; the phase is separate from the wiring because a
+      page that documents a surface can only be written once the surface exists, and because
+      the two touch nothing in common.
+    scope:
+      - pages/docs/concepts/what-bloomery-proves.md
+      - pages/docs/how-to/use-the-cli.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_docs_snippets.py tests/unit/test_docs_floor.py
+        -q
+    depends_on:
+      - 1

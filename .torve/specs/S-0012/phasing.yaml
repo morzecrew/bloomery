@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The surrogate rung in the marker table
+    intent: >-
+      The marker table in `pyproject.toml` names eight tiers and none of them distinguishes
+      "ran against the engine" from "ran against something engine-shaped", which is
+      the one gap in the tree this document owns rather than delegates to a per-engine
+      port. Give the fourth rung its own selector — a `surrogate` marker or a parameter
+      on `engine`, whichever the executor decides — with the reason recorded in the
+      table beside it, and a guard test that reads the table and refuses a tree where
+      the rung has gone missing, in the shape `tests/unit/test_purity_guard.py` already
+      uses to hold a `pyproject.toml` claim. The tier list in `tests/README.md` gains
+      the same distinction. No lane is built, no dialect ships and nothing under `src/`
+      is touched: this is the selector the four per-engine documents each need to
+      exist before their first surrogate lane can be named honestly.
+    scope: [pyproject.toml, tests/README.md, tests/unit/test_tier_ladder_guard.py]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_tier_ladder_guard.py -q
+    character: structural

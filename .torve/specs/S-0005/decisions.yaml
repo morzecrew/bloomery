@@ -1,0 +1,220 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      Unknown is not safe: a proof obligation is closed only by a `Declared`, `Derived`
+      or narrowly specified `ImportedVerified` fact. `InferredHeuristic` and `Unknown`
+      may inform a diagnostic and never an acceptance, and the line is drawn in one
+      place — `Provenance.closes` — rather than at each call site
+    paths:
+      - src/bloomery/semantic/proof.py
+      - src/bloomery/semantic/closure.py
+      - src/bloomery/semantic/additivity.py
+      - src/bloomery/semantic/denomination.py
+      - src/bloomery/planner/semantic_plan.py
+      - src/bloomery/cli/render.py
+    consequence: >-
+      A rule that closes on a guess accepts an unsafe project silently, and a second
+      copy of the closure test that drifted would not look like a safety change in
+      review; the reading surface inherits the same line, because a renderer that
+      presents an unclosed proof as evidence makes the same claim the checker refused
+      to
+    rationale: >-
+      This is the sequence's whole safety posture stated as a rule, and the retired
+      import path was built against it — reversing it there would let a guessed fact
+      from a foreign artifact close a correctness proof, which is the failure that
+      document existed to prevent
+    check: >-
+      uv run pytest tests/unit/test_semantic/test_proof.py::test_only_declared_derived_and_imported_close_an_obligation
+      tests/unit/test_semantic/test_proof.py::test_one_heuristic_leaf_makes_the_whole_proof_unclosed
+      tests/unit/test_semantic/test_proof.py::test_a_proof_resting_on_nothing_is_not_closed
+      -q
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      The primary internal representation is a proof or a refusal, never a boolean:
+      every entry point that answers a semantic question returns the derivation or
+      the structured failure, and a caller reads which question failed off the judgement
+    paths:
+      - src/bloomery/semantic/proof.py
+      - src/bloomery/semantic/closure.py
+      - src/bloomery/semantic/additivity.py
+      - src/bloomery/semantic/denomination.py
+      - src/bloomery/cli/render.py
+    consequence: >-
+      A boolean discards the derivation, so every consumer downstream — the explain
+      surface, the per-case rule pinning the bug corpus needs, a refusal's smallest
+      failed obligation — has to reconstruct it from the answer, and a surface that
+      reconstructs can agree with the answer without resting on it
+    rationale: >-
+      Reconstruction after the fact is how a prose-only explanation engine gets written,
+      which the explain surface refuses by name; the additive obligation is the worked
+      case, where returning the grain refusal unchanged is what lets a caller send
+      an author to the right question instead of to one verdict covering two
+    check: >-
+      uv run pytest tests/unit/test_semantic/test_proof.py::test_both_halves_carry_the_same_surface
+      -q
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      Guardrails are expressed as obligations before any is deleted, and the mart
+      compiler keeps its aggregate error mechanism throughout while internally consuming
+      shared semantic facts
+    paths:
+      - src/bloomery/guardrails/**
+      - src/bloomery/errors.py
+      - src/bloomery/semantic/closure.py
+      - src/bloomery/semantic/additivity.py
+    consequence: >-
+      A guardrail deleted in favour of a proof rule that turns out narrower is a silently
+      accepted unsafe project; the parity assertions between a proof and the boolean
+      answer it expresses are what make the two comparable, and they can only be written
+      while both exist
+    rationale: >-
+      Migration order, not sentiment. The additive obligation is the shape in practice:
+      it expresses a decision the additivity guardrail already makes, converts no
+      corpus case by construction, and the guardrail stayed
+    check: >-
+      uv run pytest tests/unit/test_semantic/test_proof.py::test_the_proof_agrees_with_the_answer_it_expresses
+      -q
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Capability grows monotonically — the safe queries of one release are a subset
+      of the next — except where a prior rule is found unsound, in which case correctness
+      wins and the narrowing is a breaking change carrying an explicit note rather
+      than a quiet withdrawal
+    paths:
+      - src/bloomery/semantic/proof.py
+      - tests/fixtures/semantic_corpus/**
+      - CHANGELOG.md
+    consequence: >-
+      A new rule ships with positive and adversarial tests showing the boundary it
+      admits, so a reader can see what was widened; a project that compiled last release
+      and refuses in this one is either a documented soundness fix or a defect, and
+      the note is what tells them apart
+    rationale: >-
+      Not `LOCKED` because the property is a release discipline rather than a compiler
+      invariant: nothing in the code can enforce it, so grading it `LOCKED` would
+      make a halt routine over something only review can check
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Rules are named, individually documented and independently testable, registered
+      once in a module constant, and a rule identifier is never minted at a call site
+    paths:
+      - src/bloomery/semantic/proof.py
+      - tests/unit/test_semantic/**
+      - src/bloomery/cli/render.py
+    consequence: >-
+      The alternative — one monolithic checker returning a tree — passes the same
+      tests and cannot answer which rule admitted a given acceptance, which the bug
+      corpus requires of every case it pins; a registry a test asserts against also
+      means a removed identifier fails rather than disappearing
+    rationale: >-
+      The registry stands at nineteen entries with nothing superseded, and the independently
+      testable half is the weaker one: most identifiers are produced by a single mapping
+      from a dependency basis, so the property is asserted structurally rather than
+      by a test per rule exercising the shape it admits
+    check: >-
+      uv run pytest tests/unit/test_semantic/test_proof.py::test_every_rule_is_documented_and_uniquely_identified
+      tests/unit/test_semantic/test_proof.py::test_a_rule_id_is_never_minted_at_a_call_site
+      -q
+  - id: D-6
+    grade: LOCKED
+    text: >-
+      Proof serialization is deterministic: canonical premise order, stable rule identifiers,
+      no memory addresses, no timestamps, no dependence on traversal order, and premises
+      and facts sorted on construction rather than trusted in arrival order
+    paths:
+      - src/bloomery/semantic/proof.py
+      - src/bloomery/planner/semantic_plan.py
+      - src/bloomery/cli/render.py
+      - tests/unit/test_determinism_guard.py
+    consequence: >-
+      Equivalent authored ordering produces equivalent proof serialization, so a golden
+      or a continuous-integration assertion over a derivation is a statement about
+      the design rather than about the order a dictionary happened to iterate in
+    rationale: >-
+      Locked rather than assumed because a proof tree is evidence, a graph walk produces
+      it, and this codebase's determinism failures have always entered through iteration
+      order
+    check: >-
+      uv run pytest tests/unit/test_semantic/test_proof.py::test_premise_order_is_canonical_not_construction_order
+      tests/unit/test_semantic/test_proof.py::test_serialization_carries_nothing_that_varies_between_processes
+      -q
+  - id: D-7
+    grade: OPEN
+    text: >-
+      Whether a proof is retained after acceptance or discarded once the obligation
+      closes. The explain surface needs one; a compile may not, and holding every
+      proof for a large project is an unmeasured cost. Decide it — a return value,
+      a lazily rebuilt artifact, or retention behind a flag — and log the decision
+      with whatever measurement prompted it
+    paths:
+      - src/bloomery/semantic/proof.py
+      - src/bloomery/semantic/closure.py
+      - src/bloomery/planner/semantic_plan.py
+    consequence: >-
+      The answer decides whether a proof is a return value or an artifact, which is
+      the difference between a compile that pays nothing for proofs nobody asked for
+      and one that carries every derivation it built
+    rationale: >-
+      Execution proposed closing this as built on demand and never retained, in `logs/T-0020.md`:
+      nothing is stored on the project representation, so the stated risk is zero
+      by construction rather than by measurement. The source table never accepted
+      the proposal, so the row is carried at the grade it was given. The tree has
+      since moved halfway on its own — a semantic plan does carry the proofs of the
+      request it answers — which is the measurement the row asked for arriving from
+      a different direction
+  - id: D-8
+    grade: OPEN
+    text: >-
+      What happens to a rule identifier when a rule is split or subsumed. They become
+      a public contract the moment continuous integration asserts on them, so decide
+      the versioning discipline before the first identifier ships, since the choice
+      is unmakeable afterwards
+    paths: [src/bloomery/semantic/proof.py]
+    consequence: >-
+      A corpus case, a refusal code and a rendered derivation all name a rule identifier,
+      so an identifier silently repointed changes what a pinned assertion means without
+      changing the assertion
+    rationale: >-
+      Execution proposed closing this as append-only, by the same discipline the decision
+      tables use — an identifier is never reused and never silently repointed, a split
+      mints new ones, and the old entry stays in the registry marked superseded and
+      naming its replacements, with a test that makes a removed entry fail rather
+      than disappear (`logs/T-0020.md`). The registry currently holds nothing superseded,
+      so the discipline is written and untested against a real split; the row is carried
+      at the grade the source table gave it
+    check: >-
+      uv run pytest tests/unit/test_semantic/test_proof.py::test_a_superseded_rule_keeps_its_entry
+      -q
+  - id: D-9
+    grade: LOCKED
+    text: >-
+      No plan transformation may merge two aggregate branches before aggregation without
+      proving that the merge preserves every measure's grain
+    paths: [src/bloomery/planner/semantic_plan.py, src/bloomery/planner/compose.py]
+    consequence: >-
+      A merge without the proof is silent double counting, which this sequence refuses
+      rather than approximates; the obligation owed with it is a property test that
+      constructs such a partition and asserts the merge is refused
+    rationale: >-
+      Inherited twice and built neither time, and transferred here when the second
+      document holding it retired. A merge is legal exactly when it can derive that
+      the aggregate it produces is the one the detail would have produced, which is
+      this design's subject rather than the rollup mart's. It gates no phase here:
+      it transfers on to whatever document builds a plan optimization pass, and that
+      document owes the property test in its own tests. The paths name where such
+      a pass would land and where the branch join's existing authorization already
+      lives; no pass exists today, so the lock convicts the first one written
+invariants:
+  - id: I-1
+    statement: >-
+      The same specs produce byte-identical proof and semantic-plan serializations
+      across processes and hash seeds
+    paths: [src/bloomery/semantic/proof.py, src/bloomery/planner/semantic_plan.py]
+    check: >-
+      uv run pytest tests/unit/test_determinism_guard.py -q

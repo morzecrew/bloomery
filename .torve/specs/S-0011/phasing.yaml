@@ -1,0 +1,84 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The type, the kind, the guardrails
+    intent: >-
+      Grow `LogicalType` an eighth member for a declared vector, teach the spec layer
+      the `retrieval_version` kind carrying semantic spaces and retrieval profiles,
+      and land the six refusals - dimension mismatch, scalar mismatch, a non-vector
+      vector field, a producer mismatch, a grain that is not the corpus relation's
+      key, and a filterable or returned field the corpus does not have. No manifest
+      is emitted in this phase: the refusals are the feature and they are worth having
+      before anything is written out. This phase answers Q-1 yes by building it, so
+      it must not start until the owner has settled that question; two rows it inherits
+      are graded `OPEN` and the executor decides and logs both.
+    scope:
+      - src/bloomery/typing/**
+      - src/bloomery/spec/**
+      - src/bloomery/ir/**
+      - src/bloomery/transforms/**
+      - src/bloomery/dialects/**
+      - src/bloomery/guardrails/**
+      - tests/unit/test_typing/**
+      - tests/unit/test_spec/**
+      - tests/unit/test_transforms/**
+      - tests/unit/test_dialects/**
+      - tests/unit/test_guardrails/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_typing tests/unit/test_spec tests/unit/test_transforms
+        tests/unit/test_dialects tests/unit/test_guardrails -q
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: The manifest, the target and one example
+    intent: >-
+      Add the retrieval target, emit one deterministic `retrieval_manifest.json` with
+      each profile's space inlined, put it through the existing cross-process and
+      cross-hash-seed determinism guard, and ship `examples/retrieval/` compiling
+      a document-chunk corpus alongside the concepts page and the two reference pages.
+      It waits for phase 1 because there is nothing to resolve into a manifest until
+      the kind loads and the refusals hold. A dev-only script showing a runtime consuming
+      the manifest may live beside the example; it is a demonstration, not a test,
+      and its dependency stays optional.
+    scope:
+      - src/bloomery/compile.py
+      - src/bloomery/emit/**
+      - examples/**
+      - pages/docs/**
+      - tests/unit/test_emit/**
+      - tests/unit/test_determinism_guard.py
+      - tests/unit/test_examples.py
+      - tests/golden/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_emit tests/unit/test_determinism_guard.py tests/unit/test_examples.py
+        tests/golden -q
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: >-
+      A second consumer, before the grammar is called stable
+    intent: >-
+      Demonstrate the manifest against a second, unrelated retrieval runtime and write
+      down what the two consumers disagreed about. The semantics are claimed to be
+      vendor-neutral and exactly one demonstrated consumer is not evidence of that;
+      this is the phase most likely to be skipped and the one that decides whether
+      the claim was true. It waits for phase 2 because there is no manifest to consume
+      until that lands, and it changes no source: what it may change is the example
+      corpus and the pages that describe the contract.
+    scope:
+      - examples/**
+      - pages/docs/**
+      - tests/unit/test_examples.py
+      - tests/unit/test_docs_floor.py
+      - tests/unit/test_docs_snippets.py
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_examples.py tests/unit/test_docs_floor.py tests/unit/test_docs_snippets.py
+        -q
+    depends_on:
+      - 2
+    character: routine
