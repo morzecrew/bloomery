@@ -1,0 +1,314 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0002
+title: Multi-project composition
+kind: design
+status: draft
+implementation: partial
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  One project reading entities, marts or metrics that another project publishes: what may
+  cross the boundary, and what a compile means once something does. The boundary is an
+  explicit export list somebody wrote; what crosses is the upstream's compiled IR, handed
+  to `compile_project` as an argument the way a `StepRegistry` already is; and the
+  downstream fingerprint takes the upstream fingerprint whole, which is the decision the
+  rest follows from. Two of the five phases have landed — the export list and the import
+  declaration with its refusals — and the three that remain are resolution and lineage,
+  the composed fingerprint, and the emitted reference.
+motivation: |
+  **The single-project assumption is load-bearing in three places and stated in none.**
+  `load_project` reads one directory; `build_project_ir` resolves every reference within
+  one `ProjectIR`; `project_fingerprint` hashes one project's IR. Each is correct and none
+  of them says "one project" as a decision, so a platform team publishing conformed
+  dimensions and a domain team building marts on them have to be one spec directory or two
+  disconnected ones.
+
+  **The refusals get better, which is the part worth building for.** Without composition a
+  domain project declaring its own `customer` beside the platform's is two entities that
+  happen to share a name, and nothing notices. With it, that is a collision the guardrail
+  stage refuses — and `plan()` can answer the question a platform team actually has: which
+  downstream projects does changing the platform's `customer` grain break.
+
+  **A compiler whose guarantee is byte-identical artifacts from identical inputs has to say
+  what the inputs are** once one project reads another. That is the whole design, and the
+  reason a dictionary lookup is not the answer.
+current_state: |
+  Measured against the working tree on 2026-09-18.
+
+  - **The upstream half exists.** `src/bloomery/spec/exports.py` carries `Exports` and
+    `ExportSet`; `src/bloomery/guardrails/exports.py` refuses a name the project does not
+    declare with `DanglingExport` (`src/bloomery/errors.py`). `ExportsIR` reaches
+    `ProjectIR` — the field that took `bloomery_ir_version` to 17, since moved on to 19 by
+    later work (`src/bloomery/ir/nodes.py`). `tests/fixtures/ecom_basic/exports.yaml`
+    carries a real list, and every artifact that fixture emits is byte-identical but the
+    fingerprint.
+  - **The downstream declaration exists and refuses.** `src/bloomery/spec/imports.py`
+    carries `Imports` keyed by a local alias; `src/bloomery/guardrails/imports.py` raises
+    `UnknownUpstream`, `UnexportedImport` and `ImportCollision`
+    (`src/bloomery/errors.py`). `upstream: Mapping[str, ProjectIR]`
+    threads `compile_project` → `build_project_ir` → `pipeline` → `check_guardrails`
+    (`src/bloomery/compile.py`). There is no `ProjectIR.imports`: an import list is
+    local, read by this project's own guardrails and never by a further downstream.
+  - **Nothing consumes an import yet.** `build_project_ir` still resolves every reference
+    against the IR it is building, so a mart cannot name an imported entity. Lineage node
+    ids are `<kind>.<name>` with no project component
+    (`src/bloomery/resolve/graph.py`), and `check_lineage_names` knows the kind
+    prefixes and nothing about a project one. `project_fingerprint` hashes one `ProjectIR`
+    and is called with one argument (`src/bloomery/compile.py`). No emitter has a
+    cross-project reference shape.
+  - **The fixture that proves the downstream side is deliberately unreachable.**
+    `tests/fixtures/cross_project/downstream/imports.yaml` is nested one level deeper than
+    every other fixture and named in `NON_SPEC_FIXTURES`
+    (`tests/support/compiling.py`), because a project carrying an imports document
+    cannot compile without an upstream and must not be swept by the sweeps that compile
+    every top-level fixture directory.
+  - **The CLI cannot compile an importing project.** `bloomery compile` calls
+    `compile_project` with no `upstream`, and there is no value for it to pass: no IR
+    deserializer exists in the tree.
+goals: |
+  A project may declare a dependency on another project's published surface and reference
+  entities, marts and metrics from it. The surface is explicit, and a reference to
+  something not exported is refused naming the export list. Determinism holds, with the
+  upstream input named in the fingerprint. Cross-project name collisions and grain
+  conflicts become refusals. `plan()` answers "what does changing this break" across the
+  boundary.
+non_goals: |
+  A registry, a package manager or distribution: how the upstream artifact reaches the
+  downstream compile is the caller's problem — a path, a checkout, a CI artifact — and
+  bloomery reads what it is handed. Reading over a network, of any kind. Resolving cycles:
+  two projects importing each other is refused, not resolved. Cross-project quality
+  composition: an upstream entity's reject table stays upstream, and the downstream reads
+  the entity, never its quality surface. Runtime federation: both projects still compile
+  to relations in one warehouse.
+design:
+  - key: what-crosses
+    md: |
+      An **export list**, declared upstream, and never "everything public by default": a
+      project that exports its whole spec has no boundary, and its first refactor breaks
+      four teams. What may be exported is an entity, a mart or a metric — never a mapping,
+      a step or a quality surface, because those are how a thing is built rather than what
+      it is.
+
+      The rule needs no check, and that is the point of grouping by kind: there is no key
+      to put a mapping under. The grouping also disambiguates, since the three namespaces
+      are separate and a bare list would make `revenue` mean a metric or a mart depending
+      on who read it.
+
+      A rollup is on neither list. Execution settled it as unexportable for now and said
+      why in `logs/T-0059.md`: admitting one is a grammar change with legs into the dbt
+      emitter's reference lowering and into `plan()`'s change subjects, which is exactly
+      the shape the last phase gives an export.
+  - key: how-it-is-handed-over
+    md: |
+      A compiled artifact of the upstream project — its IR — passed to `compile_project` as
+      an argument, the way a `StepRegistry` already is. Not a path bloomery opens, and not
+      the upstream's spec documents: re-resolving those downstream would make the
+      downstream compile depend on the upstream's mappings, which the boundary says are not
+      part of it.
+
+      This is the same shape as dbt's manifest and for the same reason: the boundary is
+      what was built, not what was written.
+
+      In the tree the upstream arrives as an in-process `ProjectIR` keyed by the local
+      alias, because there is no IR deserializer — `ir/fingerprint.py` hashes a `ProjectIR`
+      and nothing reads one back. A wire format is a separate feature the caller owns, and
+      until it exists the CLI has no value to pass.
+  - key: the-fingerprint
+    md: |
+      "Same specs in, byte-identical artifacts out" needs "specs" to include the upstream.
+      So the downstream fingerprint is over its own IR **and** the upstream fingerprint.
+      That value is already computed, already in every upstream artifact header, and
+      already exactly what the upstream compiled to.
+
+      Both being *IR* fingerprints is what makes composing them meaningful rather than
+      merely possible: an upstream whose documents were reformatted, but whose IR did not
+      move, disturbs nothing downstream.
+
+      The consequence, stated because it will surprise someone: an upstream change that
+      alters nothing the downstream reads still moves the downstream fingerprint. That is
+      the honest answer — a fingerprint is an identity, not a diff — and the alternative,
+      hashing only the exports the downstream touched, makes the fingerprint depend on
+      analysis and stop being a cheap identity.
+  - key: node-ids-and-refusals
+    md: |
+      Lineage node ids gain a project component for imported nodes only. Local ids keep
+      their spelling, so every existing id and every published citation stays valid —
+      `bloomery lineage --node metric.gross_revenue` is a documented invocation, and
+      re-spelling the ids the whole ecosystem stores to make room for a new kind of node is
+      the change the namespace guard already refused to make once.
+
+      `check_lineage_names` extends to refuse a local name colliding with an imported one,
+      which is the refusal the motivation names as the payoff. Two upstreams supplying one
+      name is the same ambiguity and worse, because each upstream's file is correct on its
+      own; the landed import guard already refuses it, ahead of any row saying so.
+
+      Grain conflict is the second refusal: a downstream mart over an imported entity is at
+      that entity's grain, and the grain rule applies across the boundary unchanged. It
+      belongs to the resolution phase rather than to the declaration phase, because until
+      an imported entity is nameable by a mart the refusal has no reachable input — a mart
+      naming one fails earlier, as an unresolved reference.
+  - key: targets
+    md: |
+      - **dbt**: `ref('upstream_project', 'model')`, plus the `dependencies.yml` entry that
+        makes it resolvable. A different call shape from the local `ref()`, so the reference
+        map gains a project component rather than a special case.
+      - **SQLMesh**: the imported relation is named directly. SQLMesh has no cross-project
+        reference and composes by config, so the relation exists in the warehouse under the
+        naming policy both projects share — which is a constraint worth stating rather than
+        a mechanism.
+      - **Cube and MetricFlow**: an imported mart is a mart. Nothing special.
+tests: |
+  - **Unit.** Export-list enforcement and collision refusal already stand in
+    `tests/unit/test_spec/test_exports.py`, `tests/unit/test_spec/test_imports.py`,
+    `tests/unit/test_guardrails/test_exports.py` and
+    `tests/unit/test_guardrails/test_imports.py`. What remains is the grain conflict across
+    the boundary, in `tests/unit/test_guardrails/test_grain.py`, and the imported-node
+    refusals in `tests/unit/test_guardrails/test_lineage.py`.
+  - **Resolution and lineage.** `tests/unit/test_resolve/test_build.py` for an imported
+    name resolving, `tests/unit/test_resolve/test_graph.py` and
+    `tests/unit/test_resolve/test_lineage.py` for the project component on an imported node
+    id and for local ids keeping their spelling.
+  - **Fingerprint.** `tests/unit/test_ir/test_fingerprint.py`: the downstream moves when
+    the upstream does, and is byte-identical when neither moves. That is the composed-
+    fingerprint decision as a test rather than as a paragraph.
+  - **Golden.** A two-project fixture under `tests/fixtures/cross_project/`, both projects'
+    artifacts, beside the `downstream/` half that already exists.
+  - **The corpus is the regression.** A single-project compile must stay byte-identical:
+    `uv run pytest tests/golden -q` over every fixture that carries neither document is the
+    claim most worth pinning in a change this size, and it is why the export list's arrival
+    was measured as a fingerprint-only golden diff rather than asserted.
+  - **e2e, out of a sandbox's reach.** `dbt parse` over the pair with `dependencies.yml`,
+    because a cross-project reference that resolves in bloomery and not in dbt is the
+    failure mode that matters. It needs Docker, so it is CI's, never a phase's acceptance.
+docs: |
+  A how-to on publishing a surface and consuming one — the second half has no subject until
+  resolution lands, which is why the landed phases added no page. The determinism page
+  gains the composed fingerprint's consequence, in the section that defines what "same
+  specs" means. The naming page gains the shared-policy constraint. Every error class the
+  phases add is owed a row in `pages/docs/reference/errors.md` by the docs floor gate, and
+  the four that exist already have theirs.
+out_of_scope: |
+  Registries, packaging, and versioning of the exported surface beyond the fingerprint.
+  Network access of any kind. Cross-project quality surfaces. A serialized form for the IR
+  — without one the CLI cannot hand an upstream to a compile, which is a real gap this
+  document names and does not close.
+risks: |
+  - **Fingerprint churn.** Composing the upstream fingerprint whole makes every upstream
+    change move every downstream fingerprint, including changes to nothing the downstream
+    reads. Acceptable and surprising; the mitigation is the docs meeting it head on rather
+    than a cheaper rule, because the cheaper rule makes a fingerprint depend on analysis.
+  - **Naming-policy coupling.** Two composing projects must agree on a naming policy and
+    nothing enforces it. A refusal is possible only if the upstream IR records the policy
+    it was compiled under — worth deciding at build time rather than discovering at run
+    time, and left open below.
+  - **Scope creep into a package manager.** "How do I get the upstream artifact" is a real
+    question with a tempting answer. The non-goal is the mitigation and it will be tested.
+  - **The blast radius is the whole compiler.** Loading, resolution, lineage,
+    fingerprinting, planning, three emitters. That is the risk that argues for the phasing
+    below — refusals before references — and the two landed phases are evidence the
+    ordering works: neither moved an existing artifact except by an IR version bump.
+sections:
+  - key: provenance
+    md: |
+      This document is a backfill. Its source is the accepted design record
+      `rfcs/0059-multi-project-composition.md`, numbered 0059, whose status row in
+      `rfcs/INDEX.md` reads "In progress". Every decision row below is that document's own
+      table carried across with the grade its owner gave it; no grade was raised, and the
+      row texts are its sentences tightened rather than rewritten. The prose sections are
+      its summary, motivation, current state, goals, tests, docs, out-of-scope and risks,
+      with the current state re-measured against the tree rather than copied.
+
+      Two of its five phases have landed, which is why `implementation` reads `partial`:
+
+      - **P1, the export list**, landed 2026-09-16 in pull request 124, commit `ff6e6fe2`,
+        executed as task T-0059 with its log at `logs/T-0059.md`. Drift 0.
+      - **P2, the import declaration and its refusals**, landed in pull request 125, commit
+        `fb4c6aca`, executed as task T-0061 with its log at `logs/T-0061.md`. Drift 0. The
+        source document's own header was not updated for it and still names only P1; the
+        tree and the log are the record, and this section is where they are reconciled.
+
+      The rows governing those two phases are carried here in full, because a landed phase's
+      rows still govern their paths. Only the phasing is limited to what has not landed, so
+      it begins at 3.
+
+      Execution proposed four rows across the two logs that the source document's owner has
+      neither accepted nor refused. They are not written into the decision list — appending
+      a row nobody accepted would launder a proposal into a decision — and are carried
+      below as open questions instead, each naming the log that forced it.
+alternatives:
+  - option: >-
+      Everything public by default, with no export list
+    rejected_because: >-
+      A project that exports its whole spec has no boundary at all, and its first
+      refactor breaks every consumer. The surface has to be a list somebody wrote,
+      so that a name absent from it is not exported however public it looks from inside.
+  - option: >-
+      Handing the upstream's spec documents to the downstream compile
+    rejected_because: >-
+      Re-resolving them downstream would put the upstream's mappings, steps and quality
+      surfaces inside the boundary — all three of which are how a thing is built rather
+      than what it is. The boundary is what was built, not what was written.
+  - option: A path the downstream compile opens and reads
+    rejected_because: >-
+      Compilation is a pure function of its inputs and performs no I/O; the upstream
+      is a value passed to `compile_project`, exactly as a step registry is.
+  - option: >-
+      Hashing only the exports the downstream actually touched
+    rejected_because: >-
+      It removes the churn and costs the property that makes a fingerprint worth having:
+      it would depend on analysis rather than on identity, and two compiles that read
+      the same upstream differently would disagree about what the upstream was.
+  - option: >-
+      Resolving import cycles rather than refusing them
+    rejected_because: >-
+      A cycle among projects is a modelling mistake, not a scheduling problem, and
+      the resolution would have to invent an order nobody wrote.
+  - option: >-
+      Letting a downstream project extend an imported entity by adding fields
+    rejected_because: >-
+      It is what people will want, and it makes the boundary a subclassing relationship
+      — a much larger claim than a dependency needs. Left open below rather than closed
+      for good.
+  - option: >-
+      A registry, a package manager, or any form of distribution
+    rejected_because: >-
+      How the upstream artifact reaches the compile is the caller's, and a tempting
+      answer to a real question is how this design grows into a different project.
+questions:
+  - id: Q-1
+    text: >-
+      Should the upstream IR carry the naming policy it was compiled under, so a mismatch
+      between two composing projects is a refusal rather than a run-time surprise?
+  - id: Q-2
+    text: >-
+      May a downstream project extend an imported entity — adding fields — or only
+      read it? Extension makes the boundary a subclassing relationship.
+  - id: Q-3
+    text: >-
+      Should `bloomery resolve` report imported-but-unused exports? It is the upstream's
+      dead code, visible only downstream.
+  - id: Q-4
+    text: >-
+      Accept or refuse the row execution proposed in `logs/T-0061.md`: a name supplied
+      by two upstreams is a collision, proposed LOCKED. The guard already refuses
+      it; the source document's text names only the local-against-imported case.
+  - id: Q-5
+    text: >-
+      Accept or refuse the row execution proposed in `logs/T-0061.md`: grain conflict
+      belongs to the resolution phase, proposed ASSUMED, because it has no reachable
+      input until an imported entity is nameable by a mart. The phasing below already
+      places it there; the row is what would make that a decision rather than an arrangement.
+  - id: Q-6
+    text: >-
+      Accept or refuse the row execution proposed in `logs/T-0061.md`: the cycle refusal
+      is satisfied by construction for a fresh compile, proposed ASSUMED, and a stale
+      cycle is out of reach until a project has an identity.
+  - id: Q-7
+    text: >-
+      Accept or refuse the row execution proposed in `logs/T-0061.md`: the CLI cannot
+      compile an importing project until an IR has a serialized form, proposed OPEN.
+      The out-of-scope section names the gap; no row carries it.

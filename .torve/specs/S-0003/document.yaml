@@ -1,0 +1,324 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0003
+title: Replay on a historical entity
+kind: design
+status: draft
+implementation: partial
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  Replay's first statement wrote past the framework that owns a type 2 relation's
+  versions, so a recovered row landed with a NULL validity interval — present,
+  queryable, and invisible to every as-of join the relation exists for. The route
+  through bronze replaces it: replay re-delivers the recovered row to the bronze
+  relation it came from, and the framework versions it on its own next run, which is
+  the whole of the answer. That route is built and the blanket refusal it replaces is
+  deleted; what is left is the half of the acceptance the other target never ran, and
+  one blocking audit that is still written as though the entity held one row per key.
+motivation: |
+  **The combination is not exotic.** A slowly-changing dimension read from a dirty
+  source is the ordinary case — a customer table with a segment that changes and an
+  email that sometimes fails to parse. Until this landed an author had to choose
+  between keeping history and being able to recover a diverted row, and nothing
+  explained why those were alternatives.
+
+  **The refusal that stood was a stop-gap and read like a position.** It said what to
+  give up and not what it would take to give up neither. A refusal with no design
+  behind it is indistinguishable from a decision that the combination is wrong, and it
+  is not wrong — it was unbuilt.
+
+  **The hole was older than the refusal.** The merge had been emitted against the
+  SQLMesh historical model kind since quality landed, and no fixture ever combined the
+  two, so nothing observed it. A later self-audit compared the two targets' artifact
+  sets for such an entity and found them identical and identically broken.
+current_state: |
+  Measured against the tree at `9e44779d`.
+
+  **The route is built.** Pull request #128 landed at `ad5891d7` on 2026-09-17 — 31
+  files, 1910 insertions — and is the only phase this design ever wrote. In it:
+
+  - `replay_statements` in `src/bloomery/emit/lower/silver.py` branches on the entity's
+    SCD kind: on a historical entity the first statement stops being a merge into the
+    entity and becomes one INSERT per source relation back into bronze, re-projecting
+    the reject row's stored payload through the current mapping's own expressions. The
+    second and third statements are unchanged.
+  - `_snapshot_quarantine` is gone from `src/bloomery/resolve/build.py`, deleted rather
+    than narrowed. `_snapshot_replay` stands in its place with two refusals an author
+    can act on.
+  - A new port hook, `utc_now`, in `src/bloomery/dialects/base.py` and
+    `src/bloomery/dialects/trino.py`: the value written into a relation bloomery does
+    not build is zoneless UTC, stated rather than inherited from a session.
+  - A quarantining historical fixture the tree did not have,
+    `tests/fixtures/scd2_replay/`, six files.
+  - `tests/execution/test_replay_to_bronze.py` asserts bloomery's own bookkeeping
+    across the route in DuckDB; `tests/e2e/test_dbt_parse.py` asserts the claim D-3
+    makes, with dbt versioning the row for real.
+  - `pages/docs/concepts/data-quality.md` carries the route where it carried the
+    warning block.
+
+  **Two things are not done, and both are named by the log of that landing,
+  [T-0064](logs/T-0064.md).**
+
+  - **The acceptance ran on one target.** The design asked for it on both, "since the
+    two frameworks version differently and a design that works on one is half a
+    design". Only dbt is measured end to end; the SQLMesh artifacts are asserted at the
+    unit tier and executed by nothing that versions anything. `tests/e2e/` has a SQLMesh
+    module already, and no replay test in it.
+  - **The conservation audit fails in a state this route makes reachable.** A source row
+    admitted earlier and quarantined later is counted in both legs of the law, because
+    the entity leg is scoped to this run's survivor identities while a retaining
+    relation still holds the version that predates the run. It fires at the build
+    *before* any replay runs, and it is blocking. The landing recorded it and left it
+    deliberately, because a second audit rewritten inside a review round is how a phase
+    stops being reviewable.
+
+  The source document is still marked draft in its own index, and the rows its
+  executing log proposed have not been accepted into its table.
+goals: |
+  - A quarantining historical entity compiles, and its replay admits a recovered row as
+    a **version the framework wrote**.
+  - The route is the same on both targets, or the difference is one decision row rather
+    than two lowerings.
+  - The blanket refusal is deleted, not narrowed.
+  - Proven by execution: the recovered row is visible to an as-of join at the grain the
+    entity declares. A row that lands is not the claim; a row an as-of join *finds* is.
+non_goals: |
+  - **Computing any framework's SCD bookkeeping** — the snapshot identity, the validity
+    interval, the strategy hash. D-1 is the whole of it.
+  - **A bloomery-maintained history.** Both targets have a native mechanism and the
+    standing target rule is to adapt to it, not to replace it.
+  - **Changing replay for type 1 entities.** It is correct there and every fixture
+    proves it.
+  - **Retention or redaction changes.** A recovered row's reject entry is history
+    exactly as it was.
+design:
+  - key: the-hole-and-what-it-cost
+    md: |
+      Replay's first statement was a merge that admitted a re-evaluated row into the
+      entity, projecting the entity's own columns. That is correct for a relation
+      bloomery's own SELECT defines, and wrong for one the framework maintains: a
+      historical relation also carries a validity interval, and on dbt a snapshot
+      identity, that the merge does not name.
+
+      It did not fail. It inserted a version with those columns NULL and reported
+      success, so the row was present, queryable, and invisible to every as-of join —
+      which is the only reason a historical relation exists. Measured on dbt: the
+      admitted row came back with its snapshot identity and both interval ends NULL, and
+      the statement reported success. A NULL interval start fails every range predicate
+      an as-of join writes, so the row is skipped; a NULL snapshot identity is one dbt's
+      next run does not recognise.
+
+      The obvious fix was never available. The snapshot identity is a hash dbt computes
+      in its own macros, and the interval is a history nobody declared — the two
+      frameworks disagree about what the interval of a back-filled version even means.
+      That is D-1, and it is why the answer had to be a route rather than a column list.
+  - key: the-route-that-replaced-the-merge
+    md: |
+      The recovered row is written back to the bronze relation as a new delivery, and
+      the ordinary pipeline admits it. Nothing about the entity changes: no new
+      relation, no second arm in the entity's SELECT, no lifecycle for anyone to own.
+      The versioning, the audits and the conservation law hold by construction, because
+      the row arrives through the path every other row arrives through.
+
+      What the route rests on, beyond the statement itself:
+
+      - **The re-delivery keeps the reject row's own source-row identity** and takes a
+        reserved load identifier naming replay as its origin. The load is outside the
+        reject identity precisely so that re-deliveries of one source row land on the
+        same reject row — which is what lets the resolution stamp find it once the
+        framework has admitted it. A fresh identity would mint a second reject row per
+        run and leave the first unresolvable forever.
+      - **Resolution becomes eventually consistent.** The second statement stamps a
+        reject row resolved by finding its identity in the entity; on this route nothing
+        enters the entity during replay, so the test simply becomes true one run later.
+        The evidence is a version newer than the diverted delivery's own clock, so an
+        old version cannot resolve a row it predates.
+      - **The re-delivery's ingestion instant is zoneless UTC**, written through a port
+        hook rather than a bare session clock. This is the first value bloomery writes
+        into a relation it does not build, which is why the question arises here.
+  - key: what-the-route-needs-declared
+    md: |
+      The one broad refusal is replaced by two narrow ones, and neither is a preference.
+      Both live in `_snapshot_replay`.
+
+      **The entity must declare a dedupe.** The re-delivery keeps the original row
+      identity, so two bronze rows share one identity, and the blocking ingestion audit
+      counts duplicates over exactly that partition. With a dedupe the pair collapses to
+      one row and the audit is satisfied; without it the second delivery stops the run on
+      correct data, which is the false refusal a generated audit must never produce.
+
+      **The entity must not declare a redaction.** What replay re-delivers is the reject
+      row's stored payload, and that payload is the mapped columns minus every redacted
+      one. Writing it back would put a row into bronze whose redacted column is NULL and
+      whose metadata says it was delivered — a redaction laundered into what reads as a
+      fresh delivery, in the relation the *caller* owns. There is nothing to narrow: the
+      value is gone from the only copy replay can reach.
+
+      Both are refusals an author can act on, which the one they replace was not: that
+      one said to give up history or give up recovery and named no third thing to do.
+  - key: the-half-that-is-left
+    md: |
+      **The conservation law is written for a relation that holds one row per key.** Its
+      entity leg counts rows of the entity relation scoped to this run's survivor
+      identities; on a retaining relation a row is a *version*, and the relation still
+      holds versions that predate the run. A source row admitted earlier and quarantined
+      later is then counted as surviving and as diverted at once, and the audit is
+      blocking, so it stops the run on correct data at the build before any replay.
+
+      The honest restatement is a different predicate rather than a narrower one: each
+      surviving bronze row is either the **current version** of its identity or
+      diverted. The current-version scope already exists for the duplicate-identity
+      audit and for the conservation audit's own count; what it does not yet do is
+      answer the case where the two legs disagree about a row the relation is right to
+      keep. Reproducing it before changing it is the whole of the work — the failure was
+      found while writing a regression test for something else, and it fires without
+      replay being involved at all.
+
+      **The acceptance ran on one target.** The design's own words are that a design
+      which works on one target is half a design, and the SQLMesh half has never been
+      run by SQLMesh. It is deliberately not phased below: its evidence is the opt-in
+      tier, and a phase whose acceptance cannot run where the work runs is a phase that
+      mints a contract nobody can satisfy honestly.
+tests: |
+  The property worth building against is the one the old merge failed: does a row
+  admitted into a framework-maintained historical relation, by any route, become
+  visible to an as-of join at the entity's grain? That is D-3, and a row count cannot
+  answer it.
+
+  What stands today:
+
+  - `tests/e2e/test_dbt_parse.py` quarantines a row, widens the rule, runs the replay
+    macro, asserts the snapshot is **unchanged** at that point, builds again and asserts
+    the mart's own as-of join now attributes the order. The middle assertion is what
+    makes the last one mean something.
+  - `tests/execution/test_replay_to_bronze.py` asserts the half DuckDB can reach —
+    the re-delivery carries the original row identity and a load that says replay wrote
+    it, a rebuild admits the row, and the reject row resolves on the *next* replay
+    rather than this one.
+  - `tests/unit/test_emit/test_quality_artifacts.py` asserts the emitted statements on
+    the SQLMesh side: the INSERT into bronze, the absence of the merge into the entity,
+    and the identity carried through rather than regenerated.
+
+  What is missing is the SQLMesh counterpart of the first one — a test that has SQLMesh
+  itself version the row and then asserts the as-of join. It is tier 6 and opt-in, so it
+  cannot be an acceptance command that runs quiet in a sandbox with no engine; it is
+  named here rather than phased, and whoever schedules it schedules a tier with it.
+docs: |
+  `pages/docs/concepts/data-quality.md` carried the refusal as a warning block with a
+  live provocation behind it. It now carries the route instead: that running replay
+  leaves a historical entity's relation untouched and the framework admits the row on
+  its next build, the reserved load identifier an operator greps for, and the two
+  conditions the route needs declared. Whatever restates the conservation law changes
+  the audit's description in the same page.
+out_of_scope: |
+  - History on a merged entity, refused separately and for an unrelated reason: the
+    collision audit cannot tell a version from a collision.
+  - A quarantine policy on a step output, refused on every target for a third unrelated
+    reason.
+  - Retention, redaction, and everything the reject table already does.
+risks: |
+  - **This design makes bloomery a writer.** Emitting a statement that inserts into
+    bronze is a posture change, and the package's whole claim is that it emits text a
+    caller runs. The text is still the caller's to run, and the blast radius is
+    contained to a pair that could not compile before — but it is a sentence this
+    project had never written, and D-7 is the row that carries it.
+  - **A partial fix is worse than the refusal.** Admitting the row without the
+    framework's interval is what the old code did; a route that lands half-built
+    reproduces the defect with a suite that says it is fixed. The conservation audit
+    left open in `current_state` is that risk in its live form: a blocking audit failing
+    on correct data is the first thing a real user of this feature meets.
+  - **One target is measured end to end and the other is not.** The claim that the route
+    works on SQLMesh rests on a spike's measurement of the framework rather than on this
+    tree's artifacts being run by it.
+sections:
+  - key: provenance
+    md: |
+      This document carries `rfcs/0060-replay-on-a-historical-entity.md` — number 0060 in
+      that corpus, titled "Replay on a historical entity", status 📝 Draft in
+      `rfcs/INDEX.md` as of `9e44779d`. Nothing about the source document was edited to
+      write this one, and the source stays the design authority until it is retired by
+      its own process.
+
+      **The rows.** Its decision table carries ten rows and this document carries them
+      one for one: its row *n* is `D-n` here, with its grade as the table gives it and
+      its text tightened, never re-graded. Rows 5 and 6 were superseded in that table —
+      row 5 by row 7 and row 6 by row 8 — so `D-5` and `D-6` are retired here rather
+      than carried as open questions an executor would be told to decide again. The
+      questions they asked are recorded in `questions`, settled by `D-7` and `D-8`. No
+      row was added: every path on every row below was read from the working tree on
+      2026-09-18.
+
+      **The phases.** The source wrote one phase and wrote it late — its phasing section
+      said there was none until a measurement had been run, and the block quote beneath
+      it names what became P1 once the measurement was: the route, the deletion of the
+      blanket refusal, and the acceptance test on both targets.
+
+      | What | Where | Landed |
+      |---|---|---|
+      | The measurement that made the phase writable | `tools/spikes/` and [T-0057](logs/T-0057.md) | `8e6303c7`, pull request #121, 2026-09-15 |
+      | P1 — the route, the refusal swap, the acceptance | [T-0064](logs/T-0064.md) | `ad5891d7`, pull request #128, 2026-09-17 |
+
+      **What P1's log proposes and the table has not accepted.** [T-0064](logs/T-0064.md)
+      carries eight divergence entries, five of them proposing rows: the re-delivery's
+      identity and reserved load, the two narrow refusals, the zoneless ingestion
+      instant, the current-version scope on both generated audits, and the resolution
+      evidence being a version newer than the diverted delivery. All of them are built
+      and tested in the tree; none is a row in the source's table, and none is a row
+      here. Accepting them is the owner's act, and `Q-3` is where it is recorded as
+      pending.
+alternatives:
+  - option: >-
+      Union the recovered rows into the entity's source: replay writes to a bloomery-owned
+      staging relation and the entity's SELECT gains a second arm reading it, so the
+      framework sees the row in its own source query
+    rejected_because: >-
+      The named fallback, and now known to work rather than believed to — the measurement
+      made the row visible to an as-of join on both targets by this route as well.
+      It is rejected on cost, not correctness: it adds a relation with a lifecycle
+      nobody owns, whose failure mode is a row that re-enters the entity on every
+      run forever and looks exactly like a working feature, and it changes the entity
+      SELECT for a shape most projects do not have — a cost paid by every reader of
+      that function
+  - option: >-
+      Refuse the pair permanently and close the design as rejected
+    rejected_because: >-
+      The ordinary case — a dimension that keeps history read from a source that sometimes
+      fails to parse — would have no answer, and "keep history" versus "recover a
+      diverted row" is not a trade-off any user asked for. It was the honest fallback
+      only if the measurement showed every route failing, and it did not
+  - option: >-
+      Fill the missing columns: compute the snapshot identity, and write a validity
+      interval for the admitted version
+    rejected_because: >-
+      D-1. The identity is a hash another framework computes in its own macros, so
+      a wrong guess produces duplicate versions rather than an error and a right one
+      makes this compiler an implementation of that framework's internals. The interval
+      could be filled and should not be independently: an interval invented by a merge
+      is a history nobody declared, and the two frameworks disagree about what the
+      interval of a back-filled version even means
+questions:
+  - id: Q-1
+    text: >-
+      What a recovered version's validity interval start should mean — the original
+      delivery's ingestion instant, the moment of recovery, or the framework's own
+      run time
+    status: settled
+    settled_by: D-8
+  - id: Q-2
+    text: >-
+      Whether a recovered row should version the entity at all, or replace the interval
+      it would have had — whether replay is a correction to history or an addition
+      to it
+    status: settled
+    settled_by: D-10
+  - id: Q-3
+    text: >-
+      Whether the five rows P1's log proposes — the re-delivery's identity and reserved
+      load, the two narrow refusals, the zoneless ingestion instant, the current-version
+      audit scope, and the resolution evidence — are accepted as rows of this document.
+      They are built and tested in the tree and govern the areas the remaining phase
+      touches, so an executor arriving now inherits nothing about them

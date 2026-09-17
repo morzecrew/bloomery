@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 3
+    title: Imported nodes in the graph
+    intent: >-
+      Make an imported name resolvable. Today `build_project_ir` resolves every reference
+      against the IR it is building and an unknown name is refused as though it should
+      have been local, so an import list declares a dependency nothing can read through.
+      This phase lets a mart, a metric or a derivation name an imported entity, mart
+      or metric; puts the imported nodes into the dependency graph with a project
+      component on their ids while local ids keep their `<kind>.<name>` spelling;
+      extends the namespace guard to refuse a local name colliding with an imported
+      one; and adds the grain refusal, which belongs here rather than with the other
+      refusals because until an imported entity is nameable by a mart the refusal
+      has no reachable input. The upstream's identity has to reach `ProjectIR` in
+      this phase, because the next one composes the fingerprint from it.
+    scope:
+      - src/bloomery/compile.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/resolve/graph.py
+      - src/bloomery/resolve/lineage.py
+      - src/bloomery/resolve/refs.py
+      - src/bloomery/spec/imports.py
+      - src/bloomery/guardrails/imports.py
+      - src/bloomery/guardrails/lineage.py
+      - src/bloomery/guardrails/grain.py
+      - src/bloomery/guardrails/stage.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/errors.py
+      - pages/docs/reference/errors.md
+      - tests/unit/test_resolve/**
+      - tests/unit/test_ir/test_nodes.py
+      - tests/unit/test_guardrails/test_imports.py
+      - tests/unit/test_guardrails/test_lineage.py
+      - tests/unit/test_guardrails/test_grain.py
+      - tests/fixtures/cross_project/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_resolve tests/unit/test_ir/test_nodes.py tests/unit/test_guardrails/test_imports.py
+        tests/unit/test_guardrails/test_lineage.py tests/unit/test_guardrails/test_grain.py
+        -q
+      - uv run mypy src
+  - phase: 4
+    title: The composed fingerprint
+    intent: >-
+      Compose the downstream fingerprint from its own IR and the upstream fingerprint
+      whole, so that "same specs in, byte-identical artifacts out" keeps meaning something
+      once one of the specs is another project. The upstream identity reaches `ProjectIR`
+      in the previous phase, so this one is the hash function and its test: the downstream
+      moves when the upstream does, is byte-identical when neither moves, and is undisturbed
+      by an upstream whose documents were reformatted without its IR moving. The surprising
+      half is deliberate and belongs in the determinism page: an upstream change that
+      touches nothing the downstream reads still moves it.
+    scope:
+      - src/bloomery/ir/fingerprint.py
+      - tests/unit/test_ir/test_fingerprint.py
+      - pages/docs/concepts/determinism.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_ir/test_fingerprint.py -q
+      - uv run mypy src
+    depends_on:
+      - 3
+  - phase: 5
+    title: The emitted reference
+    intent: >-
+      Emit a cross-project reference, which is where the boundary becomes something
+      a warehouse sees. dbt needs `ref('upstream_project', 'model')` and the `dependencies.yml`
+      entry that makes it resolvable — a different call shape from the local `ref()`,
+      so the reference map gains a project component rather than a special case. SQLMesh
+      has no cross-project reference and names the imported relation directly, which
+      is what makes the shared naming policy a constraint rather than a preference.
+      Cube and MetricFlow read an imported mart as a mart. The phase's second deliverable
+      is the corpus-wide assertion that a single-project compile did not move, which
+      is the claim most worth pinning in a change this size.
+    scope:
+      - src/bloomery/emit/**
+      - src/bloomery/naming.py
+      - tests/unit/test_emit/**
+      - tests/golden/**
+      - pages/docs/how-to/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_emit tests/golden -q
+      - uv run mypy src
+    depends_on:
+      - 4

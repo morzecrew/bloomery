@@ -1,0 +1,418 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0004
+title: 'Observability: logging and a warnings channel'
+kind: design
+status: draft
+implementation: partial
+depends_on: []
+informed_by: [S-0001]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  Stage-level stdlib logging that stays silent by default and cannot reach artifact bytes,
+  a typed compile-time advisory channel carried on the evidence a caller already receives,
+  and Python's `warnings` module reserved for deprecation alone.
+
+  Three channels, kept apart on purpose. A `bloomery` logger hierarchy narrates execution
+  and is telemetry, never an output. A compile-time finding that is not a refusal is a
+  frozen `Advisory` value on `SpecEvidence.advisories`, sorted and deduplicated under a
+  declared key. `warnings.warn` appears once in the library, under `BloomeryDeprecationWarning`,
+  and nowhere else. Most of this landed; what is left is one more advisory code, the CLI's
+  verbosity flag, and three questions this document does not settle.
+motivation: |
+  Three gaps the production-readiness audit of 2026-09-01 named, each of which costs
+  something measurable today.
+
+  **A caller embedding a slow compile is blind.** `compile_project` over a large project is
+  one opaque call: nothing says which stage is running, how many entities resolved, or where
+  the time went. The bench lane answers "how long" and not "where", and a library that will
+  be embedded in schedulers and services should answer both without a debugger.
+
+  **The planner had a warnings channel and the compiler did not.** `QueryPlan.warnings`
+  exists because some findings are worth saying and not worth refusing over — a clamped
+  limit, an inapplicable grain. The compile path has the same class of finding and, before
+  this design, its only choices were refuse, stay silent, or grow a documentation caveat
+  nobody reads at compile time. The asymmetry was an accident of which surface was built
+  last.
+
+  **The deprecation policy existed and its mechanism did not.**
+  `pages/docs/reference/stability.md` promises a runtime `DeprecationWarning` whenever an old
+  spelling can survive one more minor release. Nothing under `src/bloomery/` could emit one
+  under a coherent category, so the first real deprecation would have invented the mechanism
+  under deadline.
+current_state: |
+  Most of this design is in the tree, landed in pull request #110 (`ad08baad`), and the rows
+  below govern it as it stands.
+
+  **The logger surface is complete.** `src/bloomery/__init__.py` attaches exactly one
+  `NullHandler` to the `bloomery` logger, guarded so `importlib.reload` cannot accumulate a
+  second, with no `basicConfig`, no format and no level. Six stage loggers take the documented
+  names literally: `bloomery.spec` in `src/bloomery/spec/project.py`, `bloomery.resolve` and
+  `bloomery.guardrails` in `src/bloomery/resolve/build.py`, `bloomery.emit` in
+  `src/bloomery/compile.py`, `bloomery.runtime` in `src/bloomery/runtime/hydration.py`, and
+  `bloomery.planner` in `src/bloomery/planner/metricflow_planner.py`.
+  `logging.basicConfig`, `logging.config` and `logging.disable` are banned under
+  `src/bloomery/` by the `banned-api` table in `pyproject.toml`, the same table that bans the
+  clock, so the posture is a gate rather than a convention. The posture suite is
+  `tests/unit/test_logging_posture.py` (235 lines, 9 tests), and
+  `test_artifacts_are_identical_whether_or_not_anyone_is_listening` in
+  `tests/unit/test_determinism_guard.py` compiles the corpus with a capturing handler at DEBUG
+  and with none and byte-compares the artifacts, with a companion control asserting the
+  listening run actually captured something.
+
+  **The advisory channel is complete and carries two codes, not one.**
+  `src/bloomery/evidence.py` holds `AdvisoryCode` and the frozen `Advisory`; `_advisory_key` is
+  the one place the declared sort key lives, and `_sorted_advisories` sorts and deduplicates
+  through it. `SpecEvidence.advisories` is the last field of the dataclass, populated by
+  `_advisories(catalog, ir)` on the full width and at all three partial widths.
+  `INEXACT_DIVISION` is the candidate this design named; `UNDECLARED_AUDIENCE` was added later
+  by the classification work that landed in pull request #113. Both are documented in the
+  advisory table of `pages/docs/reference/errors.md`, and `test_every_advisory_code_is_documented`
+  and `test_every_documented_advisory_code_exists` in `tests/unit/test_docs_floor.py` check the
+  vocabulary against that table in both directions, with a third test keeping the advisory table
+  and the error-class table disjoint. `tests/unit/test_advisories.py` is 414 lines, 21 tests.
+
+  **The deprecation mechanism is complete and has no caller.** `src/bloomery/errors.py` defines
+  `BloomeryDeprecationWarning(DeprecationWarning)` and
+  `warn_deprecated(spelling, *, replacement, removed_in)`, with an unsynchronized module-level
+  guard that records a spelling *after* emitting, so a suite running with `-W error` fails at
+  every deprecated call site rather than only the first.
+  `pages/docs/reference/stability.md` says nothing in the current release is deprecated, so the
+  helper is exercised only by `tests/unit/test_deprecation.py` (180 lines, 9 tests).
+
+  **What is not in the tree.** `src/bloomery/cli/__init__.py` (1,106 lines) has no `--verbose`
+  flag and no handler attachment of any kind; the grep finds neither. The advisory for a
+  quality rule on a column no rule class strengthens does not exist, and "strengthens" is not
+  vocabulary this codebase uses anywhere — the rule classes are the twelve `QualityRule`
+  subclasses in `src/bloomery/spec/quality.py`. The advisory for a deprecated spelling still
+  being accepted does not exist and cannot, because no spelling is deprecated and a documented
+  code no path can construct fails the census in `tests/unit/test_docs_floor.py`.
+goals: |
+  Give an embedder a way to see a compile without a debugger, give the compile path the same
+  findings-that-are-not-refusals channel the planner already had, and give the deprecation
+  policy a mechanism — all three without crossing the line that makes compilation a pure
+  function, and without letting any of the three blur into the others.
+non_goals: |
+  Changing the behaviour of any existing artifact: nothing here alters a byte of output, and
+  the determinism guard is the proof rather than the claim. Breaking a signature: one evidence
+  type gained a field, appended last. Softening any refusal into an advisory: the refusal
+  taxonomy is untouched, and moving a finding from one side to the other is a separate
+  argument this document does not make. Fixing the unguarded `parse_one(recipe.expr)` in
+  `src/bloomery/resolve/build.py`, which lets a malformed recipe expression escape `evaluate`
+  as a raw sqlglot exception — that is a refusal-taxonomy change rather than an observability
+  one.
+design:
+  - key: the-purity-line
+    md: |
+      Compilation is a pure function and must stay one. The determinism invariants this
+      repository holds — carried as row D-8 of S-0001 — are about **inputs**: no clock, no
+      randomness, no environment, no filesystem; same specs in, byte-identical artifacts out,
+      across processes and hash seeds.
+
+      Logging sits on the **output** side of that line. A `logger.info(...)` call reads nothing
+      ambient in bloomery's own code and cannot reach the returned artifacts. A log record's
+      timestamp is produced by the handler the caller installed, on the caller's side of the
+      boundary, which is where I/O already lives.
+
+      Three rules keep it there and each is enforceable rather than asserted: the library
+      configures nothing (D-1), records are built only from values the pipeline already holds
+      (D-2), and nothing branches on logger state or asserts behaviour through log output
+      (D-3). The third is the one a later change is most tempted to bend, because a test that
+      reads a log makes the log an API.
+  - key: the-logger-surface
+    md: |
+      One hierarchy, named by stage, so a caller tunes without knowing internals:
+
+      ```
+      bloomery              # the NullHandler lives here
+      bloomery.spec         # load_project, document parsing
+      bloomery.resolve      # the resolution walk
+      bloomery.guardrails   # batch sizes, per-check counts
+      bloomery.emit         # per-target artifact counts
+      bloomery.runtime      # hydration hits and misses, the counters narrated
+      bloomery.planner      # the delegation boundary
+      ```
+
+      Modules take these names **literally** rather than through the stdlib's
+      `getLogger(__name__)` idiom (D-13). The two ship different stable sets:
+      `__name__` in `src/bloomery/resolve/build.py` yields `bloomery.resolve.build`, a child of
+      the documented name rather than the documented name, which would make the documented set
+      a strict subset of the real one. Tuning works either way through the hierarchy; what
+      differs is which names are the promise.
+
+      Two levels and no third, to start (D-4). `INFO` is one record per stage per compile —
+      `"resolve: 412 entities"` — bounded, pinned not to grow with the project, and safe to
+      leave on in production. `DEBUG` is per-entity and per-artifact detail, unbounded, for a
+      developer with a specific question. There are no `WARNING`-level records anywhere: that
+      severity belongs to the advisory channel, and putting findings in logs is exactly what
+      D-5 forbids.
+
+      The message text is not API. Only the logger *names* are stable, under the deep-import
+      terms of `pages/docs/reference/stability.md`.
+
+      The CLI is the first consumer and is not built. `--verbose` would attach a stderr
+      `StreamHandler` at INFO to the `bloomery` logger for the duration of `main` and `-vv` at
+      DEBUG, and would set the logger's *level* to match — a logger left at `NOTSET` defers to
+      the root's default `WARNING` and would drop the very records the handler exists to show.
+      Both the handler and the prior level would be restored in a `finally` around the whole of
+      `main`, so neither a refusal nor a `KeyboardInterrupt` leaves an embedder with a mutated
+      global logger. The flag is a *view* over the same records any embedder gets, never a
+      second instrumentation path. D-9 fixes what the flag means if it lands; Q-3 holds whether
+      it lands.
+  - key: the-advisory-channel
+    md: |
+      **Findings are values.** A compile-time advisory is a frozen
+      `Advisory(code, message, source_path)` — the code from a closed enum, the message under
+      the same "what is wrong / why / the way out" contract refusals carry, the source path
+      pointing into the authored document. They ride the value a caller already receives, as
+      `QueryPlan.warnings` already does at request time:
+
+      ```python
+      @dataclass(frozen=True, slots=True)
+      class Advisory:
+          code: AdvisoryCode
+          message: str
+          source_path: str | None = None
+      ```
+
+      **Sorted and deduplicated under a stated rule, never a default** (D-11). The sort key is
+      `(code.value, source_path or "", message)` — total, explicit, and stable under a missing
+      source path, which normalizes to the empty string for ordering while staying `None` on
+      the value. Two advisories are duplicates exactly when all three fields are equal, and
+      deduplication keeps the first of an equal pair, which the total sort makes
+      indistinguishable from keeping any. The dataclass is deliberately **not** orderable: an
+      earlier version carried `order=True` claiming the dataclass comparison *was* the key, and
+      it was not — the field order is `(code, message, source_path)`, so the two disagreed
+      whenever two advisories shared a code, and comparing a `None` path against a string
+      raised `TypeError` on a legal pair.
+
+      **Derived, never accumulated** (D-12). Advisories are computed by a pure function of the
+      same values every other evidence field is derived from, called by `evaluate`. Threading a
+      mutable collector through `src/bloomery/resolve/build.py`'s `pipeline` generator would put
+      a side channel inside the one function whose whole purpose is that the two entry points
+      cannot disagree about what the pipeline is. It also makes the answer independent of when
+      a stage ran, which is why a project refused at any width still reports the advisories its
+      inputs support.
+
+      **The vocabulary is closed and documented both ways** (D-10). Every enum member has a row
+      in the reference's advisory table and every documented code is constructible; there is no
+      free-text advisory constructor, because a channel anyone can write into is a channel
+      nobody can enumerate.
+
+      **What an advisory is not** (D-7): a refusal that lost its nerve. The bar is that the spec
+      is legal, the compiled artifacts are correct, and there is still something the author
+      would want to know. Anything where the numbers could be wrong stays a refusal, and a
+      review that finds an advisory where a refusal belongs should treat it as a defect.
+
+      **The candidates.** Three were named. Inexact recipe division landed — a catalog recipe's
+      `/` is inexact on every engine, and the author of a spec using one previously learned that
+      only by reading `pages/docs/reference/dialects.md`. A quality rule on a column no rule
+      class strengthens is the one still to build, and what "strengthens" means is the thing to
+      settle (D-16). A deprecated spelling still being accepted is blocked on there being one.
+  - key: deprecation
+    md: |
+      `warnings.warn(..., BloomeryDeprecationWarning)` at the old call site, where
+      `BloomeryDeprecationWarning(DeprecationWarning)` is exported so `filterwarnings` can
+      target bloomery precisely, naming the replacement and the removal release — the exact text
+      `pages/docs/reference/stability.md` promises. It derives from `DeprecationWarning` and not
+      from `BloomeryError`: it is not a refusal.
+
+      **Best-effort once per process per spelling, by an explicit guard** — a module-level set of
+      spellings already warned — and not by the warnings machinery's default filter, which
+      deduplicates on (message, category, lineno), is scoped per emitting module by where the
+      registry lives, and is caller-overridable in both directions. An `always` filter would
+      repeat the warning per call without the guard, and the guard cannot *show* a warning a
+      caller's `ignore` filter hides; it only bounds how often bloomery emits.
+
+      "Best-effort" is the whole contract, stated rather than implied. The guard is an
+      unsynchronized module-level set, so two threads hitting a spelling's *first* use
+      concurrently may emit the warning twice — tolerated, documented in the thread-safety
+      contract, and pinned by a test over racing threads that asserts the tolerated range rather
+      than a count that was never promised. A caller needing a hard once gets it from their own
+      filter configuration, which deduplicates delivery regardless of how often bloomery emits.
+
+      The record happens **after** the emission, not before. Under `-W error` `warnings.warn`
+      raises, and a guard that recorded first would count a warning converted into an exception
+      as delivered: a suite whose second test hits the same spelling would get silence, and one
+      failing test would point at one call site where every deprecated call site should fail.
+
+      This is the only use of the `warnings` module under `src/bloomery/`. Advisories and log
+      records each have their own channel, and the three do not blur.
+tests: |
+  `tests/unit/test_logging_posture.py` is the posture suite: exactly one `NullHandler`, no
+  level, propagation untouched, a reload adding nothing, every declared logger hanging off the
+  package root, no record at `WARNING` or above over a real compile, every stage narrated, the
+  INFO budget not scaling with the project, and a hydration miss narrating at DEBUG and staying
+  silent at INFO. It reads handlers and levels, never messages.
+
+  `tests/unit/test_determinism_guard.py` carries the check this design asks for by name:
+  compile the corpus with a capturing handler at DEBUG and with none, byte-compare the
+  artifacts, with a second test asserting the listening run actually captured something so two
+  silent runs cannot agree trivially.
+
+  `tests/unit/test_advisories.py` covers the producers, the declared sort key against the field
+  order, deduplication and survival, the tuple type, `advisories` being the last field, and a
+  positional-construction test that supplies every pre-existing field by position and asserts
+  each landed where it was named — with a companion test pinning the field count, because a
+  field appended tomorrow silently makes the call one short again. Both of those exist because
+  sabotage found the first versions of them survived a real mutation.
+
+  `tests/unit/test_docs_floor.py` is the census in both directions, plus a test that the
+  advisory table and the error-class table stay disjoint: one pattern loose enough for both
+  would let an advisory code satisfy the error census.
+
+  `tests/unit/test_deprecation.py` covers the category, the message, that it is not a
+  `BloomeryError`, the guard, a different spelling still warning, every call site failing under
+  `-W error`, a caller's `ignore` filter winning, and the race. The race test captures in the
+  main thread only: `warnings.catch_warnings` replaces `showwarning` and the filter list, both
+  process-global and documented as not thread-safe, so a per-thread capture is what flakes.
+
+  Advisory messages belong in the refusal-text golden corpus alongside
+  `tests/golden/test_refusal_messages.py`, because an advisory message degrading silently is the
+  same defect class as a refusal message degrading.
+docs: |
+  `pages/docs/reference/errors.md` carries the advisory table and the section saying advisories
+  are not errors, and is the page the census reads. `pages/docs/reference/stability.md` carries
+  the deprecation policy this gives a mechanism to, and the deep-import terms under which the
+  logger names are stable. `pages/docs/concepts/guardrails.md` and
+  `pages/docs/how-to/annotate-a-spec.md` mention advisories from the spec author's side.
+out_of_scope: |
+  **The CLI's `--verbose` flag.** D-9 fixes what it means; Q-3 holds whether it belongs here at
+  all against the no-config posture of the CLI design, and nobody has done that re-read. It is
+  not phased, because minting it would settle Q-3 by building rather than by deciding. What
+  would change this: the author settling Q-3.
+
+  **The advisory for a deprecated spelling still being accepted.** Nothing in the current
+  release is deprecated, so the enum member would be a documented code no path can construct and
+  the census would refuse it. What would change this: a first real deprecation, which is also
+  the first time `warn_deprecated` is called from library code.
+
+  **The level `bloomery.runtime` records at.** D-14 ships DEBUG on the argument that widening a
+  level later is backward-compatible where narrowing one is not. Q-2 asks for a bench-lane
+  measurement before choosing, and this document does not run one.
+
+  **An observability dependency, a metrics registry, tracing spans and progress callbacks** —
+  each rejected with its trade-off in `alternatives`, not merely absent.
+risks: |
+  **The three channels blur.** Logging, advisories and `warnings` are separated by rules, not by
+  types, and the cheapest failure is a `WARNING`-level record that nobody notices is a finding
+  in the wrong channel. The posture suite asserts over a real compile rather than by grepping
+  for a call an alias could hide, which is what keeps the rule measurable.
+
+  **A test reads a log and the log becomes API.** D-3 is the rule most likely to be bent by a
+  change that finds a log record convenient to assert on. D-3 declares the posture suite and the
+  determinism guard as the area it governs, so a change there is governed; a log assertion added
+  in a test file no row names would be invisible.
+
+  **The vocabulary grows faster than the documentation.** The census is the guard and it is
+  bidirectional, so an undocumented code and a documented non-code both fail. The risk is a
+  change that relaxes the pattern the census reads rather than the vocabulary itself.
+
+  **This document is read as complete.** Most of it landed and the rest is genuinely open; the
+  status line and `out_of_scope` say which is which, and `implementation: partial` is the
+  queryable half of that.
+sections:
+  - key: provenance
+    md: |
+      This document is a carry-across of `rfcs/0033-observability-logging-and-a-warnings-channel.md`,
+      numbered 0033 in `rfcs/INDEX.md`, whose status row reads "🚧 In progress". That document is
+      the design authority and is not edited by this one; nothing here is a redesign.
+
+      **The grades are the source's own.** Rows D-1 through D-9 carry the grades its decision
+      table gives them, which that table records as added on 2026-09-13, after the fact: the
+      document argued its nine decisions in prose and never tabled them, `rfc_index.py check`
+      failed on it for that reason, and the documented fallback applied — every one was executed
+      as `LOCKED`, including the two that say in their own words they are open. The grades were
+      then read off each decision's own prose rather than invented, proposed in `logs/T-0048.md`
+      with the sentence each grade comes from quoted, and appended by the author. The text of
+      each row here is that document's own, tightened to one sentence a contract can carry; the
+      `paths` are read from the working tree on 2026-09-18 and from `tasks/T-0048.json`, which
+      was written before the work.
+
+      **What landed, and where.** Pull request #110 (`ad08baad`, "stage records and a
+      compile-time advisory channel") landed the logger surface, the `Advisory` type with
+      `SpecEvidence.advisories` and the inexact-division producer, and the deprecation mechanism.
+      Its execution log is `logs/T-0048.md`, drift count 0, with three audit rounds. A later
+      change, pull request #113 (`91ec5272`, classification composing with grants), added the
+      second advisory code `UNDECLARED_AUDIENCE` under its own design; it is named here because
+      it is part of the current state this document's rows govern, not because this document
+      designed it.
+
+      **What was scoped out at execution time, and why.** The readiness gate fired on five
+      unsettled decisions and reported rather than executing. The author then scoped out the
+      quality-rule advisory (under-specified — "strengthens" is not vocabulary this codebase
+      uses), the deprecated-spelling advisory (no producer), and the CLI flag (deferred to a
+      re-read nobody has done). Those three are this document's remaining surface.
+
+      **Rows D-10 through D-16 are additions.** Six carry rules the source states in its prose
+      but never tabled, or that `logs/T-0048.md` proposed from contact with the code and the
+      author has not yet graded; D-16 is the vocabulary question the scoped-out advisory needs
+      answered. Every one is graded `ASSUMED` or `OPEN`, never `LOCKED`, because no owner graded
+      them.
+alternatives:
+  - option: >-
+      An observability dependency — structlog, or OpenTelemetry
+    rejected_because: >-
+      The same call the hydration counters already made: the stdlib logger is the
+      seam and anything richer is the caller's adapter. A library whose core promise
+      is purity should not make its embedder's telemetry choice for it, and an added
+      dependency is a supply-chain surface bought for formatting.
+  - option: A metrics registry and tracing spans
+    rejected_because: >-
+      The counters that matter are already values a caller receives — hits and misses
+      — and a span belongs to the embedder who knows what a request is. A registry
+      inside a pure compiler is process-global mutable state on the wrong side of
+      the purity line.
+  - option: Log message text as a stable surface
+    rejected_because: >-
+      A contract on message text makes every wording improvement a breaking change,
+      and callers would parse records instead of reading the values they already receive.
+      The logger names are the promise; the text is not.
+  - option: A progress callback, `on_stage=`
+    rejected_because: >-
+      It invites callers to mutate state mid-compile — a hole straight through the
+      purity line — and it duplicates what a DEBUG handler already sees. What it buys
+      over a handler is a shorter call chain, which is not worth a mutable hook inside
+      a pure function.
+  - option: >-
+      Modules obtaining loggers through `getLogger(__name__)`
+    rejected_because: >-
+      It ships a different stable set than the one documented — `bloomery.resolve.build`
+      rather than `bloomery.resolve` — making the documented names a strict subset
+      of the real ones. What it buys is one less literal per module; what it costs
+      is knowing what was promised.
+  - option: >-
+      Detecting an inexact recipe division by scanning `expr:` for `/`
+    rejected_because: >-
+      The character appears inside string literals and comments, and the same string
+      is parsed with sqlglot two stages later, so a text scan would both over-report
+      and disagree with the parse that decides what the expression means. The advisory
+      is raised from the parsed AST instead, reusing the parse the resolver already
+      performs.
+  - option: >-
+      Threading a mutable advisory accumulator through the resolve pipeline
+    rejected_because: >-
+      It puts a side channel inside the one generator whose purpose is that `evaluate`
+      and `build_project_ir` cannot disagree about what the pipeline is, and it makes
+      the result depend on when a stage ran. Deriving advisories as a pure function
+      of the same values every other evidence field comes from costs one extra pass
+      and buys back that independence.
+questions:
+  - id: Q-1
+    text: >-
+      Does the advisory channel need a `CompileReport` wrapping artifacts plus advisories
+      behind a new entry point, or does `SpecEvidence.advisories` alone suffice? Held
+      until a real embedder asks; the evidence field is useful under either answer
+      and already ships.
+  - id: Q-2
+    text: >-
+      Does `bloomery.runtime` record at INFO or only at DEBUG? A hydration miss is
+      per-request telemetry and INFO may be too chatty for a hot service; the bench
+      lane should measure it before the level is fixed. D-14 ships DEBUG in the meantime.
+  - id: Q-3
+    text: >-
+      Does the CLI's `--verbose` flag belong to this design or to an amendment of
+      the CLI's own? The CLI's no-config posture should be re-read before the flag
+      lands; D-9 fixes what it means, not that it lands.

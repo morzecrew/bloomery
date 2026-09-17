@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The unstrengthened-rule advisory
+    intent: >-
+      The second of the three advisory candidates this design named is the one still
+      missing: a quality rule declared on a column that no rule class strengthens
+      is legal, compiles correctly, and is usually a typo'd column name that happened
+      to exist — the exact shape of finding the channel was built for, and today the
+      author learns nothing. It cannot be built before "strengthens" means something
+      checkable against the twelve `QualityRule` subclasses in `src/bloomery/spec/quality.py`,
+      so settling that definition is part of the work and is carried as an `OPEN`
+      row rather than left to whoever arrives first. The advisory joins the closed
+      enum with its documentation row, is derived by the same pure function of the
+      pipeline's own values every other advisory is, and must clear the bar that separates
+      an advisory from a refusal: the spec is legal, the artifacts are correct, and
+      there is still something worth saying.
+    scope:
+      - src/bloomery/evidence.py
+      - pages/docs/reference/errors.md
+      - tests/unit/test_advisories.py
+      - tests/unit/test_docs_floor.py
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_advisories.py tests/unit/test_docs_floor.py
+        -q
+      - uv run mypy src
+    character: routine

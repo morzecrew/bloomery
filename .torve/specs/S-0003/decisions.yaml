@@ -1,0 +1,132 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      bloomery computes no framework's SCD bookkeeping: no snapshot identity, no validity
+      interval and no strategy hash is written or guessed anywhere on the replay path
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/emit/sqlmesh/__init__.py
+    consequence: >-
+      dbt's `dbt_scd_id` is a hash over its own unique key and check columns, computed
+      in its own macros; a guess that is wrong produces duplicate versions rather
+      than an error, and a guess that is right makes this compiler an implementation
+      of another framework's internals — which is the coupling the lowering layer
+      exists to prevent
+    rationale: >-
+      Carried from row 1 of rfcs/0060-replay-on-a-historical-entity.md, which grades
+      it LOCKED; the boundary is the same one the purity rule defends one level up
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      A recovered row reaches the entity through whatever produces the entity's versions,
+      so the framework does the versioning it owns; nothing on the replay path writes
+      to a `scd: type2` entity relation
+    paths: [src/bloomery/emit/lower/silver.py, src/bloomery/resolve/build.py]
+    consequence: >-
+      Writing past the framework is exactly what the shipped defect did, and it reported
+      success — the admitted version carried a NULL interval and no snapshot identity,
+      so the row was present, queryable and invisible to every as-of join
+    rationale: >-
+      Carried from row 2 of rfcs/0060-replay-on-a-historical-entity.md, which grades
+      it LOCKED
+    check: >-
+      uv run pytest tests/unit/test_emit/test_quality_artifacts.py -q -k replay_on_a_historical_entity
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      The acceptance for this design is an as-of join finding the recovered row, never
+      a row being present in the entity relation
+    paths: [tests/e2e/test_dbt_parse.py, tests/execution/test_replay_to_bronze.py]
+    consequence: >-
+      Present-and-invisible is the exact failure this design exists to remove, and
+      a row-count assertion cannot tell the two apart — it passes against the defect
+    rationale: >-
+      Carried from row 3 of rfcs/0060-replay-on-a-historical-entity.md, which grades
+      it LOCKED. The landed dbt test asserts the snapshot is unchanged immediately
+      after replay and the mart's own as-of join after the next build, so a route
+      that merely landed a row fails it
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Replay for `scd: type1` entities does not change: its relation is one bloomery's
+      own SELECT defines, so the merge naming every column is correct there
+    paths: [src/bloomery/emit/lower/silver.py]
+    consequence: >-
+      A shared rewrite would put the branch nobody needs in the path everybody takes;
+      every type 1 fixture already exercises the merge
+    rationale: >-
+      Carried from row 4 of rfcs/0060-replay-on-a-historical-entity.md, which grades
+      it ASSUMED
+    check: >-
+      uv run pytest tests/unit/test_emit/test_quality_artifacts.py -q -k replay_on_a_type_one_entity
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The route is a write back to bronze: replay re-delivers the recovered row to
+      the bronze relation it came from, as a new delivery, and the ordinary pipeline
+      admits it — no new relation, no change to the entity's SELECT
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/resolve/build.py
+      - pages/docs/concepts/data-quality.md
+    consequence: >-
+      The versioning, the audits and the conservation law hold by construction, because
+      the row arrives through the path every other row arrives through; the cost is
+      that bloomery now emits a statement that writes into the caller's landing zone
+    rationale: >-
+      Carried from row 7 of rfcs/0060-replay-on-a-historical-entity.md, which grades
+      it ASSUMED and records why: the measurement ruled out neither survivor — both
+      the bronze route and a staged second arm make the row visible to an as-of join
+      on both targets, while the shipped merge is invisible on both — so the ranking
+      is the whole of the remaining argument. Not LOCKED because the posture objection
+      is real and a reviewer may weigh it differently
+  - id: D-8
+    grade: LOCKED
+    text: >-
+      A recovered version's validity interval is whatever the framework assigns, and
+      bloomery neither chooses nor supplies it
+    paths: [src/bloomery/emit/lower/silver.py]
+    consequence: >-
+      Measured on both targets: dbt stamps its own wall clock on every version, and
+      SQLMesh stamps an epoch start for an initial load and the run's execution time
+      thereafter. Neither offers a caller-supplied value and the two disagree about
+      the same first load, so choosing would mean computing a framework's bookkeeping
+    rationale: >-
+      Carried from row 8 of rfcs/0060-replay-on-a-historical-entity.md, which grades
+      it LOCKED for D-1's reason: this is the point of routing through the framework,
+      not a cost of it
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      The two targets fail the old merge differently: on dbt it lands silently with
+      a NULL interval, and on SQLMesh it does not land at all — the entity is a view
+      over a physical snapshot table and the write is refused outright by the engine
+    paths: [src/bloomery/emit/sqlmesh/__init__.py, tools/spikes/rfc0060_sqlmesh.py]
+    consequence: >-
+      Nothing about the refusal changes — the pair was refused either way, for a reason
+      that holds on both — but a claim that both targets fail silently is not true,
+      and a reader's sense of how urgent this is should follow the loud failure rather
+      than the quiet one
+    rationale: >-
+      Carried from row 9 of rfcs/0060-replay-on-a-historical-entity.md, which grades
+      it ASSUMED and records that the design's own current-state table described dbt
+      while the SQLMesh column was reasoned rather than run
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      A correction arriving by this route adds a version and closes the previous one;
+      it does not rewrite history
+    paths: [src/bloomery/emit/lower/silver.py, tools/spikes/rfc0060_dbt.py]
+    consequence: >-
+      Measured on both targets by changing an existing row's value in bronze and re-running:
+      each closes the standing version, opens a new one and retains the old. Routing
+      through the framework means taking the framework's answer, so the question is
+      answered by the route rather than chosen
+    rationale: >-
+      Carried from row 10 of rfcs/0060-replay-on-a-historical-entity.md, which grades
+      it ASSUMED: a project may re-enable restatement or full-refresh a snapshot by
+      hand, so the claim is about this route and not about what an operator can do
+retired: [D-5, D-6]
