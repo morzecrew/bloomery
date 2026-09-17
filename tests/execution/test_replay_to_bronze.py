@@ -254,3 +254,34 @@ def test_a_resolved_reject_row_is_not_re_delivered(
     ).fetchone()
 
     assert before == after
+
+
+def test_one_entity_key_can_have_at_most_one_candidate(
+    warehouse: duckdb.DuckDBPyConnection,
+) -> None:
+    """Why the re-delivery needs no winner selection of its own.
+
+    The merge path picks one winner per entity key before admitting anything,
+    because it writes into the entity directly. This route does not, and the
+    reason is the pipeline's fixed order: dedupe runs **before** the rules
+    (RFC 0016 §5.4), partitioned by the entity key — so at most one row per key
+    ever reaches a quarantine rule, and the reject table cannot hold two
+    candidates for one key. The route refuses an entity without `dedupe:`,
+    which is what makes that true rather than usual.
+
+    Two bronze deliveries on one key, both with a segment the spec refuses: the
+    older one is deduped away and never becomes a reject row at all.
+    """
+    warehouse.executemany(
+        "INSERT INTO bronze.crm__customers VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            ("k1", "startup", "2023-01-01T00:00:00", "2024-01-01 00:00:00", "load-1", "a"),
+            ("k1", "typo", "2023-01-02T00:00:00", "2024-02-01 00:00:00", "load-2", "b"),
+        ],
+    )
+    narrow = _compiled()
+    _rebuild(warehouse, "silver.customer__reject", "models/silver/customer__reject.sql", narrow)
+
+    assert warehouse.execute(
+        "SELECT _source_row_id FROM silver.customer__reject WHERE _source_row_id IN ('a', 'b')"
+    ).fetchall() == [("b",)]
