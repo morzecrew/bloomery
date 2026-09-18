@@ -40,7 +40,7 @@ REQUIRED = ("README.md", "config", "commands.txt", "observed.txt", "sources.md")
 #: Bundle directory name → the distribution whose version its cells pin. A
 #: system absent from here is one this repository does not resolve, and only
 #: the date half of D7 applies to it.
-DISTRIBUTION = {"metricflow": "metricflow", "dbt": "dbt-core"}
+DISTRIBUTION = {"metricflow": "metricflow", "dbt": "dbt-core", "sqlmesh": "sqlmesh"}
 
 #: D7's ceiling. A cell older than this is `UNKNOWN` again whatever it says.
 MAX_AGE = dt.timedelta(days=365)

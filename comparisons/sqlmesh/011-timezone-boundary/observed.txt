@@ -1,0 +1,41 @@
+### sqlmesh info
+  Models: 2
+### sqlmesh plan --auto-apply --no-prompts
+  Virtual layer updated
+### sqlmesh audit
+  Found 0 audit(s).
+  Finished with 0 audit errors and 0 audits skipped.
+### sqlmesh rewrite metric:february_revenue_zoneless
+  SELECT
+    february_revenue_zoneless AS february_revenue_zoneless
+  FROM (
+    SELECT
+      SUM(
+        CASE
+          WHEN silver__orders.placed_at >= CAST('2025-02-01 00:00:00' AS TIMESTAMP)
+          AND silver__orders.placed_at < CAST('2025-03-01 00:00:00' AS TIMESTAMP)
+          THEN silver__orders.revenue
+        END
+      ) AS february_revenue_zoneless
+    FROM silver.orders AS silver__orders
+  ) AS __table
+### metric february_revenue_zoneless
+  -> [(Decimal('40.00'),)]
+### sqlmesh rewrite metric:february_revenue_anchored
+  SELECT
+    february_revenue_anchored AS february_revenue_anchored
+  FROM (
+    SELECT
+      SUM(
+        CASE
+          WHEN silver__orders_anchored.placed_at_utc >= CAST('2025-02-01 00:00:00+00' AS TIMESTAMPTZ)
+          AND silver__orders_anchored.placed_at_utc < CAST('2025-03-01 00:00:00+00' AS TIMESTAMPTZ)
+          THEN silver__orders_anchored.revenue
+        END
+      ) AS february_revenue_anchored
+    FROM silver.orders_anchored AS silver__orders_anchored
+  ) AS __table
+### metric february_revenue_anchored
+  -> [(Decimal('140.00'),)]
+### probe silver.orders.time_zone='America/New_York'
+  Error: Failed to load model from file '<scratch>/probe/models/orders.sql':: Invalid field name present in the MODEL block: 'time_zone' at '<scratch>/probe/models/orders.sql'

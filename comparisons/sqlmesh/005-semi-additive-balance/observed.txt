@@ -1,0 +1,29 @@
+### sqlmesh info
+  Models: 2
+### sqlmesh plan --auto-apply --no-prompts
+  Virtual layer updated
+### sqlmesh audit
+  Found 0 audit(s).
+  Finished with 0 audit errors and 0 audits skipped.
+### sqlmesh rewrite metric:total_balance_naive
+  SELECT
+    total_balance_naive AS total_balance_naive
+  FROM (
+    SELECT
+      SUM(silver__balances.balance) AS total_balance_naive
+    FROM silver.balances AS silver__balances
+  ) AS __table
+### metric total_balance_naive
+  -> [(Decimal('320.0000'),)]
+### sqlmesh rewrite metric:total_balance_declared
+  SELECT
+    total_balance_declared AS total_balance_declared
+  FROM (
+    SELECT
+      SUM(silver__latest_balances.balance) AS total_balance_declared
+    FROM silver.latest_balances AS silver__latest_balances
+  ) AS __table
+### metric total_balance_declared
+  -> [(Decimal('170.0000'),)]
+### probe silver.balances.non_additive_dimension=as_of_day
+  Error: Failed to load model from file '<scratch>/probe/models/balances.sql':: Invalid field name present in the MODEL block: 'non_additive_dimension' at '<scratch>/probe/models/balances.sql'

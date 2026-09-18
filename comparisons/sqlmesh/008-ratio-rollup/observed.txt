@@ -1,0 +1,30 @@
+### sqlmesh info
+  Models: 1
+### sqlmesh plan --auto-apply --no-prompts
+  Virtual layer updated
+### sqlmesh audit
+  Found 0 audit(s).
+  Finished with 0 audit errors and 0 audits skipped.
+### sqlmesh rewrite metric:revenue_per_item_naive
+  SELECT
+    revenue_per_item_naive AS revenue_per_item_naive
+  FROM (
+    SELECT
+      AVG(silver__orders.revenue / silver__orders.item_count) AS revenue_per_item_naive
+    FROM silver.orders AS silver__orders
+  ) AS __table
+### metric revenue_per_item_naive
+  -> [(3.5,)]
+### sqlmesh rewrite metric:revenue_per_item_declared
+  SELECT
+    revenue_total / item_total AS revenue_per_item_declared
+  FROM (
+    SELECT
+      SUM(silver__orders.item_count) AS item_total,
+      SUM(silver__orders.revenue) AS revenue_total
+    FROM silver.orders AS silver__orders
+  ) AS __table
+### metric revenue_per_item_declared
+  -> [(3.25,)]
+### probe revenue_per_item_naive.already_a_rate=true
+  Error: 1 validation error for MetricMeta: already_a_rate Extra inputs are not permitted [type=extra_forbidden, input_value=Boolean(this=True), input_type=Boolean]

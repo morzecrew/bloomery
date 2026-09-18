@@ -1,0 +1,5 @@
+uv run python comparisons/sqlmesh/run.py \
+    tests/fixtures/semantic_corpus/002-average-of-averages \
+    comparisons/sqlmesh/002-average-of-averages \
+    --probe average_item_price_naive.already_aggregated=true \
+    average_item_price_naive average_item_price_decomposed
