@@ -1,0 +1,45 @@
+version: 2
+
+semantic_models:
+  - name: balances
+    model: ref('balances')
+    entities:
+      - name: account_day
+        type: primary
+        expr: account_id || '-' || cast(as_of_day as varchar)
+      - name: account
+        type: foreign
+        expr: account_id
+    dimensions:
+      - name: as_of_day
+        type: time
+        expr: as_of_day
+        type_params:
+          time_granularity: day
+    measures:
+      # The two readings of one column, in one semantic model. They differ by
+      # the `non_additive_dimension` block and by nothing else.
+      - name: balance_summed
+        agg: sum
+        expr: balance
+        agg_time_dimension: as_of_day
+      - name: balance_last
+        agg: sum
+        expr: balance
+        agg_time_dimension: as_of_day
+        non_additive_dimension:
+          name: as_of_day
+          window_choice: max
+
+metrics:
+  - name: total_balance_naive
+    label: Total balance (naive)
+    type: simple
+    type_params:
+      measure: balance_summed
+
+  - name: total_balance_semi_additive
+    label: Total balance (semi-additive)
+    type: simple
+    type_params:
+      measure: balance_last

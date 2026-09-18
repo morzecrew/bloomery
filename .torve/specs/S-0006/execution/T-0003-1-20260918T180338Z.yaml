@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0003
+phase: 3
+base: 7ffabf22a7b7d6e3a55715caef72ade004609b59
+commit: 64c7287cad2a658366420a5df82dcac31125e206
+at: '2026-09-18T18:03:38Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: LOCKED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-18T18:01:18Z'
+    claim: >-
+      every SQLMesh cell is filled from a run recorded in the bundle beside it, and
+      the nineteen rows with no SQLMesh bundle stay UNKNOWN
+    evidence: >-
+      comparisons/sqlmesh/009-null-denominator/observed.txt:1-33 — the run behind
+      that bundle's three cells; the other four bundles carry the same file
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-18T18:01:18Z'
+    claim: >-
+      the five new bundles live at comparisons/sqlmesh/<case>/ with RFC 0043's five
+      entries, and the matrix beside them cites them by that path
+    evidence: >-
+      comparisons/MATRIX.md:23 — the SQLMesh column's evidence cell points at comparisons/sqlmesh/
+    action: decided
+  - decision: D-13
+    grade: LOCKED
+    at: '2026-09-18T18:01:18Z'
+    claim: >-
+      the new column's prose says in its own words that the rows compare which facts
+      a vocabulary makes an author state, not which system checks shared facts more
+      carefully
+    evidence: >-
+      comparisons/MATRIX.md:213-221 — 'The comparison is between vocabularies, here
+      too' beside the SQLMesh column
+    action: decided

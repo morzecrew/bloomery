@@ -1,0 +1,17 @@
+### dbt build
+  Found 4 models, 1 source, 4 metrics, 500 macros, 1 semantic model
+  Done. PASS=4 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=4
+### dbt compile --select metric:carrier_cost
+  Nothing to do. Try checking your model configs and model specification args
+### dbt compile --select metric:cost_per_parcel_inclusive
+  Nothing to do. Try checking your model configs and model specification args
+### dbt compile --select metric:cost_per_parcel_restricted
+  Nothing to do. Try checking your model configs and model specification args
+### dbt compile --select metric:parcels
+  Nothing to do. Try checking your model configs and model specification args
+### model cost_per_parcel_inclusive
+  -> [(4.0,)]
+### model cost_per_parcel_restricted
+  -> [(3.0,)]
+### probe metrics.2.type_params.denominator.fill_nulls_with=0
+  Parsing Error: at path ['type_params']['denominator']: {'name': 'parcels', 'fill_nulls_with': 0} is not valid under any of the given schemas

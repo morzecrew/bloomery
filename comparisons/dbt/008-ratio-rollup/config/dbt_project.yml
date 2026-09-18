@@ -1,0 +1,4 @@
+name: corpus_008_ratio_rollup
+version: "1.0.0"
+profile: corpus
+model-paths: ["models"]

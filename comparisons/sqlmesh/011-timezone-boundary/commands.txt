@@ -1,0 +1,5 @@
+uv run python comparisons/sqlmesh/run.py \
+    tests/fixtures/semantic_corpus/011-timezone-boundary \
+    comparisons/sqlmesh/011-timezone-boundary \
+    --probe "silver.orders.time_zone='America/New_York'" \
+    february_revenue_zoneless february_revenue_anchored

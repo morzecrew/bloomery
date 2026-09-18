@@ -1,0 +1,5 @@
+uv run python comparisons/sqlmesh/run.py \
+    tests/fixtures/semantic_corpus/009-null-denominator \
+    comparisons/sqlmesh/009-null-denominator \
+    --probe "cost_per_parcel_inclusive.denominator_rows='parcels > 0'" \
+    cost_per_parcel_inclusive cost_per_parcel_restricted cost_per_parcel_compound

@@ -1,0 +1,52 @@
+version: 2
+
+semantic_models:
+  - name: orders
+    model: ref('orders')
+    entities:
+      - name: order
+        type: primary
+        expr: order_id
+    dimensions:
+      # Two readings of one column. The zone that separates them is a
+      # dialect-specific string in `expr`, not a declaration dbt reads.
+      - name: placed_at_zoneless
+        type: time
+        expr: cast(placed_at as timestamp)
+        type_params:
+          time_granularity: day
+      - name: placed_at_anchored
+        type: time
+        expr: cast(placed_at as timestamp) at time zone 'America/New_York' at time zone 'UTC'
+        type_params:
+          time_granularity: day
+    measures:
+      - name: revenue_zoneless
+        agg: sum
+        expr: revenue
+        agg_time_dimension: placed_at_zoneless
+      - name: revenue_anchored
+        agg: sum
+        expr: revenue
+        agg_time_dimension: placed_at_anchored
+
+metrics:
+  - name: february_revenue_zoneless
+    label: February revenue (zoneless)
+    type: simple
+    type_params:
+      measure:
+        name: revenue_zoneless
+        filter:
+          - "{{ TimeDimension('order__placed_at_zoneless', 'day') }} >= '2025-02-01'"
+          - "{{ TimeDimension('order__placed_at_zoneless', 'day') }} < '2025-03-01'"
+
+  - name: february_revenue_anchored
+    label: February revenue (anchored)
+    type: simple
+    type_params:
+      measure:
+        name: revenue_anchored
+        filter:
+          - "{{ TimeDimension('order__placed_at_anchored', 'day') }} >= '2025-02-01'"
+          - "{{ TimeDimension('order__placed_at_anchored', 'day') }} < '2025-03-01'"

@@ -1,0 +1,5 @@
+uv run python comparisons/sqlmesh/run.py \
+    tests/fixtures/semantic_corpus/005-semi-additive-balance \
+    comparisons/sqlmesh/005-semi-additive-balance \
+    --probe silver.balances.non_additive_dimension=as_of_day \
+    total_balance_naive total_balance_declared

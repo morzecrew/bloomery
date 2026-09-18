@@ -1,0 +1,43 @@
+### sqlmesh info
+  Models: 1
+### sqlmesh plan --auto-apply --no-prompts
+  [1/1] silver.shipments   [full refresh, audits failed 1]                             0.03s
+  Virtual layer updated
+### sqlmesh audit
+  Found 1 audit(s).
+  accepted_range on model silver.shipments ❌ FAIL [1].
+  Finished with 1 audit error and 0 audits skipped.
+### sqlmesh rewrite metric:cost_per_parcel_inclusive
+  SELECT
+    carrier_cost_total / parcel_count AS cost_per_parcel_inclusive
+  FROM (
+    SELECT
+      SUM(silver__shipments.carrier_cost) AS carrier_cost_total,
+      SUM(silver__shipments.parcels) AS parcel_count
+    FROM silver.shipments AS silver__shipments
+  ) AS __table
+### metric cost_per_parcel_inclusive
+  -> [(4.0,)]
+### sqlmesh rewrite metric:cost_per_parcel_restricted
+  SELECT
+    carrier_cost_of_moved / parcel_count_of_moved AS cost_per_parcel_restricted
+  FROM (
+    SELECT
+      SUM(CASE WHEN silver__shipments.parcels > 0 THEN silver__shipments.carrier_cost END) AS carrier_cost_of_moved,
+      SUM(CASE WHEN silver__shipments.parcels > 0 THEN silver__shipments.parcels END) AS parcel_count_of_moved
+    FROM silver.shipments AS silver__shipments
+  ) AS __table
+### metric cost_per_parcel_restricted
+  -> [(3.0,)]
+### sqlmesh rewrite metric:cost_per_parcel_compound
+  SELECT
+    cost_per_parcel_compound AS cost_per_parcel_compound
+  FROM (
+    SELECT
+      SUM(CASE WHEN silver__shipments.parcels > 0 THEN silver__shipments.carrier_cost END) / SUM(CASE WHEN silver__shipments.parcels > 0 THEN silver__shipments.parcels END)
+    FROM silver.shipments AS silver__shipments
+  ) AS __table
+### metric cost_per_parcel_compound
+  refused: BinderException: Binder Error: Column "cost_per_parcel_compound" referenced that exists in the SELECT clause - but this column cannot be referenced before it is defined
+### probe cost_per_parcel_inclusive.denominator_rows='parcels > 0'
+  Error: 1 validation error for MetricMeta: denominator_rows Extra inputs are not permitted [type=extra_forbidden, input_value=Literal(this='parcels > 0', is_string=True), input_type=Literal]

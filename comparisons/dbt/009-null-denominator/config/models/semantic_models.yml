@@ -1,0 +1,63 @@
+version: 2
+
+semantic_models:
+  - name: shipments
+    model: ref('shipments')
+    entities:
+      - name: shipment
+        type: primary
+        expr: shipment_id
+    dimensions:
+      - name: shipped_on
+        type: time
+        expr: shipped_on
+        type_params:
+          time_granularity: day
+      - name: moved_parcels
+        type: categorical
+        expr: parcels > 0
+    measures:
+      - name: carrier_cost
+        agg: sum
+        expr: carrier_cost
+        agg_time_dimension: shipped_on
+      - name: parcels
+        agg: sum
+        expr: parcels
+        agg_time_dimension: shipped_on
+
+metrics:
+  - name: carrier_cost
+    label: Carrier cost
+    type: simple
+    type_params:
+      measure: carrier_cost
+
+  - name: parcels
+    label: Parcels
+    type: simple
+    type_params:
+      measure: parcels
+
+  # Two readings of one quotient. Neither states which rows the ratio is over
+  # as a fact about the ratio itself; the second restricts both operands with a
+  # filter the author writes on each input.
+  - name: cost_per_parcel_inclusive
+    label: Cost per parcel (inclusive)
+    type: ratio
+    type_params:
+      numerator:
+        name: carrier_cost
+      denominator:
+        name: parcels
+
+  - name: cost_per_parcel_restricted
+    label: Cost per parcel (restricted)
+    type: ratio
+    type_params:
+      numerator:
+        name: carrier_cost
+        filter: "{{ Dimension('shipment__moved_parcels') }}"
+      denominator:
+        name: parcels
+        filter: "{{ Dimension('shipment__moved_parcels') }}"

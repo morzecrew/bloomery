@@ -1,0 +1,30 @@
+### sqlmesh info
+  Models: 2
+### sqlmesh plan --auto-apply --no-prompts
+  Virtual layer updated
+### sqlmesh audit
+  Found 0 audit(s).
+  Finished with 0 audit errors and 0 audits skipped.
+### sqlmesh rewrite metric:average_item_price_naive
+  SELECT
+    average_item_price_naive AS average_item_price_naive
+  FROM (
+    SELECT
+      AVG(silver__order_summaries.average_item_price) AS average_item_price_naive
+    FROM silver.order_summaries AS silver__order_summaries
+  ) AS __table
+### metric average_item_price_naive
+  -> [(55.0,)]
+### sqlmesh rewrite metric:average_item_price_decomposed
+  SELECT
+    unit_price_total / line_count AS average_item_price_decomposed
+  FROM (
+    SELECT
+      COUNT(silver__order_items.line_no) AS line_count,
+      SUM(silver__order_items.unit_price) AS unit_price_total
+    FROM silver.order_items AS silver__order_items
+  ) AS __table
+### metric average_item_price_decomposed
+  -> [(32.5,)]
+### probe average_item_price_naive.already_aggregated=true
+  Error: 1 validation error for MetricMeta: already_aggregated Extra inputs are not permitted [type=extra_forbidden, input_value=Boolean(this=True), input_type=Boolean]

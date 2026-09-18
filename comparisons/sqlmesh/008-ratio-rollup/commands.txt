@@ -1,0 +1,5 @@
+uv run python comparisons/sqlmesh/run.py \
+    tests/fixtures/semantic_corpus/008-ratio-rollup \
+    comparisons/sqlmesh/008-ratio-rollup \
+    --probe revenue_per_item_naive.already_a_rate=true \
+    revenue_per_item_naive revenue_per_item_declared

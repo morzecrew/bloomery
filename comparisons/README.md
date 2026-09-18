@@ -9,7 +9,9 @@ comparisons/<system>/<case>/
 ```
 
 `README.md` records the version, the date, and the exact question being tested. `config/` is
-the system's own configuration, authored the way that system's documentation describes.
+the system's own configuration, authored the way that system's documentation describes — a
+single manifest for one system, a project directory with its own layout for another, so it is
+read whole rather than by a fixed file name.
 `commands.txt` is what was run; `observed.txt` is what came back, verbatim. `sources.md`
 cites the feature set the configuration uses.
 

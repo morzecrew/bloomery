@@ -1,0 +1,5 @@
+uv run python comparisons/dbt/run.py \
+    tests/fixtures/semantic_corpus/008-ratio-rollup \
+    comparisons/dbt/008-ratio-rollup \
+    --probe semantic_models.0.measures.2.already_a_rate=true \
+    revenue_per_item_naive revenue_per_item_declared

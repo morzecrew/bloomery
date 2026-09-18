@@ -1,0 +1,5 @@
+uv run python comparisons/dbt/run.py \
+    tests/fixtures/semantic_corpus/011-timezone-boundary \
+    comparisons/dbt/011-timezone-boundary \
+    --probe semantic_models.0.dimensions.0.type_params.time_zone=America/New_York \
+    february_revenue_zoneless february_revenue_anchored

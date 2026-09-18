@@ -1,0 +1,5 @@
+uv run python comparisons/dbt/run.py \
+    tests/fixtures/semantic_corpus/002-average-of-averages \
+    comparisons/dbt/002-average-of-averages \
+    --probe semantic_models.0.measures.0.already_aggregated=true \
+    average_item_price_naive average_item_price_decomposed

@@ -1,0 +1,11 @@
+### dbt build
+  Found 4 models, 1 source, 2 metrics, 500 macros, 1 semantic model
+  Done. PASS=4 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=4
+### dbt compile --select metric:total_balance_naive
+  Nothing to do. Try checking your model configs and model specification args
+### dbt compile --select metric:total_balance_semi_additive
+  Nothing to do. Try checking your model configs and model specification args
+### model total_balance_naive
+  -> [(Decimal('320.0000'),)]
+### model total_balance_declared
+  -> [(Decimal('170.0000'),)]
