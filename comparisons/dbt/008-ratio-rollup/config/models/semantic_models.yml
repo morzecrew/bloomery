@@ -22,8 +22,9 @@ semantic_models:
         agg: sum
         expr: item_count
         agg_time_dimension: placed_on
-      # The stored per-order rate, averaged. Declared the only way a column can
-      # be: a name, an aggregation and a time dimension.
+      # The per-order rate, averaged: the table stores revenue and item_count and
+      # no rate, so the row expression is the rate. Declared the only way a column
+      # can be: a name, an aggregation and a time dimension.
       - name: stored_rate
         agg: average
         expr: revenue / item_count

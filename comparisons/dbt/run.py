@@ -66,7 +66,9 @@ def dbt(*args: str, project: pathlib.Path, env: dict[str, str], scratch: pathlib
         text=True,
         env=env,
     )
-    return result.stdout
+    # dbt logs to stdout; what reaches stderr is the failure that happened before
+    # logging existed, and that is the one a reader most needs to see.
+    return result.stdout + result.stderr
 
 
 def verdict(output: str) -> str:
@@ -98,8 +100,7 @@ def probe(bundle: pathlib.Path, spec: str, env: dict[str, str], scratch: pathlib
     """
 
     path, _, value = spec.partition("=")
-    copy = scratch / "probe"
-    copy.mkdir()
+    copy = pathlib.Path(tempfile.mkdtemp(prefix="probe-", dir=scratch))
     for source in sorted((bundle / "config").rglob("*")):
         target = copy / source.relative_to(bundle / "config")
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -114,9 +115,8 @@ def probe(bundle: pathlib.Path, spec: str, env: dict[str, str], scratch: pathlib
     node[key] = yaml.safe_load(value)
     edited.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
 
-    return verdict(
-        dbt("parse", "--no-partial-parse", project=copy, env=env, scratch=scratch / "probe-run")
-    )
+    run_dir = copy.with_name(copy.name + "-run")
+    return verdict(dbt("parse", "--no-partial-parse", project=copy, env=env, scratch=run_dir))
 
 
 def main() -> int:
