@@ -349,10 +349,19 @@ def test_every_docs_page_is_in_the_nav() -> None:
     The counts themselves are deliberately not asserted: a page added with its
     nav entry would fail a pinned total for no reason, and the assertions below
     are what the test is actually about.
+
+    The one exception, with its reason: `AGENTS.md` is not a page. torve
+    renders one into every directory a corpus decision governs (`torve spec
+    project`), for the agent working there, and `pages/docs/` is governed like
+    any other. It is never meant to be reachable from the site.
     """
     nav = (ROOT / "pages" / "zensical.toml").read_text()
     listed = set(re.findall(r'"([^"]+\.md)"', nav))
-    present = {page.relative_to(DOCS).as_posix() for page in DOCS.rglob("*.md")}
+    present = {
+        page.relative_to(DOCS).as_posix()
+        for page in DOCS.rglob("*.md")
+        if page.name != "AGENTS.md"
+    }
 
     assert present - listed == set(), "written but unreachable — add to the nav in zensical.toml"
     assert listed - present == set(), "listed in the nav but not on disk"
