@@ -1,0 +1,17 @@
+### dbt build
+  Found 5 models, 2 sources, 4 metrics, 500 macros, 2 semantic models
+  Done. PASS=5 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=5
+### dbt compile --select metric:average_item_price_decomposed
+  Nothing to do. Try checking your model configs and model specification args
+### dbt compile --select metric:average_item_price_naive
+  Nothing to do. Try checking your model configs and model specification args
+### dbt compile --select metric:line_count
+  Nothing to do. Try checking your model configs and model specification args
+### dbt compile --select metric:unit_price_total
+  Nothing to do. Try checking your model configs and model specification args
+### model average_item_price_naive
+  -> [(Decimal('55.00000000'),)]
+### model average_item_price_decomposed
+  -> [(Decimal('32.50000000'),)]
+### probe semantic_models.0.measures.0.already_aggregated=true
+  Parsing Error: at path ['measures'][0]: Additional properties are not allowed ('already_aggregated' was unexpected)

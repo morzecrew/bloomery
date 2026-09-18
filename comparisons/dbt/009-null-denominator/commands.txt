@@ -1,0 +1,5 @@
+uv run python comparisons/dbt/run.py \
+    tests/fixtures/semantic_corpus/009-null-denominator \
+    comparisons/dbt/009-null-denominator \
+    --probe metrics.2.type_params.denominator.fill_nulls_with=0 \
+    cost_per_parcel_inclusive cost_per_parcel_restricted

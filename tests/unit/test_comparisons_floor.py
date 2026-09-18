@@ -40,7 +40,7 @@ REQUIRED = ("README.md", "config", "commands.txt", "observed.txt", "sources.md")
 #: Bundle directory name → the distribution whose version its cells pin. A
 #: system absent from here is one this repository does not resolve, and only
 #: the date half of D7 applies to it.
-DISTRIBUTION = {"metricflow": "metricflow"}
+DISTRIBUTION = {"metricflow": "metricflow", "dbt": "dbt-core"}
 
 #: D7's ceiling. A cell older than this is `UNKNOWN` again whatever it says.
 MAX_AGE = dt.timedelta(days=365)
@@ -198,7 +198,7 @@ def test_sources_cite_only_the_feature_set_this_bundle_uses(bundle: pathlib.Path
 
     cited = (bundle / "sources.md").read_text(encoding="utf-8")
     declared = "\n".join(
-        path.read_text(encoding="utf-8") for path in sorted((bundle / "config").glob("*.yaml"))
+        path.read_text(encoding="utf-8") for path in sorted((bundle / "config").rglob("*.y*ml"))
     )
 
     for feature, marker in FEATURES.items():

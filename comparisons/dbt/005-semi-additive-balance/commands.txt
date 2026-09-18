@@ -1,0 +1,4 @@
+uv run python comparisons/dbt/run.py \
+    tests/fixtures/semantic_corpus/005-semi-additive-balance \
+    comparisons/dbt/005-semi-additive-balance \
+    total_balance_naive total_balance_declared

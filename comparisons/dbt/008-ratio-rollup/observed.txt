@@ -1,0 +1,17 @@
+### dbt build
+  Found 4 models, 1 source, 4 metrics, 500 macros, 1 semantic model
+  Done. PASS=4 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=4
+### dbt compile --select metric:item_count
+  Nothing to do. Try checking your model configs and model specification args
+### dbt compile --select metric:revenue
+  Nothing to do. Try checking your model configs and model specification args
+### dbt compile --select metric:revenue_per_item_naive
+  Nothing to do. Try checking your model configs and model specification args
+### dbt compile --select metric:revenue_per_item_ratio
+  Nothing to do. Try checking your model configs and model specification args
+### model revenue_per_item_naive
+  -> [(3.5,)]
+### model revenue_per_item_declared
+  -> [(3.25,)]
+### probe semantic_models.0.measures.2.already_a_rate=true
+  Parsing Error: at path ['measures'][2]: Additional properties are not allowed ('already_a_rate' was unexpected)

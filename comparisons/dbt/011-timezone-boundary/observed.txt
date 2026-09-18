@@ -1,0 +1,13 @@
+### dbt build
+  Found 4 models, 1 source, 2 metrics, 500 macros, 1 semantic model
+  Done. PASS=4 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=4
+### dbt compile --select metric:february_revenue_anchored
+  Nothing to do. Try checking your model configs and model specification args
+### dbt compile --select metric:february_revenue_zoneless
+  Nothing to do. Try checking your model configs and model specification args
+### model february_revenue_zoneless
+  -> [(Decimal('40.00'),)]
+### model february_revenue_anchored
+  -> [(Decimal('140.00'),)]
+### probe semantic_models.0.dimensions.0.type_params.time_zone=America/New_York
+  Parsing Error: at path ['dimensions'][0]['type_params']: {'time_granularity': 'day', 'time_zone': 'America/New_York'} is not valid under any of the given schemas

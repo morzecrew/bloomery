@@ -1,0 +1,4 @@
+name: corpus_002_average_of_averages
+version: "1.0.0"
+profile: corpus
+model-paths: ["models"]

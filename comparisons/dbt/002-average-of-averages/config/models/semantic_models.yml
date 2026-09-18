@@ -1,0 +1,68 @@
+version: 2
+
+semantic_models:
+  - name: order_summaries
+    model: ref('order_summaries')
+    entities:
+      - name: order
+        type: primary
+        expr: order_id
+    dimensions:
+      - name: created_at
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      # The published per-order average, declared to dbt the only way a column
+      # can be declared: a name, an aggregation and a time dimension.
+      - name: stored_order_average
+        agg: average
+        expr: average_item_price
+        agg_time_dimension: created_at
+
+  - name: order_items
+    model: ref('order_items')
+    entities:
+      - name: order_line
+        type: primary
+        expr: order_id || '-' || cast(line_no as varchar)
+    dimensions:
+      - name: created_at
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: unit_price_total
+        agg: sum
+        expr: unit_price
+        agg_time_dimension: created_at
+      - name: line_count
+        agg: count
+        expr: line_no
+        agg_time_dimension: created_at
+
+metrics:
+  - name: average_item_price_naive
+    label: Average item price (naive)
+    type: simple
+    type_params:
+      measure: stored_order_average
+
+  - name: unit_price_total
+    label: Unit price total
+    type: simple
+    type_params:
+      measure: unit_price_total
+
+  - name: line_count
+    label: Line count
+    type: simple
+    type_params:
+      measure: line_count
+
+  - name: average_item_price_decomposed
+    label: Average item price (decomposed)
+    type: ratio
+    type_params:
+      numerator: unit_price_total
+      denominator: line_count

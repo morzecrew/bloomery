@@ -1,0 +1,56 @@
+version: 2
+
+semantic_models:
+  - name: orders
+    model: ref('orders')
+    entities:
+      - name: order
+        type: primary
+        expr: order_id
+    dimensions:
+      - name: placed_on
+        type: time
+        expr: placed_on
+        type_params:
+          time_granularity: day
+    measures:
+      - name: revenue
+        agg: sum
+        expr: revenue
+        agg_time_dimension: placed_on
+      - name: item_count
+        agg: sum
+        expr: item_count
+        agg_time_dimension: placed_on
+      # The stored per-order rate, averaged. Declared the only way a column can
+      # be: a name, an aggregation and a time dimension.
+      - name: stored_rate
+        agg: average
+        expr: revenue / item_count
+        agg_time_dimension: placed_on
+
+metrics:
+  - name: revenue_per_item_naive
+    label: Revenue per item (naive)
+    type: simple
+    type_params:
+      measure: stored_rate
+
+  - name: revenue
+    label: Revenue
+    type: simple
+    type_params:
+      measure: revenue
+
+  - name: item_count
+    label: Item count
+    type: simple
+    type_params:
+      measure: item_count
+
+  - name: revenue_per_item_ratio
+    label: Revenue per item (ratio)
+    type: ratio
+    type_params:
+      numerator: revenue
+      denominator: item_count
