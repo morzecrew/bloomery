@@ -30,7 +30,7 @@ on:
       - ".github/workflows/ci.yml"
 
   # Nightly lane for the Docker-backed tiers (engine matrix + target e2e —
-  # RFC 0009): too heavy per-commit, too important to skip entirely.
+  # S-0026): too heavy per-commit, too important to skip entirely.
   schedule:
     - cron: "0 2 * * *"
 
@@ -92,12 +92,14 @@ jobs:
               # exists and still runs the strict site build; this entry is
               # about the tests, which is a different question.
               - "pages/docs/**"
-            # The RFC corpus and the gate that checks it. Separate from `code`
-            # on purpose: a retirement must run `just quality` — that is where
-            # `check_rfc_corpus.py` lives — without pulling the whole test
-            # matrix for a change that touches no Python the package ships.
+            # The design corpus and the gate that checks it. Separate from
+            # `code` on purpose: a document change must run `just quality` —
+            # that is where `torve spec check` lives — without pulling the
+            # whole test matrix for a change that touches no Python the
+            # package ships.
             corpus:
-              - "rfcs/**"
+              - ".torve/specs/**"
+              - ".torve/archive/**"
               - "tools/**"
               - "justfile"
               - ".github/workflows/ci.yml"
@@ -117,7 +119,7 @@ jobs:
             # by `ir`, `quality`, `resolve`, `transforms` and `typing` just as
             # much as by the emitting packages — scoped to the two, a PR
             # editing `transforms/registry.py` (where `output_type`
-            # declarations live, the RFC 0029 defect class this lane exists
+            # declarations live, the S-0046 defect class this lane exists
             # for) skipped it and waited for nightly. The scoping's real job
             # survives: a docs-only PR still pulls no containers.
             engine:
@@ -129,7 +131,7 @@ jobs:
               - "uv.lock"
               - ".github/workflows/ci.yml"
 
-  # RFC 0025 §5.1 item 3, the half a test cannot see. Zensical resolves page
+  # S-0042/the-docs-floor-claims-not-links item 3, the half a test cannot see. Zensical resolves page
   # links; `--strict` is what makes a broken one fail rather than print. The
   # claim checks — documented classes, the refusal census, cited repo paths —
   # are unit tests and ride the `test` matrix instead.
@@ -193,10 +195,9 @@ jobs:
       - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # `tools/check_rfc_corpus.py` verifies that each RETIRED.md row names
-          # a commit that holds that document and that the mainline can reach,
-          # and a depth-1 checkout can resolve neither — the check would skip
-          # both halves in the one place it most needs to run. Depth 0 also
+          # A full history: `torve spec check` reads the working tree alone,
+          # but the corpus test's provenance checks and the docs' `git show`
+          # instructions want the mainline reachable. Depth 0 also
           # fetches `origin/main`, which the reachability half is measured
           # against.
           fetch-depth: 0
@@ -220,8 +221,8 @@ jobs:
 
   # Default test tiers (unit/golden/property/execution) across the supported
   # Python range. Single job per interpreter — a one-package pure library needs
-  # no sharding (RFC 0001 D1). Each leg only *measures*; the floor is enforced
-  # once over the combined data in `coverage` below, which is what RFC 0001 §7
+  # no sharding (S-0018/D-1). Each leg only *measures*; the floor is enforced
+  # once over the combined data in `coverage` below, which is what S-0018/docs
   # lays out (`test` → `coverage`) and what makes version-gated lines honest.
   test:
     name: Test (Python ${{ matrix.python }})
@@ -271,7 +272,7 @@ jobs:
       # `not chaos` matches `just test`: the expression here predates the
       # chaos tier and silently kept it, so every PR ran the mutation battery
       # three times over — once per interpreter, though detection does not
-      # vary by interpreter. It is an opt-in lane by design (RFC 0016 §6) and
+      # vary by interpreter. It is an opt-in lane by design (S-0033/tests-rfc-0009-amendment) and
       # now runs once, in the scheduled `chaos` job below.
       - name: Run tests
         run: |
@@ -309,7 +310,7 @@ jobs:
           fail_ci_if_error: false
 
   # Combine the per-interpreter coverage into one report, upload it, then
-  # enforce the floor (RFC 0001 §7). The order matters: Codecov is
+  # enforce the floor (S-0018/docs). The order matters: Codecov is
   # informational only (D4) — the gate is this job's own `coverage report`,
   # not the service's status — but the upload still has to happen on a
   # regression, which it would not if the gate ran first and aborted the job.
@@ -377,7 +378,7 @@ jobs:
       - name: Enforce the global coverage threshold
         run: uv run coverage report --fail-under=98
 
-      - name: Enforce the guardrails floor (RFC 0009 D9)
+      - name: Enforce the guardrails floor (S-0026/D-9)
         run: uv run coverage report --include='src/bloomery/guardrails/*' --fail-under=100
 
       - name: Enforce the steps floor
@@ -427,7 +428,7 @@ jobs:
           # Each job is checked against *its own* trigger, not against `code`.
           # A single flag was right while `code` gated everything; it stopped
           # being right when `quality` gained the `corpus` trigger, which made
-          # an rfcs-only PR run quality successfully and then fail here for not
+          # a corpus-only PR run quality successfully and then fail here for not
           # having skipped it. `docs` would have repeated the mistake.
           expect() {
             local name="$1" triggered="$2" result="$3"
@@ -456,7 +457,7 @@ jobs:
 
           echo "required-ci passed"
 
-  # The bench lane (RFC 0009 §5.9), informational — the other half of D13.
+  # The bench lane (S-0026/benchmark-lane-tests-bench), informational — the other half of D13.
   # Its module docstring claimed it "runs in the scheduled lane" while no
   # workflow ran the `perf` marker at all: the only mention of it in CI was the
   # expression excluding it. Drift between releases shows up here; the blocking
@@ -507,7 +508,7 @@ jobs:
       - name: Measure the performance budgets
         run: uv run pytest -m perf
 
-  # The mutation battery (RFC 0016 §6): deforms the lowering and requires the
+  # The mutation battery (S-0033/tests-rfc-0009-amendment): deforms the lowering and requires the
   # M12 quality suite to notice — the only evidence that suite is detection
   # rather than decoration. Opt-in by design and excluded from the test
   # matrix above; this job is where it actually runs: nightly, and on
@@ -685,7 +686,7 @@ jobs:
       # tolerance. It was allowed while the tier 5/6 suites were unwritten;
       # they exist (postgres, trino, sqlmesh replan, dbt parse), so an empty
       # lane can only mean a collection error — and tolerating it would let a
-      # broken import turn the whole nightly green (RFC 0009 D23).
+      # broken import turn the whole nightly green (S-0026/D-23).
       - name: Run engine and e2e tiers
         run: |
           uv run pytest -m "engine or e2e"

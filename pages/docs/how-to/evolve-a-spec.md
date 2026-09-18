@@ -129,7 +129,7 @@ something still reads the contracted surface**. Dropping or narrowing a field th
 reachable metric still references raises `ContractViolation`:
 
 ```text
-ContractViolation: expand/contract violation (RFC 0007 D5):
+ContractViolation: expand/contract violation (S-0024/D-5):
   - field 'order_item.unit_price' is dropped but still referenced by metric(s)
     gross_revenue — expand/contract: land the metric's removal (deprecation) in a
     prior version, then drop or narrow the field

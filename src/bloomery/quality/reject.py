@@ -1,7 +1,7 @@
-"""The ``<entity>__reject`` identity and payload columns (RFC 0016 §5.6).
+"""The ``<entity>__reject`` identity and payload columns (S-0033/quarantine-one-reject-table-per-entity).
 
 ``reject_id`` is the sha256 over the **length-prefixed pair**
-``(source_relation, _source_row_id)`` — RFC 0003's canon-bytes doctrine
+``(source_relation, _source_row_id)`` — S-0020's canon-bytes doctrine
 reproduced *in SQL*, so the value is recomputable from the reject row itself.
 Each element is written ``S<length>:<value>``, the constant ``source_relation``
 folded to a literal at compile and the row identity length-prefixed at run
@@ -42,14 +42,14 @@ __all__ = [
 ]
 
 #: The reserved ``failed_rules`` entry naming the one way a reject row can be
-#: out of the entity without failing anything (RFC 0016 D69): another row won
+#: out of the entity without failing anything (S-0033/D-69): another row won
 #: its entity key. Parenthesised for the same reason
 #: :data:`~bloomery.quality.ENTITY_GRAIN_ROW` is — rule names are constrained
 #: to ``[a-z0-9_]+`` at parse and at generation (D23), so no authored or
 #: generated name can ever collide with a spelling carrying parentheses.
 SUPERSEDED_RULE = "(superseded)"
 
-#: The reject table's column order (RFC 0016 §5.6). Authored order, not sorted:
+#: The reject table's column order (S-0033/quarantine-one-reject-table-per-entity). Authored order, not sorted:
 #: it is a schema, and the emitted projection reads like the RFC's DDL.
 REJECT_COLUMNS: tuple[str, ...] = (
     "reject_id",
@@ -100,7 +100,7 @@ def reject_id(
     first, then the row identity — so the value is stable, idempotent under
     replay, and recomputable from the reject row itself.
 
-    ``digest`` comes from the dialect port (RFC 0016 D83). The spellings are
+    ``digest`` comes from the dialect port (S-0033/D-83). The spellings are
     genuinely different rather than cosmetically so — DuckDB's
     ``SHA256(VARCHAR)`` already returns hex, Postgres' returns ``bytea``, and
     Trino's does not accept text at all — so a single AST here produced a

@@ -4,7 +4,7 @@
 # Never gates here. The floor is enforced by a later step, *after* the Codecov
 # upload, so a coverage regression still reaches the service that reports it —
 # a gate that runs first would abort the job and leave the PR with no coverage
-# comment at all, which is the opposite of informational (RFC 0001 D4).
+# comment at all, which is the opposite of informational (S-0018/D-4).
 #
 # Combining across 3.12/3.13/3.14 rather than reporting each leg separately is
 # what makes version-gated code honest: a line reachable only on 3.14 is

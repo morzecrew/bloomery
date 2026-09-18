@@ -1,4 +1,4 @@
-"""Lineage: a traversal over the dependency DAG (RFC 0031 §5.1).
+"""Lineage: a traversal over the dependency DAG (S-0048/the-traversal-returns-a-sub-dag-not-paths).
 
 `resolve()` builds the graph on every call and, before this, kept only its
 topological order — every node in dependency order with no edges, which is the
@@ -23,7 +23,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 # Runtime imports, not `TYPE_CHECKING` ones: `Lineage` and `lineage` are public
-# (D2), and RFC 0018 D10 requires a public annotation to resolve at run time —
+# (D2), and S-0035/D-10 requires a public annotation to resolve at run time —
 # `get_type_hints` is what `tests/unit/test_signature_closure.py` calls on every
 # export, and a guarded name fails it.
 from bloomery.resolve.graph import Edge, Graph, Node
@@ -41,7 +41,7 @@ __all__ = [
 
 
 class Direction(StrEnum):
-    """Which way :func:`lineage` follows an edge (RFC 0031 §5.1).
+    """Which way :func:`lineage` follows an edge (S-0048/the-traversal-returns-a-sub-dag-not-paths).
 
     ``Edge`` points **dependency → dependent**, so upstream reads an edge
     backwards and downstream reads it forwards.
@@ -92,7 +92,7 @@ class Lineage:
     #: The direction walked, carried so a caller holding the value alone can
     #: tell "what this is built from" from "what this feeds".
     direction: Direction
-    #: Sorted by ``(name, kind)``, matching ``Graph.nodes`` (RFC 0003 §5.3).
+    #: Sorted by ``(name, kind)``, matching ``Graph.nodes`` (S-0020/ordering-rules).
     #: The kind is a tiebreak rather than decoration: an entity field carries
     #: no kind prefix (§3), so ``metric.revenue`` may name either an entity's
     #: field or a metric, and sorting on the name alone leaves two such nodes
@@ -119,7 +119,7 @@ def lineage(
 ) -> Lineage:
     """The sub-DAG reachable from ``root``, walked in ``direction`` (D1).
 
-    **Depth is stated so two implementations cannot disagree** (RFC 0031 §5.1).
+    **Depth is stated so two implementations cannot disagree** (S-0048/the-traversal-returns-a-sub-dag-not-paths).
     The root is at depth 0. ``max_depth=N`` carries every node within distance
     ``N`` and every edge whose *both* endpoints are carried, so ``max_depth=0``
     returns the root alone with no edges. ``truncated`` is ``True`` iff at least

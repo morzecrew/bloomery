@@ -1,6 +1,6 @@
 # One mart, one date role. `measures:` lists only the metrics that *have* a
 # measure: the two derived metrics are computed from `revenue` at query time
-# and are emitted wherever their inputs are (RFC 0034 D4).
+# and are emitted wherever their inputs are (S-0050/D-4).
 marts_version: 1
 marts:
   sales:

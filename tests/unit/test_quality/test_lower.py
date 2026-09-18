@@ -1,4 +1,4 @@
-"""Spec → IR lowering of the quality surface (RFC 0016 §5.3–§5.6) and the
+"""Spec → IR lowering of the quality surface (S-0033/spec-schema–S-0033/quarantine-one-reject-table-per-entity) and the
 per-dialect ``pattern`` validation (§5.3).
 
 The lowering's job is to *resolve* what the author did not restate — the
@@ -99,7 +99,7 @@ def test_rules_are_canonically_sorted_and_uniquely_named() -> None:
 
 def test_the_branch_carries_the_sources_the_coercible_marker_needs() -> None:
     """The paths the marker compares against live on the **source** column, not
-    on the rule (RFC 0024 D32).
+    on the rule (S-0041/D-32).
 
     They were rule params until a merged entity made that wrong: one rule is
     evaluated over the union, and a path is one mapping's — carrying it on the
@@ -197,7 +197,7 @@ def _enum_column(documents: dict[str, str]) -> SourceColumnIR:
 
 
 def test_in_enum_reads_its_admissible_set_off_the_chain() -> None:
-    """The set *is* the chain's mapping (RFC 0016 §5.2): restating it in the
+    """The set *is* the chain's mapping (S-0033/coercion-failure-is-a-rule-the-assert-boundary): restating it in the
     rule would let the two drift.
 
     Both halves of the chain are carried (D49): the ``enum_map`` targets and
@@ -206,7 +206,7 @@ def test_in_enum_reads_its_admissible_set_off_the_chain() -> None:
     spellings *plus* the targets, and a set showing only the targets could not
     see a widening that adds a spelling for one.
 
-    Both live on the branch rather than on the rule (RFC 0024 D32): two
+    Both live on the branch rather than on the rule (S-0041/D-32): two
     mappings map their own spellings onto their own vocabularies, so the
     admissible set is a fact about one source's chain.
     """
@@ -216,7 +216,7 @@ def test_in_enum_reads_its_admissible_set_off_the_chain() -> None:
 
 
 def test_widening_a_chain_by_a_spelling_alone_changes_the_in_enum_rule() -> None:
-    """RFC 0016 §6's named replay case. ``{PAYED: paid}`` admits a raw value
+    """S-0033/tests-rfc-0009-amendment's named replay case. ``{PAYED: paid}`` admits a raw value
     that used to be quarantined while changing no ``enum_map`` *target*, so a
     rule identified by its targets alone reported no change at all."""
     widened = dict(ENUM_PROJECT)
@@ -332,7 +332,7 @@ def test_an_authored_name_may_not_be_one_the_suffixing_would_issue() -> None:
 def test_generated_names_do_not_depend_on_authored_order() -> None:
     """Two rules differing only in disposition sorted equal, so swapping two
     YAML lines swapped which one owned the unsuffixed name — the same spec
-    compiling to two different IRs (RFC 0003)."""
+    compiling to two different IRs (S-0020)."""
     one = build_project_ir(load_project(_two_range_rules("quarantine", "flag")))
     other = build_project_ir(load_project(_two_range_rules("flag", "quarantine")))
     assert one.entities[0].quality == other.entities[0].quality
@@ -358,12 +358,12 @@ def test_a_portable_pattern_is_expressible_everywhere() -> None:
 
 
 def test_the_checked_dialects_default_to_the_shipped_ports() -> None:
-    # not "whatever this process happens to have registered" (RFC 0003)
+    # not "whatever this process happens to have registered" (S-0020)
     assert PATTERN_TARGET_DIALECTS == ("duckdb", "postgres", "trino")
 
 
 def test_registering_a_dialect_cannot_change_an_existing_projects_verdict() -> None:
-    # RFC 0003: compilation is a pure function of the specs. A dialect
+    # S-0020: compilation is a pure function of the specs. A dialect
     # registered by an unrelated import must not turn a compiling project
     # into a refusing one.
     before = unsupported_dialects("^[A-Z]{3}$")
@@ -376,7 +376,7 @@ def test_a_dialect_without_a_regex_surface_is_named_when_the_caller_asks() -> No
 
 
 def test_a_parameterless_rule_kind_gets_no_params_from_the_unique_branch() -> None:
-    """`coercible` and `in_enum` carry no params of their own — RFC 0024 D32
+    """`coercible` and `in_enum` carry no params of their own — S-0041/D-32
     moved their inputs onto the per-source column — and a bare `else` written
     for `UniqueRule` collected them.
 
@@ -419,12 +419,12 @@ unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
 
 
 # ....................... #
-# A conversion nullifies on purpose (RFC 0061 §10)
+# A conversion nullifies on purpose (S-0066 (§10))
 
 
 def test_a_converting_column_gets_no_implicit_coercible() -> None:
     """A rate the relation has no row for converts the amount to NULL by
-    design (RFC 0023 D11), so `coercible` — whose marker is "the output
+    design (S-0040/D-11), so `coercible` — whose marker is "the output
     vanished while the source was there" — must not read it as a failed cast
     and quarantine the row for a coercion that did not happen.
 

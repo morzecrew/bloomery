@@ -1,5 +1,5 @@
 """The ``Resolution`` result and the public ``resolve`` analysis API
-(RFC 0005 §5.6, spec §8): a pure function from parsed specs plus catalog to
+(S-0022/the-result-type-and-api-bloomery-resolve-init-py, spec §8): a pure function from parsed specs plus catalog to
 reachable/unreachable metrics, per-field provenance, and the deterministic
 topological emission order — no I/O, all tuples, explicit sorts.
 
@@ -37,7 +37,7 @@ __all__ = [
 
 
 class Provenance(StrEnum):
-    """How a mapped entity field is produced (RFC 0005 §5.6)."""
+    """How a mapped entity field is produced (S-0022/the-result-type-and-api-bloomery-resolve-init-py)."""
 
     #: Mapped straight from a source column with a ``canonical:`` link.
     DIRECT = "direct"
@@ -55,15 +55,15 @@ class FieldProvenance:
     """Provenance of one mapped entity field; ``recipe_id`` is set iff
     ``provenance`` is :attr:`Provenance.RECIPE`.
 
-    **One entry per ``(entity, field, mapping)``** (RFC 0032). Where several
-    mappings build one entity (RFC 0024) they may implement the same field
+    **One entry per ``(entity, field, mapping)``** (S-0049). Where several
+    mappings build one entity (S-0041) they may implement the same field
     differently — one straight from a column, another through a recipe — and
-    each says so in its own entry. Until RFC 0032 this collection keyed on the
+    each says so in its own entry. Until S-0049 this collection keyed on the
     field alone and reported the last mapping in document order, so a merged
     entity's other mappings were not representable at all; ``mapping`` is the
     document name that made them representable.
 
-    ``mapping`` reads third and is **keyword-only** (RFC 0032 D11). D5 put it
+    ``mapping`` reads third and is **keyword-only** (S-0049/D-11). D5 put it
     third on the argument that a positional caller would fail on arity; that
     was wrong, because ``recipe_id`` carries a default, so the old
     four-argument call ``FieldProvenance(entity, field, provenance, recipe_id)``
@@ -74,7 +74,7 @@ class FieldProvenance:
 
     entity: str
     field: str
-    #: The mapping document that builds this field (RFC 0032 D1) — the name it
+    #: The mapping document that builds this field (S-0049/D-1) — the name it
     #: was loaded under, which is the document a reader would edit.
     mapping: str = dataclass_field(kw_only=True)
     provenance: Provenance
@@ -86,22 +86,22 @@ class FieldProvenance:
 
 @dataclass(frozen=True, slots=True)
 class Resolution:
-    """The resolve stage's product (RFC 0005 D6): all tuples, explicitly
+    """The resolve stage's product (S-0022/D-6): all tuples, explicitly
     sorted, because its content is embedded in IR construction and reaches
-    fingerprinted output (RFC 0003 §5.3)."""
+    fingerprinted output (S-0020/ordering-rules)."""
 
     reachable_metrics: tuple[str, ...]
     unreachable_metrics: tuple[UnreachableMetric, ...]
     provenance: tuple[FieldProvenance, ...]
     topo_order: tuple[Node, ...]
-    #: The DAG the three fields above were computed from (RFC 0031 D2).
+    #: The DAG the three fields above were computed from (S-0048/D-2).
     #:
     #: Carried rather than rebuilt, and with **no default**: a ``Resolution``
     #: holding a graph that disagrees with the one its reachability came from
     #: is not a state worth being able to represent, and a caller rebuilding it
     #: with a different ``catalog`` would get exactly that. ``topo_order`` stays
     #: even though it is derivable from this — it is a published field with
-    #: callers and RFC 0005 D6 names it as part of the stage's product.
+    #: callers and S-0022/D-6 names it as part of the stage's product.
     graph: Graph
 
 
@@ -113,7 +113,7 @@ def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, 
 
     ``DIRECT`` versus ``NATIVE`` is the graph's answer, read off the outgoing
     ``canonical`` edges — the same edges ``available_canonicals`` reads to
-    decide what a metric can reach (RFC 0031 §5.2). Asking them rather than
+    decide what a metric can reach (S-0048/the-boundary-with-rfc-0030-s-provenance). Asking them rather than
     re-reading ``entity.fields[...].canonical`` in parallel is what stops this
     report and reachability disagreeing about which fields feed the catalog.
     It is decided by the outgoing canonical edge rather than by an incoming
@@ -127,12 +127,12 @@ def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, 
 
     - An alias-bound field may bind **zero** source paths: a ``sql_macro``
       whose ``from`` is empty (the schema's default — a macro may compute from
-      its ``parameters`` alone, RFC 0017 D50), or a recipe with an empty
+      its ``parameters`` alone, S-0034/D-50), or a recipe with an empty
       ``requires`` and an ``expr``, which compiles to a constant column. Such a
       field draws no edge from any source column, so there is no edge to carry
       its label, and a label-derived kind would silently report a recorded
       recipe as ``DIRECT`` — losing exactly the decision this record exists to
-      remember (RFC 0005 D2: the compiler never re-chooses).
+      remember (S-0022/D-2: the compiler never re-chooses).
     - An entity wired as a step input contributes a node for **every** field it
       declares (``_step_edges``), mapped or not, so a node-keyed population
       would report fields no mapping builds.
@@ -143,7 +143,7 @@ def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, 
     """
     linked = {edge.src.name for edge in graph.edges if edge.label == "canonical"}
 
-    # Keyed on the mapping too (RFC 0032 D1), so nothing overwrites anything:
+    # Keyed on the mapping too (S-0049/D-1), so nothing overwrites anything:
     # where two mappings build one field they each get an entry, rather than the
     # last in document order deciding for both.
     recipe_of: dict[tuple[str, str, str], str | None] = {}
@@ -158,7 +158,7 @@ def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, 
 
     entries: list[FieldProvenance] = []
 
-    # Sorted `(entity, field, mapping)` — RFC 0032 D7, decided against the
+    # Sorted `(entity, field, mapping)` — S-0049/D-7, decided against the
     # corpus: on `multi_source` it keeps `order_line.quantity`'s two answers
     # adjacent, which is the comparison a reader of a merged field is making.
     # `(entity, mapping, field)` groups by document instead and interleaves
@@ -192,7 +192,7 @@ def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, 
 def resolve(project: Project, catalog: Catalog | None = None) -> Resolution:
     """Resolve a project against a catalog (public API, spec §8).
 
-    Stages, in order (RFC 0005 §5.5): cross-spec reference validation, then
+    Stages, in order (S-0022/cross-spec-reference-validation-bloomery-resolve-refs-py): cross-spec reference validation, then
     recorded-recipe validation, both batched; template merge; DAG assembly;
     cycle detection (:class:`~bloomery.errors.CircularDerivation`); then
     availability, reachability, and provenance over the clean, acyclic graph.

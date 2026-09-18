@@ -1,5 +1,5 @@
 """Disposition precedence, window-rule legality, mart arithmetic and replay
-identity, executed (RFC 0016 D18/D20/D22, §5.6, §5.8).
+identity, executed (S-0033/D-18, S-0033/D-20, S-0033/D-22, S-0033/quarantine-one-reject-table-per-entity, S-0033/the-quality-mart).
 
 The suite next door (``test_dirty_corpus``) asks "does each specimen land where
 the corpus says". This one asks the questions a corpus cannot: what happens
@@ -349,7 +349,7 @@ def test_excluding_flagged_rows_is_a_plain_metric_request(
 def test_a_mart_assertion_runs_against_the_mart_it_was_written_for(
     run: duckdb.DuckDBPyConnection,
 ) -> None:
-    """RFC 0016 D89 against the real gold relation, not a synthetic stand-in.
+    """S-0033/D-89 against the real gold relation, not a synthetic stand-in.
 
     The unit suite next door proves the two body shapes execute; what only the
     materialized mart can prove is that the columns the assertion names are the
@@ -506,7 +506,7 @@ def test_replay_re_stamps_failed_rules_and_leaves_last_seen_on_the_data_clock() 
     failing has its account re-derived, so the reject table never ages into a
     statement about a spec nobody runs any more.
 
-    ``last_seen`` does **not** move (RFC 0016 D70). It is one clock — the
+    ``last_seen`` does **not** move (S-0033/D-70). It is one clock — the
     latest *delivery's* ``_ingested_at`` — because retention measures unresolved
     rows from it (§5.6): a column that a replay run advances makes an unresolved
     reject row immortal for as long as replay keeps running, which is §9's PII
@@ -581,7 +581,7 @@ def test_a_replay_loser_says_why_it_is_still_out(
     widened: tuple[duckdb.DuckDBPyConnection, tuple[EmittedArtifact, ...]],
 ) -> None:
     """A candidate that **passes** every rule and loses the key contest stays
-    unresolved, and its record has to explain that (RFC 0016 D69).
+    unresolved, and its record has to explain that (S-0033/D-69).
 
     ``_one_winner_per_key`` (D22) keeps one candidate per entity key, and the
     MERGE's ``WHEN MATCHED`` keeps the better of candidate and incumbent — so a

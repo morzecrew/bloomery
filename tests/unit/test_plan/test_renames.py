@@ -1,6 +1,6 @@
-"""A node rename is one change, not a delete and an add (RFC 0062 P2, §5.3).
+"""A node rename is one change, not a delete and an add (S-0067/phasing (P-2), S-0067/what-plan-gains).
 
-The identity `plan()` needs is not in the IR: RFC 0062 P1 substitutes the
+The identity `plan()` needs is not in the IR: S-0067/phasing (P-1) substitutes the
 authored `id:` while building node ids and keeps only names, because a field
 there would move every fingerprint in the corpus and break that document's D3.
 So it arrives as a label map per side, and passing none reproduces today's
@@ -136,7 +136,7 @@ def test_a_delete_is_still_a_delete() -> None:
     # Drop the metric and everything naming it: the mart measure, the derived
     # ratio, the exposure's dependency, and the export list's entry — a metric
     # deleted while still on the published surface is what the dangling-export
-    # guard refuses (RFC 0059 D1), which is a different test than this one.
+    # guard refuses (S-0002/D-1), which is a different test than this one.
     without = fixture_sources("ecom_basic")
     without["metrics"] = """
 metrics_version: 1
@@ -264,7 +264,7 @@ def test_a_rollup_is_cited_in_the_grammar_plan_reports_it_in() -> None:
     """Citations are in `Change`'s own `<kind>:<name>` grammar, and `plan()`
     reports a rollup as `rollup:<name>` — `_diff_rollups`' own subject.
 
-    A rollup's *node* id is `mart.<name>` (RFC 0067 §5.1: both are gold
+    A rollup's *node* id is `mart.<name>` (S-0072/the-node: both are gold
     relations under one prefix), and taking that spelling here would give a
     reader a citation that matches no subject in the same report.
     """

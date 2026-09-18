@@ -1,5 +1,5 @@
 """The command line: eight commands, each a shell over one public function
-(RFC 0020 §5.2, D4–D6).
+(S-0037/bloomery-cli-six-commands, S-0037/D-4–S-0037/D-6).
 
 ``bloomery compile|plan|resolve|check|lineage|explain|schema|fingerprint``.
 Every command is
@@ -25,7 +25,7 @@ are not — stops requiring a Python script to ask.
 ``explain`` emits the same values the Python API returns, so the CLI is not a
 second, lossier surface (:mod:`bloomery.cli.serialize`).
 
-``check`` is ``resolve``'s sibling rather than its replacement (RFC 0044 D7):
+``check`` is ``resolve``'s sibling rather than its replacement (S-0057/D-7):
 one evaluation, one exit rule, two questions. ``resolve`` answers which metrics
 are computable and what is missing for the rest; ``check`` answers whether what
 the project declares holds, as a count per semantic surface and a refusal list.
@@ -223,7 +223,7 @@ def _plan(arguments: argparse.Namespace) -> int:
     """``bloomery plan`` — the migration report for two spec directories.
 
     Loads each side's `Project` rather than only its IR, because a node rename
-    is invisible in an IR: RFC 0062 P1 keeps the authored `id:` out of it, so
+    is invisible in an IR: S-0067/phasing (P-1) keeps the authored `id:` out of it, so
     the identity `plan()` needs travels beside the IR as a label map
     (`logs/T-0044.md`). A project that adopted no id passes two empty maps and
     gets exactly the report it got before.
@@ -249,7 +249,7 @@ def _plan(arguments: argparse.Namespace) -> int:
 
 
 def _resolve(arguments: argparse.Namespace) -> int:
-    """``bloomery resolve`` — reachability *and* refusals (RFC 0022 D8).
+    """``bloomery resolve`` — reachability *and* refusals (S-0039/D-8).
 
     Re-pointed from :func:`~bloomery.resolve` to :func:`~bloomery.evaluate`,
     which is a strict gain for the one caller who matters here: a spec author
@@ -262,7 +262,7 @@ def _resolve(arguments: argparse.Namespace) -> int:
     **One project shape changes answer**: a spec wiring a ``steps:`` document
     now reports the unwired step instead of printing reachability. No registry
     is passed — the CLI offers no ``--steps``, because a ``StepRegistry`` is a
-    caller-assembled compile input (RFC 0017 §5.3) — and ``resolve()`` never
+    caller-assembled compile input (S-0034/purity-the-registry-is-a-compile-input) — and ``resolve()`` never
     looked at steps at all, so it answered as though the wiring were not there.
     ``compile`` on the same project already refuses for the same reason; this
     makes the two agree rather than having the cheaper command quietly answer a
@@ -285,7 +285,7 @@ def _resolve(arguments: argparse.Namespace) -> int:
 def _evidence_exit(evidence: SpecEvidence) -> int:
     """The one exit rule ``resolve`` and ``check`` both return.
 
-    Shared rather than spelled twice, and the reason is RFC 0044 D7: the row's
+    Shared rather than spelled twice, and the reason is S-0057/D-7: the row's
     objection to a second command is that two commands which mostly agree is
     its own defect. They cannot *stop* agreeing about the exit code if there is
     one rule — and a divergence here is the expensive kind, because a gate that
@@ -305,12 +305,12 @@ def _evidence_exit(evidence: SpecEvidence) -> int:
 
 
 def _check(arguments: argparse.Namespace) -> int:
-    """``bloomery check`` — the CI gate (RFC 0044 P1).
+    """``bloomery check`` — the CI gate (S-0057/phasing (P-1)).
 
     Load, resolve, semantic type-check, prove the static invariants, report.
     **No emission, no warehouse, no credentials, no network** (D1) — which is
     not a property this command establishes but one it inherits: compilation is
-    already pure under RFC 0003, and :func:`~bloomery.evaluate` runs the same
+    already pure under S-0020, and :func:`~bloomery.evaluate` runs the same
     stages ``resolve`` does and stops before any target is asked for anything.
 
     A separate command from ``resolve`` rather than an exit contract grown onto
@@ -344,7 +344,7 @@ def _check(arguments: argparse.Namespace) -> int:
 def _lineage(arguments: argparse.Namespace) -> int:
     """``bloomery lineage`` — where a node comes from, or what it feeds.
 
-    Reads the graph off the `Resolution` rather than rebuilding it (RFC 0031
+    Reads the graph off the `Resolution` rather than rebuilding it (S-0048
     D2), so the answer describes the same graph the reachability report did.
     """
     project, catalog = _load(arguments.directory, arguments.catalog)
@@ -370,7 +370,7 @@ def _lineage(arguments: argparse.Namespace) -> int:
 
 
 def _lineage_payload(walk: Lineage, labels: AbcMapping[str, str]) -> dict[str, object]:
-    """The walk as JSON, plus the labels (RFC 0062 §5.4).
+    """The walk as JSON, plus the labels (S-0067/display).
 
     Every field of :class:`~bloomery.Lineage` under the key it already had, and
     one more: a script that keyed on ``nodes[i].name`` before keeps working,
@@ -401,18 +401,18 @@ def _timeline(arguments: argparse.Namespace) -> int:
     """``bloomery timeline`` — how one node has changed across N spec sets.
 
     The directories are positional and in the order given, exactly as ``plan``
-    takes two (RFC 0069 D6), and **the label of each version is the directory
+    takes two (S-0074/D-6), and **the label of each version is the directory
     string as typed**. Nothing parses it (D1): a reader who wants a
     chronological order names their directories so that one falls out, which is
     what D10's recommended label spelling is for.
 
     **No ``--steps``**, for the reason ``resolve`` gives: a ``StepRegistry`` is
-    a caller-assembled compile input (RFC 0017 §5.3), so a project wiring a
+    a caller-assembled compile input (S-0034/purity-the-registry-is-a-compile-input), so a project wiring a
     ``steps:`` document is refused here exactly as ``compile`` refuses it. The
     Python API takes one per version and is where such a history is walked.
 
     Every version is compiled, so this costs what the history is long — the one
-    cost RFC 0069 §9 names, landing on the caller who is also the only party
+    cost S-0074/risks names, landing on the caller who is also the only party
     able to choose the resolution they need.
     """
     history = [
@@ -457,10 +457,10 @@ def _find_node(graph: Graph, wanted: str) -> Node:
 
     Node ids are long, dotted and easy to mistype, and the graph holding the
     right spelling is already in hand — so "not found" alone would be withholding
-    the answer (RFC 0031 §5.5). Suggestions come from ``difflib`` at a fixed
+    the answer (S-0048/cli). Suggestions come from ``difflib`` at a fixed
     cutoff and are capped, which keeps the message both useful and *bounded*: a
     two-thousand-node graph must not print two thousand guesses, and the same
-    spec must print the same bytes (RFC 0003). See ``logs/T-0006.md`` D-028.
+    spec must print the same bytes (S-0020). See ``logs/T-0006.md`` D-028.
 
     Where nothing is close enough, the fallback names the id *kinds* present.
     A reader who mistyped the scheme rather than the name learns the scheme —
@@ -522,7 +522,7 @@ def _parse_policy(spelling: str | None) -> RowPolicy | None:
     """``--policy 'region eq EU'`` → a :class:`~bloomery.RowPolicy`.
 
     Three whitespace-separated tokens, the last comma-split for the multi-value
-    operators. RFC 0020 §10 question 2, answered yes: making row scoping
+    operators. S-0037 (§10) question 2, answered yes: making row scoping
     inspectable without Python is most of its debugging value, and
     :class:`~bloomery.RowPolicy` is a plain dimension/operator/value triple, so
     exposing it puts nothing on the surface that the public type does not
@@ -567,7 +567,7 @@ def _parse_where(payload: str | None) -> AbcMapping[str, object] | None:
     same kind of mistake and gets the same code.
 
     The refusals *inside* the document are a different thing and stay
-    refusals: ``$regex`` is a reviewed decision (RFC 0015), not a typo.
+    refusals: ``$regex`` is a reviewed decision (S-0032), not a typo.
     """
 
     if payload is None:
@@ -635,11 +635,11 @@ def _explain(arguments: argparse.Namespace) -> int:
         # The evidence section reads ``query.semantic`` and never
         # ``query.explanation``: the explanation is a planner value carrying no
         # fact and no proof, and putting them there would move a surface every
-        # golden pins. RFC 0040 D7 put the semantic plan *beside* `sql`,
-        # `columns` and `explanation` for that reason, and RFC 0065 P1 renders
+        # golden pins. S-0054/D-7 put the semantic plan *beside* `sql`,
+        # `columns` and `explanation` for that reason, and S-0070/phasing (P-1) renders
         # from where it was put (logs/T-0031.md).
         #
-        # ``semantic`` is present on every `QueryPlan` since RFC 0066 D1, so
+        # ``semantic`` is present on every `QueryPlan` since S-0071/D-1, so
         # there is no absence to branch on. It was optional while four request
         # shapes had no plan, and the branch that printed nothing for them was
         # the only thing standing between a reader and a heading over no facts.
@@ -732,15 +732,15 @@ def _import(arguments: argparse.Namespace) -> int:
     """``bloomery import`` — an external artifact, as relationships to paste.
 
     **Prints; writes nothing.** A project holds exactly one ``EntityModel``
-    document, so the ``imported.yaml`` RFC 0070 §5.5 described could not be
+    document, so the ``imported.yaml`` S-0075/the-command described could not be
     loaded back — as an unknown kind without a version key, and as a second
     entity model with one. Printing puts the block in front of the author, who
     pastes it into the document they already have and commits it, which is what
-    keeps compilation a function of the specs on disk (RFC 0003).
+    keeps compilation a function of the specs on disk (S-0020).
 
     The spec directory is read, not written: it is what the artifact's semantic
     model names are checked against, and what a cardinality conflict is judged
-    against (RFC 0070 D4). Only the entity model is consulted, so this is the
+    against (S-0075/D-4). Only the entity model is consulted, so this is the
     one spec-reading command with no ``--catalog`` — a canonical field
     definition has no bearing on whether two relations join.
 
@@ -958,7 +958,7 @@ def build_parser() -> argparse.ArgumentParser:
         "import", help="read relationships out of an external semantic artifact"
     )
     # A positional choice rather than a nested subparser: one importer exists,
-    # the argument is the extension point RFC 0070 §5.5 names, and `choices`
+    # the argument is the extension point S-0075/the-command names, and `choices`
     # already refuses `dbt` with the spelling it would have wanted. A second
     # importer that needs flags of its own is when this becomes subparsers.
     import_parser.add_argument(
@@ -1053,9 +1053,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         #
         # The source path is prepended here because a *single* error carries it
         # as an attribute and not in its message — only the batched aggregate
-        # renders paths inline (RFC 0002 D6). Printing the message alone turns
+        # renders paths inline (S-0019/D-6). Printing the message alone turns
         # "the type string is wrong" into a sentence with no file, no key and
-        # nothing to act on, which is the one thing RFC 0002 §5.3 exists to
+        # nothing to act on, which is the one thing S-0019/source-paths exists to
         # prevent.
         location = f"{error.source_path}: " if error.source_path else ""
         sys.stderr.write(f"{location}{error}\n")

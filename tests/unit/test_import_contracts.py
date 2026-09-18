@@ -1,4 +1,4 @@
-"""The import contracts are tested, not merely configured (RFC 0019 §6).
+"""The import contracts are tested, not merely configured (S-0036/tests).
 
 An import-linter contract that has never failed is indistinguishable from one
 that is misconfigured — a typo in a module path yields a contract that passes
@@ -64,7 +64,7 @@ def test_the_contracts_pass_on_the_tree_as_it_stands() -> None:
             "src/bloomery/emit/lower/silver.py",
             "from bloomery.emit.lower.quality_mart import quality_mart_select  # planted\n",
         ),
-        # RFC 0020 D5. `cli` is the top layer, so any library module importing
+        # S-0037/D-5. `cli` is the top layer, so any library module importing
         # it inverts the one direction the carve-out depends on: the shell
         # reads paths and the library only ever sees strings. Planted in the
         # spec layer because that is the *furthest* module from the CLI — if

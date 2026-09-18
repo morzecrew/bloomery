@@ -1,4 +1,4 @@
-"""Mart flattening (RFC 0010 §5.4–§5.5): the wide-schema shape, transitive
+"""Mart flattening (S-0027/martir–S-0027/validation-compile-errors-batched-with-guardrails): the wide-schema shape, transitive
 chains, prefixes, date-role expansion, and every validation rule's trigger
 plus its nearest non-trigger — violations as guardrail leaves, never raises."""
 
@@ -162,7 +162,7 @@ def _violations(marts_yaml: str) -> tuple[GuardrailError, ...]:
 def _as_type2(entity: str) -> dict[str, str]:
     """``_SOURCES`` with one entity declared ``scd: type2``.
 
-    One added line is the whole difference RFC 0023 D1/D2 refuse on, so the
+    One added line is the whole difference S-0040/D-1, S-0040/D-2 refuse on, so the
     tests below are written as that line rather than as a second corpus: what
     they discriminate is the *combination*, and a separate document would let
     an unrelated difference stand in for it.
@@ -192,7 +192,7 @@ def _historical(entity: str, marts_yaml: str) -> MartLowering:
 
 
 # ....................... #
-# Flattening shape (RFC 0010 §5.1–§5.4)
+# Flattening shape (S-0027/spec-kind–S-0027/martir)
 
 
 def test_transitive_chain_flattens_prefixed_in_authored_order() -> None:
@@ -305,7 +305,7 @@ marts:
         _draft(),
     )
     (mart,) = lowering.marts
-    # RFC 0010 §10: every flattened column is a dimension, sorted by
+    # S-0027 (§10): every flattened column is a dimension, sorted by
     # qualified name — which equals the column name for buckets and plain
     # columns alike.
     assert [dimension.column for dimension in mart.dimensions] == [
@@ -319,7 +319,7 @@ marts:
 
 
 def test_two_roles_may_share_a_source_column() -> None:
-    # Rare but legal (RFC 0010 §5.2): the same date under two roles.
+    # Rare but legal (S-0027/date-roles): the same date under two roles.
     lowering = lower_marts(
         _mart_set(
             """\
@@ -401,7 +401,7 @@ marts:
 
 
 # ....................... #
-# Validation rules (RFC 0010 §5.5) — trigger and nearest non-trigger
+# Validation rules (S-0027/validation-compile-errors-batched-with-guardrails) — trigger and nearest non-trigger
 
 
 def test_unknown_base_entity_is_refused() -> None:
@@ -422,7 +422,7 @@ def test_mart_grain_must_equal_the_base_grain() -> None:
     assert "exactly its base grain" in str(violation)
     assert "one row per line on an order" in str(violation)
     # The mart header is wrong, not any measure — so the suggestion is empty,
-    # and empty is a fact rather than a search that was skipped (RFC 0020 D7).
+    # and empty is a fact rather than a search that was skipped (S-0037/D-7).
     assert violation.offending_measures == ()
 
 
@@ -481,7 +481,7 @@ marts:
 
 
 # ....................... #
-# Historical dimensions (RFC 0023 D1/D2) — the join that has no validity
+# Historical dimensions (S-0040/D-1, S-0040/D-2) — the join that has no validity
 # predicate, and the base whose grain counts revisions.
 
 _CHAIN_TO_CUSTOMER = """\
@@ -616,7 +616,7 @@ def test_the_same_base_as_type1_is_clean() -> None:
 
 
 def test_a_type2_entity_the_mart_never_reaches_is_not_refused() -> None:
-    """The refusal is the *combination*, never the feature (RFC 0023 §4).
+    """The refusal is the *combination*, never the feature (S-0040/goals).
 
     ``customer`` is historical and the mart neither flattens it nor is based on
     it — so the mart lowers, and the silver model keeping that history is
@@ -823,7 +823,7 @@ marts:
     assert violation.source_path == "marts: marts.items.measures.order_count"
     assert "grain 'order' (one row per order)" in str(violation)
     assert "must strictly equal mart grain" in str(violation)
-    # The same pair the sentence states, as data (RFC 0020 §5.4): which
+    # The same pair the sentence states, as data (S-0037/fix-suggestions-on-refusals): which
     # measure is at odds with the mart grain, and the grain it is at.
     assert violation.offending_measures == (MeasureRef(measure="order_count", grain="order"),)
     assert "duplicated once per 'order_item' row" in str(violation)
@@ -854,11 +854,11 @@ def test_measureless_mart_needs_no_date_role() -> None:
 
 
 # ....................... #
-# The RFC 0016 §5.5 amendment: has_quality_flags, and the reject-table refusal
+# The S-0033/schema-additions-and-the-array-capability amendment: has_quality_flags, and the reject-table refusal
 
 
 def test_a_reject_table_can_never_be_a_mart_base() -> None:
-    """RFC 0016 D15. Refused on the *name*, ahead of the generic
+    """S-0033/D-15. Refused on the *name*, ahead of the generic
     "no mapping lowers this entity" message, so the author reads why rather
     than a missing-entity puzzle."""
     (violation,) = _violations(
@@ -931,7 +931,7 @@ def test_a_step_produced_base_gets_no_quality_dimension() -> None:
 
 
 def test_a_flagged_step_produced_base_does_get_the_quality_dimension() -> None:
-    """The other side of the rule the test above states (RFC 0051 §5.3).
+    """The other side of the rule the test above states (S-0059/onfail-flag-on-a-tier-2-output).
 
     A `sql_model` output with an `on_fail: flag` rule *does* carry
     `_quality_ok` — its body is a SELECT and the projection wraps it — so
@@ -964,8 +964,8 @@ def test_a_flagged_step_produced_base_does_get_the_quality_dimension() -> None:
 
 
 def test_a_base_column_colliding_with_the_quality_dimension_is_refused() -> None:
-    """Collisions are errors, never auto-renamed (RFC 0010 D3) — including
-    against the dimension RFC 0016 §5.5 reserves. Built from a hand-made draft
+    """Collisions are errors, never auto-renamed (S-0027/D-3) — including
+    against the dimension S-0033/schema-additions-and-the-array-capability reserves. Built from a hand-made draft
     because the spec layer has no reason to reserve the name *and* the mart
     layer has every reason to refuse it."""
     draft = plan_project(
@@ -996,11 +996,11 @@ def test_a_base_column_colliding_with_the_quality_dimension_is_refused() -> None
 
 
 # ....................... #
-# The as-of join (RFC 0023 §5.3) — the anchor that lifts the refusal
+# The as-of join (S-0040/phase-2-the-as-of-join) — the anchor that lifts the refusal
 
 
 #: The same chain, anchored. `order_item` is the base and carries `order_date`;
-#: `customer` is reached *through* `order`, which is the two-hop shape RFC 0023
+#: `customer` is reached *through* `order`, which is the two-hop shape S-0040
 #: §5.3 calls the common case — the anchor is on the fact, the foreign key is
 #: not.
 _CHAIN_AS_OF = """\
@@ -1079,7 +1079,7 @@ def test_a_non_temporal_anchor_is_refused() -> None:
 
 
 def test_an_anchor_does_not_rescue_a_type2_base() -> None:
-    """The base side stays refused (RFC 0023 D2): there is no join to qualify,
+    """The base side stays refused (S-0040/D-2): there is no join to qualify,
     and the grain lie — one row per entity declared over a relation holding one
     per version — is untouched by any predicate."""
     lowering = _historical(
@@ -1102,7 +1102,7 @@ marts:
 
 def test_two_historical_dimensions_can_be_read_as_of_different_dates() -> None:
     """The reason the anchor sits on the flatten step rather than on the mart
-    (RFC 0023 D8, logs/T-0009.md D-036): a mart-level default could not express
+    (S-0040/D-8, logs/T-0009.md D-036): a mart-level default could not express
     this, and the argument for the step-level spelling was untested until here.
 
     `order` is read as of the ship date and `customer` — reached *through*

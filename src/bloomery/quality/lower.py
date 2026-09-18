@@ -1,4 +1,4 @@
-"""Spec → IR lowering for the data-quality surface (RFC 0016 §5.3–§5.6).
+"""Spec → IR lowering for the data-quality surface (S-0033/spec-schema–S-0033/quarantine-one-reject-table-per-entity).
 
 Pure, total, and I/O-free like every other lowering: authored ``quality:`` /
 ``dedupe:`` / ``quarantine:`` / ``reconcile:`` blocks become
@@ -149,7 +149,7 @@ def field_sources(mapping: Mapping, field_name: str) -> tuple[str, ...]:
 def enum_chain(mapping: Mapping, field_name: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """The ``enum_map`` steps of a field's chain as (spellings, targets), each
     deduplicated and sorted — what defines ``in_enum``'s admissible set
-    (RFC 0016 §5.2, D49).
+    (S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-49).
 
     Both halves are needed, and neither is redundant. ``enum_map`` passes an
     *unmapped* value through untouched, so the raw values ``in_enum`` admits
@@ -281,7 +281,7 @@ def _field_rule_ir(
     if rule.repair is not None:
         # The recipe travels as SQL, already spliced with this column and the
         # call site's parameters — resolved one layer up, where the step
-        # registry is (RFC 0016 D87). ``via`` rides along beside it so a
+        # registry is (S-0033/D-87). ``via`` rides along beside it so a
         # ``plan()`` diff and an error message can name the macro rather than
         # quote its body back at the reader.
         params.append(("fallback", rule.repair.fallback))
@@ -329,7 +329,7 @@ def _field_rule_ir(
     elif isinstance(rule, UniqueRule):
         # The slice is the entity's partition, or the table. Matched by kind
         # rather than left as a bare `else`: `coercible` and `in_enum` carry no
-        # params of their own since RFC 0024 D32 moved their inputs onto the
+        # params of their own since S-0041/D-32 moved their inputs onto the
         # per-source column, and an `else` written for one kind silently
         # collected every kind that stopped matching above it — an authored
         # `in_enum` on a partitioned entity lowered with the partition columns
@@ -385,7 +385,7 @@ def _dedupe_fields(entity: Entity) -> frozenset[str]:
 
 def _assign_names(rules: list[QualityRuleIR], taken: set[str]) -> list[QualityRuleIR]:
     """Give each rule the first free name in its ``name``, ``name_2``, … chain,
-    walking :func:`~bloomery.ir.quality_sort_key` (RFC 0016 D50).
+    walking :func:`~bloomery.ir.quality_sort_key` (S-0033/D-50).
 
     The suffix counts *up until the candidate is actually free*, rather than
     trusting ``_{n}`` to be: an authored ``expression`` rule may legally be
@@ -397,7 +397,7 @@ def _assign_names(rules: list[QualityRuleIR], taken: set[str]) -> list[QualityRu
     ``on_fail`` included. Without that last component two rules differing only
     in disposition sorted equal, the stable sort fell through to authored
     order, and swapping two YAML lines swapped which rule owned the unsuffixed
-    name (RFC 0003: same specs in, same bytes out).
+    name (S-0020: same specs in, same bytes out).
     """
     named: list[QualityRuleIR] = []
 
@@ -419,7 +419,7 @@ def _deduplicate_names(
     generated: list[QualityRuleIR], authored: list[QualityRuleIR]
 ) -> tuple[QualityRuleIR, ...]:
     """Force rule names unique, deterministically — **generated names first**
-    (RFC 0016 D50, completed by D71).
+    (S-0033/D-50, completed by D71).
 
     Two identical-shaped rules on one column (the same bound declared twice
     with different dispositions) would otherwise share a name, and a shared
@@ -542,7 +542,7 @@ def _draft_rules(
 def generated_rule_names(
     entity: Entity, mapping: Mapping, relationships: tuple[Relationship, ...]
 ) -> frozenset[str]:
-    """The names generation issues on its **own** account (RFC 0016 D71).
+    """The names generation issues on its **own** account (S-0033/D-71).
 
     A function of the mapping alone — no authored ``expression`` name reaches
     it, which is exactly what makes it usable as the set a guardrail refuses an
@@ -568,7 +568,7 @@ def lower_quality(
     """Every rule of one entity, field rules and row rules alike, canonically
     sorted (:func:`~bloomery.ir.quality_sort_key`).
 
-    ``repairs`` maps a column to its already-spliced repair recipe (RFC 0016
+    ``repairs`` maps a column to its already-spliced repair recipe (S-0033
     D87). It arrives from the resolver rather than being built here because
     splicing needs the step registry and the field's declared type, neither of
     which this module may reach.
@@ -590,7 +590,7 @@ def lower_quality(
 
 def lower_dedupe(entity: Entity) -> DedupeIR | None:
     """``dedupe:`` → :class:`DedupeIR`, authored ``tie_break`` order kept (it
-    is a sort order, therefore semantic — RFC 0003 D4)."""
+    is a sort order, therefore semantic — S-0020/D-4)."""
 
     if entity.dedupe is None:
         return None
@@ -620,7 +620,7 @@ def lower_quarantine(entity: Entity) -> QuarantineIR | None:
 
 def lower_coverage(entity_model: EntityModel) -> tuple[CoverageIR, ...]:
     """The document-level ``coverage:`` list → :class:`CoverageIR`, sorted by
-    name (RFC 0016 D90)."""
+    name (S-0033/D-90)."""
 
     return tuple(
         sorted(

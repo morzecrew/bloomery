@@ -1,6 +1,6 @@
 # Shipping lives on `order`, discount on `order_item`, and each is only ever
 # aggregated where it lives. The relationship is declared and never flattened
-# onto a mart: RFC 0041 answers this by joining the two aggregates, so nothing
+# onto a mart: S-0055 answers this by joining the two aggregates, so nothing
 # here needs one mart to reach the other.
 spec_version: 1
 entities:

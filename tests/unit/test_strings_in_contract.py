@@ -1,13 +1,13 @@
-"""`load_project` takes strings, and that is the supported way in (RFC 0068).
+"""`load_project` takes strings, and that is the supported way in (S-0073).
 
 Compiling a spec set that never touched this filesystem is not a feature — it
 is the ordinary path, and it is what makes "reproduce March" two steps rather
-than a subsystem. RFC 0063 proposed a history resolver, a git adapter and an
-`--as-of` flag; RFC 0068 rejected all three, on the grounds that the caller
+than a subsystem. S-0068 proposed a history resolver, a git adapter and an
+`--as-of` flag; S-0073 rejected all three, on the grounds that the caller
 already holds the text and the compiler has no notion of time.
 
 What that rejection leaves is a public signature with nothing holding it still.
-`load_project(Mapping[str, str])` has been the entry point since RFC 0002 and
+`load_project(Mapping[str, str])` has been the entry point since S-0019 and
 had no test asserting it stays one — so a refactor narrowing it to something
 path-shaped would break every caller who assembles specs from a database, a
 tarball or an object store, and would break them outside this repository where
@@ -50,7 +50,7 @@ def _sources(name: str = "ecom_basic") -> tuple[dict[str, str], str | None]:
 
 
 def test_a_project_assembled_from_strings_compiles() -> None:
-    """The claim RFC 0068 §3 rests on, asserted rather than read."""
+    """The claim S-0073/current-state rests on, asserted rather than read."""
     sources, catalog_text = _sources()
 
     project = load_project(sources)
@@ -62,7 +62,7 @@ def test_a_project_assembled_from_strings_compiles() -> None:
 
 
 def test_the_compile_half_opens_no_file() -> None:
-    """RFC 0003's boundary, asserted at runtime rather than only by the lint rule.
+    """S-0020's boundary, asserted at runtime rather than only by the lint rule.
 
     The ban on `os` and `pathlib` under `src/bloomery/` is static and catches
     the import; this catches the behaviour, including a read reached through a
@@ -100,7 +100,7 @@ def test_the_compile_half_opens_no_file() -> None:
 
 
 def test_two_string_sets_still_diff() -> None:
-    """RFC 0063's P3 — "so a CI job can compare two instants" — shown to exist
+    """S-0068's P3 — "so a CI job can compare two instants" — shown to exist
     without the flag it proposed. `plan()` takes two IRs and asks nothing about
     where either came from.
     """

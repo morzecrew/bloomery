@@ -2,7 +2,7 @@
   "bridged": {
     "outcome": "refused",
     "error": "GrainViolation",
-    "rule": "RFC 0010 D2"
+    "rule": "S-0027/D-2"
   },
   "per_order": {
     "outcome": "accepted",

@@ -1,4 +1,4 @@
-"""Engine tier (RFC 0009 §5.2 tier 5): the ecom_basic silver + mart SQL,
+"""Engine tier (S-0026/tier-contracts tier 5): the ecom_basic silver + mart SQL,
 compiled under the trino dialect, executed against real Trino via
 testcontainers — the mirror of :mod:`tests.engines.test_postgres_execution`.
 
@@ -14,7 +14,7 @@ between the two engines is legible as a diff.
 
 **Memory connector, not Iceberg** — the divergence from §5.2's
 "trino+iceberg+minio" sketch that :mod:`tests.engines.test_trino` records
-(RFC 0009 D21): bloomery emits SELECTs and models, never storage-format DDL,
+(S-0026/D-21): bloomery emits SELECTs and models, never storage-format DDL,
 so a table format would be moving parts serving no assertion here.
 
 Opt-in (Docker required); excluded from ``just test``.

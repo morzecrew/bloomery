@@ -1,0 +1,109 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      **`evaluate(project) -> SpecEvidence` is added**, composing `build_project_ir`
+      → `resolve` and the batched refusal stages under one call and one frozen return
+      type. It adds no analysis bloomery does not already perform; the contribution
+      is naming the concept and stopping its discard at the exception boundary.
+    paths: [src/bloomery/evidence.py]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      **Refusals are a return value, not an exception**, because a refusal on a draft
+      spec is a normal outcome that a caller wants *alongside* the analysis that completed
+      — not instead of it. `evaluate()` never raises `BloomeryError` — **except `InvariantViolated`**,
+      which subclasses it but reports a bloomery bug rather than a spec refusal, and
+      so propagates (decision 7). Programming errors outside the hierarchy propagate
+      too; the catch is narrow by construction.
+    paths: [src/bloomery/cli/serialize.py]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      **Partial analysis is the point**: the pipeline runs to the first refusing stage
+      and reports the prefix. "Seven metrics reachable, two blocked on `cogs`, one
+      refusal at `mappings/crm.yaml`" is unavailable today at any price, and is the
+      most useful sentence bloomery can produce about a spec it will not compile.
+      This is the only new behaviour in the RFC, and the pipeline already supports
+      it — stages are already sequential and already batch.
+    paths:
+      - src/bloomery/evidence.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_evidence.py
+      - tests/unit/test_semantic/test_ratio_rows.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      **Stages are never reordered or skipped to salvage more analysis.** A guardrail
+      refusal means the model is wrong; summarizing marts past it would report a shape
+      derived from a spec bloomery has already called invalid. An over-eager partial
+      answer is worse than an incomplete one.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **`stage_reached` is mandatory to read**, stated first in the docstring and
+      tested on the ambiguous case: an empty `unreachable` means "nothing unreachable"
+      only at `COMPLETE`, and means "never computed" at `PARSE`. Without it the empty
+      tuple is ambiguous in exactly the way that produces a wrong conclusion.
+    paths:
+      - src/bloomery/cli/render.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_cli.py
+      - tests/unit/test_resolve/test_lineage.py
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      **Data-dependent evidence stays out, permanently.** Coercion rates, null deltas
+      and sample rows require execution; the platform composes `evaluate()` with its
+      own dry-run into one review payload. `evaluate()` is the natural-looking home
+      for "and also run it against a sample," and taking that step would put an engine
+      connection inside the compiler and end the infrastructure-free test suite in
+      the same commit.
+    paths: [src/bloomery/evidence.py]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      **The catch is narrow: `BloomeryError` only, minus `InvariantViolated`.** Programming
+      errors — a malformed registry, a `MemoryError` — propagate. `InvariantViolated`
+      (S-0020/D-11) is a `BloomeryError` by inheritance and a bloomery bug by meaning,
+      so it is re-raised explicitly rather than reported as a spec refusal; a narrow
+      catch is only as good as the taxonomy beneath it. Both tested.
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      **`bloomery resolve` (S-0037) is re-pointed at `evaluate()`** when this lands,
+      gaining refusal reporting, as an amendment to that RFC rather than a new command.
+      A spec author mid-draft wants reachability *and* refusals in one output.
+    paths: [src/bloomery/cli/__init__.py, tests/unit/test_cli.py]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      **`SpecEvidence` carries facts, never judgement** — no score, no confidence,
+      no approve/reject. The reviewer decides; bloomery reports. This mirrors S-0022's
+      rule that the compiler validates a recorded recipe but never chooses one.
+    paths: [src/bloomery/evidence.py]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      **The composition is tested by equality**, not by inspection: for every fixture
+      **that reaches the resolve stage**, `evaluate()`'s reachability equals `resolve()`'s.
+      A parse-error fixture has no `resolve()` result to compare against — it is covered
+      by the `stage_reached=PARSE` row instead, which asserts the analysis tuples
+      are empty. A third entry point that drifts from the second is the failure mode
+      this RFC could plausibly introduce.
+    paths: [tests/unit/test_evidence.py]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      **`UnreachableMetric` is extended, not redeclared, and the IR version moves
+      with it.** The draft declared a new dataclass of that name in `evidence.py`;
+      `ir/nodes.py:552` already has one, on `ProjectIR.unreachable` — the very tuple
+      `SpecEvidence` projects. Two same-named public types differing by a field is
+      a trap with no upside, so the IR type gains `via: tuple[str, ...] = ()` and
+      is re-exported. The default does **not** make this free: the encoder writes
+      each dataclass's field *count* and names, so any spec with an unreachable metric
+      re-fingerprints and `bloomery_ir_version` goes 4 → 5. The draft's `name` → `metric`
+      rename was measured at the identical cost; it is dropped for buying only a synonym,
+      not for being expensive.
+    paths: [tests/unit/test_evidence.py, tests/unit/test_resolve/test_reach.py]

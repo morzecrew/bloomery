@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      bloomery does not read spec history. The caller hands it spec text; where that
+      text came from is outside the library and outside the CLI. Reversing this re-opens
+      S-0020's boundary, which every document in this corpus is written on top of.
+    paths: [src/bloomery/resolve/timeline.py]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) No `--as-of` on any command.
+      The flag would oblige bloomery to know what a history is — which store, which
+      instant-to-version mapping, what to do when it is ambiguous — and none of those
+      is a question about compiling. `--steps` is the same question already answered
+      this way (S-0034/purity-the-registry-is-a-compile-input).
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) S-0068 is rejected, not deferred.
+      An unscheduled design still shapes the documents that cite it, and two already
+      cite this one.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The strings-in entry point gets a test that would fail if it were narrowed.
+      It is a public signature with no guard today, and the cost of pinning it is
+      one test.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The how-to shows both a git recipe and a query-shaped one. Showing only git
+      would re-introduce, in prose, the assumption the rejection removes.
+  - id: D-6
+    grade: OPEN
+    text: >-
+      Whether the how-to's recipe ships as a runnable example (§10).

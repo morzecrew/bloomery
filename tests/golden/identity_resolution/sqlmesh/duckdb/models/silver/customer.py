@@ -2,9 +2,9 @@
 # fingerprint: blm1:b0bcbe3e06020e11c469b1b24cfa46c48f8f4e093ea3aaa6d9520480418f6f95
 """SQLMesh Python model for step resolve_customers@4, output customer.
 
-bloomery emits this wrapper; it never executes the step (RFC 0003). The
+bloomery emits this wrapper; it never executes the step (S-0020). The
 contract assertion below is generated and non-optional by construction — see
-RFC 0017 §5.4.
+S-0034/the-four-tier-ladder (§5.4.)
 """
 
 from __future__ import annotations

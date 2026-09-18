@@ -3,12 +3,12 @@
 Two jobs, both of which have to run around the whole session rather than inside
 a test.
 
-The first is the chaos meta-test's entry point (RFC 0016 §6): when
+The first is the chaos meta-test's entry point (S-0033/tests-rfc-0009-amendment): when
 ``BLOOMERY_CHAOS_MUTATION`` names a mutation, the lowering is deformed *before
 collection* — test modules compile fixtures at import time, so a hook that ran
 any later would test the unmutated compiler.
 
-The second is the **refusal census** (RFC 0025 §5.1 item 2): every error class
+The second is the **refusal census** (S-0042/the-docs-floor-claims-not-links item 2): every error class
 `pages/docs/reference/errors.md` documents must actually be constructed
 somewhere in the suite. A documented refusal nothing can produce is either a
 class that should be deleted or a page that should be — the gate does not care
@@ -16,7 +16,7 @@ which, only that the two agree (D2). It lives here because the claim is about
 the *session*: no single test can observe it.
 
 The environment variable is read in the **test** process only; ``src/bloomery/``
-reads no environment at all (RFC 0003), and the determinism guard enforces that.
+reads no environment at all (S-0020), and the determinism guard enforces that.
 """
 
 from __future__ import annotations
@@ -91,7 +91,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help=(
             "Assert that every error class errors.md documents was produced by "
-            "some code path during this session (RFC 0025 §5.1). Only meaningful "
+            "some code path during this session (S-0042/the-docs-floor-claims-not-links). Only meaningful "
             "on a whole-suite run; `just test`, `just coverage` and CI pass it."
         ),
     )
@@ -182,7 +182,7 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         reporter.write_line(
             "refusal census: errors.md documents refusals no code path produced — "
             f"{missing}. A documented refusal nothing can provoke is either a class "
-            "to delete or a page to correct (RFC 0025 D2). A class bloomery "
+            "to delete or a page to correct (S-0042/D-2). A class bloomery "
             f"deliberately never raises says so in its row ({TAXONOMY_SMOKE_MODULE} "
             "constructing it does not count).",
             red=True,

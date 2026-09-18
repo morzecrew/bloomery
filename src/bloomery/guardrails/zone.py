@@ -1,4 +1,4 @@
-"""The zone guard (RFC 0074 §5.3, R018): a timestamp whose absolute position is
+"""The zone guard (S-0076/r018-and-where-it-fires, S-0076 R018): a timestamp whose absolute position is
 read, and which nothing says was ever on a known clock.
 
 This stage does not decide anything. It **enumerates the sites** where an
@@ -86,7 +86,7 @@ def _readings(entity: EntityIR, column: str) -> tuple[WallClock, ...]:
 
     One reading per source that lowers the column, and none for a source that
     does not carry it: a merged entity's columns are the *union* over its
-    mappings (RFC 0024 §5.2), so a mapping that never heard of this field has
+    mappings (S-0041/what-the-compiler-checks), so a mapping that never heard of this field has
     nothing to declare about it.
     """
 
@@ -310,7 +310,7 @@ def _refusals(
                 f"{entity_name}.{column} is parsed from a wall clock and {where} — "
                 f"{obligation.found}. A wall clock read as UTC is out by the offset of "
                 "whatever clock it was written on, which moves rows across the boundary "
-                "and leaves every check passing (RFC 0074 §5.3, R018). Fix: "
+                "and leaves every check passing (S-0076/r018-and-where-it-fires, S-0076 R018). Fix: "
                 f"{answer.remediation}",
                 source_path=(
                     f"{documents.get((blamed[0], entity_name), blamed[0])}: fields.{column}"

@@ -1,5 +1,5 @@
 # v2 — v1 plus: optional discount added (ADDITIVE); unit_price widened
-# decimal(10,2) → decimal(12,4) (WIDENING per the RFC 0004 lattice).
+# decimal(10,2) → decimal(12,4) (WIDENING per the S-0021 lattice).
 spec_version: 1
 entities:
   order_item:

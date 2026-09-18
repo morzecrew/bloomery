@@ -23,7 +23,7 @@ jobs:
       # (paths-filter falls back to git, and force_full skips the filter's result anyway).
       pull-requests: read
 
-  # RFC 0025 D13. The perf lane is informational on the nightly schedule and
+  # S-0042/D-13. The perf lane is informational on the nightly schedule and
   # **blocking here**, and the asymmetry is the decision: `just test` excludes
   # `perf`, so a gate living only on a schedule can run after the tag or skip a
   # release candidate entirely — satisfying D1 on paper and enforcing nothing.

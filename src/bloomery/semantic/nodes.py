@@ -1,9 +1,9 @@
 """The grain vocabulary: structural grain identity, functional dependencies
 with their basis, and the two answers a rollup question can have
-(RFC 0037 §5.1, §5.6, §5.7, §9).
+(S-0017 (§5.1), S-0017 (§5.6), S-0017 (§5.7), S-0017 (§9)).
 
 Every node here is **derived from** :class:`~bloomery.ir.ProjectIR`, never
-stored in it. That is deliberate and it is what makes RFC 0037 §7's "preserve
+stored in it. That is deliberate and it is what makes S-0017 (§7)'s "preserve
 observable behaviour" mechanical rather than argued: a grain computed on
 demand from ``EntityIR.key`` moves no ``bloomery_ir_version``, no project
 fingerprint and no golden. The IR keeps its authored key order because the
@@ -11,7 +11,7 @@ emitted SQL's key order is authored; grain *identity* is order-independent
 (§5.7), which is why :class:`GrainRef` canonicalizes and ``EntityIR.key`` does
 not.
 
-Determinism, on RFC 0003's terms and RFC 0037 D7's: every collection here is a
+Determinism, on S-0020's terms and S-0017/D-7's: every collection here is a
 sorted tuple, and nothing iterates a set where the order can reach a caller.
 """
 
@@ -53,7 +53,7 @@ class ColumnRef:
     :class:`GrainRef`, a dependent when a :class:`FunctionalDependency`
     determines it.
 
-    RFC 0037 §5.6 sketches these as two types, ``EntityKeyRef`` and
+    S-0017 (§5.6) sketches these as two types, ``EntityKeyRef`` and
     ``SemanticRef``; the section says its shape is illustrative. Two dataclasses
     of identical fields would need converting between at every closure step,
     and the conversion is where the two readings would drift apart.
@@ -74,7 +74,7 @@ class ColumnRef:
 @dataclass(frozen=True, slots=True, order=True)
 class GrainRef:
     """A grain as the set of columns that identify one row of it — never a
-    display string (RFC 0037 D1, `LOCKED`).
+    display string (S-0017/D-1, `LOCKED`).
 
     Determinants are canonicalized on construction: sorted and deduplicated,
     so ``{order_id, line_id}`` and ``{line_id, order_id}`` are one value and
@@ -109,7 +109,7 @@ class GrainRef:
 
 
 class DependencyBasis(StrEnum):
-    """Why the compiler believes a dependency (RFC 0037 §5.6).
+    """Why the compiler believes a dependency (S-0017 (§5.6)).
 
     The list is closed and D3 (`LOCKED`) is what closes it: no heuristic ever
     contributes a member, because the value of every proof built on this is
@@ -185,8 +185,8 @@ class Derivation:
     """How a member of a closure was reached: the dependencies composed, in
     order, from the origin grain.
 
-    A derivation, not a boolean (RFC 0037 D6) — RFC 0039 builds a proof tree
-    out of these and RFC 0042 pins a case to the rule that decided it, and
+    A derivation, not a boolean (S-0017/D-6) — S-0005 builds a proof tree
+    out of these and S-0056 pins a case to the rule that decided it, and
     both would otherwise have to re-derive the reason from the answer.
 
     Empty ``steps`` means the member is a determinant of the origin grain
@@ -254,7 +254,7 @@ class Determined:
 
 
 class RefusalReason(StrEnum):
-    """What a rollup was refused for (RFC 0037 §9). Kept apart rather than
+    """What a rollup was refused for (S-0017 (§9)). Kept apart rather than
     collapsed into "unsafe", because each names a different repair."""
 
     #: A grain names an entity this project has no mapping for, or a column
@@ -401,9 +401,9 @@ class RollupProof:
 class RollupRefusal:
     """A rollup that is not safe.
 
-    Returned rather than raised — RFC 0037 §5.4 types the answer as
+    Returned rather than raised — S-0017 (§5.4) types the answer as
     ``Proof | Refusal``, and a caller asking *whether* a rollup is possible is
-    not in an exceptional state when the answer is no. The planner RFC 0040
+    not in an exceptional state when the answer is no. The planner S-0054
     builds on this decides which refusals become
     :class:`~bloomery.errors.BloomeryError` leaves and where.
     """

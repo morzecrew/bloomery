@@ -22,35 +22,25 @@ Feature requests can also be submitted using the GitHub issue tracker.
 
 Please describe the use case and why the feature would be useful.
 
-## Before a large change: write an RFC
+## Before a large change: write a document
 
-Design decisions in this repository live in `rfcs/` — the RFC corpus is a committed
-deliverable, indexed by [`rfcs/INDEX.md`](rfcs/INDEX.md). Before a large change (a new
-compile stage, a new emitter target, a change to the IR or the determinism contract),
-write an RFC first: it is far cheaper to review a design than to review an implementation
-of the wrong design. Small fixes and additions within a live RFC's scope do not need one.
+Design decisions in this repository live in `.torve/specs/` — one directory per document,
+`S-NNNN`, holding `document.yaml` (the anatomy: summary, motivation, design, tests, docs,
+risks), `decisions.yaml` (graded rows, each with the paths it governs) and `phasing.yaml`
+(the phases the engine mints tasks from). Before a large change (a new compile stage, a new
+emitter target, a change to the IR or the determinism contract), write a document first: it
+is far cheaper to review a design than to review an implementation of the wrong design.
+Small fixes and additions within an accepted document's scope do not need one.
 
-The corpus holds only designs that have not yet landed. **When the work an RFC describes is
-complete — or the design is rejected — retire the RFC in the same change**: `git rm` the
-file, drop its row from the index, and **add a row to [`rfcs/RETIRED.md`](rfcs/RETIRED.md)**
-— number, title, and the SHA of the retiring commit. The code, tests and docs become the
-account of shipped behaviour.
+The corpus holds every document, landed or not. **When the work a document describes is
+complete, set `implementation: complete`**; the document stays, so every citation in source,
+tests and docs — `S-0033/D-84` — resolves to a row that is still there. `torve spec check`
+validates the corpus and is part of `just quality`; `torve spec show S-0033/D-84` prints a
+row; `torve decisions paths "src/bloomery/emit/**"` says what governs a directory.
 
-**The row lands in a second commit, and it has to.** A commit cannot contain its own SHA, and
-amending does not help — amending produces a new commit with a new SHA, so the row would name
-one that never existed. So: commit the retirement (`git rm` plus the index row), then commit
-the `RETIRED.md` row naming it. Both in the same pull request.
-
-The consequence is worth knowing rather than discovering: **the first of those two commits
-does not pass `just quality` on its own**, because its number is briefly neither live nor
-retired. CI runs the branch head, so the pair is green; a bisect landing between them is not.
-That is the price of a row that names its own retiring commit, and it is cheaper than a row
-that names the wrong one.
-
-That table is what makes the citations in this codebase followable: source, tests and docs
-cite decisions as `RFC 0016 D84`, and the file that defines D84 is deliberately not in the
-tree. `RETIRED.md` maps the number to the commit; `git show <commit>^:rfcs/<file>` prints
-the document back.
+This corpus replaced the RFC corpus on 2026-09-18. Every RFC, decision and section is mapped
+in `.torve/archive/identifiers.yaml`, and `torve spec show` given an old RFC citation answers it; the old
+citation. The execution logs under `logs/` keep their history with citations rewritten.
 
 ## Development Setup
 
@@ -121,7 +111,7 @@ All checks must pass before submitting a pull request.
 ### Determinism
 
 Compilation is a pure function: same specs in, byte-identical artifacts out. Concretely
-(RFC 0003):
+(S-0020):
 
 - no `datetime.now()`, `time.time()`, `uuid4()`, `random`, `os.environ`, filesystem, or
   network access anywhere under `src/bloomery/` — ruff's `TID251` bans the lot, from the
@@ -170,7 +160,7 @@ breaks one fails the gate with the rule named. Five import contracts run under
 - **Layered bloomery compile pipeline** — the package order from `cli` and `planner`
   down to `errors`. A lower layer never imports a higher one. `bloomery.cli` is the top
   layer, so the command line may read the library and no library module may read it
-  (RFC 0020 D5).
+  (S-0037/D-5).
 - **Emitters never import the spec layer** — the emit side consumes IR. That is what
   having an IR is for.
 - **Lowering is target-independent** — nothing in `bloomery/emit/lower/` may import
@@ -196,7 +186,7 @@ excludes it, and a test legitimately touches the filesystem.
 
 An exemption is a `# noqa: TID251` on the **one line** that needs it, never a per-file
 ignore. `cli/io.py` carries the only one in the tree, on its `pathlib` import — the
-command line's single door to a disk (RFC 0020 D12). A file-scoped carve-out would also
+command line's single door to a disk (S-0037/D-12). A file-scoped carve-out would also
 exempt a `datetime.now()` in that same file, and reaching a disk justifies nothing about
 reading a clock; `RUF100` fails an exemption that has stopped being needed.
 
@@ -299,7 +289,7 @@ Guidelines:
 
 ## Testing Guidelines
 
-Test layout (six tiers, fastest first — see [tests/README.md](tests/README.md) and RFC 0009):
+Test layout (six tiers, fastest first — see [tests/README.md](tests/README.md) and S-0026):
 
 ```text
 tests/

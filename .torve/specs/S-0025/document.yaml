@@ -1,0 +1,254 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0025
+title: 'Ports and emitters: targets, dialects, naming'
+kind: design
+status: accepted
+implementation: complete
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  Target and dialect vary independently, so they are independent ports: an emitter renders
+  framework envelopes and asks a `DialectPort` to render SQL and physical types; a
+  `NamingPolicy` maps logical entities to physical `(namespace, relation)` pairs — the only
+  tenant-shaped seam in the package. v0.1 ships SQLMesh/dbt/Cube emitters and
+  DuckDB/Postgres/Trino dialects. Capability mismatches raise `UnsupportedByTarget`; nothing
+  silently degrades.
+motivation: |-
+  Collapsing target and dialect into one adapter produces an N×M explosion of near-duplicate
+  templates (spec §4.2): SQLMesh-on-Trino and dbt-on-Trino share every line of dialect logic;
+  SQLMesh-on-DuckDB and SQLMesh-on-Trino share every line of envelope logic. The three-port
+  split is the single most load-bearing design decision in the package, and M8 (second
+  target and second dialect, renumbered per `_bloomery-changes.md` D10) exists precisely to
+  validate it before the IR fossilizes.
+current_state: |-
+  Greenfield. S-0020 fixes the IR the emitters consume (`SqlExpr` stored as canonical
+  dialect-neutral SQLGlot text, re-parsed at emit) and the artifact ordering rules (sorted by
+  path, single trailing newline).
+goals: |-
+  **Goals**
+
+  - Ports as `typing.Protocol`s — adapters need no base-class import to conform.
+  - `compile_project(project, *, target, dialect, naming, catalog)` returns
+    `tuple[EmittedArtifact, ...]` — pure data out, byte-deterministic.
+  - `register_emitter(emitter)` extension point (spec §8) so adapter packages
+    (`bloomery-iceberg`-style) can add targets without touching the core.
+  - Capability negotiation: the core queries `TargetCapabilities` and either lowers
+    differently or raises `UnsupportedByTarget` with the entity/feature named.
+non_goals: |-
+  - Executing anything. SQLMesh/dbt/Cube run elsewhere; e2e tests (S-0026) prove
+    acceptance, the package never shells out.
+  - Gold serving / query APIs — Cube emission is the boundary; serving is the consumer's job.
+  - Registering Python models into a live SQLMesh context — see §5.6.
+design:
+  - key: ports
+    md: |-
+      ```python
+      class TargetEmitter(Protocol):
+          """IR → framework artifacts. Knows nothing about SQL dialects."""
+          name: str                                   # "sqlmesh" | "dbt" | "cube" | ...
+          def capabilities(self) -> TargetCapabilities: ...
+          def emit(self, ir: ProjectIR, ctx: EmitContext) -> tuple[EmittedArtifact, ...]: ...
+
+      class DialectPort(Protocol):
+          """SQL rendering + physical type mapping. Wraps SQLGlot; knows nothing about targets."""
+          name: str                                   # "duckdb" | "postgres" | "trino" | ...
+          def render(self, node: exp.Expression) -> str: ...
+          def physical_type(self, t: LogicalType) -> str: ...
+          def supports(self, feature: DialectFeature) -> bool: ...
+
+      class NamingPolicy(Protocol):
+          """Logical name → physical (namespace, relation). The only tenant-shaped seam."""
+          def relation(self, entity: str, layer: Layer) -> tuple[str, str]: ...
+      ```
+
+      ```python
+      @dataclass(frozen=True, slots=True)
+      class TargetCapabilities:
+          supported: frozenset[Feature]   # membership-checked; any output-reaching iteration is sorted()
+
+      class Feature(StrEnum):            # amended per _bloomery-changes.md D6 + pivot R8
+          SEMI_ADDITIVE      = "semi_additive"
+          NON_ADDITIVE       = "non_additive"
+          CUMULATIVE         = "cumulative"          # pivot R8
+          DERIVED_METRIC     = "derived_metric"      # pivot R8
+          ROLE_PLAYING_DIM   = "role_playing_dim"
+          MULTI_FACT         = "multi_fact"
+          QUERY_TIME_JOIN    = "query_time_join"
+          ROW_LEVEL_SECURITY = "row_level_security"
+          VARIANT_COLUMN     = "variant_column"
+          SCD_TYPE_2         = "scd_type_2"
+          INCREMENTAL        = "incremental"
+          AUDITS             = "audits"
+
+      @dataclass(frozen=True, slots=True)
+      class EmitContext:
+          dialect: DialectPort
+          naming: NamingPolicy
+          fingerprint: str           # project_fingerprint(ir) — stamped into artifact headers
+      ```
+
+      `Layer` = `{BRONZE, SILVER, GOLD}`. `DefaultNaming` → `("silver", entity)`;
+      `TenantPrefixNaming(prefix)` → `(f"{prefix}_silver", entity)` — tenant scoping as ordinary
+      spec values, per hard invariant #3.
+
+      Registries: module-level immutable defaults + explicit `register_emitter` /
+      `register_dialect` overlay, same shape and same collision-is-an-error rule as the transform
+      registry (S-0021/D-6). Lookup by unknown name raises `EmitError` listing known names.
+
+      Declared support (amended per `_bloomery-changes.md` D6): SQLMesh — `SCD_TYPE_2`,
+      `VARIANT_COLUMN`, `INCREMENTAL`, `AUDITS`, all additivity features; Cube —
+      `QUERY_TIME_JOIN`, `MULTI_FACT`, `ROW_LEVEL_SECURITY`, `ROLE_PLAYING_DIM` (semi-additive
+      support verified empirically before the equivalence suite trusts it, S-0026); dbt —
+      most, with `SCD_TYPE_2` lowered to a snapshot. The **planner (S-0028 contract,
+      S-0030 MetricFlow backend) is a fourth port**, not a `TargetEmitter` — different
+      lifecycle (request-time, hot path) — but it declares capabilities in the same vocabulary:
+      semi/non-additive, cumulative, derived, role-playing, RLS, and *not*
+      `MULTI_FACT`/`QUERY_TIME_JOIN`. Nuance per the pivot: MetricFlow *can* plan query-time
+      joins; bloomery refuses them by policy at the coverage precheck (S-0030 R3) — a
+      deliberate policy, not a limitation; the capability docstring says so, so nobody "fixes"
+      it later. Unsupported combinations raise `UnsupportedByTarget` at compile time. Never
+      degrade silently.
+  - key: lowering
+    md: |-
+      `emit()` receives an IR whose expressions are dialect-neutral (`SqlExpr`). Per entity the
+      emitter builds one `SELECT` as a SQLGlot AST — source columns extracted from the bronze
+      relation (JSONPath lowering per S-0021's `json_path` transform), transform chains applied,
+      recipe expressions inlined — then hands the finished AST to `DialectPort.render`. Jinja
+      renders only the envelope (the `MODEL (...)` block, the dbt config header, YAML scaffolding)
+      from templates that interpolate *pre-rendered strings*, never SQL fragments. Each artifact
+      carries a generated-by header comment including the fingerprint, so drift between applied
+      artifacts and specs is detectable downstream.
+  - key: sqlmesh-emitter-primary
+    md: |-
+      - One `MODEL (...)` + `SELECT` file per entity: `models/silver/<entity>.sql`.
+      - `kind`: `FULL`, `INCREMENTAL_BY_UNIQUE_KEY(unique_key=...)`, or
+        `INCREMENTAL_BY_TIME_RANGE` per the IR's resolved `materialization`; SCD type 2 entities
+        use native `SCD_TYPE_2_BY_KEY` (capability `native_scd2`).
+      - `grain`, `partitioned_by`, `audits` populated from `EntityIR`; range-sanity audits
+        (S-0023/D-7) become SQLMesh `audits` with companion `audits/<entity>_<audit>.sql`
+        artifacts where a custom audit body is needed.
+      - Path-conflict reconciliation (S-0023/D-6) emits the `<field>__direct` shadow column and
+        a non-blocking audit comparing the two.
+      - Mart builds (amended, S-0027): each `MartIR` lowers to a gold-layer model
+        (`models/gold/<mart>.sql` via `NamingPolicy.relation(name, Layer.GOLD)`) — the base
+        entity joined once per flatten step and once per date role, projecting the wide column
+        set. The only place joins are ever emitted for a mart; the planner (S-0028) reads the
+        built table joinlessly.
+  - key: cube-emitter-semantic
+    md: |-
+      - `model/cubes/<entity>.yml` per gold-relevant entity; `model/views/` for metric views.
+      - Measures carry `type` (sum / count / count_distinct / number) and
+        `meta.additivity` / `meta.grain` propagated from `MetricIR`.
+      - Non-additive metrics emit as calculated measures over their additive components; a
+        request to store one is refused at guardrail stage already (S-0023/D-5), and the emitter
+        re-checks — defense in depth, `UnsupportedByTarget` if reached.
+      - `sql_table` comes from `NamingPolicy.relation(entity, Layer.GOLD)`; Cube has no
+        SCD/incremental concepts — those capabilities are `False` and irrelevant rather than
+        errors (Cube consumes tables SQLMesh maintains).
+  - key: dbt-emitter-compatibility
+    md: |-
+      - `models/silver/<entity>.sql` with `{{ config(...) }}` headers; SCD type 2 lowers to a
+        `snapshots/<entity>_snapshot.sql`; audits lower to `schema.yml` tests
+        (`not_null`, `accepted_values`, `dbt_utils.expression_is_true`-shaped generic tests).
+      - Anything unmappable (e.g. an audit kind with no test equivalent) raises
+        `UnsupportedByTarget` naming the entity and feature. Its real job is proving the port
+        abstraction (spec §9); it ships minimal but honest.
+  - key: settled-open-questions
+    md: |-
+      - **#1 Files vs Python models:** the emitter contract is *file-shaped artifacts as data*
+        (`EmittedArtifact.path/content`). The pure-function invariant already forbids touching a
+        filesystem, so "files" cost nothing and keep dbt/Cube symmetric. A multi-tenant caller
+        that prefers SQLMesh Python-model registration can build it *on top of* the artifact
+        stream; a native registration API is deliberately out of scope until a real deployment
+        demands it. Locks us to text artifacts; revisiting means a second emit method, not a
+        rewrite.
+      - **#3 Date dimension:** ~~not emitted in v0.1~~ — **reversed by the MetricFlow pivot
+        (D13 below):** bloomery owns the date dimension. MetricFlow requires a declared time
+        spine; the SQLMesh emitter builds `gold.dim_date` from a single catalog definition and
+        the manifest's `PydanticTimeSpine` points at it (S-0030 R1 rule 4). The original
+        reasoning (no tenant spec drives it) is answered: the *catalog* drives it, which is
+        exactly the vertical-level home it needed.
+      - **#5 Quarantine:** an emitter-level convention, not IR entities.
+        `on_unmapped_enum: quarantine` lowers to a `<entity>__quarantine` model artifact holding
+        rejected rows; the IR carries only the mapping's declared policy. IR-as-entities would be
+        more honest but doubles IR surface before M6 validates it — revisit if a second policy
+        consumer appears.
+tests: |-
+  Golden matrix per (fixture × target × dialect) — S-0026 §golden; property invariants
+  (emitted SQL parses under the target dialect; SELECT columns ↔ declared fields);
+  execution tests run SQLMesh-emitted DuckDB SQL in-process; e2e proves SQLMesh
+  `plan.has_changes == False` on replan, `dbt parse` accepts, Cube `/meta` matches.
+  `UnsupportedByTarget` paths get unit tests per emitter.
+docs: |-
+  How-to per target (`pages/how-to/emit-sqlmesh.md`, `emit-cube.md`, `emit-dbt.md`),
+  explanation page on the three-port architecture with the spec §4 diagram, reference page
+  for `EmittedArtifact` / capabilities / naming policies.
+out_of_scope: |-
+  - **Spark dialect** — engine-matrix tested post-v0.1; adding a `DialectPort` is the
+    designed extension path.
+  - **Iceberg table-format specifics** (partition transforms beyond `days/months/years/hours`,
+    table properties) — adapter-package territory (`bloomery-iceberg`).
+  - **Cube pre-aggregations** — perf tuning, not correctness; demand-gated.
+risks: |-
+  - *SQLMesh MODEL-block syntax drift* across sqlmesh versions — mitigated by the e2e replan
+    test pinned to the locked sqlmesh version; the envelope template changes only in a
+    deliberate bump PR.
+  - *dbt emitter read as production-grade* — it is a port-abstraction proof (spec §9); docs
+    say so explicitly.
+  - *Capability flags too coarse* — accepted for v0.1; flags can only be split (never merged)
+    without breaking adapters.
+sections:
+  - key: about
+    md: |-
+      - **Status:** 🚧 In progress — shipped 2026-08-07 (M2–M10): all three ports, the
+        SQLMesh/Cube/dbt emitters and DuckDB/Postgres/Trino dialects, and the D6 reversal
+        (`gold.dim_date` emitted per S-0030/D-5); remaining: emitted-SQL verification on
+        the engine matrix beyond Postgres (Trino) and the containerized target e2e tiers
+        (S-0026 nightly lane).
+      - **Scope:** The three ports (`TargetEmitter`, `DialectPort`, `NamingPolicy`), the lowering
+        stage that turns `ProjectIR` into `EmittedArtifact`s, and the concrete adapters shipped in
+        v0.1: SQLMesh (primary target), Cube and dbt (secondary targets), DuckDB / Trino /
+        Postgres dialects, `DefaultNaming` / `TenantPrefixNaming`. Settles original-spec open
+        questions #1 (files vs Python models), #3 (date dimension) and #5 (quarantine). New
+        modules: `bloomery/emit/`, `bloomery/dialects/`, `bloomery/naming.py`. Does not cover how
+        the IR is computed (RFCs 0004–0006) or diffed (S-0024).
+      - **Related:** `_original-smelter-spec.md` §4, §5.6, §9, §12; S-0020 (IR, `SqlExpr`),
+        S-0023 (additivity defense-in-depth at emit).
+  - key: decision-notes
+    md: >-
+      _(Decision rows from here on are this document's D-1…; see `decisions.yaml`.)_
+  - key: phasing
+    md: |-
+      M2: SQLMesh emitter + DuckDB dialect (minimal `FULL` models). M3–M4 extend lowering
+      (recipes, audits). M5 adds mart build emission (S-0027); M6 the MetricFlow manifest
+      emitter (S-0030). M10 (renumbered per `_bloomery-metricflow-pivot.md` §8): Trino +
+      Postgres dialects, Cube emitter, dbt emitter — the port validation milestone; do not
+      defer past it (a second target discovered late means an IR rewrite, spec §11).
+alternatives:
+  - option: One combined Target×Dialect adapter
+    rejected_because: >-
+      — rejected: N×M template duplication, and M6 would multiply it (spec §4.2).
+      - **Jinja for SQL** — rejected outright (spec §2): string-templated SQL makes
+      multi-dialect support aspirational and emitted SQL unparseable in tests. - **Emitter-owned
+      dialects** (dialect as emitter constructor arg, no port) — rejected: dbt-on-Trino
+      and SQLMesh-on-Trino would each carry Trino type-mapping quirks.
+questions:
+  - id: Q-1
+    text: >-
+      ~~Exact SQLMesh audit vocabulary for range-sanity clauses (builtin `not_null`
+      etc. vs custom audit files)~~ — **settled 2026-08-10, D16.** Both, and the criterion
+      is not what SQLMesh has: a clause takes each framework's **native** audit where
+      *both* frameworks have one meaning exactly it, and otherwise both render one
+      predicate bloomery builds. The pinned sqlmesh does ship `accepted_range` and
+      `match_regex_pattern_list`, semantically equal to what bloomery emits; taking
+      them would strand the shared predicate with dbt as its only consumer.
+  - id: Q-2
+    text: >-
+      ~~Whether Cube views should be emitted per metric or per metric-grain group~~
+      — **settled 2026-08-10, D17.** Neither: **per mart**. A per-grain view over
+      two marts at one grain would need a `join_path` between them, and bloomery models
+      no relationship between marts — so it could only be emitted by inventing a join.

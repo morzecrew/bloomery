@@ -1,4 +1,4 @@
-"""The published surface of a project (RFC 0059 §5.1, D1).
+"""The published surface of a project (S-0002 (§5.1), S-0002/D-1).
 
 An export list is what a project says another project may read. It is the
 upstream half of composition and, in this phase, the whole of it: nothing
@@ -40,7 +40,7 @@ __all__ = [
 #: at least one of the three lists carries a name. The mirror of
 #: :data:`~bloomery.spec.imports._READS_SOMETHING`, and here for the same
 #: reason — three defaulted arrays make ``minProperties`` useless, so the
-#: constraint is an ``anyOf`` (RFC 0020 D10: a pre-filter looser than the
+#: constraint is an ``anyOf`` (S-0037/D-10: a pre-filter looser than the
 #: parser passes documents the loader then rejects).
 _PUBLISHES_SOMETHING: Final[dict[str, Any]] = {
     "anyOf": [
@@ -51,7 +51,7 @@ _PUBLISHES_SOMETHING: Final[dict[str, Any]] = {
 
 
 class Exports(SpecModel):
-    """What a project publishes, grouped by kind (RFC 0059 §5.1)."""
+    """What a project publishes, grouped by kind (S-0002 (§5.1))."""
 
     model_config = ConfigDict(**SpecModel.model_config, json_schema_extra=_PUBLISHES_SOMETHING)
 
@@ -93,10 +93,10 @@ class Exports(SpecModel):
 
 class ExportSet(SpecModel):
     """The per-project exports document (``exports_version``), at most one per
-    project (RFC 0059 §5.1)."""
+    project (S-0002 (§5.1))."""
 
     #: Pinned to the one version bloomery implements, like every other document
-    #: kind's (RFC 0018 D7): an unbounded ``int`` accepts a document written for
+    #: kind's (S-0035/D-7): an unbounded ``int`` accepts a document written for
     #: a future bloomery and silently applies v1 semantics to it. Required,
     #: because this key is also the document-kind discriminator.
     exports_version: Literal[1]
@@ -121,7 +121,7 @@ class ExportSet(SpecModel):
             msg = (
                 "an exports document must export at least one entity, mart or metric — "
                 "one that exports nothing says what a project with no exports document "
-                "already says, while reading as a boundary somebody drew (RFC 0059 D1). "
+                "already says, while reading as a boundary somebody drew (S-0002/D-1). "
                 "Fix: name what this project publishes, or delete the document"
             )
             raise ValueError(msg)

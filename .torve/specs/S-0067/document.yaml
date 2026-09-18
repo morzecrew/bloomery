@@ -1,0 +1,234 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0067
+title: Stable node identity across renames
+kind: design
+status: accepted
+implementation: complete
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  `NODE_ID_PREFIXES` is `("canonical", "metric", "source", "step")` and a node id is a prefix
+  joined to the spec's name with a dot — `metric.gross_revenue`, `canonical.unit_price`,
+  `step.resolve_customers`. The name is therefore the identity. (`source` is the exception
+  already: a bronze extraction is `source.<relation>.<path>`, three segments rather than two.)
+
+  Rename a metric and nothing in the compiler can tell that a rename happened. The old node
+  has no successor and the new node has no history: `plan()` reports a deletion and an
+  addition, `lineage` cannot trace across the boundary, and every downstream citation of
+  `metric.gross_revenue` — an exposure under S-0063, a decision row, a dashboard — points
+  at a node that no longer exists.
+
+  This RFC gives a node an identity that a rename does not touch. The name becomes what it
+  should have been all along: a label people read.
+motivation: |-
+  **A rename is an ordinary edit and today it is a destructive one.** Renaming
+  `gross_revenue` to `revenue_gross` is a naming-convention change with no semantic content.
+  The compiler treats it as removing one metric and introducing another, which is the same
+  report it would give for a genuinely deleted metric — so the one classification that should
+  be free is indistinguishable from the one that should stop a merge.
+
+  **The blast radius is the wrong shape.** `plan()`'s breaking-change report exists so that a
+  reader knows what a change reaches. A rename reaches everything that names the metric and
+  nothing that uses it, and the current report says the opposite: maximal breakage, no
+  continuity.
+
+  **The problem is already solved one level down, and only there.** S-0024/D-3 gives an
+  entity *field* a `renamed_from:` annotation, and `plan()` classifies the result `RENAME`
+  rather than as a drop plus an add. Nodes have no equivalent. So the compiler already agrees
+  that rename identity must be declared rather than guessed — the question this document
+  answers is which declaration shape to use at node level, and D6 records that it is not
+  settled.
+
+  **It silently caps the two documents that follow.** Definition history (S-0068) and
+  change attribution (S-0069) both need to say "this thing, over time". Neither can be built
+  on an identifier that a routine edit destroys, and building them first would mean writing
+  history keyed to a name and discovering the defect at the first rename.
+
+  **Citations already outlive files here.** `INDEX.md` argues that a retired RFC's number
+  keeps naming where a decision came from, precisely because a stable citation is worth more
+  than a live link. Node ids are cited the same way — in exposures, in logs, in prose — and
+  they do not have that property.
+current_state: |-
+  Verified against the tree.
+
+  | | How the id is formed | What a rename does |
+  |---|---|---|
+  | `canonical.` | prefix + spec name | old id vanishes, new id appears |
+  | `metric.` | prefix + spec name | same |
+  | `source.` | prefix + relation + path | same |
+  | `step.` | prefix + ref | same |
+
+  `ChangeClass` already carries `RENAME`, and `plan/diff.py` reads `column.renamed_from` to
+  mint it. That path is column-only: `renamed_from` is a field on the entity model's `Field`
+  and reaches nothing at node level.
+
+  `fingerprint` changes on a rename, which is correct — the artifacts do change, because names
+  reach the emitted text. What is not correct is that the *graph* changes shape rather than
+  relabelling a vertex.
+
+  There is no field on any spec kind that survives a node rename. A project's only record that
+  two names denote the same thing is its git history, which the compiler does not read.
+goals: |-
+  **Goals**
+
+  - A node keeps its identity across a rename, and `plan()` classifies the change as a
+    rename rather than as a delete plus an add.
+  - `lineage` traverses across a rename in both directions.
+  - Adoption is optional and incremental: a project with no stable ids compiles exactly as it
+    does today, byte for byte.
+  - The identifier is stable across machines and processes, like everything else the compiler
+    produces.
+non_goals: |-
+  - **Renaming emitted relations.** What a target calls a table stays derived from the spec
+    name; this is about the compiler's own graph, not about the warehouse.
+  - **Merging or splitting nodes.** Two metrics becoming one is a different change with a
+    different report, and conflating it with a rename is how a real semantic change gets
+    classified as cosmetic.
+  - **Inferring renames.** Similarity heuristics over names or SQL are exactly the guess this
+    document exists to replace.
+  - **Re-spelling existing node ids.** `bloomery lineage --node metric.gross_revenue` is a
+    documented invocation and the ecosystem stores those strings; the separator and the
+    prefixes do not move.
+  - **A migration tool.** Adding an id to an existing spec is a one-line edit; a project that
+    wants history from before that edit does not get it, and should not be told otherwise.
+design:
+  - key: the-field
+    md: |-
+      Every spec kind that produces a node gains an optional `id:`.
+
+      ```yaml
+      metrics:
+        - id: mtr_7f3a9c            # minted once, never edited
+          name: gross_revenue       # a label
+      ```
+
+      The value is opaque to the compiler: it is compared, never parsed. A generated form
+      (`bloomery mint`) is convenient and not required — a hand-written `id: revenue_v1` is
+      equally valid, because the only property that matters is that it does not change.
+  - key: node-id-construction
+    md: |-
+      Wherever a node id is minted from a spec name today, the id substitutes for the name and
+      nothing else moves: `metric.<id or name>`, `canonical.<id or name>`, `step.<id or name>`,
+      and `source.<relation>.<path>` unchanged, since a bronze extraction is named by its
+      relation rather than by an authored spec name and has nothing to substitute.
+
+      A project with no `id:` anywhere gets today's ids and today's bytes. A project that adopts
+      `id:` gets ids that survive renames. There is no third state and no flag.
+  - key: what-plan-gains
+    md: |-
+      `ChangeClass.RENAME` exists and is minted today only from a *field*'s `renamed_from`. It
+      gains a second producer: a node whose id is present on both sides with a differing name.
+      The class is not new; the subject is. A rename is not a breaking change to the graph; it
+      *is* a breaking change to any consumer that cites the old name, and the report says so with
+      the citation list rather than with a severity.
+  - key: display
+    md: |-
+      `lineage` and `explain` print `name` and carry `id` in machine-readable output. A reader
+      sees `gross_revenue`; a script keys on `mtr_7f3a9c`. Printing the id in human output would
+      trade the readability the name exists for against a property only tooling needs.
+tests: |-
+  - **A rename is a rename.** Two projects differing only in a metric's `name`, same `id`:
+    `plan()` reports one `RENAME` and no deletions.
+  - **A delete is still a delete.** Remove the metric entirely: `plan()` reports a deletion,
+    not a rename. The pair with the test above is the whole point.
+  - **Traversal crosses the rename.** `lineage --node metric.mtr_7f3a9c` returns the same
+    edges before and after.
+  - **Opt-out is byte-exact.** A fixture project with no `id:` field emits artifacts
+    identical to the pre-change tree. This is the test that makes adoption safe.
+  - **Ids are compared, not parsed.** A spec with `id: ../../etc/passwd` produces a node id
+    and no filesystem access — the value reaches nothing that resolves paths.
+  - **A node id never collides with an entity field.** The lineage-namespace guard
+    (S-0059/D-6–S-0059/D-8) refuses an entity named after a prefix; an authored `id:` must not open
+    a second route to the collision that guard closes.
+docs: |-
+  `pages/docs/concepts/` gains a short section on identity versus naming, sited with the
+  lineage material rather than with the spec reference: the field is trivial and the reason
+  for it is not.
+out_of_scope: |-
+  - S-0068's definition history and S-0069's change attribution, both of which consume
+    this and neither of which this document assumes.
+  - Stable identity for anything not in `NODE_ID_PREFIXES`. Columns and dimensions are named
+    within their owner, and S-0024/D-3's `renamed_from` already answers rename there.
+  - Cross-project identity under S-0002. Two projects minting the same string is a
+    collision that composition has to answer, and it answers it in its own vocabulary.
+risks: |-
+  - **A copied id is worse than no id.** Duplicating a spec file to start a new metric and
+    forgetting to change `id:` produces two nodes claiming one identity. The duplicate must be
+    refused and the refusal must name both files. S-0057's `check` is the best home for it;
+    until that lands the guardrail stage is where it goes, so this risk does not make the
+    document wait.
+  - **An edited id is a silent delete-and-add.** Nothing can distinguish "renamed the id"
+    from "removed one metric and added another", because that distinction is precisely what
+    the id was carrying. The docs say the field is write-once; the compiler cannot enforce it.
+    `renamed_from` does not have this weakness — it is one-shot and a stale annotation is
+    refused — which is the strongest argument on that side of D6.
+  - **Optionality is a two-state world that has to stay two-state.** The moment a project can
+    have some ids and some not, `plan()`'s report mixes classifications derived from different
+    identity models. Refusing partial adoption at project level is the cheaper rule and this
+    document does not choose it — see D4.
+sections:
+  - key: about
+    md: |-
+      - **Status:** ✅ Complete — all three phases have landed, and **retained rather than
+        retired**: S-0069 and S-0074 argue from this document's vocabulary rather than merely
+        citing a decision it made, and deleting it would leave both arguing from a premise no
+        longer in the tree. This line names the live dependants, so it is what says when 0062 may
+        go.
+
+        P1 shipped the optional `id:`, node-id construction reading it, the duplicate refusal and
+        the byte-exact opt-out ([`logs/T-0032.md`](logs/T-0032.md)); D6 and D4 are settled
+        there — a write-once `id:`, and partial adoption allowed with only a collision refused.
+        P2 and P3 shipped `plan()`'s second `RENAME` producer with its citation list, and
+        `lineage` printing the name while `--format json` carries both
+        ([`logs/T-0044.md`](logs/T-0044.md)). Rows 8–16 are execution's, accepted; **the
+        `explain` half of §5.4 is struck** by row 10 and P2 reaches **metric and step renames
+        only** by row 11. Nothing above the decision table has been amended to agree with what was
+        built — §9's "until `check` lands" reads as written, and T-0032 records that `check`
+        turned out not to be a place checks live.
+      - **Scope:** A stable identifier on every node kind in `NODE_ID_PREFIXES`, minted once and
+        never derived from the name, with the name demoted to a display label. One optional spec
+        field, one change to node-id construction, one widened classification in `plan()`. No
+        SELECT changes, no artifact-byte changes for a project that does not adopt it.
+      - **Related:** [`src/bloomery/ir/nodes.py`](src/bloomery/ir/nodes.py)
+        (`NODE_ID_PREFIXES`), [`src/bloomery/guardrails/lineage.py`](src/bloomery/guardrails/lineage.py),
+        [`src/bloomery/plan/model.py`](src/bloomery/plan/model.py) (`ChangeClass`),
+        [`src/bloomery/cli/__init__.py`](src/bloomery/cli/__init__.py) (`lineage`, `plan`,
+        `fingerprint`), S-0063 (exposures — a consumer references a metric by node id),
+        S-0057 (`check`), S-0024/D-3 (`renamed_from` — the same problem solved one level down).
+      - **Origin:** A ceiling review of what `plan()` can and cannot classify. Every other
+        classification it makes is about a thing changing; a rename of a *node* is the one case
+        where it reports two things instead.
+  - key: decision-notes
+    md: >-
+      _(Decision rows from here on are this document's D-1…; see `decisions.yaml`.)_
+  - key: phasing
+    md: |-
+      **P1** — the field, node-id construction, the duplicate-id refusal, and the byte-exact
+      opt-out test. Nothing observable changes for an unadopted project.
+
+      **P2** — `ChangeClass.RENAME`'s second producer in `plan()` and its citation list.
+
+      **P3** — `lineage` and `explain` output carrying both id and name.
+
+      P1 alone is worth landing: it is what S-0068 needs, and it costs an unadopted project
+      nothing.
+questions:
+  - id: Q-1
+    text: >-
+      Whether partial adoption is allowed within a project, or `check` refuses a project
+      where some nodes of a kind carry `id:` and others do not.
+  - id: Q-2
+    text: >-
+      Whether `fingerprint` should have an id-only variant that a rename does not
+      move, for the callers that want to know whether the *semantics* changed rather
+      than the bytes.
+  - id: Q-3
+    text: >-
+      Whether a write-once `id:` or a one-shot `renamed_from:` is the right shape
+      at node level (D6). The second is what this codebase already does for fields,
+      and it is enforceable; the first is what S-0068 and S-0069 want, because an
+      id is a key to hang history on and an annotation is not.

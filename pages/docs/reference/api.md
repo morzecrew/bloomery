@@ -254,7 +254,7 @@ CNF: a tuple of clauses (implicit AND), each a `Predicate` or one `AnyOf` group.
 
 ### `Predicate(dimension, op, values=())`
 
-One typed single-dimension filter (RFC 0015). `op` is an `Op` member; value arity is
+One typed single-dimension filter (S-0032). `op` is an `Op` member; value arity is
 checked per operator (`is_null` takes exactly one bool; `like`/`ilike` take one or
 more patterns). Floats are accepted and normalized to `Decimal(str(value))` at
 construction; non-finite numerics raise `InvalidLiteral`.

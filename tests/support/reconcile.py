@@ -1,4 +1,4 @@
-"""One reconcile project whose key is NULL on both sides (RFC 0016 §5.3).
+"""One reconcile project whose key is NULL on both sides (S-0033/spec-schema).
 
 Two tiers need the same specs and the same seed — DuckDB for the semantics
 (``tests/execution/test_reconcile_null_keys.py``) and PostgreSQL for the

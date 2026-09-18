@@ -1,4 +1,4 @@
-"""Shared pieces of the three-way equivalence tier (RFC 0009 §5.8).
+"""Shared pieces of the three-way equivalence tier (S-0026/equivalence-tier-three-way-metricflow-cube-reference-sql).
 
 Two engines answer the same request in two shapes: MetricFlow's SQL returns
 driver rows, Cube returns JSON with qualified member names and stringified
@@ -122,7 +122,7 @@ def as_frame(
     Positional: the first ``dimension_count`` columns are the grouping key and
     the last is the measure. That is the binding the planner's result actually
     supports — its ``columns`` descriptors carry the *requested* dimension
-    names while MetricFlow aliases them its own way (RFC 0009 D24).
+    names while MetricFlow aliases them its own way (S-0026/D-24).
     """
     return {
         tuple(normalize_key(cell) for cell in row[:dimension_count]): _as_number(row[-1])

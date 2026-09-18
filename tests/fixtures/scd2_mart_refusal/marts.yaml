@@ -1,4 +1,4 @@
-# One mart per side of the refusal (RFC 0023 §5.1).
+# One mart per side of the refusal (S-0040/phase-1-historicalfanout).
 #
 # `orders` is the fan-out: the emitted join is an equality on customer_id and
 # nothing else, so every order matches every *version* of its customer and the

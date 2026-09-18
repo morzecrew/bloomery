@@ -1,0 +1,154 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      IR is frozen stdlib dataclasses (slots), not Pydantic — validation happens at
+      build, value semantics matter after.
+    paths:
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/plan/model.py
+      - tests/unit/test_resolve/test_build.py
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      SQL is stored in the IR as canonical dialect-neutral SQLGlot text (`SqlExpr`),
+      re-parsed at emit. Consequence: SQLGlot version changes can change fingerprints;
+      the exact pin (D4 §5.5) makes that a deliberate event.
+    paths:
+      - src/bloomery/dialects/base.py
+      - src/bloomery/emit/lower/marts.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/transforms/_builtins.py
+      - tests/support/type_conformance.py
+      - tests/unit/test_dialects/test_base.py
+      - tests/unit/test_dialects/test_postgres.py
+      - tests/unit/test_transforms/test_builtins.py
+      - tests/unit/test_transforms/test_type_conformance_corpus.py
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `project_fingerprint` = `"blm1:" + sha256(canonical bytes)`; includes `bloomery_ir_version`;
+      stable within a bloomery version, explicitly not across versions.
+    paths:
+      - src/bloomery/ir/fingerprint.py
+      - tests/unit/test_ir/test_fingerprint.py
+      - tests/unit/test_ir/test_nodes.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      All IR collections are tuples with explicit lexicographic sort, except authored-order
+      fields (`key`, transform chains, recipe aliases, `partition_by`).
+    paths:
+      - src/bloomery/ir/lower.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/quality/dedupe.py
+      - src/bloomery/quality/lower.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_quality/test_dedupe_and_reject.py
+      - tests/unit/test_resolve/test_build.py
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Floats are banned in IR and emission; `Decimal`/int only.
+    paths:
+      - src/bloomery/cli/serialize.py
+      - src/bloomery/emit/lower/reconcile.py
+      - src/bloomery/emit/steps.py
+      - src/bloomery/ir/fingerprint.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/planner/request.py
+      - src/bloomery/quality/predicates.py
+      - src/bloomery/resolve/steps.py
+      - src/bloomery/spec/common.py
+      - src/bloomery/spec/marts.py
+      - src/bloomery/spec/metrics.py
+      - src/bloomery/spec/quality.py
+      - src/bloomery/steps/manifest.py
+      - src/bloomery/steps/splice.py
+      - src/bloomery/transforms/_builtins.py
+      - src/bloomery/typing/types.py
+      - tests/execution/test_as_of_join.py
+      - tests/execution/test_currency_convert.py
+      - tests/execution/test_fanout_trap.py
+      - tests/execution/test_marts.py
+      - tests/execution/test_period_over_period.py
+      - tests/execution/test_rollup.py
+      - tests/fixtures/semantic_corpus/002-average-of-averages/naive.sql
+      - tests/golden/schema/entity_model.json
+      - tests/golden/schema/mapping.json
+      - tests/golden/schema/marts.json
+      - tests/support/planning.py
+      - tests/support/semantic_corpus.py
+      - tests/unit/test_cli.py
+      - tests/unit/test_emit/test_quality_mart.py
+      - tests/unit/test_planner/test_request.py
+      - tests/unit/test_quality/test_edges.py
+      - tests/unit/test_spec/test_metrics.py
+      - tests/unit/test_spec/test_quality.py
+      - tests/unit/test_steps/test_lowering.py
+      - tests/unit/test_steps/test_manifest_and_registry.py
+      - tests/unit/test_typing/test_types.py
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Unreachable metrics are IR members (`unreachable` tuple with missing leaves),
+      not log lines — they are product-facing output.
+    paths: [src/bloomery/ir/nodes.py]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      Determinism is enforced by subprocess tests with differing `PYTHONHASHSEED`,
+      not by convention.
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      (Amended for `_bloomery-changes.md`) `ProjectIR.marts` (`MartIR`, S-0027) and
+      `DimensionRef` join the IR and are fingerprint-covered; `MetricIR` carries the
+      typed additivity policy (`SemiAdditivePolicy` / `RatioSpec`, S-0028). `bloomery/ir/`
+      additionally hosts the serializable `CompiledSemantic` planner artifact (S-0029)
+      — the IR itself remains non-serialized internal surface.
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      (Amended for `_bloomery-metricflow-pivot.md`) Row 8's `CompiledSemantic` clause
+      is superseded: the planner artifact is now MetricFlow's transformed manifest,
+      produced by the `emit/metricflow` emitter (S-0030) and cached by `bloomery/runtime/`
+      (S-0031). `bloomery/ir/` hosts no serialization; the fingerprint's role grows
+      — it keys the hydration cache (`HydrationKey.spec_fingerprint`).
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      *(Appended 2026-08-07, M14 — S-0032/D-5.)* D5's float ban is boundary-interpreted,
+      not weakened: floats **are** accepted at the planner's request boundary (JSON
+      numbers parse to float; refusing them would cripple `parse_filter_json`) and
+      are normalized to `Decimal(str(value))` at request validation, with non-finite
+      values (float or string form) refused as `InvalidLiteral`. The invariant holds
+      at its actual target — no float ever reaches the IR, literal rendering, or any
+      emission path.
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      *(2026-08-12)* **A lookup that an earlier stage makes total says which stage,
+      and no lookup may fail as a bare `StopIteration`.** `next(x for x in xs if …)`
+      over a validated set is correct and fails terribly: no message, no source path,
+      no hint about which stage was supposed to prevent it. One escaped from a `coverage`
+      check naming an unmapped entity and read as a crash rather than as a missing
+      refusal — the guardrail that would have caught it did not exist yet (S-0033/D-91).
+      The invariant "every such lookup is total because a guardrail refused the case
+      that would break it" was real and held everywhere but there; what it never had
+      was somewhere to be *stated*, so drift was invisible. Two parts. `guaranteed(candidates,
+      *, expected, by)` raises `InvariantViolated` naming its guarantor, so each call
+      site carries the name of the check it depends on — the point is the `by=` argument,
+      not the error. And an AST scan over `src/` fails on any bare `next(...)`, which
+      is what keeps the form from returning. **The scan immediately paid for itself:**
+      a `grep` had found six sites and the AST found **twelve** — `next(iter(xs))`
+      and `next(generator_variable)` are the same hazard in spellings a regex written
+      around one idiom does not see. That gap between what a scan sees and what a
+      reader assumes it sees is the reason this is enforced rather than documented.
+    paths:
+      - src/bloomery/errors.py
+      - tests/unit/test_errors.py
+      - tests/unit/test_signature_closure.py
+      - tests/unit/test_total_lookups.py

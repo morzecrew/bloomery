@@ -1,4 +1,4 @@
-""":mod:`json` for the values the Python API returns (RFC 0020 D4).
+""":mod:`json` for the values the Python API returns (S-0037/D-4).
 
 The promise is that the CLI is not a second, lossier surface — so this converts
 *whole* returned values rather than picking the fields a table happens to show.
@@ -11,7 +11,7 @@ It is a :class:`json.JSONEncoder`, not a walker of its own: ``default`` is asked
 only about the types :mod:`json` does not already know, so lists, tuples, dicts
 and every ``StrEnum`` recurse through the encoder that was going to run anyway.
 The conversion is structural and total — a frozen dataclass becomes an object of
-its fields, a ``Decimal`` becomes a string (never a float: RFC 0003 D5 rules
+its fields, a ``Decimal`` becomes a string (never a float: S-0020/D-5 rules
 those out of the package, and JSON's number type is a float in most readers).
 
 There is deliberately **no enum branch**. Every enum on the public surface is a
@@ -34,11 +34,11 @@ and loses the type entirely. It is rendered with the type layer's own
 tested before the dataclass branch for that reason.
 
 A :class:`~bloomery.BloomeryError` is not a dataclass at all, and since
-:class:`~bloomery.SpecEvidence` carries refusals as *values* (RFC 0022 D2) the
+:class:`~bloomery.SpecEvidence` carries refusals as *values* (S-0039/D-2) the
 encoder has to know what one looks like or ``bloomery resolve --format json``
 fails on exactly the specs it exists to describe. It becomes its class name,
 its message, and every attribute the error carries — which is where
-``source_path`` lives, and where RFC 0020's structured fix suggestions do, so
+``source_path`` lives, and where S-0037's structured fix suggestions do, so
 they reach a JSON consumer without this module naming a single one of them.
 """
 
@@ -64,7 +64,7 @@ def _error_as_json(error: BloomeryError) -> dict[str, object]:
 
     Attributes are read off ``vars()`` rather than from a per-class list: every
     attribute a refusal has was assigned in an ``__init__``, so this covers
-    ``source_path``, ``collected`` and each of RFC 0020's structured
+    ``source_path``, ``collected`` and each of S-0037's structured
     suggestions without naming one of them — and a suggestion added to a sixth
     error reaches JSON in the same commit that adds it, rather than in the one
     that remembers to.

@@ -1,14 +1,14 @@
-"""The authored side of a step: wiring, and nothing else (RFC 0017 §5.2, D2).
+"""The authored side of a step: wiring, and nothing else (S-0034/step-manifest, S-0034/D-2).
 
 An authored spec *wires* a platform step — names it by ``ref@version``, binds its
 inputs and outputs to relations, sets parameters within the bounds the
-manifest declares, and optionally attaches RFC 0016 quality rules to its
+manifest declares, and optionally attaches S-0033 quality rules to its
 outputs. It does not, and cannot, carry a body: there is no field here that
 holds code, and no field that names a file to load. That is what keeps a
 authored spec from ever becoming an arbitrary-code-execution surface (§5.3, D3)
 — the property comes from the *absence* of a surface, not from validating one.
 
-Quality rules on outputs are why RFC 0017 ships as a pair with RFC 0016
+Quality rules on outputs are why S-0034 ships as a pair with S-0033
 (§1): the escape hatch is only safe because declared rules apply at its
 boundary, so a step whose output drifts is caught by the same dispositions as
 any other silver relation.
@@ -40,7 +40,7 @@ __all__ = [
 #: ``x", print("…"))\n@model("y`` produced a wrapper that parsed, carried a
 #: second decorator, and executed at model import. The escaping in
 #: ``emit.steps`` is the boundary that must hold; this is the second lock, so
-#: neither alone is load-bearing (RFC 0017 §5.3, D3).
+#: neither alone is load-bearing (S-0034/purity-the-registry-is-a-compile-input, S-0034/D-3).
 RELATION_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$"
 
 BoundRelation = Annotated[str, StringConstraints(pattern=RELATION_PATTERN)]
@@ -57,7 +57,7 @@ class StepWiring(SpecModel):
     than a value nothing reads (§5.5, D5).
     """
 
-    #: A stable identity, minted once and never edited (RFC 0062 §5.1). When
+    #: A stable identity, minted once and never edited (S-0067/the-field). When
     #: present it replaces the ``use`` ref in this wiring's lineage id, so a rename
     #: relabels a vertex instead of deleting one node and adding another.
     #:
@@ -76,14 +76,14 @@ class StepWiring(SpecModel):
     #: output only becomes an entity as the step is lowered, so there is no
     #: relationship to name yet, and the rule has no ``name`` for
     #: ``applies_to`` to key on either. Widening this is an RFC amendment,
-    #: not a config change (RFC 0016 D5's closed-catalogue discipline).
+    #: not a config change (S-0033/D-5's closed-catalogue discipline).
     quality: tuple[ExpressionRule, ...] = ()
     #: Which declared output each quality rule applies to, by rule name. A
     #: step has several outputs, so "on this step" is not specific enough to
     #: lower — unlike an entity's ``quality:``, which has one relation.
     applies_to: dict[str, str] = Field(default_factory=dict[str, str])
     #: Which canonical field each produced column *is*, keyed by output then
-    #: column (RFC 0017 D49).
+    #: column (S-0034/D-49).
     #:
     #: On the wiring rather than in the manifest deliberately: canonical names
     #: are the authored spec's vocabulary, so a manifest naming them could not
@@ -93,7 +93,7 @@ class StepWiring(SpecModel):
     #: it, nothing about metric resolution changes at all.
     #:
     #: Never inferred from a matching column name. Guessing a link nobody
-    #: declared is what RFC 0006 refuses, and it does not become acceptable
+    #: declared is what S-0023 refuses, and it does not become acceptable
     #: because the guess is cheap (the same argument D43 made for references).
     canonical: dict[str, dict[str, str]] = Field(default_factory=dict[str, dict[str, str]])
 
@@ -117,7 +117,7 @@ class StepWiring(SpecModel):
 
     @model_validator(mode="after")
     def _canonical_names_a_bound_output(self) -> Self:
-        """Shape-only (RFC 0002): the *output* must be one this wiring binds.
+        """Shape-only (S-0019): the *output* must be one this wiring binds.
         Whether the column exists is the manifest's business, and the spec
         layer has never seen a manifest — that check waits for lowering."""
         unbound = sorted(set(self.canonical) - set(self.outputs))
@@ -144,7 +144,7 @@ class StepWiring(SpecModel):
 
     @model_validator(mode="after")
     def _rules_name_a_bound_output(self) -> Self:
-        """Shape-only (RFC 0002): a rule's ``applies_to`` must name an output
+        """Shape-only (S-0019): a rule's ``applies_to`` must name an output
         this wiring binds. Whether that output *exists in the manifest* is a
         resolution question and waits for the guardrail stage."""
         declared = {rule.name for rule in self.quality}
@@ -182,7 +182,7 @@ class StepWiring(SpecModel):
 
 
 class StepSet(SpecModel):
-    """The ``steps:`` document — the sixth spec kind (RFC 0002 §5.2).
+    """The ``steps:`` document — the sixth spec kind (S-0019/the-base-model).
 
     Its own document rather than a block inside the entity model because a
     step is not an entity: it is a referenced implementation that *produces*
@@ -226,7 +226,7 @@ class StepSet(SpecModel):
 
     @model_validator(mode="after")
     def _node_ids_are_unique(self) -> Self:
-        """No two steps mint the same lineage node id (RFC 0062 §9).
+        """No two steps mint the same lineage node id (S-0067/risks).
 
         **After** ``_refs_are_unique``, deliberately. Two wirings of one step
         with no ids at all are a duplicate *ref*, which that validator explains
@@ -263,7 +263,7 @@ class StepSet(SpecModel):
             msg = (
                 f"two or more steps claim one lineage identity: {spelled}. A stable "
                 "'id:' is one identity, and two nodes claiming it leave the graph holding "
-                "one vertex where this document declares two (RFC 0062 §9). Fix: give each "
+                "one vertex where this document declares two (S-0067/risks). Fix: give each "
                 "an 'id:' of its own, and never copy one between specs"
             )
             raise ValueError(msg)

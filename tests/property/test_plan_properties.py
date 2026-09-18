@@ -1,5 +1,5 @@
-"""Plan-stage properties (RFC 0007 §6, RFC 0009): ``plan(ir, ir)`` is empty
-for every buildable fixture IR — quality-carrying ones included (RFC 0016
+"""Plan-stage properties (S-0024/tests, S-0026): ``plan(ir, ir)`` is empty
+for every buildable fixture IR — quality-carrying ones included (S-0033
 §5.7) — ``plan(None, ir)`` is all-ADDITIVE with an empty backfill *and* replay
 scope (or the D3 staleness refusal when the IR still carries a
 ``renamed_from`` annotation), plans are deterministic values, and a
@@ -93,7 +93,7 @@ def test_plan_of_an_ir_against_itself_is_empty(name: str) -> None:
     assert result.backfill_scope.entities == ()
     assert not result.backfill_scope.restates_history
     assert result.downstream_impact == ()
-    # RFC 0016 §5.7: the quality surface is diffed by the same identity rule,
+    # S-0033/plan-integration-rfc-0007-amendment: the quality surface is diffed by the same identity rule,
     # so a quality-carrying IR against itself opens no replay either.
     assert result.replay_scope.entities == ()
 
@@ -103,7 +103,7 @@ def test_plan_of_an_ir_against_itself_is_empty(name: str) -> None:
 def test_initial_deploy_is_all_additive_or_the_staleness_refusal(name: str) -> None:
     ir = fixture_ir(name)
     if _annotated(ir):
-        # RFC 0007 D3: a renamed_from whose old name is absent from old —
+        # S-0024/D-3: a renamed_from whose old name is absent from old —
         # including old is None — is a stale annotation.
         with pytest.raises(RenameTargetMissing):
             plan(None, ir)
@@ -115,7 +115,7 @@ def test_initial_deploy_is_all_additive_or_the_staleness_refusal(name: str) -> N
     assert result.backfill_scope.entities == ()
     assert not result.backfill_scope.restates_history
     assert result.downstream_impact == ()
-    # Nothing is stored yet, so nothing is quarantined yet (RFC 0016 §5.7).
+    # Nothing is stored yet, so nothing is quarantined yet (S-0033/plan-integration-rfc-0007-amendment).
     assert result.replay_scope.entities == ()
 
 
@@ -132,7 +132,7 @@ def test_plan_is_a_deterministic_value_for_any_pair(pair: tuple[str, str]) -> No
 @settings(max_examples=20, deadline=None)
 @given(pair=st.sampled_from(EVOLUTION_PAIRS))
 def test_no_breaking_plan_preserves_every_referenced_column(pair: tuple[str, str]) -> None:
-    """The RFC 0009 invariant: ``plan(a, b)`` classifying nothing BREAKING
+    """The S-0026 invariant: ``plan(a, b)`` classifying nothing BREAKING
     implies ``b``'s columns ⊇ ``a``'s metric-referenced columns."""
     old, new = fixture_ir(pair[0]), fixture_ir(pair[1])
     result = plan(old, new)

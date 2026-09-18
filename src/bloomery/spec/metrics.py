@@ -1,4 +1,4 @@
-"""The ``MetricSet`` spec kind (RFC 0002 §5.5; original spec §3.2 templates).
+"""The ``MetricSet`` spec kind (S-0019/spec-model-surface; original spec §3.2 templates).
 
 Project-authored metrics mirroring the catalog's ``metric_templates``: a
 metric either references a template by ``template:`` or is fully inline
@@ -6,16 +6,16 @@ metric either references a template by ``template:`` or is fully inline
 a :class:`~bloomery.spec.common.SemiAdditivePolicy`, ``non_additive`` a
 :class:`~bloomery.spec.common.RatioSpec` or a :class:`DerivedSpec`; their
 *presence* is shape-validated here, their necessity is enforced at the
-guardrail stage (``NonAdditiveWithoutComponents``, RFC 0006).
+guardrail stage (``NonAdditiveWithoutComponents``, S-0023).
 
-The time-shaped forms (RFC 0034) also live here, and this module owns their
+The time-shaped forms (S-0050) also live here, and this module owns their
 grammar because both readers of it are metric-shaped: ``derived:`` computes a
 metric from other metrics, each input optionally read at an ``offset:``;
 ``cumulative:`` accumulates a metric's own measure over a window. ``filter:``
 restricts the rows a metric aggregates, as a typed predicate list and never
-as a SQL string (RFC 0034 D8).
+as a SQL string (S-0050/D-8).
 
-Parse validates shape and grammar only (RFC 0002 D4). What needs the marts —
+Parse validates shape and grammar only (S-0019/D-4). What needs the marts —
 that a filter's dimension is flattened somewhere and fits the column's type,
 that a derived expression references only declared aliases — is checked at
 the guardrail stage, batched with every other model error.
@@ -60,12 +60,12 @@ __all__ = [
 ]
 
 # ....................... #
-# Time vocabulary (RFC 0034 D2)
+# Time vocabulary (S-0050/D-2)
 
 #: The grains an offset window, an offset target and a cumulative window may
-#: name — the mart's own date buckets (RFC 0010 D4), one definition shared by
+#: name — the mart's own date buckets (S-0027/D-4), one definition shared by
 #: all three. ``hour`` is deliberately absent even though MetricFlow accepts
-#: it: the emitted time spine is day-grain (RFC 0008 D13), so an hourly window
+#: it: the emitted time spine is day-grain (S-0025/D-13), so an hourly window
 #: would resolve against a spine that cannot express it.
 TimeGrainName = Literal["day", "week", "month", "quarter", "year"]
 
@@ -79,12 +79,12 @@ TimeWindowString = Annotated[str, StringConstraints(pattern=TIME_WINDOW_PATTERN)
 
 
 # ....................... #
-# Filter vocabulary (RFC 0034 D8, D10, D12)
+# Filter vocabulary (S-0050/D-8, S-0050/D-10, S-0050/D-12)
 
 #: The operators a metric *definition* may pin. Deliberately **not**
 #: :class:`bloomery.planner.request.Op`, which is what a *request* may ask:
 #: that set carries ``like``/``ilike``, whose ``\`` escape language, ``ESCAPE``
-#: clause and case-folding portability argument (RFC 0015 decision 13) buy
+#: clause and case-folding portability argument (S-0032 decision 13) buy
 #: nothing in a definition, where the author knows the values. Two vocabularies
 #: by decision (D12), not by accident — a future reader seeing both should not
 #: reach for the merge.
@@ -96,12 +96,12 @@ _SINGLE_VALUE_OPS = frozenset({"eq", "ne", "gt", "gte", "lt", "lte", "is_null"})
 #: Both semantic targets template with braces — Jinja on MetricFlow,
 #: ``{member}`` on Cube — so a value carrying one would need per-target
 #: neutralization, and two escaping rules that can disagree is the defect this
-#: project keeps finding in itself (RFC 0034 D13).
+#: project keeps finding in itself (S-0050/D-13).
 _TEMPLATE_CHARS = re.compile(r"[{}]")
 
 
 def _filter_value(value: object) -> object:
-    """One authored filter value, before coercion (RFC 0034 D13).
+    """One authored filter value, before coercion (S-0050/D-13).
 
     Runs *before* pydantic's union coercion so it sees what the document
     actually said: a YAML ``1.5`` arrives here as a ``float`` and is refused
@@ -112,7 +112,7 @@ def _filter_value(value: object) -> object:
     if isinstance(value, float):
         msg = (
             f"filter value {value!r} is a float, and no float ever reaches an emission "
-            'path (RFC 0003 D5). Fix: write it as a quoted string — "1.5" — which parses '
+            'path (S-0020/D-5). Fix: write it as a quoted string — "1.5" — which parses '
             "as an exact Decimal"
         )
         raise ValueError(msg)
@@ -120,7 +120,7 @@ def _filter_value(value: object) -> object:
     if isinstance(value, Decimal) and not value.is_finite():
         msg = (
             f"filter value {value!r} is non-finite: `amount < nan` is never TRUE on some "
-            "engines and always TRUE on others (RFC 0015 D5). Fix: write a real value"
+            "engines and always TRUE on others (S-0032/D-5). Fix: write a real value"
         )
         raise ValueError(msg)
 
@@ -131,7 +131,7 @@ def _filter_value(value: object) -> object:
             msg = (
                 f"filter value {value!r} contains a template brace. Both semantic targets "
                 "template with braces — Jinja on MetricFlow, {member} on Cube — and a value "
-                "carrying one has no neutralization both agree on (RFC 0034 D13)"
+                "carrying one has no neutralization both agree on (S-0050/D-13)"
             )
             raise ValueError(msg)
 
@@ -146,7 +146,7 @@ FilterValue = Annotated[
 
 
 class MetricFilter(SpecModel):
-    """One row-level restriction on a metric (RFC 0034 D8).
+    """One row-level restriction on a metric (S-0050/D-8).
 
     ``dimension`` names a column flattened on the mart carrying the metric;
     that it is flattened, and that ``values`` fit its declared type, is a
@@ -190,7 +190,7 @@ class MetricFilter(SpecModel):
 
 
 class MetricOffset(SpecModel):
-    """How far back a derived metric's input reads (RFC 0034 D2): exactly one
+    """How far back a derived metric's input reads (S-0050/D-2): exactly one
     of a fixed ``window`` or the start of the containing period.
 
     ``{window: "1 year"}`` against a monthly grouping is the same month one
@@ -219,7 +219,7 @@ class MetricInputSpec(SpecModel):
     """One input of a derived metric — the metric read, and optionally the
     offset it is read at. Its *alias* is the key it sits under in
     :attr:`DerivedSpec.inputs`, because the alias is what the expression
-    references (RFC 0034 D1)."""
+    references (S-0050/D-1)."""
 
     metric: str
     offset: MetricOffset | None = None
@@ -229,7 +229,7 @@ class MetricInputSpec(SpecModel):
 
 
 class DerivedSpec(SpecModel):
-    """A metric computed by an expression over other metrics (RFC 0034 D1).
+    """A metric computed by an expression over other metrics (S-0050/D-1).
 
     ``inputs`` is a mapping keyed by alias rather than a list: the alias is
     the input's identity because ``expr`` references it, and a mapping makes a
@@ -250,7 +250,7 @@ class DerivedSpec(SpecModel):
         The single definition of that set: the reference checker validates
         these names against the metric set, and the template merge unions them
         into ``requires_metrics`` so the resolution DAG carries the edges
-        (RFC 0034 D3). Two spellings of "what a derived metric depends on" is
+        (S-0050/D-3). Two spellings of "what a derived metric depends on" is
         how the two come to disagree.
         """
 
@@ -279,7 +279,7 @@ PeriodAggregationName = Literal["first", "last", "average"]
 
 
 class CumulativeSpec(SpecModel):
-    """A metric's accumulation over time (RFC 0002 D10, lowered by RFC 0034
+    """A metric's accumulation over time (S-0019/D-10, lowered by S-0050
     D5): exactly one of a trailing ``window`` or a ``grain_to_date``.
 
     ``{window: "7 days"}`` is a trailing seven-day total; ``{grain_to_date:
@@ -327,12 +327,12 @@ def parse_time_window(window: str) -> tuple[int, str]:
 class Metric(SpecModel):
     """One authored metric: a template instantiation or an inline definition.
 
-    Shape-only at parse (RFC 0002 D4): whether ``template`` exists, leaves are
+    Shape-only at parse (S-0019/D-4): whether ``template`` exists, leaves are
     reachable, or the additivity policy is complete is checked downstream
-    (resolution RFC 0005; guardrails RFC 0006).
+    (resolution S-0022; guardrails S-0023).
     """
 
-    #: A stable identity, minted once and never edited (RFC 0062 §5.1). When
+    #: A stable identity, minted once and never edited (S-0067/the-field). When
     #: present it replaces the name in this node's lineage id, so a rename
     #: relabels a vertex instead of deleting one node and adding another.
     #:
@@ -353,7 +353,7 @@ class Metric(SpecModel):
     cumulative: CumulativeSpec | None = None
     derived: DerivedSpec | None = None
     filter: tuple[MetricFilter, ...] = ()
-    #: Who is responsible for this, as a free string (RFC 0055 §5.1). Reaches
+    #: Who is responsible for this, as a free string (S-0062/owner). Reaches
     #: every target's owner slot and changes no SQL.
     #:
     #: **A declaration bloomery does not verify.** Nobody is paged, the name is
@@ -367,7 +367,7 @@ class Metric(SpecModel):
     #: so an owner it carried would appear on every instantiation as an owner
     #: nobody wrote — which is D2's argument against mart inheritance, at the
     #: other edge. `MetricTemplate` therefore has no `owner` key at all, the
-    #: way it has no `id` (RFC 0062 §5.1, same reasoning).
+    #: way it has no `id` (S-0067/the-field, same reasoning).
 
 
 # ....................... #
@@ -375,9 +375,9 @@ class Metric(SpecModel):
 
 class MetricSet(SpecModel):
     """The per-project metric document (``metrics_version``), at most one per
-    project (RFC 0002 §5.5)."""
+    project (S-0019/spec-model-surface)."""
 
-    #: Pinned to the one version bloomery implements (RFC 0018 D7). It was
+    #: Pinned to the one version bloomery implements (S-0035/D-7). It was
     #: ``int`` with ``ge=1``, which accepted a document written for a future
     #: bloomery and silently applied v1 semantics to it — the exact misreading
     #: a version key exists to refuse. This key is also the document-kind
@@ -390,7 +390,7 @@ class MetricSet(SpecModel):
 
     @model_validator(mode="after")
     def _node_ids_are_unique(self) -> Self:
-        """No two metrics mint the same lineage node id (RFC 0062 §9).
+        """No two metrics mint the same lineage node id (S-0067/risks).
 
         **Over the resulting keys**, not over the ids: what has a uniqueness
         requirement is the string the node id is built from. Comparing ids to
@@ -422,7 +422,7 @@ class MetricSet(SpecModel):
             msg = (
                 f"two or more metrics claim one lineage identity: {spelled}. A stable "
                 "'id:' is one identity, and two nodes claiming it leave the graph holding "
-                "one vertex where this document declares two (RFC 0062 §9). Fix: give each "
+                "one vertex where this document declares two (S-0067/risks). Fix: give each "
                 "an 'id:' of its own, and never copy one between specs"
             )
             raise ValueError(msg)

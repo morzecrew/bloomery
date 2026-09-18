@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `ChangeClass` is exactly spec §5.5's five members: ADDITIVE, WIDENING, RENAME,
+      RESTATING, BREAKING. Every diffable difference maps to exactly one.
+    paths: [src/bloomery/plan/model.py]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `plan(old_ir | None, new_ir)` is a pure structural diff of two `ProjectIR`s
+      — no external lineage, no I/O. `plan(None, ir)` = all ADDITIVE (initial deploy);
+      `plan(ir, ir)` = empty, property-tested (S-0026).
+    paths:
+      - src/bloomery/plan/diff.py
+      - src/bloomery/plan/model.py
+      - tests/unit/test_cli.py
+      - tests/unit/test_plan/test_diff.py
+      - tests/unit/test_plan/test_exposures.py
+      - tests/unit/test_plan/test_quality_changes.py
+      - tests/unit/test_plan/test_step_changes.py
+      - tests/unit/test_steps/test_step_entities.py
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Renames are explicit only: `renamed_from: <old>` in the spec (carried as `ColumnIR.renamed_from`,
+      an S-0020 amendment). No heuristic inference — determinism and auditability
+      beat convenience. A stale annotation (old name absent from `old`, including
+      `old is None`) raises `RenameTargetMissing` (`PlanError`), which forces the
+      annotation to be dropped after one applied plan.
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/plan/diff.py
+      - src/bloomery/plan/model.py
+      - src/bloomery/spec/entity.py
+      - tests/fixtures/evolution_v3/entity_model.yaml
+      - tests/golden/schema/entity_model.json
+      - tests/property/test_plan_properties.py
+      - tests/unit/test_plan/test_diff.py
+      - tests/unit/test_plan/test_evolution.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      RESTATING = same column name+type with changed semantics: changed `canonical:`
+      link, `recipe_id`, transform chain, or source path. It always adds the entity
+      to `backfill_scope` with `restates_history=True`.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Expand/contract is enforced in this stage: dropping/narrowing a field referenced
+      by a metric reachable in `new`, or by an old-reachable metric that vanished
+      in the same plan, raises `ContractViolation` (`PlanError`). Deprecation must
+      land in a prior version. This is the stage's only refusal — BREAKING changes
+      are classified and returned, not raised.
+    paths:
+      - pages/docs/how-to/evolve-a-spec.md
+      - src/bloomery/errors.py
+      - src/bloomery/plan/diff.py
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `Plan` = ordered `Change` tuple + `BackfillScope` + `downstream_impact` (from
+      `MetricIR.depends_on`) + `has_changes`/`breaking` conveniences. All ordering
+      lexicographic per S-0020 — plans are byte-comparable.
+    paths: [src/bloomery/plan/model.py, tests/unit/test_plan/test_exposures.py]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      Entity-level `grain`/`key`/`scd`/`materialization` changes are BREAKING at the
+      entity subject (they redefine the row); column diffs are still reported alongside.
+      Type changes follow the S-0021 lattice: widening = WIDENING, narrowing (incl.
+      optional→required) and new required fields = BREAKING.
+    paths:
+      - src/bloomery/plan/diff.py
+      - tests/fixtures/evolution_v5/entity_model.yaml
+      - tests/unit/test_plan/test_diff.py
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      *(Appended 2026-08-07, M9.)* Identity beats staleness: a `renamed_from` annotation
+      that `old` already carries on the same column is treated as applied, never stale
+      — `plan(ir, ir)` is empty for **every** IR, including one still annotated (D2
+      wins over §5.3's one-shot forcing). `RenameTargetMissing` fires only for annotations
+      naming a column absent from `old` that `old` does not already record, including
+      `old is None`. Cost: leftover annotations become inert history instead of a
+      forced cleanup.

@@ -1,4 +1,4 @@
-# The currency-conversion refusal fixture (RFC 0023 D4). `amount_usd` is a
+# The currency-conversion refusal fixture (S-0040/D-4). `amount_usd` is a
 # EUR amount put through the `convert` transform — which typechecks
 # decimal → decimal, passes every guardrail, and lowers to a CONVERT_CURRENCY
 # call no engine defines. The refusal is at emit, so this project resolves and

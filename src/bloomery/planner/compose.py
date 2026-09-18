@@ -1,8 +1,8 @@
-"""The composed branch join (RFC 0041 D9): bloomery's own SQL over branches
+"""The composed branch join (S-0055/D-9): bloomery's own SQL over branches
 MetricFlow rendered.
 
 Each branch arrives already aggregated to the requested grain — it is exactly
-the single-mart request this planner answered before RFC 0041, rendered
+the single-mart request this planner answered before S-0055, rendered
 unchanged — so what is left is to line the branches up on the key they share
 and project one row per key. That join is bloomery's, not the engine's, and
 this module is the whole of it.
@@ -11,7 +11,7 @@ this module is the whole of it.
 combine multi-metric requests itself, and renders correct SQL when it does.
 It reaches that shape by joining marts at row level to unify two spellings of
 one dimension — `order__region` against `order_item__order_region` — and it is
-the engine, not bloomery, that decides such a join is safe. RFC 0040 D6 puts
+the engine, not bloomery, that decides such a join is safe. S-0054/D-6 puts
 that decision here; D9 is where the document says so.
 
 **Branch SQL is opaque.** It is inlined verbatim as a derived table and never
@@ -31,7 +31,7 @@ is a result rather than a preference. PostgreSQL refuses
 ``FULL JOIN … ON a IS NOT DISTINCT FROM b`` outright — *"FULL JOIN is only
 supported with merge-joinable or hash-joinable join conditions"* — so the
 obvious composition is a statement one of the three shipped dialects cannot
-run at all. It renders on every one of them, which is why RFC 0041 D17 asks
+run at all. It renders on every one of them, which is why S-0055/D-17 asks
 for the engine tier rather than for the documentation (logs/T-0026.md, D-171).
 
 So the branches become CTEs, their keys are unioned into the domain of groups
@@ -83,7 +83,7 @@ class Branch:
     ``keys`` pairs positionally with :func:`compose`'s ``keys``: entry *i* is
     what *this* branch calls the *i*-th composed key. The two differ whenever
     the branches reach one dimension through different flattenings, which is
-    the case the join exists for (RFC 0041 D12).
+    the case the join exists for (S-0055/D-12).
     """
 
     sql: str
@@ -96,14 +96,14 @@ class Measure:
 
     ``expr`` is ``None`` for a stored measure: one branch aggregated it and the
     composition reads that branch's column. Where it is set, the column is
-    **computed above the join** (RFC 0041 D3) from components the branches
+    **computed above the join** (S-0055/D-3) from components the branches
     aggregated separately — which is the ordering D1 locks, since `SUM(a)/SUM(b)`
     and a row-level `a/b` aggregated afterwards are different numbers.
 
     ``inputs`` says what each name the expression references resolves to: the
     alias it was authored under, the index of the branch that produced it, and
     the column that branch calls it. Alias and column need not agree — a
-    ratio's operand is `revenue` under both, while an RFC 0034 ``derived:``
+    ratio's operand is `revenue` under both, while an S-0050 ``derived:``
     input is authored against an alias of its own and read from the column its
     metric is named after.
     """
@@ -235,7 +235,7 @@ def _bound(measure: Measure) -> Expression:
         msg = (
             f"computed measure {measure.name!r} references {unbound}, which no branch "
             "produces — a composed expression reads its declared inputs by their bare "
-            "names and nothing else (RFC 0041 D3)"
+            "names and nothing else (S-0055/D-3)"
         )
         raise PlannerError(msg)
 
@@ -267,7 +267,7 @@ def _ordering(field: str, direction: str, dialect: DialectPort) -> str:
     right about each engine's *default*, and a default is a setting — DuckDB
     publishes `default_null_order` — so the elided form makes the answer
     depend on how the warehouse is configured. Nothing here is a request
-    value: the field is a projected alias the request validated (RFC 0011 D4),
+    value: the field is a projected alias the request validated (S-0028/D-4),
     and the direction is one of two words.
 
     Sorting by the alias rather than by an ordinal: all three shipped dialects
@@ -346,7 +346,7 @@ def compose(
     if len(branches) < 2:
         msg = (
             f"a composed statement joins at least two branches, got {len(branches)} — "
-            "a single branch is planned without one (RFC 0041 §3)"
+            "a single branch is planned without one (S-0055/metric-partitioning)"
         )
         raise PlannerError(msg)
 
@@ -358,7 +358,7 @@ def compose(
         msg = (
             f"dialect {dialect.name!r} declares no null-safe equality, and a branch join "
             "needs one: matching on `=` drops every group whose key is NULL from the "
-            "answer instead of reporting it (RFC 0041 D13, D17)"
+            "answer instead of reporting it (S-0055/D-13, S-0055/D-17)"
         )
         raise PlannerError(msg)
 
@@ -376,7 +376,7 @@ def compose(
         )
 
     if limit is not None:
-        # An `int` the planner already clamped (RFC 0011 D4), interpolated
+        # An `int` the planner already clamped (S-0028/D-4), interpolated
         # rather than parameterized because it is the planner's own number —
         # a caller's `limit` reaches here only through that clamp.
         tail += f"\nLIMIT {limit}"

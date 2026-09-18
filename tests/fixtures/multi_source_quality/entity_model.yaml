@@ -1,7 +1,7 @@
-# Cleaning a merged entity (RFC 0024 P2 — D32-D35 — and RFC 0035).
+# Cleaning a merged entity (S-0041/phasing (P-2) — D32-D35 — and S-0051).
 #
 # `multi_source` is the union on its own and stays that way: it is the fixture
-# both SQL targets compile, and dbt lowers no reject model at all (RFC 0016
+# both SQL targets compile, and dbt lowers no reject model at all (S-0033
 # §5.4). This one is its SQLMesh-only sibling, and every block here exists for
 # a property no single-source fixture can hold:
 #
@@ -14,8 +14,8 @@
 #     `_source_row_id` (D35). Without it two rows from different shops sharing
 #     an entity key compare equal and the survivor is undefined, and the
 #     collision audit that would catch it runs after the model materialises.
-#   - `quarantine:` — the reject table stays one per entity (RFC 0016 D10,
-#     upheld by RFC 0035 D1) and each row carries the `source_relation` that
+#   - `quarantine:` — the reject table stays one per entity (S-0033/D-10,
+#     upheld by S-0051/D-1) and each row carries the `source_relation` that
 #     produced it, so replay re-runs that row's own mapping (D2/D3).
 #
 # The key is composite for the reason `multi_source` gives: a generated GROUP
@@ -37,7 +37,7 @@ entities:
       # the empty conjunction's TRUE, or every legacy row would be reported as
       # a failed cast.
       gift_note: {type: string}
-      # The dedupe recency field. RFC 0016 D80 forces its `coercible` rule to
+      # The dedupe recency field. S-0033/D-80 forces its `coercible` rule to
       # FAIL rather than quarantine: an uncastable value here leaves the sort
       # order undefined, and a silently nondeterministic entity is worse than a
       # stopped run.

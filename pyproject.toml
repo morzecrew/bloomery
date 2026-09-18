@@ -49,7 +49,7 @@ dependencies = [
     "pyyaml>=6",
     # Exact-pinned in uv.lock; the metadata bound tracks one major so a sqlglot
     # bump is always a deliberate event that regenerates goldens in a dedicated
-    # PR (RFC 0003 D2 §5.5). The floor is the newest sqlglot the dev group's
+    # PR (S-0020/D-2 S-0020/determinism-rules-package-wide). The floor is the newest sqlglot the dev group's
     # sqlmesh pin admits (sqlmesh constrains sqlglot to a narrow band), so the
     # lockfile stays co-resolvable with the e2e target it must round-trip through.
     "sqlglot>=30.8.0,<31",
@@ -57,7 +57,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    # The range the emitted dbt project is claimed to work across (RFC 0008
+    # The range the emitted dbt project is claimed to work across (S-0025
     # D22), not merely what the e2e tier happens to resolve. The floor is
     # 1.10.8 because that is where generic-test `arguments` nesting stops
     # needing the `require_generic_test_arguments_property` behaviour flag —
@@ -73,7 +73,7 @@ dev = [
     "duckdb>=1.1",
     "hypothesis>=6.130",
     "import-linter>=2.3",
-    # Test-only, and only for the schema-agreement property (RFC 0020 D10):
+    # Test-only, and only for the schema-agreement property (S-0037/D-10):
     # something has to *be* the second validator for a drift measurement to
     # mean anything. Not a runtime dependency — D6 forbids those, and bloomery
     # never validates against its own export.
@@ -81,7 +81,7 @@ dev = [
     "mypy[faster-cache]>=2.3.0",
     # Test-only, and declared rather than inherited. A step body returns
     # dataframes and `assert_step_contract` checks them through the frame
-    # protocol without importing pandas itself (RFC 0017 D12) — but the
+    # protocol without importing pandas itself (S-0034/D-12) — but the
     # demonstration step in `tests/support/identity.py` *is* a step body, so it
     # needs the real thing. It arrives transitively through sqlmesh today,
     # which is exactly the kind of accident that breaks the suite far from its
@@ -102,13 +102,13 @@ dev = [
     # The engine this repository is executed by: `uv run torve …` on a
     # developer's machine resolves to the engine the lock pins, not to
     # whatever `torve` is on PATH. Tracks main; the lock holds the commit.
-    "torve; python_version >= '3.13'",
+    "torve[postgres]; python_version >= '3.13'",
 ]
-# Tier-5 engine matrix (RFC 0009 §5.2): opt-in, needs Docker. Kept out of `dev`
+# Tier-5 engine matrix (S-0026/tier-contracts): opt-in, needs Docker. Kept out of `dev`
 # so the default sync stays light on machines without Docker.
 engines = [
     "psycopg[binary]>=3.3.4",
-    # Trino's client and container. RFC 0009 §5.2 sketches this cell as
+    # Trino's client and container. S-0026/tier-contracts sketches this cell as
     # "trino+iceberg+minio (compose)"; the memory connector is enough for what
     # bloomery actually asserts there — it emits SELECTs and models, never
     # storage-format DDL, so an object store and a table format would be three
@@ -155,7 +155,7 @@ mike = { git = "https://github.com/squidfunk/mike", rev = "2d4ad799442f4592db8ad
 # ....................... #
 
 [project.scripts]
-# RFC 0020 D5: a thin argument shell over the public API. It is packaged here
+# S-0037/D-5: a thin argument shell over the public API. It is packaged here
 # rather than shipped separately because it is the same surface — a caller who
 # has bloomery has the command line, and a version skew between the two would
 # be a version skew between the CLI and the library it wraps.
@@ -212,7 +212,7 @@ addopts = ["--tb=short", "--strict-markers", "--strict-config"]
 # stick). Generous enough for container startup on a cold runner (engine tier).
 timeout = 300
 timeout_method = "thread"
-# Six tiers, fastest first (RFC 0009 D1): `just test` runs unit/golden/property/
+# Six tiers, fastest first (S-0026/D-1): `just test` runs unit/golden/property/
 # execution; engine and e2e are opt-in (Docker), perf is reserved.
 markers = [
     "unit: Tier 1 — pure unit test, milliseconds, mirrors src/bloomery",
@@ -221,8 +221,8 @@ markers = [
     "execution: Tier 4 — in-process DuckDB execution of compiled SQL",
     "engine(name): Tier 5 — testcontainers engine matrix; requires Docker; opt-in",
     "e2e: Tier 6 — target-framework acceptance (sqlmesh/dbt/cube); opt-in",
-    "chaos: Mutation meta-test — deforms the lowering and requires the M12 quality battery to notice (RFC 0016 §6); opt-in, runs pytest in a subprocess",
-    "perf: Performance benchmark — bench lane (tests/bench), excluded from `just test`, scheduled CI (RFC 0009 §5.9, RFC 0014)",
+    "chaos: Mutation meta-test — deforms the lowering and requires the M12 quality battery to notice (S-0033/tests-rfc-0009-amendment); opt-in, runs pytest in a subprocess",
+    "perf: Performance benchmark — bench lane (tests/bench), excluded from `just test`, scheduled CI (S-0026/benchmark-lane-tests-bench, S-0031)",
 ]
 
 # ....................... #
@@ -249,7 +249,7 @@ precision = 1
 # `steps/` at 92.5 — and a floor eighteen points under the real number gates
 # nothing. The two packages that are not 98 get their own scoped
 # `coverage report --fail-under` in the same recipe: `guardrails/` at 100
-# (RFC 0009 D9) and `steps/` at 92.
+# (S-0026/D-9) and `steps/` at 92.
 fail_under = 98
 exclude_lines = [
     "pragma: no cover",
@@ -275,7 +275,7 @@ exclude_lines = [
 # metricflow / metricflow_semantics / metricflow_semantic_interfaces all ship
 # py.typed, so strict mode checks our usage against their real signatures —
 # no overrides needed (verified at the 0.211.* pin); the canary test
-# (RFC 0013 D11) guards the runtime surfaces the checker cannot.
+# (S-0030/D-11) guards the runtime surfaces the checker cannot.
 [tool.mypy]
 strict = true
 # Excluded for the same reason as ruff's `tests` entry: the gate runs
@@ -287,7 +287,7 @@ exclude = ["^tests/"]
 # ....................... #
 # Import contracts
 #
-# The compiler's layering, made mechanical (RFC 0001 D5, spec §10): emitters
+# The compiler's layering, made mechanical (S-0018/D-5, spec §10): emitters
 # consume IR, never specs; the spec layer knows nothing internal but errors.
 # Every layer is optional (parenthesised) until its module lands — the contract
 # is authored before the code so the code arrives through the gate.
@@ -297,36 +297,36 @@ root_packages = ["bloomery"]
 exclude_type_checking_imports = true
 
 [[tool.importlinter.contracts]]
-# M2/M3 reordering (RFC 0004): `transforms` sits above `typing` because a
+# M2/M3 reordering (S-0021): `transforms` sits above `typing` because a
 # TransformSpec's input domain and output-type functions need the LogicalType
 # classes at runtime; the typecheck stage consumes the registry by parameter
 # only (TYPE_CHECKING imports, excluded from the contract). `naming` sits just
-# below the emit side (RFC 0008: EmitContext carries the policy; it reads only
+# below the emit side (S-0025: EmitContext carries the policy; it reads only
 # `Layer` from the IR). `compile` is the thin orchestration top that may see
 # both specs and emitters.
-# M4 reordering (RFC 0006 §5.1): `guardrails` sits *below* `resolve` because
+# M4 reordering (S-0023/stage-shape): `guardrails` sits *below* `resolve` because
 # the stage is invoked from `build_project_ir`'s seam — resolve consumes the
 # guardrail stage, while the stage itself reads only ir/typing/spec/errors
 # (spec models at runtime for recipe/assert clauses; never resolve).
-# M5 (RFC 0010 D6): `marts` sits below `guardrails` because the stage batches
+# M5 (S-0027/D-6): `marts` sits below `guardrails` because the stage batches
 # the flattener's mart-level violations into its aggregate (guardrails →
 # marts), while `resolve` consumes the flattened MartIRs directly (resolve →
 # marts); the flattener itself reads only ir/typing/spec/errors.
-# M6 (RFC 0013 §5.3, RFC 0014 §layering): `runtime` is request-time planner
+# M6 (S-0030/the-adapter-and-the-render-only-client, S-0031 §layering): `runtime` is request-time planner
 # infrastructure (the render-only SqlClient), not a compile stage — it sits as
 # an independent *sibling* of `compile` in the top layer, so the compile path
 # can never import runtime and runtime can never import the compile
 # orchestration (siblings in one layer are mutually independent). It reads
 # the lower layers it hydrates from: emit.metricflow (the manifest build
 # path, M8), ir (fingerprint), naming, errors.
-# M7 (RFC 0013 §5.1): `planner` is the request-time orchestration top — it
+# M7 (S-0030/what-is-superseded-and-the-boundary-that-makes-it-reversible): `planner` is the request-time orchestration top — it
 # consumes runtime (hydrator + render-only client), emit.metricflow (the
 # shared measure-ownership rule), ir, marts (the date-bucket vocabulary),
 # naming, and errors. It sits *above* the compile|runtime layer: nothing in
 # the compile path can import the planner, and the runtime/compile sibling
 # isolation below is unchanged — `planner → runtime` is a downward edge,
 # while `compile ↛ runtime` and `compile ↛ planner` stay forbidden.
-# M13 (RFC 0017 §5.3): `steps` sits just above `typing` and below `transforms`.
+# M13 (S-0034/purity-the-registry-is-a-compile-input): `steps` sits just above `typing` and below `transforms`.
 # It needs `typing` (a manifest's `produces` carries logical types) and `spec`
 # (the frozen SpecModel base), and nothing else — deliberately, because
 # `steps.contract` is imported by *generated code* at target runtime, where
@@ -334,20 +334,20 @@ exclude_type_checking_imports = true
 # consumer is above it: resolve/guardrails lower manifests into `StepIR`, and
 # the emit side reads only that IR (the forbidden contract below is unchanged
 # — a step emitter never touches the manifest models).
-# M12 (RFC 0016 §5.9): `quality` is the run-time-rule *lowering* package —
+# M12 (S-0033/guardrails-vs-quality-the-boundary): `quality` is the run-time-rule *lowering* package —
 # spec blocks to IR nodes, IR nodes to dialect-neutral ASTs. It sits between
 # `guardrails` and `ir` because both of its consumers are above it: the
 # guardrail stage batches the data-quality refusals (guardrails → quality),
 # `resolve` lowers the spec blocks into the IR (resolve → quality), and the
 # emit side renders the predicates (emit → quality). `dialects` moves down to
 # just above `transforms` in the same change: the port reads only
-# `typing`/`errors`, and RFC 0016 §5.3 requires `pattern` rules to be
+# `typing`/`errors`, and S-0033/spec-schema requires `pattern` rules to be
 # validated against **every registered dialect at compile time** — a
 # compile-stage need for the registry that the old placement (a sibling of
 # `emit`, above `resolve`) made unreachable. Nothing else moves: `emit` and
 # `compile` still sit above `dialects`, and the "emitters never import the
 # spec layer" contract below is unaffected.
-# M17 (RFC 0020 D5): `cli` is the new top layer — above everything, imported by
+# M17 (S-0037/D-5): `cli` is the new top layer — above everything, imported by
 # nothing. That is the second of the section's two mechanisms: the purity
 # allowlist answers *who may touch the disk* (one file, `cli/io.py`), and this
 # answers *which way imports run*. As a layer rather than a `forbidden`
@@ -357,28 +357,28 @@ exclude_type_checking_imports = true
 # models it describes and the transform registry the whitelist enum comes from
 # (D2), and nothing else. A sibling rather than a top layer because `cli`
 # consumes it; the two siblings are mutually independent by construction.
-# M20 (RFC 0037 §8): `semantic` is the grain vocabulary — grain identity,
+# M20 (S-0017 (§8)): `semantic` is the grain vocabulary — grain identity,
 # functional dependencies and the rollup question. It sits directly above `ir`
 # and below `marts`, which is the *lowest* placement that admits both of its
-# eventual consumers: RFC 0040's planner, and the mart's own `GrainViolation`
-# if RFC 0037 D8 is ever answered the other way. Reading only `ir`, `typing`
+# eventual consumers: S-0054's planner, and the mart's own `GrainViolation`
+# if S-0017/D-8 is ever answered the other way. Reading only `ir`, `typing`
 # and `errors` is what §8 means by "must not depend on SQLMesh, dbt, Cube,
 # MetricFlow, or SQL syntax" — and the placement is the enforcement, so the
 # section is a gate rather than a promise in a docstring. The edge that
 # already exists is `marts -> semantic`: the flattener reads the as-of fact
 # from there instead of holding a second interpretation of it (D4).
-# M19 (RFC 0022): `evidence` sits directly above `resolve` and below `plan` —
+# M19 (S-0039): `evidence` sits directly above `resolve` and below `plan` —
 # as low as it can go, which is the placement that states what it is. It reads
 # the pipeline it runs (`resolve`), the IR it projects (`ir`), the spec types
 # in its signature, `steps` and `errors`. Below `plan` and `emit` because an
 # assessment must not be able to reach an emitter: `evaluate()` is the natural-
 # looking home for "and also compile it to see", and the layer refuses that
 # before a reviewer has to.
-# M20 (RFC 0070 §5): `imports` sits beside `typing`, as low as it can go, and
+# M20 (S-0075/why-metricflow-and-not-dbt): `imports` sits beside `typing`, as low as it can go, and
 # the placement is what states what it is — it reads the authored `spec` models
 # and `errors`, and nothing else in bloomery. An importer that could reach
 # `resolve` or `ir` would be one that could check its own output by compiling
-# it, which is the compile-from-an-artifact shape RFC 0044 D1 keeps out of
+# it, which is the compile-from-an-artifact shape S-0057/D-1 keeps out of
 # `check`; here it would arrive by the back door. A sibling of `typing` rather
 # than a layer of its own because the two are mutually independent: a logical
 # type knows nothing about artifacts, and an importer produces spec text rather
@@ -413,7 +413,7 @@ layers = [
 # emit side consumes IR, never the spec layer — "emitters consume IR, not
 # specs" is the whole point of having an IR. Direct imports only: the type
 # layer legitimately shares the spec grammar constant (typing → spec.common,
-# RFC 0002 §5.5), so every emit-side module transitively reaches `spec`
+# S-0019/spec-model-surface), so every emit-side module transitively reaches `spec`
 # through ir → typing; the property worth enforcing mechanically is that no
 # emitter reads spec *models*, i.e. no direct import.
 name = "Emitters never import the spec layer"
@@ -423,7 +423,7 @@ forbidden_modules = ["bloomery.spec"]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-# RFC 0037 §8. `dialects` and `spec` both sit *below* `semantic` in the layers
+# S-0017 (§8.) `dialects` and `spec` both sit *below* `semantic` in the layers
 # contract above, so that contract alone would permit the grain model to import
 # either directly. This forbids it: the engine sits below request planning and
 # above raw target lowering, and a functional dependency is not a fact about
@@ -442,7 +442,7 @@ forbidden_modules = ["bloomery.dialects", "bloomery.spec"]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-# RFC 0019 D4, contract 3. Each target assembles from the shared lowering and
+# S-0036/D-4, contract 3. Each target assembles from the shared lowering and
 # from nothing else on the emit side. A target reading another target is how
 # two of them come to agree by copy rather than by construction, which is
 # exactly the divergence the three-way equivalence tier exists to catch — and
@@ -457,12 +457,12 @@ modules = [
 ]
 
 [[tool.importlinter.contracts]]
-# RFC 0019 D4, contract 1. The pipeline-wide `layers` contract above sees
+# S-0036/D-4, contract 1. The pipeline-wide `layers` contract above sees
 # `bloomery.emit` as one layer, so it cannot constrain direction *inside* it —
-# and the direction that matters most is this one. RFC 0008 splits the ports on
+# and the direction that matters most is this one. S-0025 splits the ports on
 # *assembly*: targets differ in how they write a model file and share how a
 # spec becomes SQL. Lowering reaching into a target inverts that, and is how a
-# change made for one target starts quietly constraining another (RFC 0017
+# change made for one target starts quietly constraining another (S-0034
 # D25/D32 is the defect shape).
 name = "Lowering is target-independent"
 type = "forbidden"
@@ -552,13 +552,13 @@ select = [
     "PIE", # flake8-pie
     "T20", # flake8-print
     "SIM", # flake8-simplify
-    # Purity (RFC 0003 §5.5), as configuration rather than as a program. The
+    # Purity (S-0020/determinism-rules-package-wide), as configuration rather than as a program. The
     # banned-api table below is the whole vocabulary: the modules that make I/O
     # or an ambient read possible, and the clock and id calls that do it without
     # one. TID251 resolves a qualified name through the import that bound it, so
     # `from datetime import datetime as dt` followed by `dt.now()` is caught by
     # the same entry as `datetime.datetime.now()` — which is what the hand-rolled
-    # AST checker this replaces existed to do (RFC 0019 D6).
+    # AST checker this replaces existed to do (S-0036/D-6).
     "TID251",
 ]
 ignore = [
@@ -573,7 +573,7 @@ ignore = [
 ]
 
 # Compilation is a pure function — enforced structurally, in the gate that
-# already runs (RFC 0003 §5.5, RFC 0001 D6). Inputs are strings, outputs are
+# already runs (S-0020/determinism-rules-package-wide, S-0018/D-6). Inputs are strings, outputs are
 # artifacts, and the same specs produce byte-identical bytes across processes
 # and hash seeds.
 #
@@ -584,7 +584,7 @@ ignore = [
 #
 # An exemption is a `# noqa: TID251` on the one line that needs it, never a
 # per-file ignore: `cli/io.py` is the command line's single door to a filesystem
-# (RFC 0020 D5, D12) and carries one such marker on its `pathlib` import, but a
+# (S-0037/D-5, S-0037/D-12) and carries one such marker on its `pathlib` import, but a
 # clock call in that same file is still refused. A file-wide carve-out would
 # exempt both, and reaching a disk justifies nothing about reading a clock.
 # `RUF100` fails an exemption that has stopped being needed.
@@ -592,43 +592,43 @@ ignore = [
 # Top-level modules that make I/O or an ambient read possible. Matched on the
 # import, so `bloomery.dialects.duckdb` — a dialect module sharing a name with
 # the engine driver — is untouched.
-"boto3".msg = "compilation does no I/O (RFC 0003 §5.5)"
-"duckdb".msg = "compilation does no I/O (RFC 0003 §5.5)"
-"httpx".msg = "compilation does no I/O (RFC 0003 §5.5)"
-"os".msg = "compilation does no I/O and reads no ambient state (RFC 0003 §5.5)"
-"pathlib".msg = "compilation does no I/O (RFC 0003 §5.5)"
-"requests".msg = "compilation does no I/O (RFC 0003 §5.5)"
-"socket".msg = "compilation does no I/O (RFC 0003 §5.5)"
-"sqlalchemy".msg = "compilation does no I/O (RFC 0003 §5.5)"
-"tempfile".msg = "compilation does no I/O (RFC 0003 §5.5)"
+"boto3".msg = "compilation does no I/O (S-0020/determinism-rules-package-wide)"
+"duckdb".msg = "compilation does no I/O (S-0020/determinism-rules-package-wide)"
+"httpx".msg = "compilation does no I/O (S-0020/determinism-rules-package-wide)"
+"os".msg = "compilation does no I/O and reads no ambient state (S-0020/determinism-rules-package-wide)"
+"pathlib".msg = "compilation does no I/O (S-0020/determinism-rules-package-wide)"
+"requests".msg = "compilation does no I/O (S-0020/determinism-rules-package-wide)"
+"socket".msg = "compilation does no I/O (S-0020/determinism-rules-package-wide)"
+"sqlalchemy".msg = "compilation does no I/O (S-0020/determinism-rules-package-wide)"
+"tempfile".msg = "compilation does no I/O (S-0020/determinism-rules-package-wide)"
 # Banned whole rather than per-call: nothing under `src/bloomery` has a use for
 # either module, so the module ban covers every attribute at once — including
 # `from random import choice`, where the call names no module and an
 # attribute rule would see nothing.
-"random".msg = "no ambient randomness under src/bloomery (RFC 0003 §5.5)"
-"secrets".msg = "no ambient randomness under src/bloomery (RFC 0003 §5.5)"
-"time".msg = "no ambient clock under src/bloomery (RFC 0003 §5.5)"
+"random".msg = "no ambient randomness under src/bloomery (S-0020/determinism-rules-package-wide)"
+"secrets".msg = "no ambient randomness under src/bloomery (S-0020/determinism-rules-package-wide)"
+"time".msg = "no ambient clock under src/bloomery (S-0020/determinism-rules-package-wide)"
 # `datetime` and `uuid` are imported for their *types* (`datetime`, `date`,
 # `UUID` all appear in the planner's literal grammar), so the ban is per member.
-"datetime.date.today".msg = "no ambient clock under src/bloomery (RFC 0003 §5.5)"
-"datetime.datetime.now".msg = "no ambient clock under src/bloomery (RFC 0003 §5.5)"
-"datetime.datetime.today".msg = "no ambient clock under src/bloomery (RFC 0003 §5.5)"
-"datetime.datetime.utcnow".msg = "no ambient clock under src/bloomery (RFC 0003 §5.5)"
-"uuid.uuid1".msg = "no ambient ids under src/bloomery (RFC 0003 §5.5)"
-"uuid.uuid4".msg = "no ambient ids under src/bloomery (RFC 0003 §5.5)"
-# Logging is telemetry, never configuration (RFC 0033 D1). The library attaches
+"datetime.date.today".msg = "no ambient clock under src/bloomery (S-0020/determinism-rules-package-wide)"
+"datetime.datetime.now".msg = "no ambient clock under src/bloomery (S-0020/determinism-rules-package-wide)"
+"datetime.datetime.today".msg = "no ambient clock under src/bloomery (S-0020/determinism-rules-package-wide)"
+"datetime.datetime.utcnow".msg = "no ambient clock under src/bloomery (S-0020/determinism-rules-package-wide)"
+"uuid.uuid1".msg = "no ambient ids under src/bloomery (S-0020/determinism-rules-package-wide)"
+"uuid.uuid4".msg = "no ambient ids under src/bloomery (S-0020/determinism-rules-package-wide)"
+# Logging is telemetry, never configuration (S-0004/D-1). The library attaches
 # one `NullHandler` in `bloomery/__init__.py` and nothing else: `basicConfig`
 # installs a root handler and a format on the *application's* behalf, and
 # `logging.config` does the same from a file — both decided for every embedder
 # in the process by whichever library imported first. Per member rather than a
 # module ban, because `logging` itself is exactly what this RFC asks modules to
 # import.
-"logging.basicConfig".msg = "logging is telemetry, not configuration — the caller owns handlers and format (RFC 0033 D1)"
-"logging.config".msg = "logging is telemetry, not configuration — the caller owns handlers and format (RFC 0033 D1)"
-"logging.disable".msg = "logging is telemetry, not configuration — the caller owns handlers and format (RFC 0033 D1)"
+"logging.basicConfig".msg = "logging is telemetry, not configuration — the caller owns handlers and format (S-0004/D-1)"
+"logging.config".msg = "logging is telemetry, not configuration — the caller owns handlers and format (S-0004/D-1)"
+"logging.disable".msg = "logging is telemetry, not configuration — the caller owns handlers and format (S-0004/D-1)"
 
 [[tool.importlinter.contracts]]
-# RFC 0019 D4, contract 2 — as layers rather than independence, which is what
+# S-0036/D-4, contract 2 — as layers rather than independence, which is what
 # the code turned out to support. The stages form a DAG: `quality_mart` reads
 # the extract helpers and the reconcile grammar, `reconcile` reads a literal
 # speller and the `@this_model` alias. Forbidding that outright would push four

@@ -1,4 +1,4 @@
-"""Step emission (RFC 0017 §5.8, D8/D16).
+"""Step emission (S-0034/emission-and-the-dag, S-0034/D-8, S-0034/D-16).
 
 The wrapper is *generated Python*, which makes one assertion non-negotiable
 and easy to forget: it has to parse. A golden pins the bytes, but a golden
@@ -108,7 +108,7 @@ def test_the_contract_call_is_unconditional() -> None:
 
 
 def test_the_wrapper_imports_the_contract_by_its_declared_path() -> None:
-    """RFC 0018 D3: the shallow, declared path — not the module path.
+    """S-0035/D-3: the shallow, declared path — not the module path.
 
     `assert_step_contract` is imported *by generated artifacts living in
     consumer repositories*, which made `bloomery.steps.contract` de-facto
@@ -122,7 +122,7 @@ def test_the_wrapper_imports_the_contract_by_its_declared_path() -> None:
     The deep path keeps working — this adds a supported route rather than
     removing an unsupported one — and costs nothing: both spellings execute
     `bloomery/__init__.py`, measured at ~1015 modules either way, so the
-    laziness RFC 0017 D22 records is unaffected.
+    laziness S-0034/D-22 records is unaffected.
     """
     for source in wrappers().values():
         imports = [
@@ -380,7 +380,7 @@ def test_each_parameter_type_renders_its_own_literal(
 
 def test_a_parameter_value_cannot_carry_sql_into_the_body() -> None:
     """The substitution builds an AST literal, so a value is data wherever it
-    lands. String interpolation here would be RFC 0013's injection boundary
+    lands. String interpolation here would be S-0030's injection boundary
     reopened in the one place a spec value reaches emitted SQL."""
     sql = sql_step(
         "SELECT k FROM silver.src WHERE c = :p",
@@ -439,7 +439,7 @@ def test_a_variant_parameter_in_a_body_is_refused_rather_than_guessed() -> None:
     """`variant` is semi-structured, and its literal spelling differs per
     engine — DuckDB, Postgres and Trino do not agree on how a JSON value is
     written. Rendering it as a string literal is a guess that compiles and
-    compares wrongly, which is what RFC 0006 exists to refuse. Named as the
+    compares wrongly, which is what S-0023 exists to refuse. Named as the
     escape hatch, not built: it needs a per-dialect literal hook."""
     from bloomery.errors import StepError
 
@@ -537,7 +537,7 @@ def test_a_routed_rule_on_a_python_model_output_is_refused(
 ) -> None:
     """`quality_step` wires a Tier 3 step, which is the tier neither
     disposition can reach — and the two are refused for *different* reasons
-    (RFC 0051 §5.3), so each is matched on its own message rather than on the
+    (S-0059/onfail-flag-on-a-tier-2-output), so each is matched on its own message rather than on the
     `on_fail: fail` both happen to name in their fix.
 
     `flag` fails on this tier only: a Tier 2 body is a SELECT and carries it.
@@ -578,7 +578,7 @@ def test_the_step_output_entity_carries_the_rule() -> None:
 
 
 # ....................... #
-# A flagged Tier 2 output (RFC 0051 §5.3)
+# A flagged Tier 2 output (S-0059/onfail-flag-on-a-tier-2-output)
 
 
 FLAG_WIRING = (

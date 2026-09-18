@@ -113,7 +113,7 @@ Where the design was followed **and the alternative is worth naming**, say so in
 prose beside the entries — the checker reads only the fenced blocks and ignores
 the rest:
 
-> **Deliberately not applied:** RFC 0014 §5.3 sketches a write-through cache in
+> **Deliberately not applied:** S-0031/version-mismatch-is-a-miss-not-an-error sketches a write-through cache in
 > front of the session store. Not built: the store is already behind the
 > repository seam, so the sketch would add a second cache with no measured
 > pressure. The existing code stands.

@@ -1,0 +1,245 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      **Aggregate, then join — never join, then aggregate and hope.** The whole document
+      exists for this one ordering, and the alternative is the silent double count
+      it names in §1. A later optimization pass may not reorder across it without
+      a preservation proof.
+    paths:
+      - src/bloomery/semantic/plan.py
+      - tests/engines/test_branch_join_engines.py
+      - tests/fixtures/semantic_corpus/006-two-grains-one-request/problem.md
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      **Branch uniqueness at the result grain is structural, from the preceding aggregate
+      node, never inferred from data.** An inferred uniqueness is a data-dependent
+      fact standing in for a proof, which S-0005/D-1 refuses by name; here it would
+      silently re-admit the multiplicity the branch split removed.
+    paths:
+      - src/bloomery/planner/semantic_plan.py
+      - src/bloomery/semantic/plan.py
+      - src/bloomery/semantic/proof.py
+      - tests/unit/test_semantic/test_plan.py
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      **Derived metrics spanning branches are evaluated after operand rollup.** `SUM(a)/SUM(b)`
+      and a row-level `a/b` aggregated afterwards are different numbers, and this
+      is the concrete reason S-0053/D-2 keeps a ratio as its operands. Reversing either
+      strands the other.
+    paths:
+      - src/bloomery/planner/compose.py
+      - src/bloomery/planner/coverage.py
+      - src/bloomery/planner/explain.py
+      - src/bloomery/planner/names.py
+      - src/bloomery/planner/semantic_plan.py
+      - tests/unit/test_planner/test_compose.py
+      - tests/unit/test_planner/test_metricflow_planner.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      **Any unknown precondition refuses the whole request rather than the branch.**
+      Partial answers across a multi-grain request are how a caller receives a plausible
+      subset and reads it as the whole. Not `LOCKED` because a partial-result surface
+      with explicit missing-branch semantics is a coherent thing to design later —
+      it is simply not this.
+    paths:
+      - src/bloomery/planner/coverage.py
+      - tests/unit/test_planner/test_coverage.py
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **Filters that cannot be placed safely refuse; a filter is never duplicated
+      across branches on a name match.** Column name equality is not semantic equality,
+      and the failure is a silently narrowed branch. The refusal stands until cross-branch
+      filter semantics are designed.
+    paths: [src/bloomery/planner/coverage.py]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      **The first implementation is deliberately unoptimized — redundant scans are
+      acceptable, a merged branch is not.** Optimization is a later semantics-preserving
+      pass, because the merge that looks obviously safe is exactly the one that reintroduces
+      the fanout.
+  - id: D-7
+    grade: OPEN
+    text: >-
+      *(superseded by D11.)* **The tie-breaking rule for a canonical minimal partition.**
+      §3 requires the partition be deterministic and minimal under *documented* tie-breaking,
+      and does not say what the tie-break is. Whoever implements it decides and documents
+      it, since several defensible orders exist and only a written one is reproducible.
+  - id: D-8
+    grade: OPEN
+    text: >-
+      **Whether `DistinctCount`, `Snapshot` and `SemiAdditive` enter branch planning
+      at all in P1.** §8 gates them on their proof rules being independently sound.
+      Decide per class, with the corpus case each one converts, rather than as a group.
+    paths:
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/planner/semantic_plan.py
+      - src/bloomery/semantic/rollup.py
+      - tests/fixtures/semantic_corpus/007-distinct-users-fanout/problem.md
+      - tests/fixtures/semantic_corpus/012-rollup-recounts-identities/problem.md
+      - tests/unit/test_planner/test_coverage.py
+  - id: D-9
+    grade: LOCKED
+    text: >-
+      *(its SQL spelling superseded by D18; the route it decides stands.)* **The branch
+      join is bloomery's own SQL, over N single-mart requests MetricFlow renders unchanged.**
+      Each branch is exactly a request the parity corpus accepts today — carrying
+      R008 and the single-mart proof it already has — and bloomery wraps the branch
+      results in a join of its own — written here as `FULL OUTER JOIN … ON a.k IS
+      NOT DISTINCT FROM b.k` with a coalesced key projection, which **D18 replaces**:
+      PostgreSQL will not plan that spelling, and the composition is a key domain
+      and left joins. What this row decides is the *route* — bloomery composes, MetricFlow
+      renders the branches — and that is unchanged. The alternative was measured,
+      not imagined: handing MetricFlow one multi-metric request makes its `CombineAggregatedOutputsNode`
+      render the same shape, correctly. It is refused because unifying two marts'
+      differently-prefixed flattenings of one dimension (`order__country` against
+      `order_item__order_country`) costs a row-level mart-to-mart join that MetricFlow
+      validates rather than bloomery, and because its filter pushdown reaches into
+      every branch through that join — the duplication D5 refuses on name-match grounds.
+      Both hand the engine the authority for cross-branch identity, which S-0054/D-6
+      exists to keep in bloomery. `LOCKED` because the route decides the node vocabulary,
+      the public surface and every test written against them.
+    paths:
+      - src/bloomery/planner/compose.py
+      - src/bloomery/planner/coverage.py
+      - src/bloomery/planner/metricflow_planner.py
+      - src/bloomery/planner/semantic_plan.py
+      - src/bloomery/semantic/plan.py
+      - tests/unit/test_planner/test_compose.py
+  - id: D-10
+    grade: LOCKED
+    text: >-
+      **What D9 supersedes, and how far.** Retired documents carry no grade and are
+      read as `LOCKED`, so an executor meeting one halts; these are superseded here,
+      by the author, before the branch. S-0027/D-1 "no query-time joins on the common
+      path" and S-0028/D-4 "never join at plan time" hold for **unaggregated rows**,
+      which is the fan-out they were written against, and no longer for a join of
+      branch outputs already unique at the result grain (D2). S-0030/D-6's mart-coverage
+      precheck reads "all measures of **one branch** on one mart" instead of all measures
+      of a request. S-0030/D-1's render-only embedding re-admits exactly one hand-written
+      generator, **above** MetricFlow's output rather than instead of it — S-0054/D-10's
+      "small and provable", and the smallest thing that can be. **S-0030/D-3 is untouched**:
+      no semantic model for a non-mart entity, and D9's route needs none.
+    paths: [src/bloomery/semantic/plan.py]
+  - id: D-11
+    grade: LOCKED
+    text: >-
+      **Measures partition by owning mart, from `measure_owners` — closing D7.** The
+      emitter, Cube and the coverage precheck already agree on which mart serves a
+      measure, cheapest `cost_hint` then lexicographic; a planner that chose its own
+      partition would be a second owner of that answer, and a partition disagreeing
+      with the emitter's is the divergence class this codebase keeps paying for. The
+      tie-break D7 asked for is therefore inherited rather than invented, and one
+      measure belongs to exactly one branch by construction.
+    paths:
+      - src/bloomery/planner/coverage.py
+      - src/bloomery/planner/metricflow_planner.py
+      - tests/fixtures/semantic_corpus/006-two-grains-one-request/bloomery/branches/marts.yaml
+  - id: D-12
+    grade: LOCKED
+    text: >-
+      **A dimension is the same dimension across branches when its provenance triple
+      matches — `(source_entity, source_column, ref)` — never when its name does.**
+      This is §2's "proven common join key" made checkable, and `_same_source` in
+      `planner/coverage.py` already compares that triple for P2's refusals. A branch
+      that cannot produce a requested dimension by identity gets P2's `not_flattened`
+      refusal and its flatten remediation, never a join to go and fetch it. Name equality
+      is not identity, which is D5's reason applied to the key instead of to the filter.
+    paths:
+      - src/bloomery/planner/compose.py
+      - src/bloomery/planner/coverage.py
+      - src/bloomery/planner/explain.py
+      - tests/fixtures/cross_mart_branches/entity_model.yaml
+      - tests/fixtures/cross_mart_branches/marts.yaml
+      - tests/unit/test_planner/test_metricflow_planner.py
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      *(superseded by D18.)* **Null-safe key equality, one key row per group, no re-aggregation
+      pass.** Groups missing from a branch surface as NULL measures, not as dropped
+      rows, and a NULL group key joins to the other branch's NULL group key rather
+      than failing `NULL = NULL` and splitting in two. MetricFlow's own combine node
+      merges that split afterwards with `GROUP BY COALESCE(…)` and `MAX(…)`; composing
+      the join ourselves means never making the split. `ASSUMED` rather than `LOCKED`:
+      a caller who wants missing groups dropped is asking for an inner join, which
+      is a later option on the same node, not a different design.
+    paths:
+      - src/bloomery/dialects/base.py
+      - src/bloomery/planner/compose.py
+      - tests/unit/test_planner/test_compose.py
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      **R010 is minted for the branch join: branch outputs are unique at the result
+      grain, structurally, from the preceding aggregate.** D2 is the claim; a rule
+      id is what an accepted plan cites, and S-0005/D-8 keeps the registry append-only.
+      R011 follows for D12's cross-mart dimension identity if the join node needs
+      its own citation separate from the branches'. S-0056/D-5 then owes each of them
+      a corpus case.
+    paths: [src/bloomery/semantic/plan.py, src/bloomery/semantic/proof.py]
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      **The public plan surface widens deliberately: `PlanNode` opens from four kinds
+      to five with `JoinAggregates`, and `QueryPlan` gains `marts`.** `SemanticPlan`
+      was published beside `QueryPlan` at S-0054/phasing (P-1), so this is an API
+      decision rather than a detail. `QueryPlan.mart` and `Explanation.mart` are single
+      names and a composed plan has no single answer for them; both are retained,
+      holding the lexicographically first of `marts`, and `render()` names every branch.
+      Retained rather than removed because they are pinned by goldens a capability
+      phase should not be rewriting; a later document may drop them once nothing reads
+      them.
+    paths:
+      - src/bloomery/planner/explain.py
+      - src/bloomery/planner/result.py
+      - src/bloomery/planner/semantic_plan.py
+  - id: D-16
+    grade: ASSUMED
+    text: >-
+      **The parity generator asks multi-metric cross-mart requests, or the suite is
+      blind to the phase it guards.** S-0054 (log entry D128) kept it single-metric,
+      which is why P2's own conversions were invisible until an audit widened it.
+      The baseline is regenerated on the merge base and the `UnreachableAtGrain →
+      accepted` conversions are the licensed change (S-0054/D-11 makes an unlicensed
+      class change a parity event).
+  - id: D-17
+    grade: ASSUMED
+    text: >-
+      **`IS NOT DISTINCT FROM` is a declared `DialectFeature`, proven in the engine
+      tier, not asserted from documentation.** It was executed on DuckDB and read
+      about for Postgres and Trino; a planner that composes a join for three dialects
+      on two readings is asserting a capability it has not seen. The feature enum
+      is the existing place a dialect says what it can do, and an engine-tier test
+      is where the claim stops being a citation. **Answered:** `tests/engines/test_branch_join_engines.py`
+      executes the composed statement on all three, and the first thing it found was
+      that the D13 spelling does not run on PostgreSQL at all — see D18.
+    paths:
+      - src/bloomery/planner/compose.py
+      - tests/engines/test_branch_join_engines.py
+  - id: D-18
+    grade: LOCKED
+    text: >-
+      **The composition is a key domain and left joins, not a full outer join — D13's
+      semantics, in the only spelling all three dialects run.** PostgreSQL refuses
+      `FULL JOIN … ON a IS NOT DISTINCT FROM b` outright: *"FULL JOIN is only supported
+      with merge-joinable or hash-joinable join conditions"*. The predicate is supported
+      there, as every reference says, and not in that position. **This project already
+      knew it**: `emit/lower/reconcile.py` emits the same long spelling for the same
+      reason, and `spec-schemas.md` says why in the same words — so what the engine
+      tier bought here was a rediscovery, and the cheaper check was a grep for the
+      construct (logs/T-0026.md, D172). So the branches are CTEs, their keys are `UNION`ed
+      into the domain of groups the answer has, and each branch is left-joined back
+      onto that domain on `IS NOT DISTINCT FROM`. The null semantics are unchanged
+      and now carried by two constructs that agree: `UNION` deduplicates NULL against
+      NULL, and the left join matches a branch's NULL group to the domain's. Every
+      group present in any branch appears exactly once, which is what the full outer
+      join was for. `LOCKED` rather than `ASSUMED` because a later change back to
+      the obvious shape would render on two dialects and fail to plan on the third
+      (see logs/T-0026.md, D171).
+    paths: [tests/engines/test_branch_join_engines.py]

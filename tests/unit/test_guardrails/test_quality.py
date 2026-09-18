@@ -1,6 +1,6 @@
-"""Data-quality guardrails (RFC 0016 §5.9): every leaf triggers on the model
+"""Data-quality guardrails (S-0033/guardrails-vs-quality-the-boundary): every leaf triggers on the model
 it is about, stays silent on the model it is not, and batches into the **one**
-aggregate the stage raises (RFC 0006 D2).
+aggregate the stage raises (S-0023/D-2).
 
 Each check gets a trigger *and* a non-trigger: a guardrail that never fires is
 a guardrail nobody notices is broken, and one that always fires is worse.
@@ -348,7 +348,7 @@ def test_a_pattern_a_target_dialect_cannot_express_is_refused(
         sqlglot_dialect: str = "duckdb"
         features = frozenset(DialectFeature) - {DialectFeature.REGEXP_EXTRACT}
 
-    # The checked set is the shipped ports, not the registry (RFC 0016 D56) —
+    # The checked set is the shipped ports, not the registry (S-0033/D-56) —
     # registering a dialect no longer changes a verdict, so the target set is
     # what a test has to move to reach this refusal.
     register_dialect(NoRegexDialect())
@@ -683,7 +683,7 @@ def test_a_referential_rule_onto_a_sibling_entity_is_accepted() -> None:
 
 
 # ....................... #
-# One aggregate (RFC 0006 D2)
+# One aggregate (S-0023/D-2)
 
 
 def test_quality_leaves_batch_with_the_shipped_violations_in_one_aggregate() -> None:
@@ -692,7 +692,7 @@ def test_quality_leaves_batch_with_the_shipped_violations_in_one_aggregate() -> 
     in one round-trip, not one error at a time."""
     documents = _project(
         entity_extra=DEDUPE_NO_TIE_BREAK,
-        # A numeric bound on a string field can never run — RFC 0006 D8.
+        # A numeric bound on a string field can never run — S-0023/D-8.
         fields="      amount: {type: string, assert: {min: 0}}\n",
         unmapped="[]",
     )
@@ -746,7 +746,7 @@ def test_an_authored_rule_name_of_its_own_is_accepted() -> None:
 
 
 # ....................... #
-# Two referential rules through one relationship (RFC 0016 §5.4)
+# Two referential rules through one relationship (S-0033/fixed-pipeline-order-and-lowering)
 
 
 DOUBLE_VIA_PROJECT = VIA_PROJECT.replace(
@@ -842,7 +842,7 @@ def test_an_authored_coercible_on_a_nulling_chain_is_refused() -> None:
 
 
 # ....................... #
-# data_quality is the synthesized mart's name (RFC 0016 §5.8, D12)
+# data_quality is the synthesized mart's name (S-0033/the-quality-mart, S-0033/D-12)
 
 
 QUALITY_MART_PROJECT = {
@@ -910,7 +910,7 @@ def test_only_the_reserved_name_earns_this_refusal() -> None:
 
 
 # ....................... #
-# A recipe's direct: path is a path the mapping reads (RFC 0006 D7 × D10)
+# A recipe's direct: path is a path the mapping reads (S-0023/D-7 × D10)
 
 
 def _direct(redact: str = "") -> tuple[dict[str, str], object]:
@@ -930,7 +930,7 @@ def _direct(redact: str = "") -> tuple[dict[str, str], object]:
 
 def test_redacting_a_recipes_direct_path_is_refused() -> None:
     """``direct:`` lowers to a real ``<field>__direct`` column that replay
-    rebuilds from ``raw`` (RFC 0006 D7 × RFC 0016 D10), so it is a path the
+    rebuilds from ``raw`` (S-0023/D-7 × S-0033/D-10), so it is a path the
     mapping *reads* — and ``_read_paths`` did not say so, which let redaction
     remove the very key replay depends on."""
     sources, catalog = _direct(', redact: ["$.price"]')
@@ -952,7 +952,7 @@ def test_a_direct_path_reaches_the_reject_payload() -> None:
 
 
 # ....................... #
-# The dedupe order outranks the nulling-chain skip (RFC 0016 D80)
+# The dedupe order outranks the nulling-chain skip (S-0033/D-80)
 
 
 def _nulling_dedupe(rule: str = "") -> dict[str, str]:
@@ -1022,7 +1022,7 @@ def test_a_key_columns_nulling_chain_is_read_too() -> None:
 
 
 # ....................... #
-# in_enum needs an enum_map to read (RFC 0016 D49)
+# in_enum needs an enum_map to read (S-0033/D-49)
 
 
 def test_in_enum_without_any_enum_map_is_refused() -> None:
@@ -1041,7 +1041,7 @@ def test_to_string_after_enum_map_is_accepted() -> None:
 
 
 # ....................... #
-# Declared source freshness (RFC 0057 §5.2, D2a, D2c)
+# Declared source freshness (S-0064/a-one-relation-several-mappings, S-0064/D-8, S-0064/D-10)
 
 
 FRESHNESS = "freshness: {warn_after: 6h, error_after: 24h}\n"
@@ -1059,10 +1059,10 @@ def _freshness_project(
 #: A second consumer of the same relation, into its **own** entity.
 #:
 #: Two mappings of one relation into one entity are already refused, earlier,
-#: by RFC 0024 D12 — a union merge orders its branches by source relation, and
+#: by S-0041/D-12 — a union merge orders its branches by source relation, and
 #: two branches on one relation have no order. So a disagreement about one
 #: relation is only reachable *across* entities, which is exactly the shape
-#: RFC 0057 §5.2a argues about ("a plain entity reading a relation whose other
+#: S-0064/the-spec-surface (§5.2a) argues about ("a plain entity reading a relation whose other
 #: consumer quarantines") and the reason the check is project-level: neither
 #: entity's own pass can see the other's.
 def _second_consumer(source: str, block: str, *, entity_extra: str = "") -> dict[str, str]:
@@ -1103,7 +1103,7 @@ def _two_consumers(source: str, block: str, *, entity_extra: str = "") -> dict[s
     """The declaring project, plus a second consumer of ``source``.
 
     The second entity replaces the first document's ``entity_model``, because
-    a project holds exactly one entity-model document (RFC 0002 §5.5).
+    a project holds exactly one entity-model document (S-0019/spec-model-surface).
     """
     documents = _freshness_project()
     del documents["entity_model"]
@@ -1150,7 +1150,7 @@ def test_a_source_with_no_threshold_needs_no_contract() -> None:
 def test_two_mappings_disagreeing_about_one_relation_are_refused() -> None:
     """D2a. ``_sources_artifact`` emits one table entry per relation, so one of
     the two thresholds would be silently dropped — the plausible-but-wrong
-    shape this project refuses, and the rule RFC 0024 D33 already applies to
+    shape this project refuses, and the rule S-0041/D-33 already applies to
     quality rules over a merged entity."""
     documents = _two_consumers(
         "oms__orders",

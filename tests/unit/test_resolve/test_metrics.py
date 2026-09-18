@@ -76,7 +76,7 @@ def test_missing_additivity_failures_are_batched() -> None:
 
 
 # ....................... #
-# Derived inputs are dependency edges (RFC 0034 D3)
+# Derived inputs are dependency edges (S-0050/D-3)
 
 
 DERIVED_METRICS = """\
@@ -122,7 +122,7 @@ def test_an_explicit_requires_metrics_is_kept_alongside_the_inputs() -> None:
 
 
 def test_a_template_can_carry_the_derived_block() -> None:
-    """The RFC 0034 forms merge like every other template value, and the
+    """The S-0050 forms merge like every other template value, and the
     inputs of a *template's* derived block become edges the same way."""
     catalog = load_catalog(
         "catalog_version: 1\n"

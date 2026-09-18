@@ -1,6 +1,6 @@
 # `direct:` records that the source also carries the field directly — the
 # path-conflict state. The recipe stays the recorded decision; the direct
-# path becomes the `__direct` shadow plus a reconcile audit (RFC 0006 D7).
+# path becomes the `__direct` shadow plus a reconcile audit (S-0023/D-7).
 mapping_version: 1
 source: shop__items
 target: item

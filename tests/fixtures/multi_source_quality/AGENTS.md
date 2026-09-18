@@ -1,0 +1,31 @@
+<!-- torve:managed tests/fixtures/multi_source_quality — rendered from the corpus; do not edit by hand -->
+
+## Decisions governing `tests/fixtures/multi_source_quality/`
+
+### S-0033/D-10 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+
+One `<entity>__reject` table per entity with the §5.6 schema (stable sha256 `reject_id` for idempotent replay). Retention is **required** whenever any quarantine disposition exists — missing retention is a compile error; retention deletes **all** reject rows on expiry (unresolved measured from `last_seen`, resolved from `resolved_at`) and is the only deleter — replay never deletes. `redact:` paths apply at write time and must not intersect any path the entity's mappings read (`from` paths, recipe aliases included) — an intersecting redact is the compile error `RedactionConflict`. Bloomery emits the reject/replay artifacts and never executes them.
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/errors.py` `src/bloomery/ir/nodes.py` `src/bloomery/resolve/build.py` `tests/engines/test_merged_cleaning_engines.py` `tests/fixtures/multi_source_quality/entity_model.yaml` `tests/unit/test_guardrails/test_quality.py`
+
+### S-0033/D-80 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+
+*(2026-08-08, PR #7 review, self-audit of the fixes)* **The dedupe order outranks the nulling-chain skip, and a key column has a chain too.** D73's skip, applied uniformly, deleted the one `coercible` rule §5.4/D6 *forces*: on a column the dedupe order reads, an uncastable sort value leaves the order undefined, so the rule is FAIL-disposition and load-bearing rather than a convenience. The skip removed it and its blocking audit with no diagnostic, and `_check_dedupe_disposition` (which demands `on_fail: fail` there) plus D73's own refusal of an authored `coercible` on such a chain left the author refused coming and going — a false positive traded for a silently nondeterministic entity, which is the worse of the two. Dedupe-order columns are now exempt from both halves. Separately, `nullifying_steps` read `mapped_fields`' `None` for a key column as "no chain", but `KeyField` carries a `transform`: the key kept the exact false positive D73 removes, in its worst form, since a key has no `quality:` surface to declare the rule away and no guardrail could refuse it either. The key chain is now looked up. Also fixed here: `to_string` after `enum_map` is the identity on a string and was over-refused by D72; and an `in_enum` on a chain with **no** `enum_map` lowered to `NOT col IN ()` — invalid SQL everywhere and a rule rejecting every row — now refused in the same check, which is its natural home.
+
+- Paths: `tests/fixtures/multi_source_quality/entity_model.yaml` `tests/unit/test_guardrails/test_quality.py`
+
+### S-0041/D-32 — `LOCKED` (Deterministic union merge)
+
+**A rule's per-mapping dependency is projected as a branch-local column; the rule stays entity-grained (P2a).** The mechanism is not invented here — `coercible` already reads projected `_src_<rule>_<n>` aliases (`quality/predicates.py:source_alias`) rather than inline JSONPaths, because the raw paths live one level down in the extract SELECT, and P1 turned that projection site into `_branch_select`. So a fact only one branch knows already has a way to reach a rule the merged relation evaluates once. **D6 is not violated, and the reading that says it is — that projecting a verdict per branch just *is* "a rule evaluated per source" — mistakes what D6 argues.** D6 argues from the *row population* — "a rule evaluated per source would judge rows the merged relation does not contain" — and the union is `ALL`, so a branch-projected **scalar** verdict judges exactly the rows the union contains. Dedupe runs after the union and may drop a row; that row's flag is then unused, which is not a wrong answer. **The boundary is `WINDOWED_KINDS`** (`quality/predicates.py`, currently `{unique}`): a windowed verdict depends on the population and so may not be computed per branch — and it does not need to be, since its inputs are the produced column values, which D26's split already makes mapping-invariant. Consequence: `coercible` sheds its per-source alias set for one branch-computed boolean ("every source path *this branch* read was non-null"), which collapses the arity problem at the level where arity is known; `in_enum` takes the same shape rather than a second mechanism, its admissible set being the branch's own `enum_map` chain. **The tempting wrong fix is recorded so it is not re-proposed:** NULL-filling a missing `_src_` alias to make the arities agree renders `is_not_null` false, the conjunction never fires, and the rule silently stops checking on that branch — the failure D28 refuses by name, a check that quietly stops checking being worse than one that is absent.
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/guardrails/quality.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/diff.py` `src/bloomery/quality/lower.py` `src/bloomery/quality/predicates.py` `src/bloomery/resolve/build.py` `tests/engines/test_merged_cleaning_engines.py` `tests/execution/test_merged_cleaning.py` `tests/fixtures/multi_source_quality/mapping_legacy.yaml` `tests/support/quality_rules.py` `tests/unit/test_quality/test_lower.py` `tests/unit/test_quality/test_predicates.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0051/D-1 — `LOCKED` (The reject table on a merged entity)
+
+**S-0033/D-10 stands: one reject table per entity, merged or not.** Its stated ground — per-mapping tables multiply into the small-file problem and make replay N-way — is a statement about the number of *relations*, and this design adds none. D10 answered a different question and its answer is still right. Consequence: S-0041/D-16's lock is discharged by keeping the decision, not by overturning it, and any future proposal for a per-mapping table argues against D10 as it always had to.
+
+- Paths: `tests/engines/test_merged_cleaning_engines.py` `tests/execution/test_merged_cleaning.py` `tests/fixtures/multi_source_quality/entity_model.yaml`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+<!-- /torve:managed -->

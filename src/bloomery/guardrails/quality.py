@@ -1,13 +1,13 @@
-"""Data-quality guardrails (RFC 0016 §5.9) — the checks that say the *model*
+"""Data-quality guardrails (S-0033/guardrails-vs-quality-the-boundary) — the checks that say the *model*
 is wrong.
 
 Every refusal here is decidable from the spec alone, which is exactly what
 makes it a guardrail rather than a quality rule (D13): a guardrail says the
 model is wrong, at compile time, from the spec; a quality rule says the data
 is wrong, at run time, per row. All of them are :class:`GuardrailError` leaves
-declared in ``errors.py`` (RFC 0002 D3) and returned — never raised — so they
+declared in ``errors.py`` (S-0019/D-3) and returned — never raised — so they
 batch into the stage's single aggregate and an author fixes a spec in one
-round-trip (RFC 0006 D2).
+round-trip (S-0023/D-2).
 
 The checks:
 
@@ -24,8 +24,8 @@ The checks:
 ``referential`` onto the entity itself  §5.4, D27 (bare ``GuardrailError``)
 ``unknown_member`` on a non-string fk   §5.4, D6 (bare ``GuardrailError``)
 ``unknown_member`` on a composite key   §5.4, D48 (bare ``GuardrailError``)
-freshness with no ingestion contract    RFC 0057 §5.2 (bare ``GuardrailError``)
-freshness thresholds that disagree      RFC 0057 D2a (bare ``GuardrailError``)
+freshness with no ingestion contract    S-0064/a-one-relation-several-mappings (bare ``GuardrailError``)
+freshness thresholds that disagree      S-0064/D-8 (bare ``GuardrailError``)
 ``quality:`` name a generated rule owns §5.3, D71 (bare ``GuardrailError``)
 ``reconcile`` grammar and resolution    §5.3 (bare ``GuardrailError``)
 quality-mart metric-name collision      §5.8, D12 (bare ``GuardrailError``)
@@ -103,11 +103,11 @@ def _entity_path(entity_name: str, suffix: str) -> str:
 
 def _read_paths(mapping: Mapping) -> tuple[str, ...]:
     """Every JSONPath the mapping reads — key ``from``s, field ``from``s,
-    every recipe alias binding (RFC 0016 §5.6 names the aliases explicitly),
+    every recipe alias binding (S-0033/quarantine-one-reject-table-per-entity names the aliases explicitly),
     and a recipe's ``direct:`` path. ``unmapped:`` is *not* read: it is the
     acknowledged tail.
 
-    ``direct:`` counts because the path-conflict guardrail (RFC 0006 D7)
+    ``direct:`` counts because the path-conflict guardrail (S-0023/D-7)
     lowers it to a real ``<field>__direct`` column that replay rebuilds from
     ``raw`` — redacting it would leave the replay reading a key redaction had
     removed.
@@ -150,7 +150,7 @@ def _check_dedupe(entity_name: str, entity: Entity) -> list[GuardrailError]:
         f"entity {entity_name!r} declares dedupe.keep: {entity.dedupe.keep} on "
         f"{entity.dedupe.field!r} without tie_break — two rows sharing a "
         f"{entity.dedupe.field} would make the winner arbitrary, and a nondeterministic "
-        "model violates the core invariant (RFC 0003). Fix: add tie_break: [<column>, …]"
+        "model violates the core invariant (S-0020). Fix: add tie_break: [<column>, …]"
     )
     return [DedupeTieBreakMissing(msg, source_path=_entity_path(entity_name, "dedupe"))]
 
@@ -159,7 +159,7 @@ def _check_dedupe(entity_name: str, entity: Entity) -> list[GuardrailError]:
 
 
 def _check_dedupe_columns(entity_name: str, entity: Entity) -> list[GuardrailError]:
-    """Every column the dedupe order reads must exist (RFC 0016 D47).
+    """Every column the dedupe order reads must exist (S-0033/D-47).
 
     ``dedupe`` lowers straight into ``ORDER BY <field> DESC NULLS LAST, …``
     (§5.4), so a typo there is a run-time binder failure on a model that
@@ -185,7 +185,7 @@ def _check_dedupe_columns(entity_name: str, entity: Entity) -> list[GuardrailErr
             continue
         msg = (
             f"entity {entity_name!r}: {clause} reads {column!r}, which the entity does not "
-            f"declare — it lowers to ORDER BY {column} DESC NULLS LAST (RFC 0016 §5.4) and "
+            f"declare — it lowers to ORDER BY {column} DESC NULLS LAST (S-0033/fixed-pipeline-order-and-lowering) and "
             f"fails at run time on a model that compiled clean. Known columns: "
             f"{', '.join(sorted(declared))}"
         )
@@ -222,7 +222,7 @@ def _check_dedupe_disposition(
                     f"field {column!r} of entity {entity_name!r} declares "
                     f"{{rule: coercible, on_fail: {rule.on_fail}}}, but {ordering[column]} "
                     f"reads {column!r} — the fixed pipeline order deduplicates before the "
-                    "rules run (RFC 0016 §5.4), so an uncastable value there leaves the "
+                    "rules run (S-0033/fixed-pipeline-order-and-lowering), so an uncastable value there leaves the "
                     "dedupe order undefined and coercible is forced to 'fail'. Fix: write "
                     "on_fail: fail, or order dedupe by a different column"
                 )
@@ -242,7 +242,7 @@ def _check_retention(entity_name: str, entity: Entity, draft: ProjectIR) -> list
     """An entity holding a quarantine disposition declares its retention.
 
     Read off the **draft**, not re-lowered per mapping. A merged entity's rules
-    are one set over every mapping (RFC 0024 D32/D33), so lowering per mapping
+    are one set over every mapping (S-0041/D-32, S-0041/D-33), so lowering per mapping
     reported the same missing block once per branch, each naming a different
     subset of the rules — one defect, N messages, none of them the whole
     account.
@@ -268,7 +268,7 @@ def _check_retention(entity_name: str, entity: Entity, draft: ProjectIR) -> list
     msg = (
         f"entity {entity_name!r} has quarantine dispositions ({names}) but no quarantine: "
         "block — reject rows hold raw source payloads, and therefore PII, so retention is "
-        "required and never defaulted (RFC 0016 §5.6). Note that the implicit coercible "
+        "required and never defaulted (S-0033/quarantine-one-reject-table-per-entity). Note that the implicit coercible "
         "rule carries the quarantine default (§5.2), so an entity with any quality: surface "
         "has one even when nothing spells it. Fix: add quarantine: {retention: 90d}"
     )
@@ -307,7 +307,7 @@ def _check_ingestion_metadata(
         f"entity {entity_name!r} uses {using}, so its bronze source "
         f"{mapping.source!r} must supply the ingestion metadata contract "
         f"({', '.join(INGESTION_METADATA)}), but the mapping declares none of "
-        f"{', '.join(missing)} (RFC 0016 §5.6, D21). Fix: map or acknowledge them, "
+        f"{', '.join(missing)} (S-0033/quarantine-one-reject-table-per-entity, S-0033/D-21). Fix: map or acknowledge them, "
         f"e.g. unmapped: [{', '.join(repr(f'$.{column}') for column in missing)}]"
     )
     return [IngestionMetadataMissing(msg, source_path=f"{mapping_doc(mapping)}: unmapped")]
@@ -334,7 +334,7 @@ def _check_redaction(entity_name: str, entity: Entity, mapping: Mapping) -> list
         f"quarantine.redact on entity {entity_name!r} lists {', '.join(clashing)}, whose "
         f"bronze column mapping {mapping_doc(mapping)} reads — you cannot both require a "
         "field and destroy "
-        "it at write time (RFC 0016 §5.6): replay re-runs the current mapping against raw, "
+        "it at write time (S-0033/quarantine-one-reject-table-per-entity): replay re-runs the current mapping against raw, "
         "and a redacted path is gone by then. Fix: stop mapping the path, or stop redacting it"
     )
     return [RedactionConflict(msg, source_path=_entity_path(entity_name, "quarantine.redact"))]
@@ -347,11 +347,11 @@ def _check_freshness_contract(
     entity_name: str, entity: Entity, mapping: Mapping
 ) -> list[GuardrailError]:
     """A ``freshness:`` block on a mapping whose entity requires no
-    ``_ingested_at`` (RFC 0057 §5.2).
+    ``_ingested_at`` (S-0064/a-one-relation-several-mappings).
 
     dbt's freshness query is ``SELECT MAX(<loaded_at_field>)``, so the column
     must exist. It is mandatory only where the entity declares ``quarantine:``
-    or ``dedupe:`` (RFC 0016 D21, :func:`_check_ingestion_metadata`); on an
+    or ``dedupe:`` (S-0033/D-21, :func:`_check_ingestion_metadata`); on an
     entity declaring neither, the emitted ``loaded_at_field`` would name a
     column that may not be there — a source freshness check that errors at run
     time on a project that compiled clean.
@@ -374,10 +374,10 @@ def _check_freshness_contract(
     msg = (
         f"mapping {mapping_doc(mapping)} declares freshness: on {mapping.source!r}, but entity "
         f"{entity_name!r} declares neither quarantine: nor dedupe:, so nothing requires the "
-        "bronze relation to carry _ingested_at (RFC 0016 D21). A freshness check reads "
+        "bronze relation to carry _ingested_at (S-0033/D-21). A freshness check reads "
         "SELECT MAX(_ingested_at), so the emitted threshold would name a column that may not "
         "exist — it compiles clean here and errors when the framework runs it "
-        "(RFC 0057 §5.2). Fix: declare quarantine: or dedupe: on the entity, which makes the "
+        "(S-0064/a-one-relation-several-mappings). Fix: declare quarantine: or dedupe: on the entity, which makes the "
         "ingestion metadata mandatory, or drop the freshness: block"
     )
     return [GuardrailError(msg, source_path=f"{mapping_doc(mapping)}: freshness")]
@@ -402,12 +402,12 @@ def _hours(freshness: Freshness) -> tuple[int, int]:
 
 def _check_freshness_agreement(project: Project) -> list[GuardrailError]:
     """Two mappings declaring **different** thresholds on one bronze relation
-    (RFC 0057 D2a).
+    (S-0064/D-8).
 
     ``_sources_artifact`` emits one dbt table entry per physical relation, so
     two thresholds on one relation cannot both be emitted and picking one
     silently is the plausible-but-wrong shape this project refuses — the rule
-    RFC 0024 D33 already applies to quality rules over a merged entity.
+    S-0041/D-33 already applies to quality rules over a merged entity.
 
     Two cases that look like conflicts and are not, both settled by D2c's
     sentence — a threshold is a statement about the *relation*:
@@ -423,7 +423,7 @@ def _check_freshness_agreement(project: Project) -> list[GuardrailError]:
     target *different* entities, and neither entity's pass can see the other's.
     Grouped by ``source`` because the physical pair is derived from it — every
     naming policy sends a bronze relation through unchanged under a
-    layer-named namespace (RFC 0008 §5.1), so equal strings and equal physical
+    layer-named namespace (S-0025/ports), so equal strings and equal physical
     relations are the same partition.
     """
 
@@ -458,7 +458,7 @@ def _check_freshness_agreement(project: Project) -> list[GuardrailError]:
             f"bronze relation {relation!r} is given more than one freshness threshold: "
             f"{spelled}. A threshold is a statement about the relation, not about the mapping "
             "that carries it, and the emitted sources.yml holds one entry per relation — so "
-            "one of these would be silently dropped (RFC 0057 D2a, the rule RFC 0024 D33 "
+            "one of these would be silently dropped (S-0064/D-8, the rule S-0041/D-33 "
             "applies to a merged entity's rules). Fix: make them agree, or leave the "
             "threshold on one mapping and drop it from the others"
         )
@@ -474,7 +474,7 @@ def _check_rule_names(
     entity_name: str, entity: Entity, mapping: Mapping, relationships: tuple[Relationship, ...]
 ) -> list[GuardrailError]:
     """An authored ``expression`` name may not be one generation already issues
-    (RFC 0016 D71).
+    (S-0033/D-71).
 
     Generated names are order-independent (D50) but were not *name*-
     independent. An authored rule named ``amount_in_set`` and the field's own
@@ -501,7 +501,7 @@ def _check_rule_names(
             continue
         msg = (
             f"quality rule {rule.name!r} on entity {entity_name!r} is already the name of a "
-            "rule generated from the mapping (RFC 0016 §5.3, D71) — a field rule, an implicit "
+            "rule generated from the mapping (S-0033/spec-schema, S-0033/D-71) — a field rule, an implicit "
             "coercible rule, or a referential rule named after its relationship. Two rules "
             "cannot share one name: it is the key of a quality-mart time series (§5.8) and an "
             "entry in failed_rules (D23), so one of them would have to be renamed and the "
@@ -530,7 +530,7 @@ def _check_patterns(entity_name: str, mapping: Mapping) -> list[GuardrailError]:
                 msg = (
                     f"pattern rule on field {column!r} of entity {entity_name!r} cannot be "
                     f"expressed on dialect(s) {', '.join(unsupported)}: {rule.regex!r} "
-                    "(RFC 0016 §5.3). A regex that works on one dialect and silently means "
+                    "(S-0033/spec-schema). A regex that works on one dialect and silently means "
                     "something else on another is the bug this check exists to prevent. "
                     "Fix: narrow the pattern to the portable subset, or drop the rule"
                 )
@@ -547,7 +547,7 @@ def _check_patterns(entity_name: str, mapping: Mapping) -> list[GuardrailError]:
 
 
 #: Steps that may follow an ``enum_map`` without moving the column's value off
-#: the admissible set (RFC 0016 D72). ``enum_map`` itself, because the union of
+#: the admissible set (S-0033/D-72). ``enum_map`` itself, because the union of
 #: both steps' targets still contains every reachable final value; and
 #: ``to_string``, which is the identity on the string ``enum_map`` produces.
 #: An allowlist, so a transform added later is refused until someone shows it
@@ -559,7 +559,7 @@ def _check_chain_derived_rules(
     entity_name: str, entity: Entity, mapping: Mapping
 ) -> list[GuardrailError]:
     """Two rules read a field's transform chain to decide what a violation is,
-    and both are only sound at a particular point in it (RFC 0016 §5.2).
+    and both are only sound at a particular point in it (S-0033/coercion-failure-is-a-rule-the-assert-boundary).
 
     ``in_enum``'s admissible set is the ``enum_map`` targets and spellings
     (D49) — but the predicate compares the column's **final** value. A step
@@ -568,7 +568,7 @@ def _check_chain_derived_rules(
     every correctly-mapped row: the column says ``PAID`` and the set says
     ``paid``. Lowering the targets through the rest of the chain is not
     available to a compiler that executes nothing — ``regex_extract`` and
-    ``split_part`` are only evaluable by running SQL (RFC 0003) — so the
+    ``split_part`` are only evaluable by running SQL (S-0020) — so the
     chain is refused instead. Another ``enum_map`` may follow, because the
     union of both steps' targets still contains every reachable final value.
 
@@ -601,7 +601,7 @@ def _check_chain_derived_rules(
             if last_enum < 0:
                 msg = (
                     f"field {column!r} of entity {entity_name!r} carries an in_enum rule but "
-                    "its chain has no enum_map step (RFC 0016 §5.2, D49). The admissible set "
+                    "its chain has no enum_map step (S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-49). The admissible set "
                     "*is* the enum_map, so with none there the set is empty: the rule lowers "
                     f"to 'NOT {column} IN ()' — invalid SQL on every dialect, and semantically "
                     "a rule that rejects every row. Fix: add the enum_map step the rule reads, "
@@ -611,7 +611,7 @@ def _check_chain_derived_rules(
             elif trailing:
                 msg = (
                     f"field {column!r} of entity {entity_name!r} carries an in_enum rule but "
-                    f"its chain applies {', '.join(trailing)} after enum_map (RFC 0016 §5.2, "
+                    f"its chain applies {', '.join(trailing)} after enum_map (S-0033/coercion-failure-is-a-rule-the-assert-boundary, "
                     "D49). in_enum's admissible set is read off the enum_map, while the rule "
                     "tests the column's final value — a later step moves that value off the "
                     "set, quarantining every correctly-mapped row. Fix: move the step ahead "
@@ -627,7 +627,7 @@ def _check_chain_derived_rules(
             msg = (
                 f"field {column!r} of entity {entity_name!r} declares a coercible rule, but "
                 f"its chain applies {', '.join(nullifying)}, which returns NULL from a "
-                "non-NULL input deliberately (RFC 0016 §5.2). coercible's marker is 'the "
+                "non-NULL input deliberately (S-0033/coercion-failure-is-a-rule-the-assert-boundary). coercible's marker is 'the "
                 "output is NULL although a source was not', so it cannot tell a failed cast "
                 "from a sentinel the mapping was told to treat as missing, and would "
                 "quarantine rows for obeying the mapping. Fix: drop the coercible rule, or "
@@ -642,16 +642,16 @@ def _check_chain_derived_rules(
 
 
 def _unknown_via(entity_name: str, rule: ReferentialRule, declared: list[str]) -> GuardrailError:
-    """``via`` names no declared relationship (RFC 0016 D45).
+    """``via`` names no declared relationship (S-0033/D-45).
 
-    Resolution (RFC 0005) never inspects ``entity.quality`` — it validates the
+    Resolution (S-0022) never inspects ``entity.quality`` — it validates the
     ``relationships:`` block itself and nothing that references it — so this
     was a raw ``KeyError`` out of the lowering: not a :class:`BloomeryError`,
     never batched, and pointing at compiler internals rather than at the typo.
     """
     msg = (
         f"referential rule on entity {entity_name!r} names no relationship {rule.via!r} — "
-        f"the entity model declares: {', '.join(declared)} (RFC 0016 §5.3). A referential "
+        f"the entity model declares: {', '.join(declared)} (S-0033/spec-schema). A referential "
         "rule probes a *declared* relationship; there is nothing to join on otherwise. "
         "Fix: correct the via, or declare the relationship"
     )
@@ -663,7 +663,7 @@ def _unknown_via(entity_name: str, rule: ReferentialRule, declared: list[str]) -
 
 def _wrong_side(entity_name: str, rule: ReferentialRule, relationship: Relationship) -> str:
     """The rule's relationship is declared, but its ``from`` side is another
-    entity (RFC 0016 D46).
+    entity (S-0033/D-46).
 
     The lowering joins ``relationship.via``'s from-columns off *this* entity's
     extract (§5.4), so a relationship whose from side is a sibling produces a
@@ -677,7 +677,7 @@ def _wrong_side(entity_name: str, rule: ReferentialRule, relationship: Relations
         f"referential rule via {rule.via!r} on entity {entity_name!r}: relationship "
         f"{relationship.name!r} runs from {relationship.from_!r} to {relationship.to!r}, "
         f"not from {entity_name!r} — the rule lowers to a LEFT JOIN whose ON clause reads "
-        f"{', '.join(sorted(relationship.via))} off {entity_name!r}'s own extract (RFC 0016 "
+        f"{', '.join(sorted(relationship.via))} off {entity_name!r}'s own extract (S-0033 "
         "§5.4), and this entity does not project them. Fix: name a relationship declared "
         f"from {entity_name!r}, or express the check as a reconcile: block"
     )
@@ -687,7 +687,7 @@ def _wrong_side(entity_name: str, rule: ReferentialRule, relationship: Relations
 
 
 def _self_referential(entity_name: str, rule: ReferentialRule) -> str:
-    """The relationship points back at the declaring entity (RFC 0016 D27).
+    """The relationship points back at the declaring entity (S-0033/D-27).
 
     The lowering is a ``LEFT JOIN`` **inside** the dependent entity's own
     model (§5.4), and a model cannot join the table it is being built from —
@@ -699,7 +699,7 @@ def _self_referential(entity_name: str, rule: ReferentialRule) -> str:
     return (
         f"referential rule via {rule.via!r} on entity {entity_name!r} references "
         f"{entity_name!r} itself — the rule lowers to a LEFT JOIN inside that entity's "
-        "own model (RFC 0016 §5.4), and a model cannot join the table it is being built "
+        "own model (S-0033/fixed-pipeline-order-and-lowering), and a model cannot join the table it is being built "
         "from. Fix: model the referenced side as a separate entity built from the same "
         "source, or express the check as a reconcile: block, which runs silver→mart "
         "against finished tables"
@@ -736,14 +736,14 @@ def _check_unknown_member(
             f"referential rule via {rule.via!r} on entity {entity_name!r} declares "
             f"on_missing: unknown_member, but the relationship joins on a composite key "
             f"({', '.join(via)}) — the reserved member is the single string '__unknown__' "
-            "and the rewrite is one CASE over one column (RFC 0016 §5.4), so a composite fk "
+            "and the rewrite is one CASE over one column (S-0033/fixed-pipeline-order-and-lowering), so a composite fk "
             "would get a half-sentinel key matching no reserved row. Fix: use on_missing: "
             "quarantine or flag, or relate the entities by a single column"
         )
         return [GuardrailError(msg, source_path=_entity_path(entity_name, "quality"))]
 
     from_column = via[0]
-    # Resolution (RFC 0005) refuses a relationship whose ``via`` names a column
+    # Resolution (S-0022) refuses a relationship whose ``via`` names a column
     # neither side declares, and the ``from`` side is this entity by the check
     # above — so the field lookup is total.
     field = entity.fields[from_column]
@@ -758,7 +758,7 @@ def _check_unknown_member(
         f"referential rule via {relationship.name!r} on entity {entity_name!r} "
         f"declares on_missing: unknown_member, but the fk {from_column!r} is "
         f"{field.type!r} — the reserved member is the string '__unknown__', and "
-        "there is nowhere sound to put it in a non-string key (RFC 0016 §5.4; typed "
+        "there is nowhere sound to put it in a non-string key (S-0033/fixed-pipeline-order-and-lowering; typed "
         "per-key sentinels are rejected because one could collide with a legal "
         "value). Fix: use on_missing: quarantine or flag, or map the key to string"
     )
@@ -842,7 +842,7 @@ class _SideEntity:
     names and its key.
 
     A view rather than the spec ``Entity`` because a side may now name a
-    **step output** (RFC 0017 D41/D49), which is not in the entity model at
+    **step output** (S-0034/D-41, S-0034/D-49), which is not in the entity model at
     all — it is synthesized during lowering, and no mapping targets it. The
     two kinds answer the same two questions, so the check asks them through
     one shape instead of branching on provenance.
@@ -851,7 +851,7 @@ class _SideEntity:
     fields: frozenset[str]
     key: tuple[str, ...]
     #: The source relations behind it, sorted. More than one means the entity
-    #: is merged (RFC 0024), which a reconcile cannot read — see
+    #: is merged (S-0041), which a reconcile cannot read — see
     #: :func:`_resolve_side`. Empty for a step output, which has a relation
     #: without having a mapping.
     sources: tuple[str, ...] = ()
@@ -937,7 +937,7 @@ def _resolve_side(
     if parsed is None:
         msg = (
             f"reconcile check {check_name!r} has an unparseable {side} side {text!r} "
-            f"(RFC 0016 §5.3): {SUPPORTED_SHAPES}. A reconcile side is a declared shape, "
+            f"(S-0033/spec-schema): {SUPPORTED_SHAPES}. A reconcile side is a declared shape, "
             "not SQL — specs describe, specs never contain implementations (D1)"
         )
         return None, [GuardrailError(msg, source_path=path)]
@@ -960,7 +960,7 @@ def _resolve_side(
             f"which is merged from {len(entity.sources)} mappings "
             f"({', '.join(entity.sources)}). A reconcile emits a row into the quality "
             "mart, and that row records the one mapping the check belongs to — a merged "
-            "entity has no such mapping, which is why RFC 0024 D14 refuses dedupe: and "
+            "entity has no such mapping, which is why S-0041/D-14 refuses dedupe: and "
             "quarantine: on one for the same reason. Fix: reconcile against a "
             "single-source entity, or express the check as a mart assert:, which reads "
             "the aggregate rather than the mapping"
@@ -1006,7 +1006,7 @@ def _resolve_side(
 
 def _check_reconcile(project: Project, draft: ProjectIR) -> list[GuardrailError]:
     """The ``reconcile:`` block: grammar, resolution, key agreement, and name
-    uniqueness (RFC 0016 §5.3).
+    uniqueness (S-0033/spec-schema).
 
     **Key agreement** is the one rule the grammar cannot express: two sides
     join on their comparison keys, so ``sum(order_item.line_total) by
@@ -1037,7 +1037,7 @@ def _check_reconcile(project: Project, draft: ProjectIR) -> list[GuardrailError]
         if sorted(left.by) != sorted(right.by):
             msg = (
                 f"reconcile check {check.name!r} compares sides keyed differently: left by "
-                f"{sorted(left.by)}, right by {sorted(right.by)} (RFC 0016 §5.3). The two "
+                f"{sorted(left.by)}, right by {sorted(right.by)} (S-0033/spec-schema). The two "
                 "sides join on their keys, so they must be the same columns — a plain "
                 "'<entity>.<column>' side is keyed by that entity's declared key. Fix: change "
                 "the 'by' columns to match, or reconcile against an entity keyed that way"
@@ -1052,7 +1052,7 @@ def _check_reconcile(project: Project, draft: ProjectIR) -> list[GuardrailError]
 
 def _check_reserved_metric_names(project: Project) -> list[GuardrailError]:
     """The quality mart's metrics live in the project's flat metric namespace
-    (RFC 0016 §5.8), so their names are reserved.
+    (S-0033/the-quality-mart), so their names are reserved.
 
     Checked unconditionally rather than only for quality-carrying projects: a
     name that is reserved sometimes is a name nobody can rely on, and adding a
@@ -1069,7 +1069,7 @@ def _check_reserved_metric_names(project: Project) -> list[GuardrailError]:
 
     msg = (
         f"metric(s) {', '.join(clashing)} collide with the reserved names of the quality "
-        f"mart's own metrics (RFC 0016 §5.8, D12): {', '.join(QUALITY_METRICS)}. They are "
+        f"mart's own metrics (S-0033/the-quality-mart, S-0033/D-12): {', '.join(QUALITY_METRICS)}. They are "
         "emitted into the same flat metric namespace, where two definitions of one name is "
         "not a merge but a silent winner. Fix: rename the project metric"
     )
@@ -1080,7 +1080,7 @@ def _check_reserved_metric_names(project: Project) -> list[GuardrailError]:
 
 
 def _check_reserved_mart_name(project: Project) -> list[GuardrailError]:
-    """``data_quality`` is the quality mart's own name (RFC 0016 §5.8, D12),
+    """``data_quality`` is the quality mart's own name (S-0033/the-quality-mart, S-0033/D-12),
     so no authored mart may take it.
 
     Unconditional, for the reason its metric sibling gives — and here the
@@ -1097,7 +1097,7 @@ def _check_reserved_mart_name(project: Project) -> list[GuardrailError]:
 
     msg = (
         f"mart {QUALITY_MART!r} collides with the name of the quality mart bloomery "
-        f"synthesizes for any project that carries quality rules (RFC 0016 §5.8, D12). "
+        f"synthesizes for any project that carries quality rules (S-0033/the-quality-mart, S-0033/D-12). "
         "The name is matched to decide which mart is the synthesized one, so an authored "
         "mart under it is not merged or duplicated — it is silently replaced. Fix: rename "
         "the authored mart"
@@ -1145,7 +1145,7 @@ def _check_expression_rules(
     entity_name: str, entity: Entity, draft: ProjectIR
 ) -> list[GuardrailError]:
     """An ``expression`` rule is a boolean predicate over the entity's **own**
-    columns — enforced, not merely documented (RFC 0016 D95).
+    columns — enforced, not merely documented (S-0033/D-95).
 
     ``ExpressionRule.expr`` is a bare string parsed and spliced into the silver
     model, and nothing checked it. That made it the one authored-SQL surface in
@@ -1182,7 +1182,7 @@ def _check_expression_rules(
     # ``_build_entities`` builds one ``EntityIR`` per mapped entity
     # unconditionally — so there is no spec that gets here without a model.
     # A branch no input can reach is a branch no test can cover, which is
-    # what RFC 0009 D9's 100% floor is for; the honest form of "this cannot
+    # what S-0026/D-9's 100% floor is for; the honest form of "this cannot
     # happen" is the one that says so if it does.
     lowered = guaranteed(
         (ent for ent in draft.entities if ent.name == entity_name),
@@ -1219,7 +1219,7 @@ def _check_expression_rules(
                 f"expression rule {rule.name!r} on entity {entity_name!r} is more than one "
                 "statement. A row rule is a single predicate spliced into the model's SELECT, "
                 "so the trailing statement is not executed — it is wrapped in NOT (...) and "
-                "emitted as invalid SQL rather than refused (RFC 0016 D95)"
+                "emitted as invalid SQL rather than refused (S-0033/D-95)"
             )
             errors.append(GuardrailError(msg, source_path=where))
             continue
@@ -1238,7 +1238,7 @@ def _check_expression_rules(
                 "A row rule is a predicate over the row, evaluated inside the model's own "
                 "SELECT, so a subquery reads a relation the rule cannot see — and the "
                 "qualifier that binds bare columns to the extract descends into it, "
-                "silently rewriting the inner reference to the outer row (RFC 0016 D95). "
+                "silently rewriting the inner reference to the outer row (S-0033/D-95). "
                 "Fix: express the check over this entity's columns, or use reconcile: for a "
                 "comparison against another relation"
             )
@@ -1277,7 +1277,7 @@ def _check_expression_rules(
 
 def _check_coverage(project: Project, draft: ProjectIR) -> list[GuardrailError]:
     """Every ``coverage:`` check names a declared relationship, once, whose
-    **both endpoints have a relation** (RFC 0016 D90, D91).
+    **both endpoints have a relation** (S-0033/D-90, S-0033/D-91).
 
     Project-level for the same reason ``reconcile`` is: a check that relates
     two entities belongs to neither. The relationship has to exist before
@@ -1332,7 +1332,7 @@ def _check_coverage(project: Project, draft: ProjectIR) -> list[GuardrailError]:
                 f"coverage check {check.name!r} lowers to an audit on the dependent side "
                 f"{relationship.from_!r}, which no mapping targets — a step-produced or "
                 "unmapped entity has no entity model for the audit to hang off, so the check "
-                "would be emitted and never run (RFC 0016 D90). Fix: point the relationship at "
+                "would be emitted and never run (S-0033/D-90). Fix: point the relationship at "
                 "a mapped dependent entity, or drop the check"
             )
             errors.append(GuardrailError(msg, source_path=f"{where}.relationship"))
@@ -1358,7 +1358,7 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     stopped being true when step outputs became reconcile sides.
     """
     relationships = project.entity_model.relationships
-    # A **list** per target, not one mapping (RFC 0024 D1). The dict
+    # A **list** per target, not one mapping (S-0041/D-1). The dict
     # comprehension this replaces kept the *last* mapping of a merged entity
     # and every per-mapping check below then judged one branch of N — which is
     # the silent-wrong-answer shape, not a narrower check. Sorted by source so

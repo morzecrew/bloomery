@@ -1,5 +1,5 @@
 # The shop being migrated onto. Two mappings, one `target:`, and nothing else
-# to say so (RFC 0024 D2): an entity built from two mappings differs from one
+# to say so (S-0041/D-2): an entity built from two mappings differs from one
 # built from one only in how many documents point at it.
 #
 # Every field is read from a *different* path than the other shop reads it

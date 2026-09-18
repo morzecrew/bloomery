@@ -1,6 +1,6 @@
 """A demonstration identity resolver — the *body* the platform would own.
 
-RFC 0021 §5.1 settles identity resolution as a Tier 3 step rather than a spec
+S-0038/identity-resolution-is-a-step-permanently settles identity resolution as a Tier 3 step rather than a spec
 kind, and the evidence for "settled" is a fixture that runs, not a paragraph.
 This is the half of that fixture bloomery never sees: the step's own code,
 which lives with the platform's registry and is imported by the generated
@@ -11,7 +11,7 @@ exact email, then a normalized-name comparison, no blocking beyond that, no
 tuning, no library. Its value is the *wiring* it makes real: two sources with
 no shared key in, one canonical entity and a crosswalk out, both satisfying the
 manifest's declared contract. A production step swaps this body and changes
-nothing else, which is the property RFC 0017 exists to provide.
+nothing else, which is the property S-0034 exists to provide.
 
 It lives under ``tests/support/`` for the reason :mod:`support.steps` gives
 about manifests: ``fixtures/`` holds YAML spec projects only
@@ -49,7 +49,7 @@ __all__ = [
 #: clock: `determinism: pure` is a claim the fixture has to be able to keep,
 #: and a step reading the wall clock produces a different `resolved_at` on
 #: every backfill of the same window — the failure `runtime_lock` and the
-#: determinism tier exist to catch (RFC 0017 D5).
+#: determinism tier exist to catch (S-0034/D-5).
 RESOLVED_AT = pd.Timestamp("2026-01-01T00:00:00")
 
 _PUNCTUATION = re.compile(r"[^a-z0-9]+")
@@ -112,7 +112,7 @@ def resolve(
 
     The signature is the manifest's, keyword for keyword — the generated
     wrapper calls ``resolve(**inputs, **parameters)``, so a rename here is a
-    run-time failure and not a compile-time one. That is the trade RFC 0017
+    run-time failure and not a compile-time one. That is the trade S-0034
     D4 accepts, and why the contract assertion runs on every execution.
 
     Matching, in order: an exact email match, then an exact normalized-name

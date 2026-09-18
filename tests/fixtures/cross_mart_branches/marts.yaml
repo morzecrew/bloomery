@@ -1,5 +1,5 @@
 # Every mart reaches `customer.tier`, each under its own spelling: `tier` here,
-# `customer_tier` one hop away, `order_customer_tier` two. RFC 0041 D12 makes
+# `customer_tier` one hop away, `order_customer_tier` two. S-0055/D-12 makes
 # them one dimension by provenance, which is what lets one request be answered
 # from all three marts at once.
 marts_version: 1

@@ -1,11 +1,11 @@
-"""The silver entity SELECT (RFC 0016 §5.4–§5.6).
+"""The silver entity SELECT (S-0033/fixed-pipeline-order-and-lowering–S-0033/quarantine-one-reject-table-per-entity).
 
 Extract, rules, routing, dedupe, the reject table and replay — one nested
 query, built in the pipeline order the RFC declares: extract → transform →
 dedupe → field rules → row rules → route. Both SQL targets share every line
-of it (RFC 0008 D1).
+of it (S-0025/D-1).
 
-This is one stage rather than the two RFC 0019 §5.1 sketched. Extract is not a
+This is one stage rather than the two S-0036/split-by-stage-not-by-target sketched. Extract is not a
 separable stage: it is level 1 of the same SELECT, and fourteen functions of
 the rule pipeline are built from it.
 """
@@ -92,7 +92,7 @@ if TYPE_CHECKING:
     from bloomery.emit.base import EmitContext
 
 # ....................... #
-# Data quality (RFC 0016 §5.4–§5.6). The fixed pipeline order — extract →
+# Data quality (S-0033/fixed-pipeline-order-and-lowering–S-0033/quarantine-one-reject-table-per-entity). The fixed pipeline order — extract →
 # transform → dedupe → field rules → row rules → route — is rendered as
 # nested SELECTs, one level per group of stages, so the emitted SQL reads in
 # the order the RFC declares:
@@ -104,7 +104,7 @@ if TYPE_CHECKING:
 #   level 3  the model       ``_quality_ok``, generated from the flag column
 #
 # Both SQL targets share every line of this: SQLMesh and dbt emit the same
-# silver SELECT for the same entity under the same dialect (RFC 0008 D1).
+# silver SELECT for the same entity under the same dialect (S-0025/D-1).
 
 #: The alias of the extract/dedupe subquery. Entity columns are qualified with
 #: it so a ``referential`` LEFT JOIN can never make a reference ambiguous.
@@ -152,7 +152,7 @@ _REPLAY_ALIAS = "_replay"
 
 
 def reject_relation(entity: EntityIR) -> str:
-    """``<entity>__reject`` — one per entity, never per mapping (RFC 0016
+    """``<entity>__reject`` — one per entity, never per mapping (S-0033
     §5.6, D10): per-mapping tables multiply into the small-file problem and
     make replay N-way."""
 
@@ -268,9 +268,9 @@ def _referential_rules(entity: EntityIR) -> tuple[QualityRuleIR, ...]:
 
 
 def _with_probes(select: exp.Select, entity: EntityIR, ctx: EmitContext) -> exp.Select:
-    """LEFT JOIN one probe per ``referential`` rule (RFC 0016 §5.4).
+    """LEFT JOIN one probe per ``referential`` rule (S-0033/fixed-pipeline-order-and-lowering).
 
-    The referenced entity is *silver*, and topological ordering (RFC 0005)
+    The referenced entity is *silver*, and topological ordering (S-0022)
     guarantees it is built first — so the probe is an ordinary join, not a
     cross-layer read.
     """
@@ -307,11 +307,11 @@ def _payload_columns(entity: EntityIR, origin: SourceIR) -> tuple[str, ...]:
     ``raw`` is keyed by top-level bronze column, not by JSONPath, because that
     is what makes replay work: the lowered column expressions read
     ``JSON_EXTRACT_SCALAR(a, '$.b')`` off a *column* ``a``, and replay re-runs
-    those same expressions against ``raw`` (RFC 0016 §5.6). Keying by column is
+    those same expressions against ``raw`` (S-0033/quarantine-one-reject-table-per-entity). Keying by column is
     also the honest reading of "the bronze payload" — a row, not a projection.
 
     **Per branch**, and the two sources of a merge need share no column names
-    at all (RFC 0035 §5.3): each branch writes its own payload and replay reads
+    at all (S-0051/replay-branches-on-sourcerelation): each branch writes its own payload and replay reads
     it back through that same branch's rewritten expressions, so no expression
     ever reads a payload it did not write.
 
@@ -334,7 +334,7 @@ def _payload_columns(entity: EntityIR, origin: SourceIR) -> tuple[str, ...]:
 def _json_object(pairs: list[tuple[str, Expression]], ctx: EmitContext) -> Expression:
     """A JSON object from sorted key/value pairs, spelled by the dialect port.
 
-    Not one construction after all (RFC 0016 D83): the positional
+    Not one construction after all (S-0033/D-83): the positional
     ``JSON_OBJECT('k', v)`` this used to build is DuckDB's spelling, Postgres
     has no positional ``json_object`` at all (it wants ``json_build_object``),
     and Trino parses only the SQL-standard keyword form. The claim that it was
@@ -371,7 +371,7 @@ def _markers(expr: Expression) -> list[exp.Anonymous]:
 
 
 def _rate_subquery(marker: exp.Anonymous, fx: FxRatesIR, ctx: EmitContext) -> Expression:
-    """One ``CONVERT_CURRENCY`` marker as the rate it stands for (RFC 0023 §5.4).
+    """One ``CONVERT_CURRENCY`` marker as the rate it stands for (S-0040/phase-2-currency-as-a-declared-relation).
 
     A **correlated scalar subquery**, not a join::
 
@@ -387,7 +387,7 @@ def _rate_subquery(marker: exp.Anonymous, fx: FxRatesIR, ctx: EmitContext) -> Ex
     and re-run against the reject payload on replay — four shapes that would
     each need to learn about it. A scalar expression needs none of them to
     change, and replay in particular keeps working *because* it re-runs this
-    same expression (RFC 0016 §5.6).
+    same expression (S-0033/quarantine-one-reject-table-per-entity).
 
     The anchor arrives already lowered: ``resolve.build`` replaced the field
     name the author wrote with that field's own lowering, because the anchor's
@@ -461,7 +461,7 @@ def _rate_subquery(marker: exp.Anonymous, fx: FxRatesIR, ctx: EmitContext) -> Ex
 
 def _lower_conversions(entity: EntityIR, ctx: EmitContext) -> EntityIR:
     """Rewrite every currency-conversion marker into its rate subquery, or
-    refuse the entity that has one with no rates declared (RFC 0023 D4/§5.4).
+    refuse the entity that has one with no rates declared (S-0040/D-4, S-0040/phase-2-currency-as-a-declared-relation).
 
     Done here rather than in the guardrail stage because here is where the
     marker becomes SQL: :func:`_extract_select` is the one place a
@@ -493,7 +493,7 @@ def _lower_conversions(entity: EntityIR, ctx: EmitContext) -> EntityIR:
             f"column {column.name!r} of entity {entity.name!r} applies the convert "
             "transform, but no rate relation is declared: a currency conversion is a "
             "join against a dated rate table, and the catalog carries no 'fx_rates:' "
-            "(RFC 0023 §5.4). Emitted as-is the model would compile here and fail on "
+            "(S-0040/phase-2-currency-as-a-declared-relation). Emitted as-is the model would compile here and fail on "
             "its first run. Fix: declare fx_rates: in the catalog with the relation and "
             "its from/to/rate/valid_from/valid_to columns, or drop the convert step and "
             "keep the amounts in their source currency"
@@ -528,7 +528,7 @@ def _converted(expr: Expression, fx: FxRatesIR, ctx: EmitContext) -> Expression:
 
     The order is the whole of it. A chain that bridges through a major
     currency — `EUR -> CHF -> USD`, which is how minor pairs convert, and what
-    RFC 0061 D3 unlocked — nests one marker inside another, and
+    S-0066/D-3 unlocked — nests one marker inside another, and
     :func:`_rate_subquery` copies the amount it multiplies. Rewriting outside
     in therefore detaches the inner marker into a copy that the walk has
     already passed, and it reaches the artifact as a literal
@@ -557,7 +557,7 @@ def _converted(expr: Expression, fx: FxRatesIR, ctx: EmitContext) -> Expression:
 # ....................... #
 
 
-#: The reject columns a branch computes for itself (RFC 0035 D2). Named here
+#: The reject columns a branch computes for itself (S-0051/D-2). Named here
 #: rather than inlined because :func:`reject_select` reads exactly these back
 #: off the extract, and two lists that have to agree should be one.
 _PROVENANCE_COLUMNS = ("reject_id", "source_relation", "mapping", "mapping_version")
@@ -568,7 +568,7 @@ def _provenance(entity: EntityIR, origin: SourceIR, ctx: EmitContext) -> list[Ex
     version, and the identity derived from the first of them.
 
     All four are compile-time literals *of this branch*. ``reject_id`` is a
-    digest over ``(source_relation, _source_row_id)`` — the pair RFC 0016 D21
+    digest over ``(source_relation, _source_row_id)`` — the pair S-0033/D-21
     designed for exactly this, since the row identity alone is unique only
     within one source relation and a merged entity's reject table holds rows
     from several.
@@ -604,7 +604,7 @@ def _branch_verdicts(
     source: Callable[[Expression], Expression],
 ) -> dict[str, Expression]:
     """One branch's verdict for every branched rule, keyed by its alias
-    (RFC 0024 D32).
+    (S-0041/D-32).
 
     The facts come from this branch's :class:`~bloomery.ir.SourceColumnIR` —
     the raw extractions ``coercible`` compares against, the ``enum_map``
@@ -690,7 +690,7 @@ def _branch_select(
     metadata, and the ``raw`` payload where a reject table needs it.
 
     One of these per :attr:`EntityIR.sources` entry, unioned by
-    :func:`_extract_select` (RFC 0024 D3). Everything below the union lives
+    :func:`_extract_select` (S-0041/D-3). Everything below the union lives
     here; everything the merged relation is judged by — the dedupe ``QUALIFY``,
     the windowed verdicts, the rules — lives above it, because a stage
     evaluated per source would judge rows the merged relation does not contain
@@ -700,7 +700,7 @@ def _branch_select(
     same lowered column expressions, with their bronze column references
     rewritten to extractions out of the reject table's ``raw``. One lowering,
     two sources — replay cannot drift from the pipeline because it *is* the
-    pipeline (RFC 0016 §5.6).
+    pipeline (S-0033/quarantine-one-reject-table-per-entity).
     """
 
     if from_payload:
@@ -717,7 +717,7 @@ def _branch_select(
     #: level up, and what a branched rule's verdict has to be computed over.
     produced: dict[str, Expression] = {}
 
-    # The lowering, not the schema (RFC 0024 D26): what this SELECT projects is
+    # The lowering, not the schema (S-0041/D-26): what this SELECT projects is
     # one source's expression per column, and `SourceIR.columns` is sorted by
     # name exactly as `EntityIR.columns` is — and covers it exactly, since the
     # builder fills an unmapped column with a typed NULL (§5.2 rule 3). So
@@ -743,7 +743,7 @@ def _branch_select(
         projections.append(cast("Expression", exp.alias_(repaired_value, column.name)))
         # The recipe *ran* — recorded beside the repaired value because after
         # the rewrite the verdict alone cannot tell "never violated" from
-        # "violated and fixed" (RFC 0016 D87).
+        # "violated and fixed" (S-0033/D-87).
         projections.append(cast("Expression", exp.alias_(fired.copy(), repair_alias(rule))))
 
     if _carries_metadata(entity):
@@ -753,7 +753,7 @@ def _branch_select(
     # against, the ``enum_map`` targets ``in_enum`` admits — exist only at
     # *this* level, below the union and before the subquery hides them, and on
     # a merged entity they are one branch's rather than the entity's
-    # (RFC 0024 D32). Each branch computes its own verdict and projects it
+    # (S-0041/D-32). Each branch computes its own verdict and projects it
     # under one shared name, which is what makes the union type-check and lets
     # the rule above it reference a single column.
     projections.extend(
@@ -768,7 +768,7 @@ def _branch_select(
         projections.append(cast("Expression", exp.alias_(payload, "_raw")))
 
     if len(entity.sources) > 1:
-        # Provenance, and only where it means something (RFC 0024 D7): the
+        # Provenance, and only where it means something (S-0041/D-7): the
         # collision audit reports *which* sources shared a key, and on a
         # single-source entity the column would be a constant in every row of
         # every relation forever.
@@ -779,7 +779,7 @@ def _branch_select(
     if include_raw:
         # The reject table's provenance, computed **here** because it is true of
         # a branch and was only ever true of a model because there was one
-        # branch (RFC 0035 D2). ``reject_id`` moves with the three literals out
+        # branch (S-0051/D-2). ``reject_id`` moves with the three literals out
         # of necessity rather than symmetry: its first argument is this
         # branch's relation name, which the union erases one level up.
         #
@@ -795,12 +795,12 @@ def _branch_select(
         unresolved: Expression = exp.Is(this=exp.column("resolved_at"), expression=exp.null())
 
         if len(entity.sources) > 1:
-            # Each branch replays **its own** rows (RFC 0035 D3). Without the
+            # Each branch replays **its own** rows (S-0051/D-3). Without the
             # filter every branch reads every reject row, so one mapping's
             # extraction runs over another mapping's ``raw`` payload — whose
             # keys it does not have — and returns NULLs rather than raising.
             # The literal names exactly one branch because ``(target, source)``
-            # is unique (RFC 0024 D12).
+            # is unique (S-0041/D-12).
             unresolved = cast(
                 "Expression",
                 exp.and_(
@@ -842,9 +842,9 @@ def _extract_select(
     """Stages 1–3: one :func:`_branch_select` per source, unioned, then the
     dedupe ``QUALIFY`` and the windowed-verdict level over the result.
 
-    **The union is the first stage** (RFC 0024 D6): union → dedupe → rules. A
+    **The union is the first stage** (S-0041/D-6): union → dedupe → rules. A
     rule evaluated per source would judge a row the merged relation does not
-    contain, which is the argument that fixed dedupe-before-rules in RFC 0016.
+    contain, which is the argument that fixed dedupe-before-rules in S-0033.
 
     Branch order is lexicographic by source relation, inherited from
     ``EntityIR.sources`` rather than re-derived, so the emitted text is
@@ -902,7 +902,7 @@ def _dedupe_level(union: exp.Select | exp.Union) -> exp.Select:
 def _union_all(branches: list[exp.Select]) -> exp.Union:
     """``branches`` folded left into one ``UNION ALL``, in the order given.
 
-    ``UNION ALL``, never ``UNION`` (RFC 0024, alternatives): distinct would make
+    ``UNION ALL``, never ``UNION`` (S-0041, alternatives): distinct would make
     the collision audit unnecessary for exact duplicates by *hiding* them, and
     two sources agreeing on every column of one key is a fact an operator
     should see. It is also an expensive way to be silent on a wide relation.
@@ -965,11 +965,11 @@ def _from_payload(node: Expression) -> Expression:
 
 def _entity_projections(entity: EntityIR, table: str) -> list[Expression]:
     """The entity's own columns, qualified — with any ``unknown_member`` fk
-    rewritten to the reserved member (RFC 0016 §5.4), and ``_source`` on a
+    rewritten to the reserved member (S-0033/fixed-pipeline-order-and-lowering), and ``_source`` on a
     merged entity.
 
     ``_source`` is a real column of the merged silver relation, not a stage
-    detail: RFC 0024 D19 says provenance stays reachable because "a per-source
+    detail: S-0041/D-19 says provenance stays reachable because "a per-source
     view is a filter rather than a schema", and D18 reserves the name
     unconditionally so nothing can collide with it. It survived the P1
     pipeline by accident — a merged entity carried no rules, so the model was
@@ -1005,7 +1005,7 @@ def _entity_projections(entity: EntityIR, table: str) -> list[Expression]:
 
 
 def _route_predicate(entity: EntityIR, table: str, *, quarantined: bool) -> Expression | None:
-    """Stage 6: the two-way split (RFC 0016 §5.4).
+    """Stage 6: the two-way split (S-0033/fixed-pipeline-order-and-lowering).
 
     ``quarantined=True`` selects the diverted rows for ``<entity>__reject``;
     ``False`` is its complement, the rows the entity keeps. ``None`` when the
@@ -1030,10 +1030,10 @@ def _route_predicate(entity: EntityIR, table: str, *, quarantined: bool) -> Expr
 def _require_try_cast(entity: EntityIR, ctx: EmitContext) -> None:
     """Refuse a coercion-failure marker the dialect cannot express.
 
-    RFC 0016 §5.2 says the marker lowers ``TRY_CAST``-shaped *per dialect*;
+    S-0033/coercion-failure-is-a-rule-the-assert-boundary says the marker lowers ``TRY_CAST``-shaped *per dialect*;
     Postgres has no such cast and SQLGlot renders ``TRY_CAST`` there as a
     plain ``CAST``, which would silently turn "quarantine this row" into
-    "abort this run". RFC 0008 D3: fail loud, never approximate.
+    "abort this run". S-0025/D-3: fail loud, never approximate.
     """
 
     if not any(rule.kind == "coercible" for rule in entity.quality):
@@ -1045,7 +1045,7 @@ def _require_try_cast(entity: EntityIR, ctx: EmitContext) -> None:
     msg = (
         f"entity {entity.name!r} carries coercible quality rules, whose coercion-failure "
         f"marker needs a NULL-on-failure cast, but dialect {ctx.dialect.name!r} has none "
-        "(RFC 0016 §5.2). Rendering it as a plain CAST would abort the run where the spec "
+        "(S-0033/coercion-failure-is-a-rule-the-assert-boundary). Rendering it as a plain CAST would abort the run where the spec "
         "says quarantine the row. Fix: compile this project for a dialect with TRY_CAST, or "
         "drop the coercible rules"
     )
@@ -1062,7 +1062,7 @@ def _require_unicode_normalize(entity: EntityIR, ctx: EmitContext) -> None:
     no weaker reading of it. A dialect with no normalization would render
     ``NORMALIZE(...)`` — SQLGlot emits it verbatim for any generator — and the
     engine would fail at run time on a function it does not define, which is
-    the "renders beautifully, aborts the run" shape RFC 0008 D3 refuses.
+    the "renders beautifully, aborts the run" shape S-0025/D-3 refuses.
     """
 
     if not any(rule.kind == "normalize" for rule in entity.quality):
@@ -1074,7 +1074,7 @@ def _require_unicode_normalize(entity: EntityIR, ctx: EmitContext) -> None:
     msg = (
         f"entity {entity.name!r} carries a normalize quality rule, which compares a value "
         f"against its Unicode normal form, but dialect {ctx.dialect.name!r} has no "
-        "normalization function (RFC 0016 D86). Fix: compile this project for a dialect "
+        "normalization function (S-0033/D-86). Fix: compile this project for a dialect "
         "with one, or drop the normalize rules"
     )
     raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
@@ -1096,8 +1096,8 @@ def _require_try_cast_for_audit(entity: EntityIR, ctx: EmitContext) -> None:
     deferred to first, so an author who wrote quality rules reads the message
     about the rules they wrote rather than about a generated audit. What it
     does *not* cover is a **dedupe-only** entity: ``dedupe:`` alone does not
-    join the quality system (RFC 0016 D24), so such an entity carries no rules
-    at all and still gets this audit. RFC 0016 D30 reads "Postgres cannot host
+    join the quality system (S-0033/D-24), so such an entity carries no rules
+    at all and still gets this audit. S-0033/D-30 reads "Postgres cannot host
     quality-carrying entities at all"; this is the edge of that sentence.
     """
     _require_try_cast(entity, ctx)
@@ -1107,7 +1107,7 @@ def _require_try_cast_for_audit(entity: EntityIR, ctx: EmitContext) -> None:
 
     msg = (
         f"entity {entity.name!r} carries a dedupe:/quarantine: block, so it gets the "
-        "ingestion-metadata audit (RFC 0016 D21/D25) asserting that _ingested_at casts to "
+        "ingestion-metadata audit (S-0033/D-21, S-0033/D-25) asserting that _ingested_at casts to "
         f"timestamp — which needs a NULL-on-failure cast, and dialect {ctx.dialect.name!r} "
         "has none. Rendering it as a plain CAST would abort the audit query instead of "
         "reporting the offending row. Fix: compile this project for a dialect with "
@@ -1120,7 +1120,7 @@ def _require_try_cast_for_audit(entity: EntityIR, ctx: EmitContext) -> None:
 
 
 def _repair_projections(entity: EntityIR, *, arrays: bool) -> list[Expression]:
-    """``_quality_repairs``, or nothing at all (RFC 0016 D87).
+    """``_quality_repairs``, or nothing at all (S-0033/D-87).
 
     The distinct marker D17 made a condition of the disposition landing:
     "repaired, now correct" and "currently flagged bad" are different facts, so
@@ -1209,7 +1209,7 @@ def _quality_pipeline(
 
     if len(entity.sources) > 1:
         # Provenance is a column of the merged relation, not a stage detail
-        # (RFC 0024 D18/D19) — see :func:`_entity_projections`. Carried here as
+        # (S-0041/D-18, S-0041/D-19) — see :func:`_entity_projections`. Carried here as
         # well because this is the *other* path to the same relation, and the
         # two disagreeing is a merged entity whose schema depends on whether it
         # declared a rule.
@@ -1240,7 +1240,7 @@ def _quality_pipeline(
 def entity_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     """The silver SELECT: every lowered column expression aliased to its
     declared name, from the bronze relation under the naming policy — plus the
-    data-quality pipeline (RFC 0016 §5.4) and the two generated columns
+    data-quality pipeline (S-0033/fixed-pipeline-order-and-lowering) and the two generated columns
     ``_quality_flags`` / ``_quality_ok`` every silver entity carries (§5.5).
 
     An entity with no quality rules gets the two columns as constants and no
@@ -1272,7 +1272,7 @@ def entity_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
 
 
 def step_output_select(entity: EntityIR, body: exp.Select, ctx: EmitContext) -> exp.Select:
-    """A Tier 2 step body wrapped in the data-quality pipeline (RFC 0051 §5.3).
+    """A Tier 2 step body wrapped in the data-quality pipeline (S-0059/onfail-flag-on-a-tier-2-output).
 
     The **same** :func:`_quality_pipeline` the silver model and replay's
     candidate set go through, with the step's own SELECT standing in for the
@@ -1296,7 +1296,7 @@ def step_output_select(entity: EntityIR, body: exp.Select, ctx: EmitContext) -> 
 
 
 def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
-    """The ``<entity>__reject`` SELECT (RFC 0016 §5.6): the diverted side of
+    """The ``<entity>__reject`` SELECT (S-0033/quarantine-one-reject-table-per-entity): the diverted side of
     the stage-6 split, projected into the reject schema.
 
     ``failed_rules`` records **all** the row's failures — flag-level *and*
@@ -1323,8 +1323,8 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     arrays = _arrays(ctx)
     # `reject_id`, `source_relation`, `mapping` and `mapping_version` are
     # compile-time literals **of one branch** and are projected there
-    # (RFC 0035 D2), so this level reads them by name like any other extract
-    # column. One reject table per entity still (RFC 0016 D10): what became
+    # (S-0051/D-2), so this level reads them by name like any other extract
+    # column. One reject table per entity still (S-0033/D-10): what became
     # N-way is the projection, not the relation.
     extract = _extract_select(entity, ctx, include_raw=True)
     recorded = _recorded_rules(entity)
@@ -1387,7 +1387,7 @@ _MERGE_TARGET = "target"
 _MERGE_SOURCE = "source"
 
 #: The reject columns whose value on a re-delivery is the **existing** one, not
-#: the arriving one (RFC 0016 §5.6). ``first_seen`` records when the problem
+#: the arriving one (S-0033/quarantine-one-reject-table-per-entity). ``first_seen`` records when the problem
 #: started; ``last_evaluated_at`` records a *replay* run, and the reject model
 #: — which is the merge's source — projects it NULL because a model query may
 #: not read a clock (D88). Without it here, a re-delivery would erase the
@@ -1410,7 +1410,7 @@ _INCUMBENT = "incumbent"
 
 def reject_incremental_select(entity: EntityIR, ctx: EmitContext, *, incumbent: str) -> exp.Select:
     """:func:`reject_select` with the preserved columns already resolved
-    against the rows in the table (RFC 0052 §5.1, D1).
+    against the rows in the table (S-0060/the-reject-table, S-0060/D-1).
 
     SQLMesh keeps this in a ``when_matched`` clause — the engine holds both
     sides and :func:`reject_when_matched` says which one wins per column. dbt
@@ -1473,7 +1473,7 @@ def reject_incremental_select(entity: EntityIR, ctx: EmitContext, *, incumbent: 
 
 def reject_when_matched() -> tuple[Expression, ...]:
     """The assignments of the reject table's ``WHEN MATCHED`` clause
-    (RFC 0016 §5.6, D21).
+    (S-0033/quarantine-one-reject-table-per-entity, S-0033/D-21).
 
     "A re-delivery updates ``last_seen``, ``_load_id``, and ``failed_rules`` on
     the existing row" — which is a statement about the *merge*, not about the
@@ -1495,10 +1495,10 @@ def reject_when_matched() -> tuple[Expression, ...]:
     changes is how a ``Whens`` node renders (it gains a wrapping paren and a
     different indent). Emitting one would therefore make the compiled bytes a
     function of whether the calling process had imported the target framework,
-    which is precisely the determinism invariant RFC 0003 exists to hold. The
+    which is precisely the determinism invariant S-0020 exists to hold. The
     assignment nodes render identically either way, and the clause around them
     is envelope text — pre-rendered strings interpolated by the emitter, the
-    RFC 0008 D4 doctrine.
+    S-0025/D-4 doctrine.
     """
     assignments: list[Expression] = []
 
@@ -1519,7 +1519,7 @@ def reject_when_matched() -> tuple[Expression, ...]:
 
 def _uncastable_ingested_at() -> Expression:
     """``_ingested_at IS NOT NULL AND TRY_CAST(_ingested_at AS TIMESTAMP) IS NULL``
-    — RFC 0016 D25/D31, the third condition of the D21 audit.
+    — S-0033/D-25, S-0033/D-31, the third condition of the D21 audit.
 
     The ``IS NOT NULL`` half is not redundant with the audit's own
     ``_ingested_at IS NULL`` disjunct: it keeps this term meaning exactly
@@ -1528,13 +1528,13 @@ def _uncastable_ingested_at() -> Expression:
     corrupt one.
     """
     ingested = exp.column(_INGESTED_AT_COLUMN)
-    # Marked as ISO text (RFC 0027), which is what makes the question the same
+    # Marked as ISO text (S-0044), which is what makes the question the same
     # question on every engine. Unmarked, this is a bare `TRY_CAST(text AS
     # TIMESTAMP)` — and Trino's cast does not accept the ISO `T` separator, so
     # `TRY_CAST('2026-01-06T12:00:00' AS TIMESTAMP)` is NULL there and the audit
     # reported *every* row as an uncastable timestamp. A blocking audit, so the
     # run stopped on correct data: the worst failure available to a generated
-    # check (RFC 0024 D13). `parse_ts: ISO8601` already went through the marker;
+    # check (S-0041/D-13). `parse_ts: ISO8601` already went through the marker;
     # this cast asks the same thing of the same text and did not.
     castable = exp.TryCast(this=iso_text(ingested.copy()), to=exp.DataType.build("TIMESTAMP"))
     return conjunction(
@@ -1557,7 +1557,7 @@ def ingestion_audit_predicate(entity: EntityIR, ctx: EmitContext) -> Expression:
     null or duplicated identity, or a recency value that does not cast, stops
     the run rather than silently corrupting dedupe order or ``reject_id``.
 
-    The castability half (RFC 0016 D25) closes the hole D6's disposition
+    The castability half (S-0033/D-25) closes the hole D6's disposition
     forcing cannot reach: forcing applies to *mapped fields*, and the
     ingestion-metadata columns are not mapped, so no ``coercible`` rule is ever
     generated for ``_ingested_at``. Without this term an uncastable recency
@@ -1612,7 +1612,7 @@ def metadata_audit_select(
     arrangement SQLMesh's envelope has always had, as a tree rather than as
     template text, for the reason :func:`predicate_audit_select` gives.
     """
-    # `PARTITION BY _source, _source_row_id` on a merged entity (RFC 0024 D34).
+    # `PARTITION BY _source, _source_row_id` on a merged entity (S-0041/D-34).
     # D21 makes the row identity unique within **one** source relation, so two
     # sources with ordinary per-table row sequences collide on the first run —
     # and this audit is blocking, which would stop the run on correct data.
@@ -1667,7 +1667,7 @@ def _this_model(alias: str = "", relation: str = THIS_MODEL) -> exp.Table:
 
     The default is SQLMesh's macro because that is the older of the two and
     every existing caller means it. A target whose audits attach by reference
-    passes its own spelling (RFC 0026 D10), so the body is built with it from
+    passes its own spelling (S-0043/D-10), so the body is built with it from
     the start — the alternative, emitting ``@this_model`` and rewriting the
     finished file, is the substitution D10 refuses.
     """
@@ -1719,7 +1719,7 @@ COLLISION_COUNT_COLUMN = "sources"
 
 
 def collision_audit(entity: EntityIR) -> bool:
-    """Whether a merged entity's key-collision audit is emitted (RFC 0024 D5).
+    """Whether a merged entity's key-collision audit is emitted (S-0041/D-5).
 
     Merged entities only, not every mapped one. Emitting it unconditionally
     would make the artifact set uniform and cost a scan per entity for a check
@@ -1736,7 +1736,7 @@ def collision_audit(entity: EntityIR) -> bool:
 
 
 def collision_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
-    """The disjointness law as a **runtime** audit (RFC 0024 §5.4, D5, D13).
+    """The disjointness law as a **runtime** audit (S-0041/what-is-refused-at-run-time, S-0041/D-5, S-0041/D-13).
 
     The compiler has no data, so it cannot know two sources' key sets are
     disjoint. This is the run-time half of that split, and it is the same split
@@ -1807,7 +1807,7 @@ def conservation_audit(entity: EntityIR) -> bool:
     That rules the audit out for exactly one shape: an entity whose *routing*
     predicate reads a sibling entity, i.e. a ``referential`` rule carrying
     ``on_missing: quarantine``. Everywhere else the law rides on bronze and the
-    model itself. The property tier covers the law for every shape (RFC 0016
+    model itself. The property tier covers the law for every shape (S-0033
     §6); this is about what can be checked at run time, on this target.
     """
 
@@ -1844,7 +1844,7 @@ def _current_version(entity: EntityIR) -> Expression | None:
     This is older than the replay route that met it: an entity may declare
     ``dedupe:`` without ``quarantine:``, which requires the metadata contract
     and generates both audits, and ``scd: type2`` with ``dedupe:`` has always
-    compiled. RFC 0060 P1 only makes a second version the *expected* outcome
+    compiled. S-0003/P-1 only makes a second version the *expected* outcome
     rather than an eventual one.
     """
 
@@ -1860,7 +1860,7 @@ def _current_version(entity: EntityIR) -> Expression | None:
 def conservation_audit_select(
     entity: EntityIR, ctx: EmitContext, *, relation: str = THIS_MODEL
 ) -> exp.Select:
-    """The conservation law as a **runtime** audit (RFC 0016 §6).
+    """The conservation law as a **runtime** audit (S-0033/tests-rfc-0009-amendment).
 
     §6 does not merely ask for a property test — it asks for the law to be
     "emitted as a runtime audit on every production run, not only a test",
@@ -1885,7 +1885,7 @@ def conservation_audit_select(
     singular test attached to nothing. Same parameter, same reason, as
     :func:`metadata_audit_select` beside it.
 
-    **One leg, not two** (RFC 0016 D61). The audit also carried
+    **One leg, not two** (S-0033/D-61). The audit also carried
     ``surviving_rows <= bronze_rows`` — "dedupe removes rows, it never invents
     any" — which reads like a second guarantee and is a tautology: the
     ``_survivors`` CTE *is* the bronze relation with a ``QUALIFY`` over it, so
@@ -1907,7 +1907,7 @@ def conservation_audit_select(
     # The audited entity is addressed through THIS_MODEL, never through the
     # naming policy: an audit must follow the model into whatever physical
     # table the framework's virtual layer put it in.
-    # Summed over every branch (RFC 0035): the law is "bronze rows = surviving
+    # Summed over every branch (S-0051): the law is "bronze rows = surviving
     # + diverted", and a merged entity's bronze side is every relation it reads.
     bronze_relations = [
         exp.table_(relation, db=namespace)
@@ -1921,10 +1921,10 @@ def conservation_audit_select(
         diverted = exp.false()
 
     # Scoped by the **pair** on a merged entity, not by the row identity alone.
-    # That identity is unique within one source relation (RFC 0016 D21), and
+    # That identity is unique within one source relation (S-0033/D-21), and
     # this audit reads `@this_model` — which is not always this run's rows: an
     # entity with `partition_by:` materializes INCREMENTAL_BY_PARTITION by
-    # default (RFC 0002 D7), and any project may declare an incremental kind
+    # default (S-0019/D-7), and any project may declare an incremental kind
     # outright. A stale row from one shop whose identity matches a current
     # survivor's from another is then counted, `entity_rows` is inflated, and
     # the conservation audit is blocking — so it stops the run on correct data.
@@ -1976,7 +1976,7 @@ def fail_audits(
 ) -> tuple[tuple[str, exp.Select | exp.Union], ...]:
     """``(audit name, violating-row query)`` per ``on_fail: fail`` rule.
 
-    **Two populations, unioned** (RFC 0016 D32, completed by D67) — because a
+    **Two populations, unioned** (S-0033/D-32, completed by D67) — because a
     blocking rule is a statement about the entity, and there are two ways a row
     can be one of its rows:
 
@@ -2083,7 +2083,7 @@ def _one_winner_per_key(select: exp.Select, entity: EntityIR) -> exp.Select:
     # (D20): the stable source-row identity, which D21 guarantees exists and is
     # unique on any entity with a reject table — within **one** source
     # relation, which is why a merged entity puts ``_source`` ahead of it here
-    # exactly as the dedupe order does (RFC 0024 D35). Without it two rejected
+    # exactly as the dedupe order does (S-0041/D-35). Without it two rejected
     # rows from different sources on one key compare equal and replay's winner
     # is undefined.
     tail = [ROW_ID_COLUMN] if not merged else [SOURCE_COLUMN, ROW_ID_COLUMN]
@@ -2117,11 +2117,11 @@ def _replay_identity(
     ``_source_row_id`` alone on a single-source entity, and the
     ``(<provenance>, _source_row_id)`` pair once the reject table holds rows
     from several relations — the identity is unique *within* a source
-    (RFC 0016 D21) and says nothing across a union.
+    (S-0033/D-21) and says nothing across a union.
 
     ``provenance`` because the two sides spell it differently and always have:
-    the entity model carries ``_source`` (RFC 0024 D18) and the reject table
-    carries ``source_relation`` (RFC 0016 §5.6). They hold the same value.
+    the entity model carries ``_source`` (S-0041/D-18) and the reject table
+    carries ``source_relation`` (S-0033/quarantine-one-reject-table-per-entity). They hold the same value.
     """
     names = [ROW_ID_COLUMN] if len(entity.sources) == 1 else [provenance, ROW_ID_COLUMN]
     return [exp.column(name, table=table) for name in names]
@@ -2155,7 +2155,7 @@ def _replay_candidates(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     per entity key.
 
     Replay "re-runs the current mapping against ``raw``" for unresolved rows
-    (RFC 0016 §5.6). Running them back through :func:`_quality_pipeline` is
+    (S-0033/quarantine-one-reject-table-per-entity). Running them back through :func:`_quality_pipeline` is
     what makes "passers merge, the rest stay" true by construction: a
     candidate that still fires a quarantine rule is filtered out by the very
     same routing predicate the pipeline uses. :func:`_one_winner_per_key` then
@@ -2170,7 +2170,7 @@ def _replay_candidates(entity: EntityIR, ctx: EmitContext) -> exp.Select:
 
 def _reevaluated(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     """``(_source_row_id, failed_rules)`` re-derived from ``raw`` for every
-    unresolved reject row (RFC 0016 §5.6).
+    unresolved reject row (S-0033/quarantine-one-reject-table-per-entity).
 
     The very same flag construction the reject model writes with, over the very
     same extract replay's candidates come from — so "still failing" and "would
@@ -2179,7 +2179,7 @@ def _reevaluated(entity: EntityIR, ctx: EmitContext) -> exp.Select:
 
     Plus one entry the reject model never writes —
     :data:`~bloomery.quality.SUPERSEDED_RULE`, recorded exactly when the row
-    now passes routing (RFC 0016 D69). Read with the third statement's ``resolved_at IS
+    now passes routing (S-0033/D-69). Read with the third statement's ``resolved_at IS
     NULL`` filter, that pair of facts has one meaning — the row was admitted by
     every rule and still did not enter the entity, so another row won its key:
     it lost :func:`_one_winner_per_key`'s contest among candidates, or the
@@ -2222,9 +2222,9 @@ def _dedupe_columns(entity: EntityIR, table: str) -> list[Expression]:
     (Before this was spelled out, the comparison collapsed to ``() > ()`` in
     the emitted replay artifact — invalid SQL on every dialect. The shipped
     golden fixture declares ``dedupe:``, so only the execution tier over an
-    entity without one could see it, RFC 0016 §6.)
+    entity without one could see it, S-0033/tests-rfc-0009-amendment (§6.))
 
-    On a merged entity the order carries ``_source`` (RFC 0024 D35) — the same
+    On a merged entity the order carries ``_source`` (S-0041/D-35) — the same
     order, because replay's whole correctness argument is that it re-derives
     the winner the pipeline would have picked, and an order that differed here
     would pick a different one.
@@ -2235,7 +2235,7 @@ def _dedupe_columns(entity: EntityIR, table: str) -> list[Expression]:
         return [term.this for term in dedupe_order(entity.dedupe, table=table, merged=merged)]
 
     # The no-`dedupe:` form, and it carries `_source` for the same reason the
-    # dedupe order does (RFC 0024 D35): the row identity is unique within *one*
+    # dedupe order does (S-0041/D-35): the row identity is unique within *one*
     # source relation, so two rejected rows from different shops on one entity
     # key compare equal without it. This has to agree term for term with
     # :func:`_one_winner_per_key`'s own no-`dedupe:` order — one ranks the
@@ -2309,7 +2309,7 @@ def _admitted_since(entity: EntityIR, namespace: str, relation: str) -> Expressi
     it.
 
     Matched on the **pair**, not the row identity alone: that is unique within
-    one source relation (RFC 0016 D21) and a merged entity's reject table holds
+    one source relation (S-0033/D-21) and a merged entity's reject table holds
     rows from several, so two shops can quarantine one identity. Keyed by the
     identity alone, admitting one shop's row stamped the other's resolved — a
     still-failing row marked drained, which never replays again. ``_source`` is
@@ -2377,7 +2377,7 @@ def _admitted_since(entity: EntityIR, namespace: str, relation: str) -> Expressi
 
 def _redelivery(entity: EntityIR, origin: SourceIR, ctx: EmitContext) -> exp.Insert:
     """One source's recovered rows, written back to bronze as a new delivery
-    (RFC 0060 §5.2, D2) — replay's first statement for a ``scd: type2`` entity.
+    (S-0003 (§5.2), S-0003/D-2) — replay's first statement for a ``scd: type2`` entity.
 
     The entity's relation is the *framework's*: ``SCD_TYPE_2_BY_COLUMN`` on
     SQLMesh, a snapshot on dbt. Merging into it writes a version with no
@@ -2389,24 +2389,24 @@ def _redelivery(entity: EntityIR, origin: SourceIR, ctx: EmitContext) -> exp.Ins
 
     **The delivery keeps the original's ``_source_row_id``.** ``_load_id`` is
     outside the reject identity precisely so that re-deliveries of one source
-    row land on the same reject row (RFC 0016 D21), which is what lets the
+    row land on the same reject row (S-0033/D-21), which is what lets the
     resolution stamp find this row once the framework has admitted it — one
     replay run later, without a new column or a new reject state. A fresh
     identity would mint a second reject row per run and leave the first
     unresolvable forever, which is §9's "a row that re-enters on every run".
 
     ``_ingested_at`` is the executing engine's clock, as statements 2 and 3
-    already read it (RFC 0003: bloomery emits the statement, the caller runs
+    already read it (S-0020: bloomery emits the statement, the caller runs
     it). It is what makes the re-delivery the most recent one, so ``dedupe``
     prefers it, and it is what advances ``last_seen`` — the clock retention
     ages an unresolved reject row from, so the window between the delivery and
     the framework admitting it cannot age the row out.
 
-    **One statement per source** (RFC 0035 §5.3): an INSERT's target table
+    **One statement per source** (S-0051/replay-branches-on-sourcerelation): an INSERT's target table
     cannot be data-dependent, and a merged entity's reject table holds rows
     from several relations. The admitted set is still computed over the *union*
     — a rule evaluated per source would judge a row the merged relation does
-    not contain (RFC 0024 D6) — and the pair filters it back down here.
+    not contain (S-0041/D-6) — and the pair filters it back down here.
 
     What is written is the reject row's ``raw``, which is the payload rather
     than the row: a bronze column the mapping neither maps nor acknowledges is
@@ -2463,7 +2463,7 @@ def _redelivery(entity: EntityIR, origin: SourceIR, ctx: EmitContext) -> exp.Ins
     values.extend(
         (
             # Zoneless UTC, because that is what `timestamp` means here
-            # (RFC 0004 §5.1) and bronze's `_ingested_at` is read as one. A bare
+            # (S-0021/logical-types-bloomery-typing-types-py) and bronze's `_ingested_at` is read as one. A bare
             # `CURRENT_TIMESTAMP` is zone-*aware* on every shipped engine, and
             # the D21 audit refuses an offset-bearing value — measured: the
             # emitted test failed on `2026-09-17 19:18:21.796404+03`. The
@@ -2497,7 +2497,7 @@ def _replay_merge(entity: EntityIR, ctx: EmitContext) -> exp.Merge:
     SELECT defines (``scd: type1``): the MERGE that admits the passers.
 
     Split out of :func:`replay_statements` when the historical entity gained
-    a route of its own (RFC 0060 D4). The statement is unchanged — D4 keeps
+    a route of its own (S-0003/D-4). The statement is unchanged — D4 keeps
     type 1 replay exactly as it was, and a shared rewrite would put the
     branch nobody needs in the path everybody takes.
     """
@@ -2505,7 +2505,7 @@ def _replay_merge(entity: EntityIR, ctx: EmitContext) -> exp.Merge:
     columns = [
         *(column.name for column in entity.columns),
         # A merged entity's relation carries provenance, so the MERGE has to
-        # write it — and `_candidate_wins` compares by it (RFC 0024 D35), which
+        # write it — and `_candidate_wins` compares by it (S-0041/D-35), which
         # a source that did not project it could not answer.
         *((SOURCE_COLUMN,) if len(entity.sources) > 1 else ()),
         *INGESTION_METADATA,
@@ -2527,7 +2527,7 @@ def _replay_merge(entity: EntityIR, ctx: EmitContext) -> exp.Merge:
                 # in UPDATE .. SET not supported"), and only a couple of
                 # engines accept it as an extension. Qualifying it here made
                 # the emitted replay artifact unrunnable on every shipped
-                # dialect; caught by the execution tier (RFC 0016 §6), which is
+                # dialect; caught by the execution tier (S-0033/tests-rfc-0009-amendment), which is
                 # what that tier is for. The right side stays qualified — it
                 # names the *source* row and would be ambiguous otherwise.
                 exp.EQ(
@@ -2569,7 +2569,7 @@ def _replay_merge(entity: EntityIR, ctx: EmitContext) -> exp.Merge:
 
 
 def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, ...]:
-    """The replay artifact (RFC 0016 §5.6, D22): one MERGE and two updates.
+    """The replay artifact (S-0033/quarantine-one-reject-table-per-entity, S-0033/D-22): one MERGE and two updates.
 
     §5.6 states replay in one sentence — "re-runs the current mapping against
     ``raw`` for unresolved rows, merging passers into the entity by key and
@@ -2600,7 +2600,7 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
     Order matters between 2 and 3: the stamp runs first, so 3's
     ``resolved_at IS NULL`` filter is exactly "the rest".
 
-    **``last_seen`` is one clock — the data's** (RFC 0016 D70). It is written
+    **``last_seen`` is one clock — the data's** (S-0033/D-70). It is written
     as the row's ``_ingested_at`` and advanced only by a re-delivery's merge,
     and statement 3 deliberately leaves it alone: retention measures unresolved
     reject rows *from* ``last_seen`` (§5.6), so a replay run advancing it makes
@@ -2621,7 +2621,7 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
     long the statement takes on engines that do not pin a transaction clock.
 
     The resolution stamp reads the **executing engine's** clock
-    (``CURRENT_TIMESTAMP``) — bloomery never reads a clock (RFC 0003), it emits
+    (``CURRENT_TIMESTAMP``) — bloomery never reads a clock (S-0020), it emits
     the statements and the caller runs them. The reject row is kept as audit
     history; retention, never replay, is what deletes it.
     """
@@ -2643,7 +2643,7 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
                 [
                     exp.Is(this=exp.column("resolved_at"), expression=exp.null()),
                     # Matched on the **pair**, not the row identity: that is
-                    # unique within one source relation (RFC 0016 D21) and a
+                    # unique within one source relation (S-0033/D-21) and a
                     # merged entity's reject table holds rows from several, so
                     # two shops can quarantine one identity. Keyed by the
                     # identity alone, admitting one shop's row stamped the

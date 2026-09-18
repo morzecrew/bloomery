@@ -1,9 +1,9 @@
-"""The ``Catalog`` spec kind (RFC 0002 §5.5; original spec §3.2).
+"""The ``Catalog`` spec kind (S-0019/spec-model-surface; original spec §3.2).
 
 Domain knowledge, one per vertical: canonical fields with derivation recipes
 and unit/tax-basis metadata, canonical relationships, and metric templates.
 Authored by the operator, deliberately not part of :class:`Project`
-(RFC 0002 D8) — it is passed separately to compile/resolve.
+(S-0019/D-8) — it is passed separately to compile/resolve.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ __all__ = [
 class Recipe(SpecModel):
     """One alternative derivation path to a canonical field, ordered by
     reliability in the catalog; the compiler validates recorded choices but
-    never chooses (RFC 0005 D2)."""
+    never chooses (S-0022/D-2)."""
 
     id: str
     requires: tuple[str, ...]
@@ -54,11 +54,11 @@ class Recipe(SpecModel):
 
 class CanonicalField(SpecModel):
     """A canonical domain field: its home entity, logical type, monetary
-    metadata (drives the guardrails, RFC 0006 §5.2), and recipes. The optional
+    metadata (drives the guardrails, S-0023/metadata-provenance-unit-tax-basis-currency), and recipes. The optional
     ``description`` is carried through the IR into semantic-layer emissions
-    (RFC 0013 R1) — it grounds the Query Agent."""
+    (S-0030 R1) — it grounds the Query Agent."""
 
-    #: A stable identity, minted once and never edited (RFC 0062 §5.1). When
+    #: A stable identity, minted once and never edited (S-0067/the-field). When
     #: present it replaces the name in this node's lineage id, so a rename
     #: relabels a vertex instead of deleting one node and adding another.
     #:
@@ -93,7 +93,7 @@ class CanonicalRelationship(SpecModel):
 
 
 class DateDimension(SpecModel):
-    """The vertical-owned date dimension (RFC 0008 D13, RFC 0013 R1 rule 4):
+    """The vertical-owned date dimension (S-0025/D-13, S-0030 R1 rule 4):
     one catalog definition drives both the emitted gold ``dim_date`` model and
     the MetricFlow time-spine declaration (M6). Bounds are calendar years —
     the emitted table depends on the spec only, never on a clock."""
@@ -119,7 +119,7 @@ class DateDimension(SpecModel):
 
 class FxRates(SpecModel):
     """The dated exchange-rate relation the ``convert`` transform reads
-    (RFC 0023 §5.4).
+    (S-0040/phase-2-currency-as-a-declared-relation).
 
     Reference data, which is why it is a catalog concern rather than an
     entity: nobody maps it, it has no grain bloomery owns, and it is shared by
@@ -130,7 +130,7 @@ class FxRates(SpecModel):
     silver layer, not a namespaced one. A hard-coded ``silver.fx_rate`` would
     pass :class:`~bloomery.naming.PrefixNaming` unchanged and read a relation
     outside the namespace everything else in the project was scoped into — the
-    one thing a naming policy exists to prevent (RFC 0008 §5.1).
+    one thing a naming policy exists to prevent (S-0025/ports).
 
     **Both interval columns must be declared, and that is the whole design**
     (D11) — declared, which is not the same as populated: ``valid_to`` is
@@ -189,7 +189,7 @@ class FxRates(SpecModel):
 
 class MetricTemplate(SpecModel):
     """A catalog-level metric template a project metric may instantiate via
-    ``template:`` (RFC 0002 §5.5). ``description`` merges like every other
+    ``template:`` (S-0019/spec-model-surface). ``description`` merges like every other
     template value: the metric's own wins, the template's is the fallback."""
 
     description: str | None = None
@@ -201,7 +201,7 @@ class MetricTemplate(SpecModel):
     expr: SqlText | None = None
     ratio: RatioSpec | None = None
     semi_additive: SemiAdditivePolicy | None = None
-    #: The time-shaped forms merge like every other template value (RFC 0034):
+    #: The time-shaped forms merge like every other template value (S-0050):
     #: a template may carry the accumulation, the derivation or the filter, and
     #: the instantiating metric's own value wins.
     cumulative: CumulativeSpec | None = None
@@ -216,7 +216,7 @@ class Catalog(SpecModel):
     """The vertical-level domain catalog (original spec §3.2), loaded via
     :func:`bloomery.load_catalog`."""
 
-    #: Pinned to the one version bloomery implements (RFC 0018 D7). It was
+    #: Pinned to the one version bloomery implements (S-0035/D-7). It was
     #: ``int`` with ``ge=1``, which accepted a document written for a future
     #: bloomery and silently applied v1 semantics to it — the exact misreading
     #: a version key exists to refuse. This key is also the document-kind
@@ -230,7 +230,7 @@ class Catalog(SpecModel):
     metric_templates: dict[str, MetricTemplate] = Field(default_factory=dict)
     date_dimension: DateDimension | None = None
     #: Absent for every vertical that never converts. Its absence is what the
-    #: ``convert`` refusal names (RFC 0023 §5.4): the transform stays legal,
+    #: ``convert`` refusal names (S-0040/phase-2-currency-as-a-declared-relation): the transform stays legal,
     #: typechecks, and is refused at emit until a rate relation is declared.
     fx_rates: FxRates | None = None
 
@@ -238,7 +238,7 @@ class Catalog(SpecModel):
 
     @model_validator(mode="after")
     def _node_ids_are_unique(self) -> Self:
-        """No two canonical fields mint the same lineage node id (RFC 0062 §9).
+        """No two canonical fields mint the same lineage node id (S-0067/risks).
 
         **Over the resulting keys**, not over the ids: what has a uniqueness
         requirement is the string the node id is built from. Comparing ids to
@@ -269,7 +269,7 @@ class Catalog(SpecModel):
             msg = (
                 f"two or more canonical fields claim one lineage identity: {spelled}. A stable "
                 "'id:' is one identity, and two nodes claiming it leave the graph holding "
-                "one vertex where this document declares two (RFC 0062 §9). Fix: give each "
+                "one vertex where this document declares two (S-0067/risks). Fix: give each "
                 "an 'id:' of its own, and never copy one between specs"
             )
             raise ValueError(msg)

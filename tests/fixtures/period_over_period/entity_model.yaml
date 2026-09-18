@@ -1,10 +1,10 @@
-# The period-over-period fixture (RFC 0034): one sale fact with a date, a
+# The period-over-period fixture (S-0050): one sale fact with a date, a
 # status to filter on and a channel to group by — the smallest shape that can
 # ask "revenue vs. the same month last year" and be checked by hand.
 #
 # `units` and `is_test` carry no metric. They are here so a metric filter can
 # be written against an integer and a boolean column: the guardrail checks a
-# filter value against the column's declared type (RFC 0034 D9), and a fixture
+# filter value against the column's declared type (S-0050/D-9), and a fixture
 # with only strings, decimals and dates cannot exercise the other two.
 spec_version: 1
 entities:

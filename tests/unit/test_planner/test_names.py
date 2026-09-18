@@ -1,4 +1,4 @@
-"""Name-bridge unit tests (RFC 0013 D7): dunder construction keyed on the
+"""Name-bridge unit tests (S-0030/D-7): dunder construction keyed on the
 primary entity, order-term mapping, the reverse mapping, and the typed
 column envelope from a real ``query_spec``."""
 
@@ -31,7 +31,7 @@ ORDERED_MONTH = ResolvedDimension(name="ordered_month", role="ordered", grain=Ti
 
 
 def test_entity_key_is_the_grain_entity_not_the_mart_name() -> None:
-    """The RFC 0013 §5.5 gotcha: a model named ``orders`` with grain
+    """The S-0030/name-bridging gotcha: a model named ``orders`` with grain
     ``order`` keys dunders on ``order`` — for both key shapes."""
     aov = fixture_ir("non_additive_aov").marts[0]
     assert (aov.name, entity_key(aov)) == ("orders", "order")
@@ -116,7 +116,7 @@ def test_unexpected_group_by_spec_is_a_planner_error() -> None:
 
 
 def test_sql_alias_is_the_alias_the_rendered_sql_actually_projects() -> None:
-    """RFC 0018 D4, closing RFC 0009 D24.
+    """S-0035/D-4, closing S-0026/D-24.
 
     ``QueryPlan.columns`` named the *requested* dimension while the SQL
     projected MetricFlow's dunder — so a caller binding a result set by name

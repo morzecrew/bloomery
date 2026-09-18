@@ -1,8 +1,8 @@
-"""The unresolved-work report — what a spec leaves open (RFC 0030).
+"""The unresolved-work report — what a spec leaves open (S-0047).
 
 Four claims, and none of them is "the dataclass has the fields".
 
-* **The two gaps split.** RFC 0030 §3 measured five spec states that report
+* **The two gaps split.** S-0047/current-state measured five spec states that report
   identically today; the report's reason to exist is that two of them need
   different edits. The battery below asserts which pair must *agree* — a
   ``required:`` field is the same decision as a non-required one — as loudly as
@@ -92,7 +92,7 @@ MAPPED_UNBOUND_RECIPE = '  cogs: {recipe: direct, from: {wrong_alias: "$.cost"}}
 def test_the_five_resolvable_states_report_as_designed(
     case: str, sources: dict[str, str], expected: tuple[Gap, str | None] | None
 ) -> None:
-    """RFC 0030 §3's table, with the two mapped states asserted to be silent.
+    """S-0047/current-state's table, with the two mapped states asserted to be silent.
 
     ``required:`` constrains the emitted column and not the mapping, so ``c``
     and ``c′`` are the *same* decision and must report identically — that is
@@ -123,7 +123,7 @@ def test_a_transitively_blocked_metric_is_in_blocks() -> None:
     whole cost of leaving the decision open.
 
     ``missing`` already carries leaves inherited through a blocked requirement
-    (RFC 0005 D3, and ``via`` beside it), so a metric blocked *through* another
+    (S-0022/D-3, and ``via`` beside it), so a metric blocked *through* another
     is waiting on this decision as surely as the one blocked on it directly —
     and a report that named only the direct one would understate the decision by
     exactly the derived metrics nobody sees.
@@ -158,7 +158,7 @@ def test_required_changes_nothing_about_the_decision() -> None:
     ],
 )
 def test_a_recipe_refusal_costs_the_round_its_worklist(mapped: str) -> None:
-    """RFC 0030 D5, cases (d) and (e), as the design accepts them.
+    """S-0047/D-5, cases (d) and (e), as the design accepts them.
 
     Recipe validation is inside the resolve stage, so a malformed choice means
     no graph, no reachability and nothing to project. The refusal names its own
@@ -241,7 +241,7 @@ def _apply(sources: dict[str, str], evidence: SpecEvidence, catalog: Catalog) ->
     Deliberately the *first* entry and the *first* option — this stands in for
     an agent, and what it proves is that the loop shrinks, not that the choice
     is good. Which document it edits is decided by ``gap`` alone, which is the
-    whole of what RFC 0030 D3 claims the field is for.
+    whole of what S-0047/D-3 claims the field is for.
     """
     decision = evidence.unresolved[0]
     updated = dict(sources)
@@ -306,7 +306,7 @@ def test_the_loop_reaches_a_fixed_point() -> None:
 
 
 def test_options_keep_catalog_order() -> None:
-    """RFC 0030 D2, against a catalog whose order is *not* alphabetical.
+    """S-0047/D-2, against a catalog whose order is *not* alphabetical.
 
     ``gross_minus_tax`` before ``direct_net`` is the whole test: sorted, the
     pair reverses. Recipe order is authored — "ordered by reliability" — so a
@@ -369,7 +369,7 @@ def test_the_sweep_has_something_to_look_at() -> None:
 
 
 # ....................... #
-# The shapes RFC 0030 does not name
+# The shapes S-0047 does not name
 
 
 def test_two_fields_linking_one_canonical_name_the_first() -> None:
@@ -434,9 +434,9 @@ def test_the_table_says_so_when_the_catalog_offers_nothing() -> None:
 
 
 def test_a_merged_entity_reports_no_open_decision() -> None:
-    """RFC 0030 D9, and the one shape it withholds today.
+    """S-0047/D-9, and the one shape it withholds today.
 
-    A merged entity's columns are per mapping (RFC 0024 D26), so a decision
+    A merged entity's columns are per mapping (S-0041/D-26), so a decision
     keyed on the canonical field cannot say which mapping document to edit —
     and an entry a caller cannot act on is a worklist item that never clears.
     What is withheld is the *entry*, never the gap: the metric blocked on it is
@@ -459,7 +459,7 @@ def test_a_step_produced_relation_names_the_catalogs_entity() -> None:
     """`logs/T-0007.md` D-034 — the third place a canonical link can live.
 
     `identity_resolution` makes `customer_ref` available through its step
-    wiring's ``canonical:`` block (RFC 0017 D49), not through any entity field.
+    wiring's ``canonical:`` block (S-0034/D-49), not through any entity field.
     Remove that block and the decision is `UNLINKED`, naming the entity the
     catalog declares the field for — which is right, and is not where the edit
     goes. `customer` is a step output and is absent from the entity model

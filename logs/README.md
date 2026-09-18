@@ -12,24 +12,24 @@ appending a row to the RFC's decision table, and that row cites the entry it cam
 
 | Task | Executed | Drift |
 | --- | --- | --- |
-| [T-0001](T-0001.md) | Retire RFC 0028; RFC 0029's readiness gate, which did not clear | 0 |
-| [T-0002](T-0002.md) | RFC 0029 — transform types the engine agrees with | 2 |
-| [T-0003](T-0003.md) | RFC 0026 — the dbt singular-test surface | 0 |
-| [T-0004](T-0004.md) | RFC 0024 P1 — deterministic union merge | 0 |
-| [T-0005](T-0005.md) | RFC 0031 P1 — lineage, the value and the traversal | 0 |
-| [T-0006](T-0006.md) | RFC 0031 P2 — the lineage CLI, `Direction.BOTH`, and the docs | 0 |
-| [T-0007](T-0007.md) | RFC 0030 — the unresolved-work report | 0 |
-| [T-0008](T-0008.md) | RFC 0032 — mapping identity | 0 |
-| [T-0009](T-0009.md) | RFC 0023 §5.3 — the as-of join | 0 |
-| [T-0010](T-0010.md) | RFC 0023 §5.4 — currency as a declared relation | 0 |
-| [T-0011](T-0011.md) | RFC 0034 — metrics over time | 2 |
+| [T-0001](T-0001.md) | Retire S-0045; S-0046's readiness gate, which did not clear | 0 |
+| [T-0002](T-0002.md) | S-0046 — transform types the engine agrees with | 2 |
+| [T-0003](T-0003.md) | S-0043 — the dbt singular-test surface | 0 |
+| [T-0004](T-0004.md) | S-0041/phasing (P-1) — deterministic union merge | 0 |
+| [T-0005](T-0005.md) | S-0048/phasing (P-1) — lineage, the value and the traversal | 0 |
+| [T-0006](T-0006.md) | S-0048/phasing (P-2) — the lineage CLI, `Direction.BOTH`, and the docs | 0 |
+| [T-0007](T-0007.md) | S-0047 — the unresolved-work report | 0 |
+| [T-0008](T-0008.md) | S-0049 — mapping identity | 0 |
+| [T-0009](T-0009.md) | S-0040/phase-2-the-as-of-join — the as-of join | 0 |
+| [T-0010](T-0010.md) | S-0040/phase-2-currency-as-a-declared-relation — currency as a declared relation | 0 |
+| [T-0011](T-0011.md) | S-0050 — metrics over time | 2 |
 
 ## How to read an entry
 
 Each entry is a fenced ```divergence block — the machine-checkable record — followed by
 prose that carries the argument. The block's fields are fixed:
 
-- **`decision`** cites the *spec's* identifier (`RFC 0029 D1`), or `unlisted` when no row
+- **`decision`** cites the *spec's* identifier (`S-0046/D-1`), or `unlisted` when no row
   covers the question. Entries have no identifiers of their own, so nothing here is ever
   renumbered; the `D-NNN` and `V-NNN` headings are historical, minted under the previous
   format and kept because source and tests cite them.
@@ -64,7 +64,7 @@ the entries classed `drift`, and that every citation resolves.
 
 **Two entries in [T-0003](T-0003.md) fail the legality check, and the failure is the
 point.** D-012 and D-013 each name a `LOCKED` row and did not halt. That is
-[A-1](T-0003.md#self-audit--2026-08-20), recorded as open and awaiting the author's call —
+[A1](T-0003.md#self-audit--2026-08-20), recorded as open and awaiting the author's call —
 the self-audit caught D-013 by hand, and adopting the checker caught D-012 as well. Until
 the author settles it, `log_check.py` is not wired into `just quality`: a gate that is red
 on arrival teaches people to skip it.
@@ -92,10 +92,10 @@ Three things came out of the migration rather than out of any task:
   was ever committed, and the runtime `ConversionException` D-002 says it prevents is
   reproducible today. Appended as a new entry with the drift count raised to 2 — not by
   editing D-002, which stands as written.
-- **[T-0003](T-0003.md) D-012 is a second `LOCKED` departure**, alongside the one A-1
+- **[T-0003](T-0003.md) D-012 is a second `LOCKED` departure**, alongside the one A1
   already named. The previous format recorded grades in prose, where "touches D10
   (`LOCKED`)" and "did not halt" sit in different sentences and no one compares them.
 - **[T-0004](T-0004.md) V-004 stopped being a divergence.** D21 asked for a refusal that
-  already existed under RFC 0017, so nothing was decided and nothing departed. The three
+  already existed under S-0034, so nothing was decided and nothing departed. The three
   legal actions all presuppose a decision, so it is recorded as prose. The gap is in the
   vocabulary, not in the entry.

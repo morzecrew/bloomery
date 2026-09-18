@@ -1,9 +1,9 @@
-"""The dedupe lowering (RFC 0016 §5.4, D20): ``QUALIFY ROW_NUMBER() OVER
+"""The dedupe lowering (S-0033/fixed-pipeline-order-and-lowering, S-0033/D-20): ``QUALIFY ROW_NUMBER() OVER
 (PARTITION BY <entity key> ORDER BY …) = 1``.
 
 **One neutral AST, per-dialect legal rendering.** ``QUALIFY`` is DuckDB-native;
 Postgres and any engine without it get the equivalent ``ROW_NUMBER``-in-a-
-subquery form from *this same* AST through SQLGlot's generators — the RFC 0008
+subquery form from *this same* AST through SQLGlot's generators — the S-0025
 doctrine, not a second template.
 
 **The order is total.** ``field`` DESC, then each ``tie_break`` column DESC in
@@ -48,17 +48,17 @@ __all__ = [
 ROW_ID_COLUMN = guaranteed(
     (name for name in INGESTION_METADATA if name == "_source_row_id"),
     expected="'_source_row_id' among the ingestion-metadata columns",
-    by="INGESTION_METADATA itself (RFC 0016 D21)",
+    by="INGESTION_METADATA itself (S-0033/D-21)",
 )
 
 
 def dedupe_sort_columns(dedupe: DedupeIR, *, merged: bool = False) -> tuple[str, ...]:
     """The total order's columns, in order: recency field, tie-breaks
-    (authored order — a sort order is semantic, RFC 0003 D4), provenance on a
+    (authored order — a sort order is semantic, S-0020/D-4), provenance on a
     merged entity, row identity.
 
     ``merged`` adds ``_source`` immediately ahead of the row identity
-    (RFC 0024 D35), and the position is the argument. The order's totality
+    (S-0041/D-35), and the position is the argument. The order's totality
     rests on "no two rows can compare equal *given the D21 metadata contract*"
     — an identity unique within **one** source relation. On a merged entity two
     rows from different sources sharing an entity key therefore compare equal
@@ -96,7 +96,7 @@ def dedupe_row_number(
     """``ROW_NUMBER() OVER (PARTITION BY <key> ORDER BY <total order>)``.
 
     Partitioning is by the **entity key** — dedupe keeps one row per key, and
-    replay merges by the same key (RFC 0016 §5.3).
+    replay merges by the same key (S-0033/spec-schema).
     """
 
     return exp.Window(

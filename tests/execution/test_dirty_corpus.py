@@ -1,4 +1,4 @@
-"""The dirty corpus, executed (RFC 0016 §6 — the execution row).
+"""The dirty corpus, executed (S-0033/tests-rfc-0009-amendment — the execution row).
 
 §6 states the doctrine this module exists to obey: assert survivors **and
 quarantine contents**, because "a test that only checks what passed cannot tell
@@ -197,7 +197,7 @@ def test_the_widening_candidates_are_quarantined_and_therefore_replayable(
     corpus_run: duckdb.DuckDBPyConnection,
 ) -> None:
     """``valid_but_unmapped`` and its twin are real upstream statuses the spec
-    does not yet know — RFC 0016 calls enum widening "the normal path, not the
+    does not yet know — S-0033 calls enum widening "the normal path, not the
     exception". Here they sit in the reject table with their raw payload
     intact, which is the precondition for the replay walkthrough
     (``test_quarantine_replay``); the misspelling beside them must stay
@@ -546,7 +546,7 @@ def test_unique_fires_over_the_whole_table_slice_and_stays_silent_on_nulls(
 def test_the_range_rule_diverts_the_row_that_casts_and_then_violates_the_bound(
     corpus_run: duckdb.DuckDBPyConnection,
 ) -> None:
-    """RFC 0016 §5.3's worked example (``range, min: 0, on_fail: quarantine``)
+    """S-0033/spec-schema's worked example (``range, min: 0, on_fail: quarantine``)
     on ``dirty_key.amount``, and the specimen D28 recorded the corpus as
     missing.
 

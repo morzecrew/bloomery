@@ -51,7 +51,7 @@ GuardrailError:
   1 error(s):
   - marts: marts.order_items.measures.shipping: measure 'shipping' has grain 'order'
     (one row per order), not the mart's grain 'order_item' (one row per line on an
-    order) — measure grain must strictly equal mart grain (RFC 0010 D2). Flattened
+    order) — measure grain must strictly equal mart grain (S-0027/D-2). Flattened
     into the mart it is duplicated once per 'order_item' row and any SUM over it
     overstates. Fix: remove it from this mart's measures, or serve it from a mart at
     grain 'order'

@@ -57,7 +57,7 @@ difference between declaring it `additive` and declaring it a `ratio`.
 ## Expected bloomery behaviour
 
 - **naive** — `revenue_per_item` declared `additivity: additive` with `agg: avg` is refused
-  as `FalseAdditivityClaim` (RFC 0038 D2). Averaging an average re-aggregates an aggregate.
+  as `FalseAdditivityClaim` (S-0053/D-2). Averaging an average re-aggregates an aggregate.
 - **declared** — the same quotient declared `additivity: ratio` over its two operands is
   accepted, and the planner returns 3.25. **R012** is the rule that owns it: a ratio is
   recomputed from operands that each roll up, never summed like one.

@@ -1,7 +1,7 @@
-"""Execution tier (RFC 0009 §5.2 tier 4): a ``to_utc`` column reads the same
-under any session zone, on DuckDB (RFC 0028 §5).
+"""Execution tier (S-0026/tier-contracts tier 4): a ``to_utc`` column reads the same
+under any session zone, on DuckDB (S-0045/what-fixed-looks-like).
 
-This is the half of RFC 0028 a *type* check cannot reach, and the reason the
+This is the half of S-0045 a *type* check cannot reach, and the reason the
 declared-vs-produced battery is necessary but not sufficient. The defect was a
 zone-aware value where the type map declares a zoneless one, and the obvious
 repair — wrapping the interpretation in ``CAST(… AS TIMESTAMP)`` — satisfies
@@ -68,13 +68,13 @@ def test_the_stored_value_is_the_utc_wall_clock() -> None:
 
 
 def _iso_parse_sql(port_name: str, column: str) -> str:
-    """``parse_ts: ISO8601`` as it is emitted, RFC 0036's guard included."""
+    """``parse_ts: ISO8601`` as it is emitted, S-0052's guard included."""
     built = DEFAULT_REGISTRY["parse_ts"].builder(exp.column(column), "ISO8601")
     return get_dialect(port_name).render(canon(built).ast())
 
 
 def test_the_offset_guard_refuses_an_offset_and_keeps_the_rest() -> None:
-    """RFC 0036 §2's table on DuckDB, executed rather than rendered.
+    """S-0052/motivation's table on DuckDB, executed rather than rendered.
 
     Both directions from one table: the two offsets become NULL, and the
     in-contract spellings keep the exact value they had. The second half is the
@@ -120,7 +120,7 @@ def test_the_offset_guard_refuses_an_offset_and_keeps_the_rest() -> None:
 
 def test_the_offset_guard_plans_over_a_bronze_column_that_is_not_text() -> None:
     """The guard's window is cast because the marker does not only sit on a
-    transform chain: RFC 0016 D21's metadata audit puts it on `_ingested_at`,
+    transform chain: S-0033/D-21's metadata audit puts it on `_ingested_at`,
     which is whatever the project landed.
 
     Executed rather than asserted on the rendered string, because the failure

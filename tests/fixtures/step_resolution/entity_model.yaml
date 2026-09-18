@@ -1,4 +1,4 @@
-# The step fixture (RFC 0017): a python_model step with two outputs, so the
+# The step fixture (S-0034): a python_model step with two outputs, so the
 # one-wrapper-per-output rule (D16) and the declared-reference consistency
 # audit (D43) are visible in the goldens rather than asserted in prose.
 #

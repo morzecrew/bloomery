@@ -1,4 +1,4 @@
-"""The ``_quality_flags`` / ``failed_rules`` physical contract (RFC 0016 §5.5,
+"""The ``_quality_flags`` / ``failed_rules`` physical contract (S-0033/schema-additions-and-the-array-capability,
 D23) and its **single-pass** construction (§5.4).
 
 One contract, two lowerings, pinned so they agree observably:
@@ -15,7 +15,7 @@ One contract, two lowerings, pinned so they agree observably:
 
 Which shape applies is a **dialect** property (``DialectFeature.ARRAY``, D9) —
 deliberately not a target capability: SQLMesh-on-DuckDB and dbt-on-DuckDB share
-it (the RFC 0008 D1 split).
+it (the S-0025/D-1 split).
 
 **Single pass.** §5.4's table says all flag rules land in *one*
 array-construct pass, never N scans. :func:`flags_expression` therefore builds
@@ -77,7 +77,7 @@ def _array_flags(pairs: Sequence[tuple[str, Expression]]) -> Expression:
 
     ``ARRAY_CONCAT`` is the neutral node SQLGlot renders as ``LIST_CONCAT``
     (DuckDB), ``ARRAY_CAT`` (Postgres) and ``CONCAT`` (Trino) — one AST, per
-    dialect legal rendering, the RFC 0008 doctrine.
+    dialect legal rendering, the S-0025 doctrine.
     """
     empty = empty_flags(arrays=True)
     node: Expression | None = None
@@ -149,7 +149,7 @@ def flag_member(flags: Expression, name: str, *, arrays: bool) -> Expression:
 
     The read side of :func:`flags_expression`, and the one place a stored
     ``_quality_flags`` / ``failed_rules`` value is interrogated: the quality
-    mart counts per rule (RFC 0016 §5.8) over rows whose predicates were
+    mart counts per rule (S-0033/the-quality-mart) over rows whose predicates were
     already evaluated upstream, so it *must* read the recorded names rather
     than re-evaluate — re-evaluating would be a second implementation of every
     rule, and the reject table no longer carries the source columns to do it

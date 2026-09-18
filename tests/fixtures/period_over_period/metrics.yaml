@@ -1,4 +1,4 @@
-# Every RFC 0034 construct, once each.
+# Every S-0050 construct, once each.
 metrics_version: 1
 metrics:
   revenue:

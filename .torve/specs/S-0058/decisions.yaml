@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **The claim is preservation
+      of declared semantics, never truth.** bloomery proves that what it emits and
+      accepts preserves what it was told, under documented rules — not that the telling
+      was right. Locked because every weaker phrasing of this ("correct analytics",
+      "guaranteed correct metrics") is unfalsifiable and would be quoted back at the
+      project the first time a wrong number came from a wrong declaration.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **The planner claim is not
+      published before the capability exists.** §2's sentence is false today. A roadmap
+      sentence in a README is read as a description of the current release, and a
+      documentation claim that outruns the code is the one defect a reader cannot
+      check against the code.
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **Representation safety and
+      query answerability are documented as distinct guarantees.** They look contradictory
+      when a reader meets a refused mart and an accepted query over the same measure,
+      and the distinction is S-0054/D-1 stated for humans. Omitting it makes the refusal
+      look arbitrary, which is how a correct refusal gets worked around.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **Every README correctness
+      statement answers §8's four questions or is rewritten.** It is the gate that
+      keeps the rest of this document from being a style preference: any sentence
+      that cannot say what is proven, from what, when, and what is excluded, is a
+      claim nobody can check.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **Comparative statements about other systems are confined to what S-0006's reproductions
+      support.** No universal "X cannot do Y". Not `LOCKED` here because S-0006/D-5
+      already owns the rule; this row records that the docs are bound by it too.
+  - id: D-6
+    grade: OPEN
+    text: >-
+      **Whether determinism stays in the README's lead.** The current sentence leads
+      with byte-identical output — true today, checkable today, and the property users
+      have. §7's replacement leads with semantics and drops it. Both are honest; they
+      aim at different readers, and the decision belongs to whoever writes the sentence
+      when §2's capability actually lands.
+  - id: D-7
+    grade: OPEN
+    text: >-
+      **Who keeps §5's integration list current.** It goes stale the day a target
+      is added or dropped, and a stale boundary statement is a wrong claim about what
+      is and is not a correctness proof. Name an owner or a gate — a docs test asserting
+      the list against the registered targets would be the durable answer.

@@ -1,10 +1,10 @@
 """Package-surface smoke test: the public API is exactly what spec §8, the
-stage RFCs and **signature closure** (RFC 0018 D1) promise (M2–M3 adds compile/resolve/build and the extension
+stage RFCs and **signature closure** (S-0035/D-1) promise (M2–M3 adds compile/resolve/build and the extension
 points; M7–M8 add the planner port types, the MetricFlow planner, and
-hydration — RFC 0011/0013/0014; M9 adds the plan stage — RFC 0007), and
+hydration — S-0028, S-0030, S-0031; M9 adds the plan stage — S-0024), and
 ``__all__`` stays sorted.
 
-RFC 0040 adds the semantic plan and, with it, the proof vocabulary: a field on
+S-0054 adds the semantic plan and, with it, the proof vocabulary: a field on
 ``QueryPlan`` is a public signature, so signature closure promotes everything
 reachable through it from ``bloomery.semantic`` to here (logs/T-0021.md,
 D-120)."""

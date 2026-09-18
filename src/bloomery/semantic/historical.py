@@ -1,4 +1,4 @@
-"""The as-of fact, in one place (RFC 0037 §5.3, D4).
+"""The as-of fact, in one place (S-0017 (§5.3), S-0017/D-4).
 
 An ``scd: type2`` relation holds one row per version per key, so an equality
 join on the relationship's columns matches every version and multiplies the
@@ -10,7 +10,7 @@ timestamp orders against a validity interval.
 That is a single semantic fact with two consumers: the mart guard, which turns
 it into :class:`~bloomery.errors.HistoricalFanout` leaves, and the grain
 model, which admits a dependency across a historical relationship only when it
-comes back qualified. RFC 0037 D4 requires them to read it here rather than
+comes back qualified. S-0017/D-4 requires them to read it here rather than
 each holding its own reading — two interpretations of SCD2 validity in one
 compiler is a divergence this project has paid for before.
 

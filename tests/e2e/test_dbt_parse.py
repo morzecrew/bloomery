@@ -1,4 +1,4 @@
-"""E2E tier (RFC 0009 §5.2 tier 6): ``dbt parse`` over the emitted project.
+"""E2E tier (S-0026/tier-contracts tier 6): ``dbt parse`` over the emitted project.
 
 §5.2 names this cell in three words — "Equivalents: `dbt parse`" — and the
 sentence above them is what it is for: *artifacts are valid input to the
@@ -17,16 +17,16 @@ not, and the overclaim cost a real defect: parse accepts a test named
 ``utter_nonsense_not_a_test`` in silence, because it checks the *shape* of a
 ``schema.yml`` entry and never resolves the macro behind the name. Only
 ``compile`` renders the test bodies — which is where the missing
-``dbt_utils`` dependency surfaced (RFC 0008 D18), long after this tier was
+``dbt_utils`` dependency surfaced (S-0025/D-18), long after this tier was
 written to catch exactly that class of thing. Hence the compile pass below.
 
 **And the finding that came out of trying, now closed.** Building this tier
 found that ``dbt build`` could not pass: emitted models named their inputs by
 literal relation (``FROM silver.order_item``), so dbt had no dependency edges
 to order them by and materialized each into the profile's target schema while
-the ``FROM`` clause said ``silver``. RFC 0009 D22 recorded it with two
+the ``FROM`` clause said ``silver``. S-0026/D-22 recorded it with two
 candidate fixes and built neither, because how deep the dbt target goes is
-RFC 0008's decision. RFC 0008 D20 took **both** — they are not alternatives —
+S-0025's decision. S-0025/D-20 took **both** — they are not alternatives —
 and this module now builds every fixture as well as parsing and compiling it,
 with a control for the half a green build does not visibly prove.
 """
@@ -54,7 +54,7 @@ pytestmark = pytest.mark.e2e
 #: quarantine surfaces, reconcile blocks, python_model steps), and a fixture
 #: silently dropping off this list is a coverage loss.
 #:
-#: ``multi_source`` and ``coverage_check`` joined when RFC 0026 gave this
+#: ``multi_source`` and ``coverage_check`` joined when S-0043 gave this
 #: target a test surface — one for the union merge's collision audit, one for a
 #: check that joins two relations and groups. Both are here rather than only in
 #: a golden because a golden proves the bytes and only dbt can say whether dbt
@@ -66,7 +66,7 @@ FIXTURES = (
     "evolution_v4",
     "minimal",
     "multi_source",
-    # RFC 0052: the two that were refused for their quality surface. One
+    # S-0060: the two that were refused for their quality surface. One
     # carries a reject table with its replay macro and the quality mart;
     # the other adds two reconcile comparisons and their tests. They are here
     # for the reason every other fixture is — a golden proves the bytes, and
@@ -77,7 +77,7 @@ FIXTURES = (
     "quality_precedence",
     "role_playing_dates",
     "scd2_customers",
-    # RFC 0060 P1: the pair nothing combined — a historical entity with a
+    # S-0003/P-1: the pair nothing combined — a historical entity with a
     # quarantine policy — whose replay writes to bronze instead of merging.
     "scd2_replay",
 )
@@ -99,7 +99,7 @@ def _write_project(root: pathlib.Path, fixture: str, *, database: str = ":memory
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(artifact.content, encoding="utf-8")
     # bloomery emits no profiles.yml, deliberately: a profile is a *deployment*
-    # secret-bearing file (host, credentials), and RFC 0003 keeps the compiler
+    # secret-bearing file (host, credentials), and S-0020 keeps the compiler
     # free of environment. The tier supplies one, as a caller would.
     (root / "profiles.yml").write_text(PROFILES.format(path=database), encoding="utf-8")
 
@@ -183,7 +183,7 @@ def _seed_sources(database: pathlib.Path, fixture: str) -> None:
         if body.rstrip("\n").endswith("{% endsnapshot %}"):
             body = body.rpartition("\n\n")[0]
         if "{% if is_incremental() %}" in body:
-            # The reject model is two pre-rendered SELECTs (RFC 0052 D2). Both
+            # The reject model is two pre-rendered SELECTs (S-0060/D-2). Both
             # read the same bronze relations — the incremental one additionally
             # joins `{{ this }}`, which is not a source — so the first-run arm
             # is the whole of what this needs to seed.
@@ -211,7 +211,7 @@ def _seed_sources(database: pathlib.Path, fixture: str) -> None:
 
 @pytest.mark.parametrize("fixture", FIXTURES)
 def test_dbt_builds_the_emitted_project(fixture: str, tmp_path: pathlib.Path) -> None:
-    """RFC 0009 D22's finding, closed (RFC 0008 D20).
+    """S-0026/D-22's finding, closed (S-0025/D-20).
 
     D22 recorded that ``dbt build`` **cannot** pass on a bloomery project and
     named two candidate fixes, neither built: emitted models referenced their
@@ -234,7 +234,7 @@ def test_dbt_builds_the_emitted_project(fixture: str, tmp_path: pathlib.Path) ->
 
 
 def test_dbt_resolves_an_exposure_to_the_models_it_reads(tmp_path: pathlib.Path) -> None:
-    """RFC 0056 §6: the leg a golden cannot make.
+    """S-0063/tests: the leg a golden cannot make.
 
     A well-formed ``exposures.yml`` naming a model that does not exist parses
     fine and fails at selection, so this asks dbt the question the feature
@@ -298,8 +298,8 @@ def test_the_build_would_notice_a_model_that_lands_in_the_wrong_schema(
 
 
 def test_a_tier_two_step_model_is_a_file_dbt_accepts(tmp_path: pathlib.Path) -> None:
-    """RFC 0017 D52 emitted the model and said plainly that dbt *parsing* it was
-    RFC 0009's outstanding work rather than something the row claimed. This is
+    """S-0034/D-52 emitted the model and said plainly that dbt *parsing* it was
+    S-0026's outstanding work rather than something the row claimed. This is
     that work."""
     from bloomery import Target, compile_project, load_project
     from bloomery.steps import StepManifest, StepRegistry
@@ -363,11 +363,11 @@ def test_a_malformed_config_block_would_be_caught(tmp_path: pathlib.Path) -> Non
 
 # ....................... #
 # Singular tests: that dbt *runs* them, and what happens when they fail
-# (RFC 0026 §5.5, §6).
+# (S-0043/blocking-and-the-two-honest-weakenings, S-0043/tests).
 
 
 #: Two bronze rows sharing the composite key ``(A1, 1)`` across both shops —
-#: the state RFC 0024 D5's collision audit exists to stop. Written against the
+#: the state S-0041/D-5's collision audit exists to stop. Written against the
 #: fixture's two mappings: each shop reads its own paths, so the same entity key
 #: is spelled differently on each side, which is the merge's whole premise.
 _COLLIDING = (
@@ -434,7 +434,7 @@ def _merged_project(
 
 
 def test_a_seeded_collision_fails_dbt_build(tmp_path: pathlib.Path) -> None:
-    """RFC 0026's load-bearing claim, and the only evidence for it.
+    """S-0043's load-bearing claim, and the only evidence for it.
 
     Everything else about a singular test can be proved by reading: the golden
     says the file is emitted, the unit tests say what is in it, and
@@ -442,7 +442,7 @@ def test_a_seeded_collision_fails_dbt_build(tmp_path: pathlib.Path) -> None:
     runs from SQL sitting in a directory. A build that goes red on data the
     check is *about* does.
 
-    This is also the assertion behind lifting RFC 0024 D30. D30 refused a
+    This is also the assertion behind lifting S-0041/D-30. D30 refused a
     merged entity here because the merge is not correct without the audit;
     emitting the audit is only an answer if the audit actually stops a run.
     """
@@ -460,7 +460,7 @@ def test_the_same_project_builds_clean_on_disjoint_keys(tmp_path: pathlib.Path) 
 
 
 def test_dbt_run_does_not_evaluate_the_check_at_all(tmp_path: pathlib.Path) -> None:
-    """The first of the operator contract's two sentences (RFC 0026 §5.5, D2).
+    """The first of the operator contract's two sentences (S-0043/blocking-and-the-two-honest-weakenings, S-0043/D-2).
 
     A SQLMesh audit blocks because the framework evaluates it as part of the
     model's materialization. A dbt test is a separate node, and ``dbt run``
@@ -468,7 +468,7 @@ def test_dbt_run_does_not_evaluate_the_check_at_all(tmp_path: pathlib.Path) -> N
     here, in silence.
 
     This is accepted rather than worked around, on consistency: every schema
-    test this emitter has shipped since RFC 0008 has the same property, and a
+    test this emitter has shipped since S-0025 has the same property, and a
     ``not_null`` audit does not block ``dbt run`` either. Refusing the merge for
     a property shared by every existing check would apply a standard exactly
     once. What it costs is a sentence in the operator contract, and this is the
@@ -479,7 +479,7 @@ def test_dbt_run_does_not_evaluate_the_check_at_all(tmp_path: pathlib.Path) -> N
 
 
 def test_warn_error_promotes_a_flagging_check(tmp_path: pathlib.Path) -> None:
-    """The mirror sentence (RFC 0026 D3), and the one a reader given only the
+    """The mirror sentence (S-0043/D-3), and the one a reader given only the
     first will get wrong.
 
     ``on_fail: flag`` means "record it and keep going" everywhere else in
@@ -505,7 +505,7 @@ def test_warn_error_promotes_a_flagging_check(tmp_path: pathlib.Path) -> None:
 def test_a_native_test_names_its_column_where_a_singular_test_names_the_check(
     tmp_path: pathlib.Path,
 ) -> None:
-    """RFC 0026 D4 is graded ``ASSUMED`` and D10 asks whoever builds this to
+    """S-0043/D-4 is graded ``ASSUMED`` and D10 asks whoever builds this to
     "confirm the readability claim against real ``dbt test`` output rather than
     take it from here". This is that confirmation.
 
@@ -534,7 +534,7 @@ def test_the_snapshot_materializes_the_interval_under_the_names_the_ir_owns(
     tmp_path: pathlib.Path,
 ) -> None:
     """The claim the whole as-of design rests on, measured rather than read off
-    a config (RFC 0023 §5.3, D7).
+    a config (S-0040/phase-2-the-as-of-join, S-0040/D-7).
 
     One as-of predicate is lowered for every target, so it references one pair
     of column names. SQLMesh already spells them `valid_from`/`valid_to`; dbt
@@ -565,7 +565,7 @@ def test_the_snapshot_materializes_the_interval_under_the_names_the_ir_owns(
 
 
 def test_dbt_reads_the_annotations_it_was_given(tmp_path: pathlib.Path) -> None:
-    """RFC 0055's metadata, read back off dbt's own manifest.
+    """S-0062's metadata, read back off dbt's own manifest.
 
     A green ``parse`` is not enough here, and this module already knows why:
     parse validates the *shape* of a ``schema.yml`` entry and will accept
@@ -608,7 +608,7 @@ def test_dbt_reads_the_annotations_it_was_given(tmp_path: pathlib.Path) -> None:
 
 
 # ....................... #
-# Replay on a historical entity (RFC 0060 P1)
+# Replay on a historical entity (S-0003/P-1)
 
 _NARROW = "\"segment IN ('smb', 'ent')\""
 _WIDE = "\"segment IN ('smb', 'ent', 'startup')\""
@@ -671,7 +671,7 @@ def _segments(database: pathlib.Path) -> dict[str, str | None]:
 
 
 def test_the_as_of_join_finds_a_row_recovered_through_bronze(tmp_path: pathlib.Path) -> None:
-    """RFC 0060 D3, and the only assertion the design accepts.
+    """S-0003/D-3, and the only assertion the design accepts.
 
     Not a row count, and not the row's presence in the snapshot: the defect
     this phase removes was a row that **landed** — merged past dbt with a NULL
@@ -692,7 +692,7 @@ def test_the_as_of_join_finds_a_row_recovered_through_bronze(tmp_path: pathlib.P
         (
             *(("crm__customers", _row(row)) for row in _CUSTOMERS),
             # No ingestion metadata on the fact: only an entity with a reject
-            # table or a dedupe requires the contract (RFC 0016 D21), and
+            # table or a dedupe requires the contract (S-0033/D-21), and
             # `order` declares neither.
             *(("shop__orders", dict(row)) for row in _ORDERS),
         ),
@@ -715,7 +715,7 @@ def test_the_as_of_join_finds_a_row_recovered_through_bronze(tmp_path: pathlib.P
 
 def _row(values: dict[str, str]) -> dict[str, object]:
     """One bronze delivery: the mapped columns plus the ingestion metadata the
-    contract requires (RFC 0016 D21). The row identity is stable per row
+    contract requires (S-0033/D-21). The row identity is stable per row
     because replay re-delivers under it."""
     return {
         **values,

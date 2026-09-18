@@ -1,0 +1,109 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      bloomery never parses, sorts or compares the labels. Order is positional and
+      the caller owns it. Parsing instants would make this project the owner of timezone
+      and resolution semantics over data it did not produce, and every one of those
+      questions is answerable in the caller's store and unanswerable here.
+    paths: [src/bloomery/cli/render.py]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) History is caller-assembled
+      and consumed once, in order. Inherited from S-0073/D-1; restated because this
+      is the document a reader lands on when they want the feature, and the constraint
+      has to be where they look.
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) The delta vocabulary is S-0069's
+      and is never restated here. Two tables describing one thing is the drift this
+      corpus has paid for before.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A node that never changed returns a one-version timeline. It mirrors `Lineage`'s
+      root-always-present rule, and "this has not moved" is a result rather than a
+      miss.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Matching is S-0067's id where adopted and the name otherwise, per node, with
+      the result saying which. No shape-based heuristic recovers a rename: a confidently
+      wrong history is worse than an honest delete-and-add.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The CLI command takes spec directories positionally, like `plan`. It resolves
+      nothing, so S-0073/D-2 is untouched.
+    paths: [src/bloomery/cli/__init__.py]
+  - id: D-7
+    grade: OPEN
+    text: >-
+      Whether an unknown node is an empty timeline or a refusal (§10), and whether
+      `lineage()`'s answer should change to match.
+  - id: D-8
+    grade: OPEN
+    text: >-
+      Whether the command accepts a manifest file for long histories (§10).
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      **Superseded by 10.** ISO-8601 labels are a documented **convention**, enforced
+      nowhere. It sorts lexicographically and is what a store hands over anyway, so
+      a consumer that wants an order has one — but the recommendation lives in the
+      docs rather than in a check, because row 1 says bloomery does not read the labels
+      and a validator would be reading them. Timestamping the spec itself is refused
+      for a different reason, in §5.1's alternatives: it would put a fact the caller's
+      store already holds into the fingerprint.
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      **The recommended label is `YYYY-MM-DDTHH:MM:SSZ` — UTC, no offset, no fractional
+      part — and not "ISO-8601" at large; supersedes 9.** Only that form sorts lexicographically
+      into chronological order: `2026-03-01T00:00:00-01:00` sorts before `2026-03-01T00:00:00Z`
+      and is an hour later, and a fractional part reorders against a whole second.
+      Row 9's reasoning is unchanged and its claim was too wide. Still a convention
+      and still enforced nowhere, because row 1 says bloomery does not read the labels.
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **A history entry carries
+      the `Project`, not the `ProjectIR`.** The IR does not retain the authored `id:`
+      — S-0067 substitutes it while building node ids and keeps only names, because
+      a field in the IR would move every fingerprint and break that document's D3.
+      A timeline handed only IRs cannot match by id, which makes row 5 unimplementable;
+      taking the spec side fixes it at the source, and the IR P2 needs is derivable
+      from the same pair. Locked because reversing it silently reduces identity to
+      name matching, which is the failure this feature exists to avoid.
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      **Matching is decided per adjacent pair and recorded on the change, and a pair
+      matches by id only when both sides carry one.** Adoption is something that happens
+      partway through a history, so one per-timeline answer would have to lie about
+      one side of it. Adopting an id without renaming stays continuous; adopting one
+      *and* renaming in the same entry reads as a delete and an add, which is the
+      honest answer rather than a shape-matching guess.
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      **Partly superseded by 14.** **The value carries one entry per history entry,
+      present or absent, and `facets` exists from P1 as an empty tuple.** An absence
+      with a position says which entry the node was missing from rather than only
+      that something was missing; and a field that grows a value rather than appearing
+      in P2 keeps the JSON shape stable across phases, which §9 notes a UI pins earlier
+      than a library usually wants.
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      **Row 13's shape promise holds and its value promise does not; supersedes 13
+      on that half alone.** `facets` is present and is a tuple in every phase, so
+      the JSON a consumer reads never changes shape — but it is never *empty*, because
+      S-0069 row 10 makes an empty delta mean "not a change" and the row is not emitted.
+      Row 13's first reading — a pure rename reported as a change carrying nothing
+      — is the wrong answer to S-0069/tests (§6.) The absence half of row 13 is unchanged.
+      See `logs/T-0045.md`.
+    paths: [tests/unit/test_cli.py]

@@ -1,7 +1,7 @@
-"""RenderOnlySqlClient (RFC 0013 §5.3): renders SQL, cannot connect to
+"""RenderOnlySqlClient (S-0030/the-adapter-and-the-render-only-client): renders SQL, cannot connect to
 anything by construction — every execution member raises, and the dialect
 mapping serves exactly the shipped dialect set (duckdb/postgres/trino,
-RFC 0008 D5)."""
+S-0025/D-5)."""
 
 from __future__ import annotations
 

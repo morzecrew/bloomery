@@ -1,0 +1,110 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **The report is derived;
+      no spec surface changes.** §3 measured that a `canonical:`-linked field with
+      no mapping is a legal, complete spec whose metric is reported unreachable —
+      including when the field is `required:`. "Undecided" is therefore already expressible,
+      and a marker would be a second spelling of it. Consequence: this RFC touches
+      no document kind, no `spec_version`, and no parser.
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      **`options` is enumerated in catalog order and never sorted, ranked or scored.**
+      Enumerating what the catalog declares is a projection; ordering is where a preference
+      would hide. `Recipe`'s docstring makes catalog order *authored* ("ordered by
+      reliability"), so re-sorting — alphabetically included — destroys information
+      rather than normalizing it. Consequence: this is a deliberate exception to the
+      sort-every-collection habit, and it needs the §6 test with a non-alphabetical
+      catalog or the exception is untested.
+    paths:
+      - src/bloomery/cli/render.py
+      - src/bloomery/evidence.py
+      - tests/unit/test_unresolved.py
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      **The two gaps are distinguished, and that is the RFC's reason to exist.** `UNLINKED`
+      and `UNMAPPED` are reported identically today and need different edits (§3).
+      Consequence: the report reads the entity model, not only the DAG, which is why
+      it lives in `evidence.py` and not in `resolve/`.
+    paths: [src/bloomery/evidence.py, tests/unit/test_unresolved.py]
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      **A single available option is still not chosen.** The tempting erosion of S-0022/D-2,
+      refused explicitly so it is not re-proposed as an optimization: "exactly one
+      qualifies" requires the compiler to have an opinion about qualification, the
+      arity is a fact about the catalog on one day, and a spec that silently acquires
+      a derivation is one whose author cannot account for their own numbers.
+    paths: [src/bloomery/evidence.py]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **The report is a `COMPLETE`-stage product; a refusal empties it.** Recipe validation
+      is in the pipeline's first stage, so a malformed choice costs the round's worklist
+      (§3, cases (d)/(e)). Accepted because the refusal messages already name the
+      fix precisely and the loop still terminates — fix the error, recompile, read
+      the report. Graded `ASSUMED` rather than `LOCKED` because it is a claim about
+      how an agent behaves, and whoever builds this may find the loop needs the partial
+      report; the alternative is computing the options half before validation, which
+      is possible since it needs no DAG.
+    paths: [src/bloomery/evidence.py, tests/unit/test_unresolved.py]
+  - id: D-6
+    grade: LOCKED
+    text: >-
+      **Termination rests on `Recipe.requires` naming alias slots, never canonical
+      fields.** Verified in `resolve_recipe`, which matches `requires` against the
+      mapping's `from:` keys. Consequence: recipe *composition* would break the argument
+      in §5.4, not merely complicate it, and would need a cycle check over recipes.
+      Recorded here so the coupling is visible from the feature that would break it.
+    paths: [src/bloomery/evidence.py]
+  - id: D-7
+    grade: OPEN
+    text: >-
+      **Whether the human CLI table prints open decisions.** JSON gets them by construction.
+      The table is a summary (S-0037/D-4), and this is either the most useful line
+      `bloomery resolve` could print or the one that turns a summary into a dump.
+      Whoever builds this decides and logs it.
+    paths: [src/bloomery/cli/render.py, tests/unit/test_cli.py]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      **`provenance` returns to `SpecEvidence`.** It is computed on every `resolve()`
+      and discarded, and has been off the CLI since S-0039/D-8. A loop needs its own
+      memory, and the alternative is a chooser re-deriving its history from the mapping
+      documents it wrote. Graded `ASSUMED` because it is additive and reversible:
+      if it turns out no caller reads it, dropping the field costs nothing but a changelog
+      line. Its order is `(entity, field)`, stated in §5.1 rather than left as the
+      current implementation's habit.
+    paths: [src/bloomery/evidence.py]
+  - id: D-9
+    grade: LOCKED
+    text: >-
+      **Every entry names one edit; an entry that cannot is omitted.** The promise
+      is not "here is a gap" but "here is the edit that would close it", and an entry
+      a caller cannot act on is a worklist item that never clears. Consequence, and
+      the only shape affected today: a canonical whose entity is built by more than
+      one mapping is **not reported**, because its columns are per mapping (S-0041/D-26)
+      and an entry keyed on `canonical` cannot say which document to edit. Nothing
+      is hidden — the blocked metric is still `unreachable` — and the omission lifts
+      when the report can carry a mapping identity, which is S-0041/phasing (P-2)'s
+      question rather than this one's.
+    paths: [src/bloomery/evidence.py, tests/unit/test_unresolved.py]
+  - id: D-10
+    grade: LOCKED
+    text: >-
+      **`UNLINKED` and `UNMAPPED` close by different edits, and termination is measured
+      accordingly.** An `UNLINKED` entry has no field to record a recipe on, so an
+      entity-model edit turns it into `UNMAPPED` — progress without removal. The decreasing
+      measure is therefore the pair (open canonicals, `UNLINKED` among them) under
+      lexicographic order, and the bound is twice the number of open canonicals rather
+      than that number (§5.4 carries the notation, which does not survive a table
+      cell). Consequence: a chooser that writes only mappings terminates on the `UNMAPPED`
+      subset and correctly leaves `UNLINKED` entries standing, which is the honest
+      answer to half of §10's third question. An earlier draft of §5.4 claimed every
+      accepted choice removes an entry; it does not, and the two-gap distinction D3
+      draws is what makes the error visible.
+    paths: [src/bloomery/evidence.py]

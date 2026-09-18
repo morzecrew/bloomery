@@ -153,7 +153,7 @@ GuardrailError: 1 error(s):
     quarantine dispositions (stock_date_coercible, stock_level_coercible,
     stock_level_range_min, warehouse_id_coercible) but no quarantine: block — reject
     rows hold raw source payloads, and therefore PII, so retention is required and
-    never defaulted (RFC 0016 §5.6). Note that the implicit coercible rule carries the
+    never defaulted (S-0033/quarantine-one-reject-table-per-entity). Note that the implicit coercible rule carries the
     quarantine default (§5.2), so an entity with any quality: surface has one even
     when nothing spells it. Fix: add quarantine: {retention: 90d}
 ```
@@ -323,7 +323,7 @@ fails it. Widening an `enum_map` — a new target *or* a new spelling for an exi
   not any per-dialect check, is what carries the portability claim. The guardrail stage
   adds one mechanical check, over the *shipped* ports `duckdb`/`postgres`/`trino` — a
   constant, not the process-global dialect registry, so an unrelated import cannot
-  decide whether an existing project compiles (RFC 0016 D56): does the dialect declare a
+  decide whether an existing project compiles (S-0033/D-56): does the dialect declare a
   regex surface at all, and does the pattern text reach its SQL unchanged. Neither
   question is about semantics — a compiler that never executes SQL cannot prove an
   engine's regex engine accepts a pattern (D55).

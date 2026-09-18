@@ -45,13 +45,13 @@ SOURCES: tuple[tuple[str, str], ...] = (
 )
 
 #: Columns that land as something other than VARCHAR. Exactly one, and it is
-#: required rather than chosen: the ingestion-metadata contract (RFC 0016 D21)
+#: required rather than chosen: the ingestion-metadata contract (S-0033/D-21)
 #: makes `_ingested_at` the time a reject row is measured against, and a
 #: retention window over a string is not a window.
 #:
 #: It is also the one timestamp in `seed/` written with a space rather than the
 #: ISO `T`, which used to be load-bearing and is now only convention: the D21
-#: audit's cast is marked as ISO text (RFC 0027), so every port normalizes the
+#: audit's cast is marked as ISO text (S-0044), so every port normalizes the
 #: separator and the `T` form would land fine here too. Every *mapped* timestamp
 #: uses the `T`, which is what the storefront and the CRM actually export — and
 #: what a bloomery of an earlier version would have quarantined every row over.

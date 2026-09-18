@@ -1,7 +1,7 @@
-"""The step registry: manifests as a compile **input** (RFC 0017 §5.3, D3).
+"""The step registry: manifests as a compile **input** (S-0034/purity-the-registry-is-a-compile-input, S-0034/D-3).
 
 Bloomery must not read step files from disk — that would break the no-I/O
-invariant (RFC 0003) outright. So the caller assembles the registry and hands
+invariant (S-0020) outright. So the caller assembles the registry and hands
 it to :func:`~bloomery.compile.compile_project`, and **there is no dynamic
 loading path at all**: no import hooks, no entry points, no paths in specs.
 That absence is the whole security property. An authored spec names a step by
@@ -49,7 +49,7 @@ def _snapshot(source: Mapping[StepKey, object] | None) -> tuple[tuple[StepKey, o
 
     Sorted rather than insertion-ordered because the registry is an input to a
     function whose output must not depend on how the caller happened to build
-    a dict (RFC 0003: no ambient nondeterminism, tuples not sets).
+    a dict (S-0020: no ambient nondeterminism, tuples not sets).
     """
 
     if source is None:
@@ -62,7 +62,7 @@ def _snapshot(source: Mapping[StepKey, object] | None) -> tuple[tuple[StepKey, o
 
 
 def _refuse_key_disagreement(steps: tuple[tuple[StepKey, StepManifest], ...]) -> None:
-    """A step's key must be the identity its manifest declares (RFC 0017 D55).
+    """A step's key must be the identity its manifest declares (S-0034/D-55).
 
     The registry is keyed by ``(ref, version)`` and the manifest carries the
     same pair, so nothing stops the two disagreeing — and when they do, the
@@ -74,7 +74,7 @@ def _refuse_key_disagreement(steps: tuple[tuple[StepKey, StepManifest], ...]) ->
     Checked at construction because the registry is a frozen compile input:
     this is the one moment it can be checked once for every later reader,
     which is the same argument that makes collision an error in the transform
-    registry (RFC 0004 D6).
+    registry (S-0021/D-6).
     """
 
     for (ref, version), manifest in steps:
@@ -178,8 +178,8 @@ class StepRegistry:
                 "pass one to compile_project(steps=…)"
             )
 
-        msg = f"{detail} (RFC 0017 §5.3)"
-        # ``available`` is the same list the message renders (RFC 0020 §5.4):
+        msg = f"{detail} (S-0034/purity-the-registry-is-a-compile-input)"
+        # ``available`` is the same list the message renders (S-0037/fix-suggestions-on-refusals):
         # the suggestion exposes a value already computed here, never a
         # second search that could disagree with the sentence beside it.
         raise UnknownStep(msg, source_path=source_path, available_versions=available)

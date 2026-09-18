@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Publish the JSON Schema export to the gh-pages **root**, at the path each
-# schema's own `$id` claims (RFC 0020 §7):
+# schema's own `$id` claims (S-0037/docs):
 #
 #   https://morzecrew.github.io/bloomery/schemas/v1/<kind>.json
 #

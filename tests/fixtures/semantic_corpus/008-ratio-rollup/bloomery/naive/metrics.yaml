@@ -1,5 +1,5 @@
 # The tempting declaration: the per-order ratio is a number, so call it a
-# measure and average it. `avg` under `additive` is the claim RFC 0038 D2
+# measure and average it. `avg` under `additive` is the claim S-0053/D-2
 # refuses — rolling one up re-aggregates an aggregate.
 metrics_version: 1
 metrics:

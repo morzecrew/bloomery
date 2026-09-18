@@ -1,0 +1,110 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) The three annotations change
+      no SELECT. They reach metadata slots only, and an existing golden's SQL is byte-identical
+      with them absent — asserted, not assumed.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `owner` does not inherit. A mart with no declared owner has none; silent inheritance
+      makes an owner nobody wrote look like one somebody did.
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) `classification` is a **closed**
+      vocabulary. An open string is a tag that cannot be routed, and the routing —
+      the `redact` reconciliation and Cube's `public: false` — is the whole reason
+      this is not a `meta` passthrough.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **Superseded by rows 9, 10
+      and 11.** `pii`/`secret` on a mapped field whose path is not redacted is a refusal
+      **when the entity quarantines**, and silent otherwise. Unsatisfiable as written:
+      a mapped field's path cannot be redacted — `_check_redaction` refuses that already
+      — so both branches close and the classification has no legal spelling, which
+      is the gap §2 opened this RFC to fill (see `logs/T-0050.md`, and `logs/T-0051.md`
+      for the replacement).
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      `grants` is refused for Cube. Cube reads relations it does not own, so emitting
+      grants there would be a claim with no mechanism — the silent degradation S-0025/D-3
+      exists to prevent.
+    paths: [src/bloomery/emit/cube/__init__.py]
+  - id: D-6
+    grade: LOCKED
+    text: >-
+      `grants: {select: []}` and an absent `grants:` block are different. The first
+      says no role may select; the second says bloomery has no opinion and the warehouse's
+      grants stand.
+    paths: [src/bloomery/guardrails/classification.py]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      Seeds are refused permanently, with a message naming S-0020 rather than a wave.
+      A seed is data in the repository, and the only way to emit one is to put rows
+      in a spec.
+    paths: [src/bloomery/spec/common.py, src/bloomery/spec/entity.py]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      No spelling rule on `owner`. Every project spells this differently and a format
+      check would refuse spellings correct for their reader.
+    paths:
+      - src/bloomery/emit/lower/predicates.py
+      - src/bloomery/emit/sqlmesh/__init__.py
+  - id: D-9
+    grade: LOCKED
+    text: >-
+      **Classification composes with `grants`, not with `redact`.** §2 paired it with
+      redaction because "`redact:` is the nearest thing" — true when this was drafted,
+      false once phase 4 shipped the one annotation with a mechanism behind it. `redact:`
+      governs what a reject row keeps; `classification:` governs a column that is
+      published; the two stay orthogonal (see `logs/T-0051.md`).
+    paths:
+      - src/bloomery/guardrails/stage.py
+      - tests/unit/test_classification_guard.py
+  - id: D-10
+    grade: LOCKED
+    text: >-
+      `secret` on a column a **published relation** carries is a refusal — a mart
+      or a rollup, unconditionally. A published relation is the thing `secret` says
+      this column is not part of, so the two statements cannot both hold. Independent
+      of redaction, and of whether anything is granted.
+    paths:
+      - pages/docs/how-to/annotate-a-spec.md
+      - src/bloomery/errors.py
+      - src/bloomery/evidence.py
+      - src/bloomery/guardrails/classification.py
+  - id: D-11
+    grade: LOCKED
+    text: >-
+      A `pii`/`secret` column reaching a relation that **admits a role its source
+      entity does not** is a refusal — a set difference, not a superset test, so disjoint
+      grant sets are refused too: a role that can read the mart and not the entity
+      is the leak whether or not the mart also admits the entity's roles; an **undeclared**
+      audience on either side is an advisory, not a refusal. Refusing the unknown
+      case would refuse every project managing gold grants outside bloomery, and the
+      compiler can only call a contradiction where it holds both statements.
+    paths:
+      - pages/docs/how-to/annotate-a-spec.md
+      - src/bloomery/errors.py
+      - src/bloomery/evidence.py
+      - src/bloomery/guardrails/classification.py
+      - src/bloomery/guardrails/stage.py
+      - tests/unit/test_classification_guard.py
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      A rollup declares its own `grants:` and does not inherit its parent mart's —
+      D2's rule, applied to the one authored node that had no audience of its own.
+      A rollup declaring none is the advisory of row 11 rather than a hole.
+    paths:
+      - src/bloomery/emit/cube/__init__.py
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/spec/marts.py

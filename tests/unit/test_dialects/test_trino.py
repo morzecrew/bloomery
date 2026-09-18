@@ -1,4 +1,4 @@
-"""The Trino dialect (RFC 0008 D5, M10): physical types for all seven
+"""The Trino dialect (S-0025/D-5, M10): physical types for all seven
 logical types and dialect-specific rendering of neutral ASTs."""
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ def test_render_is_the_trino_generator() -> None:
 
 def test_zone_interpretation_uses_with_timezone_not_at_timezone() -> None:
     """``to_utc`` means *interpret this zoneless timestamp as being in zone*
-    (RFC 0004 §5.1) — the only door into the always-UTC ``timestamp`` type.
+    (S-0021/logical-types-bloomery-typing-types-py) — the only door into the always-UTC ``timestamp`` type.
 
     Trino's ``AT TIME ZONE`` does not mean that. Given a zoneless timestamp it
     promotes the value using the **session** zone first and only then converts
@@ -83,7 +83,7 @@ def test_zone_interpretation_uses_with_timezone_not_at_timezone() -> None:
     assert "WITH_TIMEZONE(CAST(x AS TIMESTAMP), 'Europe/Paris')" in rendered
     # ... and normalized to a zoneless UTC value, because `timestamp` is always
     # UTC and a zone-aware value makes every derived date read its display rule
-    # rather than its instant (RFC 0028).
+    # rather than its instant (S-0045).
     assert rendered.startswith("CAST(AT_TIMEZONE(")
     assert rendered.rstrip().endswith("AS TIMESTAMP)")
 
@@ -156,7 +156,7 @@ def test_the_iso_text_marker_becomes_a_separator_rewrite(to: str, expected: str)
     """Trino's cast takes only the space-separated spelling and returns NULL
     for `2026-01-06T12:00:00` — measured, and the same for `AS DATE`. The
     rewrite accepts both spellings and is a no-op on a value that never had a
-    `T` (RFC 0027).
+    `T` (S-0044).
     """
     assert DIALECT.render(_iso_cast(to)) == (
         "CAST(CASE\n"
@@ -207,7 +207,7 @@ def test_both_iso_separators_are_normalized() -> None:
 def test_the_rewrite_survives_an_operand_that_is_not_text() -> None:
     """The marked operand is text in a transform chain, by `parse_ts`'s declared
     input type — and is whatever the project landed when the marker is on a
-    **bronze column**, which is where RFC 0016 D21's metadata audit puts it.
+    **bronze column**, which is where S-0033/D-21's metadata audit puts it.
 
     Trino's `replace` takes varchar and nothing else, so the unguarded spelling
     did not plan at all against a project that lands `_ingested_at` typed:

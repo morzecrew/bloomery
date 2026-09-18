@@ -1,5 +1,5 @@
 """Whether a timestamp reaching a boundary was ever an undeclared wall clock
-(RFC 0074 §5.3, R018).
+(S-0076/r018-and-where-it-fires, S-0076 R018).
 
 ``parse_ts`` turns a string into a value the type system calls UTC, and the
 claim that the string *was* UTC is made by the absence of a ``to_utc`` step —
@@ -59,7 +59,7 @@ __all__ = [
 #: carries. One rather than a family, unlike R009's: an undeclared zone and a
 #: *wrong* zone are not two refusals, because the second is not detectable at
 #: all — the check is that the assertion exists and is well-formed, never that
-#: it is true (RFC 0074 §9).
+#: it is true (S-0076/risks).
 UNDECLARED_SOURCE_ZONE: Final = "undeclared_source_zone"
 
 _REMEDIATION: Final = (

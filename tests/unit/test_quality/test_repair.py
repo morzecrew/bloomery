@@ -1,9 +1,9 @@
-"""The ``repair`` disposition and its recipe contract (RFC 0016 D17 → D87).
+"""The ``repair`` disposition and its recipe contract (S-0033/D-17 → D87).
 
 D17 deferred ``repair`` out of v1 and gated it on two things: a **repair-recipe
 contract**, and a **distinct marker** separating "repaired, now correct" from
 "currently flagged bad" so ``has_quality_flags`` keeps meaning *currently
-suspect*. RFC 0017's step registry supplies the first; ``_quality_repairs``
+suspect*. S-0034's step registry supplies the first; ``_quality_repairs``
 is the second. Both are asserted here by running the emitted pipeline, because
 the whole feature is a claim about which value ends up in the row.
 

@@ -1,4 +1,4 @@
-"""The logger surface (RFC 0033 §4, D1-D4) — the posture, not the messages.
+"""The logger surface (S-0004 (§4), S-0004/D-1 S-0004/D-4) — the posture, not the messages.
 
 Message text is not API (§7); only the logger *names* are. So nothing here
 asserts what a record says, and nothing anywhere asserts behaviour *through*

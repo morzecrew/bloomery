@@ -1,4 +1,4 @@
-"""Every starter transform (RFC 0004 §6): input domain, output type
+"""Every starter transform (S-0021/tests): input domain, output type
 (including arg-dependent cases), and builder AST that round-trips through
 ``sqlglot.parse_one``."""
 
@@ -84,7 +84,7 @@ def test_input_domain_and_output_type(name: str) -> None:
 def test_builder_ast_round_trips_through_sqlglot(name: str) -> None:
     args, input_type, _domain, _output = CASES[name]
     spec = DEFAULT_REGISTRY[name]
-    # A spec declaring `types` is handed the type entering the step (RFC 0029
+    # A spec declaring `types` is handed the type entering the step (S-0046
     # D1); the case table already carries it for the output-type assertion.
     extra = {"input_type": input_type} if spec.types else {}
     node = spec.builder(exp.column("x"), *args, **extra)
@@ -137,7 +137,7 @@ def test_to_decimal_rejects_bad_parameters(precision: int, scale: int, match: st
 @pytest.mark.parametrize("name", ["multiply", "divide"])
 def test_arithmetic_precision_tracking(name: str) -> None:
     spec = DEFAULT_REGISTRY[name]
-    # p1+p2 / s1+s2 (RFC 0004 §5.4): literal "2.5" contributes (2, 1).
+    # p1+p2 / s1+s2 (S-0021/typecheck-stage-bloomery-typing-check-py): literal "2.5" contributes (2, 1).
     assert spec.output_type(DecimalType(20, 4), ("2.5",)) == DecimalType(22, 5)
     # An int literal contributes (digits, 0).
     assert spec.output_type(DecimalType(20, 4), (100,)) == DecimalType(23, 4)
@@ -154,7 +154,7 @@ def test_arithmetic_overflow_past_38_is_loud(name: str) -> None:
 def test_a_literal_that_cannot_survive_its_cast_is_refused(name: str) -> None:
     """T-0002 D-018: the emitter casts the literal into the column's decimal
     type, and a value whose integral part cannot fit raises ConversionException
-    on the engine — compile-and-fail, the degradation RFC 0008 D3 refuses."""
+    on the engine — compile-and-fail, the degradation S-0025/D-3 refuses."""
     spec = DEFAULT_REGISTRY[name]
     with pytest.raises(TypeCheckError, match=r"does not fit decimal\(12, 4\)"):
         spec.output_type(DecimalType(12, 4), (99999999999999,))
@@ -230,9 +230,9 @@ def test_round_overflow_past_38_is_loud() -> None:
 
 
 def test_convert_typechecks_decimal_to_decimal() -> None:
-    """RFC 0004 D3: `convert` is the currency-conversion marker; its semantic
+    """S-0021/D-3: `convert` is the currency-conversion marker; its semantic
     obligations land with the currency guardrail (M4) and the rate lookup
-    ``resolve.build`` binds into it (RFC 0023 §5.4)."""
+    ``resolve.build`` binds into it (S-0040/phase-2-currency-as-a-declared-relation)."""
     spec = DEFAULT_REGISTRY["convert"]
     assert spec.input_domain == (DecimalType,)
     assert spec.output_type(DecimalType(12, 4), ("EUR", "USD", "paid_at")) == DecimalType(12, 4)
@@ -248,7 +248,7 @@ def test_convert_names_both_currencies_and_an_anchor() -> None:
     ``{convert: USD}`` was not merely unimplemented, it was *incomplete*: a
     rate is a dated fact, so a conversion that names no date names no rate that
     exists. Both currencies are declared for the same reason the anchor is —
-    the source path carries no currency, and RFC 0021 closed inference.
+    the source path carries no currency, and S-0038 closed inference.
     """
     spec = DEFAULT_REGISTRY["convert"]
     assert spec.arity == 3
@@ -284,7 +284,7 @@ def test_parse_builders_iso8601_is_a_marked_cast_and_formats_are_explicit() -> N
 
     The marker exists because the engines disagree about what their own casts
     accept and the IR carries canonical text, so nothing else would tell a
-    dialect that this particular cast is parsing ISO 8601 (RFC 0027 §3). It
+    dialect that this particular cast is parsing ISO 8601 (S-0044/why-the-toutc-fix-does-not-generalise). It
     wraps the operand rather than replacing the cast, so that the quality
     system's ``Cast`` → ``TryCast`` rewrite still reaches it.
     """
@@ -292,14 +292,14 @@ def test_parse_builders_iso8601_is_a_marked_cast_and_formats_are_explicit() -> N
     parse_date = DEFAULT_REGISTRY["parse_date"].builder
     assert parse_ts(exp.column("x"), "ISO8601").sql() == "CAST(BLM_ISO_TEXT(x) AS TIMESTAMP)"
     assert parse_ts(exp.column("x"), "%d/%m/%Y").sql() == "STR_TO_TIME(x, '%d/%m/%Y')"
-    # `parse_date` is deliberately unmarked — see its builder, and RFC 0027 D6.
+    # `parse_date` is deliberately unmarked — see its builder, and S-0044/D-6.
     assert parse_date(exp.column("x"), "ISO8601").sql() == "CAST(x AS DATE)"
     assert parse_date(exp.column("x"), "%d/%m/%Y").sql() == "STR_TO_DATE(x, '%d/%m/%Y')"
 
 
 def test_the_iso_marker_survives_the_canonical_text_round_trip() -> None:
     """The load-bearing property. The IR stores an expression as canonical text
-    and re-parses it at emit (RFC 0003 D2), so a marker that did not survive
+    and re-parses it at emit (S-0020/D-2), so a marker that did not survive
     that trip would be gone by the time any dialect could act on it — which is
     exactly why an AST annotation could not do this job.
     """
@@ -331,7 +331,7 @@ def test_the_quality_rewrite_still_reaches_a_marked_cast() -> None:
         (StringType(), 0, "COALESCE(x, CAST(0 AS TEXT))"),
         (DateType(), "1970-01-01", "COALESCE(x, CAST('1970-01-01' AS DATE))"),
         # An integer fallback over a decimal widened the result past the
-        # declared (p, s) on every engine before this cast (RFC 0029 §2.1).
+        # declared (p, s) on every engine before this cast (S-0046/what-was-measured (§2.1)).
         (DecimalType(12, 4), 0, "COALESCE(x, CAST(0 AS DECIMAL(12, 4)))"),
     ],
 )
@@ -346,7 +346,7 @@ def test_coalesce_casts_its_fallback_to_the_column_type(
     ("input_type", "expected"),
     [
         # PostgreSQL refuses `bigint` -> `boolean`; `x <> 0` is what DuckDB and
-        # Trino's cast means anyway, measured over 0, 1, 5 and -1 (RFC 0029 D5).
+        # Trino's cast means anyway, measured over 0, 1, 5 and -1 (S-0046/D-5).
         (IntType(), "x <> 0"),
         (StringType(), "CAST(x AS BOOLEAN)"),
     ],
@@ -388,8 +388,8 @@ def test_to_int_routes_a_boolean_through_int() -> None:
 def test_arithmetic_narrows_to_the_type_it_declares(
     transform: str, args: tuple[object, ...], input_type: LogicalType, expected: str
 ) -> None:
-    """RFC 0029 D2. Every engine widens decimal arithmetic past the (p, s)
-    RFC 0004 §5.4 tracks, and each widens differently — so the declaration
+    """S-0046/D-2. Every engine widens decimal arithmetic past the (p, s)
+    S-0021/typecheck-stage-bloomery-typing-check-py tracks, and each widens differently — so the declaration
     stopped being true, and with it the 38-digit cap, which is computed over
     the numbers the compiler tracks rather than the ones the engine uses.
 
@@ -414,7 +414,7 @@ def test_the_narrowing_cast_is_the_declared_output_not_a_second_opinion() -> Non
 
 def test_the_narrowing_cast_becomes_a_try_cast_inside_the_quality_system() -> None:
     """An arithmetic overflow is then a coercion failure and a quarantined row
-    rather than an aborted run — the disposition RFC 0016 gives every other bad
+    rather than an aborted run — the disposition S-0033 gives every other bad
     value. Asserted because the claim is made in `_narrowed`'s docstring and is
     the reason narrowing is safe to add to an entity carrying quality rules."""
     node = DEFAULT_REGISTRY["multiply"].builder(exp.column("x"), 2, input_type=DecimalType(12, 4))

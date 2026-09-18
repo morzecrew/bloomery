@@ -55,10 +55,10 @@ in it. The only sound computation is over the rows themselves, at the grain bein
 
 | Expectation | Spec | Outcome | Owner |
 | --- | --- | --- | --- |
-| **naive** | `additivity: additive` with `agg: count_distinct` | **refused** — `FalseAdditivityClaim` | RFC 0038 D2 |
-| **declared** | `additivity: distinct_count` | accepted | RFC 0038 D1 |
+| **naive** | `additivity: additive` with `agg: count_distinct` | **refused** — `FalseAdditivityClaim` | S-0053/D-2 |
+| **declared** | `additivity: distinct_count` | accepted | S-0053/D-1 |
 
-The **naive** spec was refused before this case existed: RFC 0038 D2's allowlist accepts an
+The **naive** spec was refused before this case existed: S-0053/D-2's allowlist accepts an
 `additive` claim only over an aggregation that re-aggregates, and `count_distinct` does
 not. What the refusal could not do until now was name a fix — a plain distinct count has no
 decomposition to declare, so `non_additive` was closed to it too, and the measure had no
@@ -68,5 +68,5 @@ The **declared** spec is that word. `distinct_count` is `count_distinct` over th
 it counts and nothing else (either half without the other is refused), the emitters lower
 it as the aggregation they already knew, and the planner computes it from the mart's rows
 at whatever grain a request asks — never from a coarser result, which is why it stays out
-of the aggregate-then-join path (RFC 0041 D8). This case is the one the member converts
-(RFC 0042 D5), and the number it plans to is the correct one.
+of the aggregate-then-join path (S-0055/D-8). This case is the one the member converts
+(S-0056/D-5), and the number it plans to is the correct one.

@@ -1,4 +1,4 @@
-"""Golden artifacts for the cube target (RFC 0009 §5.4, RFC 0008 §5.4):
+"""Golden artifacts for the cube target (S-0026/golden-workflow, S-0025/cube-emitter-semantic):
 one cube + one view per mart, dialect-independent YAML — so the matrix has
 no dialect axis (a property test pins the independence). Regenerate via
 ``just snapshot-update``; an unexplained golden diff fails review."""
@@ -22,7 +22,7 @@ EXPECTED_PATHS = {
         "model/cubes/order_items.yml",
         "model/views/order_items_view.yml",
     ],
-    # Cube is asked nothing about steps (RFC 0017 D52) — it builds no relation
+    # Cube is asked nothing about steps (S-0034/D-52) — it builds no relation
     # — and yet it serves a mart whose base entity a step produced. That is the
     # asymmetry worth a golden: the step is invisible here, which is exactly
     # what D36/D37 promise a downstream consumer.
@@ -34,7 +34,7 @@ EXPECTED_PATHS = {
         "model/cubes/orders.yml",
         "model/views/orders_view.yml",
     ],
-    # The pre-aggregation (RFC 0058 §5.3): a rollup is a key inside its
+    # The pre-aggregation (S-0065/targets): a rollup is a key inside its
     # parent's document and produces no cube and no view of its own, which is
     # row 14 read from the emitter side. The golden is what shows that — the
     # path list below is the same two a mart without a rollup produces.
@@ -46,7 +46,7 @@ EXPECTED_PATHS = {
         "model/cubes/orders.yml",
         "model/views/orders_view.yml",
     ],
-    # Cube consumes the quality mart like any other mart (RFC 0016 §5.4):
+    # Cube consumes the quality mart like any other mart (S-0033/fixed-pipeline-order-and-lowering):
     # nothing target-specific about it, which is the point of §5.8's "ordinary
     # semantic model".
     "semi_additive_inventory": [

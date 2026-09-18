@@ -1,4 +1,4 @@
-"""Naming policies (RFC 0008 §5.1): the only tenant-shaped seam — scoping is
+"""Naming policies (S-0025/ports): the only tenant-shaped seam — scoping is
 ordinary constructor values, nothing else in the package knows the concept."""
 
 from __future__ import annotations

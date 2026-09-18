@@ -2,7 +2,7 @@
 
 - **Origin:** `industry-pattern`. Every per-unit rate has rows where the unit count is
   zero, and the cost those rows carry has to go somewhere.
-- **Why a zero and not a null**, under a name RFC 0042 §3 wrote as `null-denominator`:
+- **Why a zero and not a null**, under a name S-0056/initial-case-set wrote as `null-denominator`:
   `SUM` skips a null, so both spellings return the same 4.00 — but a null lets the wrong
   answer be read as an aggregation artefact, while a zero is a count the source asserts.
   The bug is which rows the ratio is about, and a zero says that with nothing missing.
@@ -72,7 +72,7 @@ together are the reason **R012 is not enough on its own**.
   identically and bloomery answered one of them without being asked.
 
   This arm was `unguarded` until then, and the corpus asserted the wrong number rather than
-  pretending a guard existed — RFC 0042 D5 named the decision the converting rule would
+  pretending a guard existed — S-0056/D-5 named the decision the converting rule would
   answer to.
 - **restricted** — the same ratio whose operands declare the rows they are about is
   **accepted** and returns 3.00, on **R012**. The restriction is a spec fact, which is what

@@ -1,4 +1,4 @@
-"""The planner's response types (RFC 0011 §5.2, §5.6 — D2/D8):
+"""The planner's response types (S-0028/request-and-response-types, S-0028/explanation-d8 — D2/D8):
 :class:`ColumnDescriptor`, :class:`QueryPlan`, and the deterministic
 :class:`Explanation` with its :class:`MeasureExplanation` entries.
 
@@ -8,7 +8,7 @@ rows without it. ``fingerprint`` is ``sha256(sql)`` — the caller's result
 cache key; the planner never executes and never sees a connection.
 
 The :class:`Explanation` is generated from the plan, never from an LLM
-(RFC 0011 D8): every number ships with how it was computed, and ``render()``
+(S-0028/D-8): every number ships with how it was computed, and ``render()``
 output is locked by tests — change it deliberately.
 """
 
@@ -39,12 +39,12 @@ class ColumnDescriptor:
 
     ``name`` is the caller's vocabulary — role-qualified for date-role
     dimensions at the effective grain (``ordered_month``), and never a
-    MetricFlow dunder (RFC 0013 D7). ``sql_alias`` is the alias the emitted
+    MetricFlow dunder (S-0030/D-7). ``sql_alias`` is the alias the emitted
     SQL actually projects, which for a dimension is entity-qualified and
     grain-suffixed: ``store`` comes back as ``order__store`` and
     ``ordered_month`` as ``order__ordered_day__month``. Measures agree on both.
 
-    The two exist because they differ (RFC 0009 D24, closed by RFC 0018 D4).
+    The two exist because they differ (S-0026/D-24, closed by S-0035/D-4).
     Binding a result set positionally works and always did; binding it by
     ``name`` silently found nothing, because no column in the SQL is called
     that. Bind by ``sql_alias``; render ``name``. :class:`Explanation`
@@ -73,7 +73,7 @@ class ColumnDescriptor:
 @dataclass(frozen=True, slots=True)
 class MeasureExplanation:
     """How one requested measure was computed: its expression, declared
-    additivity, and the lowering note (RFC 0011 D5 vocabulary)."""
+    additivity, and the lowering note (S-0028/D-5 vocabulary)."""
 
     name: str
     expr: str
@@ -87,7 +87,7 @@ class MeasureExplanation:
 @dataclass(frozen=True, slots=True)
 class BranchSource:
     """One branch of a composed plan: the relation it aggregated, and the
-    grain it did so from (RFC 0041 D15)."""
+    grain it did so from (S-0055/D-15)."""
 
     mart: str
     grain: str
@@ -106,7 +106,7 @@ class Explanation:
     filters: tuple[str, ...]
     policy_applied: bool
     #: Every branch a cross-mart request was answered from, sorted, or empty
-    #: for the single-mart plans that are still the common case (RFC 0041
+    #: for the single-mart plans that are still the common case (S-0055
     #: D15). ``mart`` and ``grain`` above hold the first branch's, so a reader
     #: of the old two fields is told about one of several rather than
     #: something that is not true of any.
@@ -115,7 +115,7 @@ class Explanation:
     # ....................... #
 
     def render(self) -> str:
-        """The human-readable provenance block (RFC 0011 §5.6 shape)."""
+        """The human-readable provenance block (S-0028/explanation-d8 shape)."""
         lines = [", ".join(measure.name for measure in self.measures)]
 
         if self.branches:
@@ -140,7 +140,7 @@ class Explanation:
 
 @dataclass(frozen=True, slots=True)
 class QueryPlan:
-    """SQL text plus metadata — the planner's whole product (RFC 0011 D2).
+    """SQL text plus metadata — the planner's whole product (S-0028/D-2).
 
     ``mart`` is the serving mart's logical name; ``warnings`` carries
     non-fatal notices (limit clamping, ignored ``time_grain``);
@@ -154,14 +154,14 @@ class QueryPlan:
     explanation: Explanation
     fingerprint: str
     #: What bloomery decided to compute, before any target saw the request
-    #: (RFC 0040). Beside the SQL rather than under or instead of it, which is
+    #: (S-0054). Beside the SQL rather than under or instead of it, which is
     #: D7 closed as "beside" at P1: `sql`, `columns` and `explanation` are
     #: shipped surfaces that every golden pins, and D5 makes P1 a
     #: re-expression with no capability change — bundling an output change into
     #: that phase would cost §8's parity suite its only reference point
     #: (logs/T-0021.md, D-118).
     #:
-    #: **Always present** (RFC 0066 D1). It was optional while the node
+    #: **Always present** (S-0071/D-1). It was optional while the node
     #: vocabulary could not state five request shapes — a computed metric, a
     #: semi-additive measure, a cumulative one, metrics restricted differently,
     #: and a `derived:` input read at an offset — each of which was answered
@@ -178,7 +178,7 @@ class QueryPlan:
     #: before this: the only two construction sites are in the planner itself.
     semantic: SemanticPlan
     #: Every mart this plan reads, sorted — one name for the single-mart case
-    #: and one per branch for a composed one (RFC 0041 D15). ``mart`` keeps
+    #: and one per branch for a composed one (S-0055/D-15). ``mart`` keeps
     #: its meaning as the first of these, so a caller reading it gets a mart
     #: that really serves part of the answer rather than a name invented for
     #: the join.

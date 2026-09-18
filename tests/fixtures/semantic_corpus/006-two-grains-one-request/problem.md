@@ -38,7 +38,7 @@ first bug came with it.
 ## The correct answer
 
 Each measure is aggregated at the grain it originates at, and the two results are joined
-only afterwards — aggregate-then-join, never join-then-hope (RFC 0041 D1). With no
+only afterwards — aggregate-then-join, never join-then-hope (S-0055/D-1). With no
 grouping the two aggregates are one row each and the join is their cross product; with a
 grouping it is a null-safe join on the shared key (D13).
 
@@ -48,7 +48,7 @@ grouping it is a null-safe join on the shared key (D13).
 | --- | --- | --- |
 | `branches` | accepted | R010 |
 
-Answers it. The coverage precheck partitions the two measures by owning mart (RFC 0041
+Answers it. The coverage precheck partitions the two measures by owning mart (S-0055
 D11), plans each branch as the single-mart request it is, and composes the results
 itself (D9). The plan carries **R010**: each branch holds one row per key because of the
 aggregate beneath it, structurally, rather than because the data happened to look that

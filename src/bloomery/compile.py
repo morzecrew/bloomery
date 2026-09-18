@@ -1,8 +1,8 @@
 """The compile orchestration: ``compile_project`` (public API, spec §8) —
 parsed specs in, byte-deterministic :class:`~bloomery.emit.EmittedArtifact`
-tuple out. Pure data flow: resolve + typecheck + IR build (RFC 0004/0005),
-fingerprint (RFC 0003), then the selected target emitter renders through the
-selected dialect port under the naming policy (RFC 0008)."""
+tuple out. Pure data flow: resolve + typecheck + IR build (S-0021, S-0022),
+fingerprint (S-0020), then the selected target emitter renders through the
+selected dialect port under the naming policy (S-0025)."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ __all__ = [
     "compile_project",
 ]
 
-#: Per-target artifact counts (RFC 0033 §4). Here rather than inside each
+#: Per-target artifact counts (S-0004 (§4)). Here rather than inside each
 #: emitter: the count is the same question for every target, and asking it in
 #: one place is what keeps a new emitter narrated without its author
 #: remembering to.
@@ -40,11 +40,11 @@ _LOG = logging.getLogger("bloomery.emit")
 
 
 class Target(StrEnum):
-    """The emit targets shipped in core (RFC 0008 D5): SQLMesh (primary),
-    Cube (semantic), dbt — the port-abstraction proof (RFC 0008 §5.5), which
-    since RFC 0052 refuses two constructs and no artifact family — and
+    """The emit targets shipped in core (S-0025/D-5): SQLMesh (primary),
+    Cube (semantic), dbt — the port-abstraction proof (S-0025/dbt-emitter-compatibility), which
+    since S-0060 refuses two constructs and no artifact family — and
     MetricFlow, which emits the
-    semantic manifest rather than models (RFC 0051 D1). Extension targets
+    semantic manifest rather than models (S-0059/D-1). Extension targets
     registered via :func:`bloomery.emit.register_emitter` are addressed by
     their string name."""
 
@@ -58,7 +58,7 @@ class Target(StrEnum):
 
 
 def _check_pattern_transport(ir: ProjectIR, port: DialectPort) -> None:
-    """RFC 0016 D56's explicit-argument hatch, applied at the one seam that
+    """S-0033/D-56's explicit-argument hatch, applied at the one seam that
     knows the requested dialect.
 
     The guardrail stage vets ``pattern`` rules against the *shipped* ports
@@ -86,7 +86,7 @@ def _check_pattern_transport(ir: ProjectIR, port: DialectPort) -> None:
             f"entity {entity!r} field {field!r}: {regex!r}" for entity, field, regex in failures
         )
         msg = (
-            f"dialect {port.name!r} cannot carry pattern rule(s): {listed} (RFC 0016 "
+            f"dialect {port.name!r} cannot carry pattern rule(s): {listed} (S-0033 "
             "§5.3/D56) — the dialect declares no regex surface, or mangles the pattern "
             "literal in rendering. Fix: drop the rule(s), or extend the dialect port"
         )
@@ -109,12 +109,12 @@ def compile_project(
     """Compile a parsed project into target artifacts (spec §8).
 
     Pure function of its inputs: same specs in ⇒ byte-identical artifacts
-    out, across processes and hash seeds (RFC 0003). ``steps`` is the frozen
-    step registry (RFC 0017 §5.3) — a compile *input*, because reading step
+    out, across processes and hash seeds (S-0020). ``steps`` is the frozen
+    step registry (S-0034/purity-the-registry-is-a-compile-input) — a compile *input*, because reading step
     files from disk would break that purity outright, and because a registry
     that cannot be assembled from a spec is a registry a spec cannot use to
     load code. ``naming`` defaults to
-    :class:`~bloomery.naming.DefaultNaming` (the RFC 0008 signature spells
+    :class:`~bloomery.naming.DefaultNaming` (the S-0025 signature spells
     the default inline; a ``None`` sentinel avoids a call in the signature).
     """
     ir = build_project_ir(project, catalog=catalog, steps=steps, upstream=upstream)

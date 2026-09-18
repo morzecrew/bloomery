@@ -8,7 +8,7 @@ body:
     attributes:
       value: |
         Thank you for suggesting an improvement! For larger design changes,
-        consider proposing an RFC instead — see rfcs/INDEX.md.
+        consider proposing a design document instead — see `.torve/specs/`.
 
   - type: textarea
     id: problem

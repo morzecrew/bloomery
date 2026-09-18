@@ -18,7 +18,7 @@ they do not have is a label they cannot check.
 ````markdown
 # T-0142 · Session storage
 
-Executed RFC 0014 §5 against branch `feat/session-store`.
+Executed S-0031/key-and-codec against branch `feat/session-store`.
 
 **Drift count: 0.**
 

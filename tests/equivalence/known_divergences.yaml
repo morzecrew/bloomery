@@ -1,4 +1,4 @@
-# Reviewed exceptions (RFC 0009 §5.8): a request where MetricFlow and Cube
+# Reviewed exceptions (S-0026/equivalence-tier-three-way-metricflow-cube-reference-sql): a request where MetricFlow and Cube
 # disagree *and* the disagreement has been judged acceptable. Each entry needs
 # `request`, `reason`, and the date it was reviewed.
 #

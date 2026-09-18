@@ -1,4 +1,4 @@
-"""Step outputs as entities (RFC 0017 §5.8).
+"""Step outputs as entities (S-0034/emission-and-the-dag).
 
 §5.8's claim is that "step outputs are entities in the DAG: downstream
 mappings, marts, and metrics reference them like any silver entity". That was
@@ -120,6 +120,6 @@ def test_a_runtime_lock_bump_reports_only_the_step() -> None:
 
 
 def test_the_identity_plan_stays_empty_with_steps() -> None:
-    """RFC 0007 D2 is normative and has to survive the new entity kind."""
+    """S-0024/D-2 is normative and has to survive the new entity kind."""
     ir = ir_of()
     assert plan(ir, ir).changes == ()

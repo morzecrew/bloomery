@@ -1,5 +1,5 @@
-"""``RowPolicy`` — the row-level scoping value object (RFC 0011 D7,
-RFC 0013 D9, vocabulary per RFC 0015 D11).
+"""``RowPolicy`` — the row-level scoping value object (S-0028/D-7,
+S-0030/D-9, vocabulary per S-0032/D-11).
 
 A policy is a *typed filter* — dimension, operator, value — not a predicate
 string and not an identity, session, or security context: deciding whose
@@ -11,9 +11,9 @@ through the exact same literal-escaping pipeline
 never string-appended, never templated with raw input. The mandatory
 ``test_row_policy_survives_every_path`` suite asserts, on the parsed AST,
 that the rendered predicate reaches every scan of the mart relation
-(RFC 0013 §5.9d).
+(S-0030/what-is-superseded-and-the-boundary-that-makes-it-reversible (§5.9d)).
 
-Migration note (RFC 0015 D11): ``as_filter()`` renamed to ``as_clause()``
+Migration note (S-0032/D-11): ``as_filter()`` renamed to ``as_clause()``
 and the operator space narrowed with :class:`~bloomery.planner.request.Op` —
 a ``between``/``contains`` policy has no post-migration form. A policy stays
 a *single* predicate: callers with range policies compose the range into the
@@ -56,6 +56,6 @@ class RowPolicy:
 
     def as_clause(self) -> Predicate:
         """The policy as the :class:`Predicate` the filter pipeline renders
-        (RFC 0015 D11 — renames the pre-vocabulary ``as_filter``)."""
+        (S-0032/D-11 — renames the pre-vocabulary ``as_filter``)."""
         values = self.value if isinstance(self.value, tuple) else (self.value,)
         return Predicate(dimension=self.dimension, op=self.op, values=values)

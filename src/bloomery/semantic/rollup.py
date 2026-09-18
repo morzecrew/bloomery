@@ -1,5 +1,5 @@
 """Whether a mart may be re-aggregated to a coarser grain — the rollup
-obligation (RFC 0058 §5.2, P1).
+obligation (S-0065/the-obligation, S-0065/phasing (P-1)).
 
 A rollup is a mart built from another mart by grouping its rows on a subset of
 its dimensions: daily revenue from order lines, monthly from daily. It is read
@@ -7,7 +7,7 @@ its dimensions: daily revenue from order lines, monthly from daily. It is read
 it answers quickly, which is the plausible-but-wrong class this compiler exists
 to refuse.
 
-**The grain half is already discharged** (RFC 0058 D12). §5.2 called the
+**The grain half is already discharged** (S-0065/D-12). §5.2 called the
 obligation a functional-dependency question, which it was when the source was
 an entity; it is not one when the source is a mart. Two facts settle it.
 :class:`~bloomery.semantic.GrainRef` admits only entity *key* columns —
@@ -16,18 +16,18 @@ determinant — while a rollup's target is a set of mart columns, of which
 ``customer_segment`` is not a key and a date-role bucket like ``ordered_month``
 is not an entity column at all. And it needs no re-derivation anyway: a mart is
 a fact table at exactly its base entity's grain and carries measures only at
-that grain (RFC 0010 D2, refused by ``GrainViolation`` where it is built), so
+that grain (S-0027/D-2, refused by ``GrainViolation`` where it is built), so
 every column of it is determined by that grain and grouping on a subset
 partitions rows the mart has already proved. That is R008, and citing it is
 what this module does with the grain question.
 
 What is left is the second question, and it is the whole of R013: **may this
 measure be re-aggregated across whatever the rollup drops?** The aggregation
-class answers it — RFC 0038 closed that word at six members and made the claim
+class answers it — S-0053 closed that word at six members and made the claim
 checked rather than trusted, so what closes the obligation is a declaration the
 compiler has already refused to take on faith.
 
-Vocabulary, not a stage. Nothing in the compile pipeline consults this: RFC 0058
+Vocabulary, not a stage. Nothing in the compile pipeline consults this: S-0065
 §12's P2 is what gives a rollup a spec key, an IR node and a guardrail that
 refuses on the answer here, and §9's first risk is that this feature gets built
 early because it looks like an emitter feature. The obligation is invisible from
@@ -37,7 +37,7 @@ Two things a reader might expect here and will not find. **Row 14's exclusion**
 — a rollup is never a measure owner and never a covering mart — governs the
 planner and the emitters, not this module; a rollup mart handed here is a
 question about arithmetic, not about which mart serves a request. And **no
-escape hatch** (RFC 0058 D3, `LOCKED`): nothing an author can declare makes a
+escape hatch** (S-0065/D-3, `LOCKED`): nothing an author can declare makes a
 refused class admissible. A hand-authored permission is an assertion nothing
 checks, and it would end up disagreeing with the proof beside it — the second
 source of truth §2 says this obligation exists to avoid.
@@ -84,7 +84,7 @@ class _ClassRefusal:
 
 
 #: Aggregation class → the refusal it earns, or ``None`` where the class is
-#: admitted (RFC 0058 D13). Written out member by member and **subscripted**,
+#: admitted (S-0065/D-13). Written out member by member and **subscripted**,
 #: never read with ``.get``: a member added to :class:`~bloomery.ir.Additivity`
 #: without a decision here raises at the first measure that carries it, where a
 #: fallback would silently admit it — and admitting one silently is the whole
@@ -122,7 +122,7 @@ _REFUSALS: Final[dict[Additivity, _ClassRefusal | None]] = {
         remediation=(
             "an identity present in two groups is counted once by the question and twice "
             "by the sum; re-aggregating one needs a disjointness proof no rule supplies "
-            "(RFC 0041 D8) — count it at the grain the question is asked at"
+            "(S-0055/D-8) — count it at the grain the question is asked at"
         ),
     ),
     Additivity.SNAPSHOT: _ClassRefusal(
@@ -193,7 +193,7 @@ def _grouping_refusal(
             ),
             remediation=(
                 "a rollup states the dimensions it keeps and derives what it drops "
-                "(RFC 0058 D4) — name at least one"
+                "(S-0065/D-4) — name at least one"
             ),
         )
 
@@ -228,7 +228,7 @@ def _grouping_refusal(
         return None
 
     # A rollup is a mart at a *coarser* grain than the one it derives from
-    # (RFC 0058 §1), and one keeping every column is the parent under a second
+    # (S-0065/summary), and one keeping every column is the parent under a second
     # name. Refused rather than proved, even though the proof would be true —
     # re-aggregating over nothing is sound, and answering "yes" here would
     # authorize a duplicate gold table that costs storage and answers nothing
@@ -253,7 +253,7 @@ def _grouping_refusal(
 
 
 def _mart_contract(mart: MartIR, metric: MetricIR) -> Proof:
-    """R008 — the grain half, cited rather than re-derived (RFC 0058 D12).
+    """R008 — the grain half, cited rather than re-derived (S-0065/D-12).
 
     Both leaves are `DECLARED`: an author wrote the mart's grain and the
     metric's, and ``GrainViolation`` refuses the project where they disagree,
@@ -308,7 +308,7 @@ def _prove_ratio(
     each must be **additive**, not merely admitted here: an operand that is
     itself a ratio would send this function back through the same question, and
     nothing in the spec layer forbids two ratios naming each other, so
-    "admitted" as RFC 0058 D13 words it has no termination argument. Additive
+    "admitted" as S-0065/D-13 words it has no termination argument. Additive
     operands terminate by construction and are the only ones R011 grants
     anyway (logs/T-0033.md).
     """
@@ -460,7 +460,7 @@ def prove_measure_rollup(
     The grain check re-asks what ``GrainViolation`` already refuses when a
     project compiles, and asks it anyway. A proof is evidence, and one built
     over a caller's mart that nothing had validated would certify exactly the
-    fan-out RFC 0010 D2 exists to prevent.
+    fan-out S-0027/D-2 exists to prevent.
     """
 
     kept = _kept(keep)
@@ -507,7 +507,7 @@ def prove_measure_rollup(
                 ),
             ),
             remediation=(
-                "a measure is embedded in a mart only at that mart's grain (RFC 0010 D2) — "
+                "a measure is embedded in a mart only at that mart's grain (S-0027/D-2) — "
                 "roll up from the mart the measure originates on"
             ),
             rejected=(
@@ -562,7 +562,7 @@ def prove_measure_rollup(
         # there is nothing to sum it with — and reading the pair let such a
         # metric prove here and then refuse at emit, which puts a refusal
         # behind a target and so behind `bloomery check`, which reaches none
-        # (RFC 0044 D1; logs/T-0034.md).
+        # (S-0057/D-1; logs/T-0034.md).
         return Refutation(
             reason="nothing_to_aggregate",
             judgement=judgement,
@@ -612,7 +612,7 @@ def prove_mart_rollup(
     project: ProjectIR,
 ) -> Proof | Refutation:
     """Whether a rollup of ``mart`` keeping ``keep`` may carry every measure
-    ``mart`` carries (RFC 0058 §5.2, D5 `LOCKED`).
+    ``mart`` carries (S-0065/the-obligation, S-0065/D-5 `LOCKED`).
 
     One answer for one declaration, refusing on the first measure that fails
     rather than collecting the failures. Each class refusal names a different
@@ -635,7 +635,7 @@ def prove_mart_rollup(
         # Decided rather than inherited. Every measure of an empty set is
         # trivially re-aggregable, so a reduction over `all(...)` would prove
         # this rollup — and a proof resting on nothing is the one thing a
-        # closed-world checker may never report as proven (RFC 0039 D1).
+        # closed-world checker may never report as proven (S-0005/D-1).
         return Refutation(
             reason="no_measures",
             judgement=judgement,

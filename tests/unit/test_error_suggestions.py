@@ -1,4 +1,4 @@
-"""Structured fix suggestions on the refusals (RFC 0020 §5.4, D7–D8, D11).
+"""Structured fix suggestions on the refusals (S-0037/fix-suggestions-on-refusals, S-0037/D-7–S-0037/D-8, S-0037/D-11).
 
 Five refusals carry a machine-readable next action beside the prose. Each
 property here is checked twice — once on input that triggers a real
@@ -53,7 +53,7 @@ def _refuse[E: Exception](error_type: type[E], fixture: str, request: MetricRequ
 
 
 # ....................... #
-# UnknownMember.did_you_mean — the field RFC 0011's docstring has promised
+# UnknownMember.did_you_mean — the field S-0028's docstring has promised
 # since it was written, while the match was computed and thrown into prose.
 
 

@@ -1,7 +1,7 @@
-"""The step package (RFC 0017): referenced implementations.
+"""The step package (S-0034): referenced implementations.
 
 The escape hatch for logic that cannot be declared — entity resolution, fuzzy
-matching, ML scoring. RFC 0016's principle still governs and is what this
+matching, ML scoring. S-0033's principle still governs and is what this
 package is shaped by: **specs describe, specs reference implementations,
 specs never contain implementations.**
 
@@ -88,7 +88,7 @@ def __getattr__(name: str) -> Any:
     function and ``from bloomery import plan`` becomes import-order-dependent.
 
     So this is the collision-free half of a repair whose other half is unsafe;
-    RFC 0017 D22 records the measurement and names §8's escape hatch
+    S-0034/D-22 records the measurement and names §8's escape hatch
     (extracting ``contract`` into a micro-package) as the remaining route.
     """
     module = _LAZY.get(name)

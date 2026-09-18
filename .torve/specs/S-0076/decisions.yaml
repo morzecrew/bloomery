@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **A zone is declared, never
+      inferred.** Not from the column name, not from a project default, not from the
+      values. An inferred zone is indistinguishable from a declared one once written
+      down, and the failure it produces is a five-hour shift with full compiler blessing.
+      Locked because every cheaper alternative is a way of making the wrong answer
+      easier to reach than today.
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      **The declaration lives on the mapping, beside `currency_in:`** — not on the
+      canonical field. A canonical field is shared across mappings and two feeds may
+      run on two clocks, which is exactly the argument S-0066/D-6 made for currency;
+      the shape is identical, so the answer is not re-derived.
+    paths: [src/bloomery/spec/mapping.py]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **`zone_in: UTC` is a declaration,
+      not a no-op.** A feed whose wall clocks really are UTC says so. Today that claim
+      is made by silence and silence cannot be checked; the key's only job is to turn
+      an unfalsifiable default into a sentence somebody wrote.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      **`to_utc`'s argument is the declaration for a converting source; no second
+      key restates it.** A rollup lists what it keeps or what it drops and never both,
+      because two statements of one fact disagree — and here the disagreement would
+      be two zones, one used and one read by a human. Not `LOCKED`: it is a well-argued
+      preference rather than a decision other work rests on, and the symmetric design
+      — `zone_in:` required everywhere, cross-checked against the chain — stays buildable.
+      Departing means the cross-check in §5.2 proves unimplementable over the transform
+      chain, which would make the redundancy unchecked and therefore the thing this
+      row is avoiding.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **R018 fires where a timestamp's *absolute position is consumed*** — a time
+      dimension, a comparison against a literal instant, an as-of anchor — not at
+      every use and not only at a dimension. Case 011 fails at the *second* site:
+      its metric compares `placed_at` to a literal, and the mart's date role is incidental.
+      A rule scoped to dimensions would pass that fixture for a reason unrelated to
+      why it is wrong, and miss the same bug in a project with no `flatten:`. Departing
+      means the third site turns out to be R004's — §10's first question.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      **`to_utc` stays the only conversion and is not changed.** This RFC adds a declaration
+      and a check around the existing door rather than a second door. Departing would
+      mean the check cannot be expressed over the current transform vocabulary, which
+      nothing so far suggests.
+  - id: D-7
+    grade: OPEN
+    text: >-
+      **Whether a step output needs a zone declaration.** §5.3 discharges a value
+      that never passed `parse_ts`, which lets a `python_model` emitting a wall clock
+      through. Deciding it needs one example of a step that does so; the executor
+      decides and logs it.
+  - id: D-8
+    grade: OPEN
+    text: >-
+      **Whether the refusal is `UndeclaredZone` or a reuse of an existing denomination
+      error.** R009's family already refuses an undeclared currency, and one class
+      for "undeclared denomination" may read better than two. Decide when the message
+      is written, since the deciding fact is whether one message can name both without
+      hedging.

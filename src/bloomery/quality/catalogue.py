@@ -1,11 +1,11 @@
-"""The closed quality vocabulary (RFC 0016 D5/D6) and the fixed pipeline
+"""The closed quality vocabulary (S-0033/D-5, S-0033/D-6) and the fixed pipeline
 order (D7) as data.
 
 One module owns every name the rest of the package spells: rule kinds,
 dispositions, ``referential.on_missing`` values, the generated column names,
 the bronze ingestion-metadata contract, and the six pipeline stages. A
 consumer that invents its own list is exactly how a rule ships lowered but
-untested (RFC 0016 §6: the matrix is ``product(ALL_RULES, ALL_DISPOSITIONS)``
+untested (S-0033/tests-rfc-0009-amendment: the matrix is ``product(ALL_RULES, ALL_DISPOSITIONS)``
 over *these* tuples).
 
 Four of those names — ``FLAGS_COLUMN``, ``OK_COLUMN``, ``REPAIRS_COLUMN``,
@@ -40,7 +40,7 @@ __all__ = [
     "payload_key",
 ]
 
-#: The field-rule catalogue (RFC 0016 D5), sorted. ``coercible`` is implicit
+#: The field-rule catalogue (S-0033/D-5), sorted. ``coercible`` is implicit
 #: and always present on a quality-carrying entity; the rest are authored.
 FIELD_RULES: tuple[str, ...] = (
     "charset",
@@ -55,15 +55,15 @@ FIELD_RULES: tuple[str, ...] = (
     "unique",
 )
 
-#: The row-rule catalogue (RFC 0016 D6), sorted — evaluated over the whole row
+#: The row-rule catalogue (S-0033/D-6), sorted — evaluated over the whole row
 #: at stage 5, after the field rules.
 ROW_RULES: tuple[str, ...] = ("expression", "referential")
 
-#: Every rule kind, sorted. The unit matrix iterates this (RFC 0016 §6).
+#: Every rule kind, sorted. The unit matrix iterates this (S-0033/tests-rfc-0009-amendment).
 ALL_RULES: tuple[str, ...] = tuple(sorted((*FIELD_RULES, *ROW_RULES)))
 
 #: The disposition vocabulary in *severity* order, weakest first — the reverse
-#: of RFC 0016 D18's precedence, which reads ``fail > quarantine > flag``.
+#: of S-0033/D-18's precedence, which reads ``fail > quarantine > flag``.
 #: Iterating weakest-first keeps the matrix output readable; the precedence
 #: itself lives in :func:`bloomery.quality.predicates.disposition`.
 #:
@@ -76,29 +76,29 @@ ALL_RULES: tuple[str, ...] = tuple(sorted((*FIELD_RULES, *ROW_RULES)))
 #: already in it.
 ALL_DISPOSITIONS: tuple[OnFail, ...] = (OnFail.FLAG, OnFail.QUARANTINE, OnFail.FAIL)
 
-#: ``referential.on_missing`` (RFC 0016 D6), sorted. ``fail`` is deliberately
+#: ``referential.on_missing`` (S-0033/D-6), sorted. ``fail`` is deliberately
 #: absent — orphans are an expected, recoverable data condition.
 ALL_ON_MISSING: tuple[str, ...] = ("flag", "quarantine", "unknown_member")
 
-#: The reserved referential member (RFC 0016 §5.4). A *string*: there is
+#: The reserved referential member (S-0033/fixed-pipeline-order-and-lowering). A *string*: there is
 #: nowhere sound to put a sentinel in a non-string key, and a typed sentinel
 #: like ``-1`` colliding with a legal key value is the silent wrongness this
 #: project refuses.
 UNKNOWN_MEMBER = "__unknown__"
 
-#: The bronze ingestion-metadata contract (RFC 0016 §5.6, D21), sorted. An
+#: The bronze ingestion-metadata contract (S-0033/quarantine-one-reject-table-per-entity, S-0033/D-21), sorted. An
 #: entity using ``quarantine`` or ``dedupe`` requires all three; absence is the
 #: compile error ``IngestionMetadataMissing``, and the NOT NULL/uniqueness
 #: properties — data facts no compiler can check — become a generated blocking
 #: audit.
 INGESTION_METADATA: tuple[str, ...] = ("_ingested_at", "_load_id", "_source_row_id")
 
-#: The ``_load_id`` a replayed delivery carries (RFC 0060 §5.2, D2). A recovered
+#: The ``_load_id`` a replayed delivery carries (S-0003 (§5.2), S-0003/D-2). A recovered
 #: row reaches a framework-maintained ``scd: type2`` entity by being written
 #: back to bronze as a new delivery, and a delivery needs a load to belong to.
 #:
 #: **Its ``_source_row_id`` is the original's**, deliberately: ``_load_id`` is
-#: outside the reject identity (RFC 0016 D21) exactly so that re-deliveries of
+#: outside the reject identity (S-0033/D-21) exactly so that re-deliveries of
 #: one source row land on the same reject row, which is what makes replay
 #: idempotent. A fresh row identity would mint a second reject row per run and
 #: leave the first unresolvable.
@@ -108,7 +108,7 @@ INGESTION_METADATA: tuple[str, ...] = ("_ingested_at", "_load_id", "_source_row_
 #: an operator greps for to find the rows replay delivered.
 REPLAY_LOAD_ID = "__replay__"
 
-#: The fixed pipeline order (RFC 0016 §5.4, D7) — declared once, never
+#: The fixed pipeline order (S-0033/fixed-pipeline-order-and-lowering, S-0033/D-7) — declared once, never
 #: per-field, never configurable. Dedupe sits *before* the rules deliberately:
 #: rules-first would silently replace a corrupt latest row with a stale-but-
 #: clean older one, which is data loss disguised as data quality.
@@ -132,7 +132,7 @@ def payload_key(path: str) -> str:
 
     ``$.a`` and ``$.a.b`` both live in column ``a``: extraction lowers the
     first segment to a physical column and the rest to JSON extraction
-    (RFC 0002 §5.5). The reject table's ``raw`` is keyed by this — it is the
+    (S-0019/spec-model-surface). The reject table's ``raw`` is keyed by this — it is the
     bronze *row* — and ``quarantine.redact`` is refused at the same
     granularity, so a redaction can never remove half of a column something
     reads.

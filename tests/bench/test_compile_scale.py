@@ -1,4 +1,4 @@
-"""Compile-path scale budgets (RFC 0009 §5.9): the whole pipeline — YAML text
+"""Compile-path scale budgets (S-0026/benchmark-lane-tests-bench): the whole pipeline — YAML text
 through ``load_project``, resolution, guardrails, lowering and SQLMesh
 emission — timed at 100, 500 and 1000 entities.
 

@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) `to_utc` produces a **zoneless
+      UTC** value. The type is already documented as always-UTC and the map already
+      declares `TIMESTAMP`; producing a zone-aware value contradicts both.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) The normalization lives in
+      the **ports**, not in the transform builder. The three spellings are one meaning,
+      and a builder produces dialect-neutral AST (S-0021/D-7). The neutral tree keeps
+      carrying `AtTimeZone`; each port renders the whole interpretation.
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) This is a **restating** change:
+      artifacts change, spec meaning does not, and stored values move. A project that
+      built tables before this has data whose derived dates were wrong; a restatement
+      is the migration.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) No new spec surface. A per-column
+      "keep the zone" escape hatch would reintroduce the ambiguity this removes, and
+      nothing has asked for one.
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      The check exists, and it is a **conformance battery at the engine tiers over
+      the transform registry** — not an emit-time assertion. Emit has no engine to
+      ask and no usable static model of one; and a type-shaped check at emit invites
+      a cast-shaped fix, which would have made this defect's type right and its value
+      no less wrong. §7 has the measurement.
+    paths:
+      - src/bloomery/dialects/base.py
+      - src/bloomery/dialects/postgres.py
+      - tests/engines/test_postgres_spellings.py
+      - tests/engines/test_type_conformance.py
+      - tests/execution/test_type_conformance.py
+      - tests/support/type_conformance.py
+      - tests/unit/test_dialects/test_base.py
+      - tests/unit/test_transforms/test_type_conformance_corpus.py

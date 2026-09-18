@@ -342,7 +342,7 @@ def test_a_chain_step_is_either_a_transform_or_a_step_never_both() -> None:
 
 
 def test_a_chain_link_whose_parameter_has_no_default_is_refused() -> None:
-    """RFC 0017 D54. The ``{step: ref@v}`` chain form is a bare reference — it
+    """S-0034/D-54. The ``{step: ref@v}`` chain form is a bare reference — it
     has nowhere to pass parameter values, unlike the ``step:``/``from:`` field
     shape with its ``parameters:`` map. So a parameter with no default was
     never resolved, ``splice`` left its ``:name`` alone, and the placeholder
@@ -376,7 +376,7 @@ def test_a_chain_link_whose_parameter_has_a_default_still_composes() -> None:
 
 
 def test_a_non_numeric_value_for_a_numeric_parameter_is_refused() -> None:
-    """RFC 0017 D53 — the injection this closes, at the Tier 1 call site.
+    """S-0034/D-53 — the injection this closes, at the Tier 1 call site.
 
     ``parameter_literal`` builds an *unquoted* literal for ``int``/``decimal``,
     so text that is not a number lands in the SQL as syntax. A spec declaring
@@ -432,7 +432,7 @@ def test_an_unparseable_macro_body_is_a_step_error(body: str) -> None:
     ``TokenError`` is ``ParseError``'s sibling under ``SqlglotError``, and a
     handler narrowed to the latter lets an unterminated string through as a
     raw SQLGlot exception. Before this guard existed both crossed the compile
-    boundary, which RFC 0002 forbids.
+    boundary, which S-0019 forbids.
     """
     with pytest.raises(StepError, match="does not parse as SQL") as excinfo:
         build(CALL, registry(body=body))

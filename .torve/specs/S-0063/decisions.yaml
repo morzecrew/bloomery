@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) Exposures are **declared**,
+      never discovered. Discovery needs a network and credentials; S-0020 forbids
+      both, and a compiler that reads a BI tool is a different program.
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      An exposure naming an undeclared metric or mart is refused. An exposure pointing
+      at nothing reports clean, which is the failure mode the feature exists to remove.
+    paths:
+      - pages/docs/how-to/declare-an-exposure.md
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/errors.py
+      - src/bloomery/guardrails/exposures.py
+      - src/bloomery/guardrails/stage.py
+      - src/bloomery/resolve/graph.py
+      - tests/unit/test_guardrails/test_exposures.py
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `kind` uses dbt's **vocabulary** verbatim — `dashboard`, `notebook`, `analysis`,
+      `ml`, `application`, measured against dbt's own schema. It does not follow that
+      the *document* is dbt's: the emitted form spells `type`, takes an owner object
+      and a flat `depends_on`, and §5.1 states both shapes so the emitter phase is
+      not deciding it.
+    paths: [src/bloomery/ir/nodes.py]
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      Cube and SQLMesh emit nothing for an exposure, and this is **not** a refusal.
+      Neither framework has the concept, so there is nothing to degrade; refusing
+      a Cube compile because the project declares a dashboard would turn an annotation
+      into a target restriction.
+    paths: [src/bloomery/emit/dbt/__init__.py, tests/unit/test_emit/test_sqlmesh.py]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      A metric with no exposure is not reported. Most metrics are legitimately ad-hoc,
+      and a warning nobody can act on is one everybody learns to skip.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `url:` is text. It is never fetched, never validated beyond being a string,
+      and its correctness is the author's.
+    paths: [src/bloomery/ir/nodes.py]
+  - id: D-7
+    grade: LOCKED
+    text: >-
+      (Row 2A of the RFC's table.) `affected_exposures` walks marts as well as metrics.
+      The metric-only walk is the shortcut that omits exactly the mart-only exposure,
+      and an impact report that is confidently incomplete is worse than none.
+    paths: [src/bloomery/plan/diff.py, tests/unit/test_plan/test_exposures.py]

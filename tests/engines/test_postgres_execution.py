@@ -1,4 +1,4 @@
-"""Engine tier (RFC 0009 §5.2 tier 5): the ecom_basic silver + mart SQL,
+"""Engine tier (S-0026/tier-contracts tier 5): the ecom_basic silver + mart SQL,
 compiled under the postgres dialect, executed against a real PostgreSQL via
 testcontainers — proving the second dialect's rendering runs, not merely
 parses. Opt-in (Docker required); excluded from ``just test``."""

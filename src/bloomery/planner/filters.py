@@ -1,5 +1,5 @@
-"""Filter rendering (RFC 0013 §5.6–§5.7, D8–D9; per-clause form per
-RFC 0015 §5.4) — the highest-risk surface of the MetricFlow pivot:
+"""Filter rendering (S-0030/filters-the-highest-risk-surface–S-0030/row-policy, S-0030/D-8–S-0030/D-9; per-clause form per
+S-0032/rendering-amends-rfc-0013-5-6-r6) — the highest-risk surface of the MetricFlow pivot:
 ``where_constraints`` are Jinja-templated strings, i.e. string construction
 on the query path. Non-negotiable rules, all enforced here and fuzz-tested
 (merge-blocking):
@@ -14,18 +14,18 @@ on the query path. Non-negotiable rules, all enforced here and fuzz-tested
 3. string literals double single quotes, refuse NUL, and neutralize Jinja
    delimiters character-by-character (``{`` → ``{{ "{" }}``) so template
    syntax inside a *value* survives as an inert SQL literal;
-4. ``like``/``ilike`` operands are SQL ``LIKE`` **patterns** (RFC 0015
+4. ``like``/``ilike`` operands are SQL ``LIKE`` **patterns** (S-0032
    decision 13): caller-owned wildcards with a fixed ``ESCAPE '\\'`` clause;
    the renderer adds nothing beyond injection safety — no auto-wrapping, no
    wildcard escaping (callers write ``\\%``/``\\_``/``\\\\`` themselves);
 5. numbers render through ``int``/``Decimal`` repr (floats never survive
-   request construction — RFC 0015 D5); a ``str`` operand against a decimal
-   dimension is the string carrier (RFC 0015 D5): parsed as ``Decimal``
+   request construction — S-0032/D-5); a ``str`` operand against a decimal
+   dimension is the string carrier (S-0032/D-5): parsed as ``Decimal``
    here, non-finite refused as ``InvalidLiteral``, and **no SQL cast is
    ever emitted**; dates and timestamps are ISO-validated then
    re-serialized.
 
-One ``where_constraints`` entry is emitted per :class:`Clause` (RFC 0015
+One ``where_constraints`` entry is emitted per :class:`Clause` (S-0032
 D11): an :class:`AnyOf` group renders as a parenthesized ``OR``-join —
 always parenthesized, because ``policy AND a OR b`` leaks every row
 matching ``b``. ``ilike`` lowers portably as ``LOWER(x) LIKE
@@ -39,7 +39,7 @@ across all dialects beats per-dialect divergence (the ``\\`` escape
 character is caseless either way).
 
 The row policy is rendered through this exact pipeline and **prepended** to
-the user filters (RFC 0013 D9), via ``RowPolicy.as_clause()``.
+the user filters (S-0030/D-9), via ``RowPolicy.as_clause()``.
 """
 
 from __future__ import annotations
@@ -101,7 +101,7 @@ def _mismatch(
     msg = (
         f"filter value {value!r} does not fit dimension {dimension!r} "
         f"({type(declared).__name__}): expected {want} — values are never cast "
-        "(RFC 0013 D8)"
+        "(S-0030/D-8)"
     )
     return FilterTypeMismatch(msg)
 
@@ -123,7 +123,7 @@ def _quoted(text: str, *, dimension: str) -> str:
 
 
 def _decimal_carrier(value: str, declared: LogicalType, *, dimension: str) -> Decimal:
-    """The string carrier (RFC 0015 D5): an exact decimal bound JSON numbers
+    """The string carrier (S-0032/D-5): an exact decimal bound JSON numbers
     cannot express, parsed here — never cast in SQL. Non-finite forms
     (``NaN``/``Infinity``/``-Infinity``) are ``InvalidLiteral``: ``lt
     'NaN'`` fails open on Postgres and matches every row."""
@@ -136,7 +136,7 @@ def _decimal_carrier(value: str, declared: LogicalType, *, dimension: str) -> De
     if not parsed.is_finite():
         msg = (
             f"filter value {value!r} for dimension {dimension!r} is non-finite — "
-            "NaN/Infinity comparisons fail open, refused (RFC 0015 D5)"
+            "NaN/Infinity comparisons fail open, refused (S-0032/D-5)"
         )
         raise InvalidLiteral(msg)
 
@@ -173,7 +173,7 @@ def _literal(value: Scalar, declared: LogicalType, *, dimension: str) -> str:
             if isinstance(value, Decimal) and not value.is_finite():
                 msg = (
                     f"filter value {value!r} for dimension {dimension!r} is non-finite — "
-                    "NaN/Infinity comparisons fail open, refused (RFC 0015 D5)"
+                    "NaN/Infinity comparisons fail open, refused (S-0032/D-5)"
                 )
                 raise InvalidLiteral(msg)
             return str(value)
@@ -202,7 +202,7 @@ def _literal(value: Scalar, declared: LogicalType, *, dimension: str) -> str:
         case _:
             msg = (
                 f"dimension {dimension!r} has type {type(declared).__name__}, which "
-                "cannot be filtered (RFC 0013 D8)"
+                "cannot be filtered (S-0030/D-8)"
             )
             raise FilterTypeMismatch(msg)
 
@@ -272,7 +272,7 @@ def _predicate(
             matches.append(f"{subject} LIKE {pattern} ESCAPE '\\'")
         if len(matches) == 1:
             return matches[0]
-        return f"({' OR '.join(matches)})"  # multi-pattern OR semantics (RFC 0015 §5.1)
+        return f"({' OR '.join(matches)})"  # multi-pattern OR semantics (S-0032/types-replaces-rfc-0011-d2-s-filterexpr-orderspec)
 
     if op is Op.IS_NULL:
         keyword = "IS NULL" if values[0] else "IS NOT NULL"
@@ -292,7 +292,7 @@ def _clause(
     mart: MartIR,
     entity: str,
 ) -> str:
-    """One rendered where-constraint per clause (RFC 0015 D11): an ``AnyOf``
+    """One rendered where-constraint per clause (S-0032/D-11): an ``AnyOf``
     group is a parenthesized ``OR``-join — **always** parenthesized, since
     the constraints are ANDed and ``policy AND a OR b`` leaks every row
     matching ``b``."""
@@ -321,7 +321,7 @@ def to_where(
     policy_dimension: ResolvedDimension | None = None,
 ) -> tuple[str, ...]:
     """Every where-constraint for the MetricFlow request — one entry per
-    clause (RFC 0015 D11), policy **first** (RFC 0013 D9 — the policy is
+    clause (S-0032/D-11), policy **first** (S-0030/D-9 — the policy is
     always prepended to user filters).
 
     ``filter_dimensions`` pairs positionally with ``filters`` — one inner

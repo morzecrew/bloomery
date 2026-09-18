@@ -1,4 +1,4 @@
-"""The run-time step contract (RFC 0017 §5.4, D4) — the only bloomery module
+"""The run-time step contract (S-0034/trust-the-declaration-verify-at-runtime, S-0034/D-4) — the only bloomery module
 meant to be imported *outside* compilation.
 
 Compile time trusts a manifest's ``produces``; this is what makes that trust
@@ -81,7 +81,7 @@ def _base_type(declared: str) -> str:
 
 def _violation(step: str, output: str, detail: str) -> StepContractViolation:
     return StepContractViolation(
-        f"step {step!r} output {output!r}: {detail} (RFC 0017 §5.4)",
+        f"step {step!r} output {output!r}: {detail} (S-0034/trust-the-declaration-verify-at-runtime)",
         source_path=f"step: {step}.{output}",
     )
 

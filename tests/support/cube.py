@@ -1,6 +1,6 @@
 """A running Cube, over a Postgres holding the mart it describes.
 
-Shared by the two tiers that need Cube alive (RFC 0009 §5.2 tier 6 and §5.8's
+Shared by the two tiers that need Cube alive (S-0026/tier-contracts tier 6 and §5.8's
 equivalence tier), because standing it up is the expensive part and neither
 tier is about the standing up.
 
@@ -49,7 +49,7 @@ __all__ = [
 
 #: Pinned rather than ``latest``. A tier whose engine version moves under it
 #: cannot tell a regression from an upgrade — the same reason the Trino tier
-#: pins (RFC 0009 D21).
+#: pins (S-0026/D-21).
 CUBE_IMAGE = "cubejs/cube:v1.7.18"
 POSTGRES_IMAGE = "postgres:16-alpine"
 

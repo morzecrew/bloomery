@@ -1,6 +1,6 @@
-"""The spec differ: ``plan(old, new) -> Plan`` (RFC 0007).
+"""The spec differ: ``plan(old, new) -> Plan`` (S-0024).
 
-**This module is deliberately not split** (RFC 0019 D7). The lowering half of
+**This module is deliberately not split** (S-0036/D-7). The lowering half of
 that wave decomposed into a clean five-stage DAG; this one was measured on the
 same axis and does not. Its candidate stages —
 ``entities``/``marts``/``quality``/``steps``/``classify``/``scope`` — leave 28
@@ -15,21 +15,21 @@ as a finding rather than a change: the ChangeClass decision table really is
 interleaved with the walking that feeds it, and untangling it is a behaviour-
 bearing change, not a move. Size is not the trigger — convergence is (D2), and
 this file sees one spec kind's worth of IR at a time rather than every target
-at once. Revisit if either symptom in RFC 0019 §2 appears.
+at once. Revisit if either symptom in S-0036/motivation appears.
 
 A pure structural diff of two frozen :class:`~bloomery.ir.ProjectIR`s — no
 external lineage, no I/O (D2). Subjects match by name; ``renamed_from``
 bridges column identity across a rename (D3). Classification follows the
-§5.2 precedence order: entity-level BREAKING first, then type (RFC 0004
+§5.2 precedence order: entity-level BREAKING first, then type (S-0021
 lattice), then semantics (RESTATING, D4), then presence. Backfill scope and
 downstream metric impact are computed from ``MetricIR.depends_on`` — the
 same edges that drive the expand/contract refusal (D5), this stage's *only*
 refusal: every other change, BREAKING included, is classified and returned.
 
-Ambiguities RFC 0007 §10 leaves to the implementation, settled here:
+Ambiguities S-0024 (§10) leaves to the implementation, settled here:
 
 - ``plan(ir, ir)`` is empty for *every* IR (D2, property-tested per
-  RFC 0009), including one that still carries a ``renamed_from`` annotation:
+  S-0026), including one that still carries a ``renamed_from`` annotation:
   an annotation the old IR already carries on the same column is treated as
   applied, not stale. Staleness (``RenameTargetMissing``) fires whenever the
   annotation names a column absent from ``old`` that ``old`` does not already
@@ -47,7 +47,7 @@ Ambiguities RFC 0007 §10 leaves to the implementation, settled here:
   not trigger the expand/contract refusal: it constrains writes, not the
   reads a metric performs; only type narrowing and drops do.
 
-RFC 0016 §5.7 amends the stage with the data-quality surface. Its rules, and
+S-0033/plan-integration-rfc-0007-amendment amends the stage with the data-quality surface. Its rules, and
 the three questions §5.7 leaves open, settled here (each classification is
 unit-tested per branch):
 
@@ -84,7 +84,7 @@ unit-tested per branch):
   ``<entity>__reject`` model while changing no entity row. See
   :func:`_reject_schema_changes` for the classification and why it reports
   nothing on an entity with no ``quarantine:`` block.
-- **A ``freshness:`` threshold is metadata** (RFC 0057). Declaring, changing or
+- **A ``freshness:`` threshold is metadata** (S-0064). Declaring, changing or
   dropping one changes when a framework complains about *arrival*, never what
   a stored number means and never which rows the entity holds — ADDITIVE, with
   no backfill and no replay, on the same reading that makes ``retention``
@@ -95,7 +95,7 @@ unit-tested per branch):
   reconcile check materializes its own model over history (§5.3), so changing
   or removing one changes every historical row of that model — but it routes
   no row and invalidates no entity, so ``backfill_scope.entities`` stays
-  empty. Adding one is ADDITIVE, not RESTATING: RFC 0007 D2's initial-deploy
+  empty. Adding one is ADDITIVE, not RESTATING: S-0024/D-2's initial-deploy
   property (``plan(None, ir)`` is all-ADDITIVE) is normative, and an initial
   deploy adds every reconcile check there is.
 """
@@ -161,7 +161,7 @@ def _render_shape(column: ColumnIR) -> str:
 def _ref_names(column: ColumnIR) -> frozenset[str]:
     """Every name a metric may reference this column by: its own name and,
     when linked, its canonical name (``MetricIR.depends_on`` leaves are
-    canonical names — RFC 0005 §5.3)."""
+    canonical names — S-0022/availability-and-reachability-bloomery-resolve-reach-py)."""
     names = {column.name}
 
     if column.canonical is not None:
@@ -180,7 +180,7 @@ class _Acc:
 
     changes: list[Change] = field(default_factory=list[Change])
     backfill: set[str] = field(default_factory=set[str])
-    #: Entities whose reject tables a relaxation frees rows from (RFC 0016 §5.7).
+    #: Entities whose reject tables a relaxation frees rows from (S-0033/plan-integration-rfc-0007-amendment).
     replay: set[str] = field(default_factory=set[str])
     #: Names whose meaning/shape changed — the downstream-impact seeds.
     seeds: set[str] = field(default_factory=set[str])
@@ -257,13 +257,13 @@ def _reject_versions(entity: EntityIR) -> tuple[tuple[str, int], ...]:
     """Each branch's ``(relation, mapping_version)`` behind the reject table.
 
     One pair for the ordinary entity, so a reported change reads as it always
-    has. Several once an entity is merged: RFC 0035 D2 projects the provenance
+    has. Several once an entity is merged: S-0051/D-2 projects the provenance
     stamp per branch, so a version bump on **any** mapping changes what the
     reject table records from then on — and pairing it with the relation is
     what stops a mapping added at version 1 from reading as no change at all.
 
     This accessor used to raise on a merged entity, which was the honest
-    spelling while RFC 0024 D14 refused ``quarantine:`` there; P2c lifted the
+    spelling while S-0041/D-14 refused ``quarantine:`` there; P2c lifted the
     refusal, and the raise would now fire on every plan of a cleaned merge.
     """
 
@@ -283,7 +283,7 @@ def _relations(entity: EntityIR) -> tuple[str, ...]:
 
 
 def _source_set_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> bool:
-    """Classify a change to *which* relations build the entity (RFC 0024 §5.5).
+    """Classify a change to *which* relations build the entity (S-0041/how-it-diffs).
 
     Returns whether the entity was **redefined** — i.e. whether the caller
     should seed the reference closure from both column sets.
@@ -412,7 +412,7 @@ def _raise_stale_rename(entity_name: str, column: ColumnIR) -> None:
     msg = (
         f"field {column.name!r} declares renamed_from: {column.renamed_from!r}, but "
         f"{column.renamed_from!r} does not exist in the old spec — the annotation is "
-        "stale (renamed_from is one-shot, RFC 0007 D3): drop it"
+        "stale (renamed_from is one-shot, S-0024/D-3): drop it"
     )
     raise RenameTargetMissing(
         msg,
@@ -465,7 +465,7 @@ def _shared_relations(old_e: EntityIR, new_e: EntityIR) -> tuple[str, ...]:
     """The bronze relations both sides build the entity from, in old-side
     branch order.
 
-    Column semantics are compared **only over these** (RFC 0024 §5.5). A source
+    Column semantics are compared **only over these** (S-0041/how-it-diffs). A source
     added or removed is a fact about the entity, reported once at the entity
     subject by :func:`_source_set_changes`; comparing a merged column's whole
     lowering tuple against a single-source one would additionally report
@@ -513,7 +513,7 @@ def _lowerings(entity: EntityIR, name: str) -> dict[str, SourceColumnIR]:
     """Every source's lowering of ``name``, keyed by source relation.
 
     The lowered expression moved off :class:`ColumnIR` onto the source
-    (RFC 0024 D26), so a diff that compares what a column *means* has to read
+    (S-0041/D-26), so a diff that compares what a column *means* has to read
     it from there — and a merged entity lowers one column once per source, with
     different paths, different chains and possibly different recipes (D28).
 
@@ -590,7 +590,7 @@ def _added_column(entity_name: str, column: ColumnIR, acc: _Acc) -> None:
                 f"field:{column.name}",
                 ChangeClass.BREAKING,
                 "new field is required — historical rows cannot satisfy it; add it "
-                "optional, backfill, then tighten (RFC 0007 D7)",
+                "optional, backfill, then tighten (S-0024/D-7)",
                 new=_render_shape(column),
             )
         )
@@ -740,7 +740,7 @@ def _column_pair(
 
 
 # ....................... #
-# Data quality (RFC 0016 §5.7 — the RFC 0007 amendment). Read the module
+# Data quality (S-0033/plan-integration-rfc-0007-amendment — the S-0024 amendment). Read the module
 # docstring's four bullets: this section implements exactly them.
 
 
@@ -765,7 +765,7 @@ def _rule_identity(rule: QualityRuleIR) -> tuple[str, str, str]:
 
 #: The branch facts each :data:`~bloomery.quality.BRANCH_KINDS` rule reads,
 #: as ``(family, attribute)`` pairs on :class:`~bloomery.ir.SourceColumnIR`
-#: (RFC 0024 D32). Written as families so the settings this module builds keep
+#: (S-0041/D-32). Written as families so the settings this module builds keep
 #: the ``<family>_NNNN`` spelling the params had — :func:`_members` splits on
 #: it, and a second convention here would be a second place to keep in step.
 _BRANCH_FAMILIES: dict[str, tuple[tuple[str, str], ...]] = {
@@ -783,12 +783,12 @@ def _rule_settings(
     ``referential`` carries ``on_missing`` *as* a param, so leaving it in
     would report a disposition change twice, in two different vocabularies.
 
-    A branched rule's settings are **not** all on the rule: RFC 0024 D32 moved
+    A branched rule's settings are **not** all on the rule: S-0041/D-32 moved
     the ``coercible`` source paths and the ``in_enum`` admissible set onto each
     source's column, because they are one mapping's and the rule is evaluated
     once over the union. Read only from the rule, an ``enum_map`` widening
     changed nothing here at all — and that widening is the named case
-    RFC 0016 §6 asks ``plan()`` to see, the one that frees rows sitting in the
+    S-0033/tests-rfc-0009-amendment asks ``plan()`` to see, the one that frees rows sitting in the
     reject table.
 
     ``relation`` restricts the branch facts to one source, and the caller that
@@ -846,7 +846,7 @@ def _settings_signature(
 
 
 def _disposition_label(rule: QualityRuleIR) -> str:
-    """What the author wrote, not what it collapses to (RFC 0016 D51).
+    """What the author wrote, not what it collapses to (S-0033/D-51).
 
     :func:`~bloomery.quality.disposition` answers a *routing* question — where
     does a failing row go — and correctly maps ``unknown_member`` onto
@@ -968,7 +968,7 @@ def _bound_value(text: str) -> Decimal | datetime | None:
     grammar the spec layer validated the bound against, so the two cannot
     disagree about which carrier a bound is written in.
 
-    Parsing only; no clock is read (RFC 0003).
+    Parsing only; no clock is read (S-0020).
     """
 
     if EXACT_DECIMAL.match(text):
@@ -1126,7 +1126,7 @@ def _replay(
     acc: _Acc,
 ) -> None:
     """Name the entity's reject table only when this change can let rows that
-    are **sitting in it** back into the entity (RFC 0016 D52).
+    are **sitting in it** back into the entity (S-0033/D-52).
 
     Two facts bound the question. Rows are in the reject table on this rule's
     account only if it *used to* quarantine — so a rule that flagged, failed,
@@ -1172,7 +1172,7 @@ def _replay(
         return
 
     # Per branch, because a row is admitted by the branch that produced it
-    # (RFC 0024 D32). Over the shared relations only: a mapping present on one
+    # (S-0041/D-32). Over the shared relations only: a mapping present on one
     # side alone has either no reject rows yet or no branch left to replay
     # them. With no shared relation the question is asked once, unrestricted,
     # which is the conservative direction this function already takes.
@@ -1255,7 +1255,7 @@ def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     Removing the block entirely is neither: it is BREAKING. Reading it as a
     retention edit to ``""`` called a deletion "policy only" — but the
     ``<entity>__reject`` model stops being emitted, and every unresolved row
-    still sitting in it goes with it. RFC 0016 D2 buys quarantine over drop
+    still sitting in it goes with it. S-0033/D-2 buys quarantine over drop
     precisely for recoverability, and §5.6 names retention as the *only*
     deleter; a migration that deletes reject rows by removing the table is
     both of those undone, and the plan has to say so.
@@ -1272,7 +1272,7 @@ def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 ChangeClass.BREAKING,
                 f"quarantine block removed — {new_e.name}__reject is no longer emitted and "
                 "its unresolved rows are discarded by something that is not retention "
-                "(RFC 0016 §5.6, D2). Drain the reject table via replay before applying",
+                "(S-0033/quarantine-one-reject-table-per-entity, S-0033/D-2). Drain the reject table via replay before applying",
                 old=old_retention or None,
                 new=None,
             )
@@ -1335,7 +1335,7 @@ def _raw_payload_columns(entity: EntityIR) -> frozenset[str]:
     Redaction is diffed by :func:`_quarantine_changes` and deliberately left out
     here, so a ``redact:`` edit is never reported twice.
     """
-    # Every branch: each writes its own payload (RFC 0035 §5.3), and what the
+    # Every branch: each writes its own payload (S-0051/replay-branches-on-sourcerelation), and what the
     # table can carry is the union of what its branches put there.
     paths = {
         path
@@ -1434,7 +1434,7 @@ def _reject_schema_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
 
 
 def _freshness_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
-    """Declared staleness thresholds, per bronze relation (RFC 0057 §5.1).
+    """Declared staleness thresholds, per bronze relation (S-0064/the-spec-surface).
 
     ADDITIVE in every direction. A threshold governs when ``dbt source
     freshness`` complains that rows did not arrive; it routes no row, stores no
@@ -1473,7 +1473,7 @@ def _freshness_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
 def _render_freshness(freshness: FreshnessIR | None) -> str:
     """``"warn 6h / error 24h"``, or ``"none"`` where no threshold is declared.
 
-    ``"none"`` rather than an empty string for the reason RFC 0057 D5 keeps the
+    ``"none"`` rather than an empty string for the reason S-0064/D-5 keeps the
     default absent at all: a blank reads as a value that failed to render,
     where the *absence* of a threshold is the thing being reported.
     """
@@ -1568,7 +1568,7 @@ def _step_entities(step: StepIR) -> frozenset[str]:
 
 
 def _diff_steps(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
-    """Steps are diffed by ``ref`` (RFC 0017 §5.6, D6/D11).
+    """Steps are diffed by ``ref`` (S-0034/runtime-pinning, S-0034/D-6, S-0034/D-11).
 
     By ref rather than by ``ref@version`` on purpose: upgrading
     ``resolve_customers@3`` to ``@4`` is one step *changing*, which restates
@@ -1717,7 +1717,7 @@ def _metric_definition(metric: MetricIR) -> tuple[object, ...]:
     """Everything about a metric whose change restates it.
 
     **Every** field that decides what the metric computes belongs here, and the
-    RFC 0034 three are the reason that is written down rather than assumed: a
+    S-0050 three are the reason that is written down rather than assumed: a
     window widened from seven days to thirty, an offset moved from one year to
     two, a filter changed from ``status = paid`` to ``status != refunded`` are
     each a different number over the same rows, and while they were missing
@@ -1791,7 +1791,7 @@ def _metric_pair(old_m: MetricIR, new_m: MetricIR, acc: _Acc) -> None:
 
 
 #: The node-id prefixes of the two kinds `plan()` can report a rename for
-#: (RFC 0062 §5.3). `node_keys` mints ids for three — `metric`, `canonical` and
+#: (S-0067/what-plan-gains). `node_keys` mints ids for three — `metric`, `canonical` and
 #: `step` — and this diff has no canonical-field pass and cannot have one:
 #: `ProjectIR` holds no canonical record at all, the field surviving lowering
 #: only as `ColumnIR.canonical`, a string reference. A renamed canonical field
@@ -1802,7 +1802,7 @@ _METRIC_PREFIX: Final = "metric."
 _STEP_PREFIX: Final = "step."
 
 #: A caller that passes no labels gets exactly today's report, which is what
-#: keeps every existing call site working and RFC 0062 D3 true.
+#: keeps every existing call site working and S-0067/D-3 true.
 _NO_LABELS: Final[Mapping[str, str]] = MappingProxyType({})
 
 
@@ -1810,7 +1810,7 @@ def _renames(
     old_labels: Mapping[str, str], new_labels: Mapping[str, str], prefix: str
 ) -> dict[str, str]:
     """Old name to new name, for the nodes of one kind whose id outlived a
-    rename (RFC 0062 §5.3).
+    rename (S-0067/what-plan-gains).
 
     Identity is **declared, never inferred** (D1): the only thing compared is
     the id, and a node whose id is absent on either side is not a rename
@@ -1841,7 +1841,7 @@ def _renames(
 
 def _citations(ir: ProjectIR, metric: str) -> tuple[str, ...]:
     """What names ``metric`` in ``ir`` — the list a rename's report carries
-    instead of a severity (RFC 0062 §5.3).
+    instead of a severity (S-0067/what-plan-gains).
 
     Read off the **old** IR, because the citations that matter are of the old
     name: after the rename nothing cites it, which is the whole reason a reader
@@ -1857,7 +1857,7 @@ def _citations(ir: ProjectIR, metric: str) -> tuple[str, ...]:
     cited = {f"metric:{one.name}" for one in ir.metrics if metric in one.depends_on}
     cited |= {f"mart:{one.name}" for one in ir.marts if metric in one.measures}
     # `rollup:`, not `mart:` — a rollup's *node* id is `mart.<name>` because
-    # both are gold relations under one prefix (RFC 0067 §5.1), but this list
+    # both are gold relations under one prefix (S-0072/the-node), but this list
     # is in `Change`'s grammar, and `_diff_rollups` reports one as
     # `rollup:<name>`. Taking the node spelling would hand a reader a citation
     # matching no subject in the same report.
@@ -1950,7 +1950,7 @@ def _relabel_metric(
 
 
 def _relabel(ir: ProjectIR, metrics: Mapping[str, str], steps: Mapping[str, str]) -> ProjectIR:
-    """``ir`` read in the *new* naming (RFC 0062 §5.3).
+    """``ir`` read in the *new* naming (S-0067/what-plan-gains).
 
     A rename relabels a vertex, so the honest diff is between two IRs that
     agree about what the node is called — and then the ordinary passes report
@@ -2041,7 +2041,7 @@ def _refuse_collisions(relabelled: ProjectIR) -> None:
             msg = (
                 f"a rename lands on a name this version already used: {label} "
                 f"{', '.join(repr(name) for name in collided)} names two nodes once the "
-                "rename is applied. That is a merge, not a rename (RFC 0062 §4) — and the "
+                "rename is applied. That is a merge, not a rename (S-0067/goals) — and the "
                 "two have different histories, so reporting either as the other is wrong. "
                 "Fix: land the rename and the deletion in separate versions"
             )
@@ -2074,7 +2074,7 @@ def _diff_metrics(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
 
 
 # ....................... #
-# Marts (RFC 0007 §12 amended phasing; RFC 0010)
+# Marts (S-0024/phasing amended phasing; S-0027)
 
 
 # ....................... #
@@ -2174,7 +2174,7 @@ def _diff_marts(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
 
 def _diff_rollups(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     """Rollups, diffed like marts and reported as their own subject
-    (RFC 0058 §5.2).
+    (S-0065/the-obligation).
 
     A dropped rollup is **not** a dropped measure. A mart is where a measure
     lives, so losing one loses the column; a rollup only pre-aggregates
@@ -2359,7 +2359,7 @@ def _downstream_impact(new: ProjectIR, seeds: set[str]) -> tuple[str, ...]:
     memo: dict[str, frozenset[str]] = {}
     return tuple(
         metric.name
-        for metric in new.metrics  # already sorted by name (RFC 0003 §5.3)
+        for metric in new.metrics  # already sorted by name (S-0020/ordering-rules)
         if _dependency_closure(metric.name, by_name, memo) & seeds
     )
 
@@ -2389,7 +2389,7 @@ def _changed(changes: tuple[Change, ...], kind: str) -> set[str]:
 def _affected_exposures(
     new: ProjectIR, metrics: tuple[str, ...], changes: tuple[Change, ...]
 ) -> tuple[str, ...]:
-    """The declared consumers this plan reaches (RFC 0056 §5.4, D2a).
+    """The declared consumers this plan reaches (S-0063/plan, S-0063/D-7).
 
     **Marts as well as metrics**, and the shortcut that omits them is the
     obvious one: :func:`_downstream_impact` returns metric names and follows
@@ -2422,7 +2422,7 @@ def _affected_exposures(
 
     return tuple(
         exposure.name
-        for exposure in new.exposures  # already sorted by name (RFC 0056 §5.1)
+        for exposure in new.exposures  # already sorted by name (S-0063/the-document)
         if reached.intersection(exposure.metrics) or marts.intersection(exposure.marts)
     )
 
@@ -2431,7 +2431,7 @@ def _affected_exposures(
 
 
 def _enforce_contract(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
-    """RFC 0007 D5 — the stage's only refusal: a dropped or narrowed field
+    """S-0024/D-5 — the stage's only refusal: a dropped or narrowed field
     still referenced by a metric reachable in ``new``, or by an old-reachable
     metric that vanished in the same plan (deprecation must land first)."""
     problems: list[str] = []
@@ -2474,7 +2474,7 @@ def _enforce_contract(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
 
     if problems:
         raise ContractViolation(
-            "expand/contract violation (RFC 0007 D5):\n  - " + "\n  - ".join(problems)
+            "expand/contract violation (S-0024/D-5):\n  - " + "\n  - ".join(problems)
         )
 
 
@@ -2506,18 +2506,18 @@ def plan(
     old_labels: Mapping[str, str] = _NO_LABELS,
     new_labels: Mapping[str, str] = _NO_LABELS,
 ) -> Plan:
-    """Diff two project IRs into a classified :class:`Plan` (RFC 0007).
+    """Diff two project IRs into a classified :class:`Plan` (S-0024).
 
     ``plan(None, new)`` is the initial deploy — everything ADDITIVE with an
     empty backfill *and* replay scope; ``plan(ir, ir)`` is the empty plan
-    (D2). Data-quality changes classify per RFC 0016 §5.7 and populate
+    (D2). Data-quality changes classify per S-0033/plan-integration-rfc-0007-amendment and populate
     :attr:`Plan.replay_scope` where a relaxation frees quarantined rows a
     backfill cannot reach (see the module docstring). Raises
     :class:`RenameTargetMissing` on a stale ``renamed_from`` annotation (D3)
     and :class:`ContractViolation` on an expand/contract breach (D5) — every
     other change, BREAKING included, is classified and returned.
 
-    **The two label maps are how a node rename becomes visible** (RFC 0062
+    **The two label maps are how a node rename becomes visible** (S-0067
     §5.3). Each is :func:`~bloomery.node_labels` for its side — node id to the
     name a reader knows it by — and a node whose id is on both sides under
     different names is reported as one :attr:`ChangeClass.RENAME` carrying the
@@ -2525,7 +2525,7 @@ def plan(
     with every consumer's shadow of them.
 
     They are arguments rather than IR fields because the IR does not retain the
-    authored ``id:``: RFC 0062 P1 substitutes it while building node ids and
+    authored ``id:``: S-0067/phasing (P-1) substitutes it while building node ids and
     keeps only names, since a field there would move every fingerprint in the
     corpus and break that document's D3. Passing nothing is the default and
     reproduces today's report exactly, which is what keeps adoption free.

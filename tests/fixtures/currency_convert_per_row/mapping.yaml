@@ -8,7 +8,7 @@ fields:
   currency_code: {from: "$.currency", transform: [to_string]}
   # `currency_in:` names the column; `convert`'s first argument names it again
   # and is checked against the declaration, exactly as a literal code is
-  # (RFC 0061 D4, D10).
+  # (S-0066/D-4, S-0066/D-10).
   amount_usd:
     currency_in: {column: currency_code}
     from: "$.amount"

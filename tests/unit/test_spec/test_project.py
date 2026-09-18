@@ -1,5 +1,5 @@
 """load_project: kind detection via version keys, document cardinality rules,
-per-document error batching (RFC 0002 §5.5, D6)."""
+per-document error batching (S-0019/spec-model-surface, S-0019/D-6)."""
 
 from __future__ import annotations
 

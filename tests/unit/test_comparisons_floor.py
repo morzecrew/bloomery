@@ -1,5 +1,5 @@
 """The comparison bundles keep their shape and their cells do not go stale
-silently (RFC 0043 §3, §4, D2, D7).
+silently (S-0006 (§3), S-0006 (§4), S-0006/D-2, S-0006/D-7).
 
 A cell pins a version and a date, and those two facts are the whole difference
 between a measurement and a claim. Nothing stops them drifting on their own:
@@ -34,7 +34,7 @@ pytestmark = pytest.mark.unit
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 COMPARISONS = ROOT / "comparisons"
 
-#: RFC 0043 §3's bundle layout, exactly.
+#: S-0006 (§3)'s bundle layout, exactly.
 REQUIRED = ("README.md", "config", "commands.txt", "observed.txt", "sources.md")
 
 #: Bundle directory name → the distribution whose version its cells pin. A
@@ -74,7 +74,7 @@ def test_there_is_at_least_one_bundle() -> None:
 
 @pytest.mark.parametrize("bundle", BUNDLES, ids=lambda p: f"{p.parent.name}/{p.name}")
 def test_bundle_carries_every_required_entry(bundle: pathlib.Path) -> None:
-    """RFC 0043 §3: a bundle missing `observed.txt` is an argument."""
+    """S-0006 (§3): a bundle missing `observed.txt` is an argument."""
 
     missing = [name for name in REQUIRED if not (bundle / name).exists()]
     assert not missing, f"{bundle.relative_to(ROOT)} is missing {missing}"
@@ -82,7 +82,7 @@ def test_bundle_carries_every_required_entry(bundle: pathlib.Path) -> None:
 
 @pytest.mark.parametrize("bundle", BUNDLES, ids=lambda p: f"{p.parent.name}/{p.name}")
 def test_bundle_pins_a_version_and_a_date(bundle: pathlib.Path) -> None:
-    """RFC 0043 §4: a cell that pins neither claims permanence, and D1 forbids
+    """S-0006 (§4): a cell that pins neither claims permanence, and D1 forbids
     it."""
 
     readme = (bundle / "README.md").read_text(encoding="utf-8")
@@ -134,7 +134,7 @@ def test_checked_date_is_within_the_ceiling(bundle: pathlib.Path) -> None:
     )
 
 
-#: RFC 0043 §2's vocabulary, for the one column whose evidence is the corpus.
+#: S-0006 (§2)'s vocabulary, for the one column whose evidence is the corpus.
 #: `unguarded` is a case bloomery compiles and answers **wrongly**, which is
 #: what `NOT-REPRESENTED` names — D3, and the reason this mapping is written
 #: down rather than applied by eye.
@@ -148,7 +148,7 @@ _ROW = re.compile(r"^\| `([0-9a-z-]+)` \| `([a-z_]+)` \| \*?\*?`([A-Z-]+)`", re.
 
 
 def test_matrix_rows_are_the_corpus_cases() -> None:
-    """RFC 0043 D4: one set of cases, or the matrix and the regression suite
+    """S-0006/D-4: one set of cases, or the matrix and the regression suite
     become two accounts of the same question — and the one nobody runs is the
     one that drifts."""
 
@@ -186,7 +186,7 @@ FEATURES = {
 
 @pytest.mark.parametrize("bundle", BUNDLES, ids=lambda p: f"{p.parent.name}/{p.name}")
 def test_sources_cite_only_the_feature_set_this_bundle_uses(bundle: pathlib.Path) -> None:
-    """RFC 0043 §3 and D1: `sources.md` names the feature set *this*
+    """S-0006 (§3) and D1: `sources.md` names the feature set *this*
     configuration exercises, so a reader can check the configuration is
     idiomatic rather than a strawman.
 

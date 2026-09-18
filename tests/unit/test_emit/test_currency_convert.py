@@ -1,4 +1,4 @@
-"""Currency conversion at emit (RFC 0023 §5.4, D4).
+"""Currency conversion at emit (S-0040/phase-2-currency-as-a-declared-relation, S-0040/D-4).
 
 Two states of one construct, and the single line of spec that separates them.
 With a catalog that declares ``fx_rates:``, ``convert`` lowers to an as-of rate
@@ -92,7 +92,7 @@ def test_convert_lowers_to_a_rate_subquery_on_every_sql_cell(
 
 def test_the_refusal_names_no_dialect() -> None:
     """It is not a dialect's fault, and the message must not suggest that
-    another engine would take it (RFC 0023 §5.2)."""
+    another engine would take it (S-0040/phase-1-convert-refuses)."""
     project, catalog = load_fixture(REFUSED)
     with pytest.raises(UnsupportedByTarget) as excinfo:
         compile_project(project, target=Target.SQLMESH, dialect="trino", catalog=catalog)
@@ -134,7 +134,7 @@ def test_the_anchor_is_lowered_not_referenced_by_name() -> None:
 def test_the_rate_relation_goes_through_the_naming_policy() -> None:
     """A relation reference inside a column expression is still a relation
     reference: scoping applies to it exactly as it does to a mart's join
-    target (RFC 0008 §5.1)."""
+    target (S-0025/ports)."""
     project, catalog = load_fixture(CONVERTS)
     artifacts = compile_project(
         project,
@@ -215,7 +215,7 @@ def test_the_reject_and_replay_selects_refuse_too() -> None:
 
 
 def test_convert_stays_registered_and_typechecked() -> None:
-    """RFC 0023 D4: the spec surface never moved for the refusal, and the
+    """S-0040/D-4: the spec surface never moved for the refusal, and the
     grammar change §5.4 forced is additive — three arguments where there was
     one, on a transform that was always in the whitelist."""
     spec = DEFAULT_REGISTRY["convert"]
@@ -295,7 +295,7 @@ def test_a_convert_that_is_not_the_last_step_is_still_rewritten() -> None:
 
 
 # ....................... #
-# Per-row denomination (RFC 0061 §5.1 shape 3, P2)
+# Per-row denomination (S-0066/the-input-currency-is-one-of-three-things shape 3, P2)
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)
@@ -369,7 +369,7 @@ def test_a_bridged_chain_leaves_no_marker_behind() -> None:
 
 def test_convert_declares_that_it_nullifies() -> None:
     """A rate the relation has no row for converts the amount to NULL on
-    purpose (RFC 0023 D11), so `coercible` must not read the vanished value as
+    purpose (S-0040/D-11), so `coercible` must not read the vanished value as
     a failed cast.
 
     Asserted on the registry rather than on an emitted reject predicate

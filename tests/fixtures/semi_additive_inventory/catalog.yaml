@@ -9,7 +9,7 @@ canonical_fields:
     recipes:
       - {id: direct, requires: [stock_level]}
 
-# Required once the mart is served through MetricFlow (RFC 0013 R1 rule 4):
+# Required once the mart is served through MetricFlow (S-0030 R1 rule 4):
 # the time spine points at the same gold dim_date the SQLMesh emitter builds.
 date_dimension:
   name: dim_date

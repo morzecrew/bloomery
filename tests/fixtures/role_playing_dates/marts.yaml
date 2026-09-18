@@ -1,4 +1,4 @@
-# Both date columns flatten as roles (RFC 0010 §5.2): ordered_* buckets from
+# Both date columns flatten as roles (S-0027/date-roles): ordered_* buckets from
 # order_date, shipped_* buckets from ship_date — the classic role-playing
 # shape, modeled once as DimensionRef(dimension, role) per bucket.
 marts_version: 1

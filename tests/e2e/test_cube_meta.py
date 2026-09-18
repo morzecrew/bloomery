@@ -1,4 +1,4 @@
-"""E2E tier (RFC 0009 §5.2 tier 6): a Cube container's ``/meta``.
+"""E2E tier (S-0026/tier-contracts tier 6): a Cube container's ``/meta``.
 
 §5.2 states this cell as "a cube container's `/meta` returns the expected
 measures/dimensions", and the sentence above the row is why it exists at all:
@@ -10,7 +10,7 @@ whether `type:` values are ones Cube knows, whether a measure's `sql` parses in
 Cube's own expression language, and whether the `meta:` blocks bloomery
 attaches — `additivity`, `grain`, `semi_additive` — survive to the API a
 consumer reads them from. That last one is load-bearing and untestable any
-other way: RFC 0008 §5.1 gates *trusting* Cube's semi-additive behavior on the
+other way: S-0025/ports gates *trusting* Cube's semi-additive behavior on the
 equivalence suite and says the `meta` is what a consumer audits against, which
 is only true if it arrives.
 
@@ -71,7 +71,7 @@ def test_the_measure_arrives_with_its_aggregation(cube: CubeStack) -> None:
 
 
 def test_the_declared_meta_survives_to_the_api(cube: CubeStack) -> None:
-    """RFC 0008 §5.1 says the `meta` is what a consumer audits Cube's
+    """S-0025/ports says the `meta` is what a consumer audits Cube's
     semi-additive behaviour against. That claim is only true if `meta` reaches
     the API — a YAML key Cube silently dropped would leave every consumer
     auditing against nothing."""
@@ -90,7 +90,7 @@ def test_a_pii_dimension_is_marked_non_public_and_is_still_queryable(
 ) -> None:
     """What `public: false` actually does, measured rather than assumed.
 
-    RFC 0055 §5.2 says it "removes it from Cube's API surface". Against
+    S-0062/classification says it "removes it from Cube's API surface". Against
     Cube v1.7.18 it does not: `/meta` still lists the member, carrying
     `public: false` and `isVisible: false`, and a client that names it in a
     query **still gets an answer**. It is a visibility hint that Cube's own
@@ -116,7 +116,7 @@ def test_a_pii_dimension_is_marked_non_public_and_is_still_queryable(
 
 
 def test_every_flattened_column_is_a_requestable_dimension(cube: CubeStack) -> None:
-    """RFC 0010 §10: every flattened column is requestable. Asserted against
+    """S-0027 (§10): every flattened column is requestable. Asserted against
     the mart's own column set rather than a list written here, so a column
     added to the flattener and dropped by the emitter is a failure."""
     mart = fixture_mart(FIXTURE, MART)

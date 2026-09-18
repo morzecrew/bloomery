@@ -1,4 +1,4 @@
-"""Path-conflict execution (RFC 0006 §5.5/§6): both columns materialize and
+"""Path-conflict execution (S-0023/path-conflict-the-guardrail-that-does-not-raise, S-0023/tests): both columns materialize and
 the reconciliation audit surfaces exactly the rows where they disagree."""
 
 from __future__ import annotations
@@ -93,7 +93,7 @@ def _seed_merged(conn: duckdb.DuckDBPyConnection) -> None:
 def test_a_merged_entity_reconciles_each_branch_against_its_own_path(
     conn: duckdb.DuckDBPyConnection,
 ) -> None:
-    """RFC 0024 D36 executed. The claim a compile-time assertion cannot make:
+    """S-0041/D-36 executed. The claim a compile-time assertion cannot make:
     the union runs, each branch's shadow reads a column that exists on *that*
     relation, and the reconcile audit finds one disagreement per shop.
 
@@ -180,7 +180,7 @@ canonical_fields:
 def test_a_direct_value_that_will_not_cast_no_longer_aborts_a_cleaned_entity(
     conn: duckdb.DuckDBPyConnection,
 ) -> None:
-    """RFC 0016 §5.2/D3 reaching the shadow.
+    """S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-3 reaching the shadow.
 
     Executed rather than asserted on the IR, because the defect was a run-time
     abort: a plain `CAST('not-a-price' AS DECIMAL)` raises inside the model

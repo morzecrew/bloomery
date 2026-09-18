@@ -1,4 +1,4 @@
-# The equivalence corpus (RFC 0009 §5.8): one MetricRequest per entry, planned
+# The equivalence corpus (S-0026/equivalence-tier-three-way-metricflow-cube-reference-sql): one MetricRequest per entry, planned
 # by the MetricFlow-backed planner and issued to Cube, both against one
 # Postgres holding the same mart.
 #

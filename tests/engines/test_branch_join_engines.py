@@ -1,5 +1,5 @@
-"""Engine tier (RFC 0009 §5.2 tier 5): the composed branch join returns the
-same numbers on every dialect the planner speaks (RFC 0041 D17, D18).
+"""Engine tier (S-0026/tier-contracts tier 5): the composed branch join returns the
+same numbers on every dialect the planner speaks (S-0055/D-17, S-0055/D-18).
 
 The unit tier asserts that all three dialects *render* the statement, and
 corpus case `006-two-grains-one-request` executes a composed plan on DuckDB.
@@ -233,7 +233,7 @@ def test_the_null_group_loses_its_numbers_without_null_safe_equality() -> None:
 
 
 # ....................... #
-# RFC 0041 P2: the statement's own tail, and computation above the join.
+# S-0055/phasing (P-2): the statement's own tail, and computation above the join.
 
 
 def _shadowing() -> list[Branch]:
@@ -296,7 +296,7 @@ def _ratio(dialect: str) -> str:
 
 #: 14/5, 3/4 and 1/8 — the branch totals divided **after** each was aggregated.
 #: A row-level division summed afterwards gives 2.5, 0.75 and 0.75 for the same
-#: rows, which is the whole content of RFC 0041 D1's ordering.
+#: rows, which is the whole content of S-0055/D-1's ordering.
 #: Three decimals rather than two: 1/8 is 0.125, and rounding it half-even at
 #: two places would make the expected value an artefact of the comparison.
 RATIO = {"EU": Decimal("2.800"), "UK": Decimal("0.750"), None: Decimal("0.125")}
@@ -345,7 +345,7 @@ def test_trino_sorts_the_null_group_last_either_way(
 
 
 def test_duckdb_divides_after_the_aggregate() -> None:
-    """RFC 0041 D1 and D3, as a number: each operand is aggregated in its own
+    """S-0055/D-1 and D3, as a number: each operand is aggregated in its own
     branch and the quotient is taken once, over the join."""
     connection = _duckdb()
 

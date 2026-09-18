@@ -1,5 +1,5 @@
 # No `fx_rates:`. The refusal below is unconditional either way; what the
-# absence changes is the fix bloomery can offer (RFC 0023 §5.4).
+# absence changes is the fix bloomery can offer (S-0040/phase-2-currency-as-a-declared-relation).
 catalog_version: 1
 vertical: payments
 canonical_fields:

@@ -1,4 +1,4 @@
-"""The dedupe total order (RFC 0016 §5.4, D20) and the reject identity (§5.6,
+"""The dedupe total order (S-0033/fixed-pipeline-order-and-lowering, S-0033/D-20) and the reject identity (§5.6,
 D21).
 
 Dedupe is asserted at the **AST** level for null ordering, not on rendered
@@ -51,7 +51,7 @@ def test_the_sort_order_ends_at_the_stable_row_identity() -> None:
 
 
 def test_tie_break_keeps_authored_order() -> None:
-    """A sort order is semantic (RFC 0003 D4) — sorting it would change which
+    """A sort order is semantic (S-0020/D-4) — sorting it would change which
     row wins."""
     reversed_break = DedupeIR(keep="latest_by", field="ts", tie_break=("z", "a"))
     assert dedupe_sort_columns(reversed_break) == ("ts", "z", "a", ROW_ID_COLUMN)
@@ -87,7 +87,7 @@ def test_partition_is_the_entity_key() -> None:
 
 def test_qualify_renders_natively_on_duckdb_and_as_a_subquery_elsewhere() -> None:
     """One neutral AST, per-dialect legal rendering — §5.4's note and the
-    RFC 0008 doctrine, not a second template."""
+    S-0025 doctrine, not a second template."""
     select = exp.Select().select(exp.column("a")).from_(exp.table_("t"))
     qualified = with_dedupe_qualify(select, DEDUPE, KEY)
     assert "QUALIFY" in qualified.sql(dialect="duckdb")

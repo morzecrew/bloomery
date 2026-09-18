@@ -1,10 +1,10 @@
-"""The grain model's eight cases (RFC 0037 §6), each as itself.
+"""The grain model's eight cases (S-0017 (§6)), each as itself.
 
 What every one of them is really asking is whether the closure admits exactly
 the facts D3 (`LOCKED`) lists and nothing else: an entity's own key, a
 ``many_to_one`` or ``one_to_one`` read in a direction that preserves the
 left grain, a historical hop that came back anchored, and composition over
-those. The value of every proof RFC 0039 and RFC 0040 build on this is
+those. The value of every proof S-0005 and S-0054 build on this is
 exactly the weakest fact admitted here, so each admission is asserted
 positively and each exclusion negatively — "it happens not to appear" and "it
 is refused" are different results and only one of them survives a refactor.
@@ -96,7 +96,7 @@ def test_a_transitive_member_carries_the_whole_chain_not_a_boolean() -> None:
     """D6: closure output carries a derivation per member.
 
     Asserted on the *steps* rather than on the relationship names, because
-    RFC 0039 builds a proof tree out of these and RFC 0042 pins a case to the
+    S-0005 builds a proof tree out of these and S-0056 pins a case to the
     rule that decided it — a chain that named its relationships but lost which
     dependency each hop used would satisfy the sentence and not the documents
     that depend on it.
@@ -653,7 +653,7 @@ def test_the_mart_guard_words_every_state_of_the_shared_fact_separately() -> Non
 
 
 def test_the_mart_took_the_as_of_fact_and_nothing_else() -> None:
-    """RFC 0037 §7 and D8 (`OPEN`, decided: not on this branch). The substrate
+    """S-0017 (§7) and D8 (`OPEN`, decided: not on this branch). The substrate
     exists and the mart check has not moved onto it — the only thing the mart
     path reads from here is the as-of fact (D4). Asserted on the *names* the
     module holds, because a later silent migration would show up here before it
@@ -668,7 +668,7 @@ def test_the_mart_took_the_as_of_fact_and_nothing_else() -> None:
 
 
 # ....................... #
-# Composition is a shape, not a basis (RFC 0037 D20)
+# Composition is a shape, not a basis (S-0017/D-20)
 
 
 def test_a_composed_derivation_is_proved_by_r005() -> None:

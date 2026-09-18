@@ -11,6 +11,6 @@ fields:
     quality:
       - {rule: not_null, on_fail: fail}
       - {rule: range, min: 0, on_fail: quarantine}
-# The bronze ingestion-metadata contract (RFC 0016 D21) plus the PII tail the
+# The bronze ingestion-metadata contract (S-0033/D-21) plus the PII tail the
 # quarantine block redacts: acknowledged here, deliberately not mapped.
 unmapped: ["$._ingested_at", "$._load_id", "$._source_row_id", "$.operator_note"]

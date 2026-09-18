@@ -15,7 +15,7 @@ entities:
   order:
     grain: one row per order
     key: [order_id]
-    # RFC 0055: the three annotations, on the corpus's flagship project, so the
+    # S-0062: the three annotations, on the corpus's flagship project, so the
     # metadata slots are pinned as bytes in every target's golden rather than
     # only in a unit test's parsed YAML. `customer_id` flattens into the mart,
     # which is what makes Cube's `public: false` visible here.

@@ -1,6 +1,6 @@
-"""The dbt emitter (RFC 0008 §5.5) — the compatibility target.
+"""The dbt emitter (S-0025/dbt-emitter-compatibility) — the compatibility target.
 
-**Compatible with dbt ``>=1.10.8,<2``** (RFC 0008 D22). Stated because "the
+**Compatible with dbt ``>=1.10.8,<2``** (S-0025/D-22). Stated because "the
 compatibility target" had never said compatible with *what*: the emitted
 ``schema.yml`` nests generic-test arguments under ``arguments``, so the range
 and the emitted form are one decision.
@@ -19,14 +19,14 @@ An earlier version of this line said ``>=1.10``, which admits the seven
 patch releases that reject what this emitter writes.
 
 
-Its real job is proving the port abstraction (RFC 0008 D5, spec §9): every
+Its real job is proving the port abstraction (S-0025/D-5, spec §9): every
 SELECT is the **same** dialect-port-rendered AST the SQLMesh emitter renders
 (:mod:`bloomery.emit.lower`) — only the envelope and the way inputs are *named*
 differ. Do not read it as production-grade dbt scaffolding.
 
-It used to say "minimal but honest", which was RFC 0008 §5.5's sentence about an
-emitter that produced no audits whatsoever. RFC 0026 gave it the whole audit
-surface and RFC 0052 the whole data-quality one, so the coverage claim is now
+It used to say "minimal but honest", which was S-0025/dbt-emitter-compatibility's sentence about an
+emitter that produced no audits whatsoever. S-0043 gave it the whole audit
+surface and S-0060 the whole data-quality one, so the coverage claim is now
 the artifact list below plus two refusals: ``python_model`` steps, and
 ``on_fail: quarantine`` on a *step output* — the second on every target, and
 unrelated to the entity-level ``quarantine:`` that this emitter now lowers.
@@ -44,8 +44,8 @@ Artifacts:
   directory so each relation materializes where the naming policy put it.
 - ``macros/generate_schema_name.sql`` — the override making ``+schema`` mean
   the namespace verbatim rather than dbt's default ``<target>_<custom>``
-  (RFC 0008 D20). Without it ``ref()`` really would cost the naming port its
-  ownership of namespaces, which is the objection RFC 0009 D22 raised.
+  (S-0025/D-20). Without it ``ref()`` really would cost the naming port its
+  ownership of namespaces, which is the objection S-0026/D-22 raised.
 - ``models/sources.yml`` — every bronze relation the entities read, grouped
   by bronze namespace under the naming policy. Sources do not pass through
   ``generate_schema_name``, so their namespace was always the policy's.
@@ -53,7 +53,7 @@ Artifacts:
   ``{{ config(...) }}`` header. Materialization maps honestly: ``full`` →
   ``table``; both incremental kinds → ``incremental`` with the entity key as
   ``unique_key`` — dbt has no native time-range kind, and merge-on-key is the
-  equivalent that can never silently duplicate rows (RFC 0008 D3: adapt
+  equivalent that can never silently duplicate rows (S-0025/D-3: adapt
   loudly-documented, never degrade silently).
 - ``snapshots/<entity>_snapshot.sql`` per SCD type 2 entity — dbt's native
   SCD2. Strategy is ``check`` over all columns (``check_cols: all``): the IR
@@ -65,21 +65,21 @@ Artifacts:
   history table directly at ``<silver_ns>.<entity>_snapshot``.
 - ``models/<gold_ns>/<mart>.sql`` per mart and the ``dim_date`` calendar —
   the same gold SELECTs SQLMesh emits.
-- ``models/<namespace>/<relation>.sql`` per Tier 2 step output (RFC 0017 D52) —
+- ``models/<namespace>/<relation>.sql`` per Tier 2 step output (S-0034/D-52) —
   the same SELECT SQLMesh emits, in a ``config(materialized='table')`` envelope.
   Tier 1 needs nothing (spliced at lowering); Tier 3 is refused, because dbt's
   Python models run only on adapters bloomery does not target.
-- ``models/schema.yml`` — audits lowered to schema tests (RFC 0006 →
-  RFC 0008 §5.5, §10 → D16): ``not_null`` and ``enum``/``accepted_values``
+- ``models/schema.yml`` — audits lowered to schema tests (S-0023 →
+  S-0025/dbt-emitter-compatibility, S-0025 (§10) → D16): ``not_null`` and ``enum``/``accepted_values``
   builtin, because dbt-core has a native test meaning exactly that clause;
   ``min``/``max``/``regex``/``reconcile`` as ``bloomery_expression_is_true``
   tests whose row-level assertion is the shared audit predicate rendered
   through the dialect port, because dbt-core has none. SCD type 2
   entities' tests attach under ``snapshots:``. Native tests stay preferred
-  where dbt has one (RFC 0026 D4) — a builtin names its column in ``dbt test``
+  where dbt has one (S-0043/D-4) — a builtin names its column in ``dbt test``
   output and appears in ``dbt docs``, and a hand-rolled query does neither.
 - ``tests/<audit>.sql`` — a **singular test** per check that groups, joins or
-  aggregates (RFC 0026): a ``.sql`` file whose query returns the rows that
+  aggregates (S-0043): a ``.sql`` file whose query returns the rows that
   fail, which is dbt's own artifact for a check that is not a row predicate.
   Its model reference goes through the same reference map every model body
   does, so the test participates in dbt's DAG rather than naming a table by
@@ -87,13 +87,13 @@ Artifacts:
   operator contract in ``pages/docs/how-to/emit-dbt.md`` states it, along with
   the mirror case that ``--warn-error`` promotes a flagging check.
 - ``macros/bloomery_expression_is_true.sql`` — the generic test the above
-  names, emitted iff ``schema.yml`` declares it (RFC 0008 D18). bloomery's
+  names, emitted iff ``schema.yml`` declares it (S-0025/D-18). bloomery's
   own rather than ``dbt_utils``': a package reference leaves the emitted
   project *incomplete*, declaring a test no ``dbt compile`` can build until
   someone runs ``dbt deps`` against the network — which is the opposite of a
   compiler whose output is a pure function of its input.
 - ``models/<silver_ns>/<entity>__reject.sql`` per quarantining entity
-  (RFC 0052 §5.1) — ``materialized='incremental'`` on ``reject_id``, with
+  (S-0060/the-reject-table) — ``materialized='incremental'`` on ``reject_id``, with
   ``incremental_strategy='delete+insert'`` named rather than left to the
   adapter. Two **pre-rendered** SELECTs chosen by ``{% if is_incremental() %}``:
   the first-run one is :func:`~bloomery.emit.lower.reject_select`, exactly as
@@ -105,7 +105,7 @@ Artifacts:
   the path. A bare ``.sql`` file would be runnable by nothing: the statements
   name relations through ``ref()``, which resolves only inside dbt's Jinja.
 - ``models/<silver_ns>/<check>__reconcile.sql`` and
-  ``tests/<check>_reconcile.sql`` per reconcile check (RFC 0052 §5.3) — the
+  ``tests/<check>_reconcile.sql`` per reconcile check (S-0060/the-reconcile-model-and-its-audit) — the
   comparison SQLMesh renders, and a singular test over it whose ``severity``
   is the check's own ``on_fail``.
 - ``models/<gold_ns>/mart_data_quality.sql`` — the quality mart, an ordinary
@@ -197,7 +197,7 @@ _EXPRESSION_KINDS = frozenset({"min", "max", "regex", "reconcile"})
 
 #: The generic test carrying the shared audit predicate on the dbt side, and
 #: the name of the macro file that defines it. bloomery's own rather than
-#: ``dbt_utils``' (RFC 0008 D18): a package reference makes the emitted project
+#: ``dbt_utils``' (S-0025/D-18): a package reference makes the emitted project
 #: incomplete — it declares a test no ``dbt compile`` can build until someone
 #: runs ``dbt deps`` against the network.
 _EXPRESSION_TEST = "bloomery_expression_is_true"
@@ -207,12 +207,12 @@ _EXPRESSION_TEST = "bloomery_expression_is_true"
 # and interpolating the name above would be one more escaping layer to get
 # wrong. The name is therefore spelled twice; a mismatch is not a silent
 # defect, because the schema entry would then reference a macro the project
-# does not define and `dbt compile` refuses that outright (RFC 0008 D19).
+# does not define and `dbt compile` refuses that outright (S-0025/D-19).
 #
 # The body is ``dbt_utils``' ``default__test_expression_is_true`` minus the
 # ``column_name`` branch bloomery never takes, so the semantics of the test it
 # replaces are preserved exactly — including that a NULL expression *passes*,
-# since ``NOT NULL`` is NULL and selects no row. That is RFC 0016 D19's Kleene
+# since ``NOT NULL`` is NULL and selects no row. That is S-0033/D-19's Kleene
 # discipline, reached from dbt's side.
 _EXPRESSION_TEST_MACRO = """\
 {% test bloomery_expression_is_true(model, expression) %}
@@ -222,7 +222,7 @@ WHERE NOT ({{ expression }})
 {% endtest %}
 """
 
-# The envelope sees pre-rendered strings only (RFC 0008 D4) — the config
+# The envelope sees pre-rendered strings only (S-0025/D-4) — the config
 # header is built in Python, the SELECT arrives through the dialect port.
 # SQL is not HTML: autoescaping would corrupt it (cf. the SQLMesh envelope).
 _MODEL_ENVELOPE = jinja2.Template(
@@ -236,7 +236,7 @@ _MODEL_ENVELOPE = jinja2.Template(
     autoescape=False,
 )
 
-# A singular test (RFC 0026 §5.1): a `.sql` file under `test-paths` whose query
+# A singular test (S-0043/what-a-singular-test-is): a `.sql` file under `test-paths` whose query
 # returns the rows that fail. dbt puts no shape constraint on it whatsoever —
 # no per-column binding, no requirement that it be a row predicate — which is
 # exactly the shape a check that groups or joins needs, and exactly what every
@@ -255,8 +255,8 @@ _TEST_ENVELOPE = jinja2.Template(
     autoescape=False,
 )
 
-# Two **pre-rendered** SELECTs chosen by the envelope (RFC 0052 D2), never one
-# SELECT with Jinja spliced through it: RFC 0008 D4's rule is that envelopes
+# Two **pre-rendered** SELECTs chosen by the envelope (S-0060/D-2), never one
+# SELECT with Jinja spliced through it: S-0025/D-4's rule is that envelopes
 # interpolate rendered strings, and a conditional inside a rendered SQL string
 # is a template no dialect port ever saw. The dbt-Jinja markers are
 # pre-rendered strings for the same reason the snapshot's are.
@@ -279,7 +279,7 @@ _REJECT_ENVELOPE = jinja2.Template(
     autoescape=False,
 )
 
-# The replay macro (RFC 0052 §5.2, D3/D14). Each statement arrives already
+# The replay macro (S-0060/replay-as-a-run-operation-macro, S-0060/D-3, S-0060/D-14). Each statement arrives already
 # wrapped in its own `{% set %}…{% endset %}` block and `run_query` call —
 # built in Python, like every other dbt-Jinja marker this module writes.
 _REPLAY_ENVELOPE = jinja2.Template(
@@ -294,7 +294,7 @@ _REPLAY_ENVELOPE = jinja2.Template(
 --
 -- This entity's history is dbt's (it is scd: type2), so a recovered row does
 -- not appear in the snapshot when you run this: it is re-delivered to bronze,
--- and the next `dbt snapshot` versions it (RFC 0060 D2, D8).
+-- and the next `dbt snapshot` versions it (S-0003/D-2, S-0003/D-8).
 {% else %}\
 -- Run this with `dbt run-operation {{ macro }}`. The three statements below are
 -- one unit of work and the macro says so to the engine; bloomery executes
@@ -369,7 +369,7 @@ def _config_line(materialization: Materialization, key: tuple[str, ...]) -> str:
 
 
 def _severity(*, blocking: bool) -> str:
-    """``on_fail``/``blocking`` as dbt spells it (RFC 0026 D3).
+    """``on_fail``/``blocking`` as dbt spells it (S-0043/D-3).
 
     ``error`` is dbt's default and is written out anyway, for the same reason
     every other emitted config line is explicit: an artifact that states its
@@ -389,7 +389,7 @@ def _severity(*, blocking: bool) -> str:
 
 
 def _singular_test(*, name: str, select: str, blocking: bool, ctx: EmitContext) -> EmittedArtifact:
-    """One audit as ``tests/<name>.sql`` (RFC 0026 D1, D6, D7).
+    """One audit as ``tests/<name>.sql`` (S-0043/D-1, S-0043/D-6, S-0043/D-7).
 
     The name is the audit's own, unprefixed (D6): audit names are already
     unique per project and constrained to ``[a-z0-9_]+``, and dbt's generic
@@ -427,8 +427,8 @@ _THIS = "{{ this }}"
 def _reject_artifacts(
     entity: EntityIR, ctx: EmitContext, references: dict[tuple[str, str], str]
 ) -> tuple[EmittedArtifact, EmittedArtifact]:
-    """The ``<entity>__reject`` model and its replay macro (RFC 0016 §5.6,
-    RFC 0052 §5.1/§5.2).
+    """The ``<entity>__reject`` model and its replay macro (S-0033/quarantine-one-reject-table-per-entity,
+    S-0060/the-reject-table, S-0060/replay-as-a-run-operation-macro).
 
     **The model preserves its own columns.** SQLMesh keeps ``first_seen`` and
     ``last_evaluated_at`` in a ``when_matched`` clause; dbt has none that can
@@ -500,7 +500,7 @@ def _replay_body(entity: EntityIR, ctx: EmitContext, references: dict[tuple[str,
     with ``{{ ref('order_item') }}`` in it verbatim (`logs/T-0016.md` D-081).
 
     The statements run in the order :func:`replay_statements` returns them,
-    which is the order RFC 0016 §5.6 requires: the resolution stamp before the
+    which is the order S-0033/quarantine-one-reject-table-per-entity requires: the resolution stamp before the
     re-evaluation stamp, so the second's ``resolved_at IS NULL`` filter means
     "the rest".
     """
@@ -527,10 +527,10 @@ def _reconcile_artifacts(
     references: dict[tuple[str, str], str],
 ) -> tuple[EmittedArtifact, EmittedArtifact]:
     """One reconcile check → a comparison model and a singular test over it
-    (RFC 0016 §5.3, RFC 0052 §5.3).
+    (S-0033/spec-schema, S-0060/the-reconcile-model-and-its-audit).
 
-    The two halves of RFC 0016 D58's refusal expired separately. The audit half
-    went with RFC 0026: a singular test carrying ``severity='warn'`` *is* a
+    The two halves of S-0033/D-58's refusal expired separately. The audit half
+    went with S-0043: a singular test carrying ``severity='warn'`` *is* a
     non-blocking check, and this target emits five families of them. The model
     half is what this builds, from :func:`reconcile_select` — the same function
     SQLMesh renders, because a second lowering for a comparison both targets
@@ -577,7 +577,7 @@ def _reconcile_artifacts(
 def _step_artifacts(
     ir: ProjectIR, ctx: EmitContext, references: dict[tuple[str, str], str]
 ) -> list[EmittedArtifact]:
-    """Tier 2 step outputs as dbt models (RFC 0017 D52).
+    """Tier 2 step outputs as dbt models (S-0034/D-52).
 
     ``sql_macro`` contributes nothing here for the same reason it contributes
     nothing to SQLMesh — it was spliced into the consuming SELECT at lowering,
@@ -639,7 +639,7 @@ def _snapshot_artifact(
 
     namespace, _relation = ctx.naming.relation(entity.name, Layer.SILVER)
     # `snapshot_meta_column_names` renames dbt's `dbt_valid_from`/`dbt_valid_to`
-    # to the interval names the IR owns (RFC 0023 §5.3, D7). Without it the two
+    # to the interval names the IR owns (S-0040/phase-2-the-as-of-join, S-0040/D-7). Without it the two
     # targets name the same interval differently — which is precisely why no
     # as-of predicate could be emitted before — and a mart's join, lowered once
     # for every target, would reference columns that exist on SQLMesh's relation
@@ -683,7 +683,7 @@ def _dim_date_artifact(
 # ....................... #
 
 
-#: dbt's run context (RFC 0016 §5.8, RFC 0052 D8). Both columns are engine-side
+#: dbt's run context (S-0033/the-quality-mart, S-0060/D-8). Both columns are engine-side
 #: expressions rather than values bloomery read — `invocation_id` is dbt's own
 #: per-run identifier and `run_started_at` is the run's start as a Python
 #: datetime, formatted to the `YYYY-MM-DD` the schema declares.
@@ -705,8 +705,8 @@ def _mart_artifact(
 
     if is_quality_mart(mart):
         # Not a mart over a base entity: its rows are rule evaluations, so the
-        # base lookup below has nothing to find. RFC 0016 §5.4 put this in
-        # SQLMesh's set alone and this target refused it until RFC 0052 §5.4,
+        # base lookup below has nothing to find. S-0033/fixed-pipeline-order-and-lowering put this in
+        # SQLMesh's set alone and this target refused it until S-0060/the-quality-mart-and-a-refusal-deleted-rather-than-narrowed,
         # on the ground that it counts rows in reject tables and reconcile
         # models dbt did not build. Both are built now, so the refusal is
         # deleted rather than narrowed (D7) — narrowing it is the right change
@@ -721,7 +721,7 @@ def _mart_artifact(
     base = guaranteed(
         (entity for entity in ir.entities if entity.name == mart.base),
         expected=f"the base entity {mart.base!r} of mart {mart.name!r}",
-        by="the mart-base guardrail (RFC 0010)",
+        by="the mart-base guardrail (S-0027)",
     )
     return _model_artifact(
         path=f"models/{namespace}/{relation}.sql",
@@ -737,7 +737,7 @@ def _mart_artifact(
 def _rollup_artifact(
     rollup: RollupIR, ir: ProjectIR, ctx: EmitContext, references: dict[tuple[str, str], str]
 ) -> EmittedArtifact:
-    """One gold model per rollup (RFC 0058 §5.3, P2).
+    """One gold model per rollup (S-0065/targets, S-0065/phasing (P-2)).
 
     An ordinary derived model reading the parent mart — nothing exotic, which
     is the point: what makes it a rollup is the obligation discharged at
@@ -757,14 +757,14 @@ def _rollup_artifact(
 
 
 # ....................... #
-# Audit lowering → schema.yml (RFC 0006 → RFC 0008 §5.5)
+# Audit lowering → schema.yml (S-0023 → S-0025/dbt-emitter-compatibility)
 
 
 # ....................... #
 
 
 def _test(name: str, **arguments: object) -> dict[str, object]:
-    """One parameterized generic test, arguments nested (RFC 0008 D22).
+    """One parameterized generic test, arguments nested (S-0025/D-22).
 
     dbt < 1.10 took them at the top level and 1.10 moved them under
     ``arguments``, deprecating the flat form — and the two spellings are
@@ -797,7 +797,7 @@ def _entity_tests(
     expression tests for one entity, in the deterministic ``EntityIR.audits``
     order (sorted by kind, column).
 
-    Native tests stay preferred where dbt has an equivalent (RFC 0026 D4): a
+    Native tests stay preferred where dbt has an equivalent (S-0043/D-4): a
     builtin ``not_null`` names its column in ``dbt test`` output and appears in
     ``dbt docs``, and a hand-rolled query does neither. Everything else routes
     to :func:`unmapped_audits`.
@@ -814,7 +814,7 @@ def _entity_tests(
             expression = ctx.dialect.render(audit_predicate(entity, audit, violations=False))
             model_tests.append(_test(_EXPRESSION_TEST, expression=expression))
         else:
-            # RFC 0026 §5.4 expected this branch to become a singular-test
+            # S-0043/which-refusals-lift-and-which-do-not expected this branch to become a singular-test
             # route and it cannot: there is nothing to route. The `assert:`
             # vocabulary is closed at the six kinds above — `guardrails/
             # asserts.py` and `guardrails/conflict.py` are the only places an
@@ -828,7 +828,7 @@ def _entity_tests(
                 f"{audit.column!r} is outside the closed assert: vocabulary "
                 "(not_null, enum, min, max, regex, reconcile), so no target has a "
                 "predicate to build a check from — refusing rather than approximating "
-                "(RFC 0008 D3). Fix: this is an internal inconsistency, not a spec "
+                "(S-0025/D-3). Fix: this is an internal inconsistency, not a spec "
                 "error; a new audit kind needs a lowering in audit_predicate and a "
                 "mapping in every emitter"
             )
@@ -845,28 +845,28 @@ def _entity_test_artifacts(
 ) -> list[EmittedArtifact]:
     """The checks over one silver model that no ``schema.yml`` entry can carry.
 
-    Four, and they are the four RFC 0016 and RFC 0024 already generate for
+    Four, and they are the four S-0033 and S-0041 already generate for
     SQLMesh — this list and the SQLMesh one are asserted equal, per fixture,
     rather than kept in step by whoever edits them
     (``test_the_two_targets_emit_the_same_audits``):
 
     - the **collision** audit on a merged entity, which groups by the key and
-      counts distinct sources (RFC 0024 D5) — the condition the merge is not
+      counts distinct sources (S-0041/D-5) — the condition the merge is not
       correct without, and the reason a merged entity was SQLMesh-only;
     - the **ingestion-metadata** audit, whose duplicate-identity half is a
-      window count and so cannot be a row predicate (RFC 0016 D21);
+      window count and so cannot be a row predicate (S-0033/D-21);
     - one per ``on_fail: fail`` rule, whose body is a union of two populations
-      read from two relations (RFC 0016 D32/D67).
+      read from two relations (S-0033/D-32, S-0033/D-67).
 
     The last two were never *refused* here — they were silently absent, under
-    RFC 0016 §5.4's target-coverage sentence. That sentence was written when
+    S-0033/fixed-pipeline-order-and-lowering's target-coverage sentence. That sentence was written when
     this emitter had no artifact for them; keeping it after the artifact
     exists would leave a step's ``on_fail: fail`` audit emitting while an
     entity's does not, which is one disposition with two answers decided by
     which spec block the rule sits in.
 
     The **conservation** audit is the fourth, and it arrived with the reject
-    table (RFC 0052 §5.1). It was absent for one reason — the refusal above it
+    table (S-0060/the-reject-table). It was absent for one reason — the refusal above it
     fired first — and that reason is gone, so leaving it out would mean this
     target builds both sides of the routing split and never checks they add
     up. That is the one audit whose absence is invisible: every model
@@ -879,9 +879,9 @@ def _entity_test_artifacts(
     whose implicit ``coercible`` rules default to ``quarantine``, so every
     entity that reaches this line carries a quarantine disposition — and
     ``_refuse_quarantine`` raised first. It said the leg "goes live the day dbt
-    grows a reject model", named that as RFC 0016 §5.4's out-of-scope item, and
+    grows a reject model", named that as S-0033/fixed-pipeline-order-and-lowering's out-of-scope item, and
     kept the lowering with a test that built the IR directly rather than
-    waiting to discover it (`logs/T-0003.md` D-014). RFC 0052 was that day.
+    waiting to discover it (`logs/T-0003.md` D-014). S-0060 was that day.
     ``quality_precedence`` alone now emits three of these, and
     ``dirty_corpus`` a fourth.
     """
@@ -893,7 +893,7 @@ def _entity_test_artifacts(
             _singular_test(
                 name=f"{entity.name}_source_collision",
                 select=_render(collision_audit_select(entity, ctx), references, ctx),
-                # RFC 0024 D5: blocking, and not configurable to a weaker
+                # S-0041/D-5: blocking, and not configurable to a weaker
                 # disposition. A key in two sources is either genuine
                 # duplication or a shared key space by accident, and both are
                 # refusals.
@@ -948,7 +948,7 @@ def _entity_test_artifacts(
 def _mart_test_artifacts(
     mart: MartIR, ctx: EmitContext, references: dict[tuple[str, str], str]
 ) -> list[EmittedArtifact]:
-    """One singular test per mart assertion (RFC 0016 D89).
+    """One singular test per mart assertion (S-0033/D-89).
 
     Blocking-ness is the clause's own, as it is on SQLMesh: ``fail`` stops the
     build, ``flag`` reports beside it. An assertion aggregates, so there is no
@@ -973,7 +973,7 @@ def _mart_test_artifacts(
 def _coverage_test_artifacts(
     ir: ProjectIR, ctx: EmitContext, references: dict[tuple[str, str], str]
 ) -> list[EmittedArtifact]:
-    """One singular test per coverage check (RFC 0016 D90).
+    """One singular test per coverage check (S-0033/D-90).
 
     The body joins the referenced entity to the dependent one and groups, which
     is why this was refused: two relations and a ``GROUP BY``, and a schema test
@@ -1008,7 +1008,7 @@ def _coverage_test_artifacts(
 def _step_test_artifacts(
     ir: ProjectIR, ctx: EmitContext, references: dict[tuple[str, str], str]
 ) -> list[EmittedArtifact]:
-    """Step-output audits as singular tests (RFC 0017 D39/D40).
+    """Step-output audits as singular tests (S-0034/D-39, S-0034/D-40).
 
     Both kinds are whole-query checks — a join between sibling outputs, or an
     ``on_fail: fail`` rule's blocking body — and neither is a row predicate,
@@ -1016,7 +1016,7 @@ def _step_test_artifacts(
 
     ``quality_audits`` is told how this target spells "the relation this audit
     judges": a ``ref()`` rather than SQLMesh's ``@this_model`` macro, so the
-    body is built with dbt's spelling from the start (RFC 0026 D10).
+    body is built with dbt's spelling from the start (S-0043/D-10).
     ``consistency_audits`` needs no such resolver — it compares two siblings,
     and both are namespaced relations the reference map already rewrites.
     """
@@ -1059,7 +1059,7 @@ def _schema_entry(entity: EntityIR, name: str, ctx: EmitContext) -> dict[str, ob
     entry: dict[str, object] = {"name": name}
 
     # dbt has no first-class owner field, so `meta` is where the ecosystem puts
-    # one (RFC 0055 §5.1). Absent rather than null when nothing is declared:
+    # one (S-0062/owner). Absent rather than null when nothing is declared:
     # every project before this RFC has no owner at all, and an empty `meta` on
     # every model would move every existing golden to say nothing new.
     if entity.owner is not None:
@@ -1137,7 +1137,7 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
         # Audits *or* metadata. The gate was audits alone, which is why a
         # project with no quality rules has no `schema.yml` at all — and an
         # owner declared on such an entity would have had nowhere to go
-        # (RFC 0055 §5.1; logs/T-0050.md). Adding an owner therefore makes the
+        # (S-0062/owner; logs/T-0050.md). Adding an owner therefore makes the
         # file appear for projects that have none today.
         if (
             not entity.audits
@@ -1185,7 +1185,7 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
         if mart.owner is not None or mart.grants is not None
     )
 
-    # A rollup declares its own audience (RFC 0055 D12) and does not inherit
+    # A rollup declares its own audience (S-0062/D-12) and does not inherit
     # its parent's, so it gets its own entry when it declares one.
     models.extend(
         {
@@ -1220,7 +1220,7 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
 #: dbt's freshness ``period`` vocabulary, and what each unit of the spec's
 #: duration grammar becomes in it. **There is no week**, so ``2w`` is emitted as
 #: fourteen days — the conversion lives here, at the boundary with the target,
-#: rather than narrowing a grammar ``quarantine.retention`` shares (RFC 0057 D3;
+#: rather than narrowing a grammar ``quarantine.retention`` shares (S-0064/D-3;
 #: logs/T-0047.md).
 _DBT_PERIOD: Final[dict[str, tuple[int, str]]] = {
     "h": (1, "hour"),
@@ -1245,12 +1245,12 @@ def _dbt_after(duration: str) -> dict[str, object]:
 
 def _freshness_entry(freshness: FreshnessIR | None, ctx: EmitContext) -> dict[str, object]:
     """The two keys a dbt table entry gains for a declared threshold, or
-    nothing at all (RFC 0057 §5.3).
+    nothing at all (S-0064/targets).
 
     The column is ``_ingested_at``, and it is safe to name unconditionally
     precisely because the guardrail refused every configuration where it is not
     required: a threshold is admitted only on a mapping whose entity
-    quarantines or dedupes, and RFC 0016 D21 makes all three ingestion columns
+    quarantines or dedupes, and S-0033/D-21 makes all three ingestion columns
     mandatory there.
 
     **It is emitted cast, not bare** (``logs/T-0047.md``). ``_ingested_at`` is a
@@ -1293,7 +1293,7 @@ def _freshness_entry(freshness: FreshnessIR | None, ctx: EmitContext) -> dict[st
 def _sources_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
     relations_by_namespace: dict[str, dict[str, FreshnessIR | None]] = {}
 
-    # One ``source()`` per mapping (RFC 0024 D20): a merged entity reads every
+    # One ``source()`` per mapping (S-0041/D-20): a merged entity reads every
     # relation its branches do, and a sources.yml naming only the first would
     # leave dbt unable to resolve the rest.
     #
@@ -1338,12 +1338,12 @@ def _sources_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None
 
 def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
     """``models/exposures.yml`` — the declared consumers, as dbt exposures
-    (RFC 0056 §5.3).
+    (S-0063/targets).
 
     The one target that gets anything for an exposure, and not because the
     others degrade: Cube's consumers *are* the API's callers, and SQLMesh's
     nearest thing is a model tag, which is a label rather than an edge. Neither
-    has the concept, so there is nothing there to fail to build (RFC 0056 D4).
+    has the concept, so there is nothing there to fail to build (S-0063/D-4).
 
     **A metric dependency lowers to the marts that serve it**, and this is a
     departure from §5.1's emitted block, measured rather than argued: a
@@ -1385,7 +1385,7 @@ def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | No
                 guaranteed(
                     (name for name in declared if name == mart),
                     expected=f"mart {mart!r}, named by exposure {exposure.name!r}",
-                    by="the dangling-exposure guardrail (RFC 0056 D2)",
+                    by="the dangling-exposure guardrail (S-0063/D-2)",
                 ),
                 Layer.GOLD,
             )[1]
@@ -1425,7 +1425,7 @@ def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | No
 
 def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[tuple[str, str], str]:
     """``(namespace, relation)`` → the dbt reference that resolves to it
-    (RFC 0008 D20).
+    (S-0025/D-20).
 
     Keyed on what the *lowered SQL* says, because that is what the rewrite has
     to match: shared lowering builds every input as ``exp.table_(relation,
@@ -1469,7 +1469,7 @@ def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[tuple[str, str], str
     # the quality mart counts over both. Left out of this map they would reach
     # the mart as literal `silver.<name>` — no dependency edge for dbt to order
     # by, and a `FROM` naming a schema the model was not materialized into,
-    # which is RFC 0008 D20's finding restated. Found by the build tier, which
+    # which is S-0025/D-20's finding restated. Found by the build tier, which
     # is the only thing that can see it.
     for entity in ir.entities:
         if entity.quarantine is None:
@@ -1559,7 +1559,7 @@ def _schema_macro_artifact(ctx: EmitContext) -> EmittedArtifact:
     Returning the configured schema verbatim is what makes ``ref()`` resolve to
     the relation :meth:`NamingPolicy.relation` names. Without it, adopting
     ``ref()`` really would cost the naming port its ownership — which is the
-    objection RFC 0009 D22 raised against doing so, and this is its answer
+    objection S-0026/D-22 raised against doing so, and this is its answer
     rather than its acceptance.
     """
 
@@ -1582,7 +1582,7 @@ def _expression_macro_artifact(ctx: EmitContext) -> EmittedArtifact:
     audit *body* for this target, the exact counterpart of the
     ``audits/<name>.sql`` file the SQLMesh emitter writes for the same three
     kinds — and, like it, built from :func:`audit_predicate` so the two targets
-    cannot drift (RFC 0008 D16)."""
+    cannot drift (S-0025/D-16)."""
 
     return EmittedArtifact.create(
         path=f"macros/{_EXPRESSION_TEST}.sql",
@@ -1597,7 +1597,7 @@ def _expression_macro_artifact(ctx: EmitContext) -> EmittedArtifact:
 # ....................... #
 
 
-#: The operator contract, in the emitted project (RFC 0026 §5.5, §10).
+#: The operator contract, in the emitted project (S-0043/blocking-and-the-two-honest-weakenings, S-0043 (§10)).
 #:
 #: It is on the dbt docs page too, and that is not enough on its own: the page
 #: is read by whoever compiled the project, and this file is read by whoever
@@ -1656,7 +1656,7 @@ def _project_artifact(ctx: EmitContext, namespaces: tuple[str, ...]) -> EmittedA
 
 
 class DbtEmitter:
-    """RFC 0008 §5.5: the port-abstraction proof (RFC 0008 D5) — same
+    """S-0025/dbt-emitter-compatibility: the port-abstraction proof (S-0025/D-5) — same
     lowered SELECTs as SQLMesh, dbt envelopes, honest refusals per construct."""
 
     name = "dbt"
@@ -1667,14 +1667,14 @@ class DbtEmitter:
         """Lower every entity to a model (SCD type 2 → snapshot), every mart
         and the date dimension to gold models, audits to ``schema.yml``, plus
         the project scaffold and bronze sources; artifacts sorted by path,
-        content ending in exactly one newline (RFC 0003 §5.5 rule 5)."""
+        content ending in exactly one newline (S-0020/determinism-rules-package-wide rule 5)."""
         refuse_python_models(ir, "dbt")
         references = _reference_map(ir, ctx)
         artifacts: list[EmittedArtifact] = list(_step_artifacts(ir, ctx, references))
         artifacts.extend(_step_test_artifacts(ir, ctx, references))
 
         for entity in ir.entities:
-            # A step output is an entity in the DAG (RFC 0017 D36) but its rows
+            # A step output is an entity in the DAG (S-0034/D-36) but its rows
             # are the step's to write, and its lowered `expr` is the column
             # referring to itself — emitting the ordinary entity model here
             # would produce a model selecting from the relation it defines.
@@ -1746,8 +1746,8 @@ class DbtEmitter:
         artifacts.append(_project_artifact(ctx, namespaces))
         artifacts.append(_schema_macro_artifact(ctx))
         # This target writes `tests/<check>.sql` across five families whose
-        # names come from author-chosen parts (RFC 0026), so it needs the guard
-        # SQLMesh has had since RFC 0017 — before that it emitted no audit
+        # names come from author-chosen parts (S-0043), so it needs the guard
+        # SQLMesh has had since S-0034 — before that it emitted no audit
         # artifacts at all and had nothing to collide.
         assert_unique_paths(artifacts)
 

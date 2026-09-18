@@ -1,5 +1,5 @@
-"""The DuckDB dialect (RFC 0008 D5): the primary execution-test engine
-(RFC 0009 tier 4)."""
+"""The DuckDB dialect (S-0025/D-5): the primary execution-test engine
+( tier 4)."""
 
 from __future__ import annotations
 
@@ -64,12 +64,12 @@ class DuckDBDialect(SQLGlotDialect):
         timestamp field format* — so a bare entity aborted the run on it and a
         quality-carrying one quarantined the row, on text PostgreSQL and Trino
         both read. This port used to add nothing here, and its docstring said
-        so; the claim was measured false (RFC 0027, RFC 0036).
+        so; the claim was measured false (S-0044, S-0052).
         """
 
         def utc(interpretation: Expression) -> Expression:
             # `<tstz> AT TIME ZONE 'UTC'` yields a zoneless TIMESTAMP holding
-            # the UTC wall clock, identically under any session (RFC 0028 §3).
+            # the UTC wall clock, identically under any session (S-0045/the-fix-and-why-it-is-not-a-choice).
             return exp.AtTimeZone(this=interpretation, zone=exp.Literal.string("UTC"))
 
         rewritten = strip_iso_text(node.copy(), space_separated)
@@ -85,7 +85,7 @@ def _nfc_normalize(node: Expression) -> Expression:
     """``NORMALIZE(x, NFC)`` → ``NFC_NORMALIZE(x)``.
 
     Only NFC is reachable: the spec surface admits no other normal form,
-    precisely because this function is the only one DuckDB has (RFC 0016 D86).
+    precisely because this function is the only one DuckDB has (S-0033/D-86).
     A form that somehow arrived here would silently normalize to the wrong one,
     so it raises rather than guessing.
     """

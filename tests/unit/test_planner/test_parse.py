@@ -1,4 +1,4 @@
-"""The JSON front door (RFC 0015 §5.2–§5.3): grammar happy paths, the
+"""The JSON front door (S-0032/normalize-before-refusing-planner-parse-py-new-public–S-0032/the-closed-list-what-cannot-cross): grammar happy paths, the
 negation-complement table, every bloomery-owned refusal with its stable
 ``.reason`` (and ``.normalized`` where the refusal happens after
 normalization), and the ``KNOWN_UNSUPPORTED`` drift guard — the export
@@ -41,7 +41,7 @@ pytestmark = pytest.mark.unit
 
 
 # ....................... #
-# Grammar happy paths (RFC 0015 D10)
+# Grammar happy paths (S-0032/D-10)
 
 
 def test_scalar_is_the_eq_shortcut() -> None:
@@ -109,7 +109,7 @@ def test_or_combinator_becomes_one_any_of() -> None:
 
 
 def test_mixed_dimension_any_of_is_legal() -> None:
-    # RFC 0015 decision 14: AnyOf groups may span different dimensions.
+    # S-0032 decision 14: AnyOf groups may span different dimensions.
     (clause,) = parse_filter_json({"$or": [{"region": "EU"}, {"carrier": "DHL"}]})
     assert isinstance(clause, AnyOf)
     assert {p.dimension for p in clause.predicates} == {"carrier", "region"}
@@ -139,7 +139,7 @@ def test_eq_null_and_neq_null_map_to_is_null() -> None:
 
 
 # ....................... #
-# The negation-complement table (RFC 0015 §5.2 step 2)
+# The negation-complement table (S-0032/normalize-before-refusing-planner-parse-py-new-public step 2)
 
 
 @pytest.mark.parametrize(
@@ -189,7 +189,7 @@ def test_cnf_distributes_or_over_and() -> None:
 
 
 # ....................... #
-# The closed refusal list (RFC 0015 §5.3) — right type, .reason, .normalized
+# The closed refusal list (S-0032/the-closed-list-what-cannot-cross) — right type, .reason, .normalized
 
 
 @pytest.mark.parametrize(
@@ -281,7 +281,7 @@ def test_invalid_like_pattern_is_invalid_literal() -> None:
 
 
 def test_no_nesting_refusal_exists() -> None:
-    """RFC 0015 decision 14: after normalization every boolean tree reaches
+    """S-0032 decision 14: after normalization every boolean tree reaches
     AND-of-AnyOf — no dedicated nesting refusal type exists. Depth beyond
     MAX_NESTING_DEPTH refuses as the FilterTooComplex *complexity* refusal
     (parser totality), not a vocabulary gap."""
@@ -324,7 +324,7 @@ def test_malformed_documents_are_invalid_requests(document: object) -> None:
 
 
 # ....................... #
-# parse_sort_json (RFC 0015 D-Q6)
+# parse_sort_json (S-0032/D-7)
 
 
 def test_sort_directions_parse_in_document_order() -> None:
@@ -392,7 +392,7 @@ def test_non_string_sort_keys_are_invalid_request() -> None:
 
 
 # ....................... #
-# parse_page_json (RFC 0015 D-Q7)
+# parse_page_json (S-0032/D-8)
 
 
 def test_limit_only_pagination_parses() -> None:
@@ -440,7 +440,7 @@ def test_non_int_offset_is_invalid_request_not_a_refusal(offset: object) -> None
 
 
 # ....................... #
-# The drift guard (RFC 0015 D9): export == the actually-raisable union
+# The drift guard (S-0032/D-9): export == the actually-raisable union
 
 
 #: One adversarial document per raisable code, per function — parsing each
@@ -485,7 +485,7 @@ def test_known_unsupported_equals_the_raisable_union() -> None:
 
 
 def test_known_unsupported_matches_the_raise_sites_in_source() -> None:
-    """The introspection half (RFC 0015 D9): every UnsupportedFilter leaf
+    """The introspection half (S-0032/D-9): every UnsupportedFilter leaf
     *referenced* in the source of the parse path — ``parse.py`` plus the
     ``Predicate`` construction it delegates pattern/scalar validation to —
     maps to exactly the exported codes. Import aliases are not ``ast.Name``
@@ -512,6 +512,6 @@ def test_known_unsupported_matches_the_raise_sites_in_source() -> None:
 
 
 def test_adapter_codes_are_not_in_the_export() -> None:
-    # RFC 0015 D9: the two reason-code sets are disjoint.
+    # S-0032/D-9: the two reason-code sets are disjoint.
     assert "unsupported_field_compare" not in KNOWN_UNSUPPORTED
     assert "unsupported_quantifier" not in KNOWN_UNSUPPORTED

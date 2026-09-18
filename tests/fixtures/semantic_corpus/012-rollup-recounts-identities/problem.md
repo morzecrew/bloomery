@@ -8,10 +8,10 @@
   layer, and bloomery already refused it — its naive spec declares the measure
   `additive`, and the additivity guardrail catches the lie. Here the measure is
   declared honestly as `distinct_count` and the lie is in a **materialized**
-  monthly table asked for by name. No guardrail before RFC 0058 could see it: a
+  monthly table asked for by name. No guardrail before S-0065 could see it: a
   mart is a fact table at its base grain and nothing described a relation built
   by aggregating another one. The rule is different (R013 rather than
-  RFC 0038 D2), the surface is different, and the number is wrong at build time
+  S-0053/D-2), the surface is different, and the number is wrong at build time
   rather than at query time.
 
 ## The business question
@@ -44,7 +44,7 @@ one column and wrong about the one beside it.
 
 The failure is that a distinct count is not additive across partitions: a
 customer who buys on two days is one customer and two daily counts. Re-adding
-them needs a disjointness proof no rule supplies (RFC 0041 D8), and the groups
+them needs a disjointness proof no rule supplies (S-0055/D-8), and the groups
 here are not disjoint — which is the ordinary case, not the edge one.
 
 ## The wrong result and the correct one
@@ -64,6 +64,6 @@ there is no pre-aggregate between the question and the rows.
 
 `rolled` declares the same project plus the monthly rollup, carrying `revenue`
 and `buyers` together. It is **refused** with `UnprovableRollup`: R013 discharges
-the obligation for `revenue` and not for `buyers`, and RFC 0058 D5 makes an
+the obligation for `revenue` and not for `buyers`, and S-0065/D-5 makes an
 unprovable rollup a refusal rather than a warning. A rollup is read *instead of*
 the detail table, so a wrong one does not fail — it answers, quickly.

@@ -1,4 +1,4 @@
-"""The closed ``reconcile:`` side grammar (RFC 0016 §5.3).
+"""The closed ``reconcile:`` side grammar (S-0033/spec-schema).
 
 The grammar is the whole refusal surface: what parses is emitted as a
 comparison AST, and what does not is a compile error naming the shapes that
@@ -179,7 +179,7 @@ def test_a_repeated_by_column_is_refused() -> None:
 #: A merged entity — two mappings, one target — carrying nothing else, so the
 #: only thing a reconcile against it can trip is the merge itself. Inline
 #: rather than a fixture because every fixture with a `reconcile:` block also
-#: carries `quality:`, which RFC 0024 D29 refuses on a merged entity first and
+#: carries `quality:`, which S-0041/D-29 refuses on a merged entity first and
 #: would hide the refusal under test.
 _MERGED = {
     "entity_model.yaml": """
@@ -215,7 +215,7 @@ fields: {amount: {from: "$.total", transform: [{to_decimal: [12, 2]}]}}
 def test_a_side_naming_a_merged_entity_is_refused() -> None:
     """A reconcile emits a row into the quality mart, and that row records the
     *mapping* the check belongs to — which a merged entity does not have one
-    of (RFC 0024 D14).
+    of (S-0041/D-14).
 
     Resolving against the merged entity let it through to emission, where it
     surfaced as a bare ``EmitError`` reading "this is a resolver invariant that
@@ -230,7 +230,7 @@ def test_a_side_naming_a_merged_entity_is_refused() -> None:
     assert "shop_a__lines" in message and "shop_b__lines" in message
     # The refusal has to route to the same phase as its siblings, or an author
     # who reads it goes looking for a release that restores the wrong thing.
-    assert "RFC 0024" in message
+    assert "S-0041" in message
 
 
 def test_a_side_naming_a_single_source_entity_still_passes() -> None:
@@ -259,6 +259,6 @@ def test_a_side_naming_a_declared_but_unmapped_entity_is_refused() -> None:
         ),
     )
     assert "no silver relation is built" in message
-    # Named both ways since RFC 0017 D49: a step output has a relation without
+    # Named both ways since S-0034/D-49: a step output has a relation without
     # a mapping, so "no mapping targets it" stopped being the whole reason.
     assert "neither the target of a mapping nor the output of a step" in message

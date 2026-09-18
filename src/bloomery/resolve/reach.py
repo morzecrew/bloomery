@@ -1,4 +1,4 @@
-"""Availability and metric reachability (RFC 0005 §5.3).
+"""Availability and metric reachability (S-0022/availability-and-reachability-bloomery-resolve-reach-py).
 
 A canonical field is *available* iff some mapped entity field links to it via
 ``canonical:`` (with a direct mapping or a validated recipe — recipe
@@ -8,7 +8,7 @@ transitive ``requires``/``requires_metrics`` closure is available.
 Unreachable metrics are results, not errors: ``missing`` names the specific
 unavailable *leaves* — never intermediate metrics — because "you can't get
 margin because ``cogs`` is missing" is the actionable, product-facing fact
-(RFC 0005 D3). Computed only on an acyclic, reference-clean graph (cycles
+(S-0022/D-3). Computed only on an acyclic, reference-clean graph (cycles
 raise first), so ``missing`` can never mask a structural failure.
 """
 
@@ -35,7 +35,7 @@ _CANONICAL_PREFIX = "canonical."
 
 def available_canonicals(graph: Graph) -> frozenset[str]:
     """Canonical fields with at least one incoming ``canonical`` edge — read
-    from the one shared DAG (RFC 0005 D1), never recomputed from specs."""
+    from the one shared DAG (S-0022/D-1), never recomputed from specs."""
 
     return frozenset(
         edge.dst.name.removeprefix(_CANONICAL_PREFIX)
@@ -53,9 +53,9 @@ def compute_reachability(
     canonical_ids: dict[str, str] | None = None,
 ) -> tuple[tuple[str, ...], tuple[UnreachableMetric, ...]]:
     """Split metrics into (reachable names, unreachable + missing leaves),
-    both sorted by name (RFC 0003 §5.3).
+    both sorted by name (S-0020/ordering-rules).
 
-    **Compared in key space, reported in name space** (RFC 0062 §5.2).
+    **Compared in key space, reported in name space** (S-0067/node-id-construction).
     ``available`` is read off the graph, whose canonical nodes are keyed by an
     adopted ``id:`` where there is one, while ``requires`` names a field the way
     its author wrote it. Testing one against the other reported every metric
@@ -85,7 +85,7 @@ def compute_reachability(
         """``(missing leaves, blocked metrics between here and them)``.
 
         Recursion is safe unmemoized-depth-wise because cycles raise before
-        this runs (RFC 0005): reachability is computed on an acyclic,
+        this runs (S-0022): reachability is computed on an acyclic,
         reference-clean graph, so ``missing`` can never mask a structural
         failure.
         """

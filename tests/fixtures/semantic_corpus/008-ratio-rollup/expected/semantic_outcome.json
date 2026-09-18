@@ -2,7 +2,7 @@
   "naive": {
     "outcome": "refused",
     "error": "FalseAdditivityClaim",
-    "rule": "RFC 0038 D2"
+    "rule": "S-0053/D-2"
   },
   "declared": {
     "outcome": "accepted",

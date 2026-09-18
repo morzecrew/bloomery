@@ -1,4 +1,4 @@
-"""The import guards (RFC 0059 §5.4, D1, D8).
+"""The import guards (S-0002 (§5.4), S-0002/D-1, S-0002/D-8).
 
 Three ways a declared dependency can fail to be one, and each needs a *second
 project* to be visible at all — which is what separates these from the document
@@ -179,7 +179,7 @@ def test_no_imports_document_is_no_refusal() -> None:
     Asserted on the *parsed project*, not on the IR, and that is the phase's
     shape rather than an oversight: an import list is local — read by this
     project's own guardrails and never by a further downstream, which reads
-    this project's exports — so it does not reach `ProjectIR` (RFC 0059 D2).
+    this project's exports — so it does not reach `ProjectIR` (S-0002/D-2).
     """
 
     project = load_project(fixture_sources("minimal"))
@@ -203,7 +203,7 @@ def test_a_step_produced_entity_collides_with_an_imported_one() -> None:
     """The collision the authored entity model cannot see.
 
     A step output is an entity too, named after the last segment of the
-    relation its wiring binds (RFC 0017 §5.8) — `step_resolution` declares one
+    relation its wiring binds (S-0034/emission-and-the-dag) — `step_resolution` declares one
     entity and drafts three. Reading `project.entity_model.entities` here would
     make this guard blind to exactly the entities the spec layer never sees,
     which is `check_lineage_names`'s argument and the reason it reads the draft.

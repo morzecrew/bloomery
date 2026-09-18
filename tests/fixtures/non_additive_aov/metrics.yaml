@@ -1,4 +1,4 @@
-# AOV as a non-additive ratio over its additive components (RFC 0011 D5):
+# AOV as a non-additive ratio over its additive components (S-0028/D-5):
 # revenue / order_count, recomputed at whatever grain is requested — the
 # planner refuses to serve it from anything but a mart carrying both.
 metrics_version: 1

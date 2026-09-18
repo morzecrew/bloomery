@@ -1,4 +1,4 @@
-"""IR node semantics (RFC 0003 §5.1–§5.2; RFC 0010 §5.3; RFC 0016 §5.3–§5.6):
+"""IR node semantics (S-0020/ir-shape–S-0020/sql-expressions-in-the-ir-sqlexpr; S-0027/dimensionref; S-0033/spec-schema–S-0033/quarantine-one-reject-table-per-entity):
 value equality, immutability, SqlExpr AST caching contract, DimensionRef
 qualification, and the data-quality nodes' shape and canonical order."""
 
@@ -68,11 +68,11 @@ def test_partition_spec_identity_transform() -> None:
 
 
 # ....................... #
-# Data quality (RFC 0016 §5.3–§5.6)
+# Data quality (S-0033/spec-schema–S-0033/quarantine-one-reject-table-per-entity)
 
 
 def test_the_declared_ir_version_is_the_current_one() -> None:
-    # RFC 0016 M12, RFC 0017 M13, `ProjectIR.coverage` + `MartIR.asserts`,
+    # S-0033 M12, S-0034 M13, `ProjectIR.coverage` + `MartIR.asserts`,
     # `UnreachableMetric.via`, the per-source column split, `MartJoinIR.as_of`,
     # `ProjectIR.fx_rates`, `MetricIR`'s cumulative/derived/filter,
     # `CumulativeIR.period_agg`, `SourceColumnIR`'s branch facts,
@@ -80,7 +80,7 @@ def test_the_declared_ir_version_is_the_current_one() -> None:
     # `EntityIR`/`MartIR`/`MetricIR`, `RollupIR.grants`, `ProjectIR.exports`,
     # `SourceFieldIR.zone_in` and `Ratio.includes_zero_denominator` each change
     # the IR
-    # shape; RFC 0003 D3 makes the version
+    # shape; S-0020/D-3 makes the version
     # part of the fingerprint, so each bump is deliberate and loud. The M12/M13
     # wave nearly shipped without one: the fingerprints moved anyway (the
     # encoder covers field names and count), so nothing failed — but `plan()`
@@ -116,8 +116,8 @@ def test_the_compiler_emits_the_declared_ir_version() -> None:
 
 
 def test_on_fail_is_the_disposition_set() -> None:
-    # RFC 0016 §5.1/D2: deliberately no `drop`. `repair` joined in D87, once
-    # RFC 0017's registry supplied the recipe contract D17 gated it on — and it
+    # S-0033/the-disposition-model, S-0033/D-2: deliberately no `drop`. `repair` joined in D87, once
+    # S-0034's registry supplied the recipe contract D17 gated it on — and it
     # is last because it is the one member that resolves to another.
     assert [member.value for member in OnFail] == ["flag", "quarantine", "fail", "repair"]
 
@@ -149,7 +149,7 @@ def test_row_rule_has_no_target_column() -> None:
 
 def test_referential_disposition_lives_in_params_not_on_fail() -> None:
     # `unknown_member` is not an OnFail: the row passes with its fk rewritten
-    # to the reserved member — neither flagged nor diverted (RFC 0016 D19).
+    # to the reserved member — neither flagged nor diverted (S-0033/D-19).
     rule = QualityRuleIR(
         name="item_of_order",
         kind="referential",
@@ -186,7 +186,7 @@ def test_dedupe_tie_break_keeps_authored_order() -> None:
 
 def test_dedupe_tie_break_defaults_to_empty() -> None:
     # empty means the compile stage has yet to refuse it, never that ties are
-    # allowed (DedupeTieBreakMissing, RFC 0016 §5.3)
+    # allowed (DedupeTieBreakMissing, S-0033/spec-schema)
     assert DedupeIR(keep="latest_by", field="_ingested_at").tie_break == ()
 
 
@@ -210,14 +210,14 @@ def test_reconcile_tolerance_is_a_decimal() -> None:
     assert block.tolerance == Decimal("0.010")
 
 # ....................... #
-# Field order — RFC 0018 D1
+# Field order — S-0035/D-1
 
 
 def test_exports_is_the_last_field() -> None:
     """Every field on `ProjectIR` has a default, so one inserted mid-list does
     not raise for a caller who bound positionally — it silently rebinds.
 
-    The rule is RFC 0018 D1's and the tree already states it for
+    The rule is S-0035/D-1's and the tree already states it for
     `SpecEvidence` (``tests/unit/test_advisories.py``). It was not stated here,
     and `exports` first landed between `exposures` and `date_dimension`, which
     is how the next field will land too unless something says otherwise.

@@ -1,6 +1,6 @@
-"""The closed ``LogicalType`` set (RFC 0004 §5.1).
+"""The closed ``LogicalType`` set (S-0021/logical-types-bloomery-typing-types-py).
 
-Seven frozen dataclasses — no ``float`` (banned package-wide, RFC 0003 D5),
+Seven frozen dataclasses — no ``float`` (banned package-wide, S-0020/D-5),
 no ``time``, no arrays/structs (``variant`` is the escape hatch). A
 ``timestamp`` in bloomery *is* UTC; ``to_utc`` is the only door in.
 
@@ -39,10 +39,10 @@ __all__ = [
 
 
 class ArgKind(StrEnum):
-    """Parse-level shape of one transform argument (RFC 0004 §5.2).
+    """Parse-level shape of one transform argument (S-0021/transform-declaration-bloomery-transforms-registry-py).
 
     Declared by a :class:`~bloomery.transforms.TransformSpec` per argument
-    position and enforced by the typecheck stage (RFC 0004 §5.4) before the
+    position and enforced by the typecheck stage (S-0021/typecheck-stage-bloomery-typing-check-py) before the
     builder ever sees the value. Lives in the type layer so both the transform
     registry and the typechecker consume one vocabulary without a cycle.
     """
@@ -103,7 +103,7 @@ class DateType:
 
 @dataclass(frozen=True, slots=True)
 class TimestampType:
-    """Instant in time — semantically always UTC (RFC 0004 §5.1); ``to_utc``
+    """Instant in time — semantically always UTC (S-0021/logical-types-bloomery-typing-types-py); ``to_utc``
     is how a local timestamp gets here. No zone parameter by design."""
 
 
@@ -180,7 +180,7 @@ def assignable(actual: LogicalType, declared: LogicalType) -> bool:
     Identity for all scalar types; anything is assignable to ``variant``;
     a decimal is assignable to a wider-or-equal declared decimal (both
     ``precision - scale`` and ``scale`` non-decreasing). Narrowing is never
-    implicit (RFC 0004 §5.1).
+    implicit (S-0021/logical-types-bloomery-typing-types-py).
     """
 
     if isinstance(declared, VariantType):
@@ -215,7 +215,7 @@ def render_type(logical: LogicalType) -> str:
 
     The round-trip partner of :func:`parse_type`, and public because three
     unrelated consumers need the *same* spelling: `plan()`'s change reprs, the
-    step manifest a generated wrapper embeds (RFC 0017 §5.4), and anything
+    step manifest a generated wrapper embeds (S-0034/trust-the-declaration-verify-at-runtime), and anything
     else that reports a type back to a human. A second spelling somewhere
     would not merely be untidy — the step contract looks its declared types up
     in a table, so a repr like ``StringType()`` silently matches nothing and

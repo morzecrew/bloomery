@@ -1,4 +1,4 @@
-"""Emitter port surface (RFC 0008 §5.1 amended): artifact checksums and the
+"""Emitter port surface (S-0025/ports amended): artifact checksums and the
 emitter registry."""
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ def test_register_emitter_overlay() -> None:
 
 
 # ....................... #
-# No two artifacts may claim one path (RFC 0008 D8/D28, reached through the
+# No two artifacts may claim one path (S-0025/D-8, S-0025 (log entry D28), reached through the
 # audit namespace rather than through relations).
 
 _COLLIDING_ENTITY_MODEL = """
@@ -139,8 +139,8 @@ def test_two_artifacts_at_one_path_are_refused(target: str) -> None:
 
     Emitting both compiles clean and leaves the caller's path-to-content map
     holding whichever was written last — a declared quality gate that silently
-    does not exist, which is the failure RFC 0008 D3 refuses. SQLMesh has
-    refused it since RFC 0017; dbt could not, because until RFC 0026 it wrote
+    does not exist, which is the failure S-0025/D-3 refuses. SQLMesh has
+    refused it since S-0034; dbt could not, because until S-0043 it wrote
     no audit artifacts to collide.
     """
     with pytest.raises(EmitError) as excinfo:

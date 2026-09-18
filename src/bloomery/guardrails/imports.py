@@ -1,4 +1,4 @@
-"""The import guards (RFC 0059 §5.4, D1, D8): the three ways a declared
+"""The import guards (S-0002 (§5.4), S-0002/D-1, S-0002/D-8): the three ways a declared
 dependency can fail to be one.
 
 An imports document is entirely references, like the export list it mirrors —
@@ -27,7 +27,7 @@ documents, because a mart that failed to flatten is absent from the draft
 while very much declared — :func:`~bloomery.guardrails.exports.check_export_targets`'s
 argument, unchanged. **Entities come from the draft**, because a step output is
 an entity too, named after the last segment of the relation its wiring binds
-(RFC 0017 §5.8), and a project whose step produces `customer` declares nothing
+(S-0034/emission-and-the-dag), and a project whose step produces `customer` declares nothing
 of that name in its entity model. That is
 :func:`~bloomery.guardrails.lineage.check_lineage_names`'s argument, and taking
 the authored model here would make the collision guard blind to exactly the
@@ -138,7 +138,7 @@ def _claimed_twice(declared: Mapping[str, Imports]) -> list[GuardrailError]:
                 ImportCollision(
                     f"imports {singular} {name!r} from {len(aliases)} upstreams — {named}. "
                     f"Two {kind} answering to one name make every later reference ambiguous "
-                    f"(RFC 0059 §5.4), and neither upstream's author can see it: each file "
+                    f"(S-0002 (§5.4)), and neither upstream's author can see it: each file "
                     f"is correct on its own. Fix: import it from one of them",
                     source_path="imports: imports",
                 )
@@ -181,7 +181,7 @@ def check_imports(
                 UnknownUpstream(
                     f"imports from {alias!r}, which this compile was not given. How an "
                     f"upstream reaches a compile is the caller's — it is passed in, not "
-                    f"discovered (RFC 0059 D8) — so what was passed is the whole world. "
+                    f"discovered (S-0002/D-8) — so what was passed is the whole world. "
                     f"Fix: pass it as upstream[{alias!r}], or drop the import. Supplied: "
                     f"{_listed(frozenset(upstream))}",
                     source_path=source_path,
@@ -202,7 +202,7 @@ def check_imports(
                         UnexportedImport(
                             f"imports {singular} {name!r} from {alias!r}, which does not "
                             f"export it. An export list is explicit so that what is not on "
-                            f"it is unavailable (RFC 0059 D1). Fix: correct the name, or "
+                            f"it is unavailable (S-0002/D-1). Fix: correct the name, or "
                             f"export it upstream. Exported {kind}: {_listed(exported[kind])}",
                             source_path=source_path,
                         )
@@ -212,7 +212,7 @@ def check_imports(
                         ImportCollision(
                             f"imports {singular} {name!r} from {alias!r} and declares one of "
                             f"its own by that name. Two {kind} answering to one name make "
-                            f"every later reference ambiguous (RFC 0059 §5.4), and a "
+                            f"every later reference ambiguous (S-0002 (§5.4)), and a "
                             f"precedence rule would be invisible from the other project's "
                             f"file. Fix: rename the local one, or stop importing it",
                             source_path=source_path,

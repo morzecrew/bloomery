@@ -1,7 +1,7 @@
-# Inventory-grain mart (RFC 0010): warehouse_id flattens as a base-column
+# Inventory-grain mart (S-0027): warehouse_id flattens as a base-column
 # dimension, the snapshot date role buckets stock_date, and the semi-additive
 # stock_on_hand measure rides at exactly the base grain — the serving surface
-# the M7 planner queries (90 never 270; A 90 + B 40 = 130, RFC 0009 §5.10).
+# the M7 planner queries (90 never 270; A 90 + B 40 = 130, S-0026/planner-test-obligations-rfcs-0011-0013).
 marts_version: 1
 marts:
   inventory:

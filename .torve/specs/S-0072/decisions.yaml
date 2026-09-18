@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      The edge is `metric → mart`, labelled `measure` — dependency → dependent, like
+      every other edge in this graph. A change to a metric restates the mart column
+      that embeds it; a change to a mart moves no metric's definition. Reversing this
+      inverts every downstream walk that reads the gold layer.
+    paths: [src/bloomery/resolve/graph.py]
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      The graph stays a **RESOLVE**-stage product, built from authored documents.
+      No mart edge may require the flattener's output. This is what keeps `bloomery
+      lineage` able to answer on a project that does not compile — which is when the
+      question is most worth asking — and reversing it moves the graph out of `Resolution`,
+      whose reachability report is computed from it.
+    paths: [src/bloomery/resolve/graph.py, tests/unit/test_resolve/test_graph.py]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) Follows from row 2, and stated
+      separately because it is the thing an executor will be tempted to add: **no
+      per-column `entity_field → mart` edge**. The consequence is stated in §9 and
+      not mitigated: a mart dimension no metric reads is not reached by a downstream
+      walk.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) `mart` joins `NODE_ID_PREFIXES`
+      and the entity-name reservation, with a `_MINTS` row. A rule that held for five
+      prefixes of six would be learned as a list of exceptions, which is S-0059/D-7's
+      argument unchanged.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      A rollup is a `mart` node, with a `rollup`-labelled edge from its parent. S-0065/D-10
+      refuses a rollup that takes a mart's name, so one namespace is safe; row 14
+      keeps rollups out of *planner* walks, and a lineage node is not one.
+    paths: [tests/unit/test_resolve/test_graph.py]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The quality mart is a node like any other. Its measures are declared metrics
+      (§3, measured), so its edges are ordinary; it has no column edges to lack, because
+      row 3 gives no mart any.
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      `plan()` is untouched. Its impact report reads the IR's own edges by design,
+      and a graph walk beside it would be a second answer to one question.
+  - id: D-8
+    grade: OPEN
+    text: >-
+      Whether `dim_date` gets a node, and under which prefix. §10 states the three
+      candidates; whoever builds this decides and logs the decision, or defers it
+      explicitly.
+  - id: D-9
+    grade: OPEN
+    text: >-
+      Whether `depends_on.marts` should now admit a rollup. The refusal that exists
+      was written when a rollup was not a node; if it stays, it needs its reason restated
+      in the new world.

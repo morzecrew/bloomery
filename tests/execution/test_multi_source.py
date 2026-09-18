@@ -1,4 +1,4 @@
-"""Execution tier for the union merge (RFC 0024 §6): the ``multi_source``
+"""Execution tier for the union merge (S-0041/tests): the ``multi_source``
 fixture round-tripping through DuckDB, and the collision audit verified **red**
 on data whose key sets overlap.
 

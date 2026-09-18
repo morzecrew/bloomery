@@ -1,8 +1,8 @@
-"""The additivity guard (RFC 0006 §5.4, D6, D11): non-additive metrics need
+"""The additivity guard (S-0023/additivity, S-0023/D-6, S-0023/D-11): non-additive metrics need
 components and never materialize as stored columns; semi-additive metrics
 need their policy and never aggregate their own over: dimension away.
 
-And since RFC 0038 D1/D2, the third rule: ``additivity: additive`` is checked
+And since S-0053/D-1, S-0053/D-2, the third rule: ``additivity: additive`` is checked
 rather than trusted. The two false shapes it catches are an aggregate that
 cannot be re-aggregated, and a measure summed across the axis its own origin
 grain is taken along."""
@@ -143,7 +143,7 @@ def test_non_additive_with_an_additive_decomposition_passes() -> None:
 def test_a_computed_metric_stored_as_an_entity_column_is_refused(
     additivity: Additivity, extra: dict[str, object]
 ) -> None:
-    """The M4 stored-number invariant (RFC 0006 D6): metrics never become
+    """The M4 stored-number invariant (S-0023/D-6): metrics never become
     stored entity columns — the only place storage can arise before marts."""
     metric = _metric("average_order_value", additivity=additivity, **extra)  # type: ignore[arg-type]
     draft = ProjectIR(entities=(_entity("item_id", "average_order_value"),), metrics=(metric,))
@@ -202,7 +202,7 @@ def test_additive_metrics_are_not_checked() -> None:
 
 
 # ----------------------- #
-# RFC 0038 — an `additive` claim is checked, not trusted
+# S-0053 — an `additive` claim is checked, not trusted
 
 
 def _snapshot_entity() -> EntityIR:
@@ -530,7 +530,7 @@ def test_a_metric_whose_grain_names_no_entity_is_left_to_its_own_guard() -> None
 
 # ....................... #
 # distinct_count: count_distinct over the counted identity, and nothing else
-# (RFC 0038 §4; logs/T-0028.md)
+# (S-0053/additivity-algebra; logs/T-0028.md)
 
 
 def test_a_distinct_count_over_its_identity_passes() -> None:
@@ -596,7 +596,7 @@ def test_every_resolvable_member_reaches_an_arm_of_its_own() -> None:
 
 
 def test_only_the_resolvable_members_can_reach_the_guard() -> None:
-    """The canary RFC 0038 D1's closed enum owes (see logs/T-0019.md, D-105).
+    """The canary S-0053/D-1's closed enum owes (see logs/T-0019.md, D-105).
 
     It caught what it was written for. Fifteen sites across the emitters, the
     planner and the guardrails read NON_ADDITIVE, and twelve meant something

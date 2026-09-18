@@ -1,4 +1,4 @@
-"""What currency a converted value is in, and on what basis (RFC 0061).
+"""What currency a converted value is in, and on what basis (S-0066).
 
 A conversion asserts three things — the currency its input holds, the currency
 it should produce, and the date that picks the rate. Two of them were always
@@ -8,7 +8,7 @@ with nothing in the spec language to check it against, so
 ``{convert: [JPY, USD, paid_at]}`` on euros read the yen rate, applied it to
 euros, and compiled clean (logs/T-0024.md, D-155).
 
-RFC 0061 gives the input a fact — ``currency_in:`` on the mapping's field, or
+S-0066 gives the input a fact — ``currency_in:`` on the mapping's field, or
 the output of the conversion before it in the same chain — and this module is
 where the two meet. Phase 2 added the third shape §5.1 always admitted: the
 fact may name a *column* rather than a code, for the export that carries an
@@ -199,7 +199,7 @@ def prove_conversion(
     code and ``per_row`` is the column it names instead; the two are exclusive
     by the spec's type. Both absent means the input is undeclared, which is a
     refusal rather than a licence: an assertion nothing can check is
-    indistinguishable from a fact, and that is the whole of RFC 0061 D1.
+    indistinguishable from a fact, and that is the whole of S-0066/D-1.
 
     **A per-row chain is walked exactly like a literal one**, because the
     opening fact is the only thing that differs: what a per-row declaration

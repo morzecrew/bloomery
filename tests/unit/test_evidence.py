@@ -1,4 +1,4 @@
-"""``evaluate()`` — spec analysis as a value (RFC 0022).
+"""``evaluate()`` — spec analysis as a value (S-0039).
 
 The claims worth testing here are not "it returns a dataclass". They are:
 
@@ -115,7 +115,7 @@ def test_a_step_that_is_not_wired_refuses_while_lowering() -> None:
     """The ``LOWER`` stage, which the draft RFC called ``MARTS``.
 
     Mart flattening refuses nothing of its own — the flattener is total and the
-    guardrail stage re-derives its violations (RFC 0010 D6) — but step lowering
+    guardrail stage re-derives its violations (S-0027/D-6) — but step lowering
     does, and it happens in the same stage. Naming the stage for the flattening
     would have left the member unreachable and this refusal unnamed.
     """
@@ -134,7 +134,7 @@ def test_the_guardrail_stage_is_reported_rather_than_raised() -> None:
 def test_every_stage_is_reachable() -> None:
     """The claim that justifies the enum's membership.
 
-    RFC 0022's draft listed ``PARSE`` and ``MARTS`` as well. Neither can be
+    S-0039's draft listed ``PARSE`` and ``MARTS`` as well. Neither can be
     reported — ``load_project`` has already run by the time anything holds a
     ``Project``, and the flattener refuses nothing — so a consumer branching on
     them would write code that never runs. This fails if a member is added
@@ -152,7 +152,7 @@ def test_every_stage_is_reachable() -> None:
 
 
 # ....................... #
-# `via` — the chain a blocked metric is blocked through (RFC 0022 D11)
+# `via` — the chain a blocked metric is blocked through (S-0039/D-11)
 
 
 #: `ecom_basic` plus a metric derived from its deliberately-unreachable one.
@@ -171,7 +171,7 @@ BLOCKED_THROUGH_A_METRIC = {
 
 
 def test_a_transitively_blocked_metric_names_the_chain() -> None:
-    """`missing` stays leaves-only (RFC 0005 D3) — the fix is a mapping, never
+    """`missing` stays leaves-only (S-0022/D-3) — the fix is a mapping, never
     a metric — and `via` carries the intermediate beside it, so a reader is not
     left to re-walk a graph the compiler just walked."""
     project, catalog = load_project(BLOCKED_THROUGH_A_METRIC), _ecom_catalog()
@@ -195,7 +195,7 @@ def _ecom_catalog() -> Catalog:
 
 @pytest.mark.parametrize("name", LOADABLE)
 def test_reachability_equals_what_resolve_returns(name: str) -> None:
-    """RFC 0022 D10: proven by equality, not by inspection.
+    """S-0039/D-10: proven by equality, not by inspection.
 
     Only for fixtures that reach the resolve stage — a spec refused there has
     no ``resolve()`` result to compare against, and is covered by the stage
@@ -229,7 +229,7 @@ def test_a_complete_evaluation_carries_the_compilers_own_fingerprint(name: str) 
 
 
 def test_a_guardrail_refusal_keeps_the_reachability_computed_before_it() -> None:
-    """RFC 0022 D3, on the case it exists for.
+    """S-0039/D-3, on the case it exists for.
 
     ``fanout_trap`` refuses at the guardrail stage, two stages after
     reachability was computed. An implementation that wrapped
@@ -277,7 +277,7 @@ def test_no_fixture_makes_evaluate_raise(name: str) -> None:
 def test_a_batched_refusal_arrives_as_its_individual_failures() -> None:
     """A batched stage raises one aggregate whose message enumerates the batch
     and whose ``collected`` carries each failure with its own ``source_path``
-    (RFC 0002 D6). Handing back the aggregate would make a caller re-parse a
+    (S-0019/D-6). Handing back the aggregate would make a caller re-parse a
     paragraph for paths it already has structured."""
     evidence = _evaluate("fanout_trap")
     assert len(evidence.refusals) > 1
@@ -330,7 +330,7 @@ def test_invariant_violated_propagates_rather_than_being_reported(
 
 
 def test_structured_suggestions_survive_into_refusals() -> None:
-    """RFC 0020's fix suggestions are values on the error, so unwrapping the
+    """S-0037's fix suggestions are values on the error, so unwrapping the
     batch must not flatten them into strings."""
     evidence = _evaluate("fanout_trap")
     violations = [r for r in evidence.refusals if isinstance(r, GrainViolation)]
@@ -367,7 +367,7 @@ def test_mart_summaries_match_the_ir(name: str) -> None:
 
 def test_mart_dimensions_are_role_qualified() -> None:
     """The names a request writes, not the entity fields they flatten from —
-    which is the whole reason role-playing dates exist (RFC 0010)."""
+    which is the whole reason role-playing dates exist (S-0027)."""
     evidence = _evaluate("role_playing_dates")
     assert evidence.stage_reached is Stage.COMPLETE
     dimensions = {name for mart in evidence.marts for name in mart.dimensions}
@@ -392,7 +392,7 @@ def test_every_tuple_is_sorted(name: str) -> None:
     assert [(m.name, m.grain) for m in evidence.marts] == sorted(
         (m.name, m.grain) for m in evidence.marts
     )
-    # RFC 0030's two fields sort by their own declared keys. `options` inside a
+    # S-0047's two fields sort by their own declared keys. `options` inside a
     # decision deliberately does not — catalog order is authored (D2) — and
     # `tests/unit/test_unresolved.py` is where that exception is asserted.
     assert [d.canonical for d in evidence.unresolved] == sorted(
@@ -425,7 +425,7 @@ def test_a_field_added_to_the_value_does_not_rebind_a_positional_caller() -> Non
 
 
 def test_a_merged_entitys_field_reports_one_entry_per_mapping() -> None:
-    """Each mapping that builds a field says so in its own entry (RFC 0032).
+    """Each mapping that builds a field says so in its own entry (S-0049).
 
     Two mappings building one entity may implement one field two ways. Until
     the record carried a mapping identity this collection keyed on
@@ -489,7 +489,7 @@ def test_the_fixture_corpus_is_actually_being_walked() -> None:
 
 
 # ....................... #
-# RFC 0044 §3, D5 — the surfaces `check` counts
+# S-0057/bloomery-check, S-0057/D-5 — the surfaces `check` counts
 
 
 @pytest.mark.parametrize(
@@ -508,7 +508,7 @@ def test_the_fixture_corpus_is_actually_being_walked() -> None:
 def test_each_counted_surface_is_pinned_by_a_fixture(
     name: str, surface: str, count: int
 ) -> None:
-    """One fixture per surface, non-zero where it can be (RFC 0044 §3).
+    """One fixture per surface, non-zero where it can be (S-0057/bloomery-check).
 
     A count read from the wrong place is green against a corpus where every
     project happens to hold none of that surface, which is what a table of
@@ -520,7 +520,7 @@ def test_each_counted_surface_is_pinned_by_a_fixture(
 
     ``currency_convert_refusal`` is here for a narrower reason. Its conversion
     resolves and passes every guardrail and is refused at **emit**, where the
-    marker reaches a target that does not define it (RFC 0023 D4) — a stage
+    marker reaches a target that does not define it (S-0040/D-4) — a stage
     ``check`` never runs. It is counted, because it was checked; a count that
     had quietly become "conversions that survive emission" would read zero here
     and stay green on ``currency_convert``.
@@ -536,7 +536,7 @@ def test_each_counted_surface_is_pinned_by_a_fixture(
 def test_measures_counts_what_was_authored_not_what_the_ir_holds() -> None:
     """``dirty_corpus`` authors no metric and its IR holds five.
 
-    They are the quality mart's bloomery-owned measures (RFC 0016 §5.8), which
+    They are the quality mart's bloomery-owned measures (S-0033/the-quality-mart), which
     nobody wrote and ``resolve()`` has never heard of. Counting ``ir.metrics``
     would report five type-checked measures to an author whose spec declares
     none — the same population mistake :func:`~bloomery.evidence._from_ir`
@@ -571,7 +571,7 @@ def test_measures_counts_an_unreachable_metric_as_checked() -> None:
 
 @pytest.mark.parametrize("name", ["step_resolution", "identity_resolution"])
 def test_nothing_is_counted_before_an_ir_exists(name: str) -> None:
-    """``None``, never a zeroed count (RFC 0044 §3; ``logs/T-0030.md``).
+    """``None``, never a zeroed count (S-0057/bloomery-check; ``logs/T-0030.md``).
 
     Both fixtures refuse at the lower stage, so no IR was built and no surface
     was checked. A ``CheckedSurfaces`` of zeros would say six surfaces were
@@ -609,7 +609,7 @@ def test_a_draft_ir_is_counted_and_the_stage_says_it_is_a_prefix() -> None:
     The counts are real — those entities and that relationship were resolved —
     and they are not totals. Both halves are asserted here because dropping
     either is a plausible simplification: withholding them loses the prefix
-    RFC 0022 D3 exists to preserve, and presenting them without the stage lets
+    S-0039/D-3 exists to preserve, and presenting them without the stage lets
     them read as a finished answer.
     """
 
@@ -635,7 +635,7 @@ def test_only_a_simple_mapping_and_a_key_carry_a_transform_chain() -> None:
     mapping kind that gained a chain would be walked past in silence and every
     conversion in it would go uncounted — a failure with no symptom, since the
     number would simply be smaller. This fails instead, in the commit that adds
-    the chain (RFC 0061 D7 reached the same answer for ``currency_in``).
+    the chain (S-0066/D-7 reached the same answer for ``currency_in``).
     """
 
     from bloomery.spec.mapping import (
@@ -654,7 +654,7 @@ def test_only_a_simple_mapping_and_a_key_carry_a_transform_chain() -> None:
 def test_a_conversion_on_a_key_is_counted() -> None:
     """``resolve.build`` walks a key's chain, so the count walks it too.
 
-    A key is a strange place to convert and RFC 0061 D7 keeps it legal anyway:
+    A key is a strange place to convert and S-0066/D-7 keeps it legal anyway:
     a decimal key can carry a marker, and an unwalked one reaches emit. No
     fixture has one, so dropping ``mapping.key`` from the walk changed no test
     (`logs/T-0030.md`) — the helper is exercised directly here rather than

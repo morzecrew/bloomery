@@ -1,4 +1,4 @@
-"""Recorded-recipe validation (RFC 0005 §5.2, D2): the compiler validates —
+"""Recorded-recipe validation (S-0022/recipe-validation-bloomery-resolve-recipes-py, S-0022/D-2): the compiler validates —
 and NEVER chooses — the recipe id a mapping records.
 
 For each recipe-form field mapping, in order: the target entity field must
@@ -10,7 +10,7 @@ surplus alias would be a silent no-op, the failure mode this package exists
 to reject). A stale recorded choice is a loud error the upstream chooser must
 re-decide, never a decision the compiler quietly remakes.
 
-Runs on reference-clean specs (RFC 0005 §5.5); failures are batched.
+Runs on reference-clean specs (S-0022/cross-spec-reference-validation-bloomery-resolve-refs-py); failures are batched.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ def resolve_recipe(
     """Validate one recorded recipe choice and return the catalog recipe.
 
     Raises :class:`ResolutionError` at the mapping field's source path on any
-    of the RFC 0005 §5.2 failures.
+    of the S-0022/recipe-validation-bloomery-resolve-recipes-py failures.
     """
     path = f"{mapping_doc(mapping)}: fields.{field_name}"
     entity = project.entity_model.entities[mapping.target]

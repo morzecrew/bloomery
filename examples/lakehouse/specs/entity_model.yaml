@@ -1,7 +1,7 @@
 # Three entities that between them show everything bloomery does to a lakehouse.
 #
 #   order_line — built from **two** mappings and merged with UNION ALL
-#                (RFC 0024). Two shops on one platform, one shared key space,
+#                (S-0041). Two shops on one platform, one shared key space,
 #                disjoint key sets. bloomery also generates a *blocking*
 #                collision audit for it: if a key ever appears in both shops
 #                the run stops rather than double-counting.
@@ -17,7 +17,7 @@
 #                the compiler does to every table it touches.
 #
 # A merged entity may carry the whole quality system — rules, `dedupe:` and
-# `quarantine:` alike (RFC 0024 P2). The rules live on `customer` here because
+# `quarantine:` alike (S-0041/phasing (P-2)). The rules live on `customer` here because
 # that is the shape this example is teaching: one entity inside the system, one
 # outside it, and the merge shown on its own so each idea arrives alone.
 spec_version: 1
@@ -43,7 +43,7 @@ entities:
       gift_note: {type: string}
 
     # A merged entity cleans exactly the way a single-source one does
-    # (RFC 0024 P2). What differs is underneath: the rules are one set over the
+    # (S-0041/phasing (P-2)). What differs is underneath: the rules are one set over the
     # merged relation, and their *inputs* are per shop — the coercion marker
     # compares against the paths that branch actually reads, so one rule judges
     # rows from two systems that share no column name.

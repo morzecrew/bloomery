@@ -3,7 +3,7 @@
 - **Origin:** `industry-pattern`. A source system publishing local wall-clock times with no
   zone on them is the common case, not the exotic one, and the zone is written in its
   documentation rather than in its data.
-- **Tier:** execution (DuckDB). RFC 0042 D7 left this case's tier open when 003's was
+- **Tier:** execution (DuckDB). S-0056/D-7 left this case's tier open when 003's was
   decided; a named-zone conversion and a truncation are ordinary SQL and DuckDB has both,
   so it runs in the default suite with the rest (logs/T-0029.md).
 
@@ -15,7 +15,7 @@
 
 - `revenue` is a fact about an **order**, and is additive across orders.
 - `placed_at` is a `timestamp`, and bloomery's `timestamp` is **always UTC**
-  (RFC 0004 §5.1).
+  (S-0021/logical-types-bloomery-typing-types-py).
 - The source system's clock is `America/New_York`. That is a fact about the system.
 
 ## The tempting naive query
@@ -47,14 +47,14 @@ these lives.
 A zoneless local timestamp read as UTC is an **undeclared denomination**, exactly as a
 number without a currency is. `parse_ts` reads a wall clock; it cannot know which clock.
 The assertion "this wall clock is UTC" is made by the *absence* of a zone step, which is
-the one place an assertion cannot be checked — and it is the same shape RFC 0061 gave
+the one place an assertion cannot be checked — and it is the same shape S-0066 gave
 `currency_in:` a declaration for, one type over.
 
 ## Expected bloomery behaviour
 
 The period is part of the measure's expression rather than a restriction on a bucket:
 bloomery refuses a metric filtered to a fixed period — *a metric restricted to a fixed
-period is a constant, not a metric* (RFC 0034) — and the expression is identical in both
+period is a constant, not a metric* (S-0050) — and the expression is identical in both
 arms, so the only difference between them is which instant `placed_at` holds.
 
 - **zoneless** — `parse_ts` alone is **refused**, with `UndeclaredZone`. **R018** is the
@@ -64,7 +64,7 @@ arms, so the only difference between them is which instant `placed_at` holds.
   both fixes, because a wall clock nothing declares is an assertion made by silence.
 
   This case was `unguarded` until the rule existed, which is what the corpus is for: the
-  wrong number was asserted rather than tolerated, and RFC 0042 D5 named the decision the
+  wrong number was asserted rather than tolerated, and S-0056/D-5 named the decision the
   converting rule would answer to.
 - **anchored** — `to_utc: America/New_York` names the zone the wall clock was written in,
   and the same expression is **accepted** and returns 140.00. **R011** is what authorizes
@@ -74,4 +74,4 @@ arms, so the only difference between them is which instant `placed_at` holds.
 
 `to_utc` is known to invert on Trino, so this case's `anchored` arm is a DuckDB claim
 rather than a cross-dialect one. Which dialects agree on a named-zone conversion is
-RFC 0043's matrix to answer, not this corpus's.
+S-0006's matrix to answer, not this corpus's.

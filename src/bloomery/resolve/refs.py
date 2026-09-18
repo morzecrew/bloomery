@@ -1,10 +1,10 @@
-"""Cross-spec reference validation (RFC 0005 §5.5): every existence check the
-parse stage deferred (RFC 0002 D4), run before graph construction so the
+"""Cross-spec reference validation (S-0022/cross-spec-reference-validation-bloomery-resolve-refs-py): every existence check the
+parse stage deferred (S-0019/D-4), run before graph construction so the
 graph builder may assume references resolve.
 
 All failures are :class:`~bloomery.errors.MissingReference` (or plain
 :class:`~bloomery.errors.ResolutionError`) with the referencing node's source
-path, batched into one aggregate per stage (RFC 0002 D6) — later checks run
+path, batched into one aggregate per stage (S-0019/D-6) — later checks run
 only on a reference-clean graph, so their errors are never cascades of a
 single dangling name.
 
@@ -99,7 +99,7 @@ def _check_canonical_links(
                 errors.append(
                     MissingReference(
                         f"field links canonical field {canonical!r} but no catalog was "
-                        "provided (RFC 0005 §5.6: a catalog-free project is direct-only)",
+                        "provided (S-0022/the-result-type-and-api-bloomery-resolve-init-py: a catalog-free project is direct-only)",
                         source_path=path,
                     )
                 )
@@ -130,12 +130,12 @@ def _check_step_canonical_links(
     project: Project, catalog: Catalog | None, errors: list[BloomeryError]
 ) -> None:
     """A step output's ``canonical:`` links resolve against the catalog, on
-    the same terms a mapped field's do (RFC 0017 D49).
+    the same terms a mapped field's do (S-0034/D-49).
 
     The same two checks and for the same reasons: an unknown canonical field
     would make the metric over it read as reachable while nothing declares
     what it means, and a field declared for a *different* entity is the
-    grain confusion RFC 0006 exists to refuse — a step output is an entity
+    grain confusion S-0023 exists to refuse — a step output is an entity
     like any other, so it earns no exemption.
     """
 
@@ -151,7 +151,7 @@ def _check_step_canonical_links(
                     errors.append(
                         MissingReference(
                             f"step output column links canonical field {canonical!r} but no "
-                            "catalog was provided (RFC 0005 §5.6: a catalog-free project is "
+                            "catalog was provided (S-0022/the-result-type-and-api-bloomery-resolve-init-py: a catalog-free project is "
                             "direct-only)",
                             source_path=path,
                         )
@@ -304,7 +304,7 @@ def _check_metrics(project: Project, catalog: Catalog | None, errors: list[Bloom
                         source_path=f"{path}.requires_metrics[{index}]",
                     )
                 )
-        # RFC 0034 D3: the same dependency set the template merge unions into
+        # S-0050/D-3: the same dependency set the template merge unions into
         # `requires_metrics`, checked here because this stage runs *before* the
         # merge and reads the spec models directly. The merge reads
         # `DerivedSpec.input_metrics` — the distinct metrics, sorted — while
@@ -330,7 +330,7 @@ def _check_metrics(project: Project, catalog: Catalog | None, errors: list[Bloom
 
 
 def validate_references(project: Project, catalog: Catalog | None) -> None:
-    """Run every cross-spec reference check, batched (RFC 0005 D7).
+    """Run every cross-spec reference check, batched (S-0022/D-7).
 
     Raises one :class:`ResolutionError` aggregate listing every failure (a
     single failure is raised as itself); returns ``None`` on a clean project.

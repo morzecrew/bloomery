@@ -1,4 +1,4 @@
-"""Which audit vocabulary each ``assert:`` clause lowers to (RFC 0008 §10 → D16).
+"""Which audit vocabulary each ``assert:`` clause lowers to (S-0025 (§10) → D16).
 
 §10 left this "to be settled against the pinned sqlmesh version", and the split
 that shipped is real but was never written down: ``not_null`` and ``enum`` go to

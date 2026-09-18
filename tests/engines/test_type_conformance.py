@@ -1,5 +1,5 @@
-"""Engine tier (RFC 0009 §5.2 tier 5): the declared-vs-produced type battery
-on PostgreSQL and Trino (RFC 0028 D5).
+"""Engine tier (S-0026/tier-contracts tier 5): the declared-vs-produced type battery
+on PostgreSQL and Trino (S-0045/D-5).
 
 Same corpus as :mod:`tests.execution.test_type_conformance`, which carries the
 argument for why the check is an engine question rather than an emit-time one.
@@ -39,7 +39,7 @@ def _literal(value: str) -> str:
 def _probe_table(port: DialectPort) -> str:
     """One row, one column per case, each column the case's declared *input*
     type — a real column rather than a folded constant, since PostgreSQL
-    evaluates a folded one at plan time (RFC 0016 D84)."""
+    evaluates a folded one at plan time (S-0033/D-84)."""
     columns = ", ".join(
         f"CAST({_literal(value)} AS {physical}) AS {name}"
         for name, physical, value in source_columns(port)

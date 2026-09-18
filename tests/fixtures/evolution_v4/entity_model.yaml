@@ -1,4 +1,4 @@
-# v4 — v3 with the one-shot renamed_from annotation cleaned up (RFC 0007
+# v4 — v3 with the one-shot renamed_from annotation cleaned up (S-0024
 # D3) and unit_price switched to the from_total recipe in the mapping
 # (RESTATING: same name and type, different meaning).
 spec_version: 1

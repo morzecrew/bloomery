@@ -1,0 +1,75 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      **S-0033/D-10 stands: one reject table per entity, merged or not.** Its stated
+      ground — per-mapping tables multiply into the small-file problem and make replay
+      N-way — is a statement about the number of *relations*, and this design adds
+      none. D10 answered a different question and its answer is still right. Consequence:
+      S-0041/D-16's lock is discharged by keeping the decision, not by overturning
+      it, and any future proposal for a per-mapping table argues against D10 as it
+      always had to.
+    paths:
+      - tests/engines/test_merged_cleaning_engines.py
+      - tests/execution/test_merged_cleaning.py
+      - tests/fixtures/multi_source_quality/entity_model.yaml
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      **`source_relation`, `mapping`, `mapping_version` and `reject_id` are projected
+      per union branch.** They are true of a branch and were only ever true of a model
+      because there was one branch. `reject_id` moves with them out of necessity rather
+      than symmetry: its first argument is the branch's relation name, which the union
+      erases. Consequence: `reject_select` reads four more columns off the extract
+      subquery and reads no `SourceIR` at all.
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/plan/diff.py
+      - tests/engines/test_merged_cleaning_engines.py
+      - tests/execution/test_merged_cleaning.py
+      - tests/unit/test_plan/test_diff.py
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      **Replay filters each branch to `source_relation = '<branch>'`.** Without it
+      a mapping's extraction runs over another mapping's payload and returns NULLs
+      rather than raising — a silent wrong answer, which is the failure class this
+      project refuses. The filter is sound because `(target, source)` is unique (S-0041/D-12),
+      so the literal names exactly one branch.
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - tests/execution/test_merged_cleaning.py
+      - tests/golden/test_sqlmesh_dialects.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      **The `raw` payload format does not change.** Each branch writes its own `_payload_columns`
+      and reads them back through its own rewritten expressions, so two sources with
+      disjoint bronze column names need no shared namespace. Believed rather than
+      locked because it rests on `_from_payload` rewriting only unqualified column
+      references, which is a property of one function.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **The provenance projections are conditional on the reject table, not on mapping
+      count.** A single-source entity with `quarantine:` projects the same four columns
+      it projects today, one level lower; a merged entity without `quarantine:` projects
+      none. This deliberately does *not* extend S-0041/D-34's mapping-count precedent
+      — varying with a spec block is the ordinary case, and keeping the two kinds
+      of variance distinct is what stops D34 from reading as licence.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **`_sole_source` stays.**
+      The quality mart still has no merged form (S-0041/D-19), and the accessor's
+      raising spelling is what made this whole area fail loudly rather than silently
+      when P2 arrived. What changes is one caller, not the mechanism.
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      **A reject row whose mapping was removed is unreplayable and ages out by retention.**
+      No new refusal and no migration: the rows describe data the project no longer
+      reads. Documented rather than guarded, because a guard would have to refuse
+      dropping a mapping from an entity that has reject rows, which is a run-time
+      fact the compiler does not have.

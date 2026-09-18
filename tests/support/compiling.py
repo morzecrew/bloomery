@@ -1,4 +1,4 @@
-"""Shared compile-path helpers (RFC 0009 §5.1 ``tests/support/``): fixture
+"""Shared compile-path helpers (S-0026/layout-and-markers ``tests/support/``): fixture
 loading through the public API only, whole-fixture compilation, and the
 artifact SELECT extraction the execution tier uses."""
 
@@ -16,7 +16,7 @@ from support.steps import registry_for
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 #: ``{{ ref('x') }}`` and ``{{ source('ns', 'x') }}`` as the dbt emitter writes
-#: them (RFC 0008 D20) — anchored on the exact rendering rather than on loose
+#: them (S-0025/D-20) — anchored on the exact rendering rather than on loose
 #: brace matching, so a change in how they are emitted fails here rather than
 #: silently stopping to match.
 _DBT_REF = re.compile(r"\{\{ ref\('(?P<relation>[^']+)'\) \}\}")
@@ -31,7 +31,7 @@ _DBT_SOURCE = re.compile(r"\{\{ source\('(?P<namespace>[^']+)', '(?P<relation>[^
 #: worth stating: it *does* hold specs, several per case, but one directory
 #: down under ``<case>/bloomery/<expectation>/`` — and half of them are meant
 #: to be refused. A sweep asserting "every spec fixture resolves" would fail on
-#: exactly the cases the corpus exists to hold (RFC 0042).
+#: exactly the cases the corpus exists to hold (S-0056).
 NON_SPEC_FIXTURES = frozenset({"dirty", "semantic_corpus", "cross_project"})
 
 
@@ -122,14 +122,14 @@ def compile_fixture(
         catalog=catalog,
         # Empty for every fixture that wires no step, which is all of them but
         # one — so the registry is a lookup rather than a parameter each
-        # caller has to remember (RFC 0017 §5.3).
+        # caller has to remember (S-0034/purity-the-registry-is-a-compile-input).
         steps=registry_for(name),
     )
 
 
 #: What the execution tier substitutes for SQLMesh's run-context macros — the
 #: engine's job at run time, stood in for here. Pinned rather than "today":
-#: bloomery reads no clock (RFC 0003), and neither may its tests.
+#: bloomery reads no clock (S-0020), and neither may its tests.
 EXECUTION_DATE = "2024-01-03"
 
 
@@ -137,7 +137,7 @@ def expand_engine_macros(sql: str) -> str:
     """Expand the SQLMesh macros bloomery emits, the way the engine would.
 
     Only the quality mart carries one (``@execution_ds`` for ``run_date`` —
-    RFC 0016 §5.8), and the execution tier runs emitted SQL straight against
+    S-0033/the-quality-mart), and the execution tier runs emitted SQL straight against
     DuckDB with no SQLMesh in the loop, so the substitution happens here. It
     is deliberately a *literal*: substituting a clock call would make the
     materialized rows depend on when the suite ran.
@@ -153,7 +153,7 @@ def extract_select(content: str) -> str:
 
 
 def resolve_dbt_references(sql: str) -> str:
-    """dbt references back to the relations they resolve to (RFC 0008 D20).
+    """dbt references back to the relations they resolve to (S-0025/D-20).
 
     A dbt model body is a *template*, not SQL: since D20 its inputs are
     ``{{ ref(...) }}`` and ``{{ source(...) }}`` so that dbt can order the DAG
@@ -170,7 +170,7 @@ def resolve_dbt_references(sql: str) -> str:
 
     ``{{ this }}`` is the third: dbt's name for the relation a model is being
     written into, which the reject model's incremental branch joins against
-    (RFC 0052 §5.1). It stands in for the model's own name, so it resolves to a
+    (S-0060/the-reject-table). It stands in for the model's own name, so it resolves to a
     placeholder rather than to anything derivable from the text — what the
     tiers reading this need is SQL that parses and compares, not a second
     implementation of dbt's relation resolution.

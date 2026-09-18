@@ -1,4 +1,4 @@
-"""The delta vocabulary (RFC 0064 §5.1, §6).
+"""The delta vocabulary (S-0069/the-edge, S-0069/tests).
 
 Two claims run through every test here and neither is about a particular
 facet. The first is **totality**: §9's opening risk is a facet list that is a
@@ -140,7 +140,7 @@ def test_every_field_of_every_comparable_record_has_a_facet(record: type) -> Non
 
 def test_every_facet_the_vocabulary_declares_is_used() -> None:
     """A member no row lands in is a distinction the compiler does not draw,
-    which is the failure RFC 0037's `transitive` basis was retired for."""
+    which is the failure S-0017's `transitive` basis was retired for."""
     assert set(_FACETS.values()) == set(Facet)
 
 
@@ -180,7 +180,7 @@ def test_a_field_the_table_does_not_cover_is_refused_loudly() -> None:
 
     A `check` refusal would reject an author's specs for a gap in a table that
     ships with the compiler, and there is no warnings channel to put it in
-    (RFC 0033 is unstarted) — so the answer to D6 is a test plus this, which is
+    (S-0004 is unstarted) — so the answer to D6 is a test plus this, which is
     loud in the one place a wrong answer could otherwise be quiet.
     """
 
@@ -208,13 +208,13 @@ def test_a_record_with_no_field_table_is_refused_rather_than_ignored() -> None:
 @pytest.mark.parametrize("field", sorted(_IDENTITY))
 def test_no_identity_field_is_in_the_table(field: str) -> None:
     """Excluded once, rather than blanked per kind. The canonical field is the
-    one record that retains RFC 0062's `id`, and a rule stated in its arm alone
+    one record that retains S-0067's `id`, and a rule stated in its arm alone
     is a rule the other nine kinds are free to contradict."""
     assert not [record for record, name in _FACETS if name == field]
 
 
 def test_a_pure_rename_attributes_nothing() -> None:
-    """RFC 0064 §6's first test. Identity is RFC 0062's business, and a node
+    """S-0069/tests's first test. Identity is S-0067's business, and a node
     whose only difference is what it is called has not been redefined."""
     assert facets(metric(), metric(name="revenue_gross")) == ()
 
@@ -274,7 +274,7 @@ def test_a_filter_moving_is_the_filter_facet_and_carries_no_values() -> None:
 
 
 def test_several_facets_moving_come_back_sorted() -> None:
-    """Deterministic in the way everything else is (RFC 0003 §5.3) — sorted by
+    """Deterministic in the way everything else is (S-0020/ordering-rules) — sorted by
     facet and then field, never in the order the fields happen to be declared
     in.
 
@@ -313,7 +313,7 @@ def test_a_record_that_changed_kind_compares_across_the_two() -> None:
 
 
 # ....................... #
-# The entity field, which is two records (RFC 0024 D26)
+# The entity field, which is two records (S-0041/D-26)
 
 
 def lowering(relation: str, sql: str, recipe: str | None = None) -> tuple[str, SourceColumnIR]:

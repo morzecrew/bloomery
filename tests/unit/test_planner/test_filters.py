@@ -1,4 +1,4 @@
-"""Filter-rendering unit tests (RFC 0013 D8, per-clause form per RFC 0015):
+"""Filter-rendering unit tests (S-0030/D-8, per-clause form per S-0032):
 every operator template, the typed literal renderer per LogicalType,
 escaping (quotes, Jinja braces, NUL), pattern pass-through with the fixed
 ``ESCAPE`` clause, ``AnyOf`` parenthesization, ``FilterTypeMismatch`` on
@@ -68,7 +68,7 @@ def test_in_not_in_is_null() -> None:
 
 
 def test_like_passes_the_pattern_through_with_the_escape_clause() -> None:
-    # RFC 0015 decision 13: caller-owned wildcards, no auto-wrapping, no
+    # S-0032 decision 13: caller-owned wildcards, no auto-wrapping, no
     # renderer-side escaping beyond injection safety.
     assert render(Predicate("store", Op.LIKE, ("%50\\%_off%",)), STORE) == (
         "{{ Dimension('order__store') }} LIKE '%50\\%_off%' ESCAPE '\\'"
@@ -91,7 +91,7 @@ def test_multi_pattern_like_is_a_parenthesized_or() -> None:
 
 
 def test_range_composes_from_gte_and_lte_clauses() -> None:
-    # RFC 0015 D-Q1: `between` left the DSL — a range is two clauses.
+    # S-0032/D-1: `between` left the DSL — a range is two clauses.
     constraints = to_where(
         (
             Predicate("ordered_day", Op.GTE, ("2024-01-01",)),
@@ -114,7 +114,7 @@ def test_time_dimension_filters_use_the_grain_suffixed_dunder() -> None:
 
 
 # ....................... #
-# AnyOf — always parenthesized (RFC 0015 D11)
+# AnyOf — always parenthesized (S-0032/D-11)
 
 
 def test_any_of_renders_as_one_parenthesized_or_constraint() -> None:
@@ -161,7 +161,7 @@ def test_decimal_and_int_literals() -> None:
 
 
 def test_string_carrier_parses_against_decimal_dimensions() -> None:
-    # RFC 0015 D5: the str carrier for exact bounds — parsed here, never a
+    # S-0032/D-5: the str carrier for exact bounds — parsed here, never a
     # SQL cast.
     assert render(Predicate("amount", Op.GTE, ("10.50",)), AMOUNT).endswith(">= 10.50")
 
@@ -171,7 +171,7 @@ def test_string_carrier_parses_against_decimal_dimensions() -> None:
     "op", [Op.EQ, Op.NE, Op.GT, Op.GTE, Op.LT, Op.LTE, Op.IN, Op.NOT_IN]
 )
 def test_non_finite_string_carriers_are_invalid_literals(carrier: str, op: Op) -> None:
-    """RFC 0015 D5 + decision 15: the carrier's non-finite refusal covers
+    """S-0032/D-5 + decision 15: the carrier's non-finite refusal covers
     ``in``/``not_in`` membership members too, not only the ordering ops."""
     with pytest.raises(InvalidLiteral) as excinfo:
         render(Predicate("amount", op, (carrier,)), AMOUNT)
@@ -197,7 +197,7 @@ def test_date_dimension_refuses_a_datetime_object() -> None:
 
 
 def test_uuid_renders_as_a_string_literal() -> None:
-    # RFC 0015 D5: no UUID LogicalType exists — a UUID value renders as a
+    # S-0032/D-5: no UUID LogicalType exists — a UUID value renders as a
     # quoted string literal against string-typed dimensions.
     value = UUID("12345678-1234-5678-1234-567812345678")
     assert render(Predicate("store", Op.EQ, (value,)), STORE).endswith(
@@ -330,7 +330,7 @@ def test_date_dimension_refuses_non_string() -> None:
 
 
 # ....................... #
-# Policy prepending (RFC 0013 D9) — via as_clause (RFC 0015 D11)
+# Policy prepending (S-0030/D-9) — via as_clause (S-0032/D-11)
 
 
 def test_policy_is_always_first() -> None:

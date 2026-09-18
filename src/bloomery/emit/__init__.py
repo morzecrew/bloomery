@@ -1,6 +1,6 @@
-"""The emit stage (RFC 0008): target emitters consuming :class:`ProjectIR`
+"""The emit stage (S-0025): target emitters consuming :class:`ProjectIR`
 — never specs — and the emitter registry mirroring the transform registry
-(immutable default + explicit overlay, collision is an error, RFC 0008 D8)."""
+(immutable default + explicit overlay, collision is an error, S-0025/D-8)."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ _overlay: dict[str, TargetEmitter] = {}
 
 
 def register_emitter(emitter: TargetEmitter) -> None:
-    """Register an extension target emitter (public API, spec §8; RFC 0008
+    """Register an extension target emitter (public API, spec §8; S-0025
     D8). A name collision with any existing emitter raises
     :class:`EmitError` — shadowing a target silently is forbidden."""
 

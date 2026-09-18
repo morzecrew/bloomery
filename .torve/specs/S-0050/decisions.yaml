@@ -1,0 +1,216 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      **A derived metric is `expr` over aliased inputs, each input a metric.** `inputs`
+      is a mapping keyed by alias, not a list: the alias is the input's identity because
+      `expr` references it, and a dict makes a duplicate alias unrepresentable rather
+      than a validation. Consequence: `MetricIR` gains a `derived` field and the additivity
+      guard must accept it as a decomposition.
+    paths:
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/guardrails/additivity.py
+      - src/bloomery/guardrails/metrics.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/planner/explain.py
+      - src/bloomery/planner/semantic_plan.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/semantic/plan.py
+      - src/bloomery/spec/metrics.py
+      - tests/execution/test_period_over_period.py
+      - tests/golden/schema/catalog.json
+      - tests/golden/schema/metrics.json
+      - tests/unit/test_emit/test_period_over_period.py
+      - tests/unit/test_guardrails/test_metrics.py
+      - tests/unit/test_semantic/test_plan.py
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      **An offset is `{window: "<count> <grain>"}` or `{to_grain: <grain>}`, exactly
+      one.** The grain vocabulary is `day`, `week`, `month`, `quarter`, `year` — the
+      mart's own date buckets (S-0027/D-4). `hour` is refused despite MetricFlow accepting
+      it: the emitted time spine is day-grain, so an hourly offset would resolve against
+      a spine that cannot express it.
+    paths:
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/planner/explain.py
+      - src/bloomery/spec/metrics.py
+      - tests/execution/test_period_over_period.py
+      - tests/golden/schema/catalog.json
+      - tests/golden/schema/metrics.json
+      - tests/unit/test_emit/test_period_over_period.py
+      - tests/unit/test_semantic/test_plan.py
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      **Derived inputs are unioned into `requires_metrics` by the template merge,
+      never written twice by the author.** The DAG, reachability, cycle detection
+      and `depends_on` then need no change at all. The reference checker reads the
+      spec model before the merge and validates the inputs there; both callers use
+      one helper on the spec model, so the set of metrics a derived metric depends
+      on has exactly one definition.
+    paths:
+      - src/bloomery/resolve/metrics.py
+      - src/bloomery/resolve/refs.py
+      - src/bloomery/spec/metrics.py
+      - tests/unit/test_resolve/test_metrics.py
+      - tests/unit/test_resolve/test_refs.py
+      - tests/unit/test_spec/test_metrics.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      **A derived metric need not be named in any mart's `measures:`.** It has no
+      measure to place. It is emitted where every input's measure is emitted — the
+      rule the ratio already uses — and the planner's coverage precheck resolves it
+      to the mart carrying those measures. Naming it in `measures:` stays legal and
+      inert, as it is for a ratio.
+    paths:
+      - src/bloomery/emit/cube/__init__.py
+      - tests/fixtures/period_over_period/marts.yaml
+      - tests/unit/test_emit/test_period_over_period.py
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      **`cumulative:` is lowered, and the blanket `UnsupportedCumulative` refusal
+      is deleted rather than narrowed.** The class goes with it: a reserved-surface
+      error whose surface is no longer reserved is a class that can only mislead.
+      Combinations that still cannot be lowered are refused by their own named guardrails
+      (D7).
+    paths:
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/errors.py
+      - src/bloomery/guardrails/metrics.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/planner/explain.py
+      - src/bloomery/planner/semantic_plan.py
+      - tests/execution/test_period_over_period.py
+      - tests/unit/test_emit/test_period_over_period.py
+      - tests/unit/test_guardrails/test_metrics.py
+      - tests/unit/test_planner/test_metricflow_planner.py
+  - id: D-6
+    grade: LOCKED
+    text: >-
+      **A cumulative metric is `additive` and keeps its own measure.** The additivity
+      describes the measure, the window describes the accumulation over time. Declaring
+      it `non_additive` would trip `NonAdditiveWithoutComponents` with nothing to
+      decompose into, which is the guard doing its job on a metric that has misdescribed
+      itself.
+    paths:
+      - src/bloomery/guardrails/metrics.py
+      - tests/unit/test_guardrails/test_metrics.py
+  - id: D-7
+    grade: LOCKED
+    text: >-
+      **`derived:` and `cumulative:` on one metric is refused.** A derived metric
+      has no measure and a cumulative window accumulates one; the combination names
+      two mutually exclusive shapes, and MetricFlow has no type for it. Refused by
+      name at the guardrail stage rather than left to produce an invalid manifest.
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/guardrails/metrics.py
+      - tests/unit/test_guardrails/test_metrics.py
+  - id: D-8
+    grade: LOCKED
+    text: >-
+      **A metric filter is a typed predicate list — `{dimension, op, values}` — and
+      never a SQL string.** A string would be dialect-bound, unvalidatable against
+      the column's declared type, and an injection surface in a compiler whose input
+      may be untrusted. The list is ANDed; a disjunction is expressed as `in`.
+    paths:
+      - src/bloomery/emit/lower/predicates.py
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/planner/explain.py
+      - src/bloomery/semantic/additivity.py
+      - src/bloomery/spec/common.py
+      - src/bloomery/spec/metrics.py
+      - tests/execution/test_period_over_period.py
+      - tests/golden/schema/catalog.json
+      - tests/golden/schema/metrics.json
+      - tests/unit/test_emit/test_period_over_period.py
+      - tests/unit/test_semantic/test_ratio_rows.py
+      - tests/unit/test_spec/test_metrics.py
+  - id: D-9
+    grade: LOCKED
+    text: >-
+      **A filter's dimension is checked against every mart listing the metric, at
+      the guardrail stage.** Not at emit: a filter naming a column no mart flattens
+      is a *model* error, decidable from the spec, and it should fail with the batched
+      aggregate every other model error joins. Checking every listing mart rather
+      than the owning one avoids reaching for the ownership rule from a layer below
+      the module that defines it, and is a superset of what correctness needs.
+    paths:
+      - src/bloomery/emit/lower/predicates.py
+      - src/bloomery/errors.py
+      - src/bloomery/guardrails/metrics.py
+      - src/bloomery/semantic/additivity.py
+      - tests/fixtures/period_over_period/entity_model.yaml
+      - tests/unit/test_guardrails/test_metrics.py
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      **The filter operator set is `eq, ne, in, not_in, gt, gte, lt, lte, is_null`
+      — no `like`/`ilike`.** Patterns need the `\` escape language, an `ESCAPE` clause
+      and a case-folding portability argument, all for a construct rare in a metric
+      definition. Adding them later is additive.
+    paths: [src/bloomery/spec/metrics.py]
+  - id: D-11
+    grade: LOCKED
+    text: >-
+      **Cube refuses derived and cumulative metrics per construct with `UnsupportedByTarget`,
+      and emits metric filters.** Period-over-period is a query-time concern in Cube,
+      and `grain_to_date` has no `rolling_window` equivalent. Refusing the offset-free
+      derived case too — which `{member}` templating could express — keeps one rule
+      where support-that-depends-on-an-offset would need two, and the ratio form still
+      covers division.
+    paths:
+      - tests/golden/test_metricflow_manifest.py
+      - tests/unit/test_emit/test_period_over_period.py
+  - id: D-12
+    grade: LOCKED
+    text: >-
+      **The metric-filter operator vocabulary is defined in the spec layer and is
+      *not* shared with `planner.request.Op`.** They are different facts: one is what
+      a request may ask, the other what a definition may pin, and the request set
+      carries `like`/`ilike` this one refuses. Stated as a decision rather than left
+      as an accident, because a future reader will see two enums and reach for the
+      merge.
+    paths: [src/bloomery/spec/metrics.py]
+  - id: D-13
+    grade: LOCKED
+    text: >-
+      **String values in a metric filter refuse `{` and `}`, at parse.** Both semantic
+      targets template with braces — Jinja on MetricFlow, `{member}` on Cube — and
+      a value carrying one would need per-target neutralization. One refusal beats
+      two escaping rules that can disagree; a curly brace in a filtered dimension
+      value has no BI use worth the divergence. At parse rather than at the guardrail
+      because it is a property of the document alone, which is where S-0019/D-4 draws
+      that line — unlike D9's dimension check, which needs the marts. NUL and floats
+      are refused in the same validator, for the reasons they are refused everywhere
+      else.
+    paths:
+      - src/bloomery/emit/lower/predicates.py
+      - src/bloomery/spec/metrics.py
+      - tests/unit/test_spec/test_metrics.py
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      **`bloomery_ir_version` 8 → 9.** `MetricIR` gains fields; the canonical encoder
+      writes each dataclass's field names and count, so every project carrying a metric
+      re-fingerprints whether or not it uses any of this. `plan()` refuses to diff
+      a v8 IR against a v9 one.
+    paths: [src/bloomery/ir/nodes.py]
+  - id: D-15
+    grade: LOCKED
+    text: >-
+      **The filter renderer lives once, in `emit/lower/predicates.py`, parameterized
+      by the target's column spelling.** Each target supplies how it names a column
+      — `{{ Dimension('e__c') }}` for MetricFlow, `{CUBE}.c` for Cube — and the comparison
+      syntax, list rendering and literal escaping are shared. Two renderers would
+      be the same injection-safety rules spelled twice, which is the defect class
+      this project keeps finding in itself.
+    paths:
+      - src/bloomery/emit/lower/predicates.py
+      - tests/unit/test_emit/test_period_over_period.py

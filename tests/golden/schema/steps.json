@@ -51,7 +51,7 @@
     },
     "Repair": {
       "additionalProperties": false,
-      "description": "The repair-recipe contract D17 gated the disposition on (RFC 0016 D87).\n\n``via`` names a registered Tier 1 ``sql_macro`` as ``ref@version``, which\nsettles \u00a710's open question \u2014 *inline vs catalog-referenced* \u2014 in favour of\nreferenced, and not by preference: D1 holds that specs reference\nimplementations and never contain them, and RFC 0017's registry is where a\nreferenced implementation already lives, with a version, a declared\nsignature, a ``runtime_lock`` and a trust-then-verify contract. An inline\nrecipe would have been a second, weaker copy of all of that, reachable only\nfrom here.\n\n``fallback`` is the disposition for a row the recipe did **not** fix, and\nit is required for the same reason ``on_fail`` is (D2): a repair that\nsilently kept a still-broken value would be the ``drop`` this RFC refuses,\nwearing a friendlier name. It cannot itself be ``repair`` \u2014 a second\nattempt at the same value with the same recipe returns the same answer.",
+      "description": "The repair-recipe contract D17 gated the disposition on (S-0033/D-87).\n\n``via`` names a registered Tier 1 ``sql_macro`` as ``ref@version``, which\nsettles \u00a710's open question \u2014 *inline vs catalog-referenced* \u2014 in favour of\nreferenced, and not by preference: D1 holds that specs reference\nimplementations and never contain them, and S-0034's registry is where a\nreferenced implementation already lives, with a version, a declared\nsignature, a ``runtime_lock`` and a trust-then-verify contract. An inline\nrecipe would have been a second, weaker copy of all of that, reachable only\nfrom here.\n\n``fallback`` is the disposition for a row the recipe did **not** fix, and\nit is required for the same reason ``on_fail`` is (D2): a repair that\nsilently kept a still-broken value would be the ``drop`` this RFC refuses,\nwearing a friendlier name. It cannot itself be ``repair`` \u2014 a second\nattempt at the same value with the same recipe returns the same answer.",
       "properties": {
         "fallback": {
           "enum": [
@@ -211,7 +211,7 @@
   "$id": "https://morzecrew.github.io/bloomery/schemas/v1/steps.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "The ``steps:`` document \u2014 the sixth spec kind (RFC 0002 \u00a75.2).\n\nIts own document rather than a block inside the entity model because a\nstep is not an entity: it is a referenced implementation that *produces*\nentities, and mixing the two would put platform-owned wiring inside the\nfile spec authors edit most.",
+  "description": "The ``steps:`` document \u2014 the sixth spec kind (S-0019/the-base-model).\n\nIts own document rather than a block inside the entity model because a\nstep is not an entity: it is a referenced implementation that *produces*\nentities, and mixing the two would put platform-owned wiring inside the\nfile spec authors edit most.",
   "properties": {
     "steps": {
       "default": [],

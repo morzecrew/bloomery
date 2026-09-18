@@ -1,5 +1,5 @@
-"""Engine tier (RFC 0009 §5.2 tier 5): ``normalize`` and ``charset`` on real
-PostgreSQL (RFC 0016 D86).
+"""Engine tier (S-0026/tier-contracts tier 5): ``normalize`` and ``charset`` on real
+PostgreSQL (S-0033/D-86).
 
 Both rules rest on a claim about *engines*, not about SQL: that Postgres spells
 ``NORMALIZE(x, NFC)`` the way the dialect-neutral node renders, and that its
@@ -10,7 +10,7 @@ engine, at the port, with the *same predicate the emitter emits*.
 
 Trino was verified the same way against ``trinodb/trino:483`` and agrees on
 every row below; it has no permanent tier here only because the repository
-carries no Trino client dependency (RFC 0009's outstanding work).
+carries no Trino client dependency (S-0026's outstanding work).
 
 Opt-in (Docker required); excluded from ``just test``.
 """

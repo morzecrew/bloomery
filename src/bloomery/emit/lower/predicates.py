@@ -1,10 +1,10 @@
-"""Audit predicates and literal spellings (RFC 0006 §5.6/D7).
+"""Audit predicates and literal spellings (S-0023/range-sanity, S-0023/D-7).
 
 The base of the lowering package: a value's SQL literal form and the predicate
 an audit tests it with. Every other stage may read these; they read nothing.
 
 Also home to the two predicates the *semantic* targets share — the as-of
-interval (RFC 0023 D6) and a metric filter (RFC 0034 D15) — for the same
+interval (S-0040/D-6) and a metric filter (S-0050/D-15) — for the same
 reason: each is one construct that two callers spell, and a construct spelled
 twice is one that drifts.
 """
@@ -31,7 +31,7 @@ from bloomery.typing import (
 )
 
 # ....................... #
-# Audit predicates (RFC 0006 §5.6/D7)
+# Audit predicates (S-0023/range-sanity, S-0023/D-7)
 
 
 def column_type(entity: EntityIR, name: str) -> LogicalType:
@@ -57,21 +57,21 @@ def column_type(entity: EntityIR, name: str) -> LogicalType:
 #: space, a trailing ``Z`` and an explicit offset, so substituting one character
 #: fixes one of four inputs. The value is parsed and re-rendered instead.
 #:
-#: An offset is *converted*, not dropped: RFC 0028 makes ``timestamp`` zoneless
+#: An offset is *converted*, not dropped: S-0045 makes ``timestamp`` zoneless
 #: UTC on every port, so ``2024-01-01T09:00:00+02:00`` is the instant
 #: ``2024-01-01 07:00:00`` and comparing it as though it were 09:00 would be
 #: wrong by the offset. Refusing the spelling instead would lose a legitimate
 #: one for no gain.
 #:
-#: One rule, both callers: an audit bound (RFC 0006 §5.6) and a metric filter
-#: (RFC 0034 D8) build the same construct — a text literal cast to the column's
+#: One rule, both callers: an audit bound (S-0023/range-sanity) and a metric filter
+#: (S-0050/D-8) build the same construct — a text literal cast to the column's
 #: neutral type — and the audit path carried the un-normalized form too,
 #: pre-existing and unexercised because no fixture asserts a ``min``/``max`` on
 #: a timestamp column.
 #:
 #: Rendered with ``isoformat`` rather than ``strftime``: ``%Y`` delegates year
 #: padding to the C library, which is free to write ``1-01-01`` for year 1, and
-#: RFC 0003 requires the same specs to produce byte-identical artifacts *across
+#: S-0020 requires the same specs to produce byte-identical artifacts *across
 #: machines*. It does pad on this platform — the point is that nothing promises
 #: it will on the next one, and ``isoformat`` needs no promise. It also picks
 #: the microsecond suffix itself, so there is no second branch to keep in step.
@@ -85,7 +85,7 @@ def _temporal_text(value: str, declared: LogicalType) -> str:
     and rewriting it there would silently change what the comparison matches.
 
     A value that does not parse is returned untouched — the metric-filter
-    guardrail has already refused those (RFC 0034 D9), and an audit bound has
+    guardrail has already refused those (S-0050/D-9), and an audit bound has
     its own validation, so this is not the place to invent a second refusal.
     """
 
@@ -131,10 +131,10 @@ def text_literal(value: str) -> Expression:
 
     Here rather than at the call site because the emitters import no SQLGlot —
     every value they place reaches them pre-rendered through this package
-    (RFC 0008 D4) — and because the quoting and escaping are SQLGlot's rather
+    (S-0025/D-4) — and because the quoting and escaping are SQLGlot's rather
     than a second implementation per target. What needs it is metadata an
     author writes freely and no grammar constrains: an ``owner`` is a person,
-    and people are spelled ``o'brien@example.com`` (RFC 0055 D8).
+    and people are spelled ``o'brien@example.com`` (S-0062/D-8).
     """
 
     return exp.Literal.string(value)
@@ -183,7 +183,7 @@ def audit_predicate(entity: EntityIR, audit: AuditIR, *, violations: bool) -> Ex
         matches = exp.RegexpLike(this=column, expression=exp.Literal.string(params["pattern"]))
         return exp.Not(this=matches) if violations else matches
 
-    # "reconcile" — the only remaining custom kind (RFC 0006 D7): row-level
+    # "reconcile" — the only remaining custom kind (S-0023/D-7): row-level
     # disagreement between the derived column and its __direct shadow.
     shadow = exp.column(params["shadow"])
 
@@ -194,7 +194,7 @@ def audit_predicate(entity: EntityIR, audit: AuditIR, *, violations: bool) -> Ex
 
 
 # ....................... #
-# The as-of predicate (RFC 0023 §5.3/§5.4, D6)
+# The as-of predicate (S-0040/phase-2-the-as-of-join, S-0040/phase-2-currency-as-a-declared-relation, S-0040/D-6)
 
 
 def as_of_conditions(
@@ -206,7 +206,7 @@ def as_of_conditions(
     the instant another becomes valid matches exactly one of them rather than
     both.
 
-    One function because there is one construct. RFC 0023 D6 kept the SCD2
+    One function because there is one construct. S-0040/D-6 kept the SCD2
     as-of join and the FX rate lookup in a single document precisely so they
     would not be designed apart, and they differ only in what they name: a
     mart's join reads a dimension's ``valid_from``/``valid_to`` under the join
@@ -239,7 +239,7 @@ def as_of_conditions(
 
 
 # ....................... #
-# The metric-filter predicate (RFC 0034 D8, D15)
+# The metric-filter predicate (S-0050/D-8, S-0050/D-15)
 
 #: The comparison operators, spelled once. ``in``/``not_in`` and ``is_null``
 #: are shapes rather than infix operators and are built below.
@@ -262,7 +262,7 @@ def _metric_filter_literal(value: str | int | bool | Decimal, declared: LogicalT
         Cannot apply operator: decimal(12,4) <= varchar(4)
         Cannot apply operator: date <= varchar(10)
 
-    So a filter on a decimal column written through the string carrier RFC 0015
+    So a filter on a decimal column written through the string carrier S-0032
     D5 established — ``"50.00"``, which is how an exact decimal is written in
     YAML — and a filter on any date or timestamp column were both broken on
     Trino, and worked on DuckDB and PostgreSQL only by implicit cast. Numbers
@@ -272,7 +272,7 @@ def _metric_filter_literal(value: str | int | bool | Decimal, declared: LogicalT
 
     ``bool`` precedes ``int`` because it is a subclass of one. Strings double
     their quotes; they cannot carry a NUL or a template brace, both refused at
-    parse (RFC 0034 D13) rather than escaped per target, so this needs no
+    parse (S-0050/D-13) rather than escaped per target, so this needs no
     target-specific neutralization and stays shareable.
     """
 
@@ -286,7 +286,7 @@ def _metric_filter_literal(value: str | int | bool | Decimal, declared: LogicalT
 
     if isinstance(declared, (IntType, DecimalType)):
         # The string carrier for a number the guardrail has already parsed
-        # (RFC 0034 D9) — it reaches SQL as the number it carries.
+        # (S-0050/D-9) — it reaches SQL as the number it carries.
         return escaped
 
     if isinstance(declared, StringType):
@@ -304,7 +304,7 @@ def _metric_filter_literal(value: str | int | bool | Decimal, declared: LogicalT
 def mart_column_type(mart: MartIR, column: str) -> LogicalType:
     """The declared type of one mart column — what a metric filter's literal is
     rendered as. The guardrail has already established that the column exists
-    and that the values fit it (RFC 0034 D9)."""
+    and that the values fit it (S-0050/D-9)."""
 
     return guaranteed(
         (candidate.type for candidate in mart.columns if candidate.name == column),
@@ -318,7 +318,7 @@ def mart_column_type(mart: MartIR, column: str) -> LogicalType:
 
 def metric_filter_sql(clause: MetricFilterIR, *, ref: str, declared: LogicalType) -> str:
     """One metric-filter clause as SQL text, over the target's own spelling of
-    the column reference (RFC 0034 D15).
+    the column reference (S-0050/D-15).
 
     ``ref`` is what the target writes where a column goes —
     ``{{ Dimension('order_item__status') }}`` in a MetricFlow where-filter,

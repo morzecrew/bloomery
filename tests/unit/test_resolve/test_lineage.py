@@ -1,10 +1,10 @@
-"""Lineage traversal (RFC 0031 §6): the sub-DAG shape, the depth boundary and
+"""Lineage traversal (S-0048/tests): the sub-DAG shape, the depth boundary and
 its ``truncated`` flag, and determinism of the emitted order.
 
 Graphs here are hand-built. The traversal's contract is about *shape* — a
 diamond, a chain, a leaf — and building those from fixtures would couple every
 assertion to whichever project happens to have the shape today, which is the
-coupling RFC 0031 D6 already records as having cost the label table two rows.
+coupling S-0048/D-6 already records as having cost the label table two rows.
 """
 
 from __future__ import annotations
@@ -150,7 +150,7 @@ def test_bounded_to_nothing_and_nothing_there_are_different_facts() -> None:
 
     Both calls return one node and no edges, and only one of them stopped
     looking. Without this the flag would say "partial" for an answer that is
-    complete, which is the mirror of the failure RFC 0022 D5 names.
+    complete, which is the mirror of the failure S-0039/D-5 names.
     """
     assert lineage(CHAIN, node("a"), Direction.UPSTREAM, max_depth=0).truncated is False
     assert lineage(CHAIN, node("d"), Direction.UPSTREAM, max_depth=0).truncated is True
@@ -179,7 +179,7 @@ def test_a_negative_max_depth_raises() -> None:
 
 
 # ....................... #
-# Determinism (RFC 0003 §5.3): the visited set is where this breaks
+# Determinism (S-0020/ordering-rules): the visited set is where this breaks
 
 
 def test_order_is_stable_across_calls_and_matches_the_declared_sort() -> None:
@@ -195,7 +195,7 @@ def test_order_is_stable_across_calls_and_matches_the_declared_sort() -> None:
 
 def test_order_does_not_depend_on_the_hash_seed() -> None:
     """The walk holds a ``set`` of visited nodes, and a set iterated into
-    output is precisely what RFC 0003 bans. Two interpreters with different
+    output is precisely what S-0020 bans. Two interpreters with different
     hash seeds must agree byte for byte."""
     import subprocess
     import sys
@@ -396,7 +396,7 @@ def test_two_nodes_sharing_a_name_have_separate_lineages() -> None:
     The two walks are genuinely different here: the entity field reaches back to
     the source column it is mapped from, while the metric `revenue` is an
     `agg: count` over `metric_id` with no `requires`, so its upstream is empty
-    and a bare root is the right answer (RFC 0031 §5.5).
+    and a bare root is the right answer (S-0048/cli).
     """
     graph = resolve(load_project(COLLIDING_ID_SOURCES)).graph
 

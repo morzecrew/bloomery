@@ -1,5 +1,5 @@
 """One relationship with two implementations, asserted to agree
-(RFC 0031 §6, D7).
+(S-0048/tests, S-0048/D-7).
 
 The battery does not test `lineage()` alone. It pins a fact that is computed
 twice in this tree by different code reading the same graph, which is the
@@ -10,7 +10,7 @@ check would not say which.
   block a metric. The same leaves are the unavailable canonical fields in that
   metric's upstream lineage — the negative case of the general walk.
 
-**Provenance used to be the second pair, and is not one any more.** RFC 0031 D7
+**Provenance used to be the second pair, and is not one any more.** S-0048/D-7
 shipped `_field_provenance`'s parallel read of `entity.fields[...].canonical`
 beside the graph's `canonical` edges with a test holding them to the same 146
 answers, so that unifying them later would be a refactor rather than a

@@ -1,27 +1,27 @@
-"""Hydration and caching of the planner artifact (RFC 0014): the
+"""Hydration and caching of the planner artifact (S-0031): the
 :class:`HydrationKey`, the pure L2 codec (:func:`build_manifest_bytes` /
 :func:`hydrate_manifest`), and the in-process :class:`LruManifestHydrator`
 the planner takes.
 
 The planner artifact is MetricFlow's own **post-transform** manifest
-(RFC 0014 D1, superseding RFC 0012's ``CompiledSemantic``): L2 is its JSON
+(S-0031/D-1, superseding S-0029's ``CompiledSemantic``): L2 is its JSON
 (~145 KB) stored by the *caller* — bloomery defines only the key and the
 bytes, never the store (hard invariant #1, no I/O; the one seam is the
 injected ``fetch_l2`` callable, owned and executed by the caller); L1 is the
 hydrated ``SemanticManifestLookup`` (~1.6 MB) in the in-process LRU here.
 Storing post-transform is load-bearing: cold hydration is exactly
 ``parse_raw`` + lookup construction (10.5 ms measured at 30 models —
-RFC 0014 §5.5; budgets 50 ms cold / 10 ms warm, asserted in
+S-0031/budgets; budgets 50 ms cold / 10 ms warm, asserted in
 ``tests/bench/test_hydration.py``). Serialization is the emitter's
-sorted-keys JSON — **never pickle** (RFC 0014 D5).
+sorted-keys JSON — **never pickle** (S-0031/D-5).
 
-Version mismatch is a cache **miss by construction** (RFC 0014 D7): the
+Version mismatch is a cache **miss by construction** (S-0031/D-7): the
 bloomery and MetricFlow versions live in the key, read once at import into
 module constants (a pure metadata lookup — no clock, no env), so a bump
 changes every key and old entries are simply never looked up again.
 
 The LRU is the package's one deliberately confined piece of mutable state
-(RFC 0014 D8): ``runtime/`` performs no I/O and is kept out of the compile
+(S-0031/D-8): ``runtime/`` performs no I/O and is kept out of the compile
 path by the import-linter contract — only ``planner/`` may reach it.
 """
 
@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, Final
 
-# RFC 0013 §5.9a: keep a module that finishes
+# S-0030/what-is-superseded-and-the-boundary-that-makes-it-reversible (§5.9a): keep a module that finishes
 # ``metricflow_semantic_interfaces.protocols`` the first MSI import — see
 # ``bloomery.emit.metricflow`` for the circular-import account.
 from metricflow_semantic_interfaces.implementations.semantic_manifest import (
@@ -64,10 +64,10 @@ __all__ = [
     "hydration_key",
 ]
 
-#: Hydration telemetry (RFC 0033 §4). DEBUG only — see :meth:`_hydrate`.
+#: Hydration telemetry (S-0004 (§4)). DEBUG only — see :meth:`_hydrate`.
 _LOG = logging.getLogger("bloomery.runtime")
 
-#: Read once at import into constants (RFC 0014 D2/D7): the versions are
+#: Read once at import into constants (S-0031/D-2, S-0031/D-7): the versions are
 #: cache-key components, never per-call environment reads.
 _BLOOMERY_VERSION: Final[str] = importlib.metadata.version("bloomery")
 _METRICFLOW_VERSION: Final[str] = importlib.metadata.version("metricflow")
@@ -75,7 +75,7 @@ _METRICFLOW_VERSION: Final[str] = importlib.metadata.version("metricflow")
 
 @dataclass(frozen=True, slots=True)
 class HydrationKey:
-    """The one cache key covering all three invalidation axes (RFC 0014 D2):
+    """The one cache key covering all three invalidation axes (S-0031/D-2):
     a spec edit, a bloomery bump, or a MetricFlow bump each change the key,
     so stale entries are unreachable — a miss, never an error."""
 
@@ -102,9 +102,9 @@ def hydration_key(ir: ProjectIR) -> HydrationKey:
 
 def build_manifest_bytes(ir: ProjectIR, *, naming: NamingPolicy) -> bytes:
     """The L2 payload: the **post-transform** manifest's sorted-keys JSON
-    (``emit_manifest`` returns transformed — RFC 0013 R1), UTF-8 encoded.
+    (``emit_manifest`` returns transformed — S-0030 R1), UTF-8 encoded.
     Pure and deterministic; byte determinism is the emitter's golden-tested
-    contract (RFC 0014 §6)."""
+    contract (S-0031/tests)."""
 
     return manifest_json(emit_manifest(ir, naming=naming)).encode("utf-8")
 
@@ -114,10 +114,10 @@ def build_manifest_bytes(ir: ProjectIR, *, naming: NamingPolicy) -> bytes:
 
 def hydrate_manifest(data: bytes, *, prewarm: bool = False) -> SemanticManifestLookup:
     """L2 bytes → the hydrated lookup: ``parse_raw`` + construction, no
-    transform (L2 stores post-transform — RFC 0014 D3).
+    transform (L2 stores post-transform — S-0031/D-3).
 
     ``prewarm=True`` issues one throwaway render-only ``explain()`` against
-    the first metric (RFC 0014 D9): ``SemanticManifestLookup`` defers ~6 ms
+    the first metric (S-0031/D-9): ``SemanticManifestLookup`` defers ~6 ms
     of graph work to the first query; absorbing it here keeps first-query
     latency out of the warm path. Metric-less manifests skip it.
     """
@@ -138,14 +138,14 @@ def hydrate_manifest(data: bytes, *, prewarm: bool = False) -> SemanticManifestL
 
 
 class LruManifestHydrator:
-    """The default in-process L1 (RFC 0014 D3/D6): an LRU of hydrated lookups
+    """The default in-process L1 (S-0031/D-3, S-0031/D-6): an LRU of hydrated lookups
     keyed by :class:`HydrationKey`.
 
     A miss first consults the caller-injected ``fetch_l2`` (the caller's I/O —
     bloomery performs none); when absent or empty it rebuilds from the IR via
     :func:`build_manifest_bytes`. ``hits``/``misses`` are plain counters the
     caller polls into its own metrics system — no observability dependency
-    (RFC 0014 D6).
+    (S-0031/D-6).
 
     The LRU itself is :func:`functools.lru_cache`, per instance: the eviction
     order, the bound, and the hit/miss counters are all what it already ships,
@@ -237,7 +237,7 @@ class LruManifestHydrator:
         partitions exactly as the key alone did: equal IRs hash and compare
         equal, unequal IRs already have unequal fingerprints. The pair is not
         redundant, though — it is what keeps the version axes in the key
-        (RFC 0014 D2/D7), which an IR-only cache would have quietly dropped.
+        (S-0031/D-2, S-0031/D-7), which an IR-only cache would have quietly dropped.
         """
         data = self._fetch_l2(key) if self._fetch_l2 is not None else None
 

@@ -1,5 +1,5 @@
-"""The Postgres dialect (RFC 0008 D5): the relational-engine port of the M10
-port-validation milestone, and the engine-tier execution dialect (RFC 0009
+"""The Postgres dialect (S-0025/D-5): the relational-engine port of the M10
+port-validation milestone, and the engine-tier execution dialect (S-0026
 §5.2 tier 5)."""
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ class PostgresDialect(SQLGlotDialect):
 
     name: str = "postgres"
     sqlglot_dialect: str = "postgres"
-    #: Everything, since RFC 0016 D84 gave ``TRY_CAST`` a Postgres spelling.
+    #: Everything, since S-0033/D-84 gave ``TRY_CAST`` a Postgres spelling.
     #: Postgres has no ``TRY_CAST`` keyword and SQLGlot's generator quietly
     #: renders one as a plain ``CAST``; :meth:`render` rewrites it instead
     #: into a guard around Postgres' *own* input parser, so the accept/reject
@@ -94,7 +94,7 @@ class PostgresDialect(SQLGlotDialect):
         shares ASTs across dialects).
 
         ``TRY_CAST`` becomes a guard around Postgres' own input parser
-        (RFC 0016 D84) — see :func:`_guarded_try_cast`.
+        (S-0033/D-84) — see :func:`_guarded_try_cast`.
 
         SQLGlot's postgres generator renders extraction as
         ``JSON_EXTRACT_PATH_TEXT(...)``, which exists only for the ``json``
@@ -105,12 +105,12 @@ class PostgresDialect(SQLGlotDialect):
         :func:`_jsonb_extraction` instead.
 
         The ISO-text marker strips to nothing: Postgres' own cast takes both
-        ISO spellings, so there is nothing for this port to add (RFC 0027).
+        ISO spellings, so there is nothing for this port to add (S-0044).
         """
 
         def utc(interpretation: Expression) -> Expression:
             # `<tstz> AT TIME ZONE 'UTC'` yields a zoneless TIMESTAMP holding
-            # the UTC wall clock, identically under any session (RFC 0028 §3).
+            # the UTC wall clock, identically under any session (S-0045/the-fix-and-why-it-is-not-a-choice).
             return exp.AtTimeZone(this=interpretation, zone=exp.Literal.string("UTC"))
 
         # Before `_pg_text_functions`, which has to read the capture group to
@@ -150,7 +150,7 @@ class PostgresDialect(SQLGlotDialect):
         Postgres' ``sha256`` takes and returns ``bytea``, so the plain
         spelling does not fail — it silently yields *bytes* where every other
         dialect yields a hex string, which would make ``reject_id`` disagree
-        across engines while looking like it worked (RFC 0016 D83). Verified
+        across engines while looking like it worked (S-0033/D-83). Verified
         against postgres 16 to equal the digest DuckDB returns directly.
         """
         encoded = exp.func("CONVERT_TO", value, exp.Literal.string("UTF8"))
@@ -178,18 +178,18 @@ class PostgresDialect(SQLGlotDialect):
 
 
 #: Datetime inputs Postgres accepts whose value depends on *when the query
-#: runs* — they resolve to the transaction timestamp (RFC 0016 D84).
+#: runs* — they resolve to the transaction timestamp (S-0033/D-84).
 #:
 #: A bronze cell literally spelling ``now`` would otherwise coerce to a
 #: different value on every run, so a backfill would disagree with the run it
-#: replaces — the one thing RFC 0003 exists to prevent. Refusing them makes
+#: replaces — the one thing S-0020 exists to prevent. Refusing them makes
 #: such a cell a *coercion failure*, which the ``coercible`` rule then
 #: disposes of like any other bad value: a quarantined row rather than a
 #: silently unstable one. ``epoch``, ``infinity`` and ``-infinity`` are
 #: constants and stay accepted.
 _RUN_DEPENDENT: Final[tuple[str, ...]] = ("now", "today", "tomorrow", "yesterday")
 
-#: The deny-list as an anchored pattern, whitespace included (RFC 0016 D93).
+#: The deny-list as an anchored pattern, whitespace included (S-0033/D-93).
 #:
 #: It was ``LOWER(BTRIM(value)) IN (...)``, and bare ``BTRIM`` removes *spaces
 #: only*. Verified on PostgreSQL 16: ``'now\t'``, ``'now\n'`` and ``'now\r'``
@@ -238,7 +238,7 @@ def _jsonb_extraction(node: Expression) -> Expression:
     """``json_path`` extraction, kept in ``jsonb`` end to end and whole.
 
     ``variant`` is ``JSONB`` on this port, so a transform declared to produce
-    one has to produce one, and neither shipped spelling did (RFC 0029 §2.4):
+    one has to produce one, and neither shipped spelling did (S-0046/what-was-measured (§2.4)):
     a path deeper than one key went through ``CAST(x AS JSON)`` and
     ``json_extract_path``, which return **json**, and a single-key path over a
     ``string`` column rendered ``s -> 'a'``, for which PostgreSQL has no
@@ -282,7 +282,7 @@ def _pg_text_functions(node: Expression) -> Expression:
     """Two text functions PostgreSQL does not have, in spellings it does.
 
     Both were emitted verbatim and failed at plan time with ``42883``
-    (RFC 0029 §2.3) — a whitelisted transform that compiles clean and dies on
+    (S-0046/what-was-measured (§2.3)) — a whitelisted transform that compiles clean and dies on
     the first run, on a shipped dialect.
 
     ``ENDS_WITH(x, s)`` → ``RIGHT(x, LENGTH(s)) = s``. PostgreSQL has
@@ -296,13 +296,13 @@ def _pg_text_functions(node: Expression) -> Expression:
     PostgreSQL 16 has no ``regexp_extract`` at all; ``regexp_substr``'s sixth
     argument is the capture group, so the group index survives rather than
     being dropped the way SQLGlot's duckdb and trino generators dropped it
-    (RFC 0028 D5). Verified equal to DuckDB for group 0 and group 1. A
+    (S-0045/D-5). Verified equal to DuckDB for group 0 and group 1. A
     non-match returns NULL here and ``''`` on DuckDB, which is the divergence
     ``regex_extract`` already declares by carrying ``nullifies=True`` on the
     portable reading.
 
     ``regexp_substr`` arrived in PostgreSQL 15 and ``pg_input_is_valid``
-    (RFC 0016 D84) already puts this port's floor at 16, so nothing new is
+    (S-0033/D-84) already puts this port's floor at 16, so nothing new is
     required of the engine.
     """
 
@@ -336,7 +336,7 @@ def _zoneless_parse(node: Expression) -> Expression:
     """``TO_TIMESTAMP(x, fmt)`` → ``CAST(TO_TIMESTAMP(x, fmt) AS TIMESTAMP)``.
 
     ``parse_ts`` parses a *local wall clock*; ``to_utc`` is the only door into
-    the always-UTC ``timestamp`` type (RFC 0004 §5.1), so the value this step
+    the always-UTC ``timestamp`` type (S-0021/logical-types-bloomery-typing-types-py), so the value this step
     produces must be the clock that was written, zoneless. PostgreSQL's
     ``to_timestamp(text, text)`` instead returns ``timestamptz``, having
     attached the **session** zone to the parsed clock — so the same row stored
@@ -350,11 +350,11 @@ def _zoneless_parse(node: Expression) -> Expression:
     the written clock comes back unchanged under every session.
 
     ``AT TIME ZONE 'UTC'`` — the spelling that fixed the zone-aware value in
-    RFC 0028 — is the wrong tool here and was measured to prove it: it reads
+    S-0045 — is the wrong tool here and was measured to prove it: it reads
     the value in UTC rather than undoing the session attachment, giving
     ``09:30`` under Pacific/Kiritimati and ``2026-01-07 07:30`` under
     America/Los_Angeles for the same input. It looks like the neighbouring fix
-    and moves the clock (RFC 0029 §2.4).
+    and moves the clock (S-0046/what-was-measured (§2.4)).
 
     ``parse_date``'s ``TO_DATE`` needs none of this: it returns ``date``, which
     has no zone to attach.

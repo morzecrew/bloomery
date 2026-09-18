@@ -1,8 +1,8 @@
-"""MetricFlow emitter properties (RFC 0013 §6): the transformed manifest's
+"""MetricFlow emitter properties (S-0030/tests): the transformed manifest's
 sorted-keys JSON is byte-stable under permuted spec document order (the
-manifest is hashed and cached — RFC 0014; ordering drift would silently
+manifest is hashed and cached — S-0031; ordering drift would silently
 defeat the cache), and every emitted dimension round-trips through
-``DimensionRef.qualified`` (the pre-``names.py`` half of the RFC 0013 D7
+``DimensionRef.qualified`` (the pre-``names.py`` half of the S-0030/D-7
 bridge property; M7 owns the full round-trip)."""
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def test_manifest_json_is_invariant_under_mart_document_order(order: list[str]) 
 def test_emitted_dimensions_round_trip_through_dimension_ref(name: str) -> None:
     """Every dimension the emitter produces is a mart dimension whose
     ``DimensionRef.qualified`` equals the emitted name — the emitter and the
-    (M7) name bridge must agree on flattened names (RFC 0013 D7)."""
+    (M7) name bridge must agree on flattened names (S-0030/D-7)."""
     project, catalog = load_fixture(name)
     ir = build_project_ir(project, catalog)
     manifest = emit_manifest(ir, naming=DefaultNaming())

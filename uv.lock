@@ -167,7 +167,7 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "sqlmesh" },
-    { name = "torve", marker = "python_full_version >= '3.13'" },
+    { name = "torve", extra = ["postgres"], marker = "python_full_version >= '3.13'" },
     { name = "types-pyyaml" },
     { name = "vulture" },
     { name = "zizmor" },
@@ -213,7 +213,7 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.6" },
     { name = "ruff", specifier = ">=0.11" },
     { name = "sqlmesh", specifier = ">=0.150" },
-    { name = "torve", marker = "python_full_version >= '3.13'", git = "https://github.com/morzecrew/torve?branch=main" },
+    { name = "torve", extras = ["postgres"], marker = "python_full_version >= '3.13'", git = "https://github.com/morzecrew/torve?branch=main" },
     { name = "types-pyyaml", specifier = ">=6.0.12" },
     { name = "vulture", specifier = ">=2.14" },
     { name = "zizmor", specifier = ">=1.5" },
@@ -833,6 +833,12 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/71/f0/8d7562501047fb24a6f4c07ef9cd1b152d7d61cd44581fb37817638ff32b/forze-0.7.0.tar.gz", hash = "sha256:5d2e6b0f516d637a691ae1acd10b71c72f06db5781f93933ebda42011fe45668", size = 5382125, upload-time = "2026-09-10T15:08:17.358Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/62/60/551a4d0c13b8e4b1af091875d44ec0b08ec1e8a3d05f736050e4dcc11852/forze-0.7.0-py3-none-any.whl", hash = "sha256:b7fc4f56e7e204b5fc237effc7512c760937e547d3db9119696359558588d310", size = 3633294, upload-time = "2026-09-10T15:08:15.341Z" },
+]
+
+[package.optional-dependencies]
+postgres = [
+    { name = "psycopg", extra = ["binary"], marker = "python_full_version >= '3.13'" },
+    { name = "psycopg-pool", marker = "python_full_version >= '3.13'" },
 ]
 
 [[package]]
@@ -1992,6 +1998,18 @@ wheels = [
 ]
 
 [[package]]
+name = "psycopg-pool"
+version = "3.3.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions", marker = "python_full_version >= '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f9/7f/1e54512e817442017efa6f7b4c663bc769abd3ff2b62adb910190fc4731d/psycopg_pool-3.3.2.tar.gz", hash = "sha256:0c70903c7f50cd7173ef0f6364bb7c9271fa3810f5746e058449a77afe579f49", size = 31912, upload-time = "2026-09-18T13:22:59.127Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c4/39/7dd00f3570b8847b20da54c98c9388b166967625723bc36dd01e1ab1d64f/psycopg_pool-3.3.2-py3-none-any.whl", hash = "sha256:96971f245eee54f1632d8eaae0de5bb6e9c624c1effdd42d8d6843e534f56e07", size = 40224, upload-time = "2026-09-18T13:22:53.384Z" },
+]
+
+[[package]]
 name = "ptyprocess"
 version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2923,6 +2941,11 @@ dependencies = [
     { name = "pyyaml", marker = "python_full_version >= '3.13'" },
     { name = "rich", marker = "python_full_version >= '3.13'" },
     { name = "typer", marker = "python_full_version >= '3.13'" },
+]
+
+[package.optional-dependencies]
+postgres = [
+    { name = "forze", extra = ["postgres"], marker = "python_full_version >= '3.13'" },
 ]
 
 [[package]]

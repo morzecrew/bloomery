@@ -1,4 +1,4 @@
-"""``gold.mart_data_quality`` over a dirty run (RFC 0016 §5.8, D12).
+"""``gold.mart_data_quality`` over a dirty run (S-0033/the-quality-mart, S-0033/D-12).
 
 §5.8's claim is not "there is an observability table". It is that quality
 observability is an **ordinary semantic surface**: a mart with measures and a
@@ -214,7 +214,7 @@ def test_the_run_context_is_the_engines_and_never_a_clock_bloomery_read(
 ) -> None:
     """``run_date`` comes from the target's ``@execution_ds`` macro and
     ``run_id`` is declared-but-NULL because the pinned target exposes no macro
-    for it (§5.8). bloomery reads no clock (RFC 0003), so a value here that
+    for it (§5.8). bloomery reads no clock (S-0020), so a value here that
     depended on when the suite ran would be the invariant breaking."""
     rows = corpus_run.execute(
         "SELECT DISTINCT run_id IS NULL, run_date FROM gold.mart_data_quality"
@@ -235,7 +235,7 @@ def test_reject_tables_are_never_a_mart_base(corpus_run: duckdb.DuckDBPyConnecti
 
 
 def test_an_empty_run_reports_zeros_and_never_nulls() -> None:
-    """A count over a population of nothing is **0**, not NULL (RFC 0016 D68).
+    """A count over a population of nothing is **0**, not NULL (S-0033/D-68).
 
     ``SUM(CASE WHEN … THEN 1 ELSE 0 END)`` is 0 on a never-matching partition
     and NULL on an *empty* one — SQL's ``SUM`` over zero rows has no rows to

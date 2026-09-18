@@ -1,4 +1,4 @@
-"""The MetricFlow manifest emitter (RFC 0013 §5.2, R1): acceptance per mart
+"""The MetricFlow manifest emitter (S-0030/emitmanifest-ir-pydanticsemanticmanifest, S-0030 R1): acceptance per mart
 fixture (``SemanticManifestLookup`` accepts, ``explain`` renders — render-only,
 never executed), the IR→MetricFlow mapping-table cases, and the emitter's
 pinned deterministic choices (owning-mart measure selection, composite-key
@@ -315,7 +315,7 @@ def test_canonical_field_descriptions_are_carried_onto_dimensions() -> None:
 
 def test_a_shared_measure_lands_on_one_mart_only() -> None:
     """Both marts serve `revenue`; the measure lands on the mart the planner
-    would select — cheapest cost_hint, ties lexicographic (RFC 0010 D8)."""
+    would select — cheapest cost_hint, ties lexicographic (S-0027/D-8)."""
     _project, catalog = load_fixture("role_playing_dates")
     ir = build_project_ir(load_project(sources_with_marts(["by_shipped", "by_ordered"])), catalog)
     manifest = emit_manifest(ir, naming=DefaultNaming())
@@ -338,7 +338,7 @@ def test_a_cheaper_cost_hint_beats_the_lexicographic_tiebreak() -> None:
 
 
 # ....................... #
-# Semi-additive mapping (RFC 0013 D4)
+# Semi-additive mapping (S-0030/D-4)
 
 def _with_rule(ir: ProjectIR, rule: SemiAdditiveRule) -> ProjectIR:
     metrics = tuple(
@@ -421,7 +421,7 @@ def test_measure_backed_metric_without_an_expression_is_refused() -> None:
 
 def test_a_measure_carrying_mart_without_date_roles_is_an_emit_error() -> None:
     """Unreachable behind the MartMissingTimeDimension guardrail — the
-    emitter re-checks (RFC 0013 D3 rule 2 defense)."""
+    emitter re-checks (S-0030/D-3 rule 2 defense)."""
     ir = _fixture_ir("role_playing_dates")
     mart = ir.marts[0]
     stripped = replace(mart, columns=tuple(c for c in mart.columns if c.ref is None))
@@ -484,7 +484,7 @@ def test_transformed_input_measures_are_resorted() -> None:
     """transform()'s AddInputMetricMeasuresRule collects a ratio's
     input_measures through a builtin *set* — hash-seed-ordered until the
     emitter re-sorts them. Regression for the golden-flaking nondeterminism
-    the non_additive_aov fixture surfaced (RFC 0013 R1: the manifest is
+    the non_additive_aov fixture surfaced (S-0030 R1: the manifest is
     hashed and cached; the subprocess determinism guard covers the
     cross-seed half)."""
     manifest = _manifest("non_additive_aov")
@@ -496,7 +496,7 @@ def test_transformed_input_measures_are_resorted() -> None:
 
 
 # ....................... #
-# The target (RFC 0051 §5.1)
+# The target (S-0059/metricflow-as-a-fourth-core-target)
 
 
 def test_the_target_emits_one_manifest_artifact() -> None:

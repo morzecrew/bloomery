@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      A retired RFC's decision `k` is `D-k` of its document, and every old identifier
+      resolves through `.torve/archive/identifiers.yaml`
+    paths: [.torve/archive/identifiers.yaml]
+    consequence: >-
+      Old citations in commits, logs and reviews stay followable; the mapping is never
+      edited by hand
+  - id: D-2
+    grade: ASSUMED
+    text: A row the RFC did not grade is `ASSUMED`
+    paths: [.torve/specs/**]
+    consequence: Nothing ungraded becomes a lock by conversion
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A `LOCKED` row no file cites becomes `ASSUMED` with its text marked, and is
+      re-locked by hand naming the file
+    paths: [.torve/specs/**]
+    consequence: >-
+      74 rows changed grade; a lock nobody cites would otherwise tax every task under
+      a directory-wide glob
+  - id: D-4
+    grade: ASSUMED
+    text: A decision's `paths` are the files that cite it
+    paths: [.torve/specs/**]
+    consequence: >-
+      Governance follows citation; an uncited row governs nothing until someone names
+      a file
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      A converted document is `accepted` with `implementation: complete`; RFC number
+      0012 is `superseded` by RFC number 0014's document
+    paths: [.torve/specs/**]
+    consequence: >-
+      The rows stand and project; the corpus test reads completeness where it read
+      retirement
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `logs/` keeps its history with citations rewritten; log entry numbers in prose
+      lose their hyphen
+    paths: [logs/**]
+    consequence: >-
+      The divergence record is not re-homed into the engine
+  - id: D-7
+    grade: LOCKED
+    text: >-
+      `rfcs/`, its index and register, the checker and the `rfc-corpus` gate are deleted,
+      and `spec-valid` is the corpus gate
+    paths: [.torve/gates.yaml, justfile, .github/workflows/ci.yml]
+    consequence: One corpus, one checker
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      A live RFC maps to the document the author role wrote for it; only its number
+      and decisions map, not its section numbers
+    paths: [.torve/archive/identifiers.yaml]
+    consequence: >-
+      A `§n.m` citation of a live RFC resolves to the document alone

@@ -1,4 +1,4 @@
-"""R018, the zone obligation (RFC 0074 §5.3).
+"""R018, the zone obligation (S-0076/r018-and-where-it-fires).
 
 The prover is asked one question — *can every source of this column say which
 clock it read?* — and the three answers that discharge it are three different

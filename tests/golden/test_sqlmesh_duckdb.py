@@ -1,4 +1,4 @@
-"""Golden artifacts per (fixture × target × dialect) (RFC 0009 §5.4): every
+"""Golden artifacts per (fixture × target × dialect) (S-0026/golden-workflow): every
 compiled artifact byte-compared against the checked-in file. Regenerate via
 ``just snapshot-update`` — golden diffs are reviewed like source code; an
 unexplained diff fails review."""
@@ -17,11 +17,11 @@ pytestmark = pytest.mark.golden
 GOLDEN = Path(__file__).resolve().parent
 
 EXPECTED_PATHS = {
-    # RFC 0017 §5.8/D16: one generated wrapper per declared output, so a
+    # S-0034/emission-and-the-dag, S-0034/D-16: one generated wrapper per declared output, so a
     # two-output step is two `.py` models. The extension is the point of this
-    # entry — RFC 0008 D2's "artifacts are file-shaped text" is what lets a
+    # entry — S-0025/D-2's "artifacts are file-shaped text" is what lets a
     # Python model reuse ArtifactKind.MODEL with a different suffix.
-    # RFC 0058 P2: a rollup beside the mart it derives from. What the goldens
+    # S-0065/phasing (P-2): a rollup beside the mart it derives from. What the goldens
     # show is the shape of the first aggregate bloomery puts in a model — a
     # GROUP BY over the parent's gold relation — and that it is an *ordinary*
     # derived model, which is D5's whole claim about the SQL: what makes it a
@@ -41,7 +41,7 @@ EXPECTED_PATHS = {
         "models/silver/customer_raw.sql",
         "models/silver/customer_xref.py",
     ],
-    # RFC 0021 §5.1: identity resolution end to end on shipped mechanisms.
+    # S-0038/identity-resolution-is-a-step-permanently: identity resolution end to end on shipped mechanisms.
     # What the goldens show that `step_resolution` cannot: two *inputs* bound
     # from two sources with no shared key, an `expression` rule with
     # `on_fail: fail` attached to a step output, and a mart over the
@@ -58,7 +58,7 @@ EXPECTED_PATHS = {
         "models/silver/customer_xref.py",
     ],
     "minimal": ["config.yaml", "models/silver/event.sql"],
-    # RFC 0024 §5.4/D5: the union merge's one generated artifact beyond the
+    # S-0041/what-is-refused-at-run-time, S-0041/D-5: the union merge's one generated artifact beyond the
     # model — the blocking audit that establishes what compilation cannot, that
     # the sources' key sets are disjoint. It is here rather than under a
     # `_quality_*` name because it guards the *merge*, not the quality system.
@@ -67,9 +67,9 @@ EXPECTED_PATHS = {
         "config.yaml",
         "models/silver/order_line.sql",
     ],
-    # The same merge, cleaned (RFC 0024 P2 — D32-D35 — and RFC 0035). A second
+    # The same merge, cleaned (S-0041/phasing (P-2) — D32-D35 — and S-0051). A second
     # fixture rather than blocks added to the one above, because dbt lowers no
-    # reject model (RFC 0016 §5.4) and `multi_source` is the fixture both
+    # reject model (S-0033/fixed-pipeline-order-and-lowering) and `multi_source` is the fixture both
     # targets compile: merging the two would have bought this coverage by
     # deleting that.
     "multi_source_quality": [
@@ -96,7 +96,7 @@ EXPECTED_PATHS = {
         "config.yaml",
         "models/silver/item.sql",
     ],
-    # The same conflict on a merged entity (RFC 0024 D36, answering D28). What
+    # The same conflict on a merged entity (S-0041/D-36, answering D28). What
     # the golden shows and the IR assertions cannot: one shadow column and one
     # reconcile audit for the entity, and a `__direct` projection per UNION ALL
     # arm reading *that* arm's own path — the fan-out D28 refused while a
@@ -114,7 +114,7 @@ EXPECTED_PATHS = {
         "models/silver/order.sql",
     ],
     "scd2_customers": ["config.yaml", "models/silver/customer.sql"],
-    # The quality-carrying fixture (RFC 0016): the entity model gains the
+    # The quality-carrying fixture (S-0033): the entity model gains the
     # generated blocking audit on the ingestion metadata (D21) and one audit
     # per ``on_fail: fail`` rule, plus the reject model the quarantine
     # disposition routes into and the replay merge that drains it (§5.6).

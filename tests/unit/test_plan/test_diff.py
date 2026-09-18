@@ -1,4 +1,4 @@
-"""Every classification branch of the differ (RFC 0007 §5.2–§5.4, D3–D7):
+"""Every classification branch of the differ (S-0024/the-diff-walk–S-0024/expand-contract-enforcement, S-0024/D-3–S-0024/D-7):
 one minimal IR pair per precedence rule, both ``ContractViolation`` arms,
 rename validation including staleness, and the metric/mart/relationship/
 date-dimension walks."""
@@ -163,7 +163,7 @@ def test_dropped_entity_is_one_breaking_entity_change() -> None:
 
 
 # ....................... #
-# Types (§5.2 rule 2, D7 — the RFC 0004 lattice)
+# Types (§5.2 rule 2, D7 — the S-0021 lattice)
 
 
 def test_widened_decimal_is_widening() -> None:
@@ -365,18 +365,18 @@ def test_changed_source_relation_is_restating_at_the_entity_subject() -> None:
 
 
 # ....................... #
-# The union merge's source set (RFC 0024 §5.5, D9). No new change class: the
+# The union merge's source set (S-0041/how-it-diffs, S-0041/D-9). No new change class: the
 # table falls out of the existing classifier, which is one of the three reasons
-# RFC 0021's reusable question answers "yes" for this feature.
+# S-0038's reusable question answers "yes" for this feature.
 
 
 def test_the_reject_provenance_stamp_names_every_branch() -> None:
     """A merged entity's reject rows carry the mapping that produced each one
-    (RFC 0035 D2), so a version bump on **any** branch changes what the table
+    (S-0051/D-2), so a version bump on **any** branch changes what the table
     records from then on.
 
     This replaces a test of a guard that used to raise here. The guard was the
-    honest spelling while RFC 0024 D14 refused `quarantine:` on a merged
+    honest spelling while S-0041/D-14 refused `quarantine:` on a merged
     entity; P2c lifted the refusal, and a raise would now fire on every plan of
     a cleaned merge.
     """
@@ -749,7 +749,7 @@ def test_tightening_required_does_not_trigger_the_contract() -> None:
 
 
 # ....................... #
-# Marts (RFC 0007 §12 amended phasing)
+# Marts (S-0024/phasing amended phasing)
 
 
 def test_added_and_dropped_marts() -> None:
@@ -1074,7 +1074,7 @@ def test_reordering_membership_values_is_not_a_restatement() -> None:
 
 
 # ....................... #
-# Declared source freshness (RFC 0057)
+# Declared source freshness (S-0064)
 
 
 FRESH_6H = FreshnessIR(warn_after="6h", error_after="24h")
@@ -1180,7 +1180,7 @@ def test_a_relation_that_arrived_reports_only_its_arrival() -> None:
 
 
 def test_an_initial_deploy_stays_all_additive() -> None:
-    """RFC 0007 D2's normative property, met by the new subject.
+    """S-0024/D-2's normative property, met by the new subject.
 
     `plan(None, ir)` is all-ADDITIVE, and a first deploy declares every
     threshold there is — so a RESTATING classification here would break a

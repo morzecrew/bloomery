@@ -1,6 +1,6 @@
-# The SCD type 2 fixture (M10, RFC 0009 §5.3): one dimension-like entity
+# The SCD type 2 fixture (M10, S-0026/fixture-corpus): one dimension-like entity
 # whose history the targets keep natively — SQLMesh via SCD_TYPE_2_BY_COLUMN
-# (RFC 0008 §5.3), dbt via a check-strategy snapshot (RFC 0008 §5.5). The
+# (S-0025/sqlmesh-emitter-primary), dbt via a check-strategy snapshot (S-0025/dbt-emitter-compatibility). The
 # asserts exercise snapshot-attached schema tests in the dbt lowering.
 spec_version: 1
 entities:

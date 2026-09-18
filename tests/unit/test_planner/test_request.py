@@ -1,6 +1,6 @@
-"""Request-type structural validation (RFC 0011 D2/D9, vocabulary per
-RFC 0015): every malformed shape fails construction with ``InvalidRequest``
-(or the RFC 0015 refusal for vocabulary-level problems) — nothing malformed
+"""Request-type structural validation (S-0028/D-2, S-0028/D-9, vocabulary per
+S-0032): every malformed shape fails construction with ``InvalidRequest``
+(or the S-0032 refusal for vocabulary-level problems) — nothing malformed
 ever reaches coverage, let alone MetricFlow."""
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ def test_op_vocabulary_is_the_closed_rfc_0015_set() -> None:
 
 
 # ....................... #
-# Predicate — the per-operator arity matrix (RFC 0015 §5.1)
+# Predicate — the per-operator arity matrix (S-0032/types-replaces-rfc-0011-d2-s-filterexpr-orderspec)
 
 
 def test_valid_predicates_construct() -> None:
@@ -58,7 +58,7 @@ def test_valid_predicates_construct() -> None:
         # membership: one or more
         ("in", ()),
         ("not_in", ()),
-        # is_null: exactly one bool — zero-arity is gone (RFC 0015 §5.1)
+        # is_null: exactly one bool — zero-arity is gone (S-0032/types-replaces-rfc-0011-d2-s-filterexpr-orderspec)
         ("is_null", ()),
         ("is_null", ("A",)),
         ("is_null", (1,)),
@@ -100,7 +100,7 @@ def test_non_scalar_values_are_refused() -> None:
 
 
 # ....................... #
-# Float boundary (RFC 0015 D5, amending RFC 0003 D5)
+# Float boundary (S-0032/D-5, amending S-0020/D-5)
 
 
 def test_floats_normalize_to_decimal_via_str() -> None:
@@ -129,7 +129,7 @@ def test_floats_normalize_to_decimal_via_str() -> None:
 def test_non_finite_numerics_are_invalid_literals_on_every_scalar_op(
     value: object, op: Op
 ) -> None:
-    """RFC 0015 D5 + decision 15's exhaustive matrix (with the
+    """S-0032/D-5 + decision 15's exhaustive matrix (with the
     string-carrier half in ``test_filters``): a non-finite operand fails
     open — ``lt NaN`` matches every row on Postgres, and an ``in`` list
     holding ``NaN`` is the same hazard — so every operator taking scalars
@@ -140,7 +140,7 @@ def test_non_finite_numerics_are_invalid_literals_on_every_scalar_op(
 
 
 # ....................... #
-# Pattern validation (RFC 0015 decision 13)
+# Pattern validation (S-0032 decision 13)
 
 
 def test_trailing_unpaired_backslash_is_refused() -> None:
@@ -159,7 +159,7 @@ def test_nul_in_pattern_is_refused() -> None:
 
 
 # ....................... #
-# AnyOf — one disjunction level (RFC 0015 D-Q3)
+# AnyOf — one disjunction level (S-0032/D-3)
 
 
 def test_any_of_may_span_different_dimensions() -> None:
@@ -212,7 +212,7 @@ def test_order_field_must_be_a_non_empty_string(field: object) -> None:
 
 
 def test_order_spec_carries_no_nulls_field() -> None:
-    # RFC 0015 D-Q6: accepting-and-dropping a nulls placement is worse than
+    # S-0032/D-7: accepting-and-dropping a nulls placement is worse than
     # refusing it — the field must not exist.
     assert not hasattr(OrderSpec("revenue"), "nulls")
     with pytest.raises(TypeError):
@@ -254,7 +254,7 @@ def test_order_by_requested_members_is_accepted() -> None:
 
 
 # ....................... #
-# RowPolicy — a typed filter, validated at construction (RFC 0015 D11)
+# RowPolicy — a typed filter, validated at construction (S-0032/D-11)
 
 
 def test_policy_single_value_becomes_a_clause() -> None:
@@ -277,7 +277,7 @@ def test_malformed_policy_fails_at_construction() -> None:
 
 
 def test_between_shaped_policy_has_no_post_migration_form() -> None:
-    # RFC 0015 D11: `between` left the vocabulary — a range policy composes
+    # S-0032/D-11: `between` left the vocabulary — a range policy composes
     # into the request filters or becomes a gte-only/lte-only policy.
     with pytest.raises(InvalidRequest, match="unknown filter operator"):
         RowPolicy("day", "between", ("2024-01-01", "2024-01-31"))  # type: ignore[arg-type]

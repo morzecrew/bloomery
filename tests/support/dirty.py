@@ -1,4 +1,4 @@
-"""The dirty-data corpus as a seedable warehouse (RFC 0016 §6).
+"""The dirty-data corpus as a seedable warehouse (S-0033/tests-rfc-0009-amendment).
 
 ``tests/fixtures/dirty/*.csv`` is **data**: 139 curated specimens, each with an
 ``_expected`` disposition under the corpus's documented default rule set.
@@ -13,7 +13,7 @@ anything on the way.
    field into NULL and the empty-string-vs-NULL distinction the corpus is built
    around (D19: different rules own the two) silently disappears; without
    ``all_varchar`` the sniffer types ``keys.amount`` as ``DOUBLE``, and a float
-   in a decimal pipeline is the corruption RFC 0003 bans outright.
+   in a decimal pipeline is the corruption S-0020 bans outright.
 2. A zero-length *line* is not a row — ``extremes.csv``'s ``zero_length_row``
    is a well-formed row whose every payload value is NULL, and it is read like
    any other.
@@ -289,7 +289,7 @@ def dispositions(
 ) -> dict[str, tuple[str, tuple[str, ...]]]:
     """``{_source_row_id: (disposition, fired rule names)}`` for one entity.
 
-    **Both sides of the split**, which is the whole point (RFC 0016 §6): a test
+    **Both sides of the split**, which is the whole point (S-0033/tests-rfc-0009-amendment): a test
     that only reads the entity "cannot tell correctly-quarantined from silently
     dropped". A row absent from both tables is simply absent from the result,
     and the caller compares against the seeded identities to find it.

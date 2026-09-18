@@ -1,7 +1,7 @@
 """Violation predicates: one dialect-neutral SQLGlot AST per rule kind
-(RFC 0016 §5.4).
+(S-0033/fixed-pipeline-order-and-lowering).
 
-**The central invariant of this module (RFC 0016 D19 — three-valued logic).**
+**The central invariant of this module (S-0033/D-19 — three-valued logic).**
 Every builder here returns a predicate that is definitively ``TRUE`` *only*
 when the rule is violated. A comparison involving ``NULL`` evaluates to SQL
 ``UNKNOWN``, and ``UNKNOWN`` must **not** fire: it is neither a pass nor a
@@ -20,7 +20,7 @@ explicitly (``col IS NULL`` for ``not_null``; the coercion-failure marker —
 this paragraph before it joins
 :data:`~bloomery.quality.catalogue.ALL_RULES`.
 
-Disposition precedence (RFC 0016 D18) lives here too: severity ``fail >
+Disposition precedence (S-0033/D-18) lives here too: severity ``fail >
 quarantine > flag``, deterministic for every combination — which is why no
 rule/disposition pair needs compile-time rejection.
 """
@@ -154,8 +154,8 @@ def indexed_params(rule: QualityRuleIR, prefix: str) -> tuple[str, ...]:
     """The values of ``<prefix>_0000``, ``<prefix>_0001`` … in index order.
 
     Ordered params exist because :attr:`QualityRuleIR.params` sorts by name
-    (RFC 0003): zero-padded indices make the by-name sort *be* the authored
-    order, the same device the ``assert: enum`` lowering uses (RFC 0006 D8).
+    (S-0020): zero-padded indices make the by-name sort *be* the authored
+    order, the same device the ``assert: enum`` lowering uses (S-0023/D-8).
     """
     marker = f"{prefix}_"
     return tuple(value for name, value in rule.params if name.startswith(marker))
@@ -165,7 +165,7 @@ def indexed_params(rule: QualityRuleIR, prefix: str) -> tuple[str, ...]:
 
 
 def repairs(rule: QualityRuleIR) -> bool:
-    """Whether this rule carries a repair recipe (RFC 0016 D87)."""
+    """Whether this rule carries a repair recipe (S-0033/D-87)."""
 
     return rule.on_fail is OnFail.REPAIR
 
@@ -230,7 +230,7 @@ def windowed(rule: QualityRuleIR) -> bool:
 
 
 #: The kinds whose predicate is built from facts that belong to **one branch**
-#: of a union merge rather than to the entity (RFC 0024 D32): the raw source
+#: of a union merge rather than to the entity (S-0041/D-32): the raw source
 #: paths ``coercible`` compares against, and the ``enum_map`` chain that defines
 #: what ``in_enum`` admits. Two mappings may read different paths and map
 #: different spellings, so the rule is evaluated once over the merged relation
@@ -283,7 +283,7 @@ def window_alias(rule: QualityRuleIR) -> str:
 
 
 #: The value an aligned ``numeric_NNNN`` param carries for a member the spec
-#: declared as an integer (RFC 0016 §5.3's ``in_set``). Spelled once, read by
+#: declared as an integer (S-0033/spec-schema's ``in_set``). Spelled once, read by
 #: the builder and written by the lowering, because a member whose *type* is
 #: lost renders as a string literal and silently changes what the predicate
 #: compares — correctly coerced on DuckDB and Postgres, refused by Trino.
@@ -337,7 +337,7 @@ def _coercible(
     value: Expression | None,
     table: str | None,
 ) -> Expression:
-    """The coercion-failure marker (RFC 0016 §5.2, D3), for **one branch**.
+    """The coercion-failure marker (S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-3), for **one branch**.
 
     Transform chains lower ``TRY_CAST``-shaped, so a failed coercion produces
     ``NULL`` rather than raising. A bare ``col IS NULL`` would then also fire
@@ -346,7 +346,7 @@ def _coercible(
     construction: a recipe over ``(total, qty)`` with a null ``total`` yields a
     legitimate null, not a coercion failure.
 
-    ``sources`` is this branch's raw extractions for the column (RFC 0024 D32).
+    ``sources`` is this branch's raw extractions for the column (S-0041/D-32).
     **Empty means FALSE, not the empty conjunction's TRUE**, and the difference
     is the whole reason this is spelled out: a branch that does not map the
     column at all projects a typed NULL for it, so a vacuously-true marker
@@ -380,7 +380,7 @@ def _not_null(rule: QualityRuleIR, table: str | None) -> Expression:
 def _bound_literal(value: str) -> Expression:
     """A range bound as a literal. Numeric text renders as a number literal;
     everything else as a string literal the engine compares in the column's
-    own type. Floats never appear (RFC 0003 D5) — the bound arrives as text
+    own type. Floats never appear (S-0020/D-5) — the bound arrives as text
     and leaves as text."""
 
     try:
@@ -449,7 +449,7 @@ def _pattern(rule: QualityRuleIR, table: str | None) -> Expression:
 
 def _normalize(rule: QualityRuleIR, table: str | None) -> Expression:
     """``NORMALIZE(col, NFC) <> col`` — the value is *not already* in the named
-    normal form (RFC 0016 D86).
+    normal form (S-0033/D-86).
 
     ``exp.Normalize`` is the dialect-neutral node, the same arrangement
     ``TRY_CAST`` uses: Postgres and Trino spell it exactly this way, and DuckDB
@@ -472,7 +472,7 @@ def _normalize(rule: QualityRuleIR, table: str | None) -> Expression:
 
 
 def _charset(rule: QualityRuleIR, table: str | None) -> Expression:
-    """The value contains a character the set does not admit (RFC 0016 D86).
+    """The value contains a character the set does not admit (S-0033/D-86).
 
     One construction serves both readings, because ``TRANSLATE(x, members, '')``
     *deletes* every member from the value:
@@ -527,14 +527,14 @@ def _not_in(
 def _in_enum(
     rule: QualityRuleIR, values: Sequence[str], value: Expression | None, table: str | None
 ) -> Expression:
-    """The value survived its ``enum_map`` chain unmapped (RFC 0016 §5.2), for
+    """The value survived its ``enum_map`` chain unmapped (S-0033/coercion-failure-is-a-rule-the-assert-boundary), for
     **one branch**.
 
     The admissible set *is* the chain's mapping — resolved at lowering from
     the ``enum_map`` step's targets, never restated by the author, so the two
     cannot drift. ``col NOT IN (...)`` is ``UNKNOWN`` for a null column (D19).
 
-    ``values`` is this branch's targets (RFC 0024 D32): two mappings may map
+    ``values`` is this branch's targets (S-0041/D-32): two mappings may map
     their own spellings onto their own vocabularies, and a merged admissible
     set would admit, for one source, a value only the *other* source's chain
     produces — which is a rule that has quietly stopped checking.
@@ -567,7 +567,7 @@ def _in_set(rule: QualityRuleIR, table: str | None) -> Expression:
     on an integer column: DuckDB and Postgres coerce it and answer correctly,
     Trino refuses the comparison outright, and "works on one engine, means
     something else on another" is the exact bug this project exists to prevent
-    (RFC 0016 §5.3). The params are absent for an all-string set, so a spec that
+    (S-0033/spec-schema). The params are absent for an all-string set, so a spec that
     never wrote an integer member is byte-identical to before.
     """
     values = indexed_params(rule, "value")
@@ -587,7 +587,7 @@ def _in_set(rule: QualityRuleIR, table: str | None) -> Expression:
 def _unique(rule: QualityRuleIR, table: str | None) -> Expression:
     """``COUNT(*) OVER (PARTITION BY <slice>, col) > 1 AND col IS NOT NULL``.
 
-    **The slice choice (RFC 0016 D5).** ``unique`` is evaluated per *partition
+    **The slice choice (S-0033/D-5).** ``unique`` is evaluated per *partition
     slice* in both full and incremental runs — the partition is the scope unit
     either way, which is precisely why full/incremental equivalence holds. The
     slice columns are the entity's ``partition_by`` columns, resolved at
@@ -628,7 +628,7 @@ def _expression(rule: QualityRuleIR, table: str | None) -> Expression:
 
 
 def _referential(rule: QualityRuleIR, table: str | None) -> Expression:
-    """``ref.<pk> IS NULL AND fk IS NOT NULL`` (RFC 0016 D19).
+    """``ref.<pk> IS NULL AND fk IS NOT NULL`` (S-0033/D-19).
 
     Only a *non-null* fk with no referenced row is an orphan. This corrects
     Document 5's bare ``COALESCE(fk, '__unknown__')`` sketch, which mapped a
@@ -667,7 +667,7 @@ def sole_via_column(rule: QualityRuleIR) -> str:
 
     ``unknown_member`` rewrites the fk to the reserved string member with a
     single ``CASE`` over a single column (§5.4), so it is defined only for a
-    one-column relationship — and RFC 0016 **D48** refuses the composite shape
+    one-column relationship — and S-0033 **D48** refuses the composite shape
     at compile time for exactly that reason: a two-column fk produced a
     half-sentinel key like ``('__unknown__', 47)`` matching no reserved row,
     which is worse than either the refusal or the orphan it was meant to tame.
@@ -684,7 +684,7 @@ def sole_via_column(rule: QualityRuleIR) -> str:
         msg = (
             f"referential rule {rule.name!r} rewrites its fk to the reserved member but "
             f"joins on {len(columns)} columns ({', '.join(columns) or 'none'}); the rewrite "
-            "is one CASE over one column (RFC 0016 §5.4) and the composite shape is refused "
+            "is one CASE over one column (S-0033/fixed-pipeline-order-and-lowering) and the composite shape is refused "
             "at compile time (D48), so reaching this point means the guardrail was widened "
             "without deciding what a multi-column sentinel means"
         )
@@ -705,14 +705,14 @@ def violation(rule: QualityRuleIR, *, table: str | None = None) -> Expression:
 
     A :data:`BRANCH_KINDS` rule is **not** buildable here: its predicate needs
     one branch's source paths or ``enum_map`` targets, which the rule
-    deliberately no longer carries (RFC 0024 D32). Asking for one is a caller
+    deliberately no longer carries (S-0041/D-32). Asking for one is a caller
     that has lost track of which side of the union it is on, so it raises
     rather than returning something plausible.
     """
     if branched(rule):
         msg = (
             f"rule {rule.name!r} is {rule.kind!r}, whose predicate is built per union branch "
-            "from that branch's own facts (RFC 0024 D32) — call branch_violation() with the "
+            "from that branch's own facts (S-0041/D-32) — call branch_violation() with the "
             "branch's SourceColumnIR, or verdict() to read the projected result"
         )
         raise KeyError(msg)
@@ -757,7 +757,7 @@ def branch_violation(
     column they produce. Done that way, ``coercible`` on a column mapped
     straight from its own name rendered as
     ``TRY_CAST(x) IS NULL AND NOT TRY_CAST(x) IS NULL`` — a rule that had
-    quietly stopped checking, which is the failure RFC 0024 D28 refuses by
+    quietly stopped checking, which is the failure S-0041/D-28 refuses by
     name.
     """
     if rule.kind == "coercible":
@@ -776,7 +776,7 @@ def branch_violation(
 
 
 def verdict(rule: QualityRuleIR, table: str | None = None) -> Expression:
-    """The rule's verdict, *usable in any position* (RFC 0016 D33).
+    """The rule's verdict, *usable in any position* (S-0033/D-33).
 
     For an ordinary rule this is the violation predicate itself. For a windowed
     one (:data:`WINDOWED_KINDS`) it is a reference to the column the lowering
@@ -789,7 +789,7 @@ def verdict(rule: QualityRuleIR, table: str | None = None) -> Expression:
     at ``flag`` was not a lowering, it was a coincidence.
 
     It lives here rather than in the emitter because it is the *contract*
-    between a predicate and the positions it is legal in, and the RFC 0016 §6
+    between a predicate and the positions it is legal in, and the S-0033/tests-rfc-0009-amendment
     rule × disposition matrix has to exercise the real one: a test that
     re-derived this two-line rule would go on passing through exactly the
     regression it exists to catch.
@@ -800,7 +800,7 @@ def verdict(rule: QualityRuleIR, table: str | None = None) -> Expression:
 
     # Branched the same way and for a different reason: the fact this rule
     # reads exists only below the union, so every branch computed it and
-    # projected it under one name (RFC 0024 D32, :func:`branch_alias`).
+    # projected it under one name (S-0041/D-32, :func:`branch_alias`).
     if branched(rule):
         return exp.column(branch_alias(rule), table=table)
 
@@ -813,7 +813,7 @@ def verdict(rule: QualityRuleIR, table: str | None = None) -> Expression:
 def routing_predicate(
     rules: Sequence[QualityRuleIR], table: str | None = None, *, quarantined: bool
 ) -> Expression:
-    """Stage 6's two-way split over ``rules`` (RFC 0016 §5.4).
+    """Stage 6's two-way split over ``rules`` (S-0033/fixed-pipeline-order-and-lowering).
 
     ``quarantined=True`` selects the diverted rows; ``False`` is its exact
     complement, the rows the entity keeps.
@@ -841,7 +841,7 @@ def routing_predicate(
 
 def unknown_member_case(rule: QualityRuleIR, *, table: str | None = None) -> Expression:
     """``CASE WHEN ref.<pk> IS NULL AND fk IS NOT NULL THEN '__unknown__' ELSE
-    fk END`` — the ``on_missing: unknown_member`` lowering (RFC 0016 §5.4).
+    fk END`` — the ``on_missing: unknown_member`` lowering (S-0033/fixed-pipeline-order-and-lowering).
 
     The row passes with its fk rewritten to the reserved member, keeping
     aggregates *correct*: dropping orphans makes revenue quietly lower than
@@ -858,7 +858,7 @@ def unknown_member_case(rule: QualityRuleIR, *, table: str | None = None) -> Exp
 
 
 # ....................... #
-# Disposition precedence (RFC 0016 D18)
+# Disposition precedence (S-0033/D-18)
 
 
 # ....................... #
@@ -918,7 +918,7 @@ def worst(rules: Iterable[QualityRuleIR]) -> OnFail | None:
 def failed_rule_names(rules: Iterable[QualityRuleIR]) -> tuple[str, ...]:
     """Every rule name a quarantined row records, lexicographically sorted.
 
-    RFC 0016 D18: a quarantined row's ``failed_rules`` carries **all** its
+    S-0033/D-18: a quarantined row's ``failed_rules`` carries **all** its
     failures, flag-level ones included — the reject row is the full account of
     why a row is not in the entity, not merely the part that diverted it.
     """

@@ -1,0 +1,123 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      **The identity is the document name.** It is unique by construction (a key of
+      the `sources` mapping), already computed, already the ordering key for `Project.mappings`,
+      and already the user-facing coordinate for refusals (S-0019/source-paths). Consequence:
+      identity is a filename, so a rename changes it — accepted under D4's boundary.
+    paths:
+      - src/bloomery/evidence.py
+      - src/bloomery/resolve/resolution.py
+      - src/bloomery/spec/common.py
+      - src/bloomery/spec/mapping.py
+      - tests/property/test_schema_agreement.py
+      - tests/unit/test_resolve/test_resolution.py
+      - tests/unit/test_spec/test_mapping.py
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **`(source, target)` is refused
+      as the identity**, against S-0041/D-19's key shape looking like a candidate.
+      Demonstrated non-unique: two documents may declare the same pair and the loader
+      accepts them. Consequence: D19's quality-mart key is left alone — it is an accounting
+      key for a per-entity mart, not an identity, and this decision does not reopen
+      it.
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      **`document` is set by the loader and is not part of the YAML vocabulary.**
+      A document declaring its own name is a second source of truth that can disagree
+      with the first. Consequence: `Mapping` cannot be constructed from YAML alone
+      in a test without the loader — which is already how every test builds one.
+    paths:
+      - src/bloomery/spec/common.py
+      - src/bloomery/spec/mapping.py
+      - tests/property/test_schema_agreement.py
+      - tests/unit/test_guardrails/test_operands.py
+      - tests/unit/test_spec/test_mapping.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      **The identity stays out of the IR, the fingerprint and every artifact.** It
+      is a coordinate for an assessment, and S-0020's determinism argument is about
+      what reaches output. Consequence: a rename moves a report and nothing else;
+      if a future change wants mapping identity in the IR, D1's rename cost has to
+      be re-argued there, because a filename in a fingerprint makes a rename a rebuild.
+    paths: [tests/unit/test_resolve/test_resolution.py]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **`FieldProvenance.mapping` goes third, not last.** Every field before `recipe_id`
+      is required, so a positional caller gets a `TypeError` rather than the silent
+      rebinding `SpecEvidence`'s field order exists to avoid. Consequence: reading
+      order and wire order agree here, and the precedent does not generalise to a
+      type whose fields all have defaults.
+  - id: D-6
+    grade: LOCKED
+    text: >-
+      **S-0047/D-9's omission is not lifted here.** D9 gave two reasons and this RFC
+      removes one; the other — what a worklist entry means when N documents could
+      each close a gap — is a decision about the report's promise. Consequence: `_unresolved`
+      keeps its `continue`, and the change is a comment saying what is now true. Answering
+      both at once would decide S-0047's contract inside a document about nouns.
+    paths: [src/bloomery/evidence.py]
+  - id: D-7
+    grade: OPEN
+    text: >-
+      **Whether `FieldProvenance` sorts by `(entity, field, mapping)` or `(entity,
+      mapping, field)`.** §5.4 argues the first — a field's answers stay adjacent
+      — but the second groups a reader's attention by document, which is what they
+      will edit. Execution decides against the corpus, and logs it: whichever reads
+      better on `multi_source`'s four collapsed facts is the answer, and that is a
+      thing to look at rather than reason about.
+    paths:
+      - src/bloomery/resolve/resolution.py
+      - tests/unit/test_resolve/test_resolution.py
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      **The identity is bound in `validate_document`, which already receives the document
+      name as the prefix for this document's refusals (S-0019/source-paths)** — not
+      in `load_project`, as §5.1's prose said. A required field only one caller could
+      supply leaves every other caller with a model it cannot construct; binding it
+      at the one gate every parsed document passes also means the coordinate a report
+      sends a reader to and the coordinate a refusal names are the same value by construction.
+      Consequence: a caller reaching the shape check directly gets an identity too.
+      *Added by execution 2026-08-30 — see logs/T-0008.md (D035, attempt 1).*
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **`document` is `SkipJsonSchema`
+      — absent from the schema `bloomery schema` exports.** That schema's audience
+      is a spec author and D3 says this field is not theirs to write; a required `document`
+      there would have an editor demand the one key the loader refuses, the exported
+      contract contradicting the compiler on the surface whose whole job is to agree
+      with it. Consequence: the model and the exported schema deliberately disagree
+      about one field, recorded by `test_document_is_in_the_model_and_not_the_schema`
+      where the other measured divergences live. *Added by execution 2026-08-30 —
+      see logs/T-0008.md (D036, attempt 1).*
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      **The refusal of an authored `document:` is returned, not raised, so it joins
+      the document's other shape failures** (S-0019/D-6). Raising at the check pre-empted
+      every other error in the same document — the one-at-a-time fixing batching exists
+      to prevent, reintroduced by a check that runs before pydantic sees the data.
+      Consequence: `_with_document_identity` returns a `(data, refusal)` pair rather
+      than raising, and `validate_document` merges the refusal into the collected
+      set. *Added by execution 2026-08-30 — see logs/T-0008.md (A1).*
+  - id: D-11
+    grade: LOCKED
+    text: >-
+      **`FieldProvenance.mapping` is keyword-only, and D5's rationale for placing
+      it third was wrong.** D5 argued that a positional caller would fail on arity;
+      `recipe_id` carries a default, so the old four-argument call `FieldProvenance(entity,
+      field, provenance, recipe_id)` still satisfies arity and binds `provenance`
+      into `mapping` — the silent rebinding the placement was chosen to prevent, reproduced
+      rather than reasoned about. `kw_only=True` restores the loud failure and keeps
+      the reading order D5 wanted. Consequence: the field's *position* is now a reading
+      convenience only, and nothing rests on it. *Added by execution 2026-08-31 —
+      see logs/T-0008.md (R-1).*
+    paths: [src/bloomery/resolve/resolution.py]

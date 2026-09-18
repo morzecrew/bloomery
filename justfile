@@ -11,7 +11,7 @@ _uv_sync := "uv sync --all-groups > /dev/null 2>&1"
 _pwd := justfile_directory()
 
 # ....................... #
-# Diagrams (RFC 0001 §5.5's escape clause — "d2 remains available if diagrams
+# Diagrams (S-0018/docs-section's escape clause — "d2 remains available if diagrams
 # outgrow mermaid"). One source per diagram, rendered twice: the site serves
 # whichever matches the reader's theme.
 
@@ -58,7 +58,7 @@ _uv_cmd name strict *command:
 # ----------------------- #
 # CI
 
-# engine, e2e, chaos and perf are opt-in markers (Docker / nightly lanes — RFC 0009)
+# engine, e2e, chaos and perf are opt-in markers (Docker / nightly lanes — S-0026)
 # Run the default test tiers (unit/golden/property/execution)
 test *args='':
     {{ _uv_sync }}
@@ -72,7 +72,7 @@ test-all *args='':
     uv run pytest -m "not chaos and not perf" {{ args }}
 
 # The diff is reviewed like source code — an unexplained golden diff fails review
-# Regenerate the golden artifact files (RFC 0009 §5.4)
+# Regenerate the golden artifact files (S-0026/golden-workflow)
 snapshot-update:
     {{ _uv_sync }}
 
@@ -89,7 +89,7 @@ snapshot-update:
 # more than one reviewer, as a recipe that had stopped checking it.
 #
 # `guardrails/` at 100% is the oldest floor and the reason the rest exist — an
-# untested guardrail branch is an unshipped guardrail (RFC 0009 D9). `steps/` is
+# untested guardrail branch is an unshipped guardrail (S-0026/D-9). `steps/` is
 # the newest package and carries the run-time contract, so it is named rather
 # than rounded into the global number.
 #
@@ -107,7 +107,7 @@ coverage *args='':
     uv run coverage report --include='src/bloomery/guardrails/*' --fail-under=100
     uv run coverage report --include='src/bloomery/steps/*' --fail-under=92
 
-# The single quality authority, byte-for-byte the same locally and in CI (RFC 0001 D4; CI runs `-s`)
+# The single quality authority, byte-for-byte the same locally and in CI (S-0018/D-4; CI runs `-s`)
 # Run all quality checks
 [arg("strict", long, short="s", value="true", help="Enable strict mode (fail on error in any check)")]
 quality strict="false":
@@ -119,7 +119,7 @@ quality strict="false":
     just _uv_cmd "Imports" {{ strict }} lint-imports
     just _uv_cmd "Dead code" {{ strict }} vulture
     just _uv_cmd "Dependencies" {{ strict }} deptry .
-    just _uv_cmd "RFC corpus" {{ strict }} python tools/check_rfc_corpus.py .
+    just _uv_cmd "Spec corpus" {{ strict }} torve spec check
     just _uv_cmd "Workflows" {{ strict }} zizmor --collect=default .github/
     just _uv_cmd "Secrets" {{ strict }} pre-commit run gitleaks --all-files
 
@@ -151,7 +151,7 @@ serve-docs: build-diagrams
 #
 # `--strict` because without it the build *reports* a broken internal link and
 # exits 0 — so every "no issues found" was read by a human and enforced by
-# nobody. The link half of RFC 0025 §5.1 item 3 is Zensical's; the repo-path
+# nobody. The link half of S-0042/the-docs-floor-claims-not-links item 3 is Zensical's; the repo-path
 # half a page cites in backticks is invisible to it and lives in
 # `tests/unit/test_docs_floor.py`.
 build-docs: build-diagrams

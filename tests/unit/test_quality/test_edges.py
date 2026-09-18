@@ -60,7 +60,7 @@ def test_a_min_only_bound_lowers_to_the_lower_comparison_alone(kind: str) -> Non
 
 def test_a_temporal_range_bound_stays_a_string_literal() -> None:
     """Bounds arrive as text and leave as text — floats never enter an
-    emission path (RFC 0003 D5), and the engine compares in the column's own
+    emission path (S-0020/D-5), and the engine compares in the column's own
     type."""
     assert violation(_rule("range", min="2024-01-01")).sql() == "amount < '2024-01-01'"
 
@@ -229,6 +229,6 @@ def test_a_non_sqlglot_dialect_is_probed_under_its_own_name() -> None:
     # SQLGlot has no ``bespoke`` generator, so the round-trip refuses rather
     # than silently rendering something the engine may not mean. The caller
     # supplies the dialect set — registering one never changes a verdict
-    # (RFC 0016 D56).
+    # (S-0033/D-56).
     assert unsupported_dialects("^[A-Z]{3}$", dialects=(Bespoke(),)) == ("bespoke",)
     assert unsupported_dialects("^[A-Z]{3}$") == ()

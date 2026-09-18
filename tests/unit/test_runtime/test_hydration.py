@@ -1,4 +1,4 @@
-"""Hydration unit tests (RFC 0014 §6): key composition over all three
+"""Hydration unit tests (S-0031/tests): key composition over all three
 invalidation axes, the pure codec round-trip over every mart fixture, LRU
 hit/miss counting and eviction order, the fetch_l2 seam, and the prewarm
 flag."""
@@ -39,7 +39,7 @@ MART_FIXTURES = [
 
 
 # ....................... #
-# Key (RFC 0014 D2/D7): all three axes, mismatch = miss by construction
+# Key (S-0031/D-2, S-0031/D-7): all three axes, mismatch = miss by construction
 
 
 def test_key_carries_all_three_components() -> None:
@@ -48,7 +48,7 @@ def test_key_carries_all_three_components() -> None:
     assert key.spec_fingerprint == project_fingerprint(ir)
     assert key.bloomery_version
     # The installed version, not a literal: the contract is that the key
-    # carries MetricFlow's version (RFC 0014 D2 — a bump must miss the
+    # carries MetricFlow's version (S-0031/D-2 — a bump must miss the
     # cache), and a hard-coded prefix asserts the pin instead, which the
     # goldens' `minor_version` and the pyproject bound already do.
     assert key.metricflow_version == importlib.metadata.version("metricflow")
@@ -69,7 +69,7 @@ def test_spec_edit_changes_the_key() -> None:
 
 
 # ....................... #
-# Codec (RFC 0014 D3/D5): pure, post-transform, JSON — never pickle
+# Codec (S-0031/D-3, S-0031/D-5): pure, post-transform, JSON — never pickle
 
 
 @pytest.mark.parametrize("name", MART_FIXTURES)
@@ -104,7 +104,7 @@ def test_prewarm_skips_metric_less_manifests() -> None:
 
 
 # ....................... #
-# LRU (RFC 0014 D3/D6)
+# LRU (S-0031/D-3, S-0031/D-6)
 
 
 def test_hit_and_miss_counters() -> None:
@@ -135,7 +135,7 @@ def test_eviction_is_least_recently_used() -> None:
 
 
 def test_version_bump_is_a_miss_by_construction(monkeypatch: pytest.MonkeyPatch) -> None:
-    """RFC 0014 D7: versions live in the key, so a bump makes old entries
+    """S-0031/D-7: versions live in the key, so a bump makes old entries
     unreachable — a miss, never an error (no ``IncompatibleArtifact``)."""
     hydrator = LruManifestHydrator(NAMING)
     ir = fixture_ir("non_additive_aov")

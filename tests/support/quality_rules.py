@@ -1,5 +1,5 @@
 """One :class:`QualityRuleIR` per catalogue kind, built the way the lowering
-builds them — the fixture the RFC 0016 §6 matrix iterates.
+builds them — the fixture the S-0033/tests-rfc-0009-amendment matrix iterates.
 
 Kept in ``tests/support/`` rather than inline because three test modules need
 the same rules (the lowering matrix, the three-valued semantics, and the
@@ -23,7 +23,7 @@ __all__ = [
 ]
 
 #: The branch facts the two :data:`~bloomery.quality.BRANCH_KINDS` rules read
-#: (RFC 0024 D32). They live beside the rules rather than inside them because
+#: (S-0041/D-32). They live beside the rules rather than inside them because
 #: that is where the lowering puts them: on the per-source node, not on the
 #: rule, so that one rule evaluated over a union reads each branch's own.
 BRANCH_SOURCES = ("raw_amount",)
@@ -85,7 +85,7 @@ def referential_rule(on_missing: str) -> QualityRuleIR:
     )
 
 
-#: The ``referential`` axis: one rule per ``on_missing`` value (RFC 0016 §6).
+#: The ``referential`` axis: one rule per ``on_missing`` value (S-0033/tests-rfc-0009-amendment).
 ON_MISSING_RULES = {
     name: referential_rule(name) for name in ("flag", "quarantine", "unknown_member")
 }
@@ -97,7 +97,7 @@ def predicate_of(rule: QualityRuleIR, *, table: str | None = None) -> Expression
 
     A branched rule has no predicate without a branch's facts, so a test that
     called :func:`~bloomery.quality.violation` on every kind would raise on two
-    of them. Routing here keeps the RFC 0016 §6 matrix iterating *every* kind
+    of them. Routing here keeps the S-0033/tests-rfc-0009-amendment matrix iterating *every* kind
     rather than skipping the two, which is the property that matrix exists for.
     """
     if branched(rule):

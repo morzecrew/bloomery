@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      **The completion criterion is `QueryPlan.semantic` becoming non-optional**,
+      not the node count. A phase that adds nodes and leaves the field optional has
+      changed nothing a caller can depend on and nothing S-0058/the-planner-claim
+      can be published against. Locked because it is the whole purpose: every other
+      row here is a means to it, and a plan-shaped deliverable that stops short would
+      read as done.
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/planner/result.py
+      - src/bloomery/planner/semantic_plan.py
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      **No request that is answered today may start being refused.** Making the field
+      non-optional by refusing the four shapes satisfies row 1 and is a capability
+      regression sold as a soundness improvement — the refusal would mean "bloomery
+      cannot describe this", which is not a safety statement. Locked because it is
+      the cheap path to a green suite and it would be defended as rigour.
+    paths: [src/bloomery/planner/semantic_plan.py]
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      **Every node that makes a claim ships with the rule that closes it, in the same
+      change.** `check()` asks the node whether it claims, so a node landing with
+      `claims = False` is exempt from proof permanently and invisibly. A node and
+      its rule are one unit of work; splitting them is how the exemption gets introduced
+      as temporary.
+    paths: [tests/unit/test_semantic/test_plan.py]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      **Three nodes, one per operation kind — arithmetic, reduction, window — rather
+      than one general node.** A single opaque node satisfies row 1 with a third of
+      the work and makes `check()` meaningless: every unmodelled shape arrives as
+      a closed proof of nothing. Not `LOCKED` because a fourth shape might genuinely
+      warrant merging two of these; the escape-hatch shape is what row 3 and S-0065/D-3's
+      reasoning refuse.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **These rules explain an existing acceptance rather than converting a refusal,
+      and are held to that bar instead of S-0056/D-5's.** Every shape here is answered
+      correctly today, so `SafeQueries` does not grow and no case moves from `unguarded`
+      to `accepted` — checked, not assumed: the two `unguarded` cases are unrelated,
+      `005-semi-additive-balance` is already `accepted` citing a retired guardrail
+      row, and no cumulative case exists (§3). D5's "a rule with nothing to convert"
+      was written for capability-widening rules and would block these for lacking
+      evidence they cannot in principle have. The bar instead: the rule states something
+      falsifiable about the declaration it reads, and the corpus case that was accepted
+      on a guardrail's authority now cites the rule.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      **`Compute` carries a proof because the *ordering* is the claim, not the arithmetic.**
+      Division needs no authorization; computing after aggregation rather than before
+      is S-0055/D-1 and changes the number. Not `LOCKED` because if a later reading
+      shows the ordering is structural — forced by where the node sits — the proof
+      becomes decoration and the row should be revisited rather than defended.
+  - id: D-7
+    grade: OPEN
+    text: >-
+      **Whether per-measure restriction scopes on `Filter` or on `Aggregate`** (§5.5).
+      One node type per concept against keeping the restriction beside what it restricts.
+      Execution decides against `resolve.build._metric_filters`, which already holds
+      the authored clauses, and logs which and why.
+  - id: D-8
+    grade: OPEN
+    text: >-
+      **What replaces `_plannable`.** Its four conditions exist to decline; once nothing
+      declines they are either deleted or turned into a dispatch to the node stating
+      each shape. The second cannot silently regrow into a list of exclusions, which
+      the enumerating version of that guard already did twice — but it is a bigger
+      change, and the choice belongs to whoever sees both shapes against the code.
+    paths: [src/bloomery/planner/semantic_plan.py]

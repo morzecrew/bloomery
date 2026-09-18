@@ -1,4 +1,4 @@
-"""Lowering mutations for the chaos meta-test (RFC 0016 §6).
+"""Lowering mutations for the chaos meta-test (S-0033/tests-rfc-0009-amendment).
 
 §6 asks for a **quarterly chaos meta-test**: "mutate the lowering (invert a
 comparison, drop a stage, swap a disposition); at least one test must fail per
@@ -17,7 +17,7 @@ re-exports it. :mod:`bloomery.emit.lower.silver` binds ``violation``,
 the definition — or the package ``__init__`` that re-exports it — silently does
 nothing, and every mutation "survives" for the most boring possible reason.
 
-That is not hypothetical: the RFC 0019 split briefly pointed this module at
+That is not hypothetical: the S-0036 split briefly pointed this module at
 ``bloomery.emit.lower``, the package rather than the stage, and the whole
 harness went quiet. The goldens could not see it, because a mutation is applied
 at run time and never reaches an artifact. Each target below therefore names

@@ -1,6 +1,6 @@
 # Test suite
 
-Six tiers, fastest first (RFC 0009). All tiers exercise one shared fixture corpus under
+Six tiers, fastest first (S-0026). All tiers exercise one shared fixture corpus under
 `tests/fixtures/`, loaded only through the public `load_project`/`load_catalog` API.
 
 | Tier | Directory | Marker | In `just test` | Needs Docker | What it proves |
@@ -12,14 +12,14 @@ Six tiers, fastest first (RFC 0009). All tiers exercise one shared fixture corpu
 | 5 Engine matrix | `engines/` | `engine(<name>)` | opt-in | ✅ | tier-4 assertions against real engines via testcontainers |
 | 6 Target e2e | `e2e/` | `e2e` | opt-in | ✅ | artifacts are valid *input to the target* (sqlmesh replan is a no-op, `dbt parse`, cube `/meta`) |
 
-`chaos` marks the mutation meta-test (`chaos/`, RFC 0016 §6): it deforms the
+`chaos` marks the mutation meta-test (`chaos/`, S-0033/tests-rfc-0009-amendment): it deforms the
 quality lowering — inverts a comparison, drops a stage, swaps a disposition —
 and requires the M12 quality battery to notice each time, running pytest in a
 subprocess per mutation. Excluded from `just test` and `just test-all`; run it
 with `uv run pytest tests/chaos -m chaos`.
 
-`perf` marks the bench lane (`bench/`, RFC 0009 §5.9): the hydration budgets
-of RFC 0014 — 50 ms cold / 10 ms warm, median over ≥20 iterations with a
+`perf` marks the bench lane (`bench/`, S-0026/benchmark-lane-tests-bench): the hydration budgets
+of S-0031 — 50 ms cold / 10 ms warm, median over ≥20 iterations with a
 documented 3× CI multiplier, plus a 3× model-size info point. Excluded from
 `just test`; run it with `uv run pytest tests/bench -m perf` (scheduled lane
 in CI).
@@ -32,10 +32,10 @@ just test-all                      # everything except chaos and perf (Docker re
 just test tests/unit               # one tier / path
 uv run pytest -m 'engine'          # tier 5 only
 uv run pytest -m e2e               # tier 6 only
-uv run pytest tests/chaos -m chaos # the mutation meta-test (RFC 0016 §6)
+uv run pytest tests/chaos -m chaos # the mutation meta-test (S-0033/tests-rfc-0009-amendment)
 just snapshot-update               # regenerate goldens (tier 2)
 just coverage                      # tiers 1–4 with the coverage floors enforced
-                                   # (80 overall; bloomery/guardrails/ at 100% branch — RFC 0009 D9)
+                                   # (80 overall; bloomery/guardrails/ at 100% branch — S-0026/D-9)
 ```
 
 ## Conventions
@@ -57,4 +57,4 @@ just coverage                      # tiers 1–4 with the coverage floors enforc
   sides of the quarantine split.
 - `tests/conftest.py` exists for one thing: the chaos harness's mutation hook.
 
-This table will be extended as the tiers land with their milestones (RFC 0009 §12).
+This table will be extended as the tiers land with their milestones (S-0026/phasing).

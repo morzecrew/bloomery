@@ -3,7 +3,7 @@
 # charged for it cost money, and this reading says that cost belongs in the
 # rate. The number is 4.00 — the same number the `declared` arm produced by
 # accident, and the difference is that an author wrote down which question they
-# were asking (RFC 0075 D2).
+# were asking (S-0077/D-2).
 metrics_version: 1
 metrics:
   carrier_cost:

@@ -16,7 +16,7 @@ metrics:
     additivity: ratio
     ratio: {numerator: gross_revenue, denominator: order_count}
   # Unreachable on purpose: no mapping supplies `cogs`, so resolution reports
-  # this metric with the specific missing leaf (RFC 0005 §5.3).
+  # this metric with the specific missing leaf (S-0022/availability-and-reachability-bloomery-resolve-reach-py).
   margin:
     requires: [unit_price, cogs]
     grain: order_item

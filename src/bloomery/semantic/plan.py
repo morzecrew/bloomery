@@ -1,4 +1,4 @@
-"""The semantic plan (RFC 0040): what a request computes, decided by bloomery
+"""The semantic plan (S-0054): what a request computes, decided by bloomery
 before any target sees it.
 
 Today's planner resolves a covering mart and hands the request to MetricFlow,
@@ -13,7 +13,7 @@ request exactly as it did, so a reader should not take a plan's presence as
 evidence that it produced the query beside it. Wiring a target to the plan
 would change what the SQL is generated from, which is the one thing every
 phase here has had to avoid if the parity suite is to mean anything — and
-RFC 0066 §4 keeps it a non-goal for the same reason.
+S-0071/goals keeps it a non-goal for the same reason.
 
 **A plan is not a rendering.** It names logical operators over grains, and a
 target may choose any syntax for them, but it may not introduce a
@@ -30,12 +30,12 @@ these measures may be rolled to this grain, and five more have joined it since
 (logs/T-0021.md, D-124).
 
 `PreservingJoin` was once expected to arrive and bring the other half. It has
-not, and RFC 0041 D10 keeps it refused rather than deferred: joining
+not, and S-0055/D-10 keeps it refused rather than deferred: joining
 unaggregated rows is the fan-out the wide-mart design removes, so the half of
 D2 about multiplication stays vacuous **by construction** rather than by phase.
 That is a stronger position than the one this paragraph originally described,
 and it is why the check asks a node whether it claims rather than whether it
-multiplies (RFC 0041 D14).
+multiplies (S-0055/D-14).
 
 Here rather than under ``planner`` because §6 hands this to target adapters,
 and the emitters sit below the planner in the layer contract — a plan they
@@ -127,7 +127,7 @@ class Filter:
     #: invariant the no-filter case could never catch.
     predicates: tuple[str, ...] = ()
     #: The measures these predicates restrict; empty means **every** measure
-    #: beneath (RFC 0066 §5.5).
+    #: beneath (S-0071/per-measure-restriction).
     #:
     #: A metric's own `filter:` narrows that measure alone, so a request pairing
     #: `paid_revenue` with `revenue` restricts one and not the other. One
@@ -160,7 +160,7 @@ class Filter:
             msg = (
                 "a filter scoped to measures with no predicates restricts nothing while "
                 "naming what it restricts, which reads as a narrowed measure and is not "
-                "one (RFC 0066 §5.5)"
+                "one (S-0071/per-measure-restriction)"
             )
             raise ValueError(msg)
 
@@ -188,10 +188,10 @@ class Aggregate:
     """Measures rolled from ``input_grain`` to the grouping in ``dimensions``.
 
     ``output_grain`` is the *key* grain the result is identified by, and
-    ``dimensions`` the columns projected from it. RFC 0040 §5 writes that pair
+    ``dimensions`` the columns projected from it. S-0054/planning-rule writes that pair
     as one name — ``output_grain=CustomerCountry`` — but ``country`` is not
-    part of ``customer``'s key, and RFC 0037's grain is key identity, so no
-    such grain exists to name. RFC 0039 §7 renders the same argument in the
+    part of ``customer``'s key, and S-0017's grain is key identity, so no
+    such grain exists to name. S-0005 (§7) renders the same argument in the
     shape that does: roll up to the key grain, and the column is determined by
     that key (logs/T-0021.md, D-117).
 
@@ -295,12 +295,12 @@ class Project:
 @dataclass(frozen=True, slots=True)
 class Compute:
     """A column computed from other columns of the same relation, **after**
-    they were aggregated (RFC 0066 §5.2).
+    they were aggregated (S-0071/compute-arithmetic-above-an-aggregate).
 
-    The node RFC 0040 §4 never had and `compose` names by its absence: "none of
+    The node S-0054/semanticplan-ir never had and `compose` names by its absence: "none of
     them states arithmetic, so naming the metric in ``Project.columns`` would
     claim the join produced a column the join does not produce". A ratio and an
-    RFC 0034 ``derived:`` expression are both this shape — a metric with no
+    S-0050 ``derived:`` expression are both this shape — a metric with no
     measure of its own, rebuilt from measures that have one.
 
     **The claim is the ordering, not the arithmetic.** Division needs no
@@ -332,7 +332,7 @@ class Compute:
             msg = (
                 "a compute node with no outputs computes nothing, and `check` would "
                 "report it authorized — the same shape as a proof resting on no facts "
-                "(RFC 0066 §5.2)"
+                "(S-0071/compute-arithmetic-above-an-aggregate)"
             )
             raise ValueError(msg)
 
@@ -372,11 +372,11 @@ class Compute:
 
 @dataclass(frozen=True, slots=True)
 class Reduce:
-    """One named dimension collapsed by a declared rule (RFC 0066 §5.3).
+    """One named dimension collapsed by a declared rule (S-0071/reduce-one-named-dimension-collapsed-by-a-declared-rule).
 
     What a semi-additive measure is lowered as before anything else touches it:
     the ``over:`` dimension reduced away, leaving one value per group, so that
-    aggregating across the *other* dimensions is legitimate afterwards. RFC 0040
+    aggregating across the *other* dimensions is legitimate afterwards. S-0054
     P1 declined these because "one ``Aggregate`` cannot say" it, and a plan that
     said `Aggregate` would have named the operation it is not.
 
@@ -413,7 +413,7 @@ class Reduce:
             msg = (
                 "a reduce node with no measures reduces nothing, and `check` would report "
                 "it authorized — the same shape as a proof resting on no facts "
-                "(RFC 0066 §5.3)"
+                "(S-0071/reduce-one-named-dimension-collapsed-by-a-declared-rule)"
             )
             raise ValueError(msg)
 
@@ -455,10 +455,10 @@ class Reduce:
 
 @dataclass(frozen=True, slots=True)
 class Window:
-    """Accumulation across rows at query time (RFC 0066 §5.4).
+    """Accumulation across rows at query time (S-0071/window-accumulation-across-rows-at-query-time).
 
     A ``cumulative:`` metric keeps its own measure and its own additivity —
-    those describe the measure, this describes the accumulation. RFC 0040 P1
+    those describe the measure, this describes the accumulation. S-0054/phasing (P-1)
     declined these because "a window and a ``period_agg`` are not a rollup at
     all", and a plan reading as a plain sum per day would have been the
     operation this is not.
@@ -495,7 +495,7 @@ class Window:
             msg = (
                 "a window node with no measures accumulates nothing, and `check` would "
                 "report it authorized — the same shape as a proof resting on no facts "
-                "(RFC 0066 §5.4)"
+                "(S-0071/window-accumulation-across-rows-at-query-time)"
             )
             raise ValueError(msg)
 
@@ -537,7 +537,7 @@ class Window:
 
 @dataclass(frozen=True, slots=True)
 class Offset:
-    """The same measure read at a shifted range (RFC 0066 §5.6).
+    """The same measure read at a shifted range (S-0071/making-the-field-non-optional).
 
     A ``derived:`` input may carry an ``offset_window`` or ``offset_to_grain``,
     so ``revenue_yoy`` reads `revenue` now and `revenue` a year earlier and
@@ -548,7 +548,7 @@ class Offset:
     **What this node states is the declared shift, not the join that renders
     it.** MetricFlow lowers an offset by joining the measure to the time spine
     at a shifted date under a full outer join; a plan naming that would be
-    stating how the SQL is spelled rather than what is computed, which RFC 0040
+    stating how the SQL is spelled rather than what is computed, which S-0054
     D4 refuses. The target chooses the mechanism; the plan says which measure
     is read, over which ordering, and how far back.
 
@@ -564,7 +564,7 @@ class Offset:
     #: prose. Sorted.
     #:
     #: The metric is not decoration. An alias is scoped to the metric that
-    #: declares it (RFC 0034 D1), so two ``derived:`` metrics may both call
+    #: declares it (S-0050/D-1), so two ``derived:`` metrics may both call
     #: their offset input ``prior`` and mean different measures; flattening
     #: them into one namespace produced a plan naming one alias twice, which no
     #: target can lower because the expressions above reference ``prior`` and
@@ -584,7 +584,7 @@ class Offset:
         if not self.reads:
             msg = (
                 "an offset node with no reads shifts nothing, and `check` would report it "
-                "authorized — the same shape as a proof resting on no facts (RFC 0066 §5.6)"
+                "authorized — the same shape as a proof resting on no facts (S-0071/making-the-field-non-optional)"
             )
             raise ValueError(msg)
 
@@ -647,7 +647,7 @@ class JoinBranch:
 @dataclass(frozen=True, slots=True)
 class JoinAggregates:
     """Branch plans joined on the key their aggregates already reduced them to
-    (RFC 0041 D1, D9).
+    (S-0055/D-1, S-0055/D-9).
 
     Each branch is a whole :class:`SemanticPlan` rather than a node list,
     because a branch *is* a plan: it scans, restricts, aggregates and carries
@@ -674,7 +674,7 @@ class JoinAggregates:
     # ....................... #
 
     def __post_init__(self) -> None:
-        # Sorted like every other IR collection (RFC 0003) — and the branches
+        # Sorted like every other IR collection (S-0020) — and the branches
         # are reordered *with* the keys, because entry `i` of a branch is that
         # branch's name for key `i`. Sorting one side alone breaks the pairing
         # silently: `keys` reads `('signed_up', 'tier')` while every branch
@@ -701,7 +701,7 @@ class JoinAggregates:
         if len(self.branches) < 2:
             msg = (
                 f"a branch join needs at least two branches, got {len(self.branches)} — "
-                "one branch is a plan, not a join (RFC 0041 §3)"
+                "one branch is a plan, not a join (S-0055/metric-partitioning)"
             )
             raise ValueError(msg)
 
@@ -709,7 +709,7 @@ class JoinAggregates:
         # aggregate beneath. A branch that does not end in an aggregate over
         # the join keys makes that sentence false while the proof beside it
         # still reads as closed — the node has to require the structure it
-        # claims, or the claim is decoration (RFC 0041 D2).
+        # claims, or the claim is decoration (S-0055/D-2).
         #
         # The **last** aggregate, and its column *names*. An earlier one says
         # nothing about the branch's output: an aggregate to the keys followed
@@ -726,7 +726,7 @@ class JoinAggregates:
                 f"branch(es) {unaggregated} do not end in an aggregate to their own names "
                 f"for the {len(self.keys)} join key(s), so they are not unique at the "
                 "result grain and R010 would be asserting it about a plan that does not "
-                "do it (RFC 0041 D2)"
+                "do it (S-0055/D-2)"
             )
             raise ValueError(msg)
 
@@ -776,12 +776,12 @@ class JoinAggregates:
 
 # ....................... #
 
-#: The node vocabulary, closed. RFC 0040 §4 also lists `PreservingJoin` and
+#: The node vocabulary, closed. S-0054/semanticplan-ir also lists `PreservingJoin` and
 #: `ConvertUnit`; neither exists yet — the first would join *unaggregated*
-#: rows, which RFC 0041 D10 keeps refused, and the second has no owner since
-#: RFC 0038 retired without it (RFC 0066 §8). :class:`Compute` is the sixth
+#: rows, which S-0055/D-10 keeps refused, and the second has no owner since
+#: S-0053 retired without it (S-0071/out-of-scope). :class:`Compute` is the sixth
 #: kind, :class:`Reduce` the seventh, :class:`Window` the eighth and
-#: :class:`Offset` the ninth (RFC 0066 §5.2-§5.6).
+#: :class:`Offset` the ninth (S-0071/compute-arithmetic-above-an-aggregate S-0071/making-the-field-non-optional).
 PlanNode = Scan | Filter | Aggregate | Project | JoinAggregates | Compute | Reduce | Window | Offset
 
 
@@ -826,7 +826,7 @@ class SemanticPlan:
         here. A membership test over a closed vocabulary is right until the
         vocabulary gains a member, and the member it silently exempts is the
         one nobody remembered to add — which for a join node is the fan-out
-        itself (RFC 0041 D14).
+        itself (S-0055/D-14).
 
         **Closed, not merely present.** A proof resting on a heuristic or
         unknown leaf is a derivation nobody stands behind, and accepting one
@@ -842,14 +842,14 @@ class SemanticPlan:
             msg = (
                 "a plan with no nodes computes nothing — `check` would pass over an empty "
                 "sequence and report it valid, which is the same shape as a proof resting "
-                "on no facts (RFC 0040 D2)"
+                "on no facts (S-0054/D-2)"
             )
             raise ValueError(msg)
 
         # R014 premises on the aggregate beneath, so a `Compute` with nothing
         # aggregated above it is claiming an ordering that did not happen —
         # the same reason `JoinAggregates` requires its branches to end in an
-        # aggregate rather than trusting the proof beside it (RFC 0041 D2).
+        # aggregate rather than trusting the proof beside it (S-0055/D-2).
         reduced = False
 
         for node in self.nodes:
@@ -861,7 +861,7 @@ class SemanticPlan:
                     "it is authorized for did not happen — a row-level expression or "
                     "window aggregated afterwards is a different number, and a shifted "
                     "read of unaggregated rows is not the measure it names "
-                    "(RFC 0066 §5.2, §5.4, §5.6)"
+                    "(S-0071/compute-arithmetic-above-an-aggregate, S-0071/window-accumulation-across-rows-at-query-time, S-0071/making-the-field-non-optional)"
                 )
                 raise ValueError(msg)
 
@@ -876,7 +876,7 @@ class SemanticPlan:
             msg = (
                 f"plan node(s) claim without a closed proof: {unauthorized} — an aggregate "
                 "or a duplicating join whose authorization is missing, or rests on a leaf "
-                "nothing closes, is invalid IR rather than merely unexplained (RFC 0040 D2)"
+                "nothing closes, is invalid IR rather than merely unexplained (S-0054/D-2)"
             )
             raise ValueError(msg)
 
@@ -921,7 +921,7 @@ class SemanticPlan:
     # ....................... #
 
     def serialize(self) -> str:
-        """Canonical JSON — deterministic under RFC 0003, like the proofs it
+        """Canonical JSON — deterministic under S-0020, like the proofs it
         carries. Node order is the plan's meaning and is never sorted."""
 
         return json.dumps(self.document(), separators=(",", ":"), ensure_ascii=False)

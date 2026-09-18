@@ -1,4 +1,4 @@
-"""Availability and reachability (RFC 0005 §5.3): missing names *leaves*,
+"""Availability and reachability (S-0022/availability-and-reachability-bloomery-resolve-reach-py): missing names *leaves*,
 never intermediate metrics, computed over the one shared DAG."""
 
 from __future__ import annotations
@@ -58,11 +58,11 @@ def test_missing_names_the_specific_leaves_sorted() -> None:
 
 
 def test_missing_propagates_leaves_through_requires_metrics() -> None:
-    """RFC 0005 §5.3: if AOV requires net_revenue which requires discount, the
+    """S-0022/availability-and-reachability-bloomery-resolve-reach-py: if AOV requires net_revenue which requires discount, the
     reason is `discount` — the leaf, not the intermediate metric.
 
     ``via`` carries the intermediate *beside* it rather than in place of it
-    (RFC 0022 D11): the fix is still the mapping, and the chain is what the
+    (S-0039/D-11): the fix is still the mapping, and the chain is what the
     reader would otherwise have to re-walk to see why fixing it helps AOV.
     """
     metrics = (

@@ -1,4 +1,4 @@
-"""The fixture corpus parses clean through the public API only (RFC 0009 D4)."""
+"""The fixture corpus parses clean through the public API only (S-0026/D-4)."""
 
 from __future__ import annotations
 
@@ -45,12 +45,12 @@ def test_ecom_basic_loads_clean() -> None:
     assert project.metric_set is not None
     aov = project.metric_set.metrics["average_order_value"]
     assert aov.additivity == "ratio"
-    assert aov.ratio is not None  # ratio metric per RFC 0009 fixture table
+    assert aov.ratio is not None  # ratio metric per S-0026 fixture table
 
     assert project.marts is not None
     mart = project.marts.marts["order_items"]
     roles = [step.role for step in mart.flatten if hasattr(step, "role")]
-    assert roles == ["ordered"]  # measure-carrying mart has a date role (RFC 0010 D9)
+    assert roles == ["ordered"]  # measure-carrying mart has a date role (S-0027/D-9)
     assert mart.measures == ("gross_revenue",)
 
 
@@ -62,14 +62,14 @@ def test_ecom_basic_catalog_loads_clean() -> None:
     assert [r.id for r in recipes] == ["direct", "from_total"]  # reliability order
     aov = catalog.metric_templates["average_order_value"]
     assert aov.ratio is not None
-    # The vertical-owned date dimension (RFC 0008 D13).
+    # The vertical-owned date dimension (S-0025/D-13).
     assert catalog.date_dimension is not None
     assert catalog.date_dimension.name == "dim_date"
     assert (catalog.date_dimension.start_year, catalog.date_dimension.end_year) == (2020, 2030)
 
 
 def test_fanout_trap_loads_clean() -> None:
-    # Parses clean; the refusal is the guardrail stage's (RFC 0006), not parse's.
+    # Parses clean; the refusal is the guardrail stage's (S-0023), not parse's.
     project = load_fixture_project("fanout_trap")
     assert set(project.entity_model.entities) == {"order_item", "order"}
     (rel,) = project.entity_model.relationships
@@ -109,7 +109,7 @@ def test_role_playing_dates_loads_clean() -> None:
 
 @pytest.mark.parametrize("version", [1, 2, 3, 4, 5])
 def test_evolution_versions_load_clean(version: int) -> None:
-    # The RFC 0007 §5.5 spec-evolution sequence (fixtures per RFC 0009).
+    # The S-0024/worked-example-evolutionv1-v5 spec-evolution sequence (fixtures per S-0026).
     project = load_fixture_project(f"evolution_v{version}")
     assert set(project.entity_model.entities) == {"order_item"}
     fields = project.entity_model.entities["order_item"].fields
@@ -128,7 +128,7 @@ def test_evolution_versions_load_clean(version: int) -> None:
 
 def test_scd2_customers_loads_clean() -> None:
     # The M10 SCD type 2 fixture: sqlmesh lowers it to a native SCD kind,
-    # dbt to a check-strategy snapshot (RFC 0008 §5.3/§5.5).
+    # dbt to a check-strategy snapshot (S-0025/sqlmesh-emitter-primary, S-0025/dbt-emitter-compatibility).
     project = load_fixture_project("scd2_customers")
     customer = project.entity_model.entities["customer"]
     assert customer.scd == "type2"
@@ -139,7 +139,7 @@ def test_scd2_customers_loads_clean() -> None:
 
 
 def test_scd2_mart_refusal_loads_clean() -> None:
-    # Parses clean; the refusal is the guardrail stage's (RFC 0023 D1/D2).
+    # Parses clean; the refusal is the guardrail stage's (S-0040/D-1, S-0040/D-2).
     # Deliberately a second fixture rather than a marts.yaml on
     # `scd2_customers`: that one is the only golden coverage of the SCD2
     # silver lowering, which §8 leaves fully supported.
@@ -154,7 +154,7 @@ def test_scd2_mart_refusal_loads_clean() -> None:
 
 
 def test_currency_convert_refusal_loads_clean() -> None:
-    # Parses *and* typechecks clean — convert is decimal → decimal (RFC 0023
+    # Parses *and* typechecks clean — convert is decimal → decimal (S-0040
     # D4). The refusal is at emit, which is what makes it a fixture about a
     # stage rather than about a grammar.
     project = load_fixture_project("currency_convert_refusal")
@@ -171,7 +171,7 @@ def test_path_conflict_loads_clean() -> None:
 
 
 def test_path_conflict_merged_loads_clean() -> None:
-    """The same conflict on an entity built from two mappings (RFC 0024 D36).
+    """The same conflict on an entity built from two mappings (S-0041/D-36).
 
     Both shops record a path and the two paths *differ* — which is the fixture's
     reason to exist: one shadow for the whole entity would have given each
@@ -189,7 +189,7 @@ def test_path_conflict_merged_loads_clean() -> None:
 
 
 def test_dirty_corpus_loads_clean() -> None:
-    """The spec side of the dirty-data corpus (RFC 0016 §6). One entity per
+    """The spec side of the dirty-data corpus (S-0033/tests-rfc-0009-amendment). One entity per
     failure family, plus the two sides ``refs.csv``'s ``_parent_status``
     column asks a suite to stand up — the referenced customer and the
     referenced parent order — plus ``dirty_ref_routed``, which judges
@@ -231,7 +231,7 @@ def test_dirty_corpus_loads_clean() -> None:
 
 
 def test_coverage_check_loads_clean() -> None:
-    """The smallest project a cross-entity coverage check needs (RFC 0016 D90):
+    """The smallest project a cross-entity coverage check needs (S-0033/D-90):
     two entities and the relationship between them. Its own fixture because a
     coverage check makes a project uncompilable for dbt, and every existing
     fixture with a spare relationship is one the dbt goldens are built on."""

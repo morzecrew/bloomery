@@ -1,4 +1,4 @@
-"""The ``_quality_flags`` / ``failed_rules`` physical contract (RFC 0016 D23)
+"""The ``_quality_flags`` / ``failed_rules`` physical contract (S-0033/D-23)
 and its single-pass shape (§5.4).
 
 The contract is what makes the two lowerings comparable, so it is asserted as
@@ -124,7 +124,7 @@ def test_quality_ok_can_be_qualified() -> None:
 
 
 # ....................... #
-# One pass, never N (RFC 0016 §5.4)
+# One pass, never N (S-0033/fixed-pipeline-order-and-lowering)
 
 
 def test_flag_construction_is_a_single_expression_per_row() -> None:

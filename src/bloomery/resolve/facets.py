@@ -1,4 +1,4 @@
-"""The delta vocabulary: what about a definition moved (RFC 0064 §5.1).
+"""The delta vocabulary: what about a definition moved (S-0069/the-edge).
 
 :func:`~bloomery.timeline` reports *that* a node's definition differs between
 two versions of a project. This module says **how**, in the vocabulary the
@@ -22,7 +22,7 @@ put it in — a test plus a loud invariant is the mechanical failure §10's thir
 question asks for (``logs/T-0045.md``).
 
 **Identity is not definition.** ``name``, ``ref`` and ``id`` belong to no
-facet: they are how a node is *matched* across versions, which is RFC 0062's
+facet: they are how a node is *matched* across versions, which is S-0067's
 business, and a pure rename must attribute nothing (§6). They are excluded once
 here rather than blanked per kind, so the rule has one statement.
 
@@ -43,7 +43,7 @@ from typing import Final, TypeGuard, cast
 from bloomery.errors import InvariantViolated
 
 # Runtime imports, not `TYPE_CHECKING` ones: `Facet`, `FacetDelta` and
-# `facets` are public, and RFC 0018 D10 requires a public annotation to resolve
+# `facets` are public, and S-0035/D-10 requires a public annotation to resolve
 # at run time — `tests/unit/test_signature_closure.py` calls `get_type_hints`
 # on every export and a guarded name fails it.
 from bloomery.ir import SourceColumnIR, SqlExpr
@@ -99,7 +99,7 @@ class Facet(StrEnum):
     RUNTIME = "runtime"
     #: Something a reader reads and no number depends on.
     METADATA = "metadata"
-    #: Who may read the relation (RFC 0055 §5.3). Its own member rather than
+    #: Who may read the relation (S-0062/grants). Its own member rather than
     #: :attr:`METADATA`, because metadata's defining property is that nothing
     #: depends on it and a grant is the one annotation of that RFC with a
     #: consequence — it is *applied*, by the framework, on the engine. A
@@ -142,7 +142,7 @@ class FacetDelta:
 # ....................... #
 
 
-#: Fields that name a node rather than define it. Identity is RFC 0062's
+#: Fields that name a node rather than define it. Identity is S-0067's
 #: business and a pure rename must attribute nothing (§6), so these belong to
 #: no facet and never reach the table below.
 _IDENTITY: Final[frozenset[str]] = frozenset({"id", "name", "ref"})
@@ -183,7 +183,7 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("MartIR", "cost_hint"): Facet.STORAGE,
     ("MartIR", "owner"): Facet.METADATA,
     ("MartIR", "grants"): Facet.ACCESS,
-    # A rollup, which shares the mart's node prefix (RFC 0067 §5.1).
+    # A rollup, which shares the mart's node prefix (S-0072/the-node).
     ("RollupIR", "keep"): Facet.GRAIN,
     ("RollupIR", "of"): Facet.INPUTS,
     ("RollupIR", "measures"): Facet.INPUTS,
@@ -235,7 +235,7 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("ColumnIR", "description"): Facet.METADATA,
     ("ColumnIR", "renamed_from"): Facet.METADATA,
     ("ColumnIR", "classification"): Facet.METADATA,
-    # An entity field: the lowering half, one per source (RFC 0024 D26).
+    # An entity field: the lowering half, one per source (S-0041/D-26).
     ("SourceColumnIR", "expr"): Facet.BODY,
     ("SourceColumnIR", "recipe_id"): Facet.BODY,
     ("SourceColumnIR", "sources"): Facet.INPUTS,
@@ -279,7 +279,7 @@ def _render(value: object) -> str | None:
         case bool() | int() | Decimal():
             return str(value)
         case _ if isinstance(value, LogicalType):
-            # The one spelling a type has (RFC 0004): `render_type` is public
+            # The one spelling a type has (S-0021): `render_type` is public
             # precisely so that three consumers cannot invent a fourth. Matched
             # by a guard rather than by `case LogicalType()`: it is a union
             # alias over seven classes, and a match pattern takes a class.
@@ -380,7 +380,7 @@ def _flatten(definition: object) -> dict[str, tuple[str, object]]:
 
     An entity field is the shape that needs the work: its schema is a
     ``ColumnIR`` and its expression is a ``SourceColumnIR`` **per source**
-    (RFC 0024 D26), so the lowering's fields enter keyed by source relation.
+    (S-0041/D-26), so the lowering's fields enter keyed by source relation.
     A source added to a merged entity therefore moves every lowered field at
     once, which is verbose and true — the alternative, comparing only the
     sources both sides share, would report a rewritten mapping and a dropped
@@ -393,7 +393,7 @@ def _flatten(definition: object) -> dict[str, tuple[str, object]]:
     if isinstance(definition, tuple):
         # `_definition` returns `object`, and this is the one shape it builds
         # rather than looks up: the schema half and the lowering half of one
-        # entity field (RFC 0024 D26).
+        # entity field (S-0041/D-26).
         column, lowerings = cast(
             "tuple[object, tuple[tuple[str, SourceColumnIR], ...]]", definition
         )
@@ -433,7 +433,7 @@ def facets(before: object, after: object) -> tuple[FacetDelta, ...]:
     nothing else, ``name`` belongs to no facet, and the answer is empty (§6).
 
     Sorted by facet and then field, so a value built from two IRs is
-    deterministic in the way everything else here is (RFC 0003 §5.3).
+    deterministic in the way everything else here is (S-0020/ordering-rules).
 
     Raises :class:`~bloomery.errors.InvariantViolated` for a field the table
     does not cover. Loud rather than silent, because the alternative is a
@@ -479,7 +479,7 @@ def _facet(record: str, field: str) -> Facet:
 
     if facet is None:
         msg = (
-            f"{record}.{field} lands in no facet — RFC 0064 §9: a spec field "
+            f"{record}.{field} lands in no facet — S-0069/risks: a spec field "
             f"that no facet covers is reported as unchanged when it changed"
         )
         raise InvariantViolated(msg)

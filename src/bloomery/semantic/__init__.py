@@ -1,9 +1,9 @@
-"""The semantic grain model (RFC 0037): grain as structural identity,
+"""The semantic grain model (S-0017): grain as structural identity,
 functional dependencies carrying the basis that justifies them, and a
 directional rollup question answered with a proof or a reason.
 
 Vocabulary, not a stage. Nothing in the compile pipeline consults it yet —
-RFC 0040's planner is the first consumer, and RFC 0037 §7 is explicit that the
+S-0054's planner is the first consumer, and S-0017 (§7) is explicit that the
 mart's existing ``GrainViolation`` keeps its own implementation until an RFC
 amends it. What this package owes the documents built on it (0038's measure
 types, 0039's proof IR, 0040's planner, 0041's multi-grain queries) is one

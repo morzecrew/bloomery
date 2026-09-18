@@ -2,7 +2,7 @@
   "$defs": {
     "CumulativeSpec": {
       "additionalProperties": false,
-      "description": "A metric's accumulation over time (RFC 0002 D10, lowered by RFC 0034\nD5): exactly one of a trailing ``window`` or a ``grain_to_date``.\n\n``{window: \"7 days\"}`` is a trailing seven-day total; ``{grain_to_date:\nmonth}`` is month-to-date. The metric keeps its own measure and its own\n``additivity`` \u2014 that describes the measure, while this describes how the\nmeasure accumulates (D6).\n\n``period_agg`` decides what a request coarser than the accumulation gets;\nsee :data:`PeriodAggregationName` for why it defaults to ``last``.",
+      "description": "A metric's accumulation over time (S-0019/D-10, lowered by S-0050\nD5): exactly one of a trailing ``window`` or a ``grain_to_date``.\n\n``{window: \"7 days\"}`` is a trailing seven-day total; ``{grain_to_date:\nmonth}`` is month-to-date. The metric keeps its own measure and its own\n``additivity`` \u2014 that describes the measure, while this describes how the\nmeasure accumulates (D6).\n\n``period_agg`` decides what a request coarser than the accumulation gets;\nsee :data:`PeriodAggregationName` for why it defaults to ``last``.",
       "properties": {
         "grain_to_date": {
           "anyOf": [
@@ -52,7 +52,7 @@
     },
     "DerivedSpec": {
       "additionalProperties": false,
-      "description": "A metric computed by an expression over other metrics (RFC 0034 D1).\n\n``inputs`` is a mapping keyed by alias rather than a list: the alias is\nthe input's identity because ``expr`` references it, and a mapping makes a\nduplicate alias unrepresentable instead of something to validate. That the\nexpression references only declared aliases is a guardrail \u2014 it needs the\nparsed expression, which lives a layer up.",
+      "description": "A metric computed by an expression over other metrics (S-0050/D-1).\n\n``inputs`` is a mapping keyed by alias rather than a list: the alias is\nthe input's identity because ``expr`` references it, and a mapping makes a\nduplicate alias unrepresentable instead of something to validate. That the\nexpression references only declared aliases is a guardrail \u2014 it needs the\nparsed expression, which lives a layer up.",
       "properties": {
         "expr": {
           "title": "Expr",
@@ -76,7 +76,7 @@
     },
     "Metric": {
       "additionalProperties": false,
-      "description": "One authored metric: a template instantiation or an inline definition.\n\nShape-only at parse (RFC 0002 D4): whether ``template`` exists, leaves are\nreachable, or the additivity policy is complete is checked downstream\n(resolution RFC 0005; guardrails RFC 0006).",
+      "description": "One authored metric: a template instantiation or an inline definition.\n\nShape-only at parse (S-0019/D-4): whether ``template`` exists, leaves are\nreachable, or the additivity policy is complete is checked downstream\n(resolution S-0022; guardrails S-0023).",
       "properties": {
         "additivity": {
           "anyOf": [
@@ -256,7 +256,7 @@
     },
     "MetricFilter": {
       "additionalProperties": false,
-      "description": "One row-level restriction on a metric (RFC 0034 D8).\n\n``dimension`` names a column flattened on the mart carrying the metric;\nthat it is flattened, and that ``values`` fit its declared type, is a\nguardrail (D9) \u2014 this layer checks only what is decidable from the\ndocument: the operator/arity coherence, and that the name is a bare\nidentifier. The second is not cosmetic \u2014 see\n:data:`~bloomery.spec.common.DimensionName`, which the reference is typed\nwith: this is the one place a member name reaches a template unquoted.",
+      "description": "One row-level restriction on a metric (S-0050/D-8).\n\n``dimension`` names a column flattened on the mart carrying the metric;\nthat it is flattened, and that ``values`` fit its declared type, is a\nguardrail (D9) \u2014 this layer checks only what is decidable from the\ndocument: the operator/arity coherence, and that the name is a bare\nidentifier. The second is not cosmetic \u2014 see\n:data:`~bloomery.spec.common.DimensionName`, which the reference is typed\nwith: this is the one place a member name reaches a template unquoted.",
       "properties": {
         "dimension": {
           "pattern": "^[a-z][a-z0-9_]*$",
@@ -321,7 +321,7 @@
     },
     "MetricInputSpec": {
       "additionalProperties": false,
-      "description": "One input of a derived metric \u2014 the metric read, and optionally the\noffset it is read at. Its *alias* is the key it sits under in\n:attr:`DerivedSpec.inputs`, because the alias is what the expression\nreferences (RFC 0034 D1).",
+      "description": "One input of a derived metric \u2014 the metric read, and optionally the\noffset it is read at. Its *alias* is the key it sits under in\n:attr:`DerivedSpec.inputs`, because the alias is what the expression\nreferences (S-0050/D-1).",
       "properties": {
         "metric": {
           "title": "Metric",
@@ -347,7 +347,7 @@
     },
     "MetricOffset": {
       "additionalProperties": false,
-      "description": "How far back a derived metric's input reads (RFC 0034 D2): exactly one\nof a fixed ``window`` or the start of the containing period.\n\n``{window: \"1 year\"}`` against a monthly grouping is the same month one\nyear earlier; ``{to_grain: month}`` against a daily grouping is the first\nday of each row's own month.",
+      "description": "How far back a derived metric's input reads (S-0050/D-2): exactly one\nof a fixed ``window`` or the start of the containing period.\n\n``{window: \"1 year\"}`` against a monthly grouping is the same month one\nyear earlier; ``{to_grain: month}`` against a daily grouping is the first\nday of each row's own month.",
       "properties": {
         "to_grain": {
           "anyOf": [
@@ -387,7 +387,7 @@
     },
     "RatioSpec": {
       "additionalProperties": false,
-      "description": "Additive decomposition of a non-additive metric (RFC 0002 D9, RFC 0011 D5).",
+      "description": "Additive decomposition of a non-additive metric (S-0019/D-9, S-0028/D-5).",
       "properties": {
         "denominator": {
           "title": "Denominator",
@@ -412,7 +412,7 @@
     },
     "SemiAdditivePolicy": {
       "additionalProperties": false,
-      "description": "Typed semi-additive policy (RFC 0002 \u00a75.5): the dimension the metric is\nnot additive over, and the rule applied along it.",
+      "description": "Typed semi-additive policy (S-0019/spec-model-surface): the dimension the metric is\nnot additive over, and the rule applied along it.",
       "properties": {
         "over": {
           "title": "Over",
@@ -441,7 +441,7 @@
   "$id": "https://morzecrew.github.io/bloomery/schemas/v1/metrics.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "The per-project metric document (``metrics_version``), at most one per\nproject (RFC 0002 \u00a75.5).",
+  "description": "The per-project metric document (``metrics_version``), at most one per\nproject (S-0019/spec-model-surface).",
   "properties": {
     "metrics": {
       "additionalProperties": {

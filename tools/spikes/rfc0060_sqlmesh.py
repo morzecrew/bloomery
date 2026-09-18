@@ -1,4 +1,4 @@
-"""RFC 0060 §6, the SQLMesh half. Same three routes, same acceptance."""
+"""S-0003 (§6), the SQLMesh half. Same three routes, same acceptance."""
 import pathlib, shutil, sys, tempfile
 sys.path.insert(0, "tests")
 import duckdb
@@ -175,7 +175,7 @@ results["C — §5.1, a __replayed arm in the entity's source"] = report("route 
 shutil.rmtree(root, ignore_errors=True)
 
 # ---------- Correction: does a changed row rewrite its version or add one? ----------
-# Routes A, B and C all admit a key the entity did not have. RFC 0060 §10 asks a
+# Routes A, B and C all admit a key the entity did not have. S-0003 (§10) asks a
 # different question — whether replay corrects history or adds to it — and a row
 # that only ever *arrives* cannot answer it (found in review of PR #121).
 root, db = fresh("correct")

@@ -6,6 +6,6 @@ key:
 fields:
   revenue: {from: "$.revenue"}
   # `parse_ts` reads a wall clock and stops there. The `timestamp` type is
-  # always UTC (RFC 0004 §5.1), so the wall clock is *taken* as UTC — which is
+  # always UTC (S-0021/logical-types-bloomery-typing-types-py), so the wall clock is *taken* as UTC — which is
   # the assertion nobody wrote and nothing checks.
   placed_at: {from: "$.placed_at", transform: [{parse_ts: ISO8601}]}

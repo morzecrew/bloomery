@@ -1,0 +1,118 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      **A conversion's input currency must be a declared or derived fact; an unknown
+      input is refused.** This is the whole document: an assertion that nothing can
+      check is indistinguishable from a fact, and the difference is a wrong number
+      that passes every existing guard. Locked because relaxing it — accepting `from`
+      as its own evidence — restores exactly the situation S-0053/D-3 was written
+      against, and because the refusal is what makes R009 mean anything.
+    paths:
+      - src/bloomery/resolve/build.py
+      - src/bloomery/semantic/denomination.py
+      - src/bloomery/spec/mapping.py
+      - tests/unit/test_resolve/test_currency_convert.py
+      - tests/unit/test_semantic/test_denomination.py
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **A currency is never inferred
+      — not from a column name, a source path, or the data.** S-0038 closed inference
+      for this class and S-0005/D-1 refuses `INFERRED_HEURISTIC` as a way to close
+      an obligation. Locked because a guess here is indistinguishable at the call
+      site from a declaration, which is the property that makes the guess dangerous
+      rather than merely imprecise.
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      **The column's currency is what the chain's *last* conversion produces.** The
+      existing per-marker check refuses a correct two-hop chain (§3), and bridging
+      through a major currency is how minor pairs convert in practice. Locked because
+      the guarantee the check buys is a property of where the chain ends, and any
+      rule reading an intermediate step is reading a currency the column is never
+      in.
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_resolve/test_currency_convert.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      **`from` is kept and checked rather than dropped.** It is derivable everywhere
+      once D1 holds, and it stays because a conversion whose source currency is not
+      at the call site costs every future reader a lookup. Not `LOCKED` because the
+      redundancy is a judgement about readability against ceremony, and execution
+      may find the double declaration is a nuisance in practice — if so, depart with
+      the migration note, since removing it is a spelling change rather than a semantic
+      one.
+    paths: [tests/fixtures/currency_convert_per_row/mapping.yaml]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **Per-row denomination is admitted by the vocabulary from the first commit,
+      and refused as unbuilt until P2.** Adding it later means a second mechanism
+      for "what currency is this in", which is the argument that withdrew S-0054's
+      P3. Not `LOCKED` because if P1 shows the `column:` form distorts the declaration's
+      shape, a separate spelling is a defensible retreat — but it must then be designed,
+      not improvised.
+    paths: [src/bloomery/spec/mapping.py, tests/golden/schema/mapping.json]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      **The declaration lives on the mapping's field, not on the entity or canonical
+      field.** The mapping is where a source path and a transform chain meet, and
+      a canonical field is shared across mappings — one field fed by a euro feed and
+      a dollar feed would need two input currencies for one declaration. Not `LOCKED`
+      because a project that never maps the same canonical field twice would not notice
+      the difference.
+    paths: [src/bloomery/resolve/build.py]
+  - id: D-7
+    grade: OPEN
+    text: >-
+      **Whether `currency_in:` extends to `RecipeFieldMapping` and `MacroFieldMapping`.**
+      This row assumed a recipe's chain can hold a conversion, and it cannot: a `Recipe`
+      is `{id, requires, expr}` — a SQL expression over aliases, with no transform
+      chain — and a macro's body is opaque SQL. Neither can carry a `convert` step,
+      so neither can hold a conversion whose input would need declaring, and neither
+      reaches the code that would ask. Answered "no" for both, and "yes" for `KeyField`,
+      which this row did not think to ask about (see `logs/T-0025.md` (`logs/T-0025.md`),
+      D158).
+    paths: [src/bloomery/evidence.py, tests/unit/test_evidence.py]
+  - id: D-8
+    grade: OPEN
+    text: >-
+      **Whether R009's proof is retained anywhere or produced on demand.** `prove_rollup`
+      is called by the planner when someone asks; a conversion happens once at compile
+      time and nobody asks later. Deciding it decides whether the guardrail stage
+      grows a proof channel — which is a bigger change than this document, and probably
+      the wrong place for it. Prefer on demand, and log the reason.
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      **Two of §6's tests are struck rather than written.** The per-row item — a `column:`
+      naming a field the mapping does not produce — cannot be written as §6 states
+      it, because D5 refuses per-row as *unbuilt* before anything reads the name;
+      the check belongs with the P2 lowering that would use it. The monotonicity item
+      is a property this phase declares itself an exception to: converting specs that
+      compiled yesterday are refused, which §9 names as breaking, so asserting `SafeQueries(N)
+      ⊆ SafeQueries(N+1)` over a corpus containing the exception either fails or is
+      written to exclude what it exists to check. The residue — that nothing which
+      does not convert is affected — is what the whole-corpus suite already asserts.
+      Not `LOCKED` because a later phase that makes per-row real should re-read §6
+      rather than this row. Added by execution 2026-09-07 — see `logs/T-0025.md` (`logs/T-0025.md`)
+      (D161, attempt 4).
+  - id: D-10
+    grade: OPEN
+    text: >-
+      **How a per-row conversion spells its source currency.** §5.1's example wrote
+      `{convert: [*, USD, paid_at]}`, and `*` is not an ISO-4217 code — resolution
+      refuses it on the code format before the per-row refusal is reached, so the
+      example was uncopyable and the question it stood in for was never asked. With
+      the input declared on the field, `from` is derivable and the two-argument spelling
+      is the obvious candidate; keeping a three-argument form would need something
+      to write in the first slot that is not a currency. Decide with P2's lowering,
+      which is the first code that reads it. Added by execution 2026-09-07 — see `logs/T-0025.md`
+      (`logs/T-0025.md`) (D162).
+    paths: [tests/fixtures/currency_convert_per_row/mapping.yaml]

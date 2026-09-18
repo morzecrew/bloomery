@@ -1,4 +1,4 @@
-"""Mart lowering and the date dimension (RFC 0010, RFC 0008 D11/D13).
+"""Mart lowering and the date dimension (S-0027, S-0025/D-11, S-0025/D-13).
 
 The only join-emitting path, plus the canonical calendar body. Also home to
 the cheapest-mart measure-ownership rule, which is shared lowering rather than
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from bloomery.emit.base import EmitContext
 
 # ....................... #
-# Mart lowering (RFC 0010 / RFC 0008 D11) — the only join-emitting path.
+# Mart lowering (S-0027 / S-0025/D-11) — the only join-emitting path.
 
 
 def _column_owner(mart: MartIR, column: MartColumnIR) -> str:
@@ -65,7 +65,7 @@ def _mart_projection(mart: MartIR, column: MartColumnIR) -> Expression:
     source = exp.column(column.source_column, table=_column_owner(mart, column))
 
     if column.name == HAS_QUALITY_FLAGS:
-        # RFC 0016 §5.5: an ordinary dimension, *derived* from the base's
+        # S-0033/schema-additions-and-the-array-capability: an ordinary dimension, *derived* from the base's
         # generated ``_quality_ok`` (D23) rather than re-evaluated. ``NOT`` is
         # two-valued here by construction — ``_quality_ok`` is generated from
         # a never-NULL flag collection, so it is never NULL either.
@@ -76,7 +76,7 @@ def _mart_projection(mart: MartIR, column: MartColumnIR) -> Expression:
         # an ``Expression`` here (cf. ir.nodes on ``parse_one``).
         return cast("Expression", exp.alias_(source, column.name))
 
-    # Date-role bucket (RFC 0010 D4): DATE_TRUNC over the base source column,
+    # Date-role bucket (S-0027/D-4): DATE_TRUNC over the base source column,
     # cast to DATE so the emitted column has the declared IR type everywhere.
     # Built via ``exp.func`` — ``exp.DateTrunc``'s custom ``__init__`` is
     # untyped in this sqlglot version.
@@ -157,7 +157,7 @@ def _owned(owners: dict[str, tuple[str, str]], column: str) -> exp.Column:
 
 
 def _as_of_conditions(join: MartJoinIR, owners: dict[str, tuple[str, str]]) -> list[Expression]:
-    """The validity-interval half of an as-of join (RFC 0023 §5.3), or ``[]``.
+    """The validity-interval half of an as-of join (S-0040/phase-2-the-as-of-join), or ``[]``.
 
     The predicate itself is :func:`as_of_conditions` in the lowering base,
     shared with the currency conversion that reads a rate's interval the same
@@ -178,14 +178,14 @@ def _as_of_conditions(join: MartJoinIR, owners: dict[str, tuple[str, str]]) -> l
 
 
 # ....................... #
-# Date dimension (RFC 0008 D13, RFC 0013 R1 rule 4)
+# Date dimension (S-0025/D-13, S-0030 R1 rule 4)
 
 
 # ....................... #
 
 
 # Canonical dialect-neutral calendar body, re-parsed at emit like any SqlExpr
-# (RFC 0003 D2). Bounds interpolate as spec-validated integers only — the SQL
+# (S-0020/D-2). Bounds interpolate as spec-validated integers only — the SQL
 # is a pure function of the catalog definition, never of a clock.
 #
 # The series is a FROM-clause table function, not a projection-level UNNEST:
@@ -219,11 +219,11 @@ def dim_date_select(dim: DateDimensionIR) -> Expression:
 
 
 # ....................... #
-# Measure ownership (RFC 0010 D8). Shared lowering, not any one
+# Measure ownership (S-0027/D-8). Shared lowering, not any one
 # target's: Cube's measure emission, the MetricFlow manifest and the
 # planner's coverage precheck all apply this rule, so the three
 # surfaces cannot disagree. It lived in emit/metricflow/ and made Cube
-# import a sibling target — the one violation of RFC 0019's contract 3
+# import a sibling target — the one violation of S-0036's contract 3
 # on the tree it was written against.
 
 
@@ -232,9 +232,9 @@ def dim_date_select(dim: DateDimensionIR) -> Expression:
 
 def measure_owners(ir: ProjectIR) -> dict[str, MartIR]:
     """Metric name → the single mart its measure is emitted on: cheapest
-    ``cost_hint``, ties lexicographic by mart name (RFC 0010 D8).
+    ``cost_hint``, ties lexicographic by mart name (S-0027/D-8).
 
-    Public on purpose: the planner's coverage precheck (RFC 0013 R3) imports
+    Public on purpose: the planner's coverage precheck (S-0030 R3) imports
     this exact function, so the emitter's measure placement and the planner's
     mart selection cannot disagree."""
     owners: dict[str, MartIR] = {}

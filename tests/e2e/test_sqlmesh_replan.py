@@ -1,4 +1,4 @@
-"""E2E tier (RFC 0009 §5.2 tier 6, M11): the SQLMesh replan no-op test.
+"""E2E tier (S-0026/tier-contracts tier 6, M11): the SQLMesh replan no-op test.
 
 Compiled artifacts are written into a real SQLMesh project (pinned sqlmesh,
 DuckDB gateway — no containers), loaded through ``sqlmesh.Context`` (which
@@ -6,13 +6,13 @@ raises on malformed ``MODEL`` blocks), and applied with
 ``plan(auto_apply=True)``. Then the same specs are compiled *again*, the
 files rewritten byte-identically, and a fresh ``Context`` plans against the
 persisted state: the second plan must report **no changes**. That is
-determinism (RFC 0003) verified through a third party — bloomery and
+determinism (S-0020) verified through a third party — bloomery and
 SQLMesh's own fingerprinting agree that nothing moved.
 
 Builtin audits declared in the ``MODEL`` blocks (e.g. ecom_basic's
 ``not_null``) run during apply, so a passing apply also exercises the audit
 lowering. Custom audit artifacts (``audits/*.sql``) are written by the same
-scaffold — the RFC 0016 fixture emits four (the ingestion-metadata contract,
+scaffold — the S-0033 fixture emits four (the ingestion-metadata contract,
 the §6 conservation law, one ``on_fail: fail`` rule, and the reconcile check's
 **non-blocking** one), so a passing apply also proves the ``blocking false``
 grammar and the ``@execution_ds`` run-context macro against the pinned sqlmesh.
@@ -99,7 +99,7 @@ def _seed_semi_additive_inventory(conn: duckdb.DuckDBPyConnection) -> None:
             ("A", "2024-01-01", 100, "operator note", "2024-01-01 00:00:00", "L1", "r1"),
             # Negative: fires both the flag rule and the quarantining range
             # rule, so it routes to the reject table carrying *both* names
-            # (RFC 0016 D18).
+            # (S-0033/D-18).
             ("A", "2024-01-02", -5, "operator note", "2024-01-02 00:00:00", "L1", "r2"),
             ("B", "2024-01-01", 40, "operator note", "2024-01-01 00:00:00", "L1", "r3"),
         ],
@@ -107,7 +107,7 @@ def _seed_semi_additive_inventory(conn: duckdb.DuckDBPyConnection) -> None:
 
 
 def _verify_semi_additive_inventory(conn: duckdb.DuckDBPyConnection) -> None:
-    """The RFC 0016 surfaces, applied by SQLMesh itself: the two-way split, the
+    """The S-0033 surfaces, applied by SQLMesh itself: the two-way split, the
     reject row's ``failed_rules``, the reconcile model, and the quality mart —
     including its ``run_date``, which only has a value because **SQLMesh**
     expanded ``@execution_ds`` (bloomery never read a clock, §5.8)."""
@@ -204,7 +204,7 @@ def _seed_step_resolution(connection: duckdb.DuckDBPyConnection) -> None:
 def _verify_step_resolution(connection: duckdb.DuckDBPyConnection) -> None:
     """Both wrappers ran, the contract assertion passed, and the consistency
     audit resolved its sibling — a plan that applies at all is the assertion
-    (RFC 0017 D42/D44)."""
+    (S-0034/D-42, S-0034/D-44)."""
     customers = connection.execute(
         "SELECT canonical_id FROM silver.customer ORDER BY 1"
     ).fetchall()
@@ -277,7 +277,7 @@ def _verify_identity_resolution(connection: duckdb.DuckDBPyConnection) -> None:
 
 def _seed_multi_source(connection: duckdb.DuckDBPyConnection) -> None:
     """Two shops on one platform, disjoint key sets — the shape the union
-    merge is for (RFC 0024)."""
+    merge is for (S-0041)."""
     connection.execute("CREATE SCHEMA IF NOT EXISTS bronze")
     connection.execute(
         "CREATE TABLE bronze.shopify__order_lines AS SELECT * FROM (VALUES "
@@ -331,7 +331,7 @@ def _seed_coverage_check(conn: duckdb.DuckDBPyConnection) -> None:
 def _verify_coverage_check(conn: duckdb.DuckDBPyConnection) -> None:
     """The audit is **non-blocking**, so a plan that applies is the assertion
     that it loaded and ran without stopping the run — which is the half no
-    other tier can see (RFC 0016 D90). The rows are checked too, because an
+    other tier can see (S-0033/D-90). The rows are checked too, because an
     audit attached to a model that failed to build would also "not block"."""
     rows = conn.execute("SELECT customer_id FROM silver.customer ORDER BY 1").fetchall()
     assert rows == [("c1",), ("c2",)]
@@ -351,7 +351,7 @@ FIXTURES: dict[str, tuple[Seeder, Verifier, frozenset[str]]] = {
             {"silver.order", "silver.order_item", "gold.dim_date", "gold.mart_order_items"}
         ),
     ),
-    # The RFC 0016 fixture: split silver model, reject table, reconcile model
+    # The S-0033 fixture: split silver model, reject table, reconcile model
     # plus its non-blocking audit, and the quality mart — applied by SQLMesh
     # itself, which is the only way to know the emitted macros, the
     # ``blocking false`` audit grammar and the model dependency order are real.
@@ -369,7 +369,7 @@ FIXTURES: dict[str, tuple[Seeder, Verifier, frozenset[str]]] = {
             }
         ),
     ),
-    # RFC 0017: the step fixture is here because *nothing else loads SQLMesh*,
+    # S-0034: the step fixture is here because *nothing else loads SQLMesh*,
     # and that gap hid three defects in a row — an audit emitted and never run,
     # a wrapper that never loaded at all (a module-global `Decimal` broke
     # SQLMesh's dependency serialization), and an audit whose sibling resolved
@@ -382,7 +382,7 @@ FIXTURES: dict[str, tuple[Seeder, Verifier, frozenset[str]]] = {
         _verify_step_resolution,
         frozenset({"silver.customer_raw", "silver.customer", "silver.customer_xref"}),
     ),
-    # RFC 0016 D90: a coverage audit is a shape nothing else here has — a body
+    # S-0033/D-90: a coverage audit is a shape nothing else here has — a body
     # joining ``@this_model`` to a *sibling*, and a ``depends_on`` that exists
     # only because of the audit. The comment above ``step_resolution`` is the
     # argument for it being here: that exact combination is what hid three
@@ -392,7 +392,7 @@ FIXTURES: dict[str, tuple[Seeder, Verifier, frozenset[str]]] = {
         _verify_coverage_check,
         frozenset({"silver.customer", "silver.order"}),
     ),
-    # RFC 0024 §6: the union merge, and the one thing no other tier can show —
+    # S-0041/tests: the union merge, and the one thing no other tier can show —
     # SQLMesh running the generated collision audit. The execution tier
     # evaluates that audit's body by hand; only a real plan proves the MODEL
     # block's `audits (...)` reference resolves, that `@this_model` resolves
@@ -402,7 +402,7 @@ FIXTURES: dict[str, tuple[Seeder, Verifier, frozenset[str]]] = {
         _verify_multi_source,
         frozenset({"silver.order_line"}),
     ),
-    # RFC 0021 §5.1: identity resolution, which `step_resolution` cannot show
+    # S-0038/identity-resolution-is-a-step-permanently: identity resolution, which `step_resolution` cannot show
     # — two *inputs*, an `on_fail: fail` rule on a step output, and a mart over
     # the resolved entity. That mart is why this cell exists rather than being
     # covered by the execution tier: it reads a relation a Python model writes,
@@ -428,7 +428,7 @@ def _write_project(root: Path, fixture: str, warehouse: Path) -> None:
     """Materialize a compiled fixture as an on-disk SQLMesh project.
 
     The gateway config is written **after** the artifacts, and the order is
-    load-bearing since RFC 0054: bloomery now emits its own ``config.yaml``,
+    load-bearing since S-0061: bloomery now emits its own ``config.yaml``,
     and SQLMesh keeps the connection in the same file as the project settings.
     Writing the gateway first meant the emitted file overwrote it and every
     plan here failed with "No connection configured" — which is what a caller
@@ -485,7 +485,7 @@ def _write_platform_steps(root: Path, fixture: str) -> None:
     )
 
 
-#: The package name every generated wrapper imports (RFC 0017 D13). One name
+#: The package name every generated wrapper imports (S-0034/D-13). One name
 #: across all fixtures, because it is the *platform's* package — which is why
 #: it has to be evicted between them rather than renamed per fixture.
 PLATFORM_PACKAGE = "platform_steps"
@@ -521,7 +521,7 @@ def _importable() -> Iterator[Callable[[Path], None]]:
 def test_a_key_in_two_sources_stops_the_run(
     tmp_path: Path, caplog: pytest.LogCaptureFixture, _importable: Callable[[Path], None]
 ) -> None:
-    """RFC 0024 D5, verified red on a real plan.
+    """S-0041/D-5, verified red on a real plan.
 
     The execution tier evaluates the collision audit's body by hand and sees it
     return the offending key. That proves the *query* is right and proves
@@ -595,7 +595,7 @@ def test_replan_is_a_no_op(
     first = compile_fixture(fixture)
     _write_project(tmp_path, fixture, warehouse)
     # A generated step wrapper imports its platform package at *run* time
-    # (RFC 0017 D13), so the project root has to be importable — in a real
+    # (S-0034/D-13), so the project root has to be importable — in a real
     # deployment the step runtime installs it.
     #
     # Undone afterwards, and the package evicted with it: two step fixtures
@@ -615,7 +615,7 @@ def test_replan_is_a_no_op(
     finally:
         context.close()
 
-    # Compile again from the same specs: byte-identical artifacts (RFC 0003),
+    # Compile again from the same specs: byte-identical artifacts (S-0020),
     # rewritten in place so SQLMesh re-reads them from disk.
     second = compile_fixture(fixture)
     assert second == first

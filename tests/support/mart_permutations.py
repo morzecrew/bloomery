@@ -1,4 +1,4 @@
-"""The mart permutation harness (RFC 0010 §6, reused by RFC 0013 §6): two
+"""The mart permutation harness (S-0027/tests, reused by S-0030/tests): two
 independent marts over the ``role_playing_dates`` entities, reassembled with
 the marts document in every permutation. Both marts list the same measure, so
 the harness also exercises the emitter's owning-mart selection rule."""

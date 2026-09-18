@@ -1,4 +1,4 @@
-"""Emission of the RFC 0034 metric forms: what each target does with a derived
+"""Emission of the S-0050 metric forms: what each target does with a derived
 metric, a cumulative window and a metric filter.
 
 The manifest golden pins the bytes; this pins the *decisions* — which
@@ -90,7 +90,7 @@ def with_metric(extra: str, *, served: str) -> dict[str, object]:
 
 
 # ....................... #
-# MetricFlow: the four shapes (RFC 0034 D1, D2, D5, D8)
+# MetricFlow: the four shapes (S-0050/D-1, S-0050/D-2, S-0050/D-5, S-0050/D-8)
 
 
 def test_a_derived_metric_lowers_to_derived_with_its_expression() -> None:
@@ -206,12 +206,12 @@ def test_a_semi_additive_metric_can_also_be_filtered() -> None:
 
 
 def test_naming_a_derived_metric_in_measures_is_refused_not_inert() -> None:
-    """RFC 0034 D4's second half is **wrong**, and this is where it shows.
+    """S-0050/D-4's second half is **wrong**, and this is where it shows.
 
     D4 (ASSUMED) says naming a derived metric in a mart's `measures:` "stays
     legal and inert, as it is for a ratio". It is neither: a derived metric
     declares no grain — it has no measure to have one — and the grain guardrail
-    requires a measure's grain to equal the mart's exactly (RFC 0010 D2). So the
+    requires a measure's grain to equal the mart's exactly (S-0027/D-2). So the
     mart refuses it.
 
     The ratio precedent D4 reasoned from was never exercised: no fixture in the
@@ -238,7 +238,7 @@ def test_naming_a_derived_metric_in_measures_is_refused_not_inert() -> None:
 def test_two_spellings_of_one_window_compile_to_one_ir() -> None:
     """The consequence of dropping the plural, at the level where it shows.
 
-    `"7 days"` and `"7 day"` are the same window, and RFC 0003 §5.4 says the
+    `"7 days"` and `"7 day"` are the same window, and S-0020/fingerprint says the
     fingerprint is a function of what the spec *means*. The manifest cannot
     show this — MetricFlow's transformer normalizes the grain itself — so
     without this assertion the normalization has no test at all.
@@ -258,7 +258,7 @@ def test_two_spellings_of_one_window_compile_to_one_ir() -> None:
 
 
 # ....................... #
-# Cube: refused per construct (RFC 0034 D11)
+# Cube: refused per construct (S-0050/D-11)
 
 
 def test_cube_refuses_a_cumulative_metric_by_name() -> None:
@@ -294,7 +294,7 @@ def test_cube_refuses_a_derived_metric_even_when_no_mart_names_it() -> None:
 
 
 def test_cube_emits_a_measure_filter_for_a_filtered_metric() -> None:
-    """The one RFC 0034 construct Cube does express, and it renders through the
+    """The one S-0050 construct Cube does express, and it renders through the
     same function the MetricFlow where-filter does — only the column spelling
     differs."""
     project, catalog = variant()
@@ -309,7 +309,7 @@ def test_cube_emits_a_measure_filter_for_a_filtered_metric() -> None:
 
 
 # ....................... #
-# The shared predicate (RFC 0034 D15)
+# The shared predicate (S-0050/D-15)
 
 
 @pytest.mark.parametrize(
@@ -372,7 +372,7 @@ def test_cube_emits_a_measure_filter_for_a_filtered_metric() -> None:
             "REF < CAST('2024-01-01 09:00:00' AS TIMESTAMP)",
         ),
         # An offset is converted, not dropped: `timestamp` is zoneless UTC
-        # (RFC 0028), so 09:00+02:00 is the instant 07:00.
+        # (S-0045), so 09:00+02:00 is the instant 07:00.
         (
             MetricFilterIR("t", "lt", ("2024-01-01T09:00:00+02:00",)),
             TimestampType(),
@@ -380,7 +380,7 @@ def test_cube_emits_a_measure_filter_for_a_filtered_metric() -> None:
         ),
         # Sub-second precision survives, and a year below 1000 keeps its
         # padding: `strftime("%Y")` delegates that to the C library, which is
-        # free to write `1-01-01`, and RFC 0003 wants the same bytes on every
+        # free to write `1-01-01`, and S-0020 wants the same bytes on every
         # machine rather than on this one.
         (
             MetricFilterIR("t", "lt", ("2024-01-01T09:00:00.123456",)),

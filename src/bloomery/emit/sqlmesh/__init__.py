@@ -1,26 +1,26 @@
-"""The SQLMesh emitter (RFC 0008 §5.3) — the primary target.
+"""The SQLMesh emitter (S-0025/sqlmesh-emitter-primary) — the primary target.
 
 One ``MODEL (...)`` block plus ``SELECT`` per entity at
 ``models/<namespace>/<relation>.sql``. The SELECT is built as a SQLGlot AST
 by the shared lowering (:mod:`bloomery.emit.lower` — the same AST dbt
 renders) and rendered through the dialect port; Jinja renders only the
 envelope, from a template that interpolates *pre-rendered strings*, never SQL
-fragments (RFC 0008 D4). Every artifact carries a header comment with the
-project fingerprint (RFC 0008 D9).
+fragments (S-0025/D-4). Every artifact carries a header comment with the
+project fingerprint (S-0025/D-9).
 
 ``kind`` maps from the IR's resolved materialization: ``full`` → ``FULL``,
 ``incremental_by_key`` → ``INCREMENTAL_BY_UNIQUE_KEY``,
 ``incremental_by_partition`` → ``INCREMENTAL_BY_TIME_RANGE`` over the first
-partition column. SCD type 2 entities use the native kind first (RFC 0008
+partition column. SCD type 2 entities use the native kind first (S-0025
 §5.3): ``SCD_TYPE_2_BY_COLUMN (unique_key (...), columns *, valid_from_name
 valid_from, valid_to_name valid_to)`` — ``BY_COLUMN`` over all columns, not
 ``BY_TIME``, because the IR declares no updated-at marker and inventing one
 would be silent degradation (syntax verified against the pinned sqlmesh). The
 two ``_name`` arguments are SQLMesh's own defaults, spelled out because the
-as-of predicate (RFC 0023 §5.3) references those columns by name and dbt has
+as-of predicate (S-0040/phase-2-the-as-of-join) references those columns by name and dbt has
 to be moved onto them.
 
-Audits (RFC 0006 §5.6/D7 → RFC 0008 §5.3): ``not_null`` and ``enum`` lower
+Audits (S-0023/range-sanity, S-0023/D-7 → S-0025/sqlmesh-emitter-primary): ``not_null`` and ``enum`` lower
 builtin-style into the MODEL block (``not_null(columns := (...))``,
 ``accepted_values(column := …, is_in := (...))``); ``min``/``max``/``regex``
 and the path-conflict ``reconcile`` need a custom body, so each becomes an
@@ -28,23 +28,23 @@ and the path-conflict ``reconcile`` need a custom body, so each becomes an
 selecting the violating rows from ``@this_model``, referenced by name in the
 MODEL block.
 
-Marts (RFC 0010 / RFC 0008 D11): one gold-layer model per ``MartIR`` at
+Marts (S-0027 / S-0025/D-11): one gold-layer model per ``MartIR`` at
 ``NamingPolicy.relation(name, Layer.GOLD)`` — the base entity's silver
 relation joined once per resolved ``MartJoinIR`` (LEFT, so flattening never
 drops base rows) and date roles bucketed via ``DATE_TRUNC`` cast to ``DATE``,
 projecting the full flattened column set. This is the **only** join-emitting
 path. When the catalog declares a date dimension, a deterministic
-``gold.dim_date`` model is emitted from its year bounds (RFC 0008 D13) — a
+``gold.dim_date`` model is emitted from its year bounds (S-0025/D-13) — a
 generate-series calendar, no clock involved.
 
-Data quality (RFC 0016 §5.4: SQLMesh emits the **full** quality set): the
+Data quality (S-0033/fixed-pipeline-order-and-lowering: SQLMesh emits the **full** quality set): the
 split silver model with its blocking audits, the ``<entity>__reject`` model
 and its replay merge (§5.6), one ``<check>__reconcile`` model per reconcile
 check together with its deliberately **non-blocking** audit (§5.3), and
 ``gold.mart_data_quality`` — emitted through the ordinary mart path, because
 §5.8's whole claim is that it is an ordinary mart. Its ``run_date`` comes from
 SQLMesh's ``@execution_ds`` macro and its ``run_id`` is declared NULL: the run
-context belongs to the engine, and bloomery reads no clock (RFC 0003).
+context belongs to the engine, and bloomery reads no clock (S-0020).
 """
 
 from __future__ import annotations
@@ -116,10 +116,10 @@ __all__ = [
     "SQLMeshEmitter",
 ]
 
-# The envelope sees pre-rendered strings only (RFC 0008 D4). SQL is not HTML:
+# The envelope sees pre-rendered strings only (S-0025/D-4). SQL is not HTML:
 # autoescaping would corrupt it, and no untrusted input reaches the template.
 #
-# `owner` is the one value here an author writes freely (RFC 0055 D8 refuses a
+# `owner` is the one value here an author writes freely (S-0062/D-8 refuses a
 # spelling rule), so it arrives *already rendered as a SQL string literal* —
 # `_owner_clause` — rather than as the bare token SQLMesh's own examples use.
 # An owner is a person, and people are spelled `o'brien@example.com`; a bare
@@ -162,13 +162,13 @@ SELECT * FROM @this_model WHERE {{ predicate }}
     autoescape=False,
 )
 
-# The ingestion-metadata audit (RFC 0016 D21) needs a window count, and SQL
+# The ingestion-metadata audit (S-0033/D-21) needs a window count, and SQL
 # forbids window functions in WHERE — so its body wraps @this_model once and
 # filters over the projected count.
 #
 # The **whole body** arrives rendered, not just the predicate. It used to be a
 # template with `PARTITION BY _source_row_id` written into it, which was true
-# for as long as every entity had one source: RFC 0024 D34 partitions a merged
+# for as long as every entity had one source: S-0041/D-34 partitions a merged
 # entity by `(_source, _source_row_id)`, because the row identity is unique
 # only within one source relation and two shops with ordinary per-table
 # sequences collide on the first run — and this audit is blocking, so correct
@@ -190,7 +190,7 @@ AUDIT (
 )
 
 
-# A reconcile check's audit carries the check's **own** disposition (RFC 0016
+# A reconcile check's audit carries the check's **own** disposition (S-0033
 # §5.3): ``on_fail: fail`` stops the run — that is the pipeline-stopping gate
 # §5.3 nominates reconcile for — and ``flag`` does not, because a reconcile
 # disagreement means the numbers are wrong, which is exactly when a human needs
@@ -212,7 +212,7 @@ SELECT * FROM @this_model WHERE {{ predicate }}
     autoescape=False,
 )
 
-# The reject model's ``kind`` clause (RFC 0016 §5.6). A template rather than an
+# The reject model's ``kind`` clause (S-0033/quarantine-one-reject-table-per-entity). A template rather than an
 # f-string for the same reason every other envelope here is one (D4): the
 # assignments arrive pre-rendered through the dialect port, and the clause
 # around them is envelope text. ``when_matched`` is what makes the merge
@@ -243,7 +243,7 @@ AUDIT (
 )
 
 
-# A mart assertion's audit (RFC 0016 D89): a whole-query body like the
+# A mart assertion's audit (S-0033/D-89): a whole-query body like the
 # conservation audit's, because it aggregates — and a blocking branch like the
 # reconcile audit's, because the clause declares whether it stops the run. Its
 # own template rather than a ``blocking`` parameter on
@@ -265,7 +265,7 @@ AUDIT (
 )
 
 
-# The conservation audit (RFC 0016 §6): a whole-query body rather than a
+# The conservation audit (S-0033/tests-rfc-0009-amendment): a whole-query body rather than a
 # predicate over ``@this_model``, because the law relates the model to the
 # bronze source it was built from. The SELECT arrives pre-rendered through the
 # dialect port, the same doctrine as every other envelope here (D4).
@@ -273,7 +273,7 @@ _COLLISION_AUDIT_ENVELOPE = jinja2.Template(
     """\
 -- Generated by bloomery — do not edit.
 -- fingerprint: {{ fingerprint }}
--- The disjointness law (RFC 0024 §5.4) as a runtime audit: a union merge
+-- The disjointness law (S-0041/what-is-refused-at-run-time) as a runtime audit: a union merge
 -- requires the sources' key sets to be disjoint, and the compiler has no data
 -- to establish it with. Blocking, and not configurable to a weaker
 -- disposition (D5) — a key in two sources is either genuine duplication or a
@@ -293,7 +293,7 @@ _CONSERVATION_AUDIT_ENVELOPE = jinja2.Template(
     """\
 -- Generated by bloomery — do not edit.
 -- fingerprint: {{ fingerprint }}
--- The conservation law (RFC 0016 §6) as a runtime audit: every bronze row
+-- The conservation law (S-0033/tests-rfc-0009-amendment) as a runtime audit: every bronze row
 -- lands in exactly one of the entity, an unresolved reject, or the deduped
 -- count. Blocking — a row in neither side of the split has been silently
 -- dropped, which is the failure this package exists to make impossible.
@@ -307,9 +307,9 @@ AUDIT (
 )
 
 
-# The project file (RFC 0054). `model_defaults` and nothing else: a
+# The project file (S-0061). `model_defaults` and nothing else: a
 # `gateways:` block carries hosts and credentials, and the compiler reads no
-# environment (RFC 0003) — the same line already drawn for dbt, where
+# environment (S-0020) — the same line already drawn for dbt, where
 # `dbt_project.yml` is emitted and `profiles.yml` deliberately is not.
 #
 # dbt keeps those two in separate files and SQLMesh keeps them in one, so this
@@ -335,14 +335,14 @@ model_defaults:
 )
 
 
-# The replay artifact (RFC 0016 §5.6): statements the *caller* runs, never
+# The replay artifact (S-0033/quarantine-one-reject-table-per-entity): statements the *caller* runs, never
 # bloomery — the package emits and never executes (hard invariant). It is not
 # a MODEL block, so SQLMesh never picks it up as a relation to build.
 _REPLAY_ENVELOPE = jinja2.Template(
     """\
 -- Generated by bloomery — do not edit.
 -- fingerprint: {{ fingerprint }}
--- Quarantine replay for {{ entity }} (RFC 0016 §5.6). bloomery emits this
+-- Quarantine replay for {{ entity }} (S-0033/quarantine-one-reject-table-per-entity). bloomery emits this
 -- artifact and never executes it: run the statements below, in order, as one
 {% if redelivers %}-- unit of work — the passers are re-delivered to bronze, the rows that made it
 -- resolve, and the rest have their failed_rules re-derived from the very same
@@ -353,7 +353,7 @@ _REPLAY_ENVELOPE = jinja2.Template(
 -- This entity's history is the framework's ({{ entity }} is scd: type2), so a
 -- recovered row does NOT appear in it when you run this. It appears when the
 -- framework next builds the entity, versioned with the interval the framework
--- assigns (RFC 0060 D2, D8) — and its reject row resolves on the replay after
+-- assigns (S-0003/D-2, S-0003/D-8) — and its reject row resolves on the replay after
 -- that. Nothing has gone wrong if the entity is unchanged here.
 {% else %}-- unit of work — the passers merge, the rows that made it resolve, and the
 -- rest have their failed_rules re-derived from the very same evaluation.
@@ -370,12 +370,12 @@ _REPLAY_ENVELOPE = jinja2.Template(
 
 def _kind_clause(entity: EntityIR) -> str:
     if entity.scd is SCDKind.TYPE2:
-        # Native SCD (RFC 0008 §5.3): the SCD kind *is* the materialization —
+        # Native SCD (S-0025/sqlmesh-emitter-primary): the SCD kind *is* the materialization —
         # it supersedes the resolved incrementality strategy.
         #
         # The interval names are stated rather than defaulted, although they
         # are SQLMesh's own defaults: an as-of join emits a predicate against
-        # these exact columns (RFC 0023 §5.3), so a SQLMesh release that
+        # these exact columns (S-0040/phase-2-the-as-of-join), so a SQLMesh release that
         # changed its default would move the relation out from under a mart
         # that still compiles. Spelling them is what makes the two facts one.
         return (
@@ -405,7 +405,7 @@ def _time_range_kind(
     ``partition_by`` entry. A leading column that is not a date or timestamp —
     or names no column of the model at all — would emit a model whose
     ``time_column`` SQLMesh fails on (or filters wrongly by) only at run time,
-    the compile-and-fail degradation RFC 0008 D3 refuses. Shared by the entity
+    the compile-and-fail degradation S-0025/D-3 refuses. Shared by the entity
     and mart kind clauses so the two paths cannot diverge.
     """
     leading = partition_by[0].column
@@ -467,7 +467,7 @@ def _owner_clause(owner: str | None, ctx: EmitContext) -> str:
     """An owner as a SQL string literal, or the empty string for none.
 
     Through the dialect port like every other value that reaches the envelope
-    (RFC 0008 D4), which is what makes the quoting and the escaping SQLGlot's
+    (S-0025/D-4), which is what makes the quoting and the escaping SQLGlot's
     rather than a second implementation here. The empty string is what the
     template tests, so a node with no owner emits no property at all rather
     than an empty one.
@@ -483,7 +483,7 @@ def _owner_clause(owner: str | None, ctx: EmitContext) -> str:
 
 
 def _mart_kind_clause(mart: MartIR, base: EntityIR) -> str:
-    """A mart is at exactly its base grain (RFC 0010 D2), so the base entity's
+    """A mart is at exactly its base grain (S-0027/D-2), so the base entity's
     key is its unique key when incrementality-by-key is requested."""
 
     if mart.materialization is Materialization.INCREMENTAL_BY_KEY:
@@ -507,7 +507,7 @@ def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArti
     base = guaranteed(
         (entity for entity in ir.entities if entity.name == mart.base),
         expected=f"the base entity {mart.base!r} of mart {mart.name!r}",
-        by="the mart-base guardrail (RFC 0010)",
+        by="the mart-base guardrail (S-0027)",
     )
     content = _ENVELOPE.render(
         fingerprint=ctx.fingerprint,
@@ -534,7 +534,7 @@ def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArti
 
 
 def _rollup_artifact(rollup: RollupIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact:
-    """One gold model per rollup (RFC 0058 §5.3, P2).
+    """One gold model per rollup (S-0065/targets, S-0065/phasing (P-2)).
 
     An ordinary derived model: what makes it a rollup is the obligation
     discharged at compile, not the SQL. Its ``grain`` is ``keep`` rather than a
@@ -550,7 +550,7 @@ def _rollup_artifact(rollup: RollupIR, ir: ProjectIR, ctx: EmitContext) -> Emitt
     parent = guaranteed(
         (mart for mart in ir.marts if mart.name == rollup.of),
         expected=f"the parent mart {rollup.of!r} of rollup {rollup.name!r}",
-        by="the rollup guardrail (RFC 0058 D5), which lowers no rollup whose parent did not",
+        by="the rollup guardrail (S-0065/D-5), which lowers no rollup whose parent did not",
     )
     content = _ENVELOPE.render(
         fingerprint=ctx.fingerprint,
@@ -585,7 +585,7 @@ def _rollup_kind_clause(rollup: RollupIR, parent: MartIR) -> str:
     parent's other columns are exactly the ones the rollup dropped, and typing
     a partition column against one of them accepted a ``time_column`` naming a
     column the built table does not have: a model that compiles and fails on
-    its first run, which is the degradation RFC 0008 D3 refuses. A measure is
+    its first run, which is the degradation S-0025/D-3 refuses. A measure is
     not a candidate either and is absent for the same reason — the check asks
     which kept column the table is partitioned along, and a measure is never
     one (logs/T-0034.md).
@@ -606,7 +606,7 @@ def _rollup_kind_clause(rollup: RollupIR, parent: MartIR) -> str:
 
 
 def _coverage_artifacts(ir: ProjectIR, ctx: EmitContext) -> list[EmittedArtifact]:
-    """One AUDIT per coverage check (RFC 0016 D90), attached to the
+    """One AUDIT per coverage check (S-0033/D-90), attached to the
     **dependent** entity's model by :func:`_coverage_audits_for`.
 
     Blocking-ness is the check's own, as a reconcile check's is (D38)."""
@@ -665,7 +665,7 @@ def _coverage_audits_for(
 
 
 def _mart_assert_artifacts(mart: MartIR, ctx: EmitContext) -> list[EmittedArtifact]:
-    """One AUDIT per aggregate assertion (RFC 0016 D89).
+    """One AUDIT per aggregate assertion (S-0033/D-89).
 
     Blocking-ness is the clause's own, exactly as a reconcile check's is
     (D38): ``fail`` stops the run, ``flag`` reports beside it. The body is a
@@ -694,7 +694,7 @@ def _mart_assert_artifacts(mart: MartIR, ctx: EmitContext) -> list[EmittedArtifa
 
 
 #: What the executing engine fills the quality mart's run columns with
-#: (RFC 0016 §5.8). ``@execution_ds`` is SQLMesh's own macro for the current
+#: (S-0033/the-quality-mart). ``@execution_ds`` is SQLMesh's own macro for the current
 #: run's execution date (``YYYY-MM-DD``), so ``run_date`` is the engine's, not
 #: a clock bloomery read at compile time. The pinned sqlmesh exposes **no**
 #: run-identifier macro (its date macros are the whole run-context surface), so
@@ -705,7 +705,7 @@ _SQLMESH_RUN = RunContext(run_id=None, run_date="@execution_ds")
 
 
 def _quality_mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact:
-    """``gold.mart_data_quality`` (RFC 0016 §5.8) — an ordinary gold model.
+    """``gold.mart_data_quality`` (S-0033/the-quality-mart) — an ordinary gold model.
 
     It takes the mart path rather than a path of its own precisely because it
     is meant to be ordinary: the same gold namespace, the same envelope, the
@@ -737,7 +737,7 @@ def _reconcile_artifacts(
     check: ReconcileIR, ir: ProjectIR, ctx: EmitContext
 ) -> tuple[EmittedArtifact, EmittedArtifact]:
     """One reconcile check → its own model **plus a non-blocking audit**
-    (RFC 0016 §5.3/§5.4).
+    (S-0033/spec-schema, S-0033/fixed-pipeline-order-and-lowering).
 
     The audit's blocking-ness is the check's own ``on_fail``
     (:func:`reconcile_audit_blocking`). At ``flag`` — the common case —
@@ -855,7 +855,7 @@ def _entity_audits(entity: EntityIR, ctx: EmitContext) -> tuple[str, tuple[Emitt
 
 
 def _quality_audits(entity: EntityIR, ctx: EmitContext) -> tuple[list[str], list[EmittedArtifact]]:
-    """The data-quality audits on a silver model (RFC 0016 §5.4, D21).
+    """The data-quality audits on a silver model (S-0033/fixed-pipeline-order-and-lowering, S-0033/D-21).
 
     Two sources, both **blocking** — SQLMesh audits block unless declared
     otherwise, which is what "the run stops" means:
@@ -868,7 +868,7 @@ def _quality_audits(entity: EntityIR, ctx: EmitContext) -> tuple[list[str], list
     - one conservation audit per entity with a reject table, carrying §6's
       accounting law onto every production run rather than only into the test
       suite;
-    - one **collision** audit per *merged* entity, carrying RFC 0024's
+    - one **collision** audit per *merged* entity, carrying S-0041's
       disjointness law the same way — the one condition of a union merge that
       compilation cannot check;
     - one per ``on_fail: fail`` quality rule, per §5.4's lowering table.
@@ -928,7 +928,7 @@ def _quality_audits(entity: EntityIR, ctx: EmitContext) -> tuple[list[str], list
         # A whole query, not a predicate over ``@this_model``: a blocking rule
         # has to see the rows the routing split diverted as well as the ones it
         # kept, or a quarantine disposition would silently outrank it
-        # (RFC 0016 D18).
+        # (S-0033/D-18).
         entries.append(name)
         content = _SELECT_AUDIT_ENVELOPE.render(
             fingerprint=ctx.fingerprint, name=name, select=ctx.dialect.render(select)
@@ -948,7 +948,7 @@ def _quality_audits(entity: EntityIR, ctx: EmitContext) -> tuple[list[str], list
 
 
 def _reject_artifact(entity: EntityIR, ctx: EmitContext) -> EmittedArtifact:
-    """The ``<entity>__reject`` model (RFC 0016 §5.6).
+    """The ``<entity>__reject`` model (S-0033/quarantine-one-reject-table-per-entity).
 
     ``INCREMENTAL_BY_UNIQUE_KEY`` on ``reject_id`` is the materialization the
     schema asks for: a re-delivery of the same source row lands on the **same**
@@ -1000,7 +1000,7 @@ def _backfills_by_time(ir: ProjectIR) -> bool:
     That kind is the only one whose completeness depends on
     ``model_defaults.start``: SQLMesh defaults the window to a single day and
     reports success, so a project carrying one and no start loads one partition
-    of history without an error anywhere (RFC 0054 §3 M4). Every other kind is
+    of history without an error anywhere (S-0061/current-state-measured M4). Every other kind is
     a full refresh, keyed, or a snapshot, and none of them reads the start.
 
     Asked of the kind clause each entity is actually *emitted* with, never of
@@ -1029,7 +1029,7 @@ def _backfills_by_time(ir: ProjectIR) -> bool:
 
 def _config_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
     """``config.yaml`` — the file that makes the emitted tree a *project*
-    (RFC 0054).
+    (S-0061).
 
     Without it SQLMesh does not read the models at all: "SQLMesh project config
     could not be found" (§3 M1). With it, and with a gateway the caller supplies,
@@ -1086,7 +1086,7 @@ def _replay_artifact(entity: EntityIR, ctx: EmitContext) -> EmittedArtifact:
 
 
 class SQLMeshEmitter:
-    """RFC 0008 §5.3: one model artifact per silver entity, plus one custom
+    """S-0025/sqlmesh-emitter-primary: one model artifact per silver entity, plus one custom
     audit artifact per non-builtin ``AuditIR``."""
 
     name = "sqlmesh"
@@ -1095,19 +1095,19 @@ class SQLMeshEmitter:
 
     def emit(self, ir: ProjectIR, ctx: EmitContext) -> tuple[EmittedArtifact, ...]:
         """Lower every entity to a model artifact (plus its custom audits),
-        every reconcile check to its model and non-blocking audit (RFC 0016
-        §5.3), every mart to a gold-layer model (RFC 0008 D11) — the quality
-        mart (RFC 0016 §5.8) included, as an ordinary one — and the declared
-        date dimension to ``gold.dim_date`` (RFC 0008 D13), plus the
+        every reconcile check to its model and non-blocking audit (S-0033
+        §5.3), every mart to a gold-layer model (S-0025/D-11) — the quality
+        mart (S-0033/the-quality-mart) included, as an ordinary one — and the declared
+        date dimension to ``gold.dim_date`` (S-0025/D-13), plus the
         ``config.yaml`` that makes the tree a project SQLMesh will read
-        (RFC 0054); artifacts sorted by path, content ending in exactly one
-        newline (RFC 0003 §5.5 rule 5)."""
+        (S-0061); artifacts sorted by path, content ending in exactly one
+        newline (S-0020/determinism-rules-package-wide rule 5)."""
         artifacts: list[EmittedArtifact] = []
 
         for entity in ir.entities:
             if entity.produced_by is not None:
                 # A step writes this relation through its own generated
-                # wrapper (RFC 0017 §5.8). The entity exists so marts, metrics
+                # wrapper (S-0034/emission-and-the-dag). The entity exists so marts, metrics
                 # and downstream mappings can reference it; emitting a SELECT
                 # for it too would be two models at one path — the collision
                 # refused everywhere else.
@@ -1143,13 +1143,13 @@ class SQLMeshEmitter:
             artifacts.extend(audit_artifacts)
             if entity.quarantine is not None:
                 # The two-way split's other side, plus the merge that drains
-                # it (RFC 0016 §5.6). Both exist exactly when the entity
+                # it (S-0033/quarantine-one-reject-table-per-entity). Both exist exactly when the entity
                 # declares a quarantine policy — which the guardrail stage
                 # requires wherever a quarantine disposition does.
                 artifacts.append(_reject_artifact(entity, ctx))
                 artifacts.append(_replay_artifact(entity, ctx))
 
-        # Steps contribute their own models (RFC 0017 §5.8): one generated
+        # Steps contribute their own models (S-0034/emission-and-the-dag): one generated
         # wrapper per python_model output, one ordinary model per sql_model
         # output, nothing for a sql_macro — that one lives inside a SELECT.
         artifacts.extend(step_artifacts(ir, ctx, _ENVELOPE, _SELECT_AUDIT_ENVELOPE))

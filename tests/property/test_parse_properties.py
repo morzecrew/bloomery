@@ -1,4 +1,4 @@
-"""Parse properties (RFC 0015 §6): CNF normalization terminates and
+"""Parse properties (S-0032/tests): CNF normalization terminates and
 respects the clause cap on adversarial nesting, and the parser is *total* —
 any generated document either parses into clauses that are **semantically
 equivalent** to the original (checked by evaluating both forms against
@@ -119,7 +119,7 @@ type _Truth = bool | None  # Kleene: True / False / unknown
 
 
 def _like_regex(pattern: str) -> re.Pattern[str]:
-    """The RFC 0015 pattern language as a regex: ``%``/``_`` wildcards,
+    """The S-0032 pattern language as a regex: ``%``/``_`` wildcards,
     ``\\`` escapes the next character, full-string match."""
     parts: list[str] = []
     index = 0
@@ -264,7 +264,7 @@ def _eval_clauses(clauses: tuple[Clause, ...], row: dict[str, Any]) -> _Truth:
 def test_parse_is_total_and_semantically_equivalent(
     document: dict[str, Any], rows: list[dict[str, Any]]
 ) -> None:
-    """RFC 0015 §6: any generated document parses or refuses with a
+    """S-0032/tests: any generated document parses or refuses with a
     KNOWN_UNSUPPORTED reason; on success, the clauses agree with the
     document on every generated row — under three-valued logic, so the
     complement table's NULL behavior is checked too."""
@@ -282,7 +282,7 @@ def test_parse_is_total_and_semantically_equivalent(
 @settings(max_examples=200, deadline=None)
 @given(document=_adversarial_documents)
 def test_cnf_terminates_and_respects_the_cap(document: dict[str, Any]) -> None:
-    """RFC 0015 §6: adversarial input either reaches AND-of-AnyOf within
+    """S-0032/tests: adversarial input either reaches AND-of-AnyOf within
     the cap or refuses with FilterTooComplex/UnsupportedNegation — never a
     nesting refusal, never a hang. The strategy mixes in explosive
     OR-of-ANDs so the refusal branch actually executes (hypothesis events

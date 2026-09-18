@@ -1,0 +1,141 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      **The inclusion rule is "valid SQL, wrong answer" — not "bad data".** It is
+      what separates this corpus from `tests/fixtures/dirty/`, and the separation
+      is the point of both: one holds values bloomery can see are wrong, the other
+      holds values that are all fine while the number is not. A case admitted for
+      the wrong reason dilutes the only thing this corpus proves.
+    paths: [tests/execution/test_semantic_corpus.py]
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      **Every case is hand-checkable — 3–20 rows, deterministic, order-independent.**
+      A corpus case a reviewer cannot verify by eye is a test asserting whatever the
+      implementation did on the day it was written, which is the failure mode this
+      corpus is meant to catch in *other* people's pipelines.
+    paths:
+      - tests/fixtures/semantic_corpus/001-order-shipping-fanout/data/rows.sql
+      - tests/fixtures/semantic_corpus/003-scd2-unqualified-join/problem.md
+      - tests/fixtures/semantic_corpus/006-two-grains-one-request/data/rows.sql
+      - tests/unit/test_semantic_corpus_guard.py
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      **Each case pins a machine-readable outcome against a stable rule ID, not prose.**
+      Prose is golden-tested only where diagnostics are already a public contract.
+      This is what lets S-0005's rules cite cases and S-0006's matrix cite both without
+      either restating the other.
+    paths:
+      - tests/execution/test_semantic_corpus.py
+      - tests/support/semantic_corpus.py
+      - tests/unit/test_semantic_corpus_guard.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      **A case pins behaviour for *each* of representation, safe rollup and unsafe
+      refinement where all three apply.** Case 001 is refused as a mart, proven as
+      an order-level rollup, and refused at item level — one fixture, three expectations,
+      which is what carries it across the validator-to-planner evolution instead of
+      being rewritten at each step.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **A new proof rule names the cases it converts from refusal to acceptance.**
+      The corpus is the design gate: a rule that converts nothing has no demonstrated
+      purpose, and a rule that converts a case without supplying a correct result
+      and proof fails review. Not `LOCKED` because a soundness fix may legitimately
+      convert *nothing* while still being necessary.
+    paths:
+      - tests/fixtures/semantic_corpus/007-distinct-users-fanout/problem.md
+      - tests/fixtures/semantic_corpus/009-null-denominator/problem.md
+      - tests/fixtures/semantic_corpus/011-timezone-boundary/problem.md
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      **The corpus is a sibling directory to the dirty corpus, not an extension of
+      it.** Sharing a home blurs D1's distinction at exactly the moment a reader is
+      trying to use it. Departing means finding a shared harness worth more than the
+      separation, and logging why.
+  - id: D-7
+    grade: OPEN
+    text: >-
+      *Superseded by D10.* **Which tier runs the corpus.** Execution (DuckDB) covers
+      most cases; the SCD2 and timezone cases may need the Docker-gated engine tier,
+      which is excluded from the default suite — and a corpus that does not run by
+      default is a corpus that rots. Decide per case, and if any case cannot run in
+      the default suite, say so where the case lives.
+    paths: [tests/fixtures/semantic_corpus/011-timezone-boundary/problem.md]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **A third outcome, `unguarded`
+      — it compiles, and the planner returns the naive number — and §8's gate read
+      in both directions.** Two of the phase-one cases were neither refused nor correct:
+      an average and a snapshot balance both declared `additivity: additive` compile
+      clean, because nothing verifies that an `additive` claim is true. With only
+      "refuse" and "prove" available such a case can be written as a fiction or left
+      out, and leaving it out drops exactly the cases S-0053 exists to convert. So
+      a new rule names the cases it converts from refusal to acceptance *and* the
+      ones it converts from unguarded to refused. Locked because the word is the corpus's
+      whole claim to being a design gate rather than a transcript, and every case's
+      vocabulary rests on it — see `logs/T-0018.md` (D096).
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      **`bloomery/` holds specs, one subdirectory per expectation.** §9's second question
+      closes. A recorded outcome there would be the fact `expected/` already carries,
+      stated twice and testing nothing; D4's three-expectations-one-fixture needs
+      three specs, because one spec cannot be refused and accepted at once. The cost
+      §9 named — a case breaking when unrelated spec syntax changes — is the exposure
+      every fixture in the tree already carries, and it is the exposure that makes
+      them tests — see `logs/T-0018.md` (D097).
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      **The whole corpus runs in the default suite, on the execution tier, and each
+      case records its tier where it lives.** Answers D7 and supersedes it. §9 guessed
+      that the SCD2 and timezone cases would need the Docker-gated engine tier; an
+      as-of join over a validity interval is ordinary SQL, and DuckDB has both a named-zone
+      conversion and a truncation, so neither case sits outside `just test`. D7's
+      own reasoning decided it — a corpus that does not run by default is a corpus
+      that rots — and what the engine tier is still owed is the *dialect* question,
+      which is S-0006's matrix rather than this corpus's job — see `logs/T-0018.md`
+      (D098) and `logs/T-0029.md` (D7, 21:08Z).
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      **`expected/` holds `result.json` and `semantic_outcome.json`, and nothing else.**
+      §5's four files assume one outcome per case where D4 requires several: one `refusal.json`
+      cannot hold three outcomes, and splitting it per expectation duplicates what
+      the outcome map already keys by the same names, so that map carries the error
+      class and the rule id. `proof.json` arrives when there is a proof value worth
+      serializing. What §5 asked for and is kept is D3's requirement — a machine-readable
+      outcome against a stable rule ID, never prose — see `logs/T-0018.md` (D099).
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **An expectation's outcome
+      is defined by the number the planner returns, asserted by running the SQL bloomery
+      rendered.** The first execution ran the two hand-written queries as standalone
+      SQL and planned nothing, so `accepted` and `unguarded` asserted identically
+      and the difference rested on whether the cited RFC was still in `rfcs/` — a
+      fact about the repository, not about the case. That proxy would have passed
+      a mis-modelled case, and did: case 002's naive metric over line-grain rows returns
+      the *right* answer, because an average over lines is right, and the average-of-averages
+      bug needs an average already taken. Locked because it is the difference between
+      the corpus asserting behaviour and asserting its own bookkeeping — see `logs/T-0018.md`
+      (D101), where it is logged as this task's one `drift`.
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      **A case is identified by its name; its number is whatever was free when it
+      landed.** §3 pairs each name with a number and the tree drifted from it twice
+      — S-0055/phasing (P-1) took 006 for a case §3 never names, so `distinct-users-fanout`
+      landed as 007 and §3's last four as 008–011. Reading the roadmap's numbers rather
+      than its names would have silently dropped `ratio-rollup`, which is the case
+      the derived-ratio rule exists to convert. The rule is stated here instead of
+      the numbers being corrected, because §3's list is a record of what was planned
+      — see `logs/T-0028.md` (unlisted, 19:02Z) and `logs/T-0029.md` (unlisted, 21:05Z).

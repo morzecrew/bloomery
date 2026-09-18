@@ -1,4 +1,4 @@
-"""The single dependency DAG (RFC 0005 §5.1): node id scheme (pinned — it
+"""The single dependency DAG (S-0022/the-graph-bloomery-resolve-graph-py): node id scheme (pinned — it
 reaches CircularDerivation messages and topo output), edge labels, sorting."""
 
 from __future__ import annotations
@@ -109,7 +109,7 @@ def test_node_kinds_cover_the_step_free_vocabulary() -> None:
 
 
 def test_an_exposure_is_the_graph_s_only_sink() -> None:
-    """RFC 0056 §5.2. Both halves matter: the edges point *into* the exposure,
+    """S-0063/the-document (§5.2.) Both halves matter: the edges point *into* the exposure,
     and nothing points out of one — the downstream question stops there, which
     is the answer `--direction downstream` had no way to give before."""
 
@@ -121,7 +121,7 @@ def test_an_exposure_is_the_graph_s_only_sink() -> None:
     assert incoming == {
         ("metric.gross_revenue", "depends_on"),
         ("metric.order_count", "depends_on"),
-        # RFC 0067 §5.2: the mart leg shares the label, because it is the same
+        # S-0072/the-edges: the mart leg shares the label, because it is the same
         # relation declared in the same `depends_on:` block.
         ("mart.order_items", "depends_on"),
     }
@@ -129,7 +129,7 @@ def test_an_exposure_is_the_graph_s_only_sink() -> None:
 
 
 def test_a_mart_only_exposure_now_has_an_upstream() -> None:
-    """RFC 0067 §6, and the case RFC 0056 could not answer: `finance_extract`
+    """S-0072/tests, and the case S-0063 could not answer: `finance_extract`
     names no metric, so before the `mart` node it came back from an upstream
     walk as a node with nothing above it — a consumer whose whole declaration
     is what it reads, and the walk could see none of it.
@@ -162,7 +162,7 @@ def test_a_mart_only_exposure_now_has_an_upstream() -> None:
 
 
 def test_a_metric_reaches_the_marts_that_carry_it() -> None:
-    """The downstream half of RFC 0067 §1: `--direction downstream` from a
+    """The downstream half of S-0072/summary: `--direction downstream` from a
     metric now names the relation that will actually be rebuilt, not only the
     definitions and dashboards above it."""
 
@@ -192,7 +192,7 @@ def test_a_mart_reaches_its_measures_upstream() -> None:
 
 
 def test_a_rollup_hangs_off_its_parent() -> None:
-    """RFC 0067 §5.4, D5: one kind and one prefix for both, and the rollup's
+    """S-0072/rollups, S-0072/D-5: one kind and one prefix for both, and the rollup's
     own measures draw no edge of their own — they are a subset of the parent's
     (`marts/rollup.py`), so a metric reaches the rollup through the parent.
 
@@ -212,7 +212,7 @@ def test_a_rollup_hangs_off_its_parent() -> None:
 
 
 def test_the_quality_mart_is_not_a_node() -> None:
-    """RFC 0067 D2 over D6, and the departure `logs/T-0039.md` records.
+    """S-0072/D-2 over D6, and the departure `logs/T-0039.md` records.
 
     `gold.mart_data_quality` is synthesized from the finished IR by
     `attach_quality_mart`, three stages after the graph is built, so no
@@ -234,7 +234,7 @@ def test_the_quality_mart_is_not_a_node() -> None:
 
 
 def test_a_mart_with_no_measure_and_no_rollup_still_exists() -> None:
-    """A dimensional mart draws no edge at all — RFC 0010 D9 asks a date role
+    """A dimensional mart draws no edge at all — S-0027/D-9 asks a date role
     only of a *measure-carrying* mart — so without the unconditional node it
     would be absent from `topo_order` and refused by `bloomery lineage`, for a
     relation the emitters write a model for."""
@@ -271,7 +271,7 @@ def test_a_measure_naming_no_metric_is_a_node_here_and_a_refusal_later() -> None
     refuses the same spec at LOWER, so no artifact is ever emitted from a name
     that resolves to nothing. The phantom is reachable only on a project that
     does not compile, which is exactly the case `bloomery lineage` exists to
-    answer for (RFC 0031 D2, RFC 0067 D2).
+    answer for (S-0048/D-2, S-0072/D-2).
 
     Filtering it here would instead hide a name the marts document plainly
     declares, and would make this leg disagree with the two beside it.
@@ -339,7 +339,7 @@ def test_a_dangling_mart_dependency_still_draws_its_edge() -> None:
 
 
 def test_a_wired_step_is_a_first_class_node(step_project: Project) -> None:
-    """RFC 0017 D11: steps are DAG citizens. Both edge directions matter — the
+    """S-0034/D-11: steps are DAG citizens. Both edge directions matter — the
     input edge puts the step downstream of what fills it, the output edge puts
     its produced fields downstream of the step, and it is the second that lets
     `plan()` compute a backfill *across* a step (§4)."""
@@ -378,7 +378,7 @@ def test_a_step_with_no_wired_inputs_still_appears() -> None:
 
 
 # ....................... #
-# Determinism when two kinds share a name (RFC 0003; logs/T-0005.md D-025)
+# Determinism when two kinds share a name (S-0020; logs/T-0005.md D-025)
 
 
 #: An entity literally named `metric` with a field `revenue` produces the node
@@ -477,7 +477,7 @@ def test_node_order_is_identical_across_hash_seeds() -> None:
 
 
 # ....................... #
-# The reservation's drift gate (RFC 0051 §5.2, D8)
+# The reservation's drift gate (S-0059/the-node-id-collision-refused-at-its-cause, S-0059/D-8)
 
 
 def test_every_prefixed_builder_uses_a_reserved_name() -> None:
@@ -502,7 +502,7 @@ def test_every_prefixed_builder_uses_a_reserved_name() -> None:
 
 
 # ....................... #
-# RFC 0062 P1 — a stable id substitutes for the name
+# S-0067/phasing (P-1) — a stable id substitutes for the name
 
 
 def _with_metric_ids(**ids: str) -> tuple[Project, object]:
@@ -666,7 +666,7 @@ def test_a_reference_by_name_reaches_the_node_its_id_renamed() -> None:
     assert "metric.gross_revenue" not in into_aov
 
     # And the mart's `measures:` entry, which names the metric from a fourth
-    # document and is the reference RFC 0067 §5.2 added.
+    # document and is the reference S-0072/the-edges added.
     into_mart = {edge.src.name for edge in graph.edges if edge.dst.name == "mart.order_items"}
     assert into_mart == {"metric.mtr_7f3a9c"}
 
@@ -687,7 +687,7 @@ def test_a_rename_moves_the_label_and_not_the_node() -> None:
         1,
     )
     # An exposure names a metric from a third document, so a rename reaches
-    # here too — and that is the half of RFC 0062 §5.2 the edge into an
+    # here too — and that is the half of S-0067/node-id-construction the edge into an
     # exposure exercises: the id belongs to the definition, so this reference
     # spells the *new* name and still resolves to the same node.
     sources["exposures"] = sources["exposures"].replace(
@@ -696,7 +696,7 @@ def test_a_rename_moves_the_label_and_not_the_node() -> None:
         1,
     )
     # A mart's `measures:` is a fourth document naming the same metric, and the
-    # `measure` edge RFC 0067 §5.2 draws from it is a *reference* for exactly
+    # `measure` edge S-0072/the-edges draws from it is a *reference* for exactly
     # the reason the two above are. Renaming everywhere but here would leave
     # this edge sourced at a vertex nothing built.
     sources["marts"] = sources["marts"].replace(
@@ -729,7 +729,7 @@ def test_an_authored_id_opens_no_route_to_the_entity_field_namespace() -> None:
 
     An entity field is ``<entity>.<field>`` **bare**; every other id carries a
     kind prefix. An id can put anything after that prefix and never remove it,
-    so no authored value reaches the bare form — the collision RFC 0051 D6-D8
+    so no authored value reaches the bare form — the collision S-0059/D-6 S-0059/D-8
     closes stays closed, and this says so rather than leaving a reader to
     re-derive it.
     """

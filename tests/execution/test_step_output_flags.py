@@ -1,4 +1,4 @@
-"""A flagged Tier 2 step output, executed (RFC 0051 §5.3).
+"""A flagged Tier 2 step output, executed (S-0059/onfail-flag-on-a-tier-2-output).
 
 The wrap is a projection over a **subquery alias** rather than over a bronze
 relation, which is a binding no golden can prove: a model that references
@@ -79,7 +79,7 @@ def test_the_flag_column_names_the_rule_on_the_rows_that_fail(
 
 
 def test_no_row_is_routed_away(run: duckdb.DuckDBPyConnection) -> None:
-    """`flag` marks, it never diverts (RFC 0016 §5.2) — and a step output has
+    """`flag` marks, it never diverts (S-0033/coercion-failure-is-a-rule-the-assert-boundary) — and a step output has
     no reject table for a diverted row to land in."""
     assert run.execute("SELECT COUNT(*) FROM silver.scored").fetchone() == (3,)
 

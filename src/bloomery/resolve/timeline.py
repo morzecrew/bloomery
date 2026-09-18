@@ -1,4 +1,4 @@
-"""Timeline: one node across N caller-supplied spec sets (RFC 0069 §5.1).
+"""Timeline: one node across N caller-supplied spec sets (S-0074/the-value).
 
 :func:`~bloomery.lineage` answers "what does this depend on" — structure across
 the project at one instant. :func:`timeline` answers the other question a
@@ -6,20 +6,20 @@ reader has about a node: "how has this changed" — one node across the
 project's history. Both are pure functions over values the caller already
 holds, and neither reads anything.
 
-**The history is the caller's** (D2, inherited from RFC 0068 D1). bloomery has
+**The history is the caller's** (D2, inherited from S-0073/D-1). bloomery has
 no notion of where a past spec set comes from, and this walk adds none: it is
 handed a sequence, consumes it once in the order given, and reports what it
 saw. **The labels are opaque** (D1) — carried into the result, rendered, and
 compared for nothing. Ordering by parsing them would make this project the
 owner of timezone and resolution semantics over data it did not produce.
 
-**What moved is RFC 0064's vocabulary and is not restated here** (D3): a
+**What moved is S-0069's vocabulary and is not restated here** (D3): a
 :class:`~bloomery.FacetDelta` comes from :mod:`bloomery.resolve.facets`, which
 owns the table, and this walk decides only *which* pairs of versions to ask it
 about. Two tables describing one delta is drift this corpus has already paid
 for.
 
-**The answer is the root's closure, not the root** (RFC 0064 D4). A metric
+**The answer is the root's closure, not the root** (S-0069/D-4). A metric
 whose own definition never moved still changes when a dimension beneath it is
 redefined, and reporting the named node alone is the narrow answer ``git log``
 already gives badly. Every change names the node it is about.
@@ -37,7 +37,7 @@ from bloomery.errors import InvariantViolated
 
 # `Iterable` above and every name below are runtime imports rather than
 # `TYPE_CHECKING` ones, for the reason
-# `resolve.lineage` gives: every name below is public, and RFC 0018 D10
+# `resolve.lineage` gives: every name below is public, and S-0035/D-10
 # requires a public annotation to resolve at run time —
 # `tests/unit/test_signature_closure.py` calls `get_type_hints` on every
 # export and a guarded name fails it.
@@ -84,7 +84,7 @@ _KIND_BY_PREFIX: Final[dict[str, NodeKind]] = {
     "step": NodeKind.STEP,
 }
 
-#: The kinds that can carry an RFC 0062 ``id:``, and the key
+#: The kinds that can carry an S-0067 ``id:``, and the key
 #: :func:`~bloomery.spec.project.node_keys` files each under. A kind absent
 #: here has no id anywhere in the spec layer, so every boundary it crosses is
 #: matched by name — which is not a limitation of this walk but of what the
@@ -109,7 +109,7 @@ class MatchedBy(StrEnum):
     lie about one of them.
     """
 
-    #: Both sides carried the same RFC 0062 ``id:``. A rename across this
+    #: Both sides carried the same S-0067 ``id:``. A rename across this
     #: boundary is a relabelling, and the node survives it.
     ID = "id"
     #: The node name was the key — either side may still carry an id (adopting
@@ -127,7 +127,7 @@ class SpecVersion:
     """One entry of a caller-assembled history (D2).
 
     **It carries the spec side, not the IR** (D11). A :class:`ProjectIR` does
-    not retain the authored ``id:`` — RFC 0062 substitutes it while building
+    not retain the authored ``id:`` — S-0067 substitutes it while building
     node ids and the IR keeps only names, because a field there would move
     every fingerprint in the corpus. A timeline handed only IRs therefore
     cannot match by id at all, which is the failure this feature exists to
@@ -142,15 +142,15 @@ class SpecVersion:
     label: str
     project: Project
     catalog: Catalog | None = None
-    #: The step registry this version compiles against (RFC 0017 §5.3). §5.1
+    #: The step registry this version compiles against (S-0034/purity-the-registry-is-a-compile-input). §5.1
     #: did not list it and the IR cannot be built without it: a project
     #: declaring ``steps:`` is refused with ``UnknownStep`` against the empty
     #: registry, so a history of any step-wiring project would have no timeline
-    #: at all. It is the same caller-assembled compile input RFC 0068 D1 puts
+    #: at all. It is the same caller-assembled compile input S-0073/D-1 puts
     #: the caller in charge of — the party holding the history is already the
     #: party holding this. See ``logs/T-0043.md``.
     steps: StepRegistry = EMPTY_REGISTRY
-    #: The upstream IRs this version compiles against (RFC 0059 D2/D8), by the
+    #: The upstream IRs this version compiles against (S-0002/D-2, S-0002/D-8), by the
     #: alias its imports document names. Here for the reason ``steps`` is: a
     #: project declaring ``imports:`` is refused with ``UnknownUpstream``
     #: against the empty mapping, so a history of any importing project would
@@ -171,7 +171,7 @@ class TimelineEntry:
     has a position, so a reader can see *which* entry the node was missing from
     rather than only that something was missing between two others. That is
     what makes a delete-and-recreate distinguishable from a rename, which is
-    the case RFC 0062 exists for.
+    the case S-0067 exists for.
     """
 
     #: The caller's label for this version, verbatim.
@@ -195,7 +195,7 @@ class TimelineChange:
     is a delete and an add, not a change spanning it, so nothing here ever
     claims a definition moved across a version the node was missing from.
 
-    **Emitted only where a facet moved.** RFC 0064 §6's first test is that a
+    **Emitted only where a facet moved.** S-0069/tests's first test is that a
     pure rename attributes nothing, and that is what makes it true: identity —
     ``name``, ``ref``, ``id`` — belongs to no facet, so a node that was only
     renamed crosses its boundary with nothing to report. Before the facets
@@ -211,7 +211,7 @@ class TimelineChange:
     #: *trackable* and the name is what makes it readable, and a node that
     #: adopts an id partway through a history would otherwise change its
     #: spelling mid-answer. It is usually the root and is not always: a change
-    #: anywhere on the root's dependency closure is reported here (RFC 0064
+    #: anywhere on the root's dependency closure is reported here (S-0069
     #: D4), which is the half that makes the answer correct rather than local.
     node: str
     #: The label of the earlier of the two versions.
@@ -220,12 +220,12 @@ class TimelineChange:
     after: str
     #: How this boundary was crossed (D12).
     matched_by: MatchedBy
-    #: What changed, in RFC 0064's vocabulary (D3) — never empty, because an
+    #: What changed, in S-0069's vocabulary (D3) — never empty, because an
     #: empty delta is not a change.
     facets: tuple[FacetDelta, ...] = ()
     #: The exposures and marts this change reaches, as graph node ids
     #: (``exposure.weekly_revenue_review``, ``mart.order_items``), sorted
-    #: (RFC 0064 §5.3 — "the exposures and marts downstream, from RFC 0056").
+    #: (S-0069/the-command-surface — "the exposures and marts downstream, from S-0063").
     #:
     #: **From the *after* side of the boundary.** A boundary has two graphs and
     #: they can disagree — a change that adds a metric to a mart moves what
@@ -271,7 +271,7 @@ class Timeline:
     #: One per history entry, in the order supplied (D1, D13).
     entries: tuple[TimelineEntry, ...]
     #: Between adjacent present entries only, in the same order — and within
-    #: one boundary, sorted by the node each is about, since RFC 0064 D4 puts
+    #: one boundary, sorted by the node each is about, since S-0069/D-4 puts
     #: the whole of the root's upstream closure in scope and a boundary can
     #: therefore carry several.
     changes: tuple[TimelineChange, ...]
@@ -305,7 +305,7 @@ def _kind_and_spelling(node: str) -> tuple[NodeKind, str]:
     ``order_item.unit_price`` is an entity field spelled whole, because that
     kind carries no prefix. Every member of
     :data:`~bloomery.ir.NODE_ID_PREFIXES` is a reserved entity name
-    (``guardrails.lineage``, RFC 0051 D6), so the fall-through cannot swallow a
+    (``guardrails.lineage``, S-0059/D-6), so the fall-through cannot swallow a
     prefixed id.
     """
 
@@ -322,7 +322,7 @@ def _kind_and_spelling(node: str) -> tuple[NodeKind, str]:
 def _entity_field(ir: ProjectIR, spelling: str) -> object | None:
     """An entity field's definition: its schema **and** its lowering.
 
-    The two live apart in the IR (RFC 0024 D26). ``ColumnIR`` is the schema
+    The two live apart in the IR (S-0041/D-26). ``ColumnIR`` is the schema
     half — type, canonical link, unit, tax basis — and the expression that
     produces the value is a ``SourceColumnIR`` *per source*, because a merged
     entity contributes one projection per mapping to a ``UNION ALL``. Comparing
@@ -380,7 +380,7 @@ def _definition(kind: NodeKind, spelling: str, ir: ProjectIR, catalog: Catalog |
       edit that leaves a metric unreachable for the same reason is not visible
       here. Becoming reachable is, which is the change a reader is waiting for.
     - **mart** — the ``MartIR``, or the ``RollupIR``: both are gold relations
-      under one node prefix (RFC 0067 §5.1) and RFC 0058 D10 refuses a rollup
+      under one node prefix (S-0072/the-node) and S-0065/D-10 refuses a rollup
       that takes a mart's name, so the one lookup cannot be ambiguous.
     - **exposure** — the ``ExposureIR``.
     - **step** — the ``StepIR``, keyed by ``ref`` as its node is.
@@ -391,7 +391,7 @@ def _definition(kind: NodeKind, spelling: str, ir: ProjectIR, catalog: Catalog |
       canonical-field record anywhere in ``ProjectIR``; the field survives
       lowering only as ``ColumnIR.canonical``, a string reference. The spec
       model is the only record of one that exists, so it is what gets compared.
-      It is the one kind whose record retains RFC 0062's ``id``, and minting
+      It is the one kind whose record retains S-0067's ``id``, and minting
       one is identity rather than redefinition — which is why the facet table
       excludes ``id`` for every kind rather than this arm blanking it for the
       only kind that has one (:data:`~bloomery.resolve.facets._IDENTITY`).
@@ -513,7 +513,7 @@ def _locate(
         return by_id[held.node_id], held.node_id
 
     # §5.2 licenses the name fallback only where **one** side lacks an id. Two
-    # different ids on one name is RFC 0062 D6's write-once rule broken, and
+    # different ids on one name is S-0067/D-6's write-once rule broken, and
     # that document calls it a delete and an add — so the name must not carry
     # the two across. Reaching the fallback here would report them as one node
     # *and* as a node that never moved, because the id is the only thing that
@@ -558,9 +558,9 @@ _PREFIX_BY_KIND: Final[dict[NodeKind, str]] = {
 }
 
 
-#: What counts as a sink (RFC 0064 §5.3). Both, not exposures alone: a mart is
+#: What counts as a sink (S-0069/the-command-surface). Both, not exposures alone: a mart is
 #: a relation somebody's dashboard or query reads whether or not an exposure
-#: declares it, and RFC 0067 put marts in the graph precisely so a walk could
+#: declares it, and S-0072 put marts in the graph precisely so a walk could
 #: reach them. A mart on the root's own upstream closure is reported here too
 #: — it is genuinely downstream of the node that changed, and which side of
 #: the root a node sits on is not a fact about who is affected.
@@ -751,7 +751,7 @@ def timeline(history: Iterable[SpecVersion], node: str) -> Timeline:
     either side (D12), so asking by name reaches a node that has since minted
     an id, and asking by id reaches the versions before it existed.
 
-    **What comes back is the root's upstream closure** (RFC 0064 D4), each
+    **What comes back is the root's upstream closure** (S-0069/D-4), each
     change naming the node it is about. A metric whose own definition never
     moved still changes when a dimension two hops beneath it is redefined, and
     an answer about the named node alone is the one `git log` already gives

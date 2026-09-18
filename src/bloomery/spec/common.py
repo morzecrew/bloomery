@@ -1,10 +1,10 @@
-"""Shared spec-layer plumbing (RFC 0002 §5.1–§5.3, §5.6).
+"""Shared spec-layer plumbing (S-0019/module-layout–S-0019/source-paths, S-0019/yaml-parsing).
 
 Hosts the strict :class:`SpecModel` base, the source-path conversion from
 Pydantic ``loc`` tuples to dotted/bracketed authored-document addresses, the
 shared grammars (type strings, partition specs, JSONPath-lite, SQL expressions)
 and shared sub-models (:class:`RatioSpec`, :class:`SemiAdditivePolicy`), and the strict
-YAML loader that rejects duplicate keys (RFC 0002 D5).
+YAML loader that rejects duplicate keys (S-0019/D-5).
 
 Only :mod:`bloomery.errors` may be imported from here — the spec layer knows
 nothing internal but errors (import-linter contract).
@@ -65,29 +65,29 @@ __all__ = [
 ]
 
 # ....................... #
-# Grammars (RFC 0002 §5.5) — shape-only; semantics live downstream.
+# Grammars (S-0019/spec-model-surface) — shape-only; semantics live downstream.
 
-#: The closed logical-type grammar (RFC 0004 §5.1). The spec layer validates the
+#: The closed logical-type grammar (S-0021/logical-types-bloomery-typing-types-py). The spec layer validates the
 #: grammar only; ``bloomery.typing.parse_type`` consumes the same pattern.
 TYPE_STRING_PATTERN = (
     r"^(?:string|int|bool|date|timestamp|variant|decimal\((\d{1,3}), ?(\d{1,3})\))$"
 )
 
 #: Iceberg-style partition entries: a bare column or ``fn(column)`` with
-#: ``fn ∈ {days, months, years, hours}`` (RFC 0002 §5.5).
+#: ``fn ∈ {days, months, years, hours}`` (S-0019/spec-model-surface).
 PARTITION_SPEC_PATTERN = (
     r"^(?:(days|months|years|hours)\(([A-Za-z_][A-Za-z0-9_]*)\)|[A-Za-z_][A-Za-z0-9_]*)$"
 )
 
-#: JSONPath-lite: ``$.a.b`` dotted paths only (RFC 0002 §5.5).
+#: JSONPath-lite: ``$.a.b`` dotted paths only (S-0019/spec-model-surface).
 JSONPATH_PATTERN = r"^\$(?:\.[A-Za-z_][A-Za-z0-9_]*)+$"
 
 #: Names the compiler generates, so neither an authored member (a field, a
 #: metric, a date role) nor an authored relation (an entity, a mart) may claim
 #: one — the generated column would collide silently. ``metric_time`` is
-#: MetricFlow's canonical query-time dimension (RFC 0002 D10, RFC 0013 R4); the
+#: MetricFlow's canonical query-time dimension (S-0019/D-10, S-0030 R4); the
 #: rest are the data-quality columns and the bronze ingestion-metadata contract
-#: (RFC 0016 §5.5, §5.6, D9/D21/D23). Each carries the reason its message
+#: (S-0033/schema-additions-and-the-array-capability, S-0033/quarantine-one-reject-table-per-entity, S-0033/D-9, S-0033/D-21, S-0033/D-23). Each carries the reason its message
 #: quotes: a bare "reserved" tells an author nothing about which layer owns it.
 #:
 #: **Adding to this dict is the one change that can stop a document loading
@@ -99,18 +99,18 @@ JSONPATH_PATTERN = r"^\$(?:\.[A-Za-z_][A-Za-z0-9_]*)+$"
 #: come with that: the reason string below is part of the contract rather than
 #: a comment, and every addition is a ``CHANGELOG.md`` entry under *Changed*.
 RESERVED_MEMBER_REASONS: dict[str, str] = {
-    "metric_time": "RFC 0013 R4: the canonical query-time dimension",
-    "_quality_flags": "RFC 0016 D9: the generated silver quality-flag column",
-    "_quality_ok": "RFC 0016 D9: generated from _quality_flags",
-    "_quality_repairs": "RFC 0016 D87: the generated repair marker",
-    "_load_id": "RFC 0016 D21: bronze ingestion metadata",
-    "_ingested_at": "RFC 0016 D21: bronze ingestion metadata",
-    "_source_row_id": "RFC 0016 D21: the stable source-row identity",
-    # Reserved unconditionally, not only on merged entities (RFC 0024 D18): a
+    "metric_time": "S-0030 R4: the canonical query-time dimension",
+    "_quality_flags": "S-0033/D-9: the generated silver quality-flag column",
+    "_quality_ok": "S-0033/D-9: generated from _quality_flags",
+    "_quality_repairs": "S-0033/D-87: the generated repair marker",
+    "_load_id": "S-0033/D-21: bronze ingestion metadata",
+    "_ingested_at": "S-0033/D-21: bronze ingestion metadata",
+    "_source_row_id": "S-0033/D-21: the stable source-row identity",
+    # Reserved unconditionally, not only on merged entities (S-0041/D-18): a
     # name that is legal until a second mapping arrives is a trap laid for the
     # change that adds one.
-    "_source": "RFC 0024 D7: the generated union-merge provenance column",
-    "has_quality_flags": "RFC 0016 D9: the generated mart dimension",
+    "_source": "S-0041/D-7: the generated union-merge provenance column",
+    "has_quality_flags": "S-0033/D-9: the generated mart dimension",
 }
 
 #: The reserved names, sorted — the message vocabulary lives in
@@ -157,7 +157,7 @@ def _reject_reserved_member(name: str) -> str:
 
 
 def _reject_reserved_relation(name: str) -> str:
-    #: :data:`RelationName`'s two surfaces (RFC 0002 D14).
+    #: :data:`RelationName`'s two surfaces (S-0019/D-14).
     return _reject_reserved(name, rename="entity/mart")
 
 
@@ -204,7 +204,7 @@ def _parses_as_sql(expr: str) -> str:
     text SQLGlot itself will not re-parse, so it crashed the emitter with the
     same raw ``ParseError`` this validator exists to prevent (PR #111 review).
     The quality guardrail reached the same refusal from the same reasoning for
-    an expression rule (RFC 0016 D95); this is that rule at the door the other
+    an expression rule (S-0033/D-95); this is that rule at the door the other
     four fields come through.
 
     A ``Block`` is the special case of that; a **statement** is the general
@@ -271,10 +271,10 @@ JsonPath = Annotated[str, StringConstraints(pattern=JSONPATH_PATTERN)]
 CurrencyCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]
 
 #: An IANA zone name — ``UTC``, ``America/New_York``,
-#: ``America/Argentina/Buenos_Aires`` (RFC 0074 §5.2).
+#: ``America/Argentina/Buenos_Aires`` (S-0076/zonein-is-how-a-utc-source-says-so).
 #:
 #: **Shape, not membership.** Validating against the shipped zone database
-#: would read the filesystem, which compilation does not do (RFC 0003), and
+#: would read the filesystem, which compilation does not do (S-0020), and
 #: would make acceptance a fact about the machine: ``zoneinfo.TZPATH`` names
 #: four directories and what they hold differs between them. The zone that is
 #: *used* — ``to_utc``'s argument — already reaches SQL unchecked and is the
@@ -286,7 +286,7 @@ ZoneName = Annotated[str, StringConstraints(pattern=ZONE_NAME_PATTERN)]
 
 #: The spellings that mean "this wall clock is already UTC" — the claim
 #: ``zone_in:`` exists to carry, which no ``to_utc`` step can express because
-#: ``to_utc: UTC`` converts nothing and nobody writes it (RFC 0074 §5.2).
+#: ``to_utc: UTC`` converts nothing and nobody writes it (S-0076/zonein-is-how-a-utc-source-says-so).
 #: Two rather than one because ``Etc/UTC`` is the same zone under the name the
 #: database files it as, and refusing it would teach the author that the key
 #: wants a spelling rather than a fact.
@@ -301,16 +301,16 @@ SqlText = Annotated[str, AfterValidator(_parses_as_sql)]
 #: A bare lower-snake identifier — the shape a name must have to be safe in a
 #: context that does not quote it. Two such contexts exist, and they are
 #: deliberately the *only* two: the SQLMesh ``MODEL (...)`` envelope, which is
-#: Jinja over pre-rendered strings (:data:`RelationName`, RFC 0002 D14), and a
+#: Jinja over pre-rendered strings (:data:`RelationName`, S-0019/D-14), and a
 #: metric filter's dimension reference, which is Jinja on MetricFlow and
-#: ``{member}`` templating on Cube (:data:`DimensionName`, RFC 0034 D8).
+#: ``{member}`` templating on Cube (:data:`DimensionName`, S-0050/D-8).
 #:
 #: One constant because it is one rule. Both names below travel outside
 #: SQLGlot's quoting, so both need it; a second spelling of the same pattern is
 #: how the two would come to differ about what an identifier is.
 IDENTIFIER_PATTERN = r"^[a-z][a-z0-9_]*$"
 
-#: A name that becomes a **relation** — an entity or a mart (RFC 0002 D14).
+#: A name that becomes a **relation** — an entity or a mart (S-0019/D-14).
 #:
 #: Stricter than :data:`MemberName` because it travels further. A field name
 #: reaches SQL through SQLGlot, which quotes and escapes it; a relation name
@@ -326,7 +326,7 @@ RelationName = Annotated[
 ]
 
 #: A member name *referenced from a place that does not quote it* — today, the
-#: dimension of a metric filter (RFC 0034 D8).
+#: dimension of a metric filter (S-0050/D-8).
 #:
 #: :data:`MemberName` is deliberately unpatterned, on the reasoning quoted
 #: above: a field name reaches SQL through SQLGlot, which quotes it. A metric
@@ -344,7 +344,7 @@ DimensionName = Annotated[
     str, StringConstraints(pattern=IDENTIFIER_PATTERN), AfterValidator(_reject_reserved_member)
 ]
 
-#: What class of data a column holds (RFC 0055 §5.2), and **closed** (D3).
+#: What class of data a column holds (S-0062/classification), and **closed** (D3).
 #:
 #: An open string would be a tag that means whatever its writer meant, and the
 #: routing is the whole reason this is not a `meta:` passthrough: `pii` and
@@ -359,14 +359,14 @@ DimensionName = Annotated[
 ClassificationName = Literal["public", "internal", "pii", "secret"]
 
 #: The authored aggregation classes — the members of :class:`~bloomery.ir.Additivity`
-#: a project can write (RFC 0038 D1). ``snapshot`` is deliberately absent: its
+#: a project can write (S-0053/D-1). ``snapshot`` is deliberately absent: its
 #: declaration is ``semi_additive`` with a ``rule`` (logs/T-0028.md).
 AdditivityName = Literal["additive", "semi_additive", "non_additive", "ratio", "distinct_count"]
 CardinalityName = Literal["many_to_one", "one_to_one", "one_to_many"]
 MaterializationName = Literal["full", "incremental_by_key", "incremental_by_partition"]
 
 # ....................... #
-# Base model (RFC 0002 §5.2)
+# Base model (S-0019/the-base-model)
 
 
 class SpecModel(BaseModel):
@@ -380,10 +380,10 @@ class SpecModel(BaseModel):
 
 
 def _refuse_seeds(value: object) -> object:
-    """Refuse a ``seeds:`` key, by name (RFC 0055 D7).
+    """Refuse a ``seeds:`` key, by name (S-0062/D-7).
 
     A permanent refusal rather than a gap. A seed is a table of *data* in the
-    repository, and bloomery reads no files while compiling (RFC 0003) — so
+    repository, and bloomery reads no files while compiling (S-0020) — so
     the only way it could emit one is for the rows to be in a spec, which
     would make the spec a data file and undo the split the entity/mapping/
     metric documents exist to draw.
@@ -396,9 +396,9 @@ def _refuse_seeds(value: object) -> object:
     """
 
     msg = (
-        "'seeds:' is refused, permanently, and not missing (RFC 0055 D7). A seed is a "
+        "'seeds:' is refused, permanently, and not missing (S-0062/D-7). A seed is a "
         "table of data in your repository, and bloomery reads no files while compiling "
-        "(RFC 0003) — so the rows would have to live in a spec, which would make the spec "
+        "(S-0020) — so the rows would have to live in a spec, which would make the spec "
         "a data file. Fix: land the CSV with your loader, declare the relation it writes "
         "as a bronze source, and map an entity onto it like any other"
     )
@@ -419,7 +419,7 @@ SeedsRefusal = Annotated[Any, AfterValidator(_refuse_seeds)]
 
 
 class Grants(SpecModel):
-    """Who may read the relation a node becomes (RFC 0055 §5.3).
+    """Who may read the relation a node becomes (S-0062/grants).
 
     The one annotation of this RFC with a *consequence*: an emitted grant is
     applied by the framework, on the engine, so being wrong here changes who
@@ -446,12 +446,12 @@ class Grants(SpecModel):
 
 
 class RatioSpec(SpecModel):
-    """Additive decomposition of a non-additive metric (RFC 0002 D9, RFC 0011 D5)."""
+    """Additive decomposition of a non-additive metric (S-0019/D-9, S-0028/D-5)."""
 
     numerator: str
     denominator: str
     #: Which rows this ratio is about, where a row can contribute to the
-    #: numerator and nothing to the denominator (RFC 0075 D2).
+    #: numerator and nothing to the denominator (S-0077/D-2).
     #:
     #: ``true`` is the *inclusive* reading — "total over units, overheads
     #: included" — and it is a declaration rather than a switch: a shipment
@@ -467,7 +467,7 @@ class RatioSpec(SpecModel):
 
 
 class SemiAdditivePolicy(SpecModel):
-    """Typed semi-additive policy (RFC 0002 §5.5): the dimension the metric is
+    """Typed semi-additive policy (S-0019/spec-model-surface): the dimension the metric is
     not additive over, and the rule applied along it."""
 
     over: str
@@ -475,7 +475,7 @@ class SemiAdditivePolicy(SpecModel):
 
 
 # ....................... #
-# Source paths (RFC 0002 §5.3)
+# Source paths (S-0019/source-paths)
 
 
 # ....................... #
@@ -517,7 +517,7 @@ def _with_document_identity(
     """Bind ``document`` on a mapping's data; leave every other kind alone.
 
     An authored ``document:`` is **refused rather than overwritten**
-    (RFC 0032 D3): the field is a fact about where the document was read from,
+    (S-0049/D-3): the field is a fact about where the document was read from,
     and a document asserting its own filename is a second source of truth that
     can disagree with the first. Silently discarding the author's value would
     make that disagreement invisible, which is the failure the refusal exists
@@ -529,7 +529,7 @@ def _with_document_identity(
     key would accept this one.
 
     **The refusal is returned, not raised**, so that it joins the document's
-    other shape failures instead of pre-empting them (RFC 0002 D6). Raising
+    other shape failures instead of pre-empting them (S-0019/D-6). Raising
     here would report the authored key and hide every other error in the same
     document, which is the one-at-a-time fixing that batching exists to
     prevent — and the caller has the author's value bound to a real field by
@@ -543,7 +543,7 @@ def _with_document_identity(
     if "document" in data:
         msg = (
             "'document' is not part of the mapping vocabulary — it is the name this "
-            "document was loaded under, which bloomery supplies (RFC 0032 D3)"
+            "document was loaded under, which bloomery supplies (S-0049/D-3)"
         )
         # The authored value is dropped and the loader's bound in its place, so
         # the rest of the document still validates and reports its own errors.
@@ -562,12 +562,12 @@ def validate_document[ModelT: SpecModel](
 ) -> ModelT:
     """Validate one parsed YAML document against a spec model.
 
-    Pydantic's ``ValidationError`` never escapes (RFC 0002 D3): every failure
+    Pydantic's ``ValidationError`` never escapes (S-0019/D-3): every failure
     is converted to a :class:`SpecParseError` with a document-prefixed source
     path, and multiple failures in one document are batched into a single
-    aggregate error listing every path (RFC 0002 D6).
+    aggregate error listing every path (S-0019/D-6).
 
-    ``document`` also **binds a mapping's identity** (RFC 0032 D1/D3). It is
+    ``document`` also **binds a mapping's identity** (S-0049/D-1, S-0049/D-3). It is
     already the name this document is known by — it prefixes every refusal
     raised here — so a :class:`~bloomery.spec.mapping.Mapping` takes its
     ``document`` field from the same argument rather than from a second one
@@ -603,7 +603,7 @@ def validate_document[ModelT: SpecModel](
 
 
 # ....................... #
-# YAML parsing (RFC 0002 §5.6)
+# YAML parsing (S-0019/yaml-parsing)
 
 
 # ....................... #
@@ -697,7 +697,7 @@ class _StrictSafeLoader(yaml.SafeLoader):
     adversarial shape.
 
     PyYAML's default silently keeps the last value — exactly the silent
-    failure the spec layer exists to prevent (RFC 0002 D5). The two structural
+    failure the spec layer exists to prevent (S-0019/D-5). The two structural
     caps (nesting depth, alias expansion) turn the two quiet
     resource-exhaustion shapes into refusals with the limit named; the module
     constants above record the measurements behind them.
@@ -820,7 +820,7 @@ def load_yaml_mapping(text: str, *, document: str) -> dict[str, object]:
         )
 
     try:
-        # SafeLoader subclass: only plain YAML types construct (RFC 0002 §5.6).
+        # SafeLoader subclass: only plain YAML types construct (S-0019/yaml-parsing).
         data = yaml.load(text, Loader=_StrictSafeLoader)  # noqa: S506 — a SafeLoader subclass, see above
     except yaml.YAMLError as exc:
         raise SpecParseError(f"invalid YAML: {exc}", source_path=document) from exc
@@ -860,12 +860,12 @@ def flatten_collected(errors: list[BloomeryError]) -> tuple[BloomeryError, ...]:
 
 
 # ....................... #
-# Naming and binding a step (RFC 0017 §5.2)
+# Naming and binding a step (S-0034/step-manifest)
 #
 # Defined here rather than in ``spec.steps`` — which re-exports both, so every
 # shipped import path is unchanged — because two documents name a step and
 # ``spec.steps`` imports one of them: ``quality.Repair.via`` references a
-# ``sql_macro`` (RFC 0016 D87) while ``spec.steps`` reads ``quality``'s
+# ``sql_macro`` (S-0033/D-87) while ``spec.steps`` reads ``quality``'s
 # ``ExpressionRule`` for a step output's rules. Whichever way that pair is
 # written it is a cycle, so the two primitives move below both.
 
@@ -879,6 +879,6 @@ USE_PATTERN = r"^[a-z][a-z0-9_]*@[1-9][0-9]*$"
 StepUse = Annotated[str, StringConstraints(pattern=USE_PATTERN)]
 
 #: A parameter value a call site may set. ``float`` is deliberately absent
-#: (RFC 0003 D5) — a decimal arrives as ``Decimal``, and a YAML float would
+#: (S-0020/D-5) — a decimal arrives as ``Decimal``, and a YAML float would
 #: reach emission as a binary approximation of what the author wrote.
 ParameterValue = str | int | bool | Decimal

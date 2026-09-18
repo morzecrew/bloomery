@@ -1,0 +1,210 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0057
+title: >-
+  `bloomery check` and imported semantic provenance
+kind: design
+status: accepted
+implementation: complete
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  The first adoption surface should not require bloomery to reverse-engineer business
+  semantics from arbitrary SQL.
+
+  ```bash
+  bloomery check <project>
+  ```
+
+  meaning: load, resolve, semantic type-check, prove static invariants, report. No target
+  emission. No warehouse execution. No guessed semantics.
+
+  External dbt or MetricFlow artifacts may later contribute facts, but every imported fact
+  carries provenance and only sufficiently strong provenance participates in correctness
+  proofs.
+motivation: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+current_state: |-
+  The CLI already has `compile`, `plan`, `resolve`, `lineage`, `explain`, `schema` and
+  `fingerprint` (`cli/__init__.py`). There is no `check`, and `resolve` is the nearest thing —
+  it resolves and reports but is not shaped as a CI gate with an exit-code contract.
+
+  Compilation is already pure: no filesystem beyond reading specs, no network, no clock
+  (S-0020). So P1's "must not require credentials or network" is a property the compiler
+  already has, and this RFC's job is to expose it as a command rather than to establish it.
+goals: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+non_goals: >-
+  _Stated with the goals above; the RFC did not separate them._
+design:
+  - key: bloomery-check
+    md: |-
+      Deterministic and CI-friendly.
+
+      ```text
+      ✓ 18 entities resolved
+      ✓ 42 relationships checked
+      ✓ 31 measures type-check
+      ✓ 7 marts safe
+      ✓ 64 requested semantic obligations proven
+
+      0 refusals
+      ```
+
+      ```text
+      ✗ metric gross_margin
+
+      currency mismatch:
+        revenue  Money<USD>
+        cost     Money<EUR>
+
+      No declared conversion path EUR -> USD is available.
+      ```
+
+      Exact presentation belongs to CLI design; machine-readable output is mandatory.
+
+      ### Exit codes
+
+      `0` when all requested and static obligations are proven; non-zero on at least one refusal
+      or an invalid project; distinct machine-readable error categories available without parsing
+      prose. Warnings and advisories do not fail unless an explicit strict policy says so.
+
+      ### Scope of P1
+
+      Native bloomery specs only. It must not require dbt, SQLMesh, warehouse credentials,
+      network access, or target emission — which makes it suitable for pre-commit and CI.
+
+      P1 reports counts for semantic surfaces **actually checked**, not vanity totals: entities,
+      relationships, measures, marts, conversions, temporal joins, and explicitly configured
+      metric requests or examples. It does not claim that all possible future queries are proven
+      merely because the project compiles.
+
+      ### Machine output
+
+      ```json
+      {
+        "status": "refused",
+        "refusals": [
+          {
+            "code": "currency_mismatch",
+            "subject": "gross_margin",
+            "proof_obligation": "compatible_units"
+          }
+        ]
+      }
+      ```
+
+      Proof and refusal rule IDs align with S-0005.
+  - key: why-not-start-with-bloomery-check-dbtproject
+    md: |-
+      Arbitrary dbt SQL often does not declare business grain, measure origin grain, additivity,
+      unit or currency, SCD interpretation, or intended entity identity. Inferring those facts
+      heuristically and then using them as proof would violate the closed-world model
+      (S-0005/D-1). Import is therefore a separate phase.
+  - key: p2-mechanical-imports
+    md: |-
+      Importers may read machine artifacts where a fact has an exact documented mapping:
+
+      ```bash
+      bloomery import dbt target/manifest.json
+      bloomery import metricflow semantic_manifest.json
+      ```
+
+      An importer documents, field by field: the source artifact field; the bloomery semantic
+      fact produced; the transformation; the confidence and provenance class; and the conditions
+      under which the import refuses.
+
+      **No importer may convert absence into a guessed default that strengthens semantics.**
+
+      ### Overlay model
+
+      Imported structure and native declarations compose as an overlay. The likely adoption path
+      is: import names, relations and types mechanically; author a small bloomery semantic
+      overlay for grain, additivity and units; run `bloomery check`; optionally compile or plan
+      through bloomery later.
+
+      ### Conflict handling
+
+      If imported and declared facts conflict, do not pick one silently. Refuse with both
+      provenances and require an explicit resolution. Declared facts are not automatically "more
+      true"; they are simply authored, and a contradiction is evidence that the model needs
+      attention.
+  - key: ci-integration
+    md: |-
+      ```yaml
+      - name: bloomery semantic check
+        run: bloomery check .
+      ```
+
+      Bounded, stable output suitable for logs, and a structured artifact suitable for richer CI
+      annotations.
+tests: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+docs: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+out_of_scope: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+risks: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+sections:
+  - key: about
+    md: |-
+      - **Status:** ✅ Complete — §9's P1 has landed: `bloomery check`, its per-surface counts,
+        and the CI exit contract ([`logs/T-0030.md`](logs/T-0030.md)). **P2 moved out on
+        2026-09-13** and is S-0075;
+        executing it here halted at the plan gate on five load-bearing questions this document
+        does not settle ([`logs/T-0053.md`](logs/T-0053.md)), three of which are the phase
+        rather than details of it. **This document stays as the ✅ root of a live sequence**
+        (`INDEX.md`): 0070 argues from D1–D4 rather than merely citing them — D3 and D4 are the
+        rows it sharpens into a mapping and a conflict predicate — so it is retired with 0070
+        and not before. P1 was smaller than §2
+        describes, because `resolve` has since gained the exit-code contract §2 says it lacks and
+        the CLI encoder has since gained the refusal serialisation D6 asks for — the command is
+        the shape those two did not have, not the purity they already did. D7 is settled as a
+        separate command over one shared evaluation and D8 by omitting the obligations line, both
+        in that log. **P2 (mechanical imports) is unscheduled** and is what holds this document
+        open; it depends on S-0005's provenance model, which is
+        itself still in progress. Execution's findings and the rows it proposes are in the same
+        log; nothing below has been amended to agree with what was built. **§§2, 3 and 7 read as
+        they were written and describe the pre-P1 state** — no `check`, no exit contract on
+        `resolve`, an obligations line, a `status` field, D7 and D8 open. They are the record of
+        what was believed when the design was made, and retrofitting them would destroy the only
+        evidence that any of it changed; what shipped instead is the code, the tests and
+        [`use-the-cli.md`](pages/docs/how-to/use-the-cli.md).
+      - **Scope:** A low-friction CI command performing semantic validation and proof without
+        emission or execution, and a conservative provenance model for importing facts from
+        external project artifacts.
+      - **Related:** [`src/bloomery/cli/__init__.py`](src/bloomery/cli/__init__.py) — the
+        existing `compile`, `plan`, `resolve`, `lineage`, `explain`, `schema` and `fingerprint`
+        commands; S-0020 (determinism contract, retired), S-0047 (unresolved-work report,
+        retired).
+  - key: decision-notes
+    md: >-
+      _(Decision rows from here on are this document's D-1…; see `decisions.yaml`.)_
+  - key: phasing
+    md: |-
+      **P1 — native `check`.** Deterministic human and machine output, stable refusal codes, a
+      documented CI exit contract, and nothing outside today's compiler.
+
+      **P2 — mechanical imports.** At least one external artifact importer, provenance on every
+      imported fact, heuristic facts unable to prove safety, explicit conflict refusal, and
+      adoption through semantic overlays rather than a full DSL migration.
+
+      > **Moved out, 2026-09-13.** P2 is S-0075.
+      > The paragraph above stands as written — it is what this document asked for — and 0070 is
+      > what answering it turned out to require: a command, an artifact reader, a mapping table,
+      > a conflict predicate, and a change to how provenance is keyed, which is more than a phase
+      > of a document about a check command. D2, D3 and D4 govern it there.
+questions:
+  - id: Q-1
+    text: >-
+      **Whether `check` is a new command or `resolve` grown an exit-code contract.**
+      The surfaces overlap; two commands that mostly agree is its own defect.
+  - id: Q-2
+    text: >-
+      **What "requested semantic obligations" counts before the planner exists.**
+      §3's fifth line has no denominator until S-0054 lands, and a count nobody can
+      reproduce is a vanity total by another name.

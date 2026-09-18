@@ -1,9 +1,9 @@
-"""The docs floor: what the reference *claims* must still be true (RFC 0025 §5.1).
+"""The docs floor: what the reference *claims* must still be true (S-0042/the-docs-floor-claims-not-links).
 
 A link checker would have passed the defect this exists for. Every link on
 `concepts/data-quality.md` resolved while its warning block said Postgres
 "cannot host a quality-carrying entity" — a statement that had been true and
-stopped being true when RFC 0016 D84 gave `TRY_CAST` a Postgres spelling. An
+stopped being true when S-0033/D-84 gave `TRY_CAST` a Postgres spelling. An
 external reviewer read it and concluded Postgres was "closer to a demo dialect
 than a peer". A stale refusal cost a supported dialect its standing, and
 nothing in any gate could have caught it (D2).
@@ -195,7 +195,7 @@ def _snapshot_that_quarantines() -> object:
     """The pair the data-quality page says needs two declarations, missing one.
 
     The combination itself stopped being refused when replay gained a route
-    onto a historical entity (RFC 0060 P1): the recovered row goes back to
+    onto a historical entity (S-0003/P-1): the recovered row goes back to
     bronze and the framework versions it. What is still refused is this
     project — `scd: type2` with `quarantine:` and **no `dedupe:`** — because
     the re-delivery reuses the original's `_source_row_id` and nothing would
@@ -212,7 +212,7 @@ def _hand_written_import_under_a_strict_mart() -> object:
     """The hazard the import how-to warns about, built exactly as it describes.
 
     `imported_from:` is a spec key with no producer the compiler can verify
-    (RFC 0070 §9), so a hand-written one is indistinguishable from an importer's
+    (S-0075/risks), so a hand-written one is indistinguishable from an importer's
     — and this is what a reader who typed it discovers. Built from the corpus
     fixture plus the two keys, so the refusal is those keys rather than a
     project shaped to produce it.
@@ -337,7 +337,7 @@ def test_every_docs_page_is_in_the_nav() -> None:
 
     `just build-docs` does not notice: an unlisted page compiles clean and is
     simply never published, so the failure is invisible in the one place a
-    writer looks. Found by sabotage while landing RFC 0068's how-to — dropping
+    writer looks. Found by sabotage while landing S-0073's how-to — dropping
     it from `zensical.toml` killed no test and no build (logs/T-0042.md).
 
     Both directions, and neither needs an allowlist: every page in the tree is
@@ -386,8 +386,8 @@ def test_the_documented_evidence_refusal_quotes_the_template(name: str) -> None:
     because the page wraps the example to its column width, so a segment that
     is one line in the source spans two in the docs.
 
-    **Every message, because there are four.** RFC 0070 added a second refusal
-    for a column carried by an imported relationship, and RFC 0065 P3 added the
+    **Every message, because there are four.** S-0075 added a second refusal
+    for a column carried by an imported relationship, and S-0070/phasing (P-3) added the
     exposure form of each; the page quotes all four, and a guard covering some
     of them would have let a new copy drift on day one — which is this test's
     own failure class, arriving again through the door it was built to close.
@@ -608,7 +608,7 @@ def test_every_embedded_diagram_has_a_d2_source() -> None:
 
 
 def test_the_documented_target_boundary_names_every_shipped_target() -> None:
-    """RFC 0045 §5 draws the boundary between what bloomery proves and what a
+    """S-0058/the-target-engine-boundary draws the boundary between what bloomery proves and what a
     target merely runs, and it does that by *naming* the targets. §5 says the
     list "is adjusted to the actual supported integrations at publication
     time", which is a rule with no owner — so D7 asked for one, and the honest
@@ -640,7 +640,7 @@ def test_the_documented_target_boundary_names_every_shipped_target() -> None:
 
 
 # ....................... #
-# The advisory vocabulary (RFC 0033 §8)
+# The advisory vocabulary (S-0004 (§8))
 #
 # The same closed-vocabulary discipline the refusal census applies, on the
 # other channel. Both directions, because each catches a different mistake: a

@@ -2,7 +2,7 @@
   "$defs": {
     "DateRoleStep": {
       "additionalProperties": false,
-      "description": "Declare a role-playing time dimension: ``{date: order_date, role:\nordered}`` expands to ``ordered_day`` \u2026 ``ordered_year`` (RFC 0010 D4).\n``metric_time`` is reserved as a role name (RFC 0002 D10).",
+      "description": "Declare a role-playing time dimension: ``{date: order_date, role:\nordered}`` expands to ``ordered_day`` \u2026 ``ordered_year`` (S-0027/D-4).\n``metric_time`` is reserved as a role name (S-0019/D-10).",
       "properties": {
         "date": {
           "title": "Date",
@@ -22,7 +22,7 @@
     },
     "Grants": {
       "additionalProperties": false,
-      "description": "Who may read the relation a node becomes (RFC 0055 \u00a75.3).\n\nThe one annotation of this RFC with a *consequence*: an emitted grant is\napplied by the framework, on the engine, so being wrong here changes who\ncan read data rather than only what a catalogue says.\n\n``select`` alone, and required. More permissions are additive later; a\nsecond key today would buy nothing and cost D6 its clarity, because\n``grants: {}`` would then be a third state meaning neither \"no opinion\" nor\n\"no role may select\".\n\n**An empty list is not an absent block** (D6). ``grants: {select: []}``\nsays no role may select; no ``grants:`` at all says bloomery has no opinion\nand the warehouse's existing grants stand. What the empty list can promise\nis bounded by the adapter: dbt reconciles its grants on every run, SQLMesh\napplies them at creation, and a warehouse may carry privileges across a\nreplace regardless of either \u2014 so it is a statement about the\nframework-managed grant set, never about every privilege the object holds.",
+      "description": "Who may read the relation a node becomes (S-0062/grants).\n\nThe one annotation of this RFC with a *consequence*: an emitted grant is\napplied by the framework, on the engine, so being wrong here changes who\ncan read data rather than only what a catalogue says.\n\n``select`` alone, and required. More permissions are additive later; a\nsecond key today would buy nothing and cost D6 its clarity, because\n``grants: {}`` would then be a third state meaning neither \"no opinion\" nor\n\"no role may select\".\n\n**An empty list is not an absent block** (D6). ``grants: {select: []}``\nsays no role may select; no ``grants:`` at all says bloomery has no opinion\nand the warehouse's existing grants stand. What the empty list can promise\nis bounded by the adapter: dbt reconciles its grants on every run, SQLMesh\napplies them at creation, and a warehouse may carry privileges across a\nreplace regardless of either \u2014 so it is a statement about the\nframework-managed grant set, never about every privilege the object holds.",
       "properties": {
         "select": {
           "items": {
@@ -40,7 +40,7 @@
     },
     "Mart": {
       "additionalProperties": false,
-      "description": "One wide mart: base entity, authored-order flatten steps (order is\nmeaningful \u2014 chains flatten transitively, RFC 0010 \u00a75.1), measures,\npartitioning, aggregate assertions, and the tie-breaking ``cost_hint``\n(RFC 0010 D8).",
+      "description": "One wide mart: base entity, authored-order flatten steps (order is\nmeaningful \u2014 chains flatten transitively, S-0027/spec-kind), measures,\npartitioning, aggregate assertions, and the tie-breaking ``cost_hint``\n(S-0027/D-8).",
       "properties": {
         "assert": {
           "default": [],
@@ -155,7 +155,7 @@
     },
     "MartAssert": {
       "additionalProperties": false,
-      "description": "One aggregate assertion over a mart (RFC 0016 D89) \u2014 \u00a710's \"no month has\nzero revenue\", made declarable.\n\n**Why this is an assertion and not a quality rule.** \u00a75.9 draws the line at\nwhat a verdict *does*: a quality rule disposes of a row. A mart row is\nderived \u2014 it has no ``_source_row_id``, no bronze payload, no reject table\nand no replay \u2014 so there is nothing to quarantine, nothing to repair, and\nnothing to bring back. What is left is D4's other half, \"alert me\", which\nis `assert:`. \u00a710 asked whether mart-level rules were reconcile-shaped or a\nnew surface; they are neither, and the disposition model is what separates\nthem from both.\n\n``by`` groups the aggregate; empty means one group over the whole mart.\nBounds carry the exact-decimal/ISO string form for the same reason\n``range`` does \u2014 a YAML float never reaches the IR (RFC 0003 D5).\n\n**What it cannot see, stated:** a group with no rows produces no row to\naggregate, so an assertion over a mart cannot notice a month that is\nentirely *missing* \u2014 only one whose total is out of bounds. Closing that\nneeds a join against the date spine, which is a different check with a\ndifferent dependency (RFC 0016 D89).",
+      "description": "One aggregate assertion over a mart (S-0033/D-89) \u2014 \u00a710's \"no month has\nzero revenue\", made declarable.\n\n**Why this is an assertion and not a quality rule.** \u00a75.9 draws the line at\nwhat a verdict *does*: a quality rule disposes of a row. A mart row is\nderived \u2014 it has no ``_source_row_id``, no bronze payload, no reject table\nand no replay \u2014 so there is nothing to quarantine, nothing to repair, and\nnothing to bring back. What is left is D4's other half, \"alert me\", which\nis `assert:`. \u00a710 asked whether mart-level rules were reconcile-shaped or a\nnew surface; they are neither, and the disposition model is what separates\nthem from both.\n\n``by`` groups the aggregate; empty means one group over the whole mart.\nBounds carry the exact-decimal/ISO string form for the same reason\n``range`` does \u2014 a YAML float never reaches the IR (S-0020/D-5).\n\n**What it cannot see, stated:** a group with no rows produces no row to\naggregate, so an assertion over a mart cannot notice a month that is\nentirely *missing* \u2014 only one whose total is out of bounds. Closing that\nneeds a join against the date spine, which is a different check with a\ndifferent dependency (S-0033/D-89).",
       "properties": {
         "agg": {
           "enum": [
@@ -249,7 +249,7 @@
     },
     "RollupMart": {
       "additionalProperties": false,
-      "description": "A mart at a coarser grain than one this project already builds\n(RFC 0058 \u00a75.1), declared under the document's ``rollups:`` key.\n\nIt names a parent and the dimensions it keeps; what it **drops** is derived\n\u2014 every column of the parent not listed \u2014 because listing what you keep and\nwhat you drop is two statements of one fact that will disagree (D4).\n\n**Its own key rather than a member of `marts:`**, which is where row 9 put\nit. Row 9's deciding argument was that ``measure_owners`` already\narbitrates between marts and a second shape would have to be taught that\narbitration again; row 14 then removed the arbitration entirely \u2014 a rollup\nis never a measure owner \u2014 so the argument no longer reaches. What decided\nit in the end was smaller and more concrete: a discriminated union inside\n``marts:`` puts its tag into every mart's error path, and\n``marts.m.wide.flatten[0].via.prefix`` names a ``wide`` the author did not\nwrite, which is not what a source path is (RFC 0002 \u00a75.3). Two keys in one\ndocument mirror ``ProjectIR.marts`` and ``ProjectIR.rollups``, which is the\nsame separation row 14 is built on (logs/T-0034.md).\n\nIt declares no ``base:`` and no ``grain:`` (row 11): those name an *entity*,\nand a rollup's rows are identified by ``keep``. Nor ``cost_hint:`` or\n``assert:``, which row 9 expected it to reuse \u2014 ``cost_hint`` breaks the tie\nin ``measure_owners``, which a rollup never reaches, and ``assert:`` is out\nof this phase rather than refused on principle: the audit body reads a\n:class:`~bloomery.ir.MartIR` for its bound types, and teaching it a second\nnode is work this phase does not need.",
+      "description": "A mart at a coarser grain than one this project already builds\n(S-0065/the-shape), declared under the document's ``rollups:`` key.\n\nIt names a parent and the dimensions it keeps; what it **drops** is derived\n\u2014 every column of the parent not listed \u2014 because listing what you keep and\nwhat you drop is two statements of one fact that will disagree (D4).\n\n**Its own key rather than a member of `marts:`**, which is where row 9 put\nit. Row 9's deciding argument was that ``measure_owners`` already\narbitrates between marts and a second shape would have to be taught that\narbitration again; row 14 then removed the arbitration entirely \u2014 a rollup\nis never a measure owner \u2014 so the argument no longer reaches. What decided\nit in the end was smaller and more concrete: a discriminated union inside\n``marts:`` puts its tag into every mart's error path, and\n``marts.m.wide.flatten[0].via.prefix`` names a ``wide`` the author did not\nwrite, which is not what a source path is (S-0019/source-paths). Two keys in one\ndocument mirror ``ProjectIR.marts`` and ``ProjectIR.rollups``, which is the\nsame separation row 14 is built on (logs/T-0034.md).\n\nIt declares no ``base:`` and no ``grain:`` (row 11): those name an *entity*,\nand a rollup's rows are identified by ``keep``. Nor ``cost_hint:`` or\n``assert:``, which row 9 expected it to reuse \u2014 ``cost_hint`` breaks the tie\nin ``measure_owners``, which a rollup never reaches, and ``assert:`` is out\nof this phase rather than refused on principle: the audit body reads a\n:class:`~bloomery.ir.MartIR` for its bound types, and teaching it a second\nnode is work this phase does not need.",
       "properties": {
         "grants": {
           "anyOf": [
@@ -320,7 +320,7 @@
     },
     "ViaStep": {
       "additionalProperties": false,
-      "description": "Flatten one declared relationship into the mart, prefixing every\nflattened column with ``prefix`` (RFC 0010 D3 \u2014 prefixes mandatory,\nso an empty prefix is a parse error, not a silent no-op).\n\n``as_of`` names the **anchor**: a date or timestamp column of the mart's\nbase entity, and the instant the joined entity is read *as of* (RFC 0023\n\u00a75.3, D8). It is required to flatten an ``scd: type2`` entity and refused\non any other, because a historical relation joined without one matches\nevery version of each key and multiplies the base grain, while a\ncurrent-view relation has no version to choose between.\n\nDeclared, never inferred: which date history is read on is intent, and\nRFC 0021 closed inference. The anchor sits here rather than on the mart\nbecause it qualifies *this* join \u2014 two historical dimensions in one mart\ncan legitimately be read as of different dates.",
+      "description": "Flatten one declared relationship into the mart, prefixing every\nflattened column with ``prefix`` (S-0027/D-3 \u2014 prefixes mandatory,\nso an empty prefix is a parse error, not a silent no-op).\n\n``as_of`` names the **anchor**: a date or timestamp column of the mart's\nbase entity, and the instant the joined entity is read *as of* (S-0040\n\u00a75.3, D8). It is required to flatten an ``scd: type2`` entity and refused\non any other, because a historical relation joined without one matches\nevery version of each key and multiplies the base grain, while a\ncurrent-view relation has no version to choose between.\n\nDeclared, never inferred: which date history is read on is intent, and\nS-0038 closed inference. The anchor sits here rather than on the mart\nbecause it qualifies *this* join \u2014 two historical dimensions in one mart\ncan legitimately be read as of different dates.",
       "properties": {
         "as_of": {
           "anyOf": [
@@ -355,7 +355,7 @@
   "$id": "https://morzecrew.github.io/bloomery/schemas/v1/marts.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "The per-project marts document (``marts_version``), at most one per\nproject, optional \u2014 a project without marts compiles silver only\n(RFC 0010 D7).",
+  "description": "The per-project marts document (``marts_version``), at most one per\nproject, optional \u2014 a project without marts compiles silver only\n(S-0027/D-7).",
   "properties": {
     "marts": {
       "patternProperties": {

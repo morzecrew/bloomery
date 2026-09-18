@@ -1,4 +1,4 @@
-# Codecov is informational only (RFC 0001 D4).
+# Codecov is informational only (S-0018/D-4).
 #
 # The coverage gate is ours: `coverage report --fail-under=80` runs in the
 # `coverage` job, and `required-ci` — the sole branch-protection check —

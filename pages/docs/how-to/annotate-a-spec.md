@@ -102,7 +102,7 @@ granted:
 
 ```
 mart 'order_items' carries column 'order_customer_id', which is order.customer_id
-classified secret (RFC 0055 D10). A mart is the published surface, which is the one
+classified secret (S-0062/D-10). A mart is the published surface, which is the one
 thing 'secret' says this column is not part of. Fix: drop the column from the flatten,
 or reclassify it if it is not secret
 ```
@@ -114,7 +114,7 @@ granted to everyone:
 ```
 mart 'order_items' carries column 'order_customer_id', which is order.customer_id
 classified pii, and grants select to everyone — role(s) entity 'order' does not grant
-(RFC 0055 D11)
+(S-0062/D-11)
 ```
 
 Equal grants pass. Narrower grants pass. `{select: []}` passes, because no role at all is

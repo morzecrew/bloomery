@@ -1,10 +1,10 @@
-"""The graph shapes the fixture corpus cannot reach (RFC 0031 §6).
+"""The graph shapes the fixture corpus cannot reach (S-0048/tests).
 
 `identity_resolution` is the corpus's only project wiring a step and it wires
 exactly one, so neither `step → step` form occurs; and no fixture declares a
 `sql_macro` field, so `step:<ref@version>` occurs nowhere at all. A vocabulary
 compiled from fixtures therefore could not have contained them — which is what
-cost RFC 0031's first draft two table rows (D6).
+cost S-0048's first draft two table rows (D6).
 
 `test_edge_vocabulary.py` guards the same gap by reading the builders' source.
 These projects close it from the other side: they make the shapes *run*, so the
@@ -60,7 +60,7 @@ key:
   customer_id: {from: "$.id", transform: [to_string]}
 """
 
-#: A Tier 1 `sql_macro` field (RFC 0017 D50) — the non-recipe arm of the same
+#: A Tier 1 `sql_macro` field (S-0034/D-50) — the non-recipe arm of the same
 #: `ALIAS_BOUND` branch that produces `recipe:<id>`.
 MACRO_MAPPING = """
 mapping_version: 1
@@ -89,7 +89,7 @@ steps:
 """
 
 #: The same macro field binding **no** source path — the schema's default,
-#: because a macro may compute from its `parameters` alone (RFC 0017 D50). It
+#: because a macro may compute from its `parameters` alone (S-0034/D-50). It
 #: is the shape that draws no edge at all, and so the one the graph used to
 #: lose the field over entirely.
 PATHLESS_MACRO_MAPPING = """
@@ -187,7 +187,7 @@ def test_a_macro_bound_field_is_labelled_with_its_ref_and_version() -> None:
 
 
 def test_a_field_binding_no_source_path_is_still_a_node() -> None:
-    """A mapped field with no edge at all still exists (RFC 0005 §5.1).
+    """A mapped field with no edge at all still exists (S-0022/the-graph-bloomery-resolve-graph-py).
 
     `build_graph` collects entity-field nodes from its edges, and this field
     draws none — so before mapped fields were added explicitly it was in the
@@ -222,7 +222,7 @@ def test_a_pathless_recipe_field_keeps_its_recipe_id() -> None:
     so a recipe binding none has nowhere to put it. Provenance takes the id
     from the mapping for exactly that reason: reporting this field `DIRECT` —
     which its `canonical:` link would otherwise make it — would lose the
-    upstream choice the compiler is forbidden to re-make (RFC 0005 D2).
+    upstream choice the compiler is forbidden to re-make (S-0022/D-2).
     """
     project = load_project(
         {"entity_model": LINKED_ENTITY_MODEL, "mapping_c": CONSTANT_RECIPE_MAPPING}

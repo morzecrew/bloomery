@@ -1,4 +1,4 @@
-# The second policy over refs.csv (RFC 0016 §6). `mapping_refs.yaml` judges the
+# The second policy over refs.csv (S-0033/tests-rfc-0009-amendment). `mapping_refs.yaml` judges the
 # file under the corpus's documented default — `on_missing: unknown_member`,
 # nothing blocking. This one judges the *same rows* under the two dispositions
 # the default leaves unexercised, plus the one disposition the whole fixture

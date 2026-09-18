@@ -1,4 +1,4 @@
-"""Engine tier (RFC 0009 §5.2 tier 5): the data-quality pipeline on real
+"""Engine tier (S-0026/tier-contracts tier 5): the data-quality pipeline on real
 PostgreSQL — the tier D30 refused the dialect for, now that D84 gives
 ``TRY_CAST`` a Postgres spelling.
 
@@ -179,7 +179,7 @@ def test_declared_rules_still_route_alongside_the_coercion_marker(
 
 
 def test_every_bronze_row_is_accounted_for(quality_db: psycopg.Connection) -> None:
-    """RFC 0016's conservation law, on the engine D30 kept it off: kept +
+    """S-0033's conservation law, on the engine D30 kept it off: kept +
     quarantined equals delivered, with nothing dropped in between."""
     kept = quality_db.execute('SELECT COUNT(*) FROM silver."inventory_level"').fetchone()[0]
     rejected = quality_db.execute(

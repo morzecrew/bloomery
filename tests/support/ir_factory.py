@@ -1,6 +1,6 @@
 """Hand-constructed IR trees for M1 tests (the spec→IR builder is M2+).
 
-``build_project_ir`` exercises every RFC 0003 / RFC 0010 node type and is
+``build_project_ir`` exercises every S-0020 / S-0027 node type and is
 imported by both the fingerprint unit tests and the subprocess determinism
 guard, so the exact same tree is hashed under different ``PYTHONHASHSEED``s.
 """
@@ -42,7 +42,7 @@ from bloomery.typing import DecimalType, IntType, StringType, TimestampType
 
 def _column(name: str, *, canonical: str | None = None) -> ColumnIR:
     """The schema half. Pair it with :func:`_projection` — a column with no
-    projection is one the emitted SELECT cannot produce (RFC 0024 D26)."""
+    projection is one the emitted SELECT cannot produce (S-0041/D-26)."""
     return ColumnIR(
         name=name,
         type=DecimalType(12, 4) if name == "unit_price" else StringType(),
@@ -67,7 +67,7 @@ def _projection(name: str) -> SourceColumnIR:
 def build_project_ir(*, column_names: tuple[str, ...] = ("unit_price", "order_id")) -> ProjectIR:
     """One ProjectIR reaching every node type. ``column_names`` may arrive in
     any order — columns are sorted here, as the real builder must sort them
-    (RFC 0003 §5.3), so permuted input yields an equal IR."""
+    (S-0020/ordering-rules), so permuted input yields an equal IR."""
     columns = tuple(_column(name, canonical=name) for name in sorted(column_names))
     entity = EntityIR(
         name="order_item",

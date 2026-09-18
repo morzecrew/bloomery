@@ -1,4 +1,4 @@
-# The spec side of the dirty-data corpus (RFC 0016 §6). The CSVs under
+# The spec side of the dirty-data corpus (S-0033/tests-rfc-0009-amendment). The CSVs under
 # `tests/fixtures/dirty/` are *data* — they state facts about values; this
 # project states the **policy** those values are judged under, which is the
 # split the corpus README insists on.
@@ -48,7 +48,7 @@ entities:
     quarantine: {retention: 90d}
 
   # enums.csv — membership against {paid, pending, refunded}. The admissible
-  # set is the `enum_map` chain's own targets (RFC 0016 §5.2), never restated.
+  # set is the `enum_map` chain's own targets (S-0033/coercion-failure-is-a-rule-the-assert-boundary), never restated.
   # `in_set` rides alongside on the raw text so the two membership rules are
   # both exercised on live data; it is a flag, so it never moves a disposition.
   dirty_status:
@@ -200,7 +200,7 @@ entities:
       value: {type: string}
     quarantine: {retention: 90d}
 
-# RFC 0016 D90 — §10's "every customer has >=1 order", declarable. Non-blocking:
+# S-0033/D-90 — §10's "every customer has >=1 order", declarable. Non-blocking:
 # a customer nobody has ordered from is a fact worth reporting, not a reason to
 # stop the run, and `refs.csv` deliberately seeds customers in both states.
 coverage:

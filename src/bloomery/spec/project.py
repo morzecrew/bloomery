@@ -1,4 +1,4 @@
-"""The ``Project`` container and the pure loaders (RFC 0002 §5.5, D2).
+"""The ``Project`` container and the pure loaders (S-0019/spec-model-surface, S-0019/D-2).
 
 ``load_catalog(text)`` and ``load_project(sources)`` are pure text-in: callers
 pass strings, never paths — I/O belongs to the control plane (hard invariant).
@@ -6,8 +6,8 @@ Each project document self-identifies its kind via its version key
 (``spec_version`` / ``mapping_version`` / ``metrics_version`` /
 ``marts_version`` / ``steps_version`` / ``exposures_version``). Exactly one
 ``EntityModel``; at most one of every other kind per project; the catalog is deliberately *not* part of
-``Project`` (RFC 0002 D8). All parse failures across all documents are batched
-into one :class:`~bloomery.errors.SpecParseError` (RFC 0002 D6).
+``Project`` (S-0019/D-8). All parse failures across all documents are batched
+into one :class:`~bloomery.errors.SpecParseError` (S-0019/D-6).
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ __all__ = [
     "load_project",
 ]
 
-#: Document parsing (RFC 0033 §4). One record after the batch resolves, not one
+#: Document parsing (S-0004 (§4)). One record after the batch resolves, not one
 #: per document: §4's INFO budget is "one record per stage per compile", and a
 #: project with sixty mapping documents would otherwise make the level unusable
 #: in the production it is meant to be safe in.
@@ -57,7 +57,7 @@ _KIND_KEYS: dict[str, type[SpecModel]] = {
 @dataclass(frozen=True, slots=True)
 class Project:
     """A parsed project: the entity model, mappings ordered by document name
-    (deterministic — RFC 0003 ordering rules), and the optional metric and
+    (deterministic — S-0020 ordering rules), and the optional metric and
     mart sets."""
 
     entity_model: EntityModel
@@ -66,12 +66,12 @@ class Project:
     marts: MartSet | None = None
     steps: StepSet | None = None
     exposures: ExposureSet | None = None
-    #: What this project publishes for another to read (RFC 0059 D1).
+    #: What this project publishes for another to read (S-0002/D-1).
     #: ``None`` and an empty list are the same statement, so the document
     #: refuses to be empty and absence is the only spelling of "nothing".
     exports: ExportSet | None = None
     #: What this project reads from another's published surface
-    #: (RFC 0059 §5.1). Keyed by the local alias the ``upstream=`` compile
+    #: (S-0002 (§5.1)). Keyed by the local alias the ``upstream=`` compile
     #: input is keyed by; ``None`` where no imports document was authored,
     #: which is the only spelling of "reads nothing".
     imports: ImportSet | None = None
@@ -107,7 +107,7 @@ def _detect_kind(data: dict[str, object], *, document: str) -> type[SpecModel]:
     if "catalog_version" in data:
         raise SpecParseError(
             "a catalog is not part of a project — load it via load_catalog() "
-            "and pass it separately (RFC 0002 D8)",
+            "and pass it separately (S-0019/D-8)",
             source_path=document,
         )
 
@@ -177,7 +177,7 @@ def _check_document_counts(
 def load_project(sources: AbcMapping[str, str]) -> Project:
     """Parse a project from named YAML documents. Pure: strings in, model out.
 
-    ``sources`` maps document names (used as source-path prefixes, RFC 0002
+    ``sources`` maps document names (used as source-path prefixes, S-0019
     §5.3) to YAML text. Documents are processed in sorted-name order, so the
     resulting ``mappings`` tuple is deterministic. All failures across all
     documents are batched into a single :class:`SpecParseError`.
@@ -263,7 +263,7 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
 
 def node_keys(project: Project, catalog: Catalog | None) -> dict[str, dict[str, str]]:
     """Per node kind, the authored name of each node mapped to the string its
-    lineage id is built from (RFC 0062 §5.2).
+    lineage id is built from (S-0067/node-id-construction).
 
     **A reference names a node; what the node's key is belongs to the
     definition.** ``requires_metrics`` names another metric, ``requires`` names
@@ -307,7 +307,7 @@ def node_keys(project: Project, catalog: Catalog | None) -> dict[str, dict[str, 
 def key(name: str, ids: dict[str, str]) -> str:
     """``name`` as the node id should spell it — the adopted id, or the name.
 
-    Opaque (RFC 0062 D2): the value is substituted whole and never parsed, so
+    Opaque (S-0067/D-2): the value is substituted whole and never parsed, so
     an id of ``../../etc/passwd`` becomes a node nothing resolves a path from,
     which is the property §6 asks for.
     """

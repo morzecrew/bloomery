@@ -1,4 +1,4 @@
-"""Quarantine replay, end to end (RFC 0016 §5.6/§5.7/§6): the enum-widening
+"""Quarantine replay, end to end (S-0033/quarantine-one-reject-table-per-entity, S-0033/plan-integration-rfc-0007-amendment, S-0033/tests-rfc-0009-amendment): the enum-widening
 walkthrough the RFC calls "the normal path, not the exception".
 
 The whole story, in the order an operator lives it:
@@ -401,7 +401,7 @@ def test_the_blocking_audit_reports_a_replayed_row_that_violates_it(
     blocking_run: tuple[duckdb.DuckDBPyConnection, tuple[EmittedArtifact, ...]],
 ) -> None:
     """The population a ``fail`` audit must cover includes the rows **already in
-    the entity**, not only the ones this run evaluated (RFC 0016 D32/D67).
+    the entity**, not only the ones this run evaluated (S-0033/D-32, S-0033/D-67).
 
     A replayed row's bronze source has aged out of the incremental window — that
     is the whole premise of §5.7's replay — so an audit reading only the staged

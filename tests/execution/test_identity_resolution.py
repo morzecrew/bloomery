@@ -1,4 +1,4 @@
-"""Identity resolution end to end, executed (RFC 0021 §5.1).
+"""Identity resolution end to end, executed (S-0038/identity-resolution-is-a-step-permanently).
 
 The point of the fixture is that identity resolution needs no new spec kind —
 so the thing worth executing is not the matching (that is the platform's step,
@@ -10,7 +10,7 @@ So this module does what the warehouse does. It builds the two silver sources
 from bronze, runs the demonstration resolver over them, registers its two
 frames as the step's output relations — which is precisely what the generated
 wrappers do at run time, and the one thing bloomery never does itself
-(RFC 0003) — and then runs the gold mart and both audits over the result.
+(S-0020) — and then runs the gold mart and both audits over the result.
 
 That ordering is the test. A mart or an audit that reads a column the step's
 wrapper does not write compiles perfectly and fails here.
@@ -170,7 +170,7 @@ def test_two_systems_agree_on_one_customer(run: duckdb.DuckDBPyConnection) -> No
 def test_the_sibling_consistency_audit_passes_on_a_real_run(
     run: duckdb.DuckDBPyConnection,
 ) -> None:
-    """RFC 0017 D40/D43: the declared `references:` between the two outputs.
+    """S-0034/D-40, S-0034/D-43: the declared `references:` between the two outputs.
 
     An audit passes when it returns no rows. This one runs against frames the
     resolver genuinely produced, so it is checking the two siblings against
@@ -192,7 +192,7 @@ def test_the_sibling_consistency_audit_passes_on_a_real_run(
 def test_the_confidence_rule_blocks_a_low_confidence_match(
     run: duckdb.DuckDBPyConnection,
 ) -> None:
-    """The quality rule at the escape hatch's boundary (RFC 0017 §1).
+    """The quality rule at the escape hatch's boundary (S-0034/summary).
 
     The rule is `on_fail: fail`, so its audit is blocking: a row below `0.8`
     stops the run. Seeded into a copy of the relation rather than the shared

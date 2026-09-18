@@ -1,4 +1,4 @@
-"""The only module in the package that reads or writes files (RFC 0020 D5, D12).
+"""The only module in the package that reads or writes files (S-0037/D-5, S-0037/D-12).
 
 Everything else under ``src/bloomery/`` takes strings and returns values, and
 ruff's ``TID251`` enforces that by refusing ``os``, ``pathlib`` and friends
@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import os  # noqa: TID251 — see `pathlib` below; `silence_stdout` needs the null device
 import sys
-from pathlib import Path  # noqa: TID251 — the CLI's one door to a disk (RFC 0020 D5, D12)
+from pathlib import Path  # noqa: TID251 — the CLI's one door to a disk (S-0037/D-5, S-0037/D-12)
 
 # ----------------------- #
 
@@ -45,7 +45,7 @@ __all__ = [
 SPEC_SUFFIXES = (".yaml", ".yml")
 
 #: The conventional catalog filename. A catalog is loaded separately from a
-#: project (RFC 0002 D8), so it has to be told apart from the project documents
+#: project (S-0019/D-8), so it has to be told apart from the project documents
 #: somehow; ``--catalog`` is the explicit way and this is the default one.
 #: Recognized by *name*, never by peeking at the contents — the CLI adds no
 #: logic of its own (D4), and ``load_project`` already refuses a catalog

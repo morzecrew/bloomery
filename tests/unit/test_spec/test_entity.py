@@ -1,4 +1,4 @@
-"""The EntityModel spec kind (RFC 0002 §5.5; original spec §3.3)."""
+"""The EntityModel spec kind (S-0019/spec-model-surface; original spec §3.3)."""
 
 from __future__ import annotations
 
@@ -79,7 +79,7 @@ def test_happy_parse() -> None:
 def test_scd_defaults_to_type1_and_materialization_to_none() -> None:
     model = parse("spec_version: 1\nentities:\n  e:\n    grain: g\n    key: [k]\n    fields:\n      k: {type: string}\n")
     assert model.entities["e"].scd == "type1"
-    assert model.entities["e"].materialization is None  # derived later (RFC 0002 D7)
+    assert model.entities["e"].materialization is None  # derived later (S-0019/D-7)
 
 
 def test_bad_scd_enum() -> None:
@@ -142,7 +142,7 @@ def test_reserved_metric_time_field_name() -> None:
 
 @pytest.mark.parametrize("name", RESERVED_MEMBER_NAMES)
 def test_every_generated_column_name_is_reserved(name: str) -> None:
-    # RFC 0016 §5.5/§5.6 (D9, D21): the quality columns and the ingestion
+    # S-0033/schema-additions-and-the-array-capability, S-0033/quarantine-one-reject-table-per-entity (D9, D21): the quality columns and the ingestion
     # metadata are *generated*, so an authored field claiming one would
     # collide silently — the whole reason `metric_time` was reserved first.
     with pytest.raises(SpecParseError) as excinfo:
@@ -191,7 +191,7 @@ def test_the_reserved_set_is_exactly_the_generated_names() -> None:
         "_quality_flags",
         "_quality_ok",
         "_quality_repairs",
-        # Reserved unconditionally, not only on a merged entity (RFC 0024 D18):
+        # Reserved unconditionally, not only on a merged entity (S-0041/D-18):
         # a name that is legal until a second mapping arrives is a trap laid
         # for the change that adds one.
         "_source",
@@ -208,7 +208,7 @@ def test_reserved_message_names_the_owning_rfc() -> None:
             "spec_version: 1\nentities:\n  e:\n    grain: g\n    key: [k]\n"
             "    fields:\n      _source_row_id: {type: string}\n"
         )
-    assert "RFC 0016 D21" in str(excinfo.value)
+    assert "S-0033/D-21" in str(excinfo.value)
 
 
 def test_bad_cardinality() -> None:
@@ -227,7 +227,7 @@ def test_a_relationship_needs_at_least_one_via_pair() -> None:
 
     Left open, an empty mapping parsed cleanly and crashed at emit — three
     different exceptions in three places, none of them naming the document.
-    Shape is what parse is for (RFC 0002 D4), and ``Entity.key`` has required
+    Shape is what parse is for (S-0019/D-4), and ``Entity.key`` has required
     at least one entry on the same argument since it was written.
     """
     with pytest.raises(SpecParseError) as excinfo:

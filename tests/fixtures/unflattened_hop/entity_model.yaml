@@ -1,4 +1,4 @@
-# The provable-but-unflattened fixture (RFC 0040 §11a P2, logs/T-0022.md
+# The provable-but-unflattened fixture (S-0054/phasing (a) S-0054/phasing (P-2), logs/T-0022.md
 # D-136). Two entities with a declared many_to_one between them — so a rollup
 # from `order_item` to `order` is provable — and a mart at `order_item` grain
 # that deliberately does **not** flatten the hop.

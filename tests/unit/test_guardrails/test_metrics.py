@@ -1,4 +1,4 @@
-"""The metric-shape guard (RFC 0034 D5–D9): the refusals the four time- and
+"""The metric-shape guard (S-0050/D-5–S-0050/D-9): the refusals the four time- and
 filter-shaped metric forms need, and the one thing that used to be refused and
 is now lowered.
 
@@ -33,7 +33,7 @@ def compile_with(metric_yaml: str, *, served: str = "") -> ProjectIR:
     """The fixture with one more metric, optionally served by its mart.
 
     ``served`` matters: a filter is checked against the marts that list the
-    metric among their measures (RFC 0034 D9), so a filter case that leaves it
+    metric among their measures (S-0050/D-9), so a filter case that leaves it
     unlisted is testing nothing.
     """
 
@@ -58,12 +58,12 @@ def one_violation(metric_yaml: str, *, served: str = "") -> GuardrailError:
 
 
 # ....................... #
-# The ceiling actually lifted (RFC 0034 D5)
+# The ceiling actually lifted (S-0050/D-5)
 
 
 def test_a_cumulative_metric_compiles_where_it_used_to_be_refused() -> None:
     """`cumulative:` parse-validated and no stage lowered it, so the guardrail
-    stage refused every metric carrying one (RFC 0002 D10). It lowers now, and
+    stage refused every metric carrying one (S-0019/D-10). It lowers now, and
     the fixture's two forms reach the IR."""
     ir = build_project_ir(*load_fixture(FIXTURE))
     by_name = {metric.name: metric for metric in ir.metrics}
@@ -77,7 +77,7 @@ def test_a_cumulative_metric_compiles_where_it_used_to_be_refused() -> None:
 def test_a_derived_metric_satisfies_the_additivity_guard() -> None:
     """A derived metric is non-additive with no ratio, which is the shape
     `NonAdditiveWithoutComponents` exists to refuse — the `derived:` block is
-    the decomposition that answers it (RFC 0006 §5.4, RFC 0034 D1)."""
+    the decomposition that answers it (S-0023/additivity, S-0050/D-1)."""
     ir = build_project_ir(*load_fixture(FIXTURE))
     yoy = next(metric for metric in ir.metrics if metric.name == "revenue_yoy")
 
@@ -95,12 +95,12 @@ def test_a_non_additive_metric_with_neither_still_fails() -> None:
 
 
 # ....................... #
-# Incoherent declarations (RFC 0034 D6, D7)
+# Incoherent declarations (S-0050/D-6, S-0050/D-7)
 
 
 def test_derived_and_cumulative_together_are_refused() -> None:
     """Two leaves, not one: the combination is refused *and* so is accumulating
-    a metric with no measure. Both are true of this spelling, and RFC 0006 D2
+    a metric with no measure. Both are true of this spelling, and S-0023/D-2
     batches rather than stopping at the first."""
     leaves = violations(
         "  both:\n"
@@ -159,7 +159,7 @@ def test_a_semi_additive_cumulative_metric_is_refused() -> None:
 
 
 # ....................... #
-# A remediation prescribes a spec that compiles (RFC 0038 D7)
+# A remediation prescribes a spec that compiles (S-0053/D-7)
 
 
 def test_the_avg_remediation_prescribes_a_spec_that_compiles() -> None:
@@ -230,13 +230,13 @@ def test_no_remediation_names_a_ratio_block_under_another_word() -> None:
         before = text.split("non_additive")[0] if "non_additive" in text else text
         assert not before.endswith("additivity: ratio with a "), label
         # `non_additive` may still be prescribed — with a `derived:` block,
-        # which stays legal under that word (RFC 0034 D1).
+        # which stays legal under that word (S-0050/D-1).
         for fragment in text.split("non_additive")[1:]:
             assert "derived:" in fragment.split(".")[0], (label, fragment[:60])
 
 
 # ....................... #
-# The two halves of a ratio (RFC 0038 D2, D7)
+# The two halves of a ratio (S-0053/D-2, S-0053/D-7)
 
 
 def test_a_ratio_block_under_another_additivity_is_refused() -> None:
@@ -347,7 +347,7 @@ def test_a_cumulative_metric_with_no_measure_is_refused(body: str, because: str)
         # The ratio is the case the audit found: it had the same hole and had
         # it *silently* — the RATIO lowering carries no filter, so a metric
         # declared as a restricted average returned the unrestricted one. Its
-        # word is its own since RFC 0038 minted the member, which is why the
+        # word is its own since S-0053 minted the member, which is why the
         # additivity is parametrized rather than shared: one refusal reached
         # through both members of `COMPUTED` is what the predicate claims.
         ("ratio", "ratio", "    ratio: {numerator: revenue, denominator: revenue, includes_zero_denominator: true}\n"),
@@ -358,7 +358,7 @@ def test_a_filter_on_a_metric_with_no_measure_is_refused(
 ) -> None:
     """A computed metric is never a measure, so a filter written on it
     restricts its *components* rather than the metric it is written on — a
-    post-aggregate filter, which RFC 0034 §9 keeps out of scope rather than
+    post-aggregate filter, which S-0050/what-is-deliberately-absent keeps out of scope rather than
     approximating."""
     leaf = one_violation(
         f"  filtered_{shape}:\n"
@@ -397,7 +397,7 @@ def test_a_derived_metric_may_not_also_declare_another_shape(body: str, also: st
 
 
 # ....................... #
-# The expression against its inputs (RFC 0034 D1)
+# The expression against its inputs (S-0050/D-1)
 
 
 def test_an_expression_naming_an_undeclared_alias_is_refused() -> None:
@@ -439,7 +439,7 @@ def test_an_input_the_expression_never_reads_is_refused() -> None:
 
 
 # ....................... #
-# Filters against the mart (RFC 0034 D9)
+# Filters against the mart (S-0050/D-9)
 
 
 def test_a_filter_on_an_unflattened_dimension_is_refused() -> None:
@@ -477,7 +477,7 @@ def test_a_filter_on_a_date_role_dimension_is_refused() -> None:
 
 def test_a_filter_value_that_does_not_fit_the_column_is_refused() -> None:
     """`status` is a string column; comparing it to a number would need a cast,
-    and filter values are never cast (RFC 0013 D8)."""
+    and filter values are never cast (S-0030/D-8)."""
     leaf = one_violation(
         "  numeric_status:\n"
         "    grain: sale\n"
@@ -527,7 +527,7 @@ def _filtered(clause: str) -> str:
 @pytest.mark.parametrize(
     "clause",
     [
-        # The RFC 0015 D5 carrier: `"50.5"` is how an exact decimal is written
+        # The S-0032/D-5 carrier: `"50.5"` is how an exact decimal is written
         # in YAML, and it must not be read as an ill-typed string.
         '{dimension: amount, op: gte, values: ["50.5"]}',
         # Exactly the declared precision and scale still fits.
@@ -570,7 +570,7 @@ def test_a_value_in_the_columns_own_type_compiles(clause: str) -> None:
         "{dimension: status, op: eq, values: [1]}",
         # A decimal the column cannot hold: `amount` is decimal(12, 4), so four
         # fractional digits and eight integral ones. The literal is never cast
-        # (RFC 0013 D8), so a wider one reaches the engine as a number the
+        # (S-0030/D-8), so a wider one reaches the engine as a number the
         # column cannot represent.
         '{dimension: amount, op: gte, values: ["1.12345"]}',
         '{dimension: amount, op: gte, values: ["999999999.0"]}',

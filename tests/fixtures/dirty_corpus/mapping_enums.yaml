@@ -5,7 +5,7 @@ key:
   case_name: {from: "$._case", transform: [to_string]}
 fields:
   # `in_enum`'s admissible set is this chain's own enum_map targets, never
-  # restated (RFC 0016 §5.2) — widening the enum means editing this one list.
+  # restated (S-0033/coercion-failure-is-a-rule-the-assert-boundary) — widening the enum means editing this one list.
   status:
     from: "$.raw_status"
     transform:

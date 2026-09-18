@@ -1,4 +1,4 @@
-"""Engine tier (RFC 0009 §5.2 tier 5): the reconcile check over a NULL key,
+"""Engine tier (S-0026/tier-contracts tier 5): the reconcile check over a NULL key,
 run on real Trino — the third engine's copy of the claim.
 
 The DuckDB tier states what the comparison must *mean*

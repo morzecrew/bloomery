@@ -1,27 +1,27 @@
 """The IR builder: ``build_project_ir(project, catalog) -> ProjectIR``.
 
-Runs resolution (RFC 0005), then the batched typecheck (RFC 0004), then
+Runs resolution (S-0022), then the batched typecheck (S-0021), then
 lowers mappings and recipes into :class:`~bloomery.ir.ColumnIR` expressions —
 transform chains applied via the registry builders, recipe exprs parsed via
 SQLGlot with aliases substituted by their source-column extractions, all held
-as canonical dialect-neutral :class:`~bloomery.ir.SqlExpr` text (RFC 0003 D2).
+as canonical dialect-neutral :class:`~bloomery.ir.SqlExpr` text (S-0020/D-2).
 
 Lowering rules pinned here:
 
 - A JSONPath-lite ``$.a.b`` lowers to column ``a`` of the bronze relation,
   with deeper segments extracted via ``JSON_EXTRACT_SCALAR`` — extraction
-  yields text, so non-empty chains start at ``string`` (RFC 0004 §5.4).
+  yields text, so non-empty chains start at ``string`` (S-0021/typecheck-stage-bloomery-typing-check-py).
 - A chain-less mapping asserts the declared type at extraction: it lowers to
   a cast of the raw extraction to the declared logical type.
 - A chain whose terminal type is assignable but not equal to the declared
   type gains a final cast, so the emitted column always has the declared type.
-- Materialization defaults (RFC 0002 D7): explicit wins; else
+- Materialization defaults (S-0019/D-7): explicit wins; else
   ``incremental_by_partition`` when ``partition_by`` is present, else ``full``.
 
-Marts lower here through the pure flattener (``bloomery/marts/``, RFC 0010
+Marts lower here through the pure flattener (``bloomery/marts/``, S-0027
 D6): the wide schemas land on ``ProjectIR.marts`` sorted by name, and the
 catalog's date dimension — when declared — lowers to
-``ProjectIR.date_dimension`` (RFC 0008 D13). The guardrail stage (RFC 0006)
+``ProjectIR.date_dimension`` (S-0025/D-13). The guardrail stage (S-0023)
 runs over the draft IR at the seam below — after typecheck and lowering,
 before the IR leaves the builder — refusing before any artifact is emitted
 (mart-level violations included) and amending the draft with path-conflict
@@ -33,7 +33,7 @@ from __future__ import annotations
 import logging
 import re
 
-# Runtime, not `TYPE_CHECKING`: `build_project_ir` is public and RFC 0018's
+# Runtime, not `TYPE_CHECKING`: `build_project_ir` is public and S-0035's
 # signature closure requires a public annotation to resolve at run time.
 from collections.abc import Mapping as AbcMapping
 from dataclasses import dataclass, replace
@@ -165,7 +165,7 @@ __all__ = [
     "pipeline",
 ]
 
-#: The stage narrator (RFC 0033 §4). Named literally rather than by
+#: The stage narrator (S-0004 (§4)). Named literally rather than by
 #: ``__name__``: §4 lists six logger names and §7 makes the *names* the stable
 #: surface, so ``bloomery.resolve.build`` would ship a name the RFC does not
 #: document (``logs/T-0048.md``). One INFO record per stage, after the stage
@@ -186,7 +186,7 @@ class Stage(StrEnum):
     """A stage of spec analysis, in the order :func:`pipeline` runs them.
 
     Public because :attr:`~bloomery.SpecEvidence.stage_reached` is the field a
-    caller has to read before any other (RFC 0022 D5): an empty ``unreachable``
+    caller has to read before any other (S-0039/D-5): an empty ``unreachable``
     means "nothing is unreachable" only at :attr:`COMPLETE`, and means "never
     computed" at :attr:`RESOLVE`. Without the stage that tuple is ambiguous in
     exactly the way that produces a wrong conclusion.
@@ -197,12 +197,12 @@ class Stage(StrEnum):
     that comparison changing.
 
     Every member is a stage that can genuinely refuse, and each is tested on a
-    spec that refuses there. RFC 0022's draft listed two that cannot be
+    spec that refuses there. S-0039's draft listed two that cannot be
     reported: ``PARSE``, because :func:`~bloomery.load_project` has already run
     by the time anything here holds a :class:`~bloomery.Project` — a document
     that does not parse never reaches this pipeline — and ``MARTS``, because
     the flattener is total and its violations are re-derived by the guardrail
-    stage (RFC 0010 D6), so it refuses nothing of its own. A stage that can
+    stage (S-0027/D-6), so it refuses nothing of its own. A stage that can
     never be reported is a value a consumer would write a branch for and never
     execute, which is worse than its absence. :attr:`LOWER` is the stage the
     draft named ``MARTS``, renamed for what it does: mart flattening is one
@@ -210,13 +210,13 @@ class Stage(StrEnum):
     refuse — is another.
     """
 
-    #: Reachability and reference validation (RFC 0005).
+    #: Reachability and reference validation (S-0022).
     RESOLVE = "resolve"
-    #: The batched transform-chain typecheck (RFC 0004).
+    #: The batched transform-chain typecheck (S-0021).
     TYPECHECK = "typecheck"
     #: Spec to draft IR: steps, entities, metrics, relationships, marts.
     LOWER = "lower"
-    #: The batched guardrail stage over the finished draft (RFC 0006).
+    #: The batched guardrail stage over the finished draft (S-0023).
     GUARDRAILS = "guardrails"
     #: Every stage ran. Only here does an empty result mean "nothing found".
     COMPLETE = "complete"
@@ -231,7 +231,7 @@ class StageProgress:
 
     Both fields widen to non-``None`` as the pipeline advances and never
     narrow, so a consumer that stops early keeps the prefix rather than losing
-    it — which is the whole of RFC 0022 D3.
+    it — which is the whole of S-0039/D-3.
     """
 
     resolution: Resolution | None = None
@@ -260,7 +260,7 @@ def pipeline(
     This exists so that :func:`build_project_ir` and
     :func:`~bloomery.evaluate` cannot disagree about what the pipeline *is*.
     Writing the sequence twice — once to compile and once to assess — is the
-    failure mode RFC 0022 §9 names as the one it could plausibly introduce, and
+    failure mode S-0039/risks names as the one it could plausibly introduce, and
     a shared generator is what makes it not a matter of discipline.
     """
     yield Stage.RESOLVE, StageProgress()
@@ -281,13 +281,13 @@ def pipeline(
     _LOG.info("lower: %d entities, %d marts", len(draft.entities), len(draft.marts))
 
     yield Stage.GUARDRAILS, StageProgress(resolution=resolution, ir=draft)
-    # ── Guardrail seam (RFC 0006 §5.1) ─────────────────────────────────
+    # ── Guardrail seam (S-0023/stage-shape) ─────────────────────────────────
     # Stage four: pure over the draft — refuses with one batched
-    # GuardrailError (mart-level leaves included, RFC 0006 D10) before any
+    # GuardrailError (mart-level leaves included, S-0023/D-10) before any
     # artifact is emitted, and amends only via path-conflict shadows and
-    # lowered assert: audits (RFC 0006 D9).
+    # lowered assert: audits (S-0023/D-9).
     checked = check_guardrails(draft, project=project, catalog=catalog, upstream=upstream)
-    # The quality mart (RFC 0016 §5.8) is bloomery-owned, like the dim_date
+    # The quality mart (S-0033/the-quality-mart) is bloomery-owned, like the dim_date
     # calendar: synthesized from the finished IR rather than authored, so it
     # attaches *after* the refusals — there is nothing about it for a
     # guardrail to refuse. What the stage does check, from the spec alone, is
@@ -319,7 +319,7 @@ def _identity_shape(node: Expression) -> Expression:
 
 
 def _try_cast_shape(node: Expression) -> Expression:
-    """Rewrite every ``CAST`` in a lowered chain as ``TRY_CAST`` (RFC 0016
+    """Rewrite every ``CAST`` in a lowered chain as ``TRY_CAST`` (S-0033
     §5.2, D3).
 
     Stage 2 of the fixed pipeline order changes from produce-or-raise to
@@ -361,7 +361,7 @@ def _lower_chain(
         return exp.cast(node, neutral_type(declared))
 
     # The running logical type, threaded so a builder that declares `types` can
-    # construct against the same fact its `output_type` declares (RFC 0029 D1).
+    # construct against the same fact its `output_type` declares (S-0046/D-1).
     # Bronze lands as text, which is where `chain_segments` starts too; after a
     # Tier 1 link it is whatever the macro's manifest says it produces.
     #
@@ -440,7 +440,7 @@ def chain_segments(
 
     Returned as segments rather than checked here so both callers can use
     one implementation: the batch stage queues them as ordinary
-    ``ChainCheck``s — keeping RFC 0006 D2's one-aggregate property for chains
+    ``ChainCheck``s — keeping S-0023/D-2's one-aggregate property for chains
     containing a macro — and lowering walks them for the terminal type.
     """
     segments: list[tuple[LogicalType, tuple[TransformStep, ...], LogicalType]] = []
@@ -490,7 +490,7 @@ def _chain_terminal(
 
 
 def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) -> None:
-    """Batch-check every non-empty transform chain (RFC 0004 §5.4). Empty
+    """Batch-check every non-empty transform chain (S-0021/typecheck-stage-bloomery-typing-check-py). Empty
     chains are declared-type casts at extraction and carry no chain to check."""
     checks: list[ChainCheck] = []
 
@@ -545,7 +545,7 @@ def _catalog_metadata(
 @dataclass(frozen=True, slots=True)
 class _BranchFacts:
     """One mapping's inputs to the rules evaluated over the merged relation
-    (RFC 0024 D32).
+    (S-0041/D-32).
 
     Empty for an entity outside the quality system, and empty for a column the
     mapping does not produce — the second case is load-bearing rather than
@@ -595,7 +595,7 @@ def _column_pair(
     *,
     recipe_id: str | None = None,
 ) -> tuple[ColumnIR, SourceColumnIR]:
-    """The entity's column and this mapping's projection of it (RFC 0024 D26).
+    """The entity's column and this mapping's projection of it (S-0041/D-26).
 
     One function rather than two because the two halves are decided together
     and must not drift: every ``ColumnIR`` an entity carries needs exactly one
@@ -676,7 +676,7 @@ def _macro_parts(
     if manifest.kind != "sql_macro":
         msg = (
             f"field references step {use!r}, which is a {manifest.kind} and cannot be "
-            "spliced into a column: only a sql_macro is an expression (RFC 0017 §5.1). "
+            "spliced into a column: only a sql_macro is an expression (S-0034/the-four-tier-ladder). "
             "Fix: wire it in the steps: document, which is where a step that writes a "
             "relation belongs"
         )
@@ -685,7 +685,7 @@ def _macro_parts(
     if manifest.determinism != "pure":
         msg = (
             f"field references step {use!r}, which declares determinism: "
-            f"{manifest.determinism} (RFC 0017 §5.5). A macro is spliced into the "
+            f"{manifest.determinism} (S-0034/determinism-tiers). A macro is spliced into the "
             "entity's query and re-evaluated on every backfill, so anything but pure "
             "makes a restatement disagree with the run it replaces"
         )
@@ -696,7 +696,7 @@ def _macro_parts(
     if body is None:
         msg = (
             f"field references step {use!r} but the registry carries no macro body for it "
-            "(RFC 0017 §5.3); with none there the column would lower to nothing at all"
+            "(S-0034/purity-the-registry-is-a-compile-input); with none there the column would lower to nothing at all"
         )
         raise StepError(msg, source_path=source_path)
 
@@ -717,7 +717,7 @@ def _macro_parts(
         msg = (
             f"field references step {use!r}, whose registered macro body does not parse "
             f"as SQL: {exc!s:.120}. The body is spliced into the consuming column "
-            "(RFC 0017 §5.1), so an unparseable one would reach the artifact as broken SQL"
+            "(S-0034/the-four-tier-ladder), so an unparseable one would reach the artifact as broken SQL"
         )
         raise StepError(msg, source_path=source_path) from None
 
@@ -726,11 +726,11 @@ def _macro_parts(
     # statement lands inside the cast the column is wrapped in,
     # `CAST(SPLIT_PART(email, '@', 2); DROP TABLE x AS TEXT)`, which SQLGlot
     # will not re-parse. Same reasoning as `spec.common`'s door and as the
-    # quality guardrail's on an expression rule (RFC 0016 D95).
+    # quality guardrail's on an expression rule (S-0033/D-95).
     if isinstance(parsed, exp.Block):
         msg = (
             f"field references step {use!r}, whose registered macro body is more than one "
-            "statement. The body is spliced into the consuming column (RFC 0017 §5.1) "
+            "statement. The body is spliced into the consuming column (S-0034/the-four-tier-ladder) "
             "rather than executed, so the trailing statement lands inside the cast the "
             "column is wrapped in and the artifact does not parse at all"
         )
@@ -750,7 +750,7 @@ def _macro_parts(
         msg = (
             f"field references step {use!r}, whose registered macro body is a "
             f"{parsed.key.upper()} statement rather than an expression. The body is "
-            "spliced into the consuming column (RFC 0017 §5.1) rather than executed, so "
+            "spliced into the consuming column (S-0034/the-four-tier-ladder) rather than executed, so "
             "it lands inside the cast the column is wrapped in and the artifact does not "
             "parse at all"
         )
@@ -786,7 +786,7 @@ def _refuse_unchainable(use: str, manifest: StepManifest, *, source_path: str) -
         # form is a bare reference, unlike the `step:`/`from:` field shape which
         # carries a `parameters:` map. So a parameter with no default is never
         # resolved, and `splice` leaves its `:name` alone: the emitted SQL
-        # carried a live `$factor` placeholder into the model (RFC 0017 D54).
+        # carried a live `$factor` placeholder into the model (S-0034/D-54).
         msg = (
             f"step {use!r} declares parameter(s) {', '.join(undefaulted)} with no default, so "
             "it cannot be a link in a transform chain — a chain link is a bare reference with "
@@ -827,7 +827,7 @@ def _macro_expr(
     *,
     source_path: str,
 ) -> Expression:
-    """A Tier 1 macro spliced into the consuming column (RFC 0017 D50/D51).
+    """A Tier 1 macro spliced into the consuming column (S-0034/D-50, S-0034/D-51).
 
     Two populations fill the body's placeholders, disjoint by declaration:
     ``from`` binds the columns the manifest ``accepts`` (substituted as
@@ -866,7 +866,7 @@ def _refuse_body_disagreement(
         msg = (
             f"step {use!r} has a body referring to :{', :'.join(undeclared)}, which its "
             "manifest declares neither in accepts: nor in parameters:. A macro's signature "
-            "is declared, never read off its body (RFC 0017 D51)"
+            "is declared, never read off its body (S-0034/D-51)"
         )
         raise StepError(msg, source_path=source_path)
 
@@ -931,7 +931,7 @@ def _repair_bodies(
     steps: StepRegistry,
 ) -> dict[str, str]:
     """``{column: spliced recipe SQL}`` for every ``on_fail: repair`` rule
-    (RFC 0016 D87).
+    (S-0033/D-87).
 
     Resolved here, not in ``quality/``, because splicing needs three things
     that live at this stage: the step registry, the field's declared type, and
@@ -944,7 +944,7 @@ def _repair_bodies(
     argument is a column reference rather than a source path: repair is a
     disposition on a rule, and a rule sees the produced value. Fixing a value
     on its way in is a different job with its own shape — a Tier 1 macro in the
-    mapping (RFC 0017 D50).
+    mapping (S-0034/D-50).
     """
     dedupe_columns: frozenset[str] = (
         frozenset[str]()
@@ -964,14 +964,14 @@ def _repair_bodies(
                 msg = (
                     f"field {column!r} carries two repair rules. Each rewrites the column in "
                     "the same projection, so which value survives would depend on the order "
-                    "they happened to be written in (RFC 0016 D87) — and the second recipe "
+                    "they happened to be written in (S-0033/D-87) — and the second recipe "
                     "would judge a value the first had already changed"
                 )
                 raise StepError(msg, source_path=where)
             if column in dedupe_columns:
                 msg = (
                     f"field {column!r} is read by the dedupe order, so it cannot carry a "
-                    "repair rule (RFC 0016 D87). Dedupe runs *before* the field rules (D7), "
+                    "repair rule (S-0033/D-87). Dedupe runs *before* the field rules (D7), "
                     "so the winner would be chosen on the value as delivered and then have "
                     "that value rewritten underneath it — the same reason D6 forces "
                     "coercible to fail here"
@@ -984,7 +984,7 @@ def _repair_bodies(
                 guaranteed(
                     iter(manifest.accepts),
                     expected=f"the single column {rule.repair.via!r} accepts",
-                    by="_refuse_unrepairing, which requires exactly one (RFC 0016 D87)",
+                    by="_refuse_unrepairing, which requires exactly one (S-0033/D-87)",
                 ): exp.column(column),
                 **_macro_parameters(manifest, dict(rule.repair.parameters)),
             }
@@ -1010,7 +1010,7 @@ def _refuse_unrepairing(use: str, manifest: StepManifest, column: str, *, where:
         msg = (
             f"repair recipe {use!r} accepts {len(manifest.accepts)} column(s) ({accepted}), "
             f"but a repair rule hands it exactly one — {column}, the value the rule fired "
-            "on (RFC 0016 D87). A recipe needing more than the value it repairs is a "
+            "on (S-0033/D-87). A recipe needing more than the value it repairs is a "
             "mapping, not a repair"
         )
         raise StepError(msg, source_path=where)
@@ -1020,7 +1020,7 @@ def _refuse_unrepairing(use: str, manifest: StepManifest, column: str, *, where:
 
 
 def _materialization(entity: Entity) -> Materialization:
-    """RFC 0002 D7: declared wins; the derived default is only the default."""
+    """S-0019/D-7: declared wins; the derived default is only the default."""
 
     if entity.materialization is not None:
         return Materialization(entity.materialization)
@@ -1042,7 +1042,7 @@ def _zone_declaration(
     source_path: str,
 ) -> str | None:
     """This path's ``zone_in:``, cross-checked against the chain beside it
-    (RFC 0074 §5.2), or ``None`` where the mapping declared nothing.
+    (S-0076/zonein-is-how-a-utc-source-says-so), or ``None`` where the mapping declared nothing.
 
     Three refusals, and each is a *disagreement* rather than an omission —
     R018 owns the omission, one commit later, where it can see whether the
@@ -1060,7 +1060,7 @@ def _zone_declaration(
       handled.
 
     A chain carrying a ``step:`` link is exempt from the third, because a
-    spliced ``sql_macro`` may hold the ``to_utc`` this cannot see (RFC 0017
+    spliced ``sql_macro`` may hold the ``to_utc`` this cannot see (S-0034
     D51) — and a refusal that a correct project cannot satisfy is the one kind
     this design cannot afford, since the author's only escape would be dropping
     the declaration. R018 keeps the pressure from the other side: the same
@@ -1077,7 +1077,7 @@ def _zone_declaration(
             f"zone_in: {zone!r} on column {column!r}, which is "
             f"{render_type(declared)} rather than a timestamp — a zone is what a wall "
             "clock was written on, and a value that is not an instant has none "
-            "(RFC 0074 §5.2). Fix: drop the declaration, or move it to the timestamp "
+            "(S-0076/zonein-is-how-a-utc-source-says-so). Fix: drop the declaration, or move it to the timestamp "
             "field it belongs to"
         )
         raise ResolutionError(msg, source_path=source_path)
@@ -1097,7 +1097,7 @@ def _zone_declaration(
             msg = (
                 f"zone_in: {zone!r} on column {column!r} disagrees with the chain, which "
                 f"converts from {named} — two statements of one fact, and nothing here "
-                "says which is right (RFC 0074 §5.2). Fix: correct whichever is wrong, or "
+                "says which is right (S-0076/zonein-is-how-a-utc-source-says-so). Fix: correct whichever is wrong, or "
                 "drop zone_in: and let to_utc be the declaration"
             )
             raise ResolutionError(msg, source_path=source_path)
@@ -1110,7 +1110,7 @@ def _zone_declaration(
     msg = (
         f"zone_in: {zone!r} on column {column!r}, and nothing in the chain converts out "
         "of it — the declaration is right and the instant is still wrong, which reads as "
-        "handled (RFC 0074 §5.2). Fix: add {to_utc: "
+        "handled (S-0076/zonein-is-how-a-utc-source-says-so). Fix: add {to_utc: "
         f"{zone}}} to the chain, or declare the zone the values are actually in"
     )
     raise ResolutionError(msg, source_path=source_path)
@@ -1129,7 +1129,7 @@ def _build_source(
     steps: StepRegistry,
 ) -> tuple[tuple[ColumnIR, ...], SourceIR]:
     """One mapping's contribution: the entity columns it declares, and its own
-    :class:`SourceIR` projection of them (RFC 0024 D26).
+    :class:`SourceIR` projection of them (S-0041/D-26).
 
     The schema half is returned rather than kept because a merged entity's
     columns are the *union* over its mappings — one system may map a loyalty
@@ -1164,7 +1164,7 @@ def _build_source(
         columns.append(column)
         projections.append(projection)
 
-    # Stages 1–2 of the fixed pipeline order (RFC 0016 §5.4): extract, then
+    # Stages 1–2 of the fixed pipeline order (S-0033/fixed-pipeline-order-and-lowering): extract, then
     # transform. A quality-carrying entity's transforms lower to the
     # coercion-failure-marker form, feeding the implicit ``coercible`` rule.
     shape = _try_cast_shape if opts_in(entity, mapping) else _identity_shape
@@ -1237,10 +1237,10 @@ def _build_source(
                 for _alias, path in sorted(field_mapping.from_.items())
             )
             if field_mapping.direct is not None:
-                # The path-conflict shadow (RFC 0006 D7) is a path the mapping
+                # The path-conflict shadow (S-0023/D-7) is a path the mapping
                 # genuinely reads: the guardrail stage lowers it to a
                 # ``<field>__direct`` column, and replay re-runs that same
-                # lowering against ``raw`` (RFC 0016 D10). Left off the source
+                # lowering against ``raw`` (S-0033/D-10). Left off the source
                 # fields, it was absent from the bronze payload the reject
                 # table stores, so every replayed row rebuilt the shadow from
                 # a key that is not there — ``__direct`` NULL for all of them,
@@ -1312,7 +1312,7 @@ def _build_source(
 
 def _filled(source: SourceIR, columns: tuple[ColumnIR, ...]) -> SourceIR:
     """``source`` with a typed ``NULL`` projection for every entity column it
-    does not map (RFC 0024 §5.2 rule 3).
+    does not map (S-0041/what-the-compiler-checks rule 3).
 
     A field one mapping produces and another does not is legitimate — one
     system has no loyalty tier — and it is `NULL` for the other's rows. That
@@ -1366,7 +1366,7 @@ def _build_entity(
     steps: StepRegistry,
 ) -> EntityIR:
     """One entity from one *or more* mappings, merged by ``UNION ALL``
-    (RFC 0024 D1).
+    (S-0041/D-1).
 
     ``mappings`` arrives sorted by source relation and stays that way on
     ``EntityIR.sources``: branch order is lexicographic so the emitted SQL is
@@ -1394,14 +1394,14 @@ def _build_entity(
         owner=entity.owner,
         grants=GrantsIR(select=entity.grants.select) if entity.grants is not None else None,
         sources=tuple(_filled(source, columns) for _columns, source in built),
-        audits=(),  # populated by the guardrail stage: assert: lowering + reconcile (RFC 0006)
-        # Stages 3–6 (RFC 0016 §5.4): dedupe, field rules, row rules, route.
+        audits=(),  # populated by the guardrail stage: assert: lowering + reconcile (S-0023)
+        # Stages 3–6 (S-0033/fixed-pipeline-order-and-lowering): dedupe, field rules, row rules, route.
         # The rules are one sorted tuple — the fixed pipeline order, not the
         # node type, is what separates a field rule from a row rule, and
         # emission renders the stages in that order.
         #
         # Lowered over **every** mapping and unioned, on a merged entity as on
-        # any other (RFC 0024 D32/D33). Two things make that honest rather than
+        # any other (S-0041/D-32, S-0041/D-33). Two things make that honest rather than
         # a silent choice among N: :func:`_rule_agreement_refusals` has already
         # refused every entity whose mappings disagree about a shared column,
         # and the per-mapping facts a rule used to carry — the ``coercible``
@@ -1426,10 +1426,10 @@ def _merge_refusals(
     relationships: tuple[Relationship, ...],
     steps: StepRegistry,
 ) -> list[ResolutionError]:
-    """Everything a union merge refuses at compile time (RFC 0024 §5.2, §5.6).
+    """Everything a union merge refuses at compile time (S-0041/what-the-compiler-checks, S-0041/the-quality-system-boundary).
 
     Batched rather than raised one at a time, so an author sees every
-    disagreement in one round-trip (RFC 0002 D6) — and returned rather than
+    disagreement in one round-trip (S-0019/D-6) — and returned rather than
     raised so the caller can batch these across *entities* too.
 
     Two of §5.2's four checks are absent because they already hold. **The full
@@ -1461,7 +1461,7 @@ def _merge_refusals(
             f"{relation!r}. A union merge orders its branches lexicographically by source "
             "relation, and two branches on one relation have no order — which leaves "
             "'_source' ambiguous between them and the collision audit unable to name which "
-            "branch it means (RFC 0024 D12). Fix: express two disjoint row sets of one "
+            "branch it means (S-0041/D-12). Fix: express two disjoint row sets of one "
             "relation as one mapping with a filter"
         )
         errors.extend(
@@ -1480,7 +1480,7 @@ def _merge_refusals(
                 f"{field_name!r} required, but the mapping of {mapping.source!r} does not "
                 "produce it — the merge would NULL-fill a required column for that source's "
                 "rows alone, so the entity looks internally inconsistent rather than "
-                "externally broken (RFC 0024 D4). Fix: map the field in every mapping, or "
+                "externally broken (S-0041/D-4). Fix: map the field in every mapping, or "
                 "drop 'required: true'"
             )
             errors.append(ResolutionError(msg, source_path=f"{doc}: fields"))
@@ -1493,9 +1493,9 @@ def _merge_refusals(
             "mappings. The collision audit a merge generates would fire on every key "
             "holding versions from two sources, and telling a version from a collision "
             "needs the audit to read the validity interval — which the union's own "
-            "lowering does not, even now that the interval is modelled (RFC 0023 §5.3). "
+            "lowering does not, even now that the interval is modelled (S-0040/phase-2-the-as-of-join). "
             "So the combination stays refused rather than shipping an audit that blocks "
-            "correct data (RFC 0024 D23). Fix: keep one mapping per historical entity"
+            "correct data (S-0041/D-23). Fix: keep one mapping per historical entity"
         )
         errors.append(ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.scd"))
 
@@ -1532,7 +1532,7 @@ def _reachable_direct(mapping: Mapping, field_name: str) -> bool:
 
     Only where it already lowers it as a recipe. A plain ``from:`` mapping
     would have to gain a ``recipe:`` first — ``direct:`` is the path-conflict
-    state and there is no conflict without a derivation (RFC 0006 §5.5) — and
+    state and there is no conflict without a derivation (S-0023/path-conflict-the-guardrail-that-does-not-raise) — and
     a column lowered under ``key:`` cannot carry one at all, since
     :class:`~bloomery.spec.mapping.KeyFieldMapping` has no such key. The
     refusal below reads this so that it offers each mapping a fix it can
@@ -1549,7 +1549,7 @@ def _direct_agreement_refusals(
     entity_name: str, mappings: tuple[Mapping, ...]
 ) -> list[ResolutionError]:
     """Every mapping that produces the column records a ``direct:`` path, or
-    none does (RFC 0024 D36).
+    none does (S-0041/D-36).
 
     D28 refused the combination outright. What it argued from was real and is
     what this preserves: a shadow NULL for one branch's rows is
@@ -1600,7 +1600,7 @@ def _direct_agreement_refusals(
         # The fix each silent mapping can perform, which is not the same one.
         # Only a recipe mapping can record a ``direct:`` path — it is the
         # path-conflict state and there is no conflict without a derivation
-        # (RFC 0006 §5.5) — so a column lowered under ``key:`` or by a plain
+        # (S-0023/path-conflict-the-guardrail-that-does-not-raise) — so a column lowered under ``key:`` or by a plain
         # ``from:`` names a key that block does not have.
         #
         # Where *any* silent mapping is of that kind, adding paths to the
@@ -1639,7 +1639,7 @@ def _direct_agreement_refusals(
             f"direct: path for it. 'direct:' is per mapping, so this leaves the "
             f"'{field_name}__direct' shadow NULL for the rows of {named}, indistinguishable "
             "from a genuinely NULL direct value, and the reconcile audit either reports a "
-            "false disagreement or silently stops checking (RFC 0024 D36, answering D28). "
+            "false disagreement or silently stops checking (S-0041/D-36, answering D28). "
             f"Fix: {remedy}"
         )
         errors.append(
@@ -1654,21 +1654,21 @@ def _direct_agreement_refusals(
 
 def _snapshot_replay(entity_name: str, entity: Entity) -> list[ResolutionError]:
     """``scd: type2`` with ``quarantine:``, and the two things that route needs
-    the author to have declared (RFC 0060 §5.2, D2).
+    the author to have declared (S-0003 (§5.2), S-0003/D-2).
 
     A recovered row cannot be merged into a type 2 entity: that relation is the
     *framework's*, and a merge naming the entity's columns writes a version
     with no validity interval and, on dbt, no snapshot identity — present,
     queryable, and invisible to every as-of join. So replay writes the row back
     to bronze as a new delivery and the framework versions it on its own next
-    run, which is the whole of RFC 0060's answer.
+    run, which is the whole of S-0003's answer.
 
     That route is available on two conditions, and neither is a preference:
 
     **The entity must declare ``dedupe:``.** The re-delivery keeps the original
     row's ``_source_row_id``, because ``_load_id`` is outside the reject
     identity precisely so that re-deliveries land on the same reject row
-    (RFC 0016 D21) — a fresh identity mints a second reject row per run and
+    (S-0033/D-21) — a fresh identity mints a second reject row per run and
     leaves the first unresolvable. Two bronze rows then share one identity, and
     the D21 audit is a *blocking* count over ``PARTITION BY [_source,]
     _source_row_id``. With ``dedupe:`` the pair collapses to one row and the
@@ -1700,7 +1700,7 @@ def _snapshot_replay(entity_name: str, entity: Entity) -> list[ResolutionError]:
                 f"entity {entity_name!r} declares 'scd: type2' and a quarantine policy, and "
                 "no 'dedupe:'. A recovered row reaches a type 2 entity by being re-delivered "
                 "to bronze, keeping its '_source_row_id' so the reject row it came from can "
-                "be resolved (RFC 0016 D21, RFC 0060 D2) — which puts two rows with one "
+                "be resolved (S-0033/D-21, S-0003/D-2) — which puts two rows with one "
                 "identity in bronze, and the blocking ingestion audit stops the run on "
                 "correct data unless a dedupe collapses them. Fix: declare 'dedupe:' on the "
                 "entity, or declare it 'scd: type1'",
@@ -1717,7 +1717,7 @@ def _snapshot_replay(entity_name: str, entity: Entity) -> list[ResolutionError]:
                 "row is re-delivered to bronze from the reject row's 'raw', and 'raw' is "
                 "the payload with the redacted columns removed — so the delivery would "
                 "carry NULL where the redaction was, in a relation the caller owns, and "
-                "read as a genuine one (RFC 0060 §5.2). The redacted value is gone from the "
+                "read as a genuine one (S-0003 (§5.2)). The redacted value is gone from the "
                 "only copy replay can reach. Fix: drop 'redact:', or declare the entity "
                 "'scd: type1'",
                 source_path=f"{where}.quarantine.redact",
@@ -1732,7 +1732,7 @@ def _snapshot_replay(entity_name: str, entity: Entity) -> list[ResolutionError]:
 
 def _validity_collisions(entity_name: str, entity: Entity) -> list[ResolutionError]:
     """A ``type2`` entity may not declare a field named like its own validity
-    interval (RFC 0023 §5.3).
+    interval (S-0040/phase-2-the-as-of-join).
 
     The target's snapshot machinery writes ``valid_from``/``valid_to`` onto the
     historical relation, so an authored column of that name is two columns with
@@ -1765,7 +1765,7 @@ def _validity_collisions(entity_name: str, entity: Entity) -> list[ResolutionErr
     msg = (
         f"entity {entity_name!r} declares 'scd: type2' and carries {listed}, which is "
         "what the target's snapshot writes for the version's own validity interval "
-        "(RFC 0023 §5.3) — the relation would hold two columns of that name and an "
+        "(S-0040/phase-2-the-as-of-join) — the relation would hold two columns of that name and an "
         "as-of join could not tell them apart. Fix: rename the field, or declare the "
         "entity scd: type1"
     )
@@ -1776,7 +1776,7 @@ def _validity_collisions(entity_name: str, entity: Entity) -> list[ResolutionErr
 
 
 #: What the path-conflict guardrail appends to a field's name for its shadow
-#: (RFC 0006 §5.5, D7). Declared here rather than imported from
+#: (S-0023/path-conflict-the-guardrail-that-does-not-raise, S-0023/D-7). Declared here rather than imported from
 #: ``guardrails.conflict`` because the refusal below runs one stage earlier —
 #: ``guardrails`` sits under ``resolve``, and the shadow does not exist yet
 #: when the collision has to be refused. Both spellings are pinned together by
@@ -1819,7 +1819,7 @@ def _shadow_collisions(
     return [
         ResolutionError(
             f"entity {entity_name!r} declares a field {shadow!r} and records a direct: path "
-            f"for {field_name!r}, whose shadow column takes that same name (RFC 0006 §5.5). "
+            f"for {field_name!r}, whose shadow column takes that same name (S-0023/path-conflict-the-guardrail-that-does-not-raise). "
             "The generated shadow would be dropped as already present while the reconcile "
             f"audit still reads {shadow!r}, so the audit would compare {field_name!r} against "
             "the authored column — and it is blocking, so it stops the run on a comparison "
@@ -1914,7 +1914,7 @@ def _merged_rules(
                 f"entity {entity_name!r} is built from {len(mappings)} mappings that "
                 f"generate two different rules named {rule.name!r} — one on column "
                 f"{existing.column!r}, one on {rule.column!r}. Generated names are folded "
-                "to the [a-z0-9_]+ shape a flag list can carry unescaped (RFC 0016 D23), so "
+                "to the [a-z0-9_]+ shape a flag list can carry unescaped (S-0033/D-23), so "
                 "two columns can fold to one name; merging them would drop one column's "
                 "check without saying so. Fix: rename one of the two fields"
             )
@@ -1934,7 +1934,7 @@ def _rule_agreement_refusals(
     steps: StepRegistry,
 ) -> list[ResolutionError]:
     """Every mapping of a merged entity lowers the **same rules**, or the
-    entity is refused (RFC 0024 D33).
+    entity is refused (S-0041/D-33).
 
     D33 states the requirement as agreement over ``opts_in`` and names a second
     coupling — two mappings naming different ``repair`` recipes for one column —
@@ -1995,7 +1995,7 @@ def _rule_agreement_refusals(
                 f"entity {entity_name!r} is built from {len(mappings)} mappings whose "
                 f"'quality:' declarations disagree: {_rule_disagreement(left, right)}. The "
                 "rules are evaluated once over the merged relation, so a set lowered from one "
-                "mapping would silently drop what the others declared (RFC 0024 D33). Fix: "
+                "mapping would silently drop what the others declared (S-0041/D-33). Fix: "
                 "declare the same rules — and the same transform chains where they generate "
                 f"one — in {mapping_doc(reference)} and {mapping_doc(mapping)}, or keep one "
                 "mapping per entity"
@@ -2012,7 +2012,7 @@ def _rule_agreement_refusals(
 
 def _disposition(rule: QualityRuleIR) -> str:
     """A rule's authored disposition, or ``on_missing`` for the one kind that
-    carries no ``on_fail`` at all (``referential``, RFC 0016 D6)."""
+    carries no ``on_fail`` at all (``referential``, S-0033/D-6)."""
 
     if rule.on_fail is not None:
         return rule.on_fail.value
@@ -2060,7 +2060,7 @@ def _rule_disagreement(
 def _build_entities(
     project: Project, catalog: Catalog | None, reg: Registry, steps: StepRegistry
 ) -> tuple[EntityIR, ...]:
-    """Every mapped entity, each from the mappings that target it (RFC 0024 D1).
+    """Every mapped entity, each from the mappings that target it (S-0041/D-1).
 
     More than one mapping is a **union merge**, which replaces the refusal that
     stood here and kept the promise its message made. The grouping was already
@@ -2140,11 +2140,11 @@ def _time_window(window: str | None) -> TimeWindow | None:
 
 
 def _derived(derived: DerivedSpec | None) -> DerivedIR | None:
-    """The ``derived:`` block as IR — inputs sorted by alias (RFC 0034 D1).
+    """The ``derived:`` block as IR — inputs sorted by alias (S-0050/D-1).
 
     The alias is the mapping key rather than a field, so it cannot be missing
     and cannot repeat; sorting it here is what makes the tuple deterministic
-    without a set ever reaching output (RFC 0003).
+    without a set ever reaching output (S-0020).
     """
 
     if derived is None:
@@ -2176,7 +2176,7 @@ def _metric_filters(filters: tuple[MetricFilter, ...]) -> tuple[MetricFilterIR, 
     A ``date``/``datetime`` value becomes its ISO text, the carrier
     :class:`~bloomery.ir.AuditIR` params already use: a temporal literal
     reaches SQL as a quoted string compared in the column's own type, and the
-    canonical encoder has no tag for a ``date`` (RFC 0003 §5.4).
+    canonical encoder has no tag for a ``date`` (S-0020/fingerprint).
     """
 
     return tuple(
@@ -2278,7 +2278,7 @@ def _build_relationships(project: Project) -> tuple[RelationshipIR, ...]:
 
 
 def _build_exports(project: Project) -> ExportsIR | None:
-    """Lower the exports document, each collection sorted (RFC 0059 §5.1).
+    """Lower the exports document, each collection sorted (S-0002 (§5.1)).
 
     A transcription and nothing more, for the same reason
     :func:`_build_exposures` is one: every name an export holds belongs to
@@ -2306,7 +2306,7 @@ def _build_exports(project: Project) -> ExportsIR | None:
 
 
 def _build_exposures(project: Project) -> tuple[ExposureIR, ...]:
-    """Lower the exposures document, sorted by name (RFC 0056 §5.1).
+    """Lower the exposures document, sorted by name (S-0063/the-document).
 
     A transcription and nothing more: an exposure names things by name, and
     every name it can hold belongs to another document. Whether those names
@@ -2316,7 +2316,7 @@ def _build_exposures(project: Project) -> tuple[ExposureIR, ...]:
     the draft may have failed to flatten rather than failed to exist.
 
     ``depends_on`` is sorted on the way in, unlike a mart's authored-order
-    flatten chain (RFC 0003 D4): the order of a dependency list carries no
+    flatten chain (S-0020/D-4): the order of a dependency list carries no
     meaning, so leaving it authored would let two spellings of one exposure
     produce two fingerprints.
     """
@@ -2346,7 +2346,7 @@ def _build_exposures(project: Project) -> tuple[ExposureIR, ...]:
 
 
 def _build_date_dimension(catalog: Catalog | None) -> DateDimensionIR | None:
-    """Lower the catalog's date dimension (RFC 0008 D13): one definition
+    """Lower the catalog's date dimension (S-0025/D-13): one definition
     drives the gold ``dim_date`` model and, at M6, the MetricFlow time spine."""
 
     if catalog is None or catalog.date_dimension is None:
@@ -2365,7 +2365,7 @@ def _build_date_dimension(catalog: Catalog | None) -> DateDimensionIR | None:
 
 
 def _build_fx_rates(catalog: Catalog | None) -> FxRatesIR | None:
-    """Lower the catalog's exchange-rate relation (RFC 0023 §5.4).
+    """Lower the catalog's exchange-rate relation (S-0040/phase-2-currency-as-a-declared-relation).
 
     ``None`` for every vertical that never converts, which is what the
     ``convert`` refusal at emit reads: the transform stays legal and
@@ -2395,12 +2395,12 @@ def build_project_ir(
     steps: StepRegistry = EMPTY_REGISTRY,
     upstream: AbcMapping[str, ProjectIR] = MappingProxyType({}),
 ) -> ProjectIR:
-    """Compile parsed specs into the frozen, fingerprintable IR (RFC 0003).
+    """Compile parsed specs into the frozen, fingerprintable IR (S-0020).
 
-    Pure function: resolution (RFC 0005) and the batched typecheck (RFC 0004)
+    Pure function: resolution (S-0022) and the batched typecheck (S-0021)
     run first, so lowering only ever sees a reference-clean, well-typed
-    project; marts flatten over the entity draft (RFC 0010 D6); the guardrail
-    stage (RFC 0006) refuses last, over the finished draft — mart-level
+    project; marts flatten over the entity draft (S-0027/D-6); the guardrail
+    stage (S-0023) refuses last, over the finished draft — mart-level
     violations batched with the rest.
 
     Written as :func:`pipeline` run to exhaustion rather than as the sequence
@@ -2461,20 +2461,20 @@ def _lower_draft(
         marts=(),  # attached below, once the flattener has the entity draft
         date_dimension=_build_date_dimension(catalog),
         fx_rates=_build_fx_rates(catalog),
-        # Document-level reconcile checks (RFC 0016 §5.3): they relate two
+        # Document-level reconcile checks (S-0033/spec-schema): they relate two
         # entities, so they belong to neither — they live on the root.
         reconcile=lower_reconcile(project.entity_model),
         coverage=lower_coverage(project.entity_model),
         # Steps lower before the mart flattener and the guardrail stage, because
         # step outputs are relations both of them must be able to see
-        # (RFC 0017 §5.8).
+        # (S-0034/emission-and-the-dag).
         steps=steps_ir,
     )
-    # Mart flattening (RFC 0010 D6): pure, total — violations are re-derived
+    # Mart flattening (S-0027/D-6): pure, total — violations are re-derived
     # and raised by the guardrail stage below; only clean marts attach here.
     flattened = replace(draft, marts=lower_marts(project.marts, draft).marts)
 
-    # Rollups lower *against* the flattened draft (RFC 0058 §5.2): a rollup
+    # Rollups lower *against* the flattened draft (S-0065/the-obligation): a rollup
     # names a mart, and R013's premise is the mart contract, so the parent has
     # to be a resolved `MartIR` before the obligation can be asked at all. They
     # attach to their own collection, which is what makes row 14 true by
@@ -2483,7 +2483,7 @@ def _lower_draft(
 
 
 # ....................... #
-# Currency conversion (RFC 0023 §5.4)
+# Currency conversion (S-0040/phase-2-currency-as-a-declared-relation)
 
 #: The shape :data:`~bloomery.spec.common.CurrencyCode` enforces on a *declared*
 #: currency. A transform argument is an ``ArgKind.STR`` and never passed through
@@ -2496,7 +2496,7 @@ _CURRENCY_CODE = re.compile(r"[A-Z]{3}")
 class _Sibling:
     """One of the two columns of the row being converted that a ``convert``
     step reads: the anchor that dates the rate, and — per-row — the column that
-    carries the code the rate is looked up for (RFC 0061 §5.1).
+    carries the code the rate is looked up for (S-0066/the-input-currency-is-one-of-three-things).
 
     Both are resolved by :func:`_sibling_expression` against one set of rules,
     parameterised rather than copied. The rules are the interesting part and
@@ -2521,25 +2521,25 @@ class _Sibling:
     supplies: str
 
 
-#: The anchor: a date or timestamp sibling, dating the rate (RFC 0023 §5.4).
+#: The anchor: a date or timestamp sibling, dating the rate (S-0040/phase-2-currency-as-a-declared-relation).
 _ANCHOR = _Sibling(
     noun="anchor",
     allowed=(DateType, TimestampType),
     wanted="a date or a timestamp",
     purpose="The anchor dates the rate",
-    rfc="RFC 0023 §5.4",
+    rfc="S-0040/phase-2-currency-as-a-declared-relation",
     type_fix="name the field that dates the amount, or parse this one into a date first",
     supplies="the date",
 )
 
 #: The per-row currency column: a string sibling carrying this row's ISO-4217
-#: code, compared against the rate relation's from-currency (RFC 0061 §5.1).
+#: code, compared against the rate relation's from-currency (S-0066/the-input-currency-is-one-of-three-things).
 _CURRENCY_IN = _Sibling(
     noun="currency column",
     allowed=(StringType,),
     wanted="a string",
     purpose="The code picks the rate for each row",
-    rfc="RFC 0061 §5.1",
+    rfc="S-0066/the-input-currency-is-one-of-three-things",
     type_fix="name the field carrying the ISO-4217 code, or cast this one to a string first",
     supplies="the code",
 )
@@ -2612,7 +2612,7 @@ def _sibling_expression(
         msg = (
             f"convert names {kind.noun} {name!r}, which entity {entity_name!r} declares but "
             f"mapping {mapping.source!r} does not lower. A merged entity's branches map "
-            "different columns (RFC 0024 §5.2 rule 3), and the branch that converts is "
+            "different columns (S-0041/what-the-compiler-checks rule 3), and the branch that converts is "
             f"the one that has to supply {kind.supplies}"
         )
         raise ResolutionError(msg, source_path=source_path)
@@ -2672,7 +2672,7 @@ def _resolve_conversions(
     input is denominated per row, the currency column's expression in place of
     the code. The rate relation is named by the catalog and resolved through
     the naming policy, which is an emit concern, so emit finishes the rewrite
-    (RFC 0023 D4 keeps the refusal there too, for the project that converts
+    (S-0040/D-4 keeps the refusal there too, for the project that converts
     with no rates declared). Emit reads whatever stands in those slots and
     compares it against the rate relation, so a bound column needs nothing
     there that a bound anchor did not already need.
@@ -2681,7 +2681,7 @@ def _resolve_conversions(
     catalog are all in scope, and where a refusal can name the document that
     has to change.
 
-    **What the input is checked against is R009's** (RFC 0061). This function
+    **What the input is checked against is R009's** (S-0066). This function
     reads the markers and hands them to
     :func:`~bloomery.semantic.prove_conversion` in chain order; the refutation
     it gets back is the refusal, so the rule decides rather than annotating a
@@ -2699,7 +2699,7 @@ def _resolve_conversions(
     # `find_all` is pre-order and the chain nests outward, so the *last*
     # conversion applied is the first marker found. Both the walk below and the
     # catalog comparison need the other order, and reversing once here is what
-    # stops each of them reversing it privately (RFC 0061 D3).
+    # stops each of them reversing it privately (S-0066/D-3).
     chain = list(reversed(markers))
     declared_in, per_row = _declared_input_currency(mapping, column)
 
@@ -2791,7 +2791,7 @@ def _check_denomination(
     source_path: str,
 ) -> None:
     """R009 over one column's conversions, plus the catalog comparison the
-    chain's *last* step owns (RFC 0061 D1, D3).
+    chain's *last* step owns (S-0066/D-1, S-0066/D-3).
 
     Only the last conversion's output is compared with the canonical field's
     declared currency. Comparing every step refused a correct two-hop chain —
@@ -2825,7 +2825,7 @@ def _check_denomination(
         msg = (
             f"cannot prove what currency {column!r} is in: {obligation.found} "
             f"(required: {obligation.required}) — {consequence_of(answer.reason)} "
-            f"(RFC 0061 D1, R009). Fix: {answer.remediation}"
+            f"(S-0066/D-1, S-0066 R009). Fix: {answer.remediation}"
         )
         raise ResolutionError(msg, source_path=source_path)
 
@@ -2837,7 +2837,7 @@ def _check_denomination(
             f"convert produces {produced!r} but column {column!r} is declared "
             f"{declared_currency!r} in the catalog — the currency guardrail would then "
             "reason about this column in a currency it is not in, which is how a "
-            "wrong number passes every check (RFC 0006 D4). Fix: convert to "
+            "wrong number passes every check (S-0023/D-4). Fix: convert to "
             f"{declared_currency!r}, or declare the canonical field as {produced!r}"
         )
         raise ResolutionError(msg, source_path=source_path)
@@ -2855,7 +2855,7 @@ def _declared_input_currency(mapping: Mapping, column: str) -> tuple[str | None,
 
     Read from the mapping rather than the catalog because a canonical field is
     shared across mappings, and one fed by a euro feed and a dollar feed would
-    need two input currencies for one declaration (RFC 0061 D6). Both a simple
+    need two input currencies for one declaration (S-0066/D-6). Both a simple
     field mapping and a key field carry the key: a key is a strange place to
     convert and the walk that finds one exists anyway, so the declaration has
     to reach both or the walk is decoration (logs/T-0025.md, D-158).

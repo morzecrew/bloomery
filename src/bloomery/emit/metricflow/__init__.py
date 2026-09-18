@@ -1,14 +1,14 @@
-"""The MetricFlow manifest emitter (RFC 0013 §5.2, R1): ``emit_manifest``
+"""The MetricFlow manifest emitter (S-0030/emitmanifest-ir-pydanticsemanticmanifest, S-0030 R1): ``emit_manifest``
 lowers :class:`~bloomery.ir.ProjectIR` marts into MetricFlow's own
 ``PydanticSemanticManifest`` — pure, deterministic, and returned
 **post-transform** (``PydanticSemanticManifestTransformer.transform`` is
-mandatory; RFC 0014 caches exactly these bytes via :func:`manifest_json`).
+mandatory; S-0031 caches exactly these bytes via :func:`manifest_json`).
 
-Deterministic choices pinned here (RFC 0013 R1; each is golden/unit-tested):
+Deterministic choices pinned here (S-0030 R1; each is golden/unit-tested):
 
 - One mart = exactly one semantic model, and never a semantic model for a
   non-mart entity — that would reintroduce the query-time joins the mart
-  design exists to prevent (RFC 0013 D3). ``node_relation`` comes from
+  design exists to prevent (S-0030/D-3). ``node_relation`` comes from
   ``NamingPolicy.relation(mart, Layer.GOLD)`` — the same pair the SQLMesh
   mart emission uses, so the manifest and the built table cannot disagree.
 - A single-column base key emits a PRIMARY entity with that column as
@@ -28,20 +28,20 @@ Deterministic choices pinned here (RFC 0013 R1; each is golden/unit-tested):
   lexicographically first date role.
 - A metric served by several marts lands as a measure on exactly one —
   cheapest ``cost_hint``, ties lexicographic by mart name: the selection
-  rule of RFC 0010 D8, the same one the planner's coverage precheck applies,
+  rule of S-0027/D-8, the same one the planner's coverage precheck applies,
   so emitter and planner cannot disagree (MetricFlow requires measure names
   to be unique across semantic models).
 - ``SemiAdditiveRule``: ``last`` → MAX, ``first`` → MIN;
   ``avg``/``min``/``max`` are not expressible via ``non_additive_dimension``
   and raise :class:`~bloomery.errors.UnsupportedByTarget` naming the rule
-  (RFC 0013 D4).
+  (S-0030/D-4).
 - A non-additive ratio metric is **never a measure**: it emits as a RATIO
   metric, and only when both component measures are emitted (an unservable
   ratio is simply absent — the planner's coverage precheck refuses it by
-  name at request time, RFC 0013 D6).
+  name at request time, S-0030/D-6).
 - A ``derived:`` metric is never a measure either, and emits as a DERIVED
   metric over aliased inputs, each carrying its ``offset_window`` or
-  ``offset_to_grain`` (RFC 0034 D1/D2). Which metrics are emitted at all is
+  ``offset_to_grain`` (S-0050/D-1, S-0050/D-2). Which metrics are emitted at all is
   a *fixed point* rather than one pass — a derived metric may read another —
   and the same absence rule applies: inputs not all emitted, metric absent.
 - A ``cumulative:`` metric keeps its own measure and emits as a CUMULATIVE
@@ -58,12 +58,12 @@ Deterministic choices pinned here (RFC 0013 R1; each is golden/unit-tested):
   escaping come from the lowering package, shared with Cube (D15).
 - The time spine comes from the catalog date dimension via the naming
   policy — the same ``gold.dim_date`` relation the SQLMesh emitter builds
-  (RFC 0008 D13). Marts without a declared date dimension are an
+  (S-0025/D-13). Marts without a declared date dimension are an
   :class:`~bloomery.errors.EmitError`: MetricFlow requires a spine for any
   ``metric_time`` group-by.
 - Every collection (semantic models, entities, dimensions, measures,
   metrics) is sorted lexicographically before construction — the manifest
-  is hashed and cached (RFC 0014); ordering drift would silently defeat
+  is hashed and cached (S-0031); ordering drift would silently defeat
   the cache.
 """
 
@@ -71,7 +71,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-# RFC 0013 §5.9a: metricflow_semantic_interfaces has an internal circular
+# S-0030/what-is-superseded-and-the-boundary-that-makes-it-reversible (§5.9a): metricflow_semantic_interfaces has an internal circular
 # import — ``implementations.node_relation`` raises ``ImportError`` whenever
 # it is the process's *first* metricflow_semantic_interfaces import. This
 # import finishes ``metricflow_semantic_interfaces.protocols`` first, making
@@ -151,7 +151,7 @@ __all__ = [
     "measure_owners",
 ]
 
-#: ``metric_time`` is MetricFlow's canonical query-time dimension (RFC 0013
+#: ``metric_time`` is MetricFlow's canonical query-time dimension (S-0030
 #: R4); the spec layer already rejects it as a member name (M1) — the emitter
 #: re-checks as defense in depth.
 _RESERVED_NAME = "metric_time"
@@ -164,7 +164,7 @@ def entity_key(mart: MartIR) -> str:
     One definition, three readers. It is the PRIMARY entity's name in the
     single-column-key shape and the model's ``primary_entity`` in the composite
     one (:func:`_entities`); it prefixes the dimension inside a metric filter's
-    where-clause (RFC 0034 D8); and the planner spells every requested group-by
+    where-clause (S-0050/D-8); and the planner spells every requested group-by
     with it. The planner's :func:`bloomery.planner.names.entity_key` delegates
     here rather than repeating ``mart.grain`` — a rule two modules must agree on
     and that is defined in neither is the defect this codebase keeps finding in
@@ -186,7 +186,7 @@ _AGGREGATIONS: dict[str, AggregationType] = {
     "sum_boolean": AggregationType.SUM_BOOLEAN,
 }
 
-#: RFC 0013 D4: ``last`` keeps the value at the latest ``over`` point (MAX),
+#: S-0030/D-4: ``last`` keeps the value at the latest ``over`` point (MAX),
 #: ``first`` at the earliest (MIN); the other rules are inexpressible.
 _WINDOW_CHOICES: dict[SemiAdditiveRule, AggregationType] = {
     SemiAdditiveRule.LAST: AggregationType.MAX,
@@ -218,7 +218,7 @@ def _non_additive_dimension(
     if policy is None:
         msg = (
             f"semi-additive metric {metric.name!r} carries no {{over, rule}} policy — "
-            "nothing to lower to non_additive_dimension (RFC 0013 D4)"
+            "nothing to lower to non_additive_dimension (S-0030/D-4)"
         )
         raise EmitError(msg)
 
@@ -228,7 +228,7 @@ def _non_additive_dimension(
         msg = (
             f"semi-additive rule {policy.rule.value!r} of metric {metric.name!r} is not "
             "expressible via MetricFlow's non_additive_dimension (only last -> MAX and "
-            "first -> MIN are; RFC 0013 D4)"
+            "first -> MIN are; S-0030/D-4)"
         )
         raise UnsupportedByTarget(msg)
 
@@ -281,7 +281,7 @@ def _entities(
     """The model's entity elements, its ``primary_entity`` (composite-key
     marts only), and the join-key columns consumed as entity expressions.
 
-    ``base`` is ``None`` for the quality mart (RFC 0016 §5.8): it has no
+    ``base`` is ``None`` for the quality mart (S-0033/the-quality-mart): it has no
     silver entity underneath it, so there is no natural key column to make a
     PRIMARY entity's ``expr`` — it takes the same name-only ``primary_entity``
     the composite-key case does, which MetricFlow accepts.
@@ -302,7 +302,7 @@ def _entities(
         )
     else:
         # Composite key: no single natural key column exists, so the primary
-        # entity is declared name-only on the model (RFC 0013 D3).
+        # entity is declared name-only on the model (S-0030/D-3).
         primary_entity = entity_key(mart)
 
     used = {entity_key(mart)}
@@ -385,11 +385,11 @@ def _measures(
     for name in owned:
         metric = metrics_by_name[name]
         if metric.additivity in COMPUTED:
-            continue  # never a measure — recomputed at query time (RFC 0013 D4)
+            continue  # never a measure — recomputed at query time (S-0030/D-4)
         if metric.expr is None:
             msg = (
                 f"metric {metric.name!r} has no expression to emit as a MetricFlow measure "
-                "— only agg-over-expr metrics lower to measures (RFC 0013 §5.2)"
+                "— only agg-over-expr metrics lower to measures (S-0030/emitmanifest-ir-pydanticsemanticmanifest)"
             )
             raise UnsupportedByTarget(msg)
         non_additive = None
@@ -417,18 +417,18 @@ def _measures(
 
 def _agg_time_dimension(mart: MartIR) -> str:
     """The mart's default aggregation time dimension: the day-bucket column
-    of its lexicographically first date role (deterministic; RFC 0013 R1).
+    of its lexicographically first date role (deterministic; S-0030 R1).
 
     A measure-carrying mart always has a date role — the guardrail stage
-    refuses ``MartMissingTimeDimension`` before emission (RFC 0010 D9); the
-    re-check here is the RFC 0013 D3 rule-2 defense.
+    refuses ``MartMissingTimeDimension`` before emission (S-0027/D-9); the
+    re-check here is the S-0030/D-3 rule-2 defense.
     """
     roles = sorted({c.ref.role for c in mart.columns if c.ref is not None and c.ref.role})
 
     if not roles:
         msg = (
             f"mart {mart.name!r} carries measures but no date role reached the emitter — "
-            "the guardrail stage should have refused this (RFC 0010 D9)"
+            "the guardrail stage should have refused this (S-0027/D-9)"
         )
         raise EmitError(msg)
 
@@ -480,7 +480,7 @@ def _metric_input(name: str) -> PydanticMetricInput:
 
 
 def _time_window(window: TimeWindow | None) -> PydanticMetricTimeWindow | None:
-    """One IR window as MetricFlow's own (RFC 0034 D2). The grain is already
+    """One IR window as MetricFlow's own (S-0050/D-2). The grain is already
     singular and already one of ``day|week|month|quarter|year`` — the spec
     grammar establishes both — so this is a rename, not a translation."""
 
@@ -497,7 +497,7 @@ def _derived_input(
     alias: str, metric: str, window: TimeWindow | None, to_grain: str | None
 ) -> PydanticMetricInput:
     """One input of a DERIVED metric: the metric read, the alias its expression
-    references, and the offset it is read at (RFC 0034 D1)."""
+    references, and the offset it is read at (S-0050/D-1)."""
 
     return PydanticMetricInput(
         name=metric,
@@ -515,7 +515,7 @@ def _where(
     filters: tuple[MetricFilterIR, ...], *, mart: MartIR
 ) -> PydanticWhereFilterIntersection | None:
     """A metric's ``filter:`` list as MetricFlow's where-filter intersection —
-    an intersection being an AND, which is what the clauses are (RFC 0034 D8).
+    an intersection being an AND, which is what the clauses are (S-0050/D-8).
 
     The dimension is spelled the way MetricFlow names a group-by item,
     ``{entity}__{column}``; the comparison, list shape and literal escaping come
@@ -557,7 +557,7 @@ def _type_params(
     """``PydanticMetricTypeParams`` with every field this emitter does not use
     pinned to its ``None`` default (see the implicit-optional note above).
 
-    ``window``/``grain_to_date`` stay pinned even though RFC 0034 lowers
+    ``window``/``grain_to_date`` stay pinned even though S-0050 lowers
     cumulative metrics: they are the *legacy* spelling of what
     ``cumulative_type_params`` now carries, and writing both would leave two
     accounts of one window in the manifest for MSI's transformer to reconcile.
@@ -584,7 +584,7 @@ def _emittable(ir: ProjectIR, owners: dict[str, MartIR]) -> frozenset[str]:
     """Every metric name this manifest will carry.
 
     Three rounds rather than one, because a metric may be defined over another
-    (RFC 0034 D1): measures first, then the ratios whose components are
+    (S-0050/D-1): measures first, then the ratios whose components are
     measures, then derived metrics over anything already established —
     including other derived metrics — to a fixed point. It terminates because
     the resolution DAG is acyclic and each round adds at least one name or
@@ -592,7 +592,7 @@ def _emittable(ir: ProjectIR, owners: dict[str, MartIR]) -> frozenset[str]:
 
     A metric whose inputs are not all emitted is simply absent, which is what
     this emitter has always done with an unservable ratio: the planner's
-    coverage precheck refuses it by name at request time (RFC 0013 D6), where
+    coverage precheck refuses it by name at request time (S-0030/D-6), where
     the message can say which measure no mart carries.
     """
 
@@ -631,7 +631,7 @@ def _metric(
     does not carry it.
 
     SIMPLE for a metric with a measure, CUMULATIVE when that measure carries a
-    window (RFC 0034 D5), RATIO for the fixed two-component decomposition, and
+    window (S-0050/D-5), RATIO for the fixed two-component decomposition, and
     DERIVED for the general expression over aliased inputs (D1). ``filter:``
     rides on the metric in every shape that can have one — a derived metric is
     refused one at the guardrail stage (D9's sibling refusal), so ``owners``
@@ -738,7 +738,7 @@ def _project_configuration(
     if date_dimension is None:
         return PydanticProjectConfiguration()
 
-    # Same convention as the SQLMesh dim_date emission (RFC 0008 D13): the
+    # Same convention as the SQLMesh dim_date emission (S-0025/D-13): the
     # date dimension keeps its declared relation name; the naming policy
     # shapes only the gold namespace. One definition, two emissions, no drift.
     namespace, _mart_relation = naming.relation(date_dimension.name, Layer.GOLD)
@@ -761,7 +761,7 @@ def _project_configuration(
 
 
 def _check_reserved(manifest: PydanticSemanticManifest) -> None:
-    """Defense in depth (RFC 0013 R4): the spec layer already rejects
+    """Defense in depth (S-0030 R4): the spec layer already rejects
     ``metric_time`` as a member name (M1); re-check the emitted surface."""
     names: set[str] = set()
 
@@ -776,7 +776,7 @@ def _check_reserved(manifest: PydanticSemanticManifest) -> None:
     if _RESERVED_NAME in names:
         msg = (
             f"{_RESERVED_NAME!r} appeared in the emitted manifest — it is MetricFlow's "
-            "reserved query-time dimension (RFC 0013 R4) and must be rejected at spec "
+            "reserved query-time dimension (S-0030 R4) and must be rejected at spec "
             "validation; this is a bug upstream of the emitter"
         )
         raise EmitError(msg)
@@ -789,7 +789,7 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
     """Lower a project's marts to a **transformed** MetricFlow manifest.
 
     Pure and deterministic: same IR and naming policy in, byte-identical
-    :func:`manifest_json` out, across processes and hash seeds (RFC 0013 R1).
+    :func:`manifest_json` out, across processes and hash seeds (S-0030 R1).
     Raises :class:`~bloomery.errors.EmitError` when marts exist without a
     catalog ``date_dimension`` — MetricFlow requires a declared time spine
     for ``metric_time``; declare one in the catalog.
@@ -799,7 +799,7 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
         msg = (
             f"project has {len(ir.marts)} mart(s) but the catalog declares no "
             "date_dimension — MetricFlow requires a declared time spine for metric_time "
-            "(RFC 0013 R1). Fix: declare catalog date_dimension "
+            "(S-0030 R1). Fix: declare catalog date_dimension "
             "(name, grain: day, start_year, end_year)"
         )
         raise EmitError(msg)
@@ -821,8 +821,8 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
     )
     _check_reserved(manifest)
     # transform() is mandatory: without it explain() fails loudly with
-    # MetricFlowInternalError (verified, RFC 0013 §3). M8 caches the
-    # *post-transform* manifest (RFC 0014 D3), so that is what we return.
+    # MetricFlowInternalError (verified, S-0030/current-state). M8 caches the
+    # *post-transform* manifest (S-0031/D-3), so that is what we return.
     transformed = PydanticSemanticManifestTransformer.transform(manifest)
 
     # transform()'s AddInputMetricMeasuresRule collects each metric's
@@ -830,7 +830,7 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
     # dependent — the one nondeterminism in an otherwise deterministic
     # pipeline, surfaced by any RATIO metric (two input measures). Re-sort
     # here: the manifest is hashed, cached, and golden-byte-compared
-    # (RFC 0013 R1, RFC 0014 D5); ordering drift would flake goldens and
+    # (S-0030 R1, S-0031/D-5); ordering drift would flake goldens and
     # silently defeat the cache.
     for metric in transformed.metrics:
         metric.type_params.input_measures = sorted(
@@ -845,7 +845,7 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
 
 def manifest_json(manifest: PydanticSemanticManifest, *, indent: int | None = None) -> str:
     """Deterministic sorted-keys JSON for a (transformed) manifest — the
-    golden/caching serialization (RFC 0014 D5: never pickle). MetricFlow's
+    golden/caching serialization (S-0031/D-5: never pickle). MetricFlow's
     manifest objects are pydantic-v1-shim models, hence ``.json()`` (mypy sees
     ``Any`` through the shim, so the result is pinned via annotation — a
     ``cast`` would be flagged as unnecessary by pyright, which sees ``str``)."""
@@ -858,12 +858,12 @@ def manifest_json(manifest: PydanticSemanticManifest, *, indent: int | None = No
 
 #: The one artifact this target emits. At the root rather than under a
 #: namespace: a MetricFlow project holds a single top-level manifest, and
-#: nothing else in the emitted tree competes for the name (RFC 0051 D5).
+#: nothing else in the emitted tree competes for the name (S-0059/D-5).
 MANIFEST_PATH = "semantic_manifest.json"
 
 
 class MetricFlowEmitter:
-    """RFC 0051 §5.1: the manifest :func:`emit_manifest` already builds, as a
+    """S-0059/metricflow-as-a-fourth-core-target: the manifest :func:`emit_manifest` already builds, as a
     file-shaped artifact a caller can write.
 
     The fourth core target, and the only one that emits no models: MetricFlow
@@ -887,18 +887,18 @@ class MetricFlowEmitter:
         that is not there.
 
         :func:`emit_manifest`'s missing-``date_dimension``
-        :class:`~bloomery.errors.EmitError` propagates unchanged (RFC 0051 D4)
+        :class:`~bloomery.errors.EmitError` propagates unchanged (S-0059/D-4)
         — it is the refusal the planner already gives, and a second spelling of
         it here is how the two come to disagree.
 
         ``indent=2`` rather than compact: the manifest is a file a human reads
         when a metric resolves oddly, and :func:`manifest_json` sorts keys
-        either way, so the bytes stay deterministic (RFC 0003 §5.5).
+        either way, so the bytes stay deterministic (S-0020/determinism-rules-package-wide).
 
         **The one emitted artifact carrying no fingerprint header**, and the
         exemption is stated here rather than left to be noticed. Every other
         target prefixes its files with ``-- fingerprint: blm1:…`` so a reader
-        can tell applied from spec (RFC 0008 D9); this artifact is JSON that
+        can tell applied from spec (S-0025/D-9); this artifact is JSON that
         MetricFlow's own loader parses, and a comment line would make it
         invalid rather than annotated. The manifest has no free-form field to
         carry the value instead. What a caller loses is drift detection *on

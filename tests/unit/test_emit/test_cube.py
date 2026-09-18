@@ -1,4 +1,4 @@
-"""The Cube emitter (RFC 0008 §5.4): artifact shape, dimension typing,
+"""The Cube emitter (S-0025/cube-emitter-semantic): artifact shape, dimension typing,
 measure meta propagation, calculated ratio measures, the stored-non-additive
 defense, and dialect independence."""
 
@@ -78,13 +78,13 @@ def _column(name: str, column_type: LogicalType) -> ColumnIR:
 
 
 def _projection(name: str) -> SourceColumnIR:
-    """This source\'s lowering of the column (RFC 0024 D26)."""
+    """This source\'s lowering of the column (S-0041/D-26)."""
     return SourceColumnIR(name=name, expr=SqlExpr(name))
 
 
 #: Every column these builders declare, lowered as itself. The emitted
 #: SELECT projects `SourceIR.columns`, so a name missing here is a column
-#: the model cannot produce (RFC 0024 D26).
+#: the model cannot produce (S-0041/D-26).
 _SOURCE = SourceIR(
     relation="src",
     columns=tuple(
@@ -207,7 +207,7 @@ def test_measure_meta_propagates_additivity_and_grain() -> None:
     # The owner is the fixture's, not this test's subject — asserted in full
     # rather than by subset because `meta` is the whole of what a Cube consumer
     # reads about a measure, and a key appearing there unnoticed is exactly
-    # what an exact comparison is for (RFC 0055 §5.1).
+    # what an exact comparison is for (S-0062/owner).
     assert measure["meta"] == {
         "additivity": "additive",
         "owner": "finance-reporting@example.com",
@@ -217,7 +217,7 @@ def test_measure_meta_propagates_additivity_and_grain() -> None:
 
 def test_semi_additive_measure_carries_its_policy_in_meta() -> None:
     artifacts = compile_fixture("semi_additive_inventory", target=Target.CUBE)
-    # The fixture also emits the quality mart's cube (RFC 0016 §5.8).
+    # The fixture also emits the quality mart's cube (S-0033/the-quality-mart).
     artifact = next(a for a in artifacts if a.path == "model/cubes/inventory.yml")
     (cube,) = cast("dict[str, list[dict[str, object]]]", yaml.safe_load(artifact.content))["cubes"]
     (measure,) = cast("list[dict[str, object]]", cube["measures"])
@@ -267,7 +267,7 @@ def test_count_measure_takes_no_sql_and_ratio_is_calculated() -> None:
 
 def test_ratio_requires_both_components_on_the_owning_mart() -> None:
     # The denominator is not a measure anywhere: the ratio is simply absent
-    # (the planner refuses it by name at request time, RFC 0013 D6).
+    # (the planner refuses it by name at request time, S-0030/D-6).
     metrics = (
         _metric(
             "aov",
@@ -335,7 +335,7 @@ def test_a_non_additive_metric_whose_components_are_absent_is_simply_absent() ->
 
 def test_a_non_additive_metric_without_a_ratio_is_refused_not_dropped() -> None:
     """The additivity guardrail accepts a non-additive metric backed by an
-    additive *decomposition* instead of a ratio (RFC 0006 §5.4), and only the
+    additive *decomposition* instead of a ratio (S-0023/additivity), and only the
     ratio has a Cube shape.
 
     Skipping every non-additive metric from the stored pass while the
@@ -447,7 +447,7 @@ def test_fingerprint_header_is_yaml_commented() -> None:
 
 
 # ....................... #
-# RFC 0008 §10 → D17: one view per **mart**
+# S-0025 (§10) → D17: one view per **mart**
 
 
 TWO_MARTS_ONE_GRAIN_MODEL = """
@@ -488,13 +488,13 @@ marts:
 
 
 def test_two_marts_at_one_grain_are_two_views() -> None:
-    """RFC 0008 §10 asked whether views group per metric or per metric-*grain*.
+    """S-0025 (§10) asked whether views group per metric or per metric-*grain*.
     Neither: **per mart**, and this is the case that tells the three apart —
     two marts at one grain, which the corpus otherwise never exercises.
 
     Per-grain would have to merge these into one view, and a Cube view over two
     cubes needs a ``join_path`` between them. bloomery models no relationship
-    between marts — they are independently pre-joined (RFC 0010) — so a merged
+    between marts — they are independently pre-joined (S-0027) — so a merged
     view could only be emitted by inventing a join, which is what this project
     refuses everywhere else. Per-metric fragments the dimension set for no
     gain, since ``measure_owners`` already pins each metric to one mart.
@@ -535,7 +535,7 @@ def test_a_view_names_exactly_one_cube() -> None:
 
 
 # ....................... #
-# Rollups → pre_aggregations (RFC 0058 §5.3, P3)
+# Rollups → pre_aggregations (S-0065/targets, S-0065/phasing (P-3))
 
 
 def _bucketed_mart(*buckets: str) -> MartIR:
@@ -607,7 +607,7 @@ def test_a_rollup_becomes_a_pre_aggregation_on_its_parent() -> None:
 
 
 def test_a_mart_nothing_rolls_up_has_no_pre_aggregations_key() -> None:
-    """Absent rather than empty: every project before RFC 0058 has no rollups,
+    """Absent rather than empty: every project before S-0065 has no rollups,
     and an empty key on every cube would move every existing golden to say
     nothing new."""
 
@@ -811,7 +811,7 @@ def test_every_measure_a_pre_aggregation_names_is_one_its_cube_defines() -> None
 
 
 def test_a_declared_freshness_threshold_reaches_nothing_here() -> None:
-    """RFC 0057 D6, the Cube half.
+    """S-0064/D-6, the Cube half.
 
     Cube models no source either — its world starts at the silver relations a
     cube reads — so there is no artifact being approximated and nothing to

@@ -1,16 +1,16 @@
-"""Operand resolution shared by the guardrail checks (RFC 0006 §5.1–§5.2).
+"""Operand resolution shared by the guardrail checks (S-0023/stage-shape–S-0023/metadata-provenance-unit-tax-basis-currency).
 
 Two views of the same question — *what does this expression combine?*:
 
 - :func:`collect_derivations` enumerates every recorded recipe derivation
-  (RFC 0005 D2) with its expression, operand names, and source path — the
+  (S-0022/D-2) with its expression, operand names, and source path — the
   derivation-level walk surface for the arithmetic and grain guards.
 - :func:`operand_meta` resolves one operand name to its catalog metadata.
-  Metadata originates **only** on catalog canonical fields (RFC 0006 D3): a
+  Metadata originates **only** on catalog canonical fields (S-0023/D-3): a
   mapping-local alias that names no canonical field carries none, and absent
   values are the ``unknown`` the guards poison on.
 
-Runs on resolution-clean specs (RFC 0005 §5.5): every recorded recipe id is
+Runs on resolution-clean specs (S-0022/cross-spec-reference-validation-bloomery-resolve-refs-py): every recorded recipe id is
 known to exist by the time this module looks it up; the ``None`` guards below
 only serve direct (test) callers.
 """
@@ -40,7 +40,7 @@ __all__ = [
 
 @dataclass(frozen=True, slots=True)
 class OperandMeta:
-    """Catalog metadata of one expression operand (RFC 0006 §5.2). ``None``
+    """Catalog metadata of one expression operand (S-0023/metadata-provenance-unit-tax-basis-currency). ``None``
     values are the ``unknown`` state — never inferred, only declared."""
 
     name: str
@@ -58,19 +58,19 @@ class Derivation:
     """One recorded recipe derivation, addressed for violation reporting:
     the target entity and field, the catalog recipe's expression and operand
     names (``requires``), and the optional ``direct:`` path whose presence is
-    the path-conflict state (RFC 0006 §5.5).
+    the path-conflict state (S-0023/path-conflict-the-guardrail-that-does-not-raise).
 
     ``source`` is the bronze relation the mapping that recorded this reads.
     A derivation is a **per-mapping** fact about a shared entity node, so an
     entity built from several mappings has one of these per branch — the shape
-    RFC 0024 D26 split for a column's expression and D32 for a rule's inputs.
+    S-0041/D-26 split for a column's expression and D32 for a rule's inputs.
     It reaches here so that ``direct:`` can fan out the same way (D36): the
     shadow a branch projects is the path *that branch's* own mapping named,
     and no other relation need have it.
 
     ``cleaned`` is :func:`~bloomery.quality.opts_in` for this entity and this
     mapping — whether the builder lowered its columns produce-or-raise or
-    NULL-on-failure (RFC 0016 §5.2, D3). The shadow is the one lowering built
+    NULL-on-failure (S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-3). The shadow is the one lowering built
     *after* the builder has run, so it does not inherit that choice by being
     in the loop that makes it; carrying the answer here is what keeps the
     amendment from re-deciding it, or from getting it wrong by looking at the
@@ -98,7 +98,7 @@ class Derivation:
 def operand_meta(name: str, catalog: Catalog | None) -> OperandMeta | None:
     """Metadata for one operand name, or ``None`` when the name is not a
     canonical field — a mapping-local alias has no declared home entity, so
-    the guards have nothing to check it against (RFC 0006 D3)."""
+    the guards have nothing to check it against (S-0023/D-3)."""
 
     if catalog is None:
         return None
@@ -124,7 +124,7 @@ def collect_derivations(project: Project, catalog: Catalog | None) -> tuple[Deri
     """Every recipe-form field mapping as a :class:`Derivation`.
 
     Deterministic order: mappings in their (sorted-document) project order,
-    fields sorted by name within each mapping (RFC 0003 §5.5).
+    fields sorted by name within each mapping (S-0020/determinism-rules-package-wide).
     """
     derivations: list[Derivation] = []
 
@@ -142,7 +142,7 @@ def collect_derivations(project: Project, catalog: Catalog | None) -> tuple[Deri
             recipe = guaranteed(
                 (r for r in recipes if r.id == field_mapping.recipe),
                 expected=f"recipe {field_mapping.recipe!r} on canonical field {canonical!r}",
-                by="resolve_recipe, which refuses an unrecorded choice (RFC 0005 §5.2)",
+                by="resolve_recipe, which refuses an unrecorded choice (S-0022/recipe-validation-bloomery-resolve-recipes-py)",
             )
             derivations.append(
                 Derivation(

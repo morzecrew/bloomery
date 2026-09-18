@@ -47,7 +47,7 @@ entries:
     grade: LOCKED
     at: '2026-09-18T18:01:18Z'
     claim: >-
-      the five new bundles live at comparisons/sqlmesh/<case>/ with RFC 0043's five
+      the five new bundles live at comparisons/sqlmesh/<case>/ with S-0006's five
       entries, and the matrix beside them cites them by that path
     evidence: >-
       comparisons/MATRIX.md:23 — the SQLMesh column's evidence cell points at comparisons/sqlmesh/

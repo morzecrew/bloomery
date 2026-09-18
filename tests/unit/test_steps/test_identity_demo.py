@@ -1,11 +1,11 @@
 """The demonstration resolver, standalone — no bloomery in the loop.
 
-RFC 0021 §6's last row: a step's own fixtures run without the compiler, the
+S-0038/tests's last row: a step's own fixtures run without the compiler, the
 way the platform that owns the step would run them. Two things make it worth a
 module rather than a comment.
 
 **It is the half bloomery never sees.** The compiler emits a wrapper and
-asserts a contract; it never executes a step body (RFC 0003 — compilation does
+asserts a contract; it never executes a step body (S-0020 — compilation does
 no I/O and runs nothing). So the only place the demonstration's *behaviour* can
 be pinned is here, and if it were not pinned the fixture would be illustrating a
 resolver nobody had run.
@@ -65,7 +65,7 @@ def test_two_sources_with_no_shared_key_resolve_to_one_customer() -> None:
 
 
 def test_the_threshold_is_what_a_second_tenant_turns_up() -> None:
-    """RFC 0017's parameterize-never-fork rule, exercised.
+    """S-0034's parameterize-never-fork rule, exercised.
 
     The name-matched pair resolves at `0.85` and does not at `0.9`; a tenant
     wanting stricter matching changes one number in its wiring and gets the
@@ -228,7 +228,7 @@ def test_the_contract_would_catch_this_resolver_drifting() -> None:
 def test_the_resolution_timestamp_is_a_constant_not_a_clock() -> None:
     """A step reading the wall clock produces a different `resolved_at` on
     every backfill of the same window — the failure `runtime_lock` and the
-    determinism tier exist to catch (RFC 0017 D5), and a fixture claiming
+    determinism tier exist to catch (S-0034/D-5), and a fixture claiming
     `determinism: pure` must not commit it.
 
     **The expected value is written here, not read from the module.** Comparing

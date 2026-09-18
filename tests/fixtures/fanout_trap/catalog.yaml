@@ -1,6 +1,6 @@
 # The `naive_join` recipe is the trap: it combines an order-grain operand
 # (`shipping_cost`, entity: order) into a line-grain derivation with no
-# aggregation — the grain guardrail refuses it at compile time (RFC 0006 D5).
+# aggregation — the grain guardrail refuses it at compile time (S-0023/D-5).
 catalog_version: 1
 vertical: ecom_retail
 

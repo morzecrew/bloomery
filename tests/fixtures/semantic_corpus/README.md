@@ -54,11 +54,11 @@ it, so the loader refuses that too.
 
 Two checks sit beside it, on the citation rather than on the number.
 
-**The rule must name a decision that exists.** `RFC NNNN Dn`, and the row is looked up — in
-`rfcs/` for a live RFC, and through `git show` at the commit `RETIRED.md` names for a
-retired one, which is what that table is for. Sections are refused: `§5.3` moves when a
-document is edited, while a decision row is append-only and its number is never reused. A
-citation nobody can follow is prose wearing an identifier.
+**The rule must name a decision that exists.** `S-NNNN/D-n`, and the row is looked up in
+that document's `decisions.yaml` under `.torve/specs/`, where every document lives whether
+its work has landed or not. Sections are refused: a section key moves when a document is
+edited, while a decision row is append-only and its number is never reused. A citation
+nobody can follow is prose wearing an identifier.
 
 **And the RFC's status must match the outcome:** an `unguarded` expectation cites a **live**
 RFC, every other outcome a **retired** one, which here means shipped.

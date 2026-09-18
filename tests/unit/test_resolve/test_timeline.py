@@ -1,4 +1,4 @@
-"""One node across N spec sets (RFC 0069 §6).
+"""One node across N spec sets (S-0074/tests).
 
 The projects here are hand-written, for the reason ``test_lineage.py`` gives
 about hand-built graphs: every claim is about a *history* — a rename, an id
@@ -82,7 +82,7 @@ def sources(
     required: bool = False,
 ) -> dict[str, str]:
     """One project, varied along the axes a history moves on: the metric's
-    name, whether it has adopted an RFC 0062 ``id:``, its definition — and one
+    name, whether it has adopted an S-0067 ``id:``, its definition — and one
     entity-field axis that moves a column's *schema* without touching the
     expression that produces it."""
 
@@ -168,7 +168,7 @@ def test_a_changed_definition_is_one_change_between_the_two_labels() -> None:
 
 
 def test_a_change_carries_the_facet_that_moved() -> None:
-    """D3: the vocabulary is RFC 0064's, asserted against that module's own
+    """D3: the vocabulary is S-0069's, asserted against that module's own
     members rather than restated here, so the two cannot fork."""
     walk = timeline([version("a"), version("b", agg="max")], "metric.gross_revenue")
 
@@ -181,7 +181,7 @@ def test_a_change_carries_the_facet_that_moved() -> None:
 
 def test_a_change_is_never_empty() -> None:
     """The facets decide what a change *is*, so one with nothing to report is
-    not a change at all — which is what makes RFC 0064 §6's first test true."""
+    not a change at all — which is what makes S-0069/tests's first test true."""
     walk = timeline([version("a"), version("b", agg="max")], "metric.gross_revenue")
 
     assert walk.changes
@@ -203,14 +203,14 @@ def test_a_rename_without_an_id_is_a_delete_and_an_add() -> None:
 
 
 def test_the_same_rename_with_an_id_is_one_node_across_the_boundary() -> None:
-    """The pair that makes RFC 0062 pay, and the reason D11 takes the `Project`
+    """The pair that makes S-0067 pay, and the reason D11 takes the `Project`
     rather than the IR: the IR does not retain the `id:` at all."""
     history = [
         version("a", node_id="mtr_7f3a9c"),
         version("b", metric="revenue_gross", node_id="mtr_7f3a9c"),
     ]
 
-    # RFC 0064 §6's first test: the node crossed the boundary and **nothing**
+    # S-0069/tests's first test: the node crossed the boundary and **nothing**
     # is attributed to it. Identity belongs to no facet, so a rename moves no
     # definition — which is the whole claim, and is why the delete-and-add
     # above is told from this by `entries` rather than by `changes`.
@@ -221,7 +221,7 @@ def test_the_same_rename_with_an_id_is_one_node_across_the_boundary() -> None:
 
 
 def test_minting_an_id_alone_is_not_a_definition_change() -> None:
-    """An id is identity, not definition — RFC 0062 keeps it out of the IR
+    """An id is identity, not definition — S-0067 keeps it out of the IR
     entirely, so nothing a metric's record holds moves when one is adopted.
 
     Asserted rather than assumed because the one kind whose record is a *spec*
@@ -357,7 +357,7 @@ def test_a_node_is_found_at_the_first_entry_that_carries_the_spelling_asked() ->
 def test_one_name_with_two_different_ids_is_two_nodes() -> None:
     """§5.2 licenses the name fallback only where **one** side lacks an id.
 
-    An `id:` is write-once (RFC 0062 D6): editing one is a delete and an add,
+    An `id:` is write-once (S-0067/D-6): editing one is a delete and an add,
     and nothing can tell that apart from an actual delete and an add — which is
     the distinction the id was carrying. Falling through to the name here
     reported the two as one node, and reported it as a node that never moved,
@@ -553,7 +553,7 @@ def test_a_generator_is_accepted_and_read_exactly_once() -> None:
 def test_a_history_entry_may_wire_steps() -> None:
     """§5.1 listed three fields and a project that wires a step cannot be
     compiled from them: the registry is a caller-assembled compile input
-    (RFC 0017 §5.3), and against an empty one the compile is refused before
+    (S-0034/purity-the-registry-is-a-compile-input), and against an empty one the compile is refused before
     anything can be compared. See `logs/T-0043.md`.
 
     The refusal is asserted beside the answer, because "it works" is only
@@ -662,7 +662,7 @@ def test_every_kind_the_graph_mints_has_a_timeline() -> None:
         (timeline(history, "exposure.weekly_revenue_review"), NodeKind.EXPOSURE),
         (timeline(history, "source.shopify__order_lines.$.qty"), NodeKind.SOURCE_COLUMN),
         # A rollup is a gold relation under the same `mart.` prefix, and lives
-        # in its own IR collection (RFC 0058 §5.2).
+        # in its own IR collection (S-0065/the-obligation).
         (timeline(rollups, "mart.order_items_monthly"), NodeKind.MART),
     ):
         assert shape(walk) == ((("a", True), ("b", True)), ()), node
@@ -857,7 +857,7 @@ def test_every_node_kind_has_a_definition_rule() -> None:
 
 
 # ....................... #
-# The closure (RFC 0064 D4)
+# The closure (S-0069/D-4)
 
 
 def attributed(walk: Timeline) -> tuple[tuple[str, str, str, tuple[str, ...]], ...]:
@@ -877,7 +877,7 @@ def attributed(walk: Timeline) -> tuple[tuple[str, str, str, tuple[str, ...]], .
 
 
 def test_a_metric_that_never_moved_reports_what_moved_beneath_it() -> None:
-    """RFC 0064 D4, and §12's reason for shipping P1 and P2 together.
+    """S-0069/D-4, and §12's reason for shipping P1 and P2 together.
 
     `gross_revenue` is defined identically in all five versions of the corpus's
     own history. P1 answered "this has not changed", which is true about the
@@ -953,7 +953,7 @@ def test_a_node_that_left_the_closure_carries_no_change_across_the_gap() -> None
 
 
 def test_the_same_history_walked_twice_answers_identically() -> None:
-    """RFC 0064 §6's last test: the version graph is derived per invocation and
+    """S-0069/tests's last test: the version graph is derived per invocation and
     persisted nowhere (D5).
 
     Written as *equality of two answers* rather than as "no file was written",
@@ -972,7 +972,7 @@ def test_a_change_is_named_for_the_node_a_reader_knows() -> None:
     """A node that adopted an `id:` is reported under its **name**.
 
     The id is what makes the node trackable and the name is what makes the
-    answer readable — RFC 0062 P3 settled the same question for `lineage`, and
+    answer readable — S-0067/phasing (P-3) settled the same question for `lineage`, and
     a timeline has the sharper version of it: a node that adopts an id partway
     through a history would otherwise change its spelling mid-answer.
 
@@ -991,7 +991,7 @@ def test_a_change_is_named_for_the_node_a_reader_knows() -> None:
 
 
 # ....................... #
-# The exposure sinks (RFC 0064 P3, §5.3)
+# The exposure sinks (S-0069/phasing (P-3), S-0069/the-command-surface)
 
 
 def _moved_template() -> str:

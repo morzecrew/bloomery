@@ -1,0 +1,114 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **Representation safety and
+      query answerability are separate obligations, proven separately.** A mart refusing
+      `shipping@Order` at `OrderItem` grain and a planner answering `shipping by customer.country`
+      are both correct simultaneously. Locked because conflating them in either direction
+      is a shipped defect: one way silently widens marts, the other way refuses answerable
+      questions forever.
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      **A `SemanticPlan` whose multiplicity-changing nodes do not reference a proof
+      is invalid IR, not merely unexplained.** The distinction decides whether the
+      check can be skipped under time pressure. Every join that can duplicate a row
+      carries its authorization or the plan does not typecheck.
+    paths: [src/bloomery/semantic/plan.py, tests/unit/test_semantic/test_plan.py]
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      **The mart contract does not move in this document.** Grain equality for embedded
+      measures stands unchanged; a safe pre-aggregated mart construct needs its own
+      RFC. Locked because query-time planning is precisely the plausible-looking back
+      door into mart semantics, and the pressure to take it arrives exactly when the
+      planner starts working.
+    paths: [src/bloomery/planner/coverage.py]
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      **Target lowering may not introduce an unproven multiplicity-changing join;
+      a target that cannot represent the plan refuses that target.** Rewriting rather
+      than refusing is how a semantics-preserving plan becomes a wrong number in one
+      emitter and not the others — the divergence class this codebase has paid for
+      repeatedly, and here it would be invisible because the plan was proven.
+    paths:
+      - src/bloomery/planner/semantic_plan.py
+      - tests/unit/test_semantic/test_plan.py
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **P1 re-expresses today's accepted requests as `SemanticPlan` with no capability
+      change.** It is what makes the §8 parity suite meaningful — a phase that added
+      capability and re-expression together could not tell a regression from an intended
+      widening. Departing means finding P1 cannot represent something already accepted,
+      which is itself the finding.
+    paths: [src/bloomery/semantic/proof.py]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      **MetricFlow and any other semantic engine stay execution backends, never the
+      correctness authority.** bloomery explains the plan before lowering. Not `LOCKED`
+      because it is a positioning statement this document cannot enforce alone; D4
+      is the enforceable half.
+    paths: [src/bloomery/planner/compose.py]
+  - id: D-7
+    grade: OPEN
+    text: >-
+      **Whether `SemanticPlan` lowers to the existing `QueryPlan`, replaces it, or
+      sits beside it.** Three shapes with different migration costs and different
+      answers to "what does `bloomery plan` print". P1 exists partly to answer this
+      from contact with the code; log the decision with what P1 found.
+    paths: [src/bloomery/cli/__init__.py]
+  - id: D-8
+    grade: OPEN
+    text: >-
+      **Superseded by D11.** **Whether refusals for already-refused requests may change
+      wording.** A refutation is a better message than `UnreachableAtGrain`'s, and
+      it moves a shipped golden. Decide whether the parity suite pins the *outcome*
+      or the *text*, and say so before the first rule lands. Answered during P1 —
+      the suite pins the outcome and the exception class, never the wording — and
+      closed by D11, which adds the case P1 could not need. The grade stays `OPEN`
+      because the table is append-only and a grade records what was asked of an executor
+      at the time; the supersession marker above is what a reader acts on (see logs/T-0021.md,
+      D119).
+  - id: D-9
+    grade: LOCKED
+    text: >-
+      **P2 produces proof-backed refusals, not query-time joins; §11 is superseded
+      by §11a.** The single-hop rollup §11 asked for has no route to SQL — the manifest
+      emitter pins "never a semantic model for a non-mart entity", so a `PreservingJoin`
+      has no relation to reach and bloomery has no second generator to reach it with
+      — and no route from a spec either: across every buildable fixture, zero marts
+      have an unflattened single hop from their own grain, because `flatten: {via:
+      …}` already settles that join at build time. The capability would be a second
+      mechanism for something this design does once, earlier, with the fan-out proof
+      already discharged. Locked because it re-scopes this document and re-gates S-0055
+      and S-0065. Added by execution 2026-09-06 — see logs/T-0022.md (D132 and D133,
+      attempt 1).
+    paths: [tests/unit/test_planner/test_coverage.py]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      **When cross-grain capability is wanted, it arrives as S-0055's aggregate-then-join,
+      never as a `PreservingJoin` over unaggregated rows.** Joining two results already
+      aggregated to a common grain cannot fan out, so the generator that does it is
+      small and provable; joining raw rows before aggregation is the primary source
+      of silent double counting and needs the most machinery to get right. Building
+      the dangerous half first, to serve a class with no instances, is the wrong order.
+      Not `LOCKED` because it is a sequencing preference, departable if S-0055 proves
+      harder than the narrow join. Added by execution 2026-09-06 — see logs/T-0022.md
+      (D132, attempt 1).
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **A refusal that changes
+      exception class is a parity event, even when no capability was added.** D8 settled
+      that the suite pins outcome and class rather than wording; this closes the gap
+      that leaves. Converting `UnknownMember` into a refutation reads as "just a better
+      message" and is exactly the change someone waves through under time pressure,
+      while `parity_baseline.tsv` is the only thing that would have noticed. A phase
+      that moves a class edits the baseline and names the rule in the commit. Added
+      by execution 2026-09-06 — see logs/T-0022.md (D134, attempt 1).

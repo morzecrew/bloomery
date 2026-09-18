@@ -1,4 +1,4 @@
-# The smallest project a cross-entity coverage check needs (RFC 0016 D90):
+# The smallest project a cross-entity coverage check needs (S-0033/D-90):
 # two entities and the relationship between them.
 #
 # It exists as its own fixture rather than as a clause on an existing one

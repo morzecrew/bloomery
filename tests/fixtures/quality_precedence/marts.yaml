@@ -1,4 +1,4 @@
-# One mart over `q_line`, and it exists for one claim: RFC 0016 §5.5's promise
+# One mart over `q_line`, and it exists for one claim: S-0033/schema-additions-and-the-array-capability's promise
 # that "revenue excluding flagged rows becomes a plain `MetricRequest`". That
 # promise is carried entirely by the generated `has_quality_flags` dimension,
 # which the mart flattens in from the base entity's `_quality_ok` — so a mart
@@ -17,10 +17,10 @@ marts:
     flatten:
       - {date: order_date, role: ordered}
     measures: [line_amount_total]
-    # RFC 0016 D89 — §10's "no month has zero revenue", made declarable, and
+    # S-0033/D-89 — §10's "no month has zero revenue", made declarable, and
     # declared here rather than on a general-purpose fixture because an
     # assertion makes a project refuse to compile for dbt and Cube (neither has
-    # the audit shape, and silently dropping a declared gate is what RFC 0008
+    # the audit shape, and silently dropping a declared gate is what S-0025
     # D3 refuses). Two clauses, so the pair the surface exists for is present:
     # one groups and blocks, one does neither.
     assert:

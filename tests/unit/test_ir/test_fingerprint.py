@@ -1,4 +1,4 @@
-"""_canon_bytes / project_fingerprint (RFC 0003 §5.4): distinct values →
+"""_canon_bytes / project_fingerprint (S-0020/fingerprint): distinct values →
 distinct bytes; permuted input but equal IR → identical bytes; every scalar
 kind covered; floats rejected."""
 
@@ -47,7 +47,7 @@ def test_equal_ir_identical_bytes() -> None:
 
 
 def test_permuted_input_equal_ir_identical_bytes() -> None:
-    # The factory sorts columns as the real builder must (RFC 0003 §5.3):
+    # The factory sorts columns as the real builder must (S-0020/ordering-rules):
     # permuted authored order → equal IR → identical bytes and fingerprint.
     a = build_project_ir(column_names=("unit_price", "order_id"))
     b = build_project_ir(column_names=("order_id", "unit_price"))
@@ -60,7 +60,7 @@ def test_distinct_ir_distinct_bytes() -> None:
     base = build_project_ir()
     variants = [
         ProjectIR(),
-        ProjectIR(bloomery_ir_version=1),  # version change is loud (RFC 0003 D3)
+        ProjectIR(bloomery_ir_version=1),  # version change is loud (S-0020/D-3)
         dataclasses.replace(base, marts=()),
         dataclasses.replace(base, metrics=base.metrics[:1]),
     ]
@@ -72,7 +72,7 @@ def test_distinct_ir_distinct_bytes() -> None:
 
 
 def test_quality_configuration_reaches_the_fingerprint() -> None:
-    # RFC 0016 §5.7: every quality change classifies RESTATING, which only
+    # S-0033/plan-integration-rfc-0007-amendment: every quality change classifies RESTATING, which only
     # works if the fingerprint sees it. The walker is type-driven, so the new
     # nodes need no encoder — this test is what proves that claim.
     base = build_project_ir()
@@ -143,7 +143,7 @@ def test_quality_configuration_reaches_the_fingerprint() -> None:
 
 
 def test_permuted_quality_rules_sorted_are_identical() -> None:
-    # RFC 0003 §5.3: authored rule order carries nothing, so the canonical
+    # S-0020/ordering-rules: authored rule order carries nothing, so the canonical
     # sort makes permuted input yield an equal IR — and equal bytes.
     base = build_project_ir()
     entity = base.entities[0]
@@ -205,7 +205,7 @@ def test_enum_encodes_by_value() -> None:
     class Other(StrEnum):
         CURRENCY = "currency"
 
-    # same value, different enum class → same bytes (RFC 0003 §5.4: by value)
+    # same value, different enum class → same bytes (S-0020/fingerprint: by value)
     assert _canon_bytes(_Node(Unit.CURRENCY)) == _canon_bytes(_Node(Other.CURRENCY))
 
 

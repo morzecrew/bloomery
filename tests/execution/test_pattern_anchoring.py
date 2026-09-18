@@ -1,4 +1,4 @@
-"""The portable regex subset, executed (RFC 0016 §5.3, D53/D54).
+"""The portable regex subset, executed (S-0033/spec-schema, S-0033/D-53, S-0033/D-54).
 
 The subset check is a *static* claim about what DuckDB (RE2), Trino (RE2) and
 Postgres (ARE) will accept, and a static claim about an engine is only worth

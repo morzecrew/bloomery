@@ -1,17 +1,17 @@
-"""Transform declaration and registration (RFC 0004 §5.2–§5.3).
+"""Transform declaration and registration (S-0021/transform-declaration-bloomery-transforms-registry-py–S-0021/the-registry-closed-default-sorted-iteration-overlay-extensi).
 
 A transform is a :class:`TransformSpec`: name, arity and per-argument kinds,
 input type domain, output type *function* (output may depend on args), and a
-builder producing a dialect-neutral SQLGlot AST — never string SQL (RFC 0004
+builder producing a dialect-neutral SQLGlot AST — never string SQL (S-0021
 D7). The ``@transform(...)`` decorator wraps a builder into a spec and adds it
 to the default registry at import; :func:`register_transform` is the public
 extension point, adding to a process-global overlay. Name collisions raise
 :class:`~bloomery.errors.TransformRegistrationError` — shadowing a vetted
-transform silently would defeat the whitelist's audit value (RFC 0004 D6).
+transform silently would defeat the whitelist's audit value (S-0021/D-6).
 
 All registry iteration is sorted by name: the registry is one of the few
 module-global structures in the package and must not leak insertion order
-into output (RFC 0003 §5.5).
+into output (S-0020/determinism-rules-package-wide).
 """
 
 from __future__ import annotations
@@ -64,7 +64,7 @@ type OutputType = Callable[[LogicalType, tuple[str | int, ...]], LogicalType]
 #: to take it positionally: this alias is exported from ``bloomery.__all__`` and
 #: named in the API reference as an extension point, and moving it would break
 #: every registered third-party builder to serve the handful of built-ins that
-#: need the type (RFC 0029 D1, logs/T-0002.md D-001).
+#: need the type (S-0046/D-1, logs/T-0002.md D-001).
 type Builder = Callable[..., "Expression"]
 
 #: The read surface every consumer sees: an immutable name → spec mapping.
@@ -73,28 +73,28 @@ type Registry = Mapping[str, TransformSpec]
 
 @dataclass(frozen=True, slots=True)
 class TransformSpec:
-    """One whitelisted transform (RFC 0004 §5.2).
+    """One whitelisted transform (S-0021/transform-declaration-bloomery-transforms-registry-py).
 
     ``arity`` counts spec-level args (not the column). A ``variadic``
     transform accepts any positive multiple of ``arg_kinds`` (``enum_map``
     takes from/to pairs); ``arity`` is then the length of one repetition.
 
     ``nullifies`` declares that the transform can return NULL from a non-NULL
-    input **on purpose**. It exists because RFC 0016's ``coercible`` rule
+    input **on purpose**. It exists because S-0033's ``coercible`` rule
     infers a cause from an effect: its marker is "the output vanished while
     the source was there", which is a failed cast only if nothing in the chain
     nulls a value deliberately. A transform that does is not a coercion
     failure and must not be quarantined as one, so the flag is declared here —
     on the transform that knows — rather than kept as a name list inside the
     quality lowering, where the next transform added would reintroduce the
-    false positive silently (RFC 0016 §5.2).
+    false positive silently (S-0033/coercion-failure-is-a-rule-the-assert-boundary).
 
     ``types`` declares that the builder must be told the logical type entering
     the step, and is passed it as ``input_type=``. A builder that constructs a
     cast, a coercion or a narrowing cannot be correct without it — the
     *declaration* of what a transform produces is a function of the input type
     and the construction was not, so the two could disagree and did
-    (RFC 0029 D1). It is declared rather than inferred from the signature so
+    (S-0046/D-1). It is declared rather than inferred from the signature so
     that a builder which forgets to accept the argument fails loudly at its
     first call rather than silently receiving nothing.
     """
@@ -126,7 +126,7 @@ _NEUTRAL_TYPES: dict[type[LogicalType], str] = {
 def neutral_type(t: LogicalType) -> exp.DataType:
     """The dialect-neutral SQLGlot type for a logical type.
 
-    Physical DDL types are the dialect port's job (RFC 0008); this is the type
+    Physical DDL types are the dialect port's job (S-0025); this is the type
     a *neutral* cast names, rendered per dialect at emit.
 
     It lives in this layer rather than in ``ir`` because a builder that
@@ -196,7 +196,7 @@ def transform(
     types: bool = False,
 ) -> Callable[[Builder], TransformSpec]:
     """Declare a starter transform: wrap a builder into a :class:`TransformSpec`
-    and add it to the default registry at import time (RFC 0004 §5.2).
+    and add it to the default registry at import time (S-0021/transform-declaration-bloomery-transforms-registry-py).
 
     ``output`` is either a fixed :data:`LogicalType` or a function of
     ``(input type, args)``; a fixed value is wrapped into a constant function.
@@ -246,8 +246,8 @@ def register_transform(spec: TransformSpec) -> None:
 
     Adds to the process-global overlay consulted after the default map.
     Extension is a deployment-time act (an adapter package registering at
-    import), not a per-compile one (RFC 0004 §5.3); determinism is scoped to
-    a fixed installed extension set (RFC 0004 D6).
+    import), not a per-compile one (S-0021/the-registry-closed-default-sorted-iteration-overlay-extensi); determinism is scoped to
+    a fixed installed extension set (S-0021/D-6).
 
     Raises :class:`TransformRegistrationError` on an invalid spec or a name
     collision with any existing transform, default or overlay.

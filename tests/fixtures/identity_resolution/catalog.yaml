@@ -1,6 +1,6 @@
 # The vertical's vocabulary. `customer_ref` is a canonical field like any
 # other — the fact that a *step* supplies it rather than a mapping is the
-# whole point of RFC 0017 D49, and nothing in this document knows about it.
+# whole point of S-0034/D-49, and nothing in this document knows about it.
 catalog_version: 1
 vertical: crm
 

@@ -1,4 +1,4 @@
-"""The declared-vs-produced type battery (RFC 0028 D5).
+"""The declared-vs-produced type battery (S-0045/D-5).
 
 Every transform declares an output *logical* type
 (:attr:`~bloomery.transforms.registry.TransformSpec.output_type`) and,
@@ -6,13 +6,13 @@ separately, constructs the AST that computes it
 (:attr:`~bloomery.transforms.registry.TransformSpec.builder`). Nothing checked
 that the second produces the first. ``to_utc`` declared ``timestamp`` and
 produced a zone-*aware* value on all three ports for the whole life of the
-project, and it took someone measuring by hand to notice (RFC 0028 §2).
+project, and it took someone measuring by hand to notice (S-0045/what-was-measured).
 
 This module is the case corpus, the comparison, and the register of
 divergences that exist today. The tiers that own an engine run it: DuckDB in
 tier 4, PostgreSQL and Trino in tier 5.
 
-**Why the engine and not emit.** Compilation does no I/O (RFC 0003), so emit
+**Why the engine and not emit.** Compilation does no I/O (S-0020), so emit
 has no engine to ask; the only static model available is SQLGlot's type
 annotator, and it answers ``UNKNOWN`` for ``AtTimeZone`` on DuckDB — the exact
 node this whole class of defect lived in — while answering confidently for
@@ -47,11 +47,11 @@ from bloomery.typing import (
 )
 
 #: Transforms whose AST deliberately reaches no engine, and why. ``convert``
-#: builds the ``CONVERT_CURRENCY`` marker, which emit refuses (RFC 0023 D4)
+#: builds the ``CONVERT_CURRENCY`` marker, which emit refuses (S-0040/D-4)
 #: precisely because no engine defines it — there is no produced type to
 #: compare a declaration against.
 UNRUNNABLE: dict[str, str] = {
-    "convert": "builds the CONVERT_CURRENCY marker, refused at emit (RFC 0023 D4)",
+    "convert": "builds the CONVERT_CURRENCY marker, refused at emit (S-0040/D-4)",
 }
 
 DECIMAL = DecimalType(12, 4)
@@ -84,7 +84,7 @@ class Case:
         """The AST as *emit* sees it, not as the builder returned it.
 
         The IR keeps canonical dialect-neutral **text** and re-parses at emit
-        (RFC 0003 D2), and that round trip is not lossless in the ways that
+        (S-0020/D-2), and that round trip is not lossless in the ways that
         matter here: ``json_path``'s path literal only becomes an
         :class:`sqlglot.exp.JSONPath` — the node the PostgreSQL port rewrites
         — after re-parsing, and ``regex_extract``'s capture group comes back
@@ -93,7 +93,7 @@ class Case:
         """
         spec = DEFAULT_REGISTRY[self.transform]
         # A spec declaring `types` is handed the type entering the step, which
-        # is this case's source (RFC 0029 D1). Omitting it is a TypeError rather
+        # is this case's source (S-0046/D-1). Omitting it is a TypeError rather
         # than a silent default — see the flag's rationale on `TransformSpec`.
         extra = {"input_type": self.source} if spec.types else {}
         built = spec.builder(exp.column(column), *self.args, **extra)
@@ -232,7 +232,7 @@ def source_columns(port: DialectPort) -> tuple[tuple[str, str, str], ...]:
     """``(column name, physical type, literal)`` for the probe table.
 
     One column per case, so a case's source is a real column rather than a
-    folded constant — the distinction that nearly mismeasured RFC 0016 D84,
+    folded constant — the distinction that nearly mismeasured S-0033/D-84,
     where PostgreSQL evaluated a guarded cast at plan time over a constant and
     raised where the column form returns NULL.
     """
@@ -272,7 +272,7 @@ class Divergence:
 #: **Exact, not a floor.** The tiers assert set equality, so a divergence that
 #: appears is a failure *and* one that disappears is too — a fix cannot land
 #: without deleting its row, and a regression cannot hide behind a row that
-#: happens to describe it. Every entry is scheduled in RFC 0029.
+#: happens to describe it. Every entry is scheduled in S-0046.
 KNOWN: dict[str, dict[str, Divergence]] = {
     "duckdb": {},
     "postgres": {},

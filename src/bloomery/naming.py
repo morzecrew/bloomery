@@ -1,11 +1,11 @@
-"""Naming policies (RFC 0008 §5.1): logical name → physical
+"""Naming policies (S-0025/ports): logical name → physical
 ``(namespace, relation)`` — the only tenant-shaped seam in the package.
 
 Tenant scoping enters compilation as ordinary constructor values on a policy
 instance (hard invariant #3): :class:`PrefixNaming` prefixes every namespace
 with a caller-chosen tenant prefix, and nothing else in the package knows the
-concept exists. (RFC 0008 spells this class ``TenantPrefixNaming``; the
-tenant-agnosticism guard (RFC 0009 §5.6) restricts the word to docstrings in
+concept exists. (S-0025 spells this class ``TenantPrefixNaming``; the
+tenant-agnosticism guard (S-0026/guard-tests-determinism-and-tenant-agnosticism) restricts the word to docstrings in
 this module, so the class carries the neutral name.)
 """
 
@@ -27,7 +27,7 @@ __all__ = [
 
 class NamingPolicy(Protocol):
     """Maps a logical entity (or mart) name and layer to a physical
-    ``(namespace, relation)`` pair (RFC 0008 D1)."""
+    ``(namespace, relation)`` pair (S-0025/D-1)."""
 
     def relation(self, entity: str, layer: Layer) -> tuple[str, str]: ...
 
@@ -39,7 +39,7 @@ class NamingPolicy(Protocol):
 class DefaultNaming:
     """The layer-named default: bronze relations pass through under the
     ``bronze`` namespace, silver entities live at ``("silver", entity)``,
-    gold marts at ``("gold", "mart_<name>")`` (RFC 0008 §5.1, §5.3)."""
+    gold marts at ``("gold", "mart_<name>")`` (S-0025/ports, S-0025/sqlmesh-emitter-primary)."""
 
     def relation(self, entity: str, layer: Layer) -> tuple[str, str]:
         if layer is Layer.GOLD:
@@ -55,7 +55,7 @@ class DefaultNaming:
 class PrefixNaming:
     """Tenant-scoped naming: every namespace gains a prefix, e.g.
     ``("acme_silver", entity)`` — tenant scoping as ordinary spec values,
-    per hard invariant #3 (RFC 0008 §5.1)."""
+    per hard invariant #3 (S-0025/ports)."""
 
     prefix: str
 

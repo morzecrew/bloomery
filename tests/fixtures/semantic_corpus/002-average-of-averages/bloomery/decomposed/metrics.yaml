@@ -1,5 +1,5 @@
 # The same number, modelled so it can be recomputed rather than re-averaged:
-# a ratio over two additive operands (RFC 0006 §5.4).
+# a ratio over two additive operands (S-0023/additivity).
 metrics_version: 1
 metrics:
   item_value:

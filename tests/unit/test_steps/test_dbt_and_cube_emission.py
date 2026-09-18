@@ -1,4 +1,4 @@
-"""Steps on the two non-SQLMesh targets (RFC 0017 D31 → D52).
+"""Steps on the two non-SQLMesh targets (S-0034/D-31 → D52).
 
 D31 refused steps on dbt and Cube wholesale, on the grounds that "their output
 relations would simply be missing". Held up per target, that sentence turns out
@@ -111,7 +111,7 @@ def test_a_sql_model_step_emits_a_dbt_model_at_the_relation_it_writes() -> None:
 def test_the_dbt_model_carries_the_same_select_sqlmesh_emits() -> None:
     """The claim the shared lowering exists to make: one SELECT, two
     envelopes. A step whose body meant something different per target would be
-    the drift RFC 0008 D4 is arranged to prevent."""
+    the drift S-0025/D-4 is arranged to prevent."""
     dbt = next(a for a in compile_steps(Target.DBT) if a.path == "models/silver/scored.sql")
     sqlmesh = next(
         a for a in compile_steps(Target.SQLMESH) if a.path == "models/silver/scored.sql"
@@ -154,8 +154,8 @@ def test_the_identity_fixture_has_no_dbt_golden_because_dbt_refuses_it() -> None
     """Why `tests/golden/identity_resolution/` holds `sqlmesh/` and `cube/` and
     no `dbt/` — stated as a test so the absence reads as a decision.
 
-    RFC 0021 §6 asked for SQLMesh *and* dbt goldens for this fixture. dbt
-    cannot emit a `python_model` step at all (RFC 0017 D52): its Python models
+    S-0038/tests asked for SQLMesh *and* dbt goldens for this fixture. dbt
+    cannot emit a `python_model` step at all (S-0034/D-52): its Python models
     run on Snowflake, BigQuery and Databricks, and none of bloomery's three
     dialects is one of them. An identity resolver is Tier 3 by construction —
     fuzzy matching is the thing SQL cannot express — so this fixture is exactly
@@ -168,13 +168,13 @@ def test_the_identity_fixture_has_no_dbt_golden_because_dbt_refuses_it() -> None
 
 
 def test_a_step_whose_output_carries_an_audit_emits_it_as_a_singular_test() -> None:
-    """RFC 0026, the fourth lifted refusal.
+    """S-0043, the fourth lifted refusal.
 
     A step audit is a whole-query check — a join between siblings (D40) or a
     blocking rule body (D39) — and the old refusal was right that no schema
     test carries either. A singular test carries both, and the body is built
     with dbt's own spelling of "the relation this audit judges" rather than
-    with ``@this_model`` rewritten afterwards (RFC 0026 D10).
+    with ``@this_model`` rewritten afterwards (S-0043/D-10).
     """
     wired = (
         "steps_version: 1\nsteps:\n  - use: scored@1\n    outputs: {out: silver.scored}\n"
@@ -229,7 +229,7 @@ def test_cube_emits_no_audit_for_a_project_that_is_full_of_them() -> None:
 
 
 # ....................... #
-# A flagged Tier 2 output, on both targets that build (RFC 0051 §5.3)
+# A flagged Tier 2 output, on both targets that build (S-0059/onfail-flag-on-a-tier-2-output)
 
 
 FLAG_STEPS = (
@@ -259,7 +259,7 @@ def test_the_sqlmesh_quality_mart_counts_the_flagged_step_output() -> None:
 
 
 def test_a_flag_rule_on_a_step_output_now_reaches_the_dbt_wrap() -> None:
-    """This refused until RFC 0052 §5.4, and not for a reason about steps: a
+    """This refused until S-0060/the-quality-mart-and-a-refusal-deleted-rather-than-narrowed, and not for a reason about steps: a
     flagged step output puts a *quality mart* in the project exactly as a
     flagged mapped entity does, and the mart was what dbt refused.
 
@@ -274,6 +274,6 @@ def test_a_flag_rule_on_a_step_output_now_reaches_the_dbt_wrap() -> None:
     assert "_quality_ok" in model.content
     # The mart the refusal was actually about is emitted too, and it reads the
     # column the wrap just added — the pair SQLMesh has been asserting since
-    # RFC 0051 and dbt could not.
+    # S-0059 and dbt could not.
     mart = next(a for a in artifacts if "mart_data_quality" in a.path)
     assert "scored" in mart.content

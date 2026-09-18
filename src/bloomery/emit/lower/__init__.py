@@ -1,32 +1,32 @@
 """Lowering: a spec becomes SQL, once, for every target.
 
-RFC 0008 splits the ports on **assembly** — targets differ in how they write a
+S-0025 splits the ports on **assembly** — targets differ in how they write a
 model file and share how a spec becomes SQL. This package is that shared half,
 and it imports no target: lowering reaching into an emitter inverts the port
 design and is how a change made for one target starts quietly constraining
 another. Enforced as "Lowering is target-independent" in `pyproject.toml`.
 
-Split by pipeline stage rather than by target (RFC 0019 D1), in dependency
+Split by pipeline stage rather than by target (S-0036/D-1), in dependency
 order:
 
 * `predicates` — literal spellings and audit predicates. The base; imports no
   sibling.
 * `silver` — the entity SELECT: extract, rules, routing, dedupe, reject,
-  replay, and the audits over them (RFC 0016). One stage rather than the
-  `select` + `quality` pair RFC 0019 §5.1 sketched, because extract is not
+  replay, and the audits over them (S-0033). One stage rather than the
+  `select` + `quality` pair S-0036/split-by-stage-not-by-target sketched, because extract is not
   separable: it is level 1 of the same nested SELECT, and fourteen functions
   of the rule pipeline are built from it.
 * `reconcile` — reconcile models, coverage checks and mart asserts.
 * `quality_mart` — rule evaluations as a gold model.
-* `marts` — mart flattening, the date dimension, measure ownership (RFC 0010).
-* `rollups` — the aggregate body of a rollup mart (RFC 0058). Beside `marts`
+* `marts` — mart flattening, the date dimension, measure ownership (S-0027).
+* `rollups` — the aggregate body of a rollup mart (S-0065). Beside `marts`
   rather than above it: it renders a relation over a *built* parent and reads
   nothing the flattener produces.
 
 Stages compose downward and never sideways or upward, enforced rather than
 agreed ("Lowering stages compose downward"). This module is the surface
 emitters import; importing a stage directly works and carries no promise
-(RFC 0018 D6).
+(S-0035/D-6).
 """
 
 from bloomery.emit.lower.marts import (

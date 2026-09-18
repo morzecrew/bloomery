@@ -1,0 +1,144 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      **The JSON Schema export ships first and is the highest-leverage item.** It
+      is a day's work over `model_json_schema()` and serves four consumers at once
+      — editor completion, control-plane form validation, drift-free reference docs,
+      and constrained generation for machine-authored specs. The last is the one that
+      changes a proposal loop's safety argument from a prompt instruction into a structural
+      constraint.
+    paths: [src/bloomery/schema.py, tests/unit/test_schema.py]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      **Every closed set appears in the schema as an `enum`**, never a free string:
+      transforms, quality rules, `Op`, `LogicalType`, `OnFail`, `Additivity`, document
+      versions. This is the property constrained generation depends on — a proposer
+      choosing from an enum cannot invent a transform, so the refusal that would catch
+      the invention never fires. Unit-tested per set.
+    paths:
+      - src/bloomery/schema.py
+      - tests/golden/test_spec_schemas.py
+      - tests/property/test_schema_agreement.py
+      - tests/unit/test_schema.py
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      **Schema export is deterministic and golden-tested**, on the same discipline
+      as every other bloomery output: sorted keys, stable `$defs` order, no addresses
+      in descriptions. A nondeterministic golden is noise, and these goldens are how
+      schema changes become reviewable.
+    paths:
+      - src/bloomery/schema.py
+      - tests/golden/test_spec_schemas.py
+      - tests/unit/test_determinism_guard.py
+      - tests/unit/test_schema.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      **Six CLI commands, each a pure shell over one public function**, adding no
+      logic of their own. Exit codes distinguish refusal (`1`) from usage error (`2`),
+      because a refusal is a *correct* outcome and scripts must be able to tell. `--format
+      json` returns the same structures the Python API does, so the CLI is not a second
+      lossier surface.
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/cli/render.py
+      - src/bloomery/cli/serialize.py
+      - tests/unit/test_cli.py
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **`bloomery/cli/io.py` is the only module in the package permitted to touch
+      the filesystem**, added to S-0036's purity allowlist as a named carve-out with
+      a stated reason, and enforced one-directional by import-linter: the CLI may
+      import the library, no library module may import the CLI. The shell reads paths;
+      the library still only ever sees strings, so the no-I/O invariant is preserved
+      *and made structurally obvious* rather than merely asserted.
+    paths:
+      - src/bloomery/__init__.py
+      - src/bloomery/cli/io.py
+      - tests/unit/test_import_contracts.py
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      **No new runtime dependency.** `argparse` from the standard library, hand-rolled
+      table rendering. A dependency on `rich`/`typer` would be a real cost for cosmetics
+      in a library whose dependency discipline is one of its properties.
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/cli/render.py
+      - tests/unit/test_cli.py
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      **Five refusals gain optional structured suggestion fields** (§5.4), additive.
+      The draft cited two existing precedents; only one is real. `UnsupportedFilter.reason`
+      is an attribute; **`UnknownMember.did_you_mean` is not** — its docstring has
+      promised the field since S-0028 while the closest match is computed and thrown
+      into prose. So `UnknownMember` joins the list as a fifth entry rather than serving
+      as the model for it, and the field is what finally makes its own docstring true.
+      Each field exposes a value bloomery **already computes and currently discards**.
+      Absence is `()` or `None` in Python and `[]` or `null` in the CLI JSON — always
+      present, never fabricated, and never silently dropped from a structure §5.2
+      promises matches the API (§5.4).
+    paths:
+      - src/bloomery/errors.py
+      - tests/unit/test_error_suggestions.py
+      - tests/unit/test_marts/test_flatten.py
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      **Suggestions never become a second error contract**: they are optional, and
+      nothing may be discoverable *only* through a suggestion. The primary contract
+      stays `.reason` plus the message.
+    paths: [tests/unit/test_error_suggestions.py]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      **No execution, ever.** `explain` prints; `run` does not exist. This is what
+      keeps the test suite infrastructure-free and the library a compiler. Config
+      files, profiles, credentials, watch mode, daemons and scaffolding are refused
+      for the same reason — each implies state or an opinion the library does not
+      hold.
+    paths: [tests/unit/test_cli.py]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      **A property test measures schema/parser agreement** rather than assuming it:
+      every fixture validates against its schema, and mutations the parser rejects
+      are checked against the schema too, with divergences recorded as amendments.
+      The schema is a pre-filter, never the authority — two validators over one grammar
+      drift, and undetected drift reads to a user as arbitrariness.
+    paths:
+      - src/bloomery/spec/exports.py
+      - src/bloomery/spec/imports.py
+      - tests/property/test_schema_agreement.py
+      - tests/unit/test_spec/test_exports.py
+      - tests/unit/test_spec/test_imports.py
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      **Suggestion payloads are typed values, not encoded strings.** `covering_marts`
+      carries `MartCoverage(mart, metric, grain)` rather than `tuple[str, ...]`: the
+      field promises per-metric grain, and a tuple of strings can only deliver it
+      through a format the caller has to parse and nobody has documented. That is
+      the failure this section exists to remove, so shipping it inside the fix would
+      be self-defeating. Cost: two new public types (`MartCoverage`, `MeasureRef`)
+      that S-0035's closure then reaches and root-exports.
+    paths:
+      - src/bloomery/__init__.py
+      - src/bloomery/errors.py
+      - tests/unit/test_error_suggestions.py
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      **The purity carve-out is one file, not the CLI package.** Only `bloomery/cli/io.py`
+      is allowlisted; `render.py` and the argument parser stay under the guard. A
+      package-wide exemption would let any CLI module open a file while §5.3's tree
+      still claimed one did — the guard and the document disagreeing, which is worse
+      than no guard. The import direction is enforced separately, at package granularity,
+      because it answers a different question.
+    paths: [src/bloomery/cli/io.py, tests/unit/test_purity_guard.py]

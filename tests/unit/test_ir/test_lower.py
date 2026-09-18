@@ -1,4 +1,4 @@
-"""The shared lowering primitives (RFC 0005 lowering rules; RFC 0006 D7
+"""The shared lowering primitives (S-0022 lowering rules; S-0023/D-7
 consumes them for path-conflict shadows)."""
 
 from __future__ import annotations

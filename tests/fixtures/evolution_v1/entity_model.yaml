@@ -1,4 +1,4 @@
-# v1 — the RFC 0007 §5.5 baseline: order_item with a direct-recipe
+# v1 — the S-0024/worked-example-evolutionv1-v5 baseline: order_item with a direct-recipe
 # unit_price at decimal(10,2), plus quantity.
 spec_version: 1
 entities:

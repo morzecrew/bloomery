@@ -1,4 +1,4 @@
-"""Filter-vocabulary execution acceptance (RFC 0015 §6, RFC 0009 §5.10):
+"""Filter-vocabulary execution acceptance (S-0032/tests, S-0026/planner-test-obligations-rfcs-0011-0013):
 run the SQL the planner renders for the CNF vocabulary against DuckDB marts
 built from the emitted SQLMesh artifacts —
 
@@ -14,7 +14,7 @@ built from the emitted SQLMesh artifacts —
 verifies end-to-end behavior *through* MetricFlow, and MetricFlow itself
 parenthesizes each ``where_constraints`` entry it receives — so these tests
 cannot detect a dropped-parens regression in bloomery's own ``AnyOf``
-renderer. The merge-blocking parenthesization guarantee (RFC 0015 D11)
+renderer. The merge-blocking parenthesization guarantee (S-0032/D-11)
 rests on the unit rendering tests in
 ``tests/unit/test_planner/test_filters.py``:
 ``test_any_of_renders_as_one_parenthesized_or_constraint``,
@@ -91,7 +91,7 @@ def _by_store(*filters: Predicate | AnyOf) -> MetricRequest:
 
 
 # ....................... #
-# AnyOf ≡ UNION of the single-predicate queries (RFC 0015 §6)
+# AnyOf ≡ UNION of the single-predicate queries (S-0032/tests)
 
 
 def test_any_of_equals_the_union_of_single_predicate_queries(
@@ -155,10 +155,10 @@ def test_policy_with_any_of_scopes_every_scan_and_stays_outside_the_or(
         dialect="duckdb",
         policy=policy,
     )
-    # The policy predicate reaches every scan of the mart (RFC 0013 §5.9d).
+    # The policy predicate reaches every scan of the mart (S-0030/what-is-superseded-and-the-boundary-that-makes-it-reversible (§5.9d)).
     verdicts = audit_scans(plan.sql, "gold.mart_orders", "store", "Acme")
     assert verdicts and all(protected for _scan, protected in verdicts)
-    # And it is never disjoined with the AnyOf branches (RFC 0015 D11).
+    # And it is never disjoined with the AnyOf branches (S-0032/D-11).
     assert not _policy_inside_a_disjunction(plan.sql, "store", "Acme")
     # The numeric leak check: unparenthesized rendering would let the
     # store='acme' branch bypass the policy and return 110.
@@ -167,7 +167,7 @@ def test_policy_with_any_of_scopes_every_scan_and_stays_outside_the_or(
 
 
 # ....................... #
-# like / ilike behavior (RFC 0015 D-Q2, decision 13)
+# like / ilike behavior (S-0032/D-2, decision 13)
 
 
 def _revenue(conn: duckdb.DuckDBPyConnection, clause: Predicate) -> Decimal:

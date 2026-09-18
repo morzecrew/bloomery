@@ -1,4 +1,4 @@
-"""Operand resolution (RFC 0006 §5.2): catalog metadata is declared or
+"""Operand resolution (S-0023/metadata-provenance-unit-tax-basis-currency): catalog metadata is declared or
 ``unknown`` — never inferred — and derivations enumerate deterministically."""
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ def _handmade_project(*, canonical: str | None) -> Project:
     )
     mapping = Mapping.model_validate(
         {
-            # `document` is the loader's to bind (RFC 0032 D3); this constructs
+            # `document` is the loader's to bind (S-0049/D-3); this constructs
             # the model directly, so it supplies its own.
             "document": "mapping_item",
             "mapping_version": 1,

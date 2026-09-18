@@ -1,4 +1,4 @@
-"""Schema/parser agreement, measured rather than assumed (RFC 0020 D10, §6).
+"""Schema/parser agreement, measured rather than assumed (S-0037/D-10, S-0037/tests).
 
 Two validators over one grammar drift. The drift is invisible until it reaches
 a user, and then it reads as bloomery being arbitrary: a proposal loop emits a
@@ -6,13 +6,13 @@ document the schema accepted, the parser refuses it, and nothing in either
 artifact explains why. So the gap is *measured* here.
 
 - **Every fixture validates.** The corpus is the documentation example set
-  (RFC 0009), so a schema that refuses one of them is refusing the spelling the
+  (S-0026), so a schema that refuses one of them is refusing the spelling the
   docs teach. This direction is total: no exceptions.
 - **What the parser refuses, the schema should too** — for the mutation
   classes JSON Schema can express: an unknown key, a wrong scalar type, an
   out-of-enum value.
 - **The converse is false on purpose** and is not asserted anywhere: parse
-  validates shape and grammar only (RFC 0002 D4), so the schema is legitimately
+  validates shape and grammar only (S-0019/D-4), so the schema is legitimately
   stricter wherever it carries a set the parser checks later. The schema is a
   pre-filter; the parser stays the authority (D10).
 
@@ -49,7 +49,7 @@ pytestmark = pytest.mark.property
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 #: Version key → the kind it identifies, inverted from the compiler's own map.
-#: The catalog is loaded separately (RFC 0002 D8) but is a spec kind like any
+#: The catalog is loaded separately (S-0019/D-8) but is a spec kind like any
 #: other for schema purposes.
 #:
 #: Inverted rather than written out, because a kind missing from a hand-kept
@@ -103,7 +103,7 @@ def test_every_fixture_validates_against_its_schema(
 #
 # **One-directional, deliberately.** The converse — schema refuses ⟹ parser
 # refuses — is false by design and must not be asserted: parse validates shape
-# and grammar only (RFC 0002 D4), so an invented transform name reaches the
+# and grammar only (S-0019/D-4), so an invented transform name reaches the
 # typecheck stage, while the schema carries the whitelist (D2) and refuses it
 # at the door. That is the export earning its keep, not a disagreement. Each
 # mutation therefore ``assume``s the parser refused before checking the schema
@@ -222,7 +222,7 @@ def test_a_string_replaced_by_a_mapping_is_refused_by_both(
     assert isinstance(mutated, dict)
     # A single-key mapping *is* an authored transform step, so replacing a
     # chain entry produces a well-formed document naming an unknown transform —
-    # accepted at parse, refused at typecheck (RFC 0002 D4).
+    # accepted at parse, refused at typecheck (S-0019/D-4).
     assume(not _parses(kind, mutated))
     assert not _validates(kind, mutated), path
 
@@ -232,7 +232,7 @@ def test_a_string_replaced_by_a_mapping_is_refused_by_both(
 def test_an_out_of_enum_value_is_refused_by_both(
     entry: tuple[str, SpecKind, dict[str, Any]], seed: int
 ) -> None:
-    """The class RFC 0020 D2 exists for: a value outside a closed set. If the
+    """The class S-0037/D-2 exists for: a value outside a closed set. If the
     schema left the set open this passes the schema and fails the parser, which
     is exactly the round-trip a constrained decoder is supposed to save."""
     _name, kind, document = entry
@@ -269,7 +269,7 @@ def test_the_schema_accepts_a_float_tolerance_the_parser_refuses() -> None:
     """The one measured gap, recorded rather than tolerated silently.
 
     ``Reconcile.tolerance`` is a ``Decimal`` with a ``mode="before"`` validator
-    refusing Python ``float`` (RFC 0016: an unquoted YAML number would reach
+    refusing Python ``float`` (S-0033: an unquoted YAML number would reach
     emission as a binary approximation of what the author wrote). JSON Schema
     has one numeric type and cannot tell ``0.01`` from ``1``, and narrowing the
     schema to strings would be *wrong* — ``tolerance: 0`` is an int and parses
@@ -293,7 +293,7 @@ def test_the_schema_accepts_a_float_tolerance_the_parser_refuses() -> None:
 
 
 def test_the_schema_accepts_every_authored_transform_spelling() -> None:
-    """The divergence RFC 0020 §5.1 had to repair rather than record.
+    """The divergence S-0037/bloomery-schema-json-schema-export had to repair rather than record.
 
     ``TransformStep`` normalizes three authored spellings into one model, and
     Pydantic documents only the model. Left alone, the schema would refuse
@@ -316,7 +316,7 @@ def test_agg_is_closed_on_a_mart_and_free_on_a_metric() -> None:
 
     ``Mart.measures``' aggregate is ``Literal["avg", "count", "max", "min",
     "sum"]``; ``Metric.agg`` is a bare ``str | None``. The export mirrors the
-    models faithfully, so RFC 0020 D2's "every closed set appears as an enum"
+    models faithfully, so S-0037/D-2's "every closed set appears as an enum"
     is met *where the model closes the set* and cannot be met where it does
     not — narrowing ``Metric.agg`` here would be the schema disagreeing with
     the parser, which is the failure this module measures.
@@ -324,7 +324,7 @@ def test_agg_is_closed_on_a_mart_and_free_on_a_metric() -> None:
     An out-of-vocabulary ``agg`` on a metric is accepted at parse and is inert
     downstream: the MetricFlow manifest for ``agg: count`` and
     ``agg: bogus_agg`` is byte-identical, so nothing wrong is emitted and
-    nothing says the key was ignored. Narrowing the model is an RFC 0002
+    nothing says the key was ignored. Narrowing the model is an S-0019
     change, not one this wave may make silently; pinned here so the asymmetry
     is a recorded measurement rather than a hole nobody looked into.
     """
@@ -358,7 +358,7 @@ def test_a_transform_step_that_is_neither_or_both_is_refused_by_both(
     ``TransformStep``'s fields all carry defaults, so Pydantic writes nothing
     required and the generated object accepted an empty step and a step
     claiming to be a transform *and* a step reference — both of which the model
-    validator refuses (RFC 0017 D51). Neither is a mutation of a real fixture:
+    validator refuses (S-0034/D-51). Neither is a mutation of a real fixture:
     the strategies above replace and add, and this is an *absence*. Review
     found it; this is what would find it again.
     """
@@ -374,7 +374,7 @@ def test_a_transform_step_that_is_neither_or_both_is_refused_by_both(
 
 def test_the_schema_refuses_a_boolean_transform_argument_the_parser_coerces() -> None:
     """One measured divergence, of the ``tolerance`` shape and from the other
-    direction (RFC 0020 D10).
+    direction (S-0037/D-10).
 
     ``TransformStep.args`` is ``str | int``, and Pydantic's lax mode coerces a
     bool into it: ``{round: [true]}`` parses and arrives as the **integer 1**,
@@ -386,7 +386,7 @@ def test_the_schema_refuses_a_boolean_transform_argument_the_parser_coerces() ->
 
     Stricter-schema is the safe direction here — a constrained generator simply
     never writes ``true`` where an argument belongs. Narrowing ``args`` to
-    reject it is a change to the *spec language*, an RFC 0002/0004 question,
+    reject it is a change to the *spec language*, an S-0019, S-0021 question,
     not one this wave settles by tightening an export.
     """
     for spelling in (True, False):
@@ -411,7 +411,7 @@ def test_the_schema_refuses_a_boolean_transform_argument_the_parser_coerces() ->
 
     parsed = Mapping.model_validate(
         {
-            # Bound by `validate_document` on every loaded document (RFC 0032
+            # Bound by `validate_document` on every loaded document (S-0049
             # D1); this bypasses it to reach the parser directly, so it says so
             # itself. See `test_document_is_in_the_model_and_not_the_schema`.
             "document": "mapping",
@@ -430,7 +430,7 @@ def test_document_is_in_the_model_and_not_the_schema() -> None:
     """The one divergence that is a *field*, recorded rather than met later.
 
     `Mapping.document` is required by the model and absent from the schema
-    (RFC 0032 D1/D3). That is deliberate on both sides: the schema describes
+    (S-0049/D-1, S-0049/D-3). That is deliberate on both sides: the schema describes
     what an author writes, and `document` is the name the loader binds — so a
     required `document` in the exported schema would have an editor demand the
     one key the loader refuses.
@@ -474,8 +474,8 @@ def test_the_schema_is_stricter_about_an_explicitly_null_step() -> None:
 
 
 def test_an_invented_transform_is_refused_by_the_schema() -> None:
-    """RFC 0020 D2's payoff. Transform-name existence is a *typecheck*-stage
-    refusal (RFC 0002 D4), so the parser accepts this document and only a later
+    """S-0037/D-2's payoff. Transform-name existence is a *typecheck*-stage
+    refusal (S-0019/D-4), so the parser accepts this document and only a later
     stage refuses it. The schema refuses it up front, which is what makes a
     constrained decoder unable to write it at all."""
     document = {

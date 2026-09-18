@@ -1,4 +1,4 @@
-"""The exposures document (RFC 0056 §5.1).
+"""The exposures document (S-0063/the-document).
 
 Everything here is decidable from the document alone — its kind vocabulary, its
 shape, and the two ways an exposure can be self-defeating without naming
@@ -48,7 +48,7 @@ def test_every_dbt_exposure_type_is_accepted(kind: str) -> None:
 
 def test_a_kind_dbt_does_not_have_is_refused() -> None:
     """``report`` is the one an author reaches for and dbt does not define; an
-    earlier draft of RFC 0056 §5.1 had it in the enum and ``analysis`` out."""
+    earlier draft of S-0063/the-document had it in the enum and ``analysis`` out."""
 
     with pytest.raises(ValueError, match="Input should be"):
         _validate(kind="report")
@@ -94,7 +94,7 @@ def test_an_unknown_key_is_refused() -> None:
 
 
 def test_a_second_exposures_document_is_refused() -> None:
-    """At most one per project, like every other kind (RFC 0002 §5.5)."""
+    """At most one per project, like every other kind (S-0019/spec-model-surface)."""
 
     sources = fixture_sources("ecom_basic")
     sources["exposures_again"] = sources["exposures"]
@@ -106,7 +106,7 @@ def test_a_second_exposures_document_is_refused() -> None:
 def test_the_version_key_identifies_the_document() -> None:
     """It is the kind discriminator, so a document without one cannot be
     identified at all — and one written for a future bloomery is refused
-    rather than read as v1 (RFC 0018 D7)."""
+    rather than read as v1 (S-0035/D-7)."""
 
     with pytest.raises(ValueError, match="Input should be 1"):
         ExposureSet.model_validate({"exposures_version": 2, "exposures": {}})

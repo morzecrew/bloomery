@@ -1,4 +1,4 @@
-"""The quality mart's IR node (RFC 0016 §5.8): the parts decided *before*
+"""The quality mart's IR node (S-0033/the-quality-mart): the parts decided *before*
 any emitter sees it.
 
 Emission shape lives in ``tests/unit/test_emit/test_quality_mart.py``; what
@@ -42,9 +42,9 @@ def test_the_mart_is_an_ordinary_mart_node() -> None:
     assert is_quality_mart(mart)
     assert mart.materialization is Materialization.FULL
     assert mart.joins == ()
-    # Every column is a requestable dimension, as for any mart (RFC 0010 §10).
+    # Every column is a requestable dimension, as for any mart (S-0027 (§10)).
     assert {d.column for d in mart.dimensions} == {c.name for c in mart.columns}
-    # The date role expands like an authored one, so RFC 0010 D9 is satisfied
+    # The date role expands like an authored one, so S-0027/D-9 is satisfied
     # by the same mechanism rather than by an exemption.
     assert {f"{QUALITY_RUN_ROLE}_{bucket}" for bucket in DATE_BUCKETS} <= {
         c.name for c in mart.columns
@@ -60,7 +60,7 @@ def test_measures_are_the_four_counts_and_never_a_stored_rate() -> None:
 def test_the_rate_metric_is_a_ratio_with_its_operands() -> None:
     ir = attach_quality_mart(_ir_with_quality())
     rate = next(m for m in ir.metrics if m.name == "quality_quarantine_rate")
-    # RFC 0038's member, not `NON_ADDITIVE` beside a `ratio:`. bloomery's own
+    # S-0053's member, not `NON_ADDITIVE` beside a `ratio:`. bloomery's own
     # generated metric was the first spec the shape guard refused when the
     # member was minted (logs/T-0023.md, D-147).
     assert rate.additivity is Additivity.RATIO

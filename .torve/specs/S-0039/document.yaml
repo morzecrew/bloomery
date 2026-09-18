@@ -1,0 +1,351 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0039
+title: >-
+  `SpecEvidence`: spec analysis as a first-class output
+kind: design
+status: accepted
+implementation: complete
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A caller who wants to know what a spec *would* produce — before running anything, before
+  data exists — currently writes a `try`/`except` around `compile_project` to collect
+  refusals, a separate `resolve()` call for reachability, and their own walk of the IR for
+  mart shape. Three calls, two exception paths, one hand-rolled traversal, repeated by every
+  consumer.
+
+  `evaluate()` returns all of it as one frozen value:
+
+  ```python
+  def evaluate(project: Project, *, catalog: Catalog | None = None,
+               steps: StepRegistry = EMPTY_REGISTRY) -> SpecEvidence
+  ```
+
+  It adds no capability. Its contribution is naming a concept the library already computes
+  and currently discards at the exception boundary — and making a *partial* answer available
+  where today a single refusal collapses the whole analysis.
+motivation: |-
+  **The immediate consumer is a proposal loop.** A machine-authored spec needs an assessment
+  before a human reviews it, and the assessment that matters is not "did it compile" but
+  "what would it give you." Bloomery knows: which metrics resolve, which do not and *which
+  specific leaf is missing*, what refusals fired and where. Today a consumer reaches that
+  through an exception handler, which is the wrong shape twice over — refusal is a normal
+  outcome here, not an error condition, and an exception carries one batch where the caller
+  wants the batch *and* the reachability that would have followed.
+
+  **The deeper point is partiality.** `compile_project` is all-or-nothing by design, and
+  correctly so: it emits artifacts or it refuses. But a reviewer reading a draft spec wants
+  "seven metrics reachable, two blocked on `cogs`, one refusal at
+  `mappings/crm.yaml:fields.email`" — an assessment that survives the refusal. That is not
+  available today at any price, and it is the single most useful sentence bloomery can
+  produce about a spec it will not compile.
+
+  **The reachability half is already the best thing the library knows.** S-0022 computes,
+  for every unreachable metric, the specific missing leaf. "You would get revenue and order
+  count but not margin, because nothing maps to `cogs`" is the sentence that makes a review
+  take thirty seconds instead of twenty minutes. It is reachable today only by calling
+  `resolve()` and knowing to.
+current_state: |-
+  Verified against `main` @ `3da72c5` (2026-08-12):
+
+  - `resolve(project, catalog) -> Resolution` — root-exported, returns reachable and
+    unreachable metrics with missing leaves per S-0022. Raises on cross-spec reference
+    errors (batched).
+  - `compile_project(...) -> tuple[EmittedArtifact, ...]` — raises `BloomeryError` on any
+    refusal; the batched refusal set is carried on the exception.
+  - `build_project_ir(...) -> ProjectIR` — the shared front half of both.
+  - Guardrails (S-0023) and quality declaration refusals (S-0033) batch within their
+    stage; a batch from an earlier stage prevents a later stage running at all.
+  - No function returns "everything knowable" as a value. No summary of mart shape is
+    exposed; a caller wanting grain and measure sets walks `ProjectIR` directly.
+  - `Resolution` is exported; `ProjectIR` is not (S-0035/signature-closure fixes that).
+goals: |-
+  **Goals**
+
+  - One call, one frozen return type, for "what would this spec give me."
+  - A **partial** assessment where the current API gives none — refusals reported *alongside*
+    whatever analysis completed.
+  - Refusals as a value in the normal path, not only on an exception.
+  - No new analysis, no execution, no data access.
+non_goals: |-
+  - **Data-dependent evidence** — coercion failure rates, null deltas, sample rows, row
+    counts. All require execution, which is the library's boundary. The platform composes
+    `evaluate()` with its own dry-run.
+  - Replacing `resolve()` or `compile_project()`. Both stay; `evaluate()` composes them.
+  - Cost or performance estimation. Bloomery does not know table sizes.
+  - Judgement. `SpecEvidence` carries facts; approve/reject is the caller's.
+  - Suggestions beyond S-0037's structured refusal fields, which `evaluate()` surfaces
+    unchanged.
+design:
+  - key: the-type
+    md: |-
+      ```python
+      # bloomery/evidence.py  (new, public)
+
+      # UnreachableMetric is NOT declared here — the IR already has it (see below);
+      # it gains `via` and is re-exported:
+      #
+      #     name: str
+      #     missing: tuple[str, ...]     # the specific leaves — S-0022's substance
+      #     via: tuple[str, ...] = ()    # intermediate metrics, when blocked transitively
+
+      @dataclass(frozen=True)
+      class MartSummary:
+          name: str
+          grain: str
+          measures: tuple[str, ...]
+          dimensions: tuple[str, ...]     # role-qualified
+          materialization: MaterializationName
+
+      @dataclass(frozen=True)
+      class SpecEvidence:
+          reachable: tuple[str, ...]
+          unreachable: tuple[UnreachableMetric, ...]
+          refusals: tuple[BloomeryError, ...]     # batched, each with source_path
+          marts: tuple[MartSummary, ...]
+          entities: tuple[str, ...]
+          stage_reached: Stage                    # how far analysis got
+          fingerprint: str | None                 # None when the IR did not build
+      ```
+
+      All tuples sorted, and each by a **declared key** — determinism applies here as
+      everywhere, and `sorted()` over `BloomeryError` or `MartSummary` values does not merely
+      order badly, it raises `TypeError`: neither defines `__lt__`, and Python has no
+      lexicographic fallback for dataclasses or exceptions. The keys are part of the contract,
+      not an implementation detail:
+
+      | Field | Sort key |
+      |---|---|
+      | `reachable`, `entities` | the string itself |
+      | `unreachable` | `(name, missing, via)` |
+      | `marts` | `(name, grain)` |
+      | `refusals` | `(source_path or "", type(err).__name__, str(err))` |
+
+      `source_path` is optional on `BloomeryError`, so the empty string stands in for `None`
+      rather than the sort failing on a mixed tuple — a refusal with no source path sorts first
+      and deterministically.
+
+      **`UnreachableMetric` already exists**, in
+      [`ir/nodes.py:552`](src/bloomery/ir/nodes.py) — as `(name, missing)`, populated by
+      `resolve()` and carried on `ProjectIR.unreachable`. Declaring a second dataclass of the
+      same name in `bloomery/evidence.py` and root-exporting it would leave two types with one
+      name, differing in a field, one of them reachable from `ProjectIR` and the other from
+      `SpecEvidence`; a caller comparing them would get `False` and no explanation.
+
+      So `evidence.py` does not define it. The **IR type is extended** with `via: tuple[str, ...]
+      = ()`, defaulted so every existing construction keeps working, and re-exported. That is
+      also what §5.2's "projection, not recomputation" already implies: `SpecEvidence.unreachable`
+      *is* `ProjectIR.unreachable`, not a copy of it in a parallel shape.
+
+      **That addition is not free, and the default does not make it free.** The canonical
+      encoder ([`ir/fingerprint.py:54`](src/bloomery/ir/fingerprint.py)) writes a
+      dataclass as its class name, its **field count**, then each field name and value:
+
+      ```text
+      CS17:UnreachableMetric2:S4:nameS1:xS7:missingT1:S1:y      # today
+      CS17:UnreachableMetric3:S4:nameS1:xS7:missingT1:S1:yS3:viaT0:   # with via
+      ```
+
+      So every spec with an unreachable metric gets a new `blm1:` fingerprint, and
+      `bloomery_ir_version` goes 4 → 5 — the managed path S-0033 and S-0034 already took.
+      The draft's `name` → `metric` rename costs **exactly the same** by the same encoding, so
+      cost is not what decides between them: the rename is dropped because it buys a synonym,
+      while `via` carries information nothing else does.
+
+      `stage_reached` is what makes partiality honest:
+
+      ```python
+      class Stage(StrEnum):
+          PARSE = "parse"; RESOLVE = "resolve"; TYPECHECK = "typecheck"
+          GUARDRAILS = "guardrails"; MARTS = "marts"; COMPLETE = "complete"
+      ```
+
+      Empty `unreachable` means *nothing is unreachable* only at `COMPLETE`. At `PARSE` it means
+      reachability was never computed. Without this field an empty tuple is ambiguous in exactly
+      the way that produces a wrong conclusion, so **every consumer must read `stage_reached`
+      before reading anything else**, and the docstring says so.
+  - key: partial-analysis-run-every-stage-that-can-run
+    md: |-
+      `evaluate()` runs the pipeline and, at the first stage that refuses, **stops and reports
+      what completed** — rather than propagating.
+
+      ```text
+      parse ──▶ resolve ──▶ typecheck ──▶ guardrails ──▶ marts ──▶ COMPLETE
+        │          │            │             │            │
+        └──────────┴────────────┴─────────────┴────────────┴──▶ SpecEvidence(stage_reached=…)
+      ```
+
+      Two deliberate constraints:
+
+      **Stages are not reordered or skipped to salvage more.** A guardrail refusal means the
+      model is wrong; continuing to mart summarization would report a shape derived from a spec
+      bloomery has already said is invalid. `stage_reached` is honest about where analysis
+      became untrustworthy — an over-eager partial answer is worse than an incomplete one.
+
+      **Within a stage, batching is unchanged.** S-0019, S-0023's batched reporting already
+      collects every refusal in a stage; `evaluate()` surfaces that batch, it does not re-batch.
+
+      This is the only genuinely new behaviour in the RFC, and it is behaviour the pipeline
+      already supports — the stages are already sequential and already batch. What is new is not
+      throwing away the prefix.
+  - key: evaluate-composes-it-does-not-reimplement
+    md: |-
+      ```python
+      def evaluate(project, *, catalog=None, steps=EMPTY_REGISTRY) -> SpecEvidence:
+          """Everything knowable about a spec without touching data.
+
+          Never raises for a spec-level refusal — refusals are the return value.
+          Read `stage_reached` before interpreting any other field.
+          """
+      ```
+
+      It calls the same `build_project_ir` → `resolve` path everything else does. `MartSummary`
+      is projected from `ProjectIR`, not recomputed. No analysis exists here that does not exist
+      elsewhere.
+
+      **Programming errors still raise.** A `TypeError` from a malformed `StepRegistry`, a
+      `MemoryError`, anything that is a bug rather than a spec judgement — those propagate.
+      `evaluate()` catches `BloomeryError` and nothing else. A function that returns instead of
+      raising on a caller bug would be worse than the exception path it replaces.
+
+      `InvariantViolated` (S-0020/D-11) is the one subclass where that rule bites: it *is* a
+      `BloomeryError` by inheritance and *is* a bloomery bug by meaning, so it would be caught
+      and reported as a spec refusal. It is re-raised explicitly rather than swallowed — the
+      narrow catch is only as good as the taxonomy under it, and this is the known soft spot.
+  - key: consumers
+    md: |-
+      **The proposal loop** (the platform):
+
+      ```python
+      ev = evaluate(proposed_project, catalog=catalog, steps=registry)
+      if ev.stage_reached is not Stage.COMPLETE:
+          return reject(ev.refusals)              # structured, with source paths
+      present_to_reviewer(reachable=ev.reachable, blocked=ev.unreachable, marts=ev.marts)
+      ```
+
+      The reviewer sees "seven metrics, two blocked on `cogs`, three marts" — which, combined
+      with a data-dependent dry-run the platform runs separately, is the evidence payload the
+      approve/reject decision needs.
+
+      **`bloomery resolve`** (S-0037) re-points at `evaluate()` and gains refusal reporting:
+      the CLI today would print reachability or raise; afterwards it prints reachability *and*
+      refusals, which is what a spec author actually wants when the spec is mid-draft.
+
+      **Editors and CI** — `--format json` over `SpecEvidence` is a diffable assessment of a
+      spec change, complementing `plan()`'s assessment of a spec *diff*.
+  - key: where-the-boundary-sits
+    md: |-
+      `SpecEvidence` is deliberately half of what a reviewer needs. The other half is
+      data-dependent — coercion rates, null deltas, sample rows — and requires execution.
+
+      ```text
+      bloomery.evaluate()   →  static evidence      (specs only, no data)
+      platform dry-run      →  data evidence        (sample rows through the emitted SQL)
+                   ↘
+              one review payload
+      ```
+
+      This is S-0038/the-disposition-stated's disposition applied to an output rather than an input: the thing
+      bloomery can compute without data, it computes; the thing it cannot, it does not pretend
+      to. The temptation here is real — `evaluate()` looks like the natural home for "and also
+      run it against a sample" — and taking it would put an engine connection inside the
+      compiler, ending the infrastructure-free test suite in the same commit.
+tests: |-
+  Per S-0026 tiers. Unit-tier throughout — no infrastructure.
+
+  | Tier | Test |
+  |---|---|
+  | Unit | Every **valid** fixture: `evaluate()` returns `stage_reached=COMPLETE`, `refusals=()`, and `reachable`/`unreachable` **equal to** what `resolve()` returns — the composition is proven, not assumed. The deliberately invalid fixtures are covered by the three rows below, which assert the opposite outcome. |
+  | Unit | `fanout_trap` returns `stage_reached=GUARDRAILS` with the `GrainViolation` in `refusals`, and does **not** raise. |
+  | Unit | A spec with a parse error returns `stage_reached=PARSE`, `fingerprint=None`, and empty analysis tuples. |
+  | Unit | A spec refused at `guardrails` still carries the `resolve`-stage reachability computed before the refusal — the partiality claim, tested on the case it exists for. |
+  | Unit | `evaluate()` never raises `BloomeryError` **other than `InvariantViolated`** for any fixture, including deliberately invalid ones. The exclusion is not a caveat on the promise, it is §5.3's boundary: `InvariantViolated` subclasses `BloomeryError` but reports a bloomery bug, not a spec refusal, so reporting it as one would hide it. |
+  | Unit | A programming error (malformed `StepRegistry` type) **does** raise — the catch is narrow. |
+  | Unit | `InvariantViolated` propagates rather than being reported as a refusal (§5.3). |
+  | Unit | `MartSummary` fields match `ProjectIR` for every fixture with marts (projection, not recomputation). |
+  | Property | `evaluate()` is deterministic across `PYTHONHASHSEED`; all tuples sorted. |
+  | Unit | S-0035 signature closure holds — `SpecEvidence`, `UnreachableMetric`, `MartSummary`, `Stage` **and `MaterializationName`** are root-exported. The last is reached through `MartSummary.materialization` and is easy to miss precisely because it is a `Literal` alias rather than a class; S-0035's own inventory missed `LogicalType` the same way. |
+  | Unit | S-0037's suggestion fields survive into `refusals` unchanged. |
+
+  The fourth row is the one that would catch a regression to the old behaviour: it is easy to
+  implement `evaluate()` as a `try`/`except` around `compile_project` that discards the
+  prefix, which passes every other test here.
+docs: |-
+  - New `pages/docs/how-to/evaluate-a-spec.md` — the call, the `stage_reached` contract, the
+    proposal-loop shape.
+  - `pages/docs/reference/api.md` — the four new types.
+  - `pages/docs/concepts/compile-pipeline.md` — the stage sequence, now user-visible through
+    `Stage`.
+  - `pages/docs/how-to/use-the-cli.md` (S-0037) — `bloomery resolve` re-pointed.
+out_of_scope: |-
+  - Data-dependent evidence of any kind. The boundary, restated in §5.5.
+  - Cost or row-count estimation.
+  - Approve/reject judgement, scoring, or confidence.
+  - Replacing `resolve()` or `compile_project()`.
+  - Caching. Callers cache on `fingerprint`, as they do for compilation.
+risks: |-
+  | Risk | Mitigation |
+  |---|---|
+  | `evaluate()` becomes the place data-dependent evidence gets added | §5.5 and decision 6 state the refusal; S-0036's purity guard blocks an engine import in `src/` structurally. The pressure is predictable and the guard is not advisory. |
+  | `stage_reached` is ignored and an empty `unreachable` at `PARSE` is read as "all reachable" | The docstring leads with it; §6 tests the ambiguous case; the CLI renderer prints the stage first. It cannot be made impossible, only loud. |
+  | Partial analysis reports a shape derived from an invalid spec | §5.2: stages are never reordered or skipped to salvage more, and analysis stops at the first refusing stage. An over-eager partial answer is worse than an incomplete one. |
+  | A third entry point diverges from `compile_project`'s view of a spec | It composes the same `build_project_ir` → `resolve` path; §6's equality test against `resolve()` is the guard. |
+  | The narrow `except BloomeryError` swallows a bug wearing a `BloomeryError` | Known and named: `InvariantViolated` is exactly that, and is re-raised explicitly (§5.3). Any future leaf meaning "bloomery bug" must join it — recorded as the assumption this rests on. |
+sections:
+  - key: about
+    md: |-
+      - **Status:** 📝 Draft
+      - **Scope:** One new public function, `evaluate(project) -> SpecEvidence`, returning
+        everything knowable about a spec **without touching data**: reachable and unreachable
+        metrics with their specific missing leaves, batched refusals with source paths, and a
+        mart summary. A re-presentation of `resolve()` plus batched compile errors under one
+        call and one return type. Adds no analysis bloomery does not already perform, executes
+        nothing, and reads no data.
+      - **Related:** S-0022 (`Resolution`, reachability with specific missing leaves — the
+        substance this exposes), S-0019 (batched errors with source paths), S-0023 (the
+        batched guardrail stage), S-0027 (mart grain and flattening — the summary),
+        S-0035 (**blocking**: signature closure covers
+        the new return type),
+        S-0037 (landed as M17 and retired; `bloomery resolve` is re-pointed at this in M19),
+        S-0038 §5.5 (the boundary this respects).
+      - **Adoption audit:** every claim in §3 verified; no corrections were needed.
+  - key: decision-notes
+    md: >-
+      _(Decision rows from here on are this document's D-1…; see `decisions.yaml`.)_
+  - key: phasing
+    md: |-
+      Design locked by this RFC; implementation lands as wave **M19**, after S-0035's M15
+      (decision 1 adds root exports, which the signature-closure test must already exist to
+      police). S-0037's M17 has landed, so `bloomery resolve` exists and is re-pointed rather
+      than written twice.
+
+      Independent of S-0036 and S-0038.
+
+      Within the wave: `SpecEvidence` and the stage-stopping pipeline first (decisions 1–5, 7),
+      then the CLI re-point (decision 8). That re-point can no longer be "an amendment appended
+      to S-0037" as decision 8 words it — M17 landed and the document was retired with it, so
+      the amendment lands as the change itself: `bloomery resolve` calls `evaluate()`, and
+      `pages/docs/how-to/use-the-cli.md` says what it now reports.
+questions:
+  - id: Q-1
+    text: >-
+      1. Should `SpecEvidence` carry the compiled artifacts when `stage_reached is
+      COMPLETE`? It would let a caller replace `compile_project` entirely. Leaning:
+      no — a type meaning "assessment" should not sometimes also mean "output," and
+      compilation is per-target while evidence is not. 2. Should `MartSummary` include
+      an estimated column count, or anything shape-adjacent beyond names? Leaning:
+      no — it is one step from row estimates, which is one step from needing data.
+      3. Does `evaluate()` need a `targets` parameter, so target-specific refusals
+      (`UnsupportedByTarget`) appear? Today it stops before emission and cannot see
+      them. Leaning: yes eventually, as `targets: tuple[Target, ...] = ()` with an
+      `EMIT` stage — but only once a consumer needs it, since it makes evidence target-dependent
+      and the proposal loop's first question is target-independent. 4. Should `Stage`
+      be public, or is exposing the pipeline's internal sequence a coupling bloomery
+      will regret? It must be public for `stage_reached` to be readable; the question
+      is whether adding a stage is then a breaking change. Leaning: treat `Stage`
+      as an open enum in the policy — consumers compare against `COMPLETE` and treat
+      everything else as incomplete.

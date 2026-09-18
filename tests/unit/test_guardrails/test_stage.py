@@ -1,4 +1,4 @@
-"""The guardrail stage (RFC 0006 §5.1, D2, D9): batched project-wide
+"""The guardrail stage (S-0023/stage-shape, S-0023/D-2, S-0023/D-9): batched project-wide
 aggregation sorted by (source_path, type name), purity/idempotence of the
 amendments, and the M4 acceptance — `fanout_trap` and
 `semi_additive_inventory` fail closed with useful messages."""
@@ -25,7 +25,7 @@ pytestmark = pytest.mark.unit
 
 
 # ....................... #
-# Acceptance: fanout_trap fails closed (RFC 0006 §12; mart level RFC 0006 D10)
+# Acceptance: fanout_trap fails closed (S-0023/phasing; mart level S-0023/D-10)
 
 
 def test_fanout_trap_fails_closed_with_both_grains_named() -> None:
@@ -46,7 +46,7 @@ def test_fanout_trap_fails_closed_with_both_grains_named() -> None:
     assert "one row per order" in message
     assert "relationship 'item_of_order' (many_to_one)" in message
     assert "Fix: add an explicit aggregation/allocation over 'order_item'" in message
-    # The mart-level refusal (RFC 0006 §5.7 worked-example quality).
+    # The mart-level refusal (S-0023/worked-examples worked-example quality).
     assert "measure 'shipping_cost' has grain 'order' (one row per order)" in message
     assert "duplicated once per 'order_item' row" in message
     assert "Fix: remove it from this mart's measures" in message
@@ -66,7 +66,7 @@ def test_fanout_trap_violations_sort_by_source_path() -> None:
 
 
 # ....................... #
-# Acceptance: scd2_mart_refusal fails closed on both sides (RFC 0023 D1/D2)
+# Acceptance: scd2_mart_refusal fails closed on both sides (S-0040/D-1, S-0040/D-2)
 
 
 def test_scd2_mart_refusal_fails_closed_on_both_sides() -> None:
@@ -85,14 +85,14 @@ def test_scd2_mart_refusal_fails_closed_on_both_sides() -> None:
     assert "counts revisions" in message
     assert "matches every version of each 'customer' key" in message
     # And each routes to the fix its own side has. Only the flatten can be
-    # qualified by an anchor (RFC 0023 §5.3); a base has nothing to qualify,
+    # qualified by an anchor (S-0040/phase-2-the-as-of-join); a base has nothing to qualify,
     # so sending its author to `as_of:` would be a dead end.
     assert message.count("Fix: declare an anchor") == 1
     assert message.count("Fix: declare the entity scd: type1, or build a type1") == 1
 
 
 def test_the_same_project_without_the_scd2_line_compiles_clean() -> None:
-    """The one-line discrimination (RFC 0023 §6).
+    """The one-line discrimination (S-0040/tests).
 
     ``scd: type2`` is the whole difference between the fixture and a project
     that lowers two marts — so the refusal is pinned to the *combination*
@@ -111,7 +111,7 @@ def test_the_same_project_without_the_scd2_line_compiles_clean() -> None:
 
 
 def test_a_type2_entity_with_no_mart_still_lowers() -> None:
-    """RFC 0023 §8: ``scd: type2`` as a silver target is untouched. The
+    """S-0040/out-of-scope: ``scd: type2`` as a silver target is untouched. The
     fixture that owns that coverage must keep compiling."""
     project, catalog = load_fixture("scd2_customers")
     ir = build_project_ir(project, catalog)
@@ -120,7 +120,7 @@ def test_a_type2_entity_with_no_mart_still_lowers() -> None:
 
 
 # ....................... #
-# Acceptance: semi_additive_inventory refusal variants (RFC 0006 §12)
+# Acceptance: semi_additive_inventory refusal variants (S-0023/phasing)
 
 
 def _inventory_sources(metrics: str) -> dict[str, str]:
@@ -132,7 +132,7 @@ def _inventory_sources(metrics: str) -> dict[str, str]:
 def test_semi_additive_inventory_base_fixture_compiles_clean() -> None:
     project, catalog = load_fixture("semi_additive_inventory")
     ir = build_project_ir(project, catalog)
-    # Plus the quality mart's own metrics (RFC 0016 §5.8), which every
+    # Plus the quality mart's own metrics (S-0033/the-quality-mart), which every
     # quality-carrying project gains.
     (metric,) = [m for m in ir.metrics if m.name not in QUALITY_METRICS]
     assert metric.name == "stock_on_hand"
@@ -212,17 +212,17 @@ metrics:
     assert isinstance(leaf, NonAdditiveWithoutComponents)
     assert "'average_stock'" in str(leaf)
     # The remedy names the word the block is legal under; `non_additive` with
-    # a `ratio:` block is what the shape guard now refuses (RFC 0038 D7).
+    # a `ratio:` block is what the shape guard now refuses (S-0053/D-7).
     assert "additivity: ratio with ratio: {numerator, denominator}" in str(leaf)
 
 
 # ....................... #
-# Batching and ordering (RFC 0006 D2)
+# Batching and ordering (S-0023/D-2)
 
 
 def test_violations_with_one_source_path_sort_by_type_name() -> None:
     # One metric, two rules at one source path: net/gross across grains gives
-    # GrainMismatch < TaxBasisMismatch, sorted by type name (RFC 0006 D2).
+    # GrainMismatch < TaxBasisMismatch, sorted by type name (S-0023/D-2).
     catalog_text = """\
 catalog_version: 1
 vertical: v
@@ -292,7 +292,7 @@ metrics:
 
 
 # ....................... #
-# Purity and idempotence (RFC 0006 D9)
+# Purity and idempotence (S-0023/D-9)
 
 
 def test_stage_is_identity_on_a_clean_project() -> None:

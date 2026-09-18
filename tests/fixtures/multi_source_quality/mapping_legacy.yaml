@@ -14,7 +14,7 @@ fields:
   placed_at: {from: "$.created", transform: [{parse_ts: ISO8601}]}
   # This shop spells its statuses its own way, and `enum_map` maps them onto
   # the entity's vocabulary. The admissible set `in_enum` judges by is *this*
-  # chain's targets (RFC 0024 D32) — the rule agrees with the other mapping's,
+  # chain's targets (S-0041/D-32) — the rule agrees with the other mapping's,
   # as D33 requires, and the chain feeding it does not and may not.
   status:
     from: "$.state"

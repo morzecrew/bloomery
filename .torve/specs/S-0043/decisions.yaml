@@ -1,0 +1,116 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      **The dbt emitter gains singular tests** — `.sql` files under a declared `test-paths`,
+      one per audit with no schema-test mapping. This is the artifact five refusals
+      were each missing, and it is dbt's own mechanism rather than an approximation
+      of one. Consequence: `_entity_tests`'s `else` branch stops being a raise and
+      becomes a route, so "no honest mapping" ceases to be a reachable state for an
+      audit kind.
+    paths: [src/bloomery/emit/dbt/__init__.py]
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      **A `dbt build`-conditional block satisfies S-0041/D-5.** A dbt test does not
+      run under `dbt run`, so the collision audit is blocking only under `dbt build`.
+      Accepted because **every schema test this emitter already ships has the same
+      property** — a `not_null` audit does not block `dbt run` either — and refusing
+      the merge for a property shared by every existing dbt check would apply a standard
+      exactly once. Consequence: the emitted project's operator contract states that
+      bloomery's blocking audits on dbt are blocking under `dbt build`; that sentence
+      is this RFC's cost and it is not optional.
+    paths: [tests/e2e/test_dbt_parse.py]
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      **`on_fail` maps to `severity`** — `fail` → `error` written explicitly, `flag`
+      → `warn` — **and the operator contract carries two sentences, not one.** The
+      mapping is exact; the *disposition* is not, because dbt lets the invocation
+      choose the consequence in both directions. `dbt run` skips a `fail` audit (D2)
+      and `--warn-error` promotes a `flag` one, so the contract states both or it
+      misleads: a reader given only D2's sentence will believe `flag` is unconditionally
+      non-blocking. This is the one place bloomery's three-value disposition model
+      does not survive intact to a target — SQLMesh needs neither sentence, since
+      there the artifact carries `blocking false` and no flag overrides it. Graded
+      `LOCKED` with D2 because they are one fact about dbt seen from two sides, and
+      separating them is how half of it gets dropped. Also corrects half of `_refuse_reconcile`'s
+      stated argument (§3), recorded so the correction is not mistaken for a licence
+      to lift D58.
+    paths: [src/bloomery/emit/dbt/__init__.py, tests/e2e/test_dbt_parse.py]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      **Native schema tests stay preferred where dbt has an equivalent.** `not_null`
+      and `enum` keep their builtin lowering; the singular test is the fallback, not
+      the replacement. Rationale is reader-facing: a native test names its column
+      in `dbt test` output and appears in `dbt docs`, and a hand-rolled query does
+      neither. Graded `ASSUMED` because it is a readability claim, and D10 asks whoever
+      builds this to check it against real output.
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - tests/e2e/test_dbt_parse.py
+      - tests/unit/test_emit/test_quality_artifacts.py
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **The model reference goes
+      through `_reference_map`, never string formatting.** It is what makes a singular
+      test a DAG participant rather than a query that happens to name a table, and
+      it is already built for exactly this shape. Consequence: a singular test is
+      ordered against its model by dbt, which is what makes "blocking" mean anything
+      at all under D2.
+  - id: D-6
+    grade: OPEN
+    text: >-
+      **The test-file naming scheme.** A singular test's name is its filename in a
+      namespace shared with generic tests. Audit names are unique per project and
+      `[a-z0-9_]+`-constrained, so the raw name may suffice; a `bloomery_` prefix
+      would match the macro's convention at the cost of length. Whoever builds this
+      decides and logs it.
+    paths: [src/bloomery/emit/dbt/__init__.py]
+  - id: D-7
+    grade: OPEN
+    text: >-
+      **Whether the fingerprint header goes on a test artifact.** Every other emitted
+      file carries one. Whoever builds this decides, and the decision is either "yes,
+      uniformly" or an explicit statement of which artifact classes carry it and why.
+    paths: [src/bloomery/emit/dbt/__init__.py]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      **`reconcile:` stays refused, and its message changes.** The surviving half
+      of D58's argument is the comparison *model*, which this RFC does not provide.
+      Its refusal message currently cites the missing test surface; once that surface
+      exists the message would be false, so lifting-adjacent work has to correct it
+      even though the refusal stands.
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      **S-0041/D-30 is lifted, not superseded.** D30's argument was correct when written
+      — the emitter genuinely had no artifact for the audit. What changes is the emitter,
+      not the reasoning, and D30's row stays as the record of why merged entities
+      were SQLMesh-only for one release.
+    paths: [tests/unit/test_emit/test_dbt.py]
+  - id: D-10
+    grade: LOCKED
+    text: >-
+      **The audit envelope separates from the audit body** (§5.3). `emit/steps.py`
+      is target-neutral by position and not by content: its `_AUDIT` template bakes
+      SQLMesh's `AUDIT (name …);` header in, so `quality_audits` and `consistency_audits`
+      hand shared callers a SQLMesh artifact. A producer instead returns a *named
+      body* — rendered SELECT, name, disposition — and each target wraps it. The alternative,
+      a second template beside the first, gives one audit body two spellings maintained
+      in parallel, which is the divergence the shared lowering exists to prevent.
+      Consequence: this is the only structural change here, and it is what makes the
+      remaining work a template and a path rather than five separate liftings. It
+      also carries the relation in as a parameter, so `@this_model` stops being a
+      literal the dbt side would rewrite by substitution.
+    paths:
+      - src/bloomery/emit/base.py
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/emit/steps.py
+      - tests/unit/test_emit/test_dbt.py
+      - tests/unit/test_steps/test_dbt_and_cube_emission.py

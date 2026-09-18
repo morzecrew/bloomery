@@ -1,4 +1,4 @@
-"""Unit, tax-basis, and currency coherence (RFC 0006 §5.2).
+"""Unit, tax-basis, and currency coherence (S-0023/metadata-provenance-unit-tax-basis-currency).
 
 Walks every derivation and metric expression AST; at each ``+``/``-`` node
 the unit and tax-basis rules apply, at *any* arithmetic node the currency
@@ -10,21 +10,21 @@ is how extensive quantities work):
 - **Tax basis** (:class:`~bloomery.errors.TaxBasisMismatch`): ``net`` and
   ``gross`` may not meet; any operand with an *unknown* basis in additive
   arithmetic with a monetary operand is refused — unknown poisons monetary
-  arithmetic rather than silently passing (RFC 0006 D3, worked example §5.7).
+  arithmetic rather than silently passing (S-0023/D-3, worked example §5.7).
 - **Currency** (:class:`~bloomery.errors.CurrencyMismatch`): both sides
   declare distinct ISO-4217 codes. Absent codes are compatible — opt-in by
-  design (RFC 0006 D4). The rule is unconditional and no token waives it:
-  RFC 0023 D5 removed the ``CONVERT_CURRENCY`` marker that used to permit the
+  design (S-0023/D-4). The rule is unconditional and no token waives it:
+  S-0040/D-5 removed the ``CONVERT_CURRENCY`` marker that used to permit the
   arithmetic, because it bought a compile-time pass that asserted nothing
   about the value, and shipping conversion did not bring it back. What
-  ``convert`` now offers (RFC 0023 §5.4) is an *answer* — it writes an operand
+  ``convert`` now offers (S-0040/phase-2-currency-as-a-declared-relation) is an *answer* — it writes an operand
   into a column the catalog declares in the target currency, and two operands
   in one currency were never a violation. Only the remediation the message
   names moves with that, on whether the catalog declares ``fx_rates:``.
 
 Each rule reports at most once per expression (the first offending node in
 walk order — deterministic, SQLGlot's walk is syntactic); violations across
-expressions batch at the stage (RFC 0006 D2).
+expressions batch at the stage (S-0023/D-2).
 """
 
 from __future__ import annotations
@@ -111,7 +111,7 @@ def _check_units(op: str, left: _Side, right: _Side, source_path: str) -> UnitMi
     metas = left.metas + right.metas
     msg = (
         f"{op!r} combines {_described(metas, 'unit')}; operands of '+'/'-' must share a "
-        "unit (RFC 0006 §5.2). Fix: derive a shared-unit operand first (e.g. multiply "
+        "unit (S-0023/metadata-provenance-unit-tax-basis-currency). Fix: derive a shared-unit operand first (e.g. multiply "
         "the count by a per-unit amount), or move the derivation to where the units agree"
     )
     return UnitMismatch(msg, source_path=source_path)
@@ -121,7 +121,7 @@ def _check_units(op: str, left: _Side, right: _Side, source_path: str) -> UnitMi
 
 
 def _check_tax(op: str, left: _Side, right: _Side, source_path: str) -> TaxBasisMismatch | None:
-    # The rule is scoped to monetary arithmetic (RFC 0006 §5.2): operands with
+    # The rule is scoped to monetary arithmetic (S-0023/metadata-provenance-unit-tax-basis-currency): operands with
     # a declared non-currency unit (a count is not money) carry no basis by
     # nature and are not the "unknown" the rule poisons on.
     metas = tuple(
@@ -137,7 +137,7 @@ def _check_tax(op: str, left: _Side, right: _Side, source_path: str) -> TaxBasis
         msg = (
             f"{op!r} combines {described}; an unknown basis means the canonical field "
             "declares none, so nothing propagates, and arithmetic combining unknown "
-            "with a monetary operand is refused (RFC 0006 D3: unknown poisons). Fix: "
+            "with a monetary operand is refused (S-0023/D-3: unknown poisons). Fix: "
             "declare tax_basis on the operand's canonical field, or link the operand "
             "to a canonical field that carries one"
         )
@@ -146,7 +146,7 @@ def _check_tax(op: str, left: _Side, right: _Side, source_path: str) -> TaxBasis
     if {meta.tax_basis for meta in metas} >= {"net", "gross"}:
         msg = (
             f"{op!r} combines {described}; net and gross may not meet in '+'/'-' "
-            "(RFC 0006 §5.2). Fix: convert one operand to the other basis explicitly "
+            "(S-0023/metadata-provenance-unit-tax-basis-currency). Fix: convert one operand to the other basis explicitly "
             "before combining"
         )
         return TaxBasisMismatch(msg, source_path=source_path)
@@ -169,21 +169,21 @@ def _check_currency(
     # can convert. Telling an author to derive upstream when a rate relation is
     # right there sends them to rebuild what bloomery would do for them, and
     # telling them to convert when nothing declares rates sends them to a
-    # refusal (RFC 0023 §5.4).
+    # refusal (S-0040/phase-2-currency-as-a-declared-relation).
     fix = (
         "Fix: convert one operand with the convert transform "
         "({convert: [<from>, <to>, <date field>]}), writing it into a column the catalog "
         "declares in the target currency"
         if convertible
         else "bloomery has no conversion to offer here: a rate is a dated fact and this "
-        "catalog declares no 'fx_rates:' relation to read one from (RFC 0023 §5.4). Fix: "
+        "catalog declares no 'fx_rates:' relation to read one from (S-0040/phase-2-currency-as-a-declared-relation). Fix: "
         "declare fx_rates: and convert, derive the operands in one currency upstream, or "
         "split the derivation per currency"
     )
     metas = left.metas + right.metas
     msg = (
         f"{op!r} combines {_described(metas, 'currency')}; distinct declared codes may "
-        f"not meet (RFC 0006 D4). {fix}"
+        f"not meet (S-0023/D-4). {fix}"
     )
     return CurrencyMismatch(msg, source_path=source_path)
 

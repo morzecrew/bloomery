@@ -1,4 +1,4 @@
-"""The tenant ``steps:`` document (RFC 0017 §5.2) — wiring, and nothing else.
+"""The tenant ``steps:`` document (S-0034/step-manifest) — wiring, and nothing else.
 
 The most important assertions here are about what the surface *cannot*
 express: there is no field that holds a body and no field that names a file,
@@ -101,7 +101,7 @@ def test_a_step_must_bind_at_least_one_output() -> None:
 
 
 # ....................... #
-# Quality rules on outputs (§5.2 — the RFC 0016 pairing)
+# Quality rules on outputs (§5.2 — the S-0033 pairing)
 
 
 QUALITY = """
@@ -144,7 +144,7 @@ def test_applies_to_naming_an_undeclared_rule_is_refused() -> None:
 
 
 # ....................... #
-# The sixth spec kind (RFC 0002 §5.2)
+# The sixth spec kind (S-0019/the-base-model)
 
 
 def test_two_step_documents_are_refused() -> None:
@@ -199,7 +199,7 @@ def test_an_ordinary_namespaced_relation_is_accepted() -> None:
 
 
 # ....................... #
-# RFC 0062 §9 — two wirings, one identity
+# S-0067/risks — two wirings, one identity
 
 
 #: Two wirings with a slot under each. Filled by ``replace`` and never by

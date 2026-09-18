@@ -1,4 +1,4 @@
-"""The second question a rollup asks (RFC 0039 §3 — R011 and R012).
+"""The second question a rollup asks (S-0005 (§3) — R011 and R012).
 
 `can_roll_up` answers whether values may travel from one grain to another.
 These rules answer what may be done with them on arrival, and the two are

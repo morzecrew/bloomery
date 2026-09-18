@@ -1,4 +1,4 @@
-"""The semantic plan (RFC 0040 §4, §8).
+"""The semantic plan (S-0054/semanticplan-ir, S-0054/tests).
 
 §8 asks for each phase's accepted shapes and each phase's refused shapes; the
 parity suite in `tests/unit/test_planner/test_parity.py` carries the third and
@@ -213,7 +213,7 @@ def test_a_literal_of_another_type_is_another_restriction() -> None:
     left, right = _restricted(ir, "left", (1,)), _restricted(ir, "right", ("1",))
 
     # `_measures_are_embedded` no longer decides this — both are statable, each
-    # on its own scoped `Filter` (RFC 0066 §5.5). What still decides whether
+    # on its own scoped `Filter` (S-0071/per-measure-restriction). What still decides whether
     # they are *one* restriction is the rendered predicate the node carries,
     # and it keeps them apart: a helper comparing admitted rows used to answer
     # this and was deleted with its last caller.
@@ -246,7 +246,7 @@ def _filters(query: object) -> tuple[str, ...]:
 
     There is exactly one, always: a plan states the shared restriction even when
     it is empty, and a metric's own `filter:` rides a scoped node beside it
-    (RFC 0066 §5.5).
+    (S-0071/per-measure-restriction).
     """
 
     (node,) = [
@@ -269,7 +269,7 @@ def _scoped(query: object) -> dict[tuple[str, ...], tuple[str, ...]]:
 
 
 def test_the_plans_filters_are_the_explanations_filters_in_request_order() -> None:
-    """One account of a request, not two. RFC 0039 §7 refuses a second
+    """One account of a request, not two. S-0005 (§7) refuses a second
     explanation surface reconstructed separately, and a plan that rendered its
     own predicates — or ordered them differently — would be exactly that.
 
@@ -299,7 +299,7 @@ def test_the_plans_filters_are_the_explanations_filters_in_request_order() -> No
 def test_the_plan_names_the_row_policy_the_explanation_only_counts() -> None:
     """The `Explanation` reports a policy as a boolean, because rendering the
     scoping value into a provenance block shown to the requester would
-    disclose it (RFC 0013 D9). A plan is lowered rather than shown, and one
+    disclose it (S-0030/D-9). A plan is lowered rather than shown, and one
     that inherited that omission would be lowered into a broader answer than
     the SQL beside it.
     """
@@ -345,7 +345,7 @@ def test_a_cumulative_metric_states_its_window() -> None:
     the seven-day window and `period_agg` nowhere in it. That is why it was
     withheld until there was a node carrying both.
 
-    `Window` is that node (RFC 0066 §5.4), and it sits after the aggregate: the
+    `Window` is that node (S-0071/window-accumulation-across-rows-at-query-time), and it sits after the aggregate: the
     measure is reduced per period first, and the accumulation runs along the
     ordering over those totals.
     """
@@ -401,7 +401,7 @@ def test_a_semi_additive_metric_is_reduced_then_aggregated() -> None:
     with only that node said the one operation this measure is not — which is
     why the plan was withheld until there was a node for the other half.
 
-    `Reduce` is that node (RFC 0066 §5.3), and its position carries the
+    `Reduce` is that node (S-0071/reduce-one-named-dimension-collapsed-by-a-declared-rule), and its position carries the
     meaning: the declaration says one row per group along `over:` *is* the
     measure, so the reduction happens before the aggregate rather than after.
     """
@@ -467,7 +467,7 @@ def test_metrics_restricted_differently_get_a_filter_each() -> None:
     `status = 'paid'`, a plan claiming a narrower answer than the query
     computes, so the plan was withheld instead.
 
-    Scoping is what makes neither necessary (RFC 0066 §5.5): the restriction
+    Scoping is what makes neither necessary (S-0071/per-measure-restriction): the restriction
     names the measure it narrows, and `revenue` is on no scoped node at all.
     """
     planner = make_planner()
@@ -508,10 +508,10 @@ def test_a_ratio_is_aggregated_then_computed() -> None:
     """`average_order_value` is a ratio over `order_count` and `revenue`, so
     the requested name is not a mart measure at all.
 
-    RFC 0040 P1 had no node for the division and returned no plan, on the
+    S-0054/phasing (P-1) had no node for the division and returned no plan, on the
     argument that projecting a column no node produces — resting on a fact
     claiming the ratio is stored — would be a plan that lies twice. Both halves
-    stay true; `Compute` is what makes neither necessary (RFC 0066 §5.2).
+    stay true; `Compute` is what makes neither necessary (S-0071/compute-arithmetic-above-an-aggregate).
 
     The order is the whole content: the operands are aggregated, and the
     quotient is taken over the result. A row-level `revenue / order_count`
@@ -533,7 +533,7 @@ def test_a_ratio_is_aggregated_then_computed() -> None:
     # The aggregate carries the operands, never the quotient.
     assert aggregate.measures == ("order_count", "revenue")
     assert compute.outputs == (("average_order_value", "revenue / order_count"),)
-    # Sorted on the node, like every other IR collection (RFC 0003) — the
+    # Sorted on the node, like every other IR collection (S-0020) — the
     # expression names them, so their order here carries nothing.
     assert compute.inputs == ("order_count", "revenue")
 
@@ -542,7 +542,7 @@ def test_a_compute_before_any_aggregate_is_refused() -> None:
     """R014 premises on the aggregate beneath, so a `Compute` with nothing
     aggregated above it claims an ordering that did not happen — the same
     reason `JoinAggregates` requires its branches to end in an aggregate
-    rather than trusting the proof beside it (RFC 0041 D2)."""
+    rather than trusting the proof beside it (S-0055/D-2)."""
 
     with pytest.raises(ValueError, match="runs before anything is aggregated"):
         SemanticPlan(
@@ -692,7 +692,7 @@ def _reads_semantic(source: str) -> list[int]:
 
 #: The one module admitted to read the plan, by path rather than by pattern.
 #:
-#: RFC 0065 P1 renders each fact's evidence grade in ``bloomery explain``, which
+#: S-0070/phasing (P-1) renders each fact's evidence grade in ``bloomery explain``, which
 #: reads ``query.semantic`` — the first reader in the tree. It is admitted
 #: because what the guard below protects is that nothing changes *what the query
 #: is generated from*, and a renderer generates nothing: the section is appended
@@ -721,7 +721,7 @@ def test_only_the_renderer_reads_the_plan() -> None:
     nothing, so the only evidence is which modules read it.
 
     It began as "nothing in the tree reads the plan yet" and said that when P2
-    wires a target, someone has to say so deliberately. RFC 0065 P1 is not that
+    wires a target, someone has to say so deliberately. S-0070/phasing (P-1) is not that
     phase — it renders the plan's facts in ``explain`` and emits nothing from
     them — so the guard narrows to a named allowlist instead of being deleted.
 
@@ -785,7 +785,7 @@ def test_no_node_type_this_phase_ships_can_multiply() -> None:
 
 
 # ----------------------- #
-# Determinism (RFC 0003, carried from the proofs)
+# Determinism (S-0020, carried from the proofs)
 
 
 def test_a_plan_serializes_identically_for_one_request() -> None:
@@ -827,7 +827,7 @@ def test_node_order_is_never_sorted() -> None:
 
 
 # ....................... #
-# The branch join — RFC 0041 P1
+# The branch join — S-0055/phasing (P-1)
 
 
 def _branch(relation: str, measure: str, keys: int = 1, prefix: str = "d") -> SemanticPlan:
@@ -891,7 +891,7 @@ def test_a_join_needs_at_least_two_branches() -> None:
 
 
 def test_a_join_without_a_proof_is_invalid_ir() -> None:
-    """RFC 0041 D2 through RFC 0040 D2: "each side is unique at the key" is
+    """S-0055/D-2 through S-0054/D-2: "each side is unique at the key" is
     the whole reason the output is not a fan-out, so a join that does not say
     so on some authority is invalid rather than merely unexplained."""
     branches = (_joined("orders", "ship"), _joined("order_items", "disc"))
@@ -961,7 +961,7 @@ def test_the_branches_are_reordered_with_the_keys() -> None:
 
 
 def test_the_join_keys_are_canonicalized() -> None:
-    """Sorted like every other IR collection (RFC 0003): the keys name a set
+    """Sorted like every other IR collection (S-0020): the keys name a set
     of columns, and two runs that wrote them in different orders would
     serialize two different plans for one decision."""
     branches = (_joined("orders", "ship", keys=2), _joined("order_items", "disc", keys=2))
@@ -1047,7 +1047,7 @@ def test_every_node_answers_whether_it_claims() -> None:
     **This test was that list.** It named the original five and went on passing
     while four more nodes landed, so a node shipping with `claims = False`
     would have been exempt from proof permanently and invisibly — which is what
-    RFC 0066 D3 is `LOCKED` about and what §9 says review should look for
+    S-0071/D-3 is `LOCKED` about and what §9 says review should look for
     first. It is now read off `PlanNode` itself: a tenth member fails here
     until somebody decides what it claims.
     """
@@ -1185,7 +1185,7 @@ def test_the_window_rule_and_the_rollup_refusal_agree() -> None:
     trailing 7-day total summed across weeks counts each day up to seven times.
     That is not an assertion this module can make true; what makes it true is
     the rollup lowering, which refuses a rollup carrying a `cumulative:` measure
-    (RFC 0058 D5). Two parts of the system have to agree about one fact, and
+    (S-0065/D-5). Two parts of the system have to agree about one fact, and
     this is the test that notices when they stop.
 
     Driven rather than read: an earlier version of this asserted that the
@@ -1271,7 +1271,7 @@ def test_an_offset_input_is_read_at_a_shifted_range() -> None:
     What the node states is the *declared shift*, not the join that renders it.
     MetricFlow lowers this by joining the measure to the time spine at a
     shifted date under a full outer join; a plan naming that would be stating
-    how the SQL is spelled rather than what is computed (RFC 0040 D4).
+    how the SQL is spelled rather than what is computed (S-0054/D-4).
     """
 
     planner = make_planner()
@@ -1316,7 +1316,7 @@ def test_every_metric_of_a_fixture_carries_a_plan() -> None:
 
 
 def test_two_metrics_may_use_one_alias_for_different_measures() -> None:
-    """An alias is scoped to the metric that declares it (RFC 0034 D1), so two
+    """An alias is scoped to the metric that declares it (S-0050/D-1), so two
     `derived:` metrics may both call their offset input `prior` and mean
     different measures.
 
@@ -1364,7 +1364,7 @@ def test_two_metrics_may_use_one_alias_for_different_measures() -> None:
 
 def test_both_offset_forms_reach_the_plan() -> None:
     """`offset_window` and `offset_to_grain` are the two forms a derived input
-    may declare (RFC 0034 D2), and only the first was ever asserted.
+    may declare (S-0050/D-2), and only the first was ever asserted.
 
     A sabotage that ignored `offset_to_grain` left every suite green: the
     metric still planned, because dropping the read simply produced no `Offset`
@@ -1391,7 +1391,7 @@ def test_both_offset_forms_reach_the_plan() -> None:
 
 
 def test_an_offset_node_sorts_its_reads() -> None:
-    """Sorted like every other IR collection (RFC 0003), and asserted on the
+    """Sorted like every other IR collection (S-0020), and asserted on the
     node rather than trusted from its caller: `_shifted_reads` already sorts,
     so the node's own ordering is only reachable — and only observable —
     through a direct construction.
@@ -1474,7 +1474,7 @@ def test_a_non_additive_metric_without_a_decomposition_is_not_statable() -> None
     ],
 )  # fmt: skip
 def test_every_node_sorts_the_measures_it_names(node: object, expected: tuple[str, ...]) -> None:
-    """Sorted like every other IR collection (RFC 0003).
+    """Sorted like every other IR collection (S-0020).
 
     Each of these canonicalizes in `__post_init__` and none was covered: the
     builders happen to hand them sorted input, so the lines only run through a

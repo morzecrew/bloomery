@@ -1,4 +1,4 @@
-"""The RFC 0016 §5.7 amendment to ``plan()``: how the data-quality surface
+"""The S-0033/plan-integration-rfc-0007-amendment amendment to ``plan()``: how the data-quality surface
 classifies, and when a change opens a **replay** rather than just a backfill.
 
 One test per branch of the matrix, because the matrix *is* the feature: the
@@ -106,7 +106,7 @@ def test_tightening_a_disposition_backfills_without_replay() -> None:
 
 
 def test_relaxing_a_disposition_opens_a_replay() -> None:
-    """RFC 0016 §5.7's named case: ``quarantine → flag`` needs a quarantine
+    """S-0033/plan-integration-rfc-0007-amendment's named case: ``quarantine → flag`` needs a quarantine
     replay, not just a backfill."""
     old, new = entity(quality=(QUARANTINE_RULE,)), entity(quality=(FLAG_RULE,))
     change = _one(old, new)
@@ -431,7 +431,7 @@ def _check(name: str = "totals_match", *, tolerance: str = "0.01") -> ReconcileI
 
 
 def test_adding_a_reconcile_check_is_additive() -> None:
-    """ADDITIVE rather than RESTATING, and deliberately: RFC 0007 D2's
+    """ADDITIVE rather than RESTATING, and deliberately: S-0024/D-2's
     initial-deploy property says ``plan(None, ir)`` is all-ADDITIVE, and an
     initial deploy adds every reconcile check there is."""
     result = plan(project(), project(reconcile=(_check(),)))
@@ -463,7 +463,7 @@ def test_removing_a_reconcile_check_restates() -> None:
 def test_removing_the_quarantine_block_is_breaking_not_a_retention_edit() -> None:
     """Reading the removal as a retention change to ``""`` called it "policy
     only". It is not: the ``<entity>__reject`` model stops being emitted and
-    every unresolved row in it goes with it. RFC 0016 D2 buys quarantine over
+    every unresolved row in it goes with it. S-0033/D-2 buys quarantine over
     drop *for* recoverability and §5.6 names retention as the only deleter —
     this deletes reject rows by removing the table, and the plan has to say
     so before someone applies it."""
@@ -628,7 +628,7 @@ def test_raising_only_the_ceiling_replays_and_raising_only_the_floor_does_not() 
 
 
 def test_a_tightened_timestamp_range_does_not_replay() -> None:
-    """RFC 0016 D57 permits ISO date/timestamp `range` bounds — the string
+    """S-0033/D-57 permits ISO date/timestamp `range` bounds — the string
     carrier exists for them. Parsing every bound as `Decimal` raised on those,
     which the caller read as "undecidable" and therefore replayable, so a pure
     temporal *tightening* scheduled a MERGE that can free nothing. Under

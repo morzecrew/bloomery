@@ -1,4 +1,4 @@
-"""Golden refusal text (RFC 0025 §5.1's missing half): the messages are the
+"""Golden refusal text (S-0042/the-docs-floor-claims-not-links's missing half): the messages are the
 product, so their exact words are an artifact, reviewed like one.
 
 The refusal census proves every documented class is *constructed* and the
@@ -93,7 +93,7 @@ def test_example_refusal_text_golden(snapshot: Snapshot, case: str) -> None:
 
 
 # ....................... #
-# Advisory text (RFC 0033 §8)
+# Advisory text (S-0004 (§8))
 #
 # The sibling the RFC asks for, and it exists for the same reason the blocks
 # above do: an advisory message degrading silently — a dropped "Fix:", a

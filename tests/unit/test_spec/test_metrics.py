@@ -1,4 +1,4 @@
-"""The MetricSet spec kind (RFC 0002 §5.5, D9–D10)."""
+"""The MetricSet spec kind (S-0019/spec-model-surface, S-0019/D-9–S-0019/D-10)."""
 
 from __future__ import annotations
 
@@ -137,7 +137,7 @@ def test_unknown_key_rejected() -> None:
 
 
 # ....................... #
-# The RFC 0034 grammar: derived, offsets, filters
+# The S-0050 grammar: derived, offsets, filters
 
 
 DERIVED = """
@@ -163,7 +163,7 @@ def test_derived_parses_with_aliased_inputs() -> None:
 
 def test_input_metrics_is_the_single_definition_of_what_a_derived_metric_needs() -> None:
     """Both the reference checker and the template merge read this property
-    (RFC 0034 D3); it de-duplicates, so naming one metric twice is one edge."""
+    (S-0050/D-3); it de-duplicates, so naming one metric twice is one edge."""
     derived = parse(DERIVED).metrics["revenue_yoy"].derived
     assert derived is not None
     assert derived.input_metrics == ("revenue",)
@@ -190,7 +190,7 @@ def test_the_plural_is_dropped_so_one_window_has_one_spelling(grain: str) -> Non
     What is not identical is the IR — `TimeWindow(grain="days")` and
     `TimeWindow(grain="day")` are different values and fingerprint differently,
     so two spellings of one window would report a change where none exists
-    (RFC 0003 §5.4). A mutation sweep found this: dropping the `rstrip` broke
+    (S-0020/fingerprint). A mutation sweep found this: dropping the `rstrip` broke
     nothing any other test could see.
     """
     assert parse_time_window(f"3 {grain}s") == parse_time_window(f"3 {grain}") == (3, grain)
@@ -200,7 +200,7 @@ def test_the_plural_is_dropped_so_one_window_has_one_spelling(grain: str) -> Non
     "window",
     [
         "0 days",  # a window of nothing is the metric written the long way
-        "1 hour",  # the emitted time spine is day-grain (RFC 0008 D13)
+        "1 hour",  # the emitted time spine is day-grain (S-0025/D-13)
         "year",  # no count
         "1year",  # no separator
         "1 fortnight",
@@ -238,9 +238,9 @@ def test_filter_parses_typed_values() -> None:
         ("{dimension: s, op: eq, values: [a, b]}", "exactly 1 value"),
         ("{dimension: s, op: in, values: []}", "at least one value"),
         ("{dimension: s, op: is_null, values: [1]}", "exactly one bool"),
-        # RFC 0003 D5 — no float ever reaches an emission path.
+        # S-0020/D-5 — no float ever reaches an emission path.
         ("{dimension: s, op: eq, values: [1.5]}", "is a float"),
-        # RFC 0034 D13 — both semantic targets template with braces.
+        # S-0050/D-13 — both semantic targets template with braces.
         ('{dimension: s, op: eq, values: ["a{b}c"]}', "template brace"),
     ],
 )
@@ -251,7 +251,7 @@ def test_filter_grammar_refusals(clause: str, fragment: str) -> None:
 
 
 def test_a_quoted_decimal_survives_as_an_exact_value() -> None:
-    """The string carrier RFC 0015 D5 established: YAML would round `1.5` to a
+    """The string carrier S-0032/D-5 established: YAML would round `1.5` to a
     float, and the quoted form is how an exact decimal is written."""
     metric = parse(
         'metrics_version: 1\nmetrics:\n  m:\n    filter: [{dimension: s, op: gt, values: ["1.5"]}]\n'
@@ -281,7 +281,7 @@ def test_a_non_finite_decimal_is_refused() -> None:
 
 
 def test_a_filter_dimension_must_be_a_bare_identifier() -> None:
-    """The one place a member name reaches a template unquoted (RFC 0034 D8).
+    """The one place a member name reaches a template unquoted (S-0050/D-8).
 
     `MemberName` is deliberately unpatterned because a field name reaches SQL
     through SQLGlot, which quotes it. A metric filter breaks that premise: the
@@ -299,7 +299,7 @@ def test_a_filter_dimension_must_be_a_bare_identifier() -> None:
 
 
 # ....................... #
-# RFC 0062 §9 — two nodes, one identity
+# S-0067/risks — two nodes, one identity
 
 
 def _metric_set(**bodies: str) -> MetricSet:
@@ -354,7 +354,7 @@ def test_an_empty_id_is_refused_rather_than_minting_a_bare_prefix() -> None:
 
     ``id: ""`` passed the opacity rule — it is a string, compared and never
     parsed — and minted the node id ``metric.``, the prefix and nothing else.
-    Non-emptiness is a boundary constraint, not the parsing RFC 0062 D2 forbids:
+    Non-emptiness is a boundary constraint, not the parsing S-0067/D-2 forbids:
     nothing reads *into* the value, and any non-empty string still passes.
     """
 
@@ -391,7 +391,7 @@ def test_the_duplicate_is_refused_before_a_graph_can_be_built() -> None:
 
 
 # ....................... #
-# Which rows a ratio is about (RFC 0075 §5.1)
+# Which rows a ratio is about (S-0077/the-refusal-is-the-product)
 
 
 def test_includes_zero_denominator_defaults_to_false() -> None:

@@ -5,15 +5,17 @@ compiled — as a pure function — into SQLMesh, dbt, and Cube artifacts.
 
 ## Design source of truth
 
-The RFC corpus under [`rfcs/`](rfcs/) is the design authority for work **not yet landed**,
-indexed by [`rfcs/INDEX.md`](rfcs/INDEX.md). Before a large change, write or amend an RFC;
-code that contradicts a live RFC is the bug, not the RFC.
+The document corpus under [`.torve/specs/`](.torve/specs/) is the design authority: one
+directory per document (`S-NNNN`), its decisions graded `LOCKED`/`ASSUMED`/`OPEN` with the
+paths each governs. `torve spec check` validates it and is a quality gate; `torve spec
+show S-NNNN` or `torve spec show S-NNNN/D-k` reads a document or a row. Before a large
+change, write or amend a document; code that contradicts an accepted document is the bug,
+not the document.
 
-A landed RFC is retired — deleted — in the change that completes it, so that the code, tests
-and docs stay the single account of shipped behaviour. Citations like `RFC 0016 D84`
-throughout the source therefore name documents no longer in the tree: they record where a
-decision came from; `git log --diff-filter=D -- rfcs/` finds the commit that retired the
-document and `git show <commit>^:rfcs/<file>` prints it.
+A landed document stays in the corpus with `implementation: complete`, so citations like
+`S-0033/D-84` throughout the source always resolve. The RFC corpus this replaced (2026-09-18)
+is mapped identifier by identifier in [`.torve/archive/identifiers.yaml`](.torve/archive/identifiers.yaml);
+`torve spec show` answers an old citation (an RFC number with its decision or section) through it.
 
 ## Gates
 
@@ -22,7 +24,7 @@ document and `git show <commit>^:rfcs/<file>` prints it.
 - `just test` — default test tiers (unit/golden/property/execution). Engine/e2e tiers need
   Docker: `just test-all`.
 
-## Determinism invariants (RFC 0003 — non-negotiable)
+## Determinism invariants (S-0020 — non-negotiable)
 
 - Compilation does **no I/O**: no filesystem, network, `os.environ` — inputs are strings,
   outputs are artifacts.
@@ -124,33 +126,112 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 
 - `comparisons/` — 9 decision(s)
 - `examples/` — 1 decision(s)
+- `pages/` — 1 decision(s)
 - `pages/docs/` — 1 decision(s)
-- `pages/docs/reference/` — 1 decision(s)
-- `src/bloomery/` — 15 decision(s)
-- `src/bloomery/cli/` — 1 decision(s)
-- `src/bloomery/dialects/` — 1 decision(s)
-- `src/bloomery/emit/` — 0 decision(s)
-- `src/bloomery/ir/` — 3 decision(s)
-- `src/bloomery/marts/` — 3 decision(s)
-- `src/bloomery/planner/` — 3 decision(s)
-- `src/bloomery/resolve/` — 4 decision(s)
-- `src/bloomery/runtime/` — 4 decision(s)
-- `src/bloomery/semantic/` — 21 decision(s)
-- `src/bloomery/spec/` — 9 decision(s)
-- `tests/` — 0 decision(s)
-- `tests/engines/` — 4 decision(s)
+- `pages/docs/concepts/` — 2 decision(s)
+- `pages/docs/how-to/` — 5 decision(s)
+- `pages/docs/reference/` — 3 decision(s)
+- `src/bloomery/` — 90 decision(s)
+- `src/bloomery/cli/` — 22 decision(s)
+- `src/bloomery/dialects/` — 25 decision(s)
+- `src/bloomery/emit/` — 11 decision(s)
+- `src/bloomery/emit/cube/` — 6 decision(s)
+- `src/bloomery/emit/dbt/` — 37 decision(s)
+- `src/bloomery/emit/lower/` — 57 decision(s)
+- `src/bloomery/emit/metricflow/` — 15 decision(s)
+- `src/bloomery/emit/sqlmesh/` — 14 decision(s)
+- `src/bloomery/guardrails/` — 62 decision(s)
+- `src/bloomery/ir/` — 50 decision(s)
+- `src/bloomery/marts/` — 18 decision(s)
+- `src/bloomery/plan/` — 21 decision(s)
+- `src/bloomery/planner/` — 47 decision(s)
+- `src/bloomery/quality/` — 32 decision(s)
+- `src/bloomery/resolve/` — 73 decision(s)
+- `src/bloomery/runtime/` — 15 decision(s)
+- `src/bloomery/semantic/` — 45 decision(s)
+- `src/bloomery/spec/` — 80 decision(s)
+- `src/bloomery/steps/` — 12 decision(s)
+- `src/bloomery/transforms/` — 17 decision(s)
+- `src/bloomery/typing/` — 3 decision(s)
+- `tests/` — 2 decision(s)
+- `tests/bench/` — 2 decision(s)
+- `tests/e2e/` — 23 decision(s)
+- `tests/engines/` — 20 decision(s)
+- `tests/equivalence/` — 1 decision(s)
+- `tests/execution/` — 45 decision(s)
 - `tests/fixtures/` — 1 decision(s)
+- `tests/fixtures/coverage_check/` — 1 decision(s)
+- `tests/fixtures/cross_mart_branches/` — 1 decision(s)
+- `tests/fixtures/currency_convert/` — 1 decision(s)
+- `tests/fixtures/currency_convert_per_row/` — 2 decision(s)
+- `tests/fixtures/currency_convert_refusal/` — 1 decision(s)
+- `tests/fixtures/dirty/` — 3 decision(s)
+- `tests/fixtures/dirty_corpus/` — 1 decision(s)
+- `tests/fixtures/ecom_basic/` — 2 decision(s)
+- `tests/fixtures/evolution_v3/` — 1 decision(s)
+- `tests/fixtures/evolution_v5/` — 1 decision(s)
+- `tests/fixtures/fanout_trap/` — 4 decision(s)
+- `tests/fixtures/identity_resolution/` — 4 decision(s)
+- `tests/fixtures/multi_mart_refusal/` — 1 decision(s)
+- `tests/fixtures/multi_source/` — 4 decision(s)
+- `tests/fixtures/multi_source_quality/` — 4 decision(s)
+- `tests/fixtures/non_additive_aov/` — 3 decision(s)
+- `tests/fixtures/path_conflict/` — 1 decision(s)
+- `tests/fixtures/path_conflict_merged/` — 1 decision(s)
+- `tests/fixtures/period_over_period/` — 2 decision(s)
+- `tests/fixtures/quality_precedence/` — 7 decision(s)
+- `tests/fixtures/role_playing_dates/` — 1 decision(s)
+- `tests/fixtures/scd2_as_of/` — 1 decision(s)
+- `tests/fixtures/scd2_mart_refusal/` — 2 decision(s)
+- `tests/fixtures/scd2_replay/` — 1 decision(s)
 - `tests/fixtures/semantic_corpus/` — 1 decision(s)
-- `tests/golden/` — 1 decision(s)
-- `tests/support/` — 3 decision(s)
-- `tests/unit/` — 4 decision(s)
-- `tests/unit/test_dialects/` — 0 decision(s)
-- `tests/unit/test_emit/` — 0 decision(s)
-- `tests/unit/test_marts/` — 0 decision(s)
-- `tests/unit/test_plan/` — 0 decision(s)
-- `tests/unit/test_planner/` — 0 decision(s)
-- `tests/unit/test_semantic/` — 0 decision(s)
-- `tests/unit/test_spec/` — 0 decision(s)
-- `tests/unit/test_steps/` — 0 decision(s)
+- `tests/fixtures/semantic_corpus/001-order-shipping-fanout/` — 2 decision(s)
+- `tests/fixtures/semantic_corpus/001-order-shipping-fanout/data/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/001-order-shipping-fanout/expected/` — 2 decision(s)
+- `tests/fixtures/semantic_corpus/002-average-of-averages/` — 3 decision(s)
+- `tests/fixtures/semantic_corpus/002-average-of-averages/expected/` — 2 decision(s)
+- `tests/fixtures/semantic_corpus/003-scd2-unqualified-join/` — 3 decision(s)
+- `tests/fixtures/semantic_corpus/003-scd2-unqualified-join/expected/` — 2 decision(s)
+- `tests/fixtures/semantic_corpus/004-currency-mix/` — 2 decision(s)
+- `tests/fixtures/semantic_corpus/004-currency-mix/expected/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/005-semi-additive-balance/` — 2 decision(s)
+- `tests/fixtures/semantic_corpus/005-semi-additive-balance/expected/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/006-two-grains-one-request/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/006-two-grains-one-request/bloomery/branches/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/006-two-grains-one-request/data/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/007-distinct-users-fanout/` — 4 decision(s)
+- `tests/fixtures/semantic_corpus/007-distinct-users-fanout/expected/` — 2 decision(s)
+- `tests/fixtures/semantic_corpus/008-ratio-rollup/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/008-ratio-rollup/bloomery/declared/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/008-ratio-rollup/bloomery/naive/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/008-ratio-rollup/expected/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/009-null-denominator/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/009-null-denominator/bloomery/inclusive/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/010-many-to-many-bridge/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/010-many-to-many-bridge/expected/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/011-timezone-boundary/` — 2 decision(s)
+- `tests/fixtures/semantic_corpus/012-rollup-recounts-identities/` — 3 decision(s)
+- `tests/fixtures/semi_additive_inventory/` — 2 decision(s)
+- `tests/golden/` — 12 decision(s)
+- `tests/golden/refusals/` — 4 decision(s)
+- `tests/golden/schema/` — 24 decision(s)
+- `tests/property/` — 18 decision(s)
+- `tests/support/` — 22 decision(s)
+- `tests/unit/` — 66 decision(s)
+- `tests/unit/test_dialects/` — 9 decision(s)
+- `tests/unit/test_emit/` — 45 decision(s)
+- `tests/unit/test_guardrails/` — 45 decision(s)
+- `tests/unit/test_ir/` — 5 decision(s)
+- `tests/unit/test_marts/` — 7 decision(s)
+- `tests/unit/test_plan/` — 12 decision(s)
+- `tests/unit/test_planner/` — 27 decision(s)
+- `tests/unit/test_quality/` — 17 decision(s)
+- `tests/unit/test_resolve/` — 43 decision(s)
+- `tests/unit/test_runtime/` — 6 decision(s)
+- `tests/unit/test_semantic/` — 13 decision(s)
+- `tests/unit/test_spec/` — 30 decision(s)
+- `tests/unit/test_steps/` — 25 decision(s)
+- `tests/unit/test_transforms/` — 8 decision(s)
+- `tests/unit/test_typing/` — 1 decision(s)
 
 <!-- /torve:managed -->

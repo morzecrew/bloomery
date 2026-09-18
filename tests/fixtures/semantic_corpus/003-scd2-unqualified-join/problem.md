@@ -2,7 +2,7 @@
 
 - **Origin:** `industry-pattern`. Type-2 history is the standard way to keep a dimension's
   past, and the business key stays the obvious thing to join on.
-- **Tier:** execution (DuckDB). RFC 0042 §9 guessed this might need the Docker-gated engine
+- **Tier:** execution (DuckDB). S-0056 (§9) guessed this might need the Docker-gated engine
   tier; an as-of join over a validity interval is ordinary SQL and DuckDB runs it, so the
   case stays in the default suite.
 - **`silver.customer_tier` is supplied, not derived.** Type-2 versions come from the
@@ -17,7 +17,7 @@
 The tier is why the dimension is joined at all, and the total is where the damage shows:
 the breakdown is wrong per group *and* the groups no longer sum to the revenue actually
 booked, so a single number is enough to prove it and small enough to check by hand
-(RFC 0042 D2).
+(S-0056/D-2).
 
 ## Declared semantic facts
 
@@ -65,8 +65,8 @@ cardinality supplies the missing instant.
 
 | Expectation | Spec | Outcome | Owner |
 | --- | --- | --- | --- |
-| **unanchored** | flatten `tier_of_customer` with no `as_of:` | refused | `HistoricalFanout`, RFC 0023 D1 |
-| **anchored** | the same flatten, `as_of: ordered_at` | accepted | RFC 0023 D8 |
+| **unanchored** | flatten `tier_of_customer` with no `as_of:` | refused | `HistoricalFanout`, S-0040/D-1 |
+| **anchored** | the same flatten, `as_of: ordered_at` | accepted | S-0040/D-8 |
 
 `HistoricalFanout` is kept apart from `FanoutRisk` for the reason this case shows: the
 `cardinality:` here is *already right*, and an error pointing at it would send the author to

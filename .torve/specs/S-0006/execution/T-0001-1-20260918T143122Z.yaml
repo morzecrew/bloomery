@@ -51,7 +51,7 @@ entries:
     at: '2026-09-18T14:26:37Z'
     attempt: 2
     claim: >-
-      both new bundles sit at comparisons/<system>/<case>/ with RFC 0043 s3's five
+      both new bundles sit at comparisons/<system>/<case>/ with S-0006 s3's five
       entries, and the matrix beside them cites them by that path
     evidence: >-
       comparisons/metricflow/009-null-denominator/README.md:1-12 — the bundle at the
@@ -93,7 +93,7 @@ entries:
     attempt: 2
     claim: >-
       restating entry 2 under the qualified id: both new bundles sit at comparisons/<system>/<case>/
-      with RFC 0043 s3's five entries, the matrix beside them cites them by that path,
+      with S-0006 s3's five entries, the matrix beside them cites them by that path,
       and the projected comparisons/AGENTS.md is the same tree's managed section
     evidence: >-
       comparisons/metricflow/009-null-denominator/README.md:1-12 — the bundle at the

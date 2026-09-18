@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `CompiledSemantic` exists to move the scaling ceiling: per-tenant compiled state
+      becomes a per-request LRU entry, not resident memory (contrast: Cube's MB-per-tenant
+      residency, ~1–10 rps/node). It carries everything the planner needs and nothing
+      else — no source specs, no catalog, no mapping lowering, no emit envelopes —
+      because size drives hydration time.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Shape per D5 with S-0020 determinism rules applied: `marts: tuple[CompiledMart,
+      ...]`; measures/dimensions as **sorted tuples of `(name, value)` pairs**, a
+      deliberate divergence from D5's `Mapping` sketch (S-0020/D-4); plus `fingerprint`
+      (source ProjectIR's) and `bloomery_version`.
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Serialization is canonical JSON — sorted keys, compact separators, UTF-8, no
+      floats (`Decimal` as strings, ints as ints). Not pickle (D5: unsafe across versions,
+      nondeterministic). Not msgpack (no new dependency); msgpack is the named escape
+      hatch if the 5 ms budget fails on JSON.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Contracts, all property-tested (S-0026): `loads(dumps(cs)) == cs`; `dumps` byte-identical
+      for a given `cs` across processes and `PYTHONHASHSEED`; `dumps(compile_semantic(ir))`
+      byte-identical for a given `ir`.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      `loads` on a `bloomery_version` mismatch raises `IncompatibleArtifact` (new
+      `BloomeryError` leaf, declared in `errors.py` per S-0019/D-3) — never migrates.
+      Caller recompiles from specs (durable artifact; compiled semantics are cache).
+      Cache key: `sha256(spec_fingerprint + bloomery_version + "semantic")`.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Hydration budget: `loads` < 5 ms for ~30 entities / ~60 measures / ~8 marts,
+      enforced by `tests/bench/test_hydration.py` (new `bench` directory): programmatic
+      fixture, `time.perf_counter`, N=50, assert on the median, 5 ms locally / 3×
+      on CI, marked `perf` for the scheduled job (S-0026/D-3). A regression fails
+      CI.
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      `NativePlanner.plan` accepts `ProjectIR | CompiledSemantic`; a `ProjectIR` is
+      compiled internally (convenience path), the hot path takes `CompiledSemantic`
+      directly. Settles the question S-0028 defers.
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      `compile_semantic`, `dumps`, `loads`, `CompiledSemantic` are public API — spec
+      §8 grows by exactly these. The field layout is **not** a public stable format
+      across versions (same stance as the IR, S-0020 non-goal) — which is precisely
+      why D5 refuses instead of migrating.

@@ -1,4 +1,4 @@
-# `direct:` on a merged entity (RFC 0024 D36, answering D28): the path-conflict
+# `direct:` on a merged entity (S-0041/D-36, answering D28): the path-conflict
 # fixture with a second shop unioned in. Both shops derive `net_price` from a
 # line total and both also carry it directly — at *different* paths, which is
 # the whole point: the shadow one branch projects has to be that branch's own

@@ -1,9 +1,9 @@
-"""Mart execution (RFC 0009 §5.2 tier 4, RFC 0010): seed bronze rows,
+"""Mart execution (S-0026/tier-contracts tier 4, S-0027): seed bronze rows,
 materialize silver then gold from the emitted SQL, and prove the role-playing
 arithmetic — grouping by ``ordered_month`` vs ``shipped_month`` gives
 *different, correct* totals — plus the ecom_basic mart aggregate against a
 hand-computed value. All assertions are ``Decimal`` — floats never appear
-(RFC 0003 D5)."""
+(S-0020/D-5)."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ def _seed_orders(conn: duckdb.DuckDBPyConnection) -> None:
 def test_ordered_month_and_shipped_month_give_different_correct_totals(
     conn: duckdb.DuckDBPyConnection,
 ) -> None:
-    """The role-playing acceptance (RFC 0009 D12, RFC 0010 §6): the same
+    """The role-playing acceptance (S-0026/D-12, S-0027/tests): the same
     revenue measure grouped by the two roles yields different splits, and
     both are right — order attribution vs shipment attribution."""
     _seed_orders(conn)
@@ -126,7 +126,7 @@ def test_ecom_basic_mart_aggregate_matches_the_hand_computed_value(
 
 
 def test_dim_date_builds_the_full_declared_calendar(conn: duckdb.DuckDBPyConnection) -> None:
-    """The calendar is a pure function of the catalog bounds (RFC 0008 D13):
+    """The calendar is a pure function of the catalog bounds (S-0025/D-13):
     2020–2030 inclusive is exactly 4018 days, no clock involved."""
     _seed_ecom(conn)
     materialize(conn, compile_fixture("ecom_basic"))

@@ -14,7 +14,7 @@ repo_name = "bloomery"
 # ....................... #
 # Navigation
 #
-# Diátaxis (RFC 0001 §5.5): Get Started teaches, Concepts explain, How-to
+# Diátaxis (S-0018/docs-section): Get Started teaches, Concepts explain, How-to
 # guides, Reference looks up. Stub pages fill the tree until each milestone's
 # docs land (RFCs 0002–0009 carry their own Docs sections).
 
@@ -137,7 +137,7 @@ check_paths = true
 [project.markdown_extensions.md_in_html]
 
 # Diagrams are d2, rendered to SVG by `just build-diagrams` and embedded as a
-# light/dark pair. RFC 0001 D1 chose mermaid for a new repo — "no CI binary and
+# light/dark pair. S-0018/D-1 chose mermaid for a new repo — "no CI binary and
 # no build step" — and left the door open: "d2 remains available if diagrams
 # outgrow mermaid". They did; this is that clause, not a reversal of it.
 [project.markdown_extensions.pymdownx.superfences]

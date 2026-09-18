@@ -40,7 +40,7 @@ fields:
       - {parse_ts: ISO8601}
       - {to_utc: Europe/Berlin}
 
-# The ingestion-metadata contract (RFC 0016 D21), acknowledged rather than
+# The ingestion-metadata contract (S-0033/D-21), acknowledged rather than
 # mapped — see `mapping_crm.yaml`. **Both** shops must supply it: the reject
 # table holds rows from either, and each one points back at the row it came
 # from through its own `source_relation`.

@@ -1,7 +1,7 @@
-"""The classification guard — what a sensitive column may not do (RFC 0055
+"""The classification guard — what a sensitive column may not do (S-0062
 D9–D11).
 
-**Classification composes with `grants`, not with `redact`.** RFC 0055 §2
+**Classification composes with `grants`, not with `redact`.** S-0062/motivation
 paired it with redaction because, when it was drafted, `quarantine.redact` was
 the only PII-adjacent concept bloomery had. Phase 4 then shipped `grants`, the
 one annotation in this framework with a mechanism behind it, and the pairing
@@ -20,7 +20,7 @@ Two refusals and one advisory, graded by what the compiler can actually prove:
   grants: that is the only case where bloomery holds both halves of the
   contradiction.
 - An undeclared audience is *unknown*, not wider, and is the advisory carried
-  on :class:`~bloomery.SpecEvidence` instead (D11; RFC 0033 §5.1). Refusing it
+  on :class:`~bloomery.SpecEvidence` instead (D11; S-0004 (§5.1)). Refusing it
   would refuse every project that manages its gold grants outside bloomery.
 
 The published relations are marts and rollups. Silver entities are not: an
@@ -109,7 +109,7 @@ def _wider(published: GrantsIR | None, source: GrantsIR | None) -> tuple[str, ..
 
     ``None`` on either side is the undeclared case and returns nothing: an
     absent ``grants:`` block means bloomery has no opinion and the warehouse's
-    own grants stand (RFC 0055 D6), which is *unknown* rather than wider. The
+    own grants stand (S-0062/D-6), which is *unknown* rather than wider. The
     advisory covers it; a refusal here would be a refusal on a fact this
     compiler does not have.
     """
@@ -179,7 +179,7 @@ def check_classification(ir: ProjectIR) -> list[GuardrailError]:
 
     Marts before rollups, each sorted by name on ``ProjectIR``, and columns in
     ``MartIR`` order (sorted by name) — so the batched aggregate reads the same
-    way on every run and across processes (RFC 0003).
+    way on every run and across processes (S-0020).
     """
 
     sensitive = sensitive_columns(ir)
@@ -206,7 +206,7 @@ def check_classification(ir: ProjectIR) -> list[GuardrailError]:
             if classification == "secret":
                 msg = (
                     f"{key[:-1]} {name!r} carries column {column!r}, which is "
-                    f"{source_entity}.{source_column} classified secret (RFC 0055 D10). A "
+                    f"{source_entity}.{source_column} classified secret (S-0062/D-10). A "
                     f"{key[:-1]} is the published surface, which is the one thing 'secret' "
                     "says this column is not part of. Fix: drop the column from the "
                     "flatten, or reclassify it if it is not secret"
@@ -222,7 +222,7 @@ def check_classification(ir: ProjectIR) -> list[GuardrailError]:
                     f"{key[:-1]} {name!r} carries column {column!r}, which is "
                     f"{source_entity}.{source_column} classified {classification}, and grants "
                     f"select to {', '.join(widened)} — role(s) entity {source_entity!r} does "
-                    f"not grant (RFC 0055 D11). The {key[:-1]} would publish a sensitive "
+                    f"not grant (S-0062/D-11). The {key[:-1]} would publish a sensitive "
                     "column to an audience its source restricts. Fix: narrow the "
                     f"{key[:-1]}'s grants:, widen the entity's, or drop the column"
                 )

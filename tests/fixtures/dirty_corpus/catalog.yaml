@@ -5,7 +5,7 @@ vertical: dirty_corpus
 # values, not domain concepts, and a recipe would put a derivation between the
 # CSV and the assertion. The catalog exists for one reason — the time spine the
 # quality mart's `run_date` role needs once it is served through MetricFlow
-# (RFC 0013 R1 rule 4).
+# (S-0030 R1 rule 4).
 date_dimension:
   name: dim_date
   grain: day

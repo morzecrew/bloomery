@@ -1,10 +1,10 @@
-"""The frozen IR node tree (RFC 0003 §5.1–§5.3; RFC 0010 §5.3–§5.4).
+"""The frozen IR node tree (S-0020/ir-shape–S-0020/ordering-rules; S-0027/dimensionref–S-0027/martir).
 
 Frozen slotted stdlib dataclasses — not Pydantic: the IR is compiler-internal;
-it needs hashing and value semantics, its builder is its validator (RFC 0003
+it needs hashing and value semantics, its builder is its validator (S-0020
 D1). Every collection is a tuple with an explicit lexicographic sort key,
 except authored-order fields (``key``, transform chains, ``partition_by``,
-mart flatten order — RFC 0003 D4). Floats never appear (RFC 0003 D5).
+mart flatten order — S-0020/D-4). Floats never appear (S-0020/D-5).
 
 The IR *builder* (spec → IR) lands with M2+; in M1 the IR is constructed by
 hand in tests.
@@ -96,7 +96,7 @@ __all__ = [
 ]
 
 # ....................... #
-# The physical names the data-quality nodes imply (RFC 0016 §5.5–§5.6,
+# The physical names the data-quality nodes imply (S-0033/schema-additions-and-the-array-capability–S-0033/quarantine-one-reject-table-per-entity,
 # D9/D23/D10). They live in the IR layer rather than in
 # :mod:`bloomery.quality.catalogue` (which re-exports them, so every consumer
 # keeps its shipped import path) because they are needed on *both* sides of a
@@ -110,7 +110,7 @@ FLAGS_COLUMN = "_quality_flags"
 #: The generated boolean, ``cardinality(_quality_flags) = 0`` per shape.
 OK_COLUMN = "_quality_ok"
 #: The **distinct** marker D17 required of ``repair`` before it could land: the
-#: rules whose recipe rewrote this row's value (RFC 0016 D87). Separate from
+#: rules whose recipe rewrote this row's value (S-0033/D-87). Separate from
 #: :data:`FLAGS_COLUMN` on purpose — "repaired, now correct" and "currently
 #: suspect" are different facts, and folding the first into the second would
 #: change what ``has_quality_flags`` means for every mart that already reads it.
@@ -122,8 +122,8 @@ OK_COLUMN = "_quality_ok"
 REPAIRS_COLUMN = "_quality_repairs"
 #: One ``<entity>__reject`` per entity, never per mapping (D10).
 REJECT_SUFFIX = "__reject"
-#: The lineage node-id prefixes (RFC 0031 §5.3, RFC 0051 §5.2; ``exposure``
-#: added by RFC 0056 §5.2, ``mart`` by RFC 0067 §5.1). Every node id but an
+#: The lineage node-id prefixes (S-0048/every-label-is-handled-and-the-vocabulary-is-closed-here, S-0059/the-node-id-collision-refused-at-its-cause; ``exposure``
+#: added by S-0063/the-graph, ``mart`` by S-0072/the-node). Every node id but an
 #: entity field's is ``<prefix>.<rest>``; an entity field is
 #: ``<entity>.<field>`` bare, so an entity named after one of these mints
 #: ids in another kind's namespace.
@@ -137,7 +137,7 @@ REJECT_SUFFIX = "__reject"
 #: escaping the reservation.
 NODE_ID_PREFIXES: Final = ("canonical", "exposure", "mart", "metric", "source", "step")
 #: The provenance column a **merged** entity carries: which source relation a
-#: row came from (RFC 0024 D7). Load-bearing rather than diagnostic — the
+#: row came from (S-0041/D-7). Load-bearing rather than diagnostic — the
 #: collision audit reports *which* sources shared a key, and without it the
 #: report is "this key is duplicated somewhere", which is not actionable on a
 #: five-source entity.
@@ -148,7 +148,7 @@ NODE_ID_PREFIXES: Final = ("canonical", "exposure", "mart", "metric", "source", 
 #: change is how a schema move gets hidden from ``plan()``.
 SOURCE_COLUMN = "_source"
 
-#: The validity interval of an ``scd: type2`` relation (RFC 0023 §5.3, D7).
+#: The validity interval of an ``scd: type2`` relation (S-0040/phase-2-the-as-of-join, S-0040/D-7).
 #:
 #: Unlike every other name in this section these columns are not projected by
 #: bloomery's own lowering — the target's snapshot machinery writes them. That
@@ -186,7 +186,7 @@ class SCDKind(StrEnum):
 
 
 class Materialization(StrEnum):
-    """Resolved materialization strategy (RFC 0002 D7 — explicit or derived)."""
+    """Resolved materialization strategy (S-0019/D-7 — explicit or derived)."""
 
     FULL = "full"
     INCREMENTAL_BY_KEY = "incremental_by_key"
@@ -197,7 +197,7 @@ class Materialization(StrEnum):
 
 
 class StepKind(StrEnum):
-    """The ladder tier a step occupies (RFC 0017 §5.1, D1). Tier 0 is the
+    """The ladder tier a step occupies (S-0034/the-four-tier-ladder, S-0034/D-1). Tier 0 is the
     transform whitelist and is not a step: a step kind names a tier that needs
     a body somebody wrote."""
 
@@ -210,7 +210,7 @@ class StepKind(StrEnum):
 
 
 class Determinism(StrEnum):
-    """RFC 0017 §5.5, D5. ``NONDETERMINISTIC`` reaches the IR only in the
+    """S-0034/determinism-tiers, S-0034/D-5. ``NONDETERMINISTIC`` reaches the IR only in the
     sense that it is spellable in a manifest — the compile stage refuses it,
     because a step whose backfill disagrees with the original run destroys
     restatement, the capability the architecture is organized around."""
@@ -224,7 +224,7 @@ class Determinism(StrEnum):
 
 
 class Lineage(StrEnum):
-    """Whether a step's outputs can be traced column by column (RFC 0017
+    """Whether a step's outputs can be traced column by column (S-0034
     §5.1). Tier 3 loses it, and says so rather than letting a consumer infer
     it from the kind."""
 
@@ -236,7 +236,7 @@ class Lineage(StrEnum):
 
 
 class Layer(StrEnum):
-    """Warehouse layer, consumed by naming policies (RFC 0008)."""
+    """Warehouse layer, consumed by naming policies (S-0025)."""
 
     BRONZE = "bronze"
     SILVER = "silver"
@@ -247,7 +247,7 @@ class Layer(StrEnum):
 
 
 class Unit(StrEnum):
-    """Unit metadata driving the unit-coherence guardrail (RFC 0006 §5.2);
+    """Unit metadata driving the unit-coherence guardrail (S-0023/metadata-provenance-unit-tax-basis-currency);
     a column without catalog metadata is ``UNKNOWN``."""
 
     CURRENCY = "currency"
@@ -259,7 +259,7 @@ class Unit(StrEnum):
 
 
 class TaxBasis(StrEnum):
-    """Tax-basis metadata (RFC 0006 §5.2): ``net`` and ``gross`` never meet
+    """Tax-basis metadata (S-0023/metadata-provenance-unit-tax-basis-currency): ``net`` and ``gross`` never meet
     in additive arithmetic; ``UNKNOWN`` poisons it."""
 
     NET = "net"
@@ -272,7 +272,7 @@ class TaxBasis(StrEnum):
 
 class Additivity(StrEnum):
     """How a measure may be aggregated across a rollup dimension
-    (RFC 0002 §5.5; closed as a typed set by RFC 0038 D1).
+    (S-0019/spec-model-surface; closed as a typed set by S-0053/D-1).
 
     Closed from the first commit that names it, which is what D1 locks: the
     planner, the proof rules and every emitter branch on this, and an open
@@ -307,13 +307,13 @@ class Additivity(StrEnum):
     NON_ADDITIVE = "non_additive"
     #: Numerator and denominator semantics, never the materialized quotient:
     #: ``SUM(num)/SUM(den)`` and ``AVG(ratio)`` differ, and the second is what
-    #: a numeric-looking column invites (RFC 0038 D2).
+    #: a numeric-looking column invites (S-0053/D-2).
     RATIO = "ratio"
     #: Carries the counted identity — ``agg: count_distinct`` over the column
     #: that names it. Computed from rows at the requested grain and never
     #: rolled up from a coarser result: additive across partitions only under a
     #: disjointness proof no rule yet supplies, so it stays out of branch
-    #: planning (RFC 0041 D8).
+    #: planning (S-0055/D-8).
     DISTINCT_COUNT = "distinct_count"
     #: Point-in-time state, requiring explicit time-selection semantics
     #: (first/last/as-of) before any cross-time aggregation.
@@ -322,7 +322,7 @@ class Additivity(StrEnum):
 
 #: The members a project can resolve to, and the canary that keeps ``SNAPSHOT``
 #: — in the closed set by D1, declared through ``semi_additive`` rather than
-#: by its own word — from becoming reachable by accident (RFC 0038 §12).
+#: by its own word — from becoming reachable by accident (S-0053/phasing).
 #:
 #: Minting a new one is a real change, not a widening. The commit that mints
 #: one updates this tuple, and the test asserting it fails until then — which
@@ -338,7 +338,7 @@ RESOLVABLE: Final = (
 #: The members whose metrics are **recomputed at query time from components**
 #: rather than emitted as a stored measure — the question nine of the fifteen
 #: sites across the emitters, the planner and the guardrails were asking when
-#: they read ``NON_ADDITIVE`` (RFC 0038 D1; logs/T-0023.md, D-146).
+#: they read ``NON_ADDITIVE`` (S-0053/D-1; logs/T-0023.md, D-146).
 #:
 #: Membership is a property of the class, not a shape of the metric: a ratio
 #: is recomputed from its operands, a `derived:` metric from its inputs, and
@@ -368,7 +368,7 @@ class Cardinality(StrEnum):
 
 
 class OnFail(StrEnum):
-    """A quality rule's row disposition (RFC 0016 §5.1, D2) — explicit per
+    """A quality rule's row disposition (S-0033/the-disposition-model, S-0033/D-2) — explicit per
     rule, never a global default.
 
     Deliberately no ``DROP``: silently discarding rows is the fastest way for a
@@ -377,7 +377,7 @@ class OnFail(StrEnum):
     quarantined rows return after a spec fix.
 
     ``REPAIR`` was deferred out of v1 (D17) and joined the vocabulary when
-    RFC 0017's step registry supplied the recipe contract it was gated on
+    S-0034's step registry supplied the recipe contract it was gated on
     (D87). It is the one member that is not a disposition on its own: a repair
     rule carries a ``fallback`` for the row its recipe did not fix, and
     :func:`~bloomery.quality.disposition` resolves it to that fallback — so
@@ -399,7 +399,7 @@ class OnFail(StrEnum):
 
 class SemiAdditiveRule(StrEnum):
     """Rule applied along a semi-additive metric's ``over`` dimension
-    (RFC 0011 D5)."""
+    (S-0028/D-5)."""
 
     LAST = "last"
     FIRST = "first"
@@ -409,7 +409,7 @@ class SemiAdditiveRule(StrEnum):
 
 
 # ....................... #
-# SQL expressions (RFC 0003 §5.2)
+# SQL expressions (S-0020/sql-expressions-in-the-ir-sqlexpr)
 
 
 # ....................... #
@@ -435,7 +435,7 @@ def _parse_sql(sql: str) -> Expression:
 class SqlExpr:
     """A SQL expression held as its canonical dialect-neutral string — the
     string is the value (hashable, version-stable equality); dialect-specific
-    rendering re-parses at emit (RFC 0003 D2)."""
+    rendering re-parses at emit (S-0020/D-2)."""
 
     sql: str
 
@@ -449,7 +449,7 @@ class SqlExpr:
 
 
 # ....................... #
-# Silver: entities (RFC 0003 §5.1)
+# Silver: entities (S-0020/ir-shape)
 
 
 # ....................... #
@@ -469,7 +469,7 @@ class PartitionSpec:
 
 @dataclass(frozen=True, slots=True)
 class AuditIR:
-    """A target-native audit lowered from an ``assert:`` clause (RFC 0006
+    """A target-native audit lowered from an ``assert:`` clause (S-0023
     §5.6); ``params`` is a tuple of (name, value) pairs sorted by name."""
 
     kind: str
@@ -493,7 +493,7 @@ class TransformStepIR:
 
 @dataclass(frozen=True, slots=True)
 class SourceColumnIR:
-    """One column's **lowering**, for one source (RFC 0024 D26).
+    """One column's **lowering**, for one source (S-0041/D-26).
 
     The half of the old ``ColumnIR`` that came from a mapping: the canonical
     lowered expression, and the recorded recipe id when the mapping derived
@@ -518,21 +518,21 @@ class SourceColumnIR:
     recipe_id: str | None = None
     #: The canonical SQL of every raw extraction this branch reads for the
     #: column — what the ``coercible`` marker compares the produced value
-    #: against (RFC 0024 D32). Per source rather than on the rule, because the
+    #: against (S-0041/D-32). Per source rather than on the rule, because the
     #: paths are one mapping's and the rule is evaluated once over the merged
     #: relation: carrying them on the rule would make source B's branch read
     #: source A's ``$.a.b`` off a bronze relation that need not have it.
     #: Empty for a column outside the quality system.
     sources: tuple[str, ...] = ()
     #: This branch's ``enum_map`` targets, deduplicated and sorted — the set
-    #: ``in_enum`` admits for rows from this source (RFC 0024 D32). Two
+    #: ``in_enum`` admits for rows from this source (S-0041/D-32). Two
     #: mappings may map different spellings onto different vocabularies, so
     #: the admissible set is a branch fact exactly as ``sources`` is.
     enum_values: tuple[str, ...] = ()
     #: This branch's ``enum_map`` spellings, deduplicated and sorted. Carried
     #: for the same reason the rule used to carry them: a widening that points
     #: a new spelling at an existing target changes no target, and ``plan()``
-    #: could not see it otherwise (RFC 0016 §6).
+    #: could not see it otherwise (S-0033/tests-rfc-0009-amendment).
     enum_spellings: tuple[str, ...] = ()
 
 
@@ -547,7 +547,7 @@ class SourceFieldIR:
     source_path: str
     transform: tuple[TransformStepIR, ...] = ()
     #: The zone this path's wall clocks were written in, as the mapping
-    #: declared it (RFC 0074 §5.2) — ``None`` where nothing was declared,
+    #: declared it (S-0076/zonein-is-how-a-utc-source-says-so) — ``None`` where nothing was declared,
     #: which is every project that predates the key.
     #:
     #: Here rather than on :class:`SourceColumnIR` because the declaration is a
@@ -566,7 +566,7 @@ class SourceFieldIR:
 
 @dataclass(frozen=True, slots=True)
 class FreshnessIR:
-    """The declared staleness thresholds for one bronze relation (RFC 0057
+    """The declared staleness thresholds for one bronze relation (S-0064
     §5.1), carried verbatim from the mapping.
 
     Strings rather than a count and a unit, because the spec's grammar is the
@@ -593,7 +593,7 @@ class SourceIR:
 
     ``mapping_version`` is the authored ``mapping_version:`` of the document
     that produced this entity. It reaches the IR because the reject table's
-    schema carries it (RFC 0016 §5.6): a quarantined row records *which
+    schema carries it (S-0033/quarantine-one-reject-table-per-entity): a quarantined row records *which
     version of which mapping* rejected it, or replay cannot tell a row that
     still fails from a row the mapping has since learned to read.
 
@@ -602,19 +602,19 @@ class SourceIR:
     same reason: the reject table's ``raw`` column is *the bronze payload*,
     not the mapped subset, and ``quarantine.redact`` only ever has something
     to remove there (a redacted path that the mapping reads is the compile
-    error ``RedactionConflict``, RFC 0016 §5.6).
+    error ``RedactionConflict``, S-0033/quarantine-one-reject-table-per-entity).
     """
 
     relation: str
     fields: tuple[SourceFieldIR, ...] = ()
     #: This source's projection of each entity column, sorted by name
-    #: (RFC 0024 D26). ``fields`` is what the reject payload and replay read;
+    #: (S-0041/D-26). ``fields`` is what the reject payload and replay read;
     #: this is what the SELECT projects. The two answer different questions
     #: and are grained differently — see :class:`SourceColumnIR`.
     columns: tuple[SourceColumnIR, ...] = ()
     mapping_version: int = 1
     unmapped: tuple[str, ...] = ()
-    #: The declared staleness thresholds for ``relation`` (RFC 0057 §5.1), or
+    #: The declared staleness thresholds for ``relation`` (S-0064/the-spec-surface), or
     #: ``None`` where the mapping declares none — never defaulted (D5).
     #:
     #: Per source rather than per entity because that is the grain the
@@ -632,9 +632,9 @@ class SourceIR:
 class ColumnIR:
     """One entity column's **schema**: declared type and catalog metadata.
     ``description`` comes from the canonical field, when one is bound — it is
-    carried into semantic-layer emissions (RFC 0013 R1).
+    carried into semantic-layer emissions (S-0030 R1).
 
-    **The lowered expression is not here** (RFC 0024 D26). Every field on this
+    **The lowered expression is not here** (S-0041/D-26). Every field on this
     node is derived from the EntityModel ``Field`` and the catalog, so it is
     identical for every mapping that targets the entity — by construction,
     not by convention. What comes from a *mapping* — the lowered ``expr`` and
@@ -652,11 +652,11 @@ class ColumnIR:
     unit: Unit | None
     tax_basis: TaxBasis | None
     #: Declared on the EntityModel ``Field``, not on a mapping — so it is
-    #: schema like the rest of this node, and stays here (RFC 0024 D26).
+    #: schema like the rest of this node, and stays here (S-0041/D-26).
     renamed_from: str | None
     required: bool
     description: str | None = None
-    #: What class of data this column holds (RFC 0055 §5.2), carried unchanged
+    #: What class of data this column holds (S-0062/classification), carried unchanged
     #: from the field. A plain string rather than an enum for the same reason
     #: the spec's vocabulary is a `Literal`: the value travels to metadata and
     #: nothing here branches on it.
@@ -664,7 +664,7 @@ class ColumnIR:
 
 
 # ....................... #
-# Silver: data quality (RFC 0016 §5.3–§5.6)
+# Silver: data quality (S-0033/spec-schema–S-0033/quarantine-one-reject-table-per-entity)
 
 
 # ....................... #
@@ -685,7 +685,7 @@ class QualityRuleIR:
     its disposition as the ``on_missing`` param instead, because its
     ``unknown_member`` value is *not* an :class:`OnFail` — the row passes with
     its fk rewritten to the reserved member, neither flagged nor diverted
-    (RFC 0016 §5.4, D19). Folding it into ``FLAG`` would misdescribe the
+    (S-0033/fixed-pipeline-order-and-lowering, S-0033/D-19). Folding it into ``FLAG`` would misdescribe the
     lowering; widening ``OnFail`` would contradict §5.1's three-value model.
     """
 
@@ -704,10 +704,10 @@ def quality_sort_key(
 ) -> tuple[str, str, str, tuple[tuple[str, str], ...], str]:
     """The canonical order of :attr:`EntityIR.quality` — one function so no
     consumer can invent a second one. Total over the node's whole value, so
-    two rules that would sort equal are the same rule (RFC 0003 §5.3).
+    two rules that would sort equal are the same rule (S-0020/ordering-rules).
 
     ``on_fail`` is the last component and it is **load-bearing**, not
-    decoration (RFC 0016 D50): name generation walks this order, so two rules
+    decoration (S-0033/D-50): name generation walks this order, so two rules
     differing only in their disposition sorting equal made the assignment fall
     through to authored order — swapping two YAML lines then compiled the same
     spec to two different IRs. It sorts last so it only ever breaks a tie
@@ -722,13 +722,13 @@ def quality_sort_key(
 
 @dataclass(frozen=True, slots=True)
 class DedupeIR:
-    """Entity-level dedupe (RFC 0016 §5.4, D20), lowered to a ``ROW_NUMBER``
+    """Entity-level dedupe (S-0033/fixed-pipeline-order-and-lowering, S-0033/D-20), lowered to a ``ROW_NUMBER``
     over ``PARTITION BY <entity key>``.
 
     The sort order is total by construction: ``field`` DESC, then each
     ``tie_break`` column DESC, then the stable source-row identity
     ``_source_row_id`` DESC — every key ``NULLS LAST``. ``tie_break`` keeps
-    authored order (it is a sort order, therefore semantic — RFC 0003 D4);
+    authored order (it is a sort order, therefore semantic — S-0020/D-4);
     empty here means the compile stage has yet to refuse it
     (``DedupeTieBreakMissing``), never that ties are allowed.
     """
@@ -743,7 +743,7 @@ class DedupeIR:
 
 @dataclass(frozen=True, slots=True)
 class QuarantineIR:
-    """The per-entity ``<entity>__reject`` policy (RFC 0016 §5.6, D10).
+    """The per-entity ``<entity>__reject`` policy (S-0033/quarantine-one-reject-table-per-entity, S-0033/D-10).
 
     ``retention`` is the grammar-validated duration string (``90d``) and is
     mandatory wherever a ``quarantine`` disposition exists — reject rows hold
@@ -761,9 +761,9 @@ class QuarantineIR:
 
 @dataclass(frozen=True, slots=True)
 class ReconcileIR:
-    """One cross-entity reconciliation check (RFC 0016 §5.3) — the check that
+    """One cross-entity reconciliation check (S-0033/spec-schema) — the check that
     catches a *correct formula over wrong data*. ``tolerance`` is a
-    :class:`~decimal.Decimal`; floats never enter the IR (RFC 0003 D5)."""
+    :class:`~decimal.Decimal`; floats never enter the IR (S-0020/D-5)."""
 
     name: str
     left: str
@@ -777,7 +777,7 @@ class ReconcileIR:
 
 @dataclass(frozen=True, slots=True)
 class CoverageIR:
-    """One cross-entity coverage check (RFC 0016 D90): every row of a
+    """One cross-entity coverage check (S-0033/D-90): every row of a
     relationship's referenced entity has at least ``minimum`` rows referencing
     it.
 
@@ -797,7 +797,7 @@ class CoverageIR:
 
 @dataclass(frozen=True, slots=True)
 class GrantsIR:
-    """Who may read a relation (RFC 0055 §5.3).
+    """Who may read a relation (S-0062/grants).
 
     A record rather than a bare tuple so that "no role may select" and "no
     opinion" stay different values: ``GrantsIR(select=())`` is the first and
@@ -823,7 +823,7 @@ class EntityIR:
     one column (``range min`` and ``range max``, §5.3's worked example) still
     order deterministically by their bounds. The trailing ``on_fail`` is not
     decoration: without it two rules differing only in disposition sort equal,
-    and name generation falls through to authored order (RFC 0016 D50). Read
+    and name generation falls through to authored order (S-0033/D-50). Read
     that function, not this sentence, for the authority.
     """
 
@@ -835,7 +835,7 @@ class EntityIR:
     partition_by: tuple[PartitionSpec, ...]
     columns: tuple[ColumnIR, ...]
     #: The bronze relations this entity is built from, sorted by ``relation``
-    #: (RFC 0024 D1/D3). More than one is a **union merge**: the silver model
+    #: (S-0041/D-1, S-0041/D-3). More than one is a **union merge**: the silver model
     #: is a ``UNION ALL`` of one projection per source, in this order, so the
     #: emitted SQL is byte-identical across processes. Row order is not
     #: claimed — ``UNION ALL`` is a bag (D3).
@@ -850,7 +850,7 @@ class EntityIR:
     dedupe: DedupeIR | None = None
     quarantine: QuarantineIR | None = None
     #: ``ref@version`` of the step that writes this entity, or ``None`` for an
-    #: ordinary mapped one (RFC 0017 §5.8).
+    #: ordinary mapped one (S-0034/emission-and-the-dag).
     #:
     #: A step output *is* an entity — that is what lets marts, metrics and
     #: downstream mappings reference it "like any silver entity" — but it is
@@ -859,18 +859,18 @@ class EntityIR:
     #: would emit a second model at the same path, which is the collision D28
     #: refuses everywhere else.
     produced_by: str | None = None
-    #: Who is responsible for this (RFC 0055 §5.1), carried unchanged to
+    #: Who is responsible for this (S-0062/owner), carried unchanged to
     #: whichever targets have an owner slot. A declaration bloomery never
     #: verifies. Appended with a default so a positional construction keeps
     #: binding what it bound before.
     owner: str | None = None
-    #: Who may read this relation (RFC 0055 §5.3), or ``None`` for "bloomery
+    #: Who may read this relation (S-0062/grants), or ``None`` for "bloomery
     #: has no opinion and the warehouse's grants stand" (D6).
     grants: GrantsIR | None = None
 
 
 # ....................... #
-# Metrics (RFC 0003 §5.1; policies per RFC 0011 D5)
+# Metrics (S-0020/ir-shape; policies per S-0028/D-5)
 
 
 # ....................... #
@@ -878,7 +878,7 @@ class EntityIR:
 
 @dataclass(frozen=True, slots=True)
 class DimensionRef:
-    """The single role-playing dimension model (RFC 0010 §5.3), lowered per
+    """The single role-playing dimension model (S-0027/dimensionref), lowered per
     consumer (mart builder, planner, Cube emitter)."""
 
     dimension: str
@@ -899,7 +899,7 @@ class DimensionRef:
 @dataclass(frozen=True, slots=True)
 class SemiAdditivePolicy:
     """Typed semi-additive policy: the dimension the metric is not additive
-    over, and the rule along it (RFC 0011 D5)."""
+    over, and the rule along it (S-0028/D-5)."""
 
     over: DimensionRef
     rule: SemiAdditiveRule
@@ -910,11 +910,11 @@ class SemiAdditivePolicy:
 
 @dataclass(frozen=True, slots=True)
 class Ratio:
-    """Additive decomposition of a non-additive metric (RFC 0011 D5)."""
+    """Additive decomposition of a non-additive metric (S-0028/D-5)."""
 
     numerator: str
     denominator: str
-    #: The author's answer to "which rows is this ratio about" (RFC 0075 D2),
+    #: The author's answer to "which rows is this ratio about" (S-0077/D-2),
     #: carried verbatim. Appended last so a positional construction keeps
     #: binding what it bound before.
     includes_zero_denominator: bool = False
@@ -927,7 +927,7 @@ class Ratio:
 class TimeWindow:
     """A whole number of time units — ``(1, "year")``, ``(7, "day")``.
 
-    One node for the two places a window appears (RFC 0034 D2): a derived
+    One node for the two places a window appears (S-0050/D-2): a derived
     input's offset and a cumulative metric's trailing window. ``grain`` is
     singular and one of ``day|week|month|quarter|year``; the spec grammar
     accepts the plural and :func:`~bloomery.spec.metrics.parse_time_window`
@@ -944,7 +944,7 @@ class TimeWindow:
 @dataclass(frozen=True, slots=True)
 class MetricInputIR:
     """One input of a derived metric: the alias its expression references,
-    the metric read, and the offset it is read at (RFC 0034 D1).
+    the metric read, and the offset it is read at (S-0050/D-1).
 
     At most one of ``offset_window``/``offset_to_grain`` is set — the spec
     model refuses both and refuses neither-when-``offset``-is-written.
@@ -961,12 +961,12 @@ class MetricInputIR:
 
 @dataclass(frozen=True, slots=True)
 class DerivedIR:
-    """A metric computed by an expression over other metrics (RFC 0034 D1).
+    """A metric computed by an expression over other metrics (S-0050/D-1).
 
     ``inputs`` is sorted by alias, and the alias is what ``expr`` references.
     Like a :class:`Ratio`, this decomposes a metric that has no measure of
     its own — the planner recomputes it from the measures its inputs need
-    (RFC 0011 D5).
+    (S-0028/D-5).
     """
 
     expr: SqlExpr
@@ -978,7 +978,7 @@ class DerivedIR:
 
 @dataclass(frozen=True, slots=True)
 class CumulativeIR:
-    """How a metric accumulates over time (RFC 0034 D5): exactly one of a
+    """How a metric accumulates over time (S-0050/D-5): exactly one of a
     trailing ``window`` or a ``grain_to_date`` period start. The metric keeps
     its own measure and its own additivity — those describe the measure, this
     describes the accumulation (D6).
@@ -1000,7 +1000,7 @@ class CumulativeIR:
 
 @dataclass(frozen=True, slots=True)
 class MetricFilterIR:
-    """One row-level restriction on a metric (RFC 0034 D8).
+    """One row-level restriction on a metric (S-0050/D-8).
 
     ``values`` carries text where the author wrote a date or timestamp — the
     same carrier :class:`AuditIR` params use, and for the same reason: a
@@ -1021,9 +1021,9 @@ class MetricFilterIR:
 @dataclass(frozen=True, slots=True)
 class MetricIR:
     """One reachable metric; ``depends_on`` keeps the DAG edges sorted for
-    ``plan()``'s downstream-impact computation (RFC 0003 §5.1).
+    ``plan()``'s downstream-impact computation (S-0020/ir-shape).
     ``description`` (authored or template-merged) is carried into semantic-
-    layer emissions (RFC 0013 R1) — it grounds the Query Agent."""
+    layer emissions (S-0030 R1) — it grounds the Query Agent."""
 
     name: str
     grain: str
@@ -1032,7 +1032,7 @@ class MetricIR:
     expr: SqlExpr | None
     ratio: Ratio | None
     semi_additive: SemiAdditivePolicy | None
-    #: The RFC 0034 forms. ``derived`` decomposes a metric with no measure of
+    #: The S-0050 forms. ``derived`` decomposes a metric with no measure of
     #: its own, like ``ratio`` and mutually exclusive with ``cumulative``,
     #: which accumulates a metric that has one. ``filter`` restricts the rows
     #: either aggregates.
@@ -1041,7 +1041,7 @@ class MetricIR:
     filter: tuple[MetricFilterIR, ...] = ()
     description: str | None = None
     depends_on: tuple[str, ...] = ()
-    #: Who is responsible for this (RFC 0055 §5.1), carried unchanged to
+    #: Who is responsible for this (S-0062/owner), carried unchanged to
     #: whichever targets have an owner slot. A declaration bloomery never
     #: verifies. Appended with a default so a positional construction keeps
     #: binding what it bound before.
@@ -1054,9 +1054,9 @@ class MetricIR:
 @dataclass(frozen=True, slots=True)
 class UnreachableMetric:
     """An unreachable metric with its specific missing leaves, sorted —
-    product-facing IR output, not a log line (RFC 0003 D6).
+    product-facing IR output, not a log line (S-0020/D-6).
 
-    ``missing`` names *leaves* and never intermediate metrics (RFC 0005 D3),
+    ``missing`` names *leaves* and never intermediate metrics (S-0022/D-3),
     because the fix is always a mapping. ``via`` names the intermediates
     anyway, separately: a metric blocked through another — ``margin`` blocked
     because ``gross_profit`` is — reports the leaf, and without the chain the
@@ -1090,7 +1090,7 @@ class RelationshipIR:
 
 
 # ....................... #
-# Gold: marts (RFC 0010 §5.4)
+# Gold: marts (S-0027/martir)
 
 
 # ....................... #
@@ -1124,13 +1124,13 @@ class MartDimensionIR:
 
 @dataclass(frozen=True, slots=True)
 class MartJoinIR:
-    """One resolved build-time join of a mart (RFC 0010 §5.5, RFC 0008 D11):
+    """One resolved build-time join of a mart (S-0027/validation-compile-errors-batched-with-guardrails, S-0025/D-11):
     the declared relationship, the joined entity, the column prefix (also the
     join alias), and the ``on`` pairs — (flattened from-side column in the
     mart's namespace, to-side entity column), sorted by from-side column.
     Consumed only by the mart-building emitter; the planner never joins.
 
-    ``as_of`` is the anchor for an as-of join (RFC 0023 §5.3): the base-side
+    ``as_of`` is the anchor for an as-of join (S-0040/phase-2-the-as-of-join): the base-side
     column the joined entity's validity interval is read against, already in
     the mart's namespace like the left half of ``on``. ``None`` is an
     ordinary equality join, which is every join over a non-historical
@@ -1152,7 +1152,7 @@ class MartJoinIR:
 
 @dataclass(frozen=True, slots=True)
 class MartAssertIR:
-    """One aggregate assertion over a mart (RFC 0016 D89).
+    """One aggregate assertion over a mart (S-0033/D-89).
 
     Not a :class:`QualityRuleIR`, and the difference is the whole decision: a
     quality rule carries an ``OnFail`` that *routes a row*, and a mart row has
@@ -1178,9 +1178,9 @@ class MartAssertIR:
 @dataclass(frozen=True, slots=True)
 class MartIR:
     """One wide pre-joined mart — read by both the mart builder (joins at
-    build) and the planner (no joins), so they cannot disagree (RFC 0010 D1).
+    build) and the planner (no joins), so they cannot disagree (S-0027/D-1).
     ``joins`` keeps the authored flatten order (it is semantic: later joins
-    may key off earlier-joined columns, RFC 0003 D4)."""
+    may key off earlier-joined columns, S-0020/D-4)."""
 
     name: str
     grain: str
@@ -1191,17 +1191,17 @@ class MartIR:
     joins: tuple[MartJoinIR, ...]
     partition_by: tuple[PartitionSpec, ...]
     materialization: Materialization
-    #: Aggregate assertions over this mart (RFC 0016 D89), sorted by name.
+    #: Aggregate assertions over this mart (S-0033/D-89), sorted by name.
     #: Assertions rather than quality rules because a mart row has nothing to
     #: dispose of — no source identity, no reject table, no replay.
     asserts: tuple[MartAssertIR, ...] = ()
     cost_hint: int = 1
-    #: Who is responsible for this (RFC 0055 §5.1), carried unchanged to
+    #: Who is responsible for this (S-0062/owner), carried unchanged to
     #: whichever targets have an owner slot. A declaration bloomery never
     #: verifies. Appended with a default so a positional construction keeps
     #: binding what it bound before.
     owner: str | None = None
-    #: Who may read this relation (RFC 0055 §5.3), or ``None`` for "bloomery
+    #: Who may read this relation (S-0062/grants), or ``None`` for "bloomery
     #: has no opinion and the warehouse's grants stand" (D6).
     grants: GrantsIR | None = None
 
@@ -1211,10 +1211,10 @@ class MartIR:
 
 @dataclass(frozen=True, slots=True)
 class RollupIR:
-    """A mart at a coarser grain than one this project builds (RFC 0058 §5.2).
+    """A mart at a coarser grain than one this project builds (S-0065/the-obligation).
 
     Its own collection on :class:`ProjectIR` rather than a flag on
-    :class:`MartIR`, and that is what makes RFC 0058 row 14 (`LOCKED`) true by
+    :class:`MartIR`, and that is what makes S-0065 row 14 (`LOCKED`) true by
     construction. That row says a rollup is never a measure owner and never a
     covering mart; ``measure_owners`` and the planner's covering-mart search
     both walk ``ProjectIR.marts``, as do the Cube and MetricFlow emitters,
@@ -1232,7 +1232,7 @@ class RollupIR:
     flattened and that is the whole of what makes a rollup cheap.
 
     There is no ``columns`` either, and that one is worth a sentence.
-    :class:`MartIR` carries its resolved schema because RFC 0010 §5.4 does not
+    :class:`MartIR` carries its resolved schema because S-0027/martir does not
     want a consumer re-running the flatten recipe — joins in authored order,
     transitive prefixes, bucket expansion. A rollup has no recipe: ``keep``
     *is* the kept column set by name, ``measures`` is the rest, and the types
@@ -1248,7 +1248,7 @@ class RollupIR:
     measures: tuple[str, ...]
     partition_by: tuple[PartitionSpec, ...] = ()
     materialization: Materialization = Materialization.FULL
-    #: Who may read this rollup (RFC 0055 D12), or ``None`` for an undeclared
+    #: Who may read this rollup (S-0062/D-12), or ``None`` for an undeclared
     #: audience. Not inherited from the parent mart: a rollup is an authored
     #: node, and D2 refuses inheritance between those.
     grants: GrantsIR | None = None
@@ -1258,7 +1258,7 @@ class RollupIR:
 
 
 class ExposureKind(StrEnum):
-    """What a declared consumer *is* (RFC 0056 D3).
+    """What a declared consumer *is* (S-0063/D-3).
 
     dbt's five exposure types verbatim, because dbt is the only framework with
     a consumer for these words and a bloomery-specific set would have to be
@@ -1268,7 +1268,7 @@ class ExposureKind(StrEnum):
 
     An enum rather than the ``str`` this first carried, for the reason every
     other closed vocabulary in this module is one: the IR's builder is its
-    validator (RFC 0003 D1), and a plain string leaves a hand-built node free to
+    validator (S-0020/D-1), and a plain string leaves a hand-built node free to
     hold a type the dbt emitter would write out and dbt would refuse.
     """
 
@@ -1284,7 +1284,7 @@ class ExposureKind(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class ExportsIR:
-    """What this project publishes for another project to read (RFC 0059 §5.1,
+    """What this project publishes for another project to read (S-0002 (§5.1),
     D1).
 
     The upstream half of the composition boundary, and in this phase the whole
@@ -1301,7 +1301,7 @@ class ExportsIR:
 
     Each is sorted. The order of an export list carries no meaning, so leaving
     it authored would let two spellings of one surface produce two fingerprints
-    (RFC 0003 §5.1).
+    (S-0020/ir-shape).
 
     **Absence is the only spelling of "exports nothing".** An empty document is
     refused where it is authored, so this node is either present with something
@@ -1319,7 +1319,7 @@ class ExportsIR:
 
 @dataclass(frozen=True, slots=True)
 class ExposureIR:
-    """A declared consumer of what this project builds (RFC 0056 §5.1).
+    """A declared consumer of what this project builds (S-0063/the-document).
 
     The one IR node with no artifact of its own on most targets and no
     contribution to any SELECT anywhere: an exposure is *read* — by the lineage
@@ -1333,9 +1333,9 @@ class ExposureIR:
     would resolve to whichever lookup ran first.
 
     ``owner`` and ``url`` are carried verbatim and interpreted by nothing
-    (RFC 0056 D6). The URL in particular is never fetched: an exposure is a
+    (S-0063/D-6). The URL in particular is never fetched: an exposure is a
     claim about a world this compiler cannot see, and validating it would need
-    the network RFC 0003 forbids.
+    the network S-0020 forbids.
     """
 
     name: str
@@ -1351,7 +1351,7 @@ class ExposureIR:
 
 @dataclass(frozen=True, slots=True)
 class DateDimensionIR:
-    """The vertical-owned date dimension (RFC 0008 D13, RFC 0013 R1 rule 4):
+    """The vertical-owned date dimension (S-0025/D-13, S-0030 R1 rule 4):
     one catalog definition emits both the gold ``dim_date`` model and, at M6,
     the MetricFlow time-spine declaration. Bounds are calendar years — the
     emitted table is a pure function of the spec, never of a clock."""
@@ -1367,7 +1367,7 @@ class DateDimensionIR:
 
 @dataclass(frozen=True, slots=True)
 class FxRatesIR:
-    """The dated exchange-rate relation ``convert`` reads (RFC 0023 §5.4).
+    """The dated exchange-rate relation ``convert`` reads (S-0040/phase-2-currency-as-a-declared-relation).
 
     Names only — the relation the operator supplies and the five columns it
     carries. ``relation`` is resolved through the naming policy at the silver
@@ -1393,7 +1393,7 @@ class FxRatesIR:
 
 
 # ....................... #
-# Steps — RFC 0017 §5.6, D11/D15
+# Steps — S-0034/runtime-pinning, S-0034/D-11, S-0034/D-15
 
 
 # ....................... #
@@ -1401,7 +1401,7 @@ class FxRatesIR:
 
 @dataclass(frozen=True, slots=True)
 class StepColumnIR:
-    """One column a step output declares it produces (RFC 0017 §5.2).
+    """One column a step output declares it produces (S-0034/step-manifest).
 
     Trusted at compile — downstream models typecheck against this — and
     verified at run time by the generated wrapper's contract assertion (§5.4,
@@ -1420,7 +1420,7 @@ class StepColumnIR:
 
 @dataclass(frozen=True, slots=True)
 class StepOutputIR:
-    """One relation a step produces, bound to a name (RFC 0017 §5.2, §5.8).
+    """One relation a step produces, bound to a name (S-0034/step-manifest, S-0034/emission-and-the-dag).
 
     ``relation`` is where the wiring binds it; ``key`` is the grain's
     uniqueness columns, which is what the runtime assertion groups by. Each
@@ -1444,9 +1444,9 @@ class StepOutputIR:
 @dataclass(frozen=True, slots=True)
 class StepParameterIR:
     """One resolved parameter: its name, its value as text, and the logical
-    type the manifest declared for it (RFC 0017 §5.2, D15).
+    type the manifest declared for it (S-0034/step-manifest, S-0034/D-15).
 
-    The value is text so the canonical encoding never meets a float (RFC 0003
+    The value is text so the canonical encoding never meets a float (S-0020
     D5) — but text alone is not enough to *call* the step with. A generated
     wrapper has to hand the body a real ``Decimal``, ``int`` or ``str``, and
     the only thing that says which is the declared type, so it travels beside
@@ -1464,7 +1464,7 @@ class StepParameterIR:
 @dataclass(frozen=True, slots=True)
 class StepIR:
     """One wired step: the manifest's identity and contract, joined to what
-    the spec asked of it (RFC 0017 §5.6, D11/D15).
+    the spec asked of it (S-0034/runtime-pinning, S-0034/D-11, S-0034/D-15).
 
     **Everything that can change behaviour is a field here**, and that is the
     entire mechanism rather than an implementation detail. The canonical
@@ -1476,13 +1476,13 @@ class StepIR:
 
     ``parameters`` are :class:`StepParameterIR` values sorted by name and the
     wiring is ``(name, relation)`` pairs, all stringified, so the canonical
-    encoding never meets a float (D15, RFC 0003 D5) — the same discipline
+    encoding never meets a float (D15, S-0020/D-5) — the same discipline
     :class:`QualityRuleIR.params` follows.
 
     ``body`` carries the SQL of a Tier 1 or Tier 2 step, canonicalized at
     lowering. It lives in the IR rather than being read from the registry at
     emit because emitters consume IR and never the spec or registry layer
-    (RFC 0008); a Tier 3 step has no body here at all, since bloomery never
+    (S-0025); a Tier 3 step has no body here at all, since bloomery never
     sees its code.
     """
 
@@ -1507,7 +1507,7 @@ def step_sort_key(step: StepIR) -> tuple[str, int]:
     """The canonical order of :attr:`ProjectIR.steps` — one function so no
     consumer invents a second one. ``(ref, version)`` is total over the
     collection because a spec may wire one ``ref@version`` at most once
-    (RFC 0017 §5.2)."""
+    (S-0034/step-manifest)."""
 
     return (step.ref, step.version)
 
@@ -1518,39 +1518,39 @@ def step_sort_key(step: StepIR) -> tuple[str, int]:
 @dataclass(frozen=True, slots=True)
 class ProjectIR:
     """The compile pipeline's product: all collections sorted by name
-    (RFC 0003 §5.1). ``bloomery_ir_version`` is fingerprint-covered, so an IR
-    shape change changes every fingerprint loudly (RFC 0003 §5.4).
+    (S-0020/ir-shape). ``bloomery_ir_version`` is fingerprint-covered, so an IR
+    shape change changes every fingerprint loudly (S-0020/fingerprint).
 
-    Version 2 (RFC 0016 M12) adds the data-quality shape: ``reconcile`` here,
+    Version 2 (S-0033 M12) adds the data-quality shape: ``reconcile`` here,
     ``quality``/``dedupe``/``quarantine`` on every :class:`EntityIR`. Version 3
-    (RFC 0017 M13) adds ``steps``. Version 4 adds ``coverage`` here and
-    ``asserts`` on every :class:`MartIR` (RFC 0016 D89/D90). Version 5
-    (RFC 0022 M19) adds ``via`` to every :class:`UnreachableMetric`. Version 6
-    (RFC 0024 D17/D26) moves each column's lowered expression off
+    (S-0034 M13) adds ``steps``. Version 4 adds ``coverage`` here and
+    ``asserts`` on every :class:`MartIR` (S-0033/D-89, S-0033/D-90). Version 5
+    (S-0039 M19) adds ``via`` to every :class:`UnreachableMetric`. Version 6
+    (S-0041/D-17, S-0041/D-26) moves each column's lowered expression off
     :class:`ColumnIR` onto a per-source :class:`SourceColumnIR`, so an entity
-    can be built from more than one mapping. Version 7 (RFC 0023 §5.3) adds
-    ``as_of`` to every :class:`MartJoinIR`. Version 8 (RFC 0023 §5.4) adds
+    can be built from more than one mapping. Version 7 (S-0040/phase-2-the-as-of-join) adds
+    ``as_of`` to every :class:`MartJoinIR`. Version 8 (S-0040/phase-2-currency-as-a-declared-relation) adds
     ``fx_rates`` here. Version 9
-    (RFC 0034 D14) adds ``cumulative``/``derived``/``filter`` to every
+    (S-0050/D-14) adds ``cumulative``/``derived``/``filter`` to every
     :class:`MetricIR`, and version 10 adds ``period_agg`` to every
     :class:`CumulativeIR` — a second shape change under the same RFC, and a
     second number, because "the first one is not released yet" is a reason to
     skip the bump only until someone diffs two IRs that both call themselves 9.
-    Version 11 (RFC 0024 D32) adds ``sources``, ``enum_values`` and
+    Version 11 (S-0041/D-32) adds ``sources``, ``enum_values`` and
     ``enum_spellings`` to every :class:`SourceColumnIR`: a merged entity's
     rules are evaluated once over the union, so the per-mapping facts they read
-    move onto the per-mapping node. Version 13 (RFC 0056 §5.1) adds
+    move onto the per-mapping node. Version 13 (S-0063/the-document) adds
     ``exposures`` — a node that changes no SELECT and moves every fingerprint
     anyway, which is the encoder working as §5.4 intends: the *shape* is
     covered, so two compilers that disagree about what an IR holds can never
-    agree on a fingerprint. Version 14 (RFC 0057 §5.1) adds ``freshness`` to
+    agree on a fingerprint. Version 14 (S-0064/the-spec-surface) adds ``freshness`` to
     every :class:`SourceIR`, and moves every fingerprint for the reason version
     7 established: the encoder writes field names per *instance*, so a project
     whose sources declare no threshold would otherwise encode identically
     before and after the field existed, and two compilers of different shape
     would agree on both the version and the fingerprint while disagreeing about
-    what an IR holds. Version 18 (RFC 0074 §5.2) adds ``zone_in`` to every
-    :class:`SourceFieldIR` — a declaration no SELECT reads, moving every    fingerprint for version 14's reason and no other. Version 19 (RFC 0075 D2) adds
+    what an IR holds. Version 18 (S-0076/zonein-is-how-a-utc-source-says-so) adds ``zone_in`` to every
+    :class:`SourceFieldIR` — a declaration no SELECT reads, moving every    fingerprint for version 14's reason and no other. Version 19 (S-0077/D-2) adds
     ``includes_zero_denominator`` to every :class:`Ratio`, which is the same
     shape again: a declaration, read by a rule rather than by a SELECT.
     The bump is
@@ -1571,7 +1571,7 @@ class ProjectIR:
     Note that ``steps`` shifts every fingerprint even for a project with no
     steps at all: the canonical encoder writes each dataclass's field count
     and every field name, so the *shape* is covered, not merely the values.
-    That is the intended reading of RFC 0003 §5.4 — an IR shape change is
+    That is the intended reading of S-0020/fingerprint — an IR shape change is
     supposed to be loud.
     """
 
@@ -1581,10 +1581,10 @@ class ProjectIR:
     unreachable: tuple[UnreachableMetric, ...] = ()
     relationships: tuple[RelationshipIR, ...] = ()
     marts: tuple[MartIR, ...] = ()
-    #: Rollup marts, sorted by name (RFC 0058 §5.2). Deliberately *not* folded
+    #: Rollup marts, sorted by name (S-0065/the-obligation). Deliberately *not* folded
     #: into ``marts``: see :class:`RollupIR`.
     rollups: tuple[RollupIR, ...] = ()
-    #: Declared downstream consumers, sorted by name (RFC 0056 §5.1). A leaf
+    #: Declared downstream consumers, sorted by name (S-0063/the-document). A leaf
     #: of the lineage graph and an input to ``plan()``'s impact report; nothing
     #: is built for one.
     exposures: tuple[ExposureIR, ...] = ()
@@ -1593,7 +1593,7 @@ class ProjectIR:
     reconcile: tuple[ReconcileIR, ...] = ()
     coverage: tuple[CoverageIR, ...] = ()
     steps: tuple[StepIR, ...] = ()
-    #: What this project publishes for another to read (RFC 0059 §5.1, D1).
+    #: What this project publishes for another to read (S-0002 (§5.1), S-0002/D-1).
     #: ``None`` where no exports document was authored, which is the only
     #: spelling of "exports nothing" — the document refuses to be empty.
     #:
@@ -1601,7 +1601,7 @@ class ProjectIR:
     #: inserted mid-list does not raise for a caller who bound positionally —
     #: it silently rebinds, and a `DateDimensionIR` lands in `exports` while
     #: `date_dimension` comes back `None`. Appending is what keeps the addition
-    #: additive (RFC 0018 D1), and `test_exports_is_the_last_field` is what
+    #: additive (S-0035/D-1), and `test_exports_is_the_last_field` is what
     #: keeps the next one honest.
     exports: ExportsIR | None = None
 
@@ -1613,10 +1613,10 @@ def carries_quality_flags(entity: EntityIR) -> bool:
     """Whether this entity's relation has ``_quality_flags``/``_quality_ok``.
 
     A mapped entity always does — the two columns are the general form
-    evaluated at compile, constants where no rule fires (RFC 0016 §5.5). A
+    evaluated at compile, constants where no rule fires (S-0033/schema-additions-and-the-array-capability). A
     **step-produced** entity does only when it carries an ``on_fail: flag``
     rule, which is the one case whose body is a SELECT the projection can wrap
-    (RFC 0051 §5.3, D11/D12).
+    (S-0059/onfail-flag-on-a-tier-2-output, S-0059/D-11, S-0059/D-12).
 
     Derived rather than stored. A new :class:`EntityIR` field would move every
     fingerprint in the corpus — the encoder is type-driven over field names and

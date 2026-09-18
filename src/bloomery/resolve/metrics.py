@@ -1,7 +1,7 @@
 """Template instantiation: authored metrics merged with their catalog
-templates into one effective view (RFC 0002 §5.5; original spec §3.2).
+templates into one effective view (S-0019/spec-model-surface; original spec §3.2).
 
-Runs on reference-clean specs (RFC 0005 §5.5): every ``template:`` ref is
+Runs on reference-clean specs (S-0022/cross-spec-reference-validation-bloomery-resolve-refs-py): every ``template:`` ref is
 known to exist by the time this module merges. A metric's own values win over
 the template's; empty tuples and ``None`` fall through to the template.
 """
@@ -27,7 +27,7 @@ __all__ = [
 ]
 
 #: Best-effort source-path prefix for the (single) MetricSet document —
-#: parsed models do not retain their document names (RFC 0002 §5.3).
+#: parsed models do not retain their document names (S-0019/source-paths).
 _METRICS_DOC = "metrics"
 
 
@@ -49,12 +49,12 @@ class EffectiveMetric:
     filter: tuple[MetricFilter, ...]
     description: str | None
     source_path: str
-    #: The authored stable id, or ``None`` (RFC 0062 §5.1). Appended so a
+    #: The authored stable id, or ``None`` (S-0067/the-field). Appended so a
     #: positional construction keeps working, and **never merged from a
     #: template**: a template is instantiated many times and an id it carried
     #: would make every instantiation the same node.
     id: str | None = None
-    #: Who is responsible for this metric (RFC 0055 §5.1), and **never merged
+    #: Who is responsible for this metric (S-0062/owner), and **never merged
     #: from a template** for the same reason as ``id`` directly above: an owner
     #: a template carried would appear on every instantiation as an owner
     #: nobody wrote, which is D2's argument against mart inheritance at the
@@ -75,7 +75,7 @@ def _merge(name: str, metric: Metric, template: MetricTemplate | None) -> Effect
 
     derived = metric.derived or (template.derived if template else None)
     declared = metric.requires_metrics or (template.requires_metrics if template else ())
-    # RFC 0034 D3: a derived metric's inputs *are* its metric dependencies, so
+    # S-0050/D-3: a derived metric's inputs *are* its metric dependencies, so
     # they are unioned in here rather than written twice by the author. The DAG,
     # reachability, cycle detection and `MetricIR.depends_on` then need no
     # knowledge of `derived:` at all — they read `requires_metrics` as always.

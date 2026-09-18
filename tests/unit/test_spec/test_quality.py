@@ -1,4 +1,4 @@
-"""The data-quality spec surface (RFC 0016 §5.3): the closed field- and
+"""The data-quality spec surface (S-0033/spec-schema): the closed field- and
 row-rule catalogues, the ``dedupe:``/``quarantine:``/``reconcile:`` blocks,
 the portable regex subset, and the closed retention grammar."""
 
@@ -103,7 +103,7 @@ def test_quality_defaults_to_empty() -> None:
 
 
 def test_range_bounds_never_become_floats() -> None:
-    # RFC 0003 D5: no floats in the IR or an emission path — an authored
+    # S-0020/D-5: no floats in the IR or an emission path — an authored
     # 1000.5 must land as a Decimal, exactly as assert: bounds do.
     rule = rules(mapping_with("      - {rule: range, max: 1000.5, on_fail: flag}\n"))[0]
     assert isinstance(rule, RangeRule)
@@ -120,7 +120,7 @@ def test_range_bounds_never_become_floats() -> None:
         "0.10",
         "-0.0001",
         "+7",
-        "2024-01-01",  # the ISO temporal carrier (RFC 0015 D5)
+        "2024-01-01",  # the ISO temporal carrier (S-0032/D-5)
         "2024-01-01T00:00:00",
     ],
 )
@@ -144,7 +144,7 @@ def test_exact_range_bound_strings_accepted(bound: str) -> None:
     ],
 )
 def test_non_finite_range_bounds_refused(bound: str) -> None:
-    # RFC 0015 D5: `amount < nan` fails open — it matches nothing on some
+    # S-0032/D-5: `amount < nan` fails open — it matches nothing on some
     # engines and everything on others. Refused at parse, every spelling.
     with pytest.raises(SpecParseError) as excinfo:
         mapping_with(f"      - {{rule: range, min: '{bound}', on_fail: flag}}\n")
@@ -154,7 +154,7 @@ def test_non_finite_range_bounds_refused(bound: str) -> None:
 
 @pytest.mark.parametrize("bound", ["1e10", "1E+10", "-2.5e-3"])
 def test_exponent_range_bounds_refused(bound: str) -> None:
-    # an exponent renders as a double literal, which RFC 0003 D5 bans from
+    # an exponent renders as a double literal, which S-0020/D-5 bans from
     # every emission path — write the number in full instead
     with pytest.raises(SpecParseError) as excinfo:
         mapping_with(f"      - {{rule: range, max: '{bound}', on_fail: flag}}\n")
@@ -191,7 +191,7 @@ def test_unknown_rule_names_the_closed_catalogue() -> None:
 
 
 def test_on_fail_is_required_never_defaulted() -> None:
-    # RFC 0016 D2: explicit per rule, never a global default.
+    # S-0033/D-2: explicit per rule, never a global default.
     with pytest.raises(SpecParseError) as excinfo:
         mapping_with("      - {rule: unique}\n")
     assert excinfo.value.source_path == "mappings/orders: fields.f.simple.quality[0].unique.on_fail"
@@ -199,7 +199,7 @@ def test_on_fail_is_required_never_defaulted() -> None:
 
 
 def test_repair_never_stands_alone() -> None:
-    """RFC 0016 D87: the disposition names no recipe on its own, so it is only
+    """S-0033/D-87: the disposition names no recipe on its own, so it is only
     ever half a declaration. (``unique`` could not carry one in any case — see
     ``tests/unit/test_quality/test_repair.py`` for that axis.)"""
     with pytest.raises(SpecParseError) as excinfo:
@@ -208,7 +208,7 @@ def test_repair_never_stands_alone() -> None:
 
 
 def test_drop_is_not_a_disposition() -> None:
-    # RFC 0016 D2: deliberately no drop — quarantine is drop plus recoverability.
+    # S-0033/D-2: deliberately no drop — quarantine is drop plus recoverability.
     with pytest.raises(SpecParseError):
         mapping_with("      - {rule: unique, on_fail: drop}\n")
 
@@ -430,7 +430,7 @@ def test_entity_quality_defaults_to_empty() -> None:
 
 
 def test_referential_has_no_fail_disposition() -> None:
-    # RFC 0016 D6: orphans are an expected, recoverable data condition; a
+    # S-0033/D-6: orphans are an expected, recoverable data condition; a
     # pipeline-stopping orphan gate is a reconcile check instead.
     with pytest.raises(SpecParseError) as excinfo:
         entity_model("    quality: [{rule: referential, via: r, on_missing: fail}]\n")
@@ -449,7 +449,7 @@ def test_referential_carries_no_on_fail() -> None:
 
 
 def test_expression_rule_name_is_identifier_constrained() -> None:
-    # RFC 0016 D23: rule names reach _quality_flags in both lowerings, so no
+    # S-0033/D-23: rule names reach _quality_flags in both lowerings, so no
     # form ever needs escaping.
     with pytest.raises(SpecParseError) as excinfo:
         entity_model('    quality: [{rule: expression, name: "Bad Name", expr: a, on_fail: flag}]\n')
@@ -479,7 +479,7 @@ def test_dedupe_parses() -> None:
 
 
 def test_missing_tie_break_parses_and_is_left_to_the_guardrail_stage() -> None:
-    # RFC 0016 §5.3 names DedupeTieBreakMissing a *compile* error: a statement
+    # S-0033/spec-schema names DedupeTieBreakMissing a *compile* error: a statement
     # about the model, batched with the rest — not a document-shape failure.
     entity = entity_model("    dedupe: {keep: latest_by, field: _ingested_at}\n").entities["e"]
     assert entity.dedupe is not None
@@ -519,12 +519,12 @@ def test_retention_grammar_accepts(retention: str) -> None:
     [("1h", 1), ("12h", 12), ("1d", 24), ("90d", 2160), ("1w", 168), ("99999d", 2399976)],
 )
 def test_duration_hours_orders_the_grammar(duration: str, hours: int) -> None:
-    """The ordering RFC 0057 D4 compares by, and the count dbt's ``period``
+    """The ordering S-0064/D-4 compares by, and the count dbt's ``period``
     is derived from.
 
     An ``int``, deliberately. Every unit the grammar admits is a whole number
     of hours, so there is nothing to round — and no float goes anywhere near a
-    value that reaches the IR (RFC 0003).
+    value that reaches the IR (S-0020).
     """
     assert duration_hours(duration) == hours
 
@@ -568,7 +568,7 @@ def test_retention_grammar_rejects(retention: str) -> None:
 
 
 def test_quarantine_requires_retention() -> None:
-    # RFC 0016 §5.6: a reject table holds raw payloads, therefore PII —
+    # S-0033/quarantine-one-reject-table-per-entity: a reject table holds raw payloads, therefore PII —
     # retention is required, never defaulted.
     with pytest.raises(SpecParseError) as excinfo:
         entity_model('    quarantine: {redact: ["$.a"]}\n')
@@ -646,7 +646,7 @@ def test_unknown_reconcile_key_rejected() -> None:
 
 
 # ....................... #
-# Catastrophic backtracking (RFC 0016 D96)
+# Catastrophic backtracking (S-0033/D-96)
 
 
 @pytest.mark.parametrize(

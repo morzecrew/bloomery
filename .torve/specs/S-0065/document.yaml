@@ -1,0 +1,234 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0065
+title: Rollup marts and pre-aggregations
+kind: design
+status: accepted
+implementation: complete
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A rollup is a mart at a coarser grain than the one it derives from — daily revenue from
+  order items, monthly from daily. It is safe exactly when every measure it carries is
+  additive over the dimensions dropped, and unsafe in a way no test on the emitted SQL can
+  see: the query runs, the number is plausible, and it is a distinct count summed or an
+  average of averages.
+
+  bloomery cannot currently express the safety condition. Grain is a *string* — S-0027's
+  rule is that a mart is at exactly its base entity's grain, compared by name — and
+  additivity lives on a different node from the measure it constrains. S-0017 replaces
+  the string with structural identity and functional dependencies carrying their basis;
+  S-0053 gives a measure an aggregation class. Those two are what make "this rollup is
+  safe" a thing that can be *proved* rather than asserted.
+
+  So this RFC's content is one decision: **build it after S-0017 and S-0054, as their
+  first consumer.** Building it before means inventing their vocabulary a second time, in a
+  worse place, and then owning both.
+motivation: |-
+  **The item is real and it is the most valuable one on either ceiling list.** A rollup is
+  what makes a semantic layer fast, and `pre_aggregations` is the reason a large fraction of
+  teams choose Cube at all. Emitting cubes with no pre-aggregation is emitting the surface
+  without the reason.
+
+  **It is also the item where being wrong is worst.** Every other platform-metadata feature
+  in the split is a declaration nobody's numbers depend on — an owner, a tag, an exposure.
+  A rollup is *read instead of the detail table*. A wrong one does not error; it answers,
+  and it answers quickly, which is exactly the plausible-but-wrong result this project
+  treats as its highest-severity class.
+
+  **The safety condition is already written down, three RFCs deep, and unbuilt.** S-0017
+  D-level work makes grain structural; S-0053 types a measure by aggregation class;
+  S-0005 turns acceptance into a positive derivation; S-0054 is a proof-producing
+  planner. A rollup is precisely a proof obligation of the shape those exist to discharge:
+  "these measures may be re-aggregated over these dropped dimensions".
+
+  **Building it first would fork the vocabulary.** Without S-0017 the only way to state
+  the condition is a per-measure `additive_over: [dims]` list authored by hand — an
+  assertion, not a proof, checked by nothing. Then S-0017 lands with functional
+  dependencies and the hand-authored list is either dead or, worse, a second source of
+  truth that disagrees.
+current_state: |-
+  Verified against the tree.
+
+  - **A mart is at exactly its base entity's grain** (S-0027/D-2), and the grain is a
+    string compared by name. `MartIR.grain` is prose — "one row per order item" — with no
+    structure to reason over.
+  - **Additivity exists and is coarse.** A measure carries an additivity classification,
+    and the guardrail stage refuses a non-additive measure in a context that would sum it;
+    what it cannot express is "additive over *these* dimensions and not those", which is
+    the whole of a rollup's safety.
+  - **Cube emission writes cubes, measures, dimensions and joins-by-construction.** No
+    `pre_aggregations` key is emitted anywhere.
+  - **`marts/` builds one flattened relation per declared mart.** There is no notion of a
+    mart derived from another mart — every mart reads silver.
+  - **S-0017, 0038, 0039, 0040 are all live and unstarted.** S-0056's semantic bug
+    corpus — "cases where the SQL is valid, every cast succeeds and the number is wrong
+    anyway" — is the acceptance evidence a rollup feature would need, and it is also
+    unstarted.
+goals: |-
+  **Goals of this document** (not of the feature):
+
+  - Record that "aggregate marts" and Cube `pre_aggregations` are one feature, so the two
+    ceiling items do not get scheduled as two.
+  - Record why it is blocked, in a form that survives the ceiling review being forgotten.
+  - State the shape it should take once unblocked, tightly enough that whoever picks it up
+    does not restart the analysis.
+
+  **Goals of the feature, when it is built**
+
+  - A mart declared as a rollup of another mart, at a stated coarser grain.
+  - Refusal — not a warning — when a measure it carries is not provably re-aggregable over
+    the dropped dimensions.
+  - Cube `pre_aggregations` emitted from it; SQLMesh and dbt getting an ordinary derived
+    model.
+non_goals: |-
+  - **Building any of it now.**
+  - **A hand-authored `additive_over:` escape hatch**, then or now. That is the fork §2
+    describes, and it would be introduced as a "temporary" measure and outlive everything.
+  - **Query-time rollup selection.** Choosing to read a rollup instead of the detail is the
+    planner's job — S-0054 — not the emitter's.
+design:
+  - key: overview
+    md: |-
+      Deliberately thin. What is settled is the *shape*; the mechanism belongs to the RFCs this
+      waits on, and writing it in detail now would be writing S-0017's vocabulary before
+      S-0017 chooses it.
+  - key: the-shape
+    md: |-
+      ```yaml
+      marts:
+        order_items_monthly:
+          rollup_of: order_items
+          grain: [ordered_month, customer_segment]
+      ```
+
+      The mart names a parent and the dimensions it keeps. What it drops is derived — every
+      dimension of the parent not listed — because listing what you keep and what you drop is
+      two statements of one fact that will disagree.
+
+      **The `grain:` key above is superseded by row 11**, which moves the kept dimensions to
+      `keep:`. `grain:` names an *entity* on a mart and the builder refuses it unless it equals
+      `base:`, so a column list cannot share it. The block is left as it was written rather than
+      corrected in place — it is what this document proposed, and the record of a spelling
+      changing is worth more than a tidy example. §12's P2 names the spelling to build.
+  - key: the-obligation
+    md: |-
+      For each measure the rollup carries, a proof that re-aggregating it over the dropped
+      dimensions yields the same value as computing it at the coarse grain from silver. That is
+      a functional-dependency question (S-0017) over an aggregation class (S-0053),
+      discharged as a derivation (S-0005).
+
+      A `count(distinct …)` fails it. An `avg` fails it unless carried as a sum/count pair. A
+      `sum` over an additive measure passes. A semi-additive measure — a stock level, additive
+      over everything but time — passes for some dropped dimensions and not others, and that
+      is exactly the distinction a string grain cannot make and the reason this waits.
+  - key: targets
+    md: |-
+      - **Cube**: a `pre_aggregations` block on the parent cube. This is the payoff and the
+        reason the feature is worth its cost.
+      - **SQLMesh / dbt**: an ordinary gold model reading the parent mart. Nothing exotic —
+        what makes it a rollup is the obligation discharged at compile, not the SQL.
+tests: |-
+  When built: the semantic bug corpus (S-0056) is the acceptance evidence, and it is
+  named here rather than left to be discovered. A rollup feature whose tests are "the SQL
+  parses and the golden matches" has tested nothing about the only thing that can go wrong.
+  The load-bearing test is an execution-tier one comparing the rollup's answer against the
+  same request computed from silver, over data chosen so an unsafe rollup differs.
+
+  One test is inherited rather than invented here. S-0055/tests asked for a property test
+  constructing a partition that merges two aggregate branches and asserting the merge is
+  refused without a preservation proof (D8). It was never written, because the optimization
+  pass it would test does not exist; whichever document builds one owes it, and it is named
+  here so the obligation has a live home until then.
+docs: |-
+  When built. The page that matters is the one explaining *why a rollup was refused*, since
+  that refusal is the feature's whole product for anyone who declares a wrong one.
+out_of_scope: |-
+  - Everything, until S-0017 and S-0054 land.
+  - Cube `accessPolicy`, `joins` between cubes — the other two members of the ceiling
+    review's Cube item. Cube-to-cube joins are a *stated refusal* rather than a gap:
+    the wide-mart design exists precisely so query-time joins do not happen, and emitting
+    `joins` would hand back the thing it removed. The nearest decision written down is
+    S-0030/D-3 — one mart, one semantic model, and never one for a non-mart entity,
+    "that would reintroduce the query-time joins the mart design exists to prevent"
+    (`emit/metricflow/__init__.py`). That row is MetricFlow's, so it is the same position
+    reached for a different target rather than a citation that covers Cube; the Cube
+    emitter's own refusal has never been written, which is the gap this bullet names.
+risks: |-
+  - **Being built early because it looks like an emitter feature.** It looks like one: a
+    YAML block and a Cube key. The safety obligation is invisible from the emitter, which is
+    precisely why the temptation is dangerous. This section is the mitigation.
+  - **The hand-authored escape hatch.** Named twice in this document because it is the
+    shortcut that would be proposed under deadline, and it is the one that costs the most
+    later.
+  - **Cube's own pre-aggregation semantics may not match the obligation.** Cube decides at
+    query time whether a pre-aggregation can serve a request, using its own rules. A rollup
+    bloomery proves safe and Cube declines to use is wasted; one Cube uses that bloomery did
+    not prove is a wrong number by Cube's reasoning rather than bloomery's. S-0006's
+    capability matrix is where that comparison belongs.
+sections:
+  - key: about
+    md: |-
+      - **Status:** 🚧 In progress — the block D2 states is **lifted**: S-0017 and S-0054
+        have both landed. §12's phasing and rows 9–14 were written at that moment, against the
+        vocabulary those documents actually chose, which is what §12 said would happen. P1 and
+        P2 are built; P3 is not. Neither of those two is *retired*, and this document is part
+        of why — `INDEX.md` names 0058 as a dependant of 0037, 0038 and 0040, all
+        three of which stay in the tree until it does.
+      - **Scope:** One feature under two names. The ceiling review listed "aggregate marts" in
+        its platform-metadata item and "no `pre_aggregations`" in its Cube item; they are the
+        same thing — a mart at a coarser grain than its base, valid only when its measures are
+        additive over the dimensions being dropped. Cube's `pre_aggregations` is the emitted
+        form of it on one target.
+      - **Related:** S-0017 (semantic grain model and functional dependencies),
+        S-0053 (measure semantic types and additivity algebra), S-0054 (safe rollup
+        planner), [`src/bloomery/emit/cube/__init__.py`](src/bloomery/emit/cube/__init__.py),
+        [`src/bloomery/marts/`](src/bloomery/marts/),
+        S-0027 (the mart grain rule), S-0025 (ports and emitters — where Cube emission
+        lives; retired at `7ba117b`), S-0030 (the MetricFlow backend, whose D3 is quoted
+        below; retired at `33bc4f9`).
+      - **Origin:** The ceiling review's second and third items, which name it twice. Splitting
+        the platform-metadata line found the duplicate, and finding it is most of this
+        document's value: it is the most bloomery-shaped item on either list and the one that
+        must **not** be built first.
+  - key: decision-notes
+    md: >-
+      _(Decision rows from here on are this document's D-1…; see `decisions.yaml`.)_
+  - key: phasing
+    md: |-
+      The paragraph this replaces said phasing would be written once S-0017 and S-0054 had
+      landed, against the vocabulary they actually chose. They have, and it is. Rows 9-14 are
+      the decisions that cutting these phases forced.
+
+      **P1 — the obligation, as vocabulary.** `prove_mart_rollup` and rule R013 under
+      `semantic/`: given a mart, the dimensions a rollup keeps and the project, a `Proof` or a
+      `Refutation` per measure the rollup would carry. No spec key, no IR field, no emission,
+      and nothing in the compile path consulting it — the shape S-0017 itself shipped in, for
+      the reason §9 gives: this looks like an emitter feature, the safety obligation is
+      invisible from the emitter, and so the obligation is built first and where it can be read.
+
+      **P2 — the declaration, and the refusal.** `rollup_of:` and `keep:` (row 11), the IR and
+      resolution that build a rollup from its parent, D5's refusal wired to P1's answer, row
+      14's exclusion from `measure_owners` and from the planner's covering-mart search, and an
+      ordinary derived gold model on SQLMesh and dbt. D6's acceptance evidence lands here rather
+      than after: a semantic-corpus case, and the execution-tier comparison against the same
+      request computed from silver.
+
+      **P3 — Cube.** The `pre_aggregations` block §5.3 names, and §9's third risk — Cube's own
+      query-time matching rules against the obligation bloomery discharged — measured into
+      S-0006's capability matrix rather than asserted here.
+questions:
+  - id: Q-1
+    text: >-
+      Whether a rollup is a `mart` with a `rollup_of` key or a distinct spec kind.
+      The former reuses everything; the latter stops a rollup being mistaken for a
+      mart in every place that iterates marts.
+  - id: Q-2
+    text: >-
+      Whether rollups may chain — a monthly rollup of a daily rollup. The obligation
+      composes in principle; whether the proof does is S-0005's question. Both settled
+      at the moment §12 named — rows 9 and 10. The questions stay written: what each
+      one weighed is why its row reads the way it does.

@@ -1,5 +1,5 @@
 """Every document version key refuses a version bloomery does not implement
-(RFC 0018 D7).
+(S-0035/D-7).
 
 The keys were there from the start and did nothing. `spec_version: 99` loaded
 and was read as v1 — a spec authored against a future bloomery *misread* rather

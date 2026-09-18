@@ -1,14 +1,14 @@
-"""The typecheck stage (RFC 0004 §5.4): walk every transform chain and prove
+"""The typecheck stage (S-0021/typecheck-stage-bloomery-typing-check-py): walk every transform chain and prove
 the terminal type assignable to the declared field type.
 
-Pure functions; run after resolution (RFC 0005) has bound every chain to a
+Pure functions; run after resolution (S-0022) has bound every chain to a
 source column and an input type. Unknown names raise
 :class:`~bloomery.errors.UnknownTransformError` naming the closest match via
 ``difflib.get_close_matches`` over the *sorted* registry — deterministic
-suggestions, no external fuzzy dependency (RFC 0004 D4). Failures are batched
+suggestions, no external fuzzy dependency (S-0021/D-4). Failures are batched
 per stage by :func:`typecheck_chains`: all chains checked, one combined
 :class:`~bloomery.errors.TypeCheckError` listing every path (the
-one-round-trip principle, RFC 0002 D6).
+one-round-trip principle, S-0019/D-6).
 """
 
 from __future__ import annotations
@@ -130,7 +130,7 @@ def typecheck_chain(
     registry: Registry,
     source_path: str,
 ) -> LogicalType:
-    """Typecheck one transform chain (RFC 0004 §5.4).
+    """Typecheck one transform chain (S-0021/typecheck-stage-bloomery-typing-check-py).
 
     Per step: look up the name (unknown → :class:`UnknownTransformError` with
     the closest match), check arity and arg kinds, check the current type
@@ -193,7 +193,7 @@ class ChainCheck:
 def typecheck_chains(
     checks: Sequence[ChainCheck], *, registry: Registry
 ) -> tuple[LogicalType, ...]:
-    """Typecheck every chain, batched (RFC 0004 §5.4): all chains are checked,
+    """Typecheck every chain, batched (S-0021/typecheck-stage-bloomery-typing-check-py): all chains are checked,
     and all failures are raised as one combined :class:`TypeCheckError`
     listing every path (a single failure is raised as itself)."""
     results: list[LogicalType] = []

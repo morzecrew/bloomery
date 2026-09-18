@@ -1,10 +1,10 @@
-"""Emitter port surface (RFC 0008 §5.1, amended per ``_bloomery-changes.md``
+"""Emitter port surface (S-0025/ports, amended per ``_bloomery-changes.md``
 D6 + pivot R8): the :class:`TargetEmitter` protocol, the
 :class:`EmitContext` handed to every emitter, and the file-shaped
 :class:`EmittedArtifact` (settles open question #1: artifacts are data —
-no filesystem writes, no live-context registration in core, RFC 0008 D2).
+no filesystem writes, no live-context registration in core, S-0025/D-2).
 
-The ``Feature``/``TargetCapabilities`` declaration tables RFC 0008 D10 added
+The ``Feature``/``TargetCapabilities`` declaration tables S-0025/D-10 added
 were removed: nothing in the pipeline ever consulted them, and the tables had
 drifted into claiming features no emitter emits (cumulative and derived
 metrics on both SQL targets, row-level security and joins on Cube). What a
@@ -46,7 +46,7 @@ class ArtifactKind(StrEnum):
     ``MODEL`` for anything defining a relation or semantic surface, ``AUDIT``
     for custom audit bodies, ``CONFIG`` for framework scaffolding
     (``dbt_project.yml``, ``sources.yml``, ``schema.yml``), ``REPLAY`` for the
-    quarantine replay merge (RFC 0016 §5.6).
+    quarantine replay merge (S-0033/quarantine-one-reject-table-per-entity).
 
     ``REPLAY`` is its own kind rather than a model because it is a *statement
     the caller runs*, not a relation the framework maintains: bloomery emits
@@ -66,8 +66,8 @@ class ArtifactKind(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class EmittedArtifact:
-    """One file-shaped artifact as data (RFC 0008 D2): a relative ``path``,
-    the full ``content`` (single trailing newline, ``\\n`` endings — RFC 0003
+    """One file-shaped artifact as data (S-0025/D-2): a relative ``path``,
+    the full ``content`` (single trailing newline, ``\\n`` endings — S-0020
     §5.5 rule 5), its kind, and the SHA-256 ``checksum`` of the content."""
 
     path: str
@@ -91,9 +91,9 @@ def assert_unique_paths(artifacts: list[EmittedArtifact]) -> None:
     """No two artifacts may claim one path.
 
     A general guard rather than a per-namespace prefix, because the namespaces
-    that can collide are not obvious in advance: RFC 0016 names quality audits
-    ``<entity>_<rule>``, RFC 0016 D89 names mart assertions
-    ``<mart>_<assertion>``, and RFC 0017 names consistency audits after their
+    that can collide are not obvious in advance: S-0033 names quality audits
+    ``<entity>_<rule>``, S-0033/D-89 names mart assertions
+    ``<mart>_<assertion>``, and S-0034 names consistency audits after their
     outputs — all from author-chosen parts, and an emitter otherwise just
     sorts, so two artifacts at one path compiled clean and the last writer won.
     That is the two-writers-one-path collision D8/D28 refuse for relations,
@@ -105,7 +105,7 @@ def assert_unique_paths(artifacts: list[EmittedArtifact]) -> None:
     over the assembled set rather than a rule about any single name.
 
     Shared rather than SQLMesh's, because it stopped being SQLMesh's problem:
-    until RFC 0026 the dbt emitter wrote no audit artifacts at all, so it had
+    until S-0043 the dbt emitter wrote no audit artifacts at all, so it had
     nothing to collide. Now it writes ``tests/<check>.sql`` across five
     families and needs the same guard — and a second copy of it would be the
     two-implementations-of-one-rule drift the shared lowering exists to
@@ -134,7 +134,7 @@ def assert_unique_paths(artifacts: list[EmittedArtifact]) -> None:
 
 @dataclass(frozen=True, slots=True)
 class AuditBody:
-    """One audit as the parts a target still has to wrap (RFC 0026 D10).
+    """One audit as the parts a target still has to wrap (S-0043/D-10).
 
     A producer in shared code returns this rather than an
     :class:`EmittedArtifact`, because an artifact carries an envelope and every
@@ -145,7 +145,7 @@ class AuditBody:
     target-neutral by position and SQLMesh-shaped by content, and why one
     audit body could not reach dbt at all.
 
-    ``select`` is the **unrendered** AST, not SQL text, though RFC 0026 D10
+    ``select`` is the **unrendered** AST, not SQL text, though S-0043/D-10
     says "rendered SELECT". Rendering here would shut the door D5 needs open:
     the dbt emitter rewrites every relation in a body to a ``ref()`` so the
     audit becomes a participant in dbt's DAG, and it can only do that to a
@@ -169,12 +169,12 @@ class AuditBody:
 class EmitContext:
     """Everything an emitter needs beyond the IR: the dialect port, the
     naming policy, and the project fingerprint stamped into every artifact
-    header (RFC 0008 D9 — applied-vs-spec drift detection downstream)."""
+    header (S-0025/D-9 — applied-vs-spec drift detection downstream)."""
 
     dialect: DialectPort
     naming: NamingPolicy
     fingerprint: str
-    #: The rate relation ``convert`` reads (RFC 0023 §5.4). Here rather than
+    #: The rate relation ``convert`` reads (S-0040/phase-2-currency-as-a-declared-relation). Here rather than
     #: threaded through the silver lowering because that is the only shape a
     #: *relation reference inside a column expression* can take: the IR holds
     #: the name, this holds the policy that turns it into a namespace, and the
@@ -187,7 +187,7 @@ class EmitContext:
 
 
 class TargetEmitter(Protocol):
-    """IR → framework artifacts. Knows nothing about SQL dialects (RFC 0008
+    """IR → framework artifacts. Knows nothing about SQL dialects (S-0025
     D1) — SQL arrives pre-neutral in the IR and renders through
     ``ctx.dialect``."""
 
