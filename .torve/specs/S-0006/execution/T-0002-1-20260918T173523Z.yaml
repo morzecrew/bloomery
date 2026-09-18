@@ -1,0 +1,133 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0002
+phase: 2
+base: 4667fb8ca8e7a160e832351c8b03d400231877e3
+commit: 5ad803daad5fec7b7df2a3e7546a92ca34ea8768
+at: '2026-09-18T17:35:23Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: LOCKED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-18T17:29:35Z'
+    attempt: 2
+    claim: >-
+      the dbt Core column is filled only where a bundle was run: 11 cells from five
+      bundles, and UNKNOWN in the 14 rows no bundle covers
+    evidence: >-
+      comparisons/MATRIX.md:163 — the section states that dbt Core with dbt-metricflow
+      and the hosted Semantic Layer were not run and therefore have no cell; comparisons/MATRIX.md:36
+      is a row of a case with no dbt bundle, left UNKNOWN
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-18T17:29:35Z'
+    attempt: 2
+    claim: >-
+      the five new bundles sit at comparisons/dbt/<case>/ with the fixed five entries,
+      and the matrix stays beside them at comparisons/MATRIX.md
+    evidence: >-
+      comparisons/dbt/009-null-denominator/commands.txt:1 — the invocation a reader
+      repeats, beside README.md, config/, observed.txt and sources.md in the same
+      directory; comparisons/MATRIX.md:22 links the column to dbt/<case>/
+    action: decided
+  - decision: D-13
+    grade: LOCKED
+    at: '2026-09-18T17:29:35Z'
+    attempt: 2
+    claim: >-
+      the new column carries the prose the row requires: its NOT-REPRESENTED cells
+      are the same vocabulary MetricFlow's column measures, and its CUSTOM cells are
+      about which package renders SQL rather than which system models better
+    evidence: >-
+      comparisons/MATRIX.md:153-161 — the paragraph beside the dbt Core column stating
+      what the rows compare and what they do not
+    action: decided
+  - decision: D-13
+    grade: LOCKED
+    at: '2026-09-18T17:30:36Z'
+    claim: >-
+      the new column carries the prose the row requires: its NOT-REPRESENTED cells
+      are the same vocabulary MetricFlow's column measures, and its CUSTOM cells are
+      about which package renders SQL rather than which system models better
+    evidence: >-
+      comparisons/MATRIX.md:153-161 — the paragraph beside the dbt Core column stating
+      what the rows compare and what they do not
+    action: decided
+  - decision: D-13
+    grade: LOCKED
+    at: '2026-09-18T17:30:48Z'
+    claim: >-
+      close-out: the dbt Core column carries the prose S-0006/D-13 requires beside
+      it
+    evidence: >-
+      comparisons/MATRIX.md:153-161 — the paragraph beside the dbt Core column stating
+      what the rows compare and what they do not
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-18T17:31:03Z'
+    claim: >-
+      the dbt Core column is filled only where a bundle was run: 11 cells from five
+      bundles, UNKNOWN in the 14 rows no bundle covers, and the configurations not
+      run (dbt-metricflow, the hosted Semantic Layer) named as having no cell
+    evidence: >-
+      comparisons/MATRIX.md:163 — the section stating that what this column does not
+      cover is UNKNOWN and stays that way; comparisons/MATRIX.md:36 is a row of a
+      case with no dbt bundle
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-18T17:31:03Z'
+    claim: >-
+      the five new bundles sit at comparisons/dbt/<case>/ carrying the fixed five
+      entries, and the matrix stays beside them at comparisons/MATRIX.md
+    evidence: >-
+      comparisons/dbt/009-null-denominator/commands.txt:1 — the invocation a reader
+      repeats, beside README.md, config/, observed.txt and sources.md in the same
+      directory; comparisons/MATRIX.md:22 links the column to dbt/<case>/
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-18T17:34:56Z'
+    attempt: 2
+    claim: >-
+      `torve spec project` cannot run against this repository's own config: the installed
+      torve 0.1.0 RunnerConfig forbids promotion.unit, which .torve/config.yaml sets
+      to 'document' per S-0083/D-1; the projection itself is clean, verified against
+      a copy of the config with that one line removed
+    evidence: >-
+      `uv run torve spec project` — 'promotion.unit Extra inputs are not permitted
+      [type=extra_forbidden, input_value="document"]'; configuration error: 3; .torve/config.yaml:41
+      is the line
+    action: decided
+    proposal: >-
+      either the engine pin gains promotion.unit or .torve/config.yaml drops it; until
+      then the projection hook reads a configuration error as drift
