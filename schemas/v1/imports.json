@@ -68,7 +68,7 @@
   "$id": "https://morzecrew.github.io/bloomery/schemas/v1/imports.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "The per-project imports document (``imports_version``), at most one per\nproject (RFC 0059 \u00a75.1).",
+  "description": "The per-project imports document (``imports_version``), at most one per\nproject (S-0002 (\u00a75.1)).",
   "properties": {
     "imports": {
       "additionalProperties": false,
