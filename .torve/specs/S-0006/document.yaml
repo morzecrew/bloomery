@@ -3,7 +3,7 @@ id: S-0006
 title: Evidence-based semantic capability matrix
 kind: design
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []
