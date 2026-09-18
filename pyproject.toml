@@ -99,6 +99,10 @@ dev = [
     "types-pyyaml>=6.0.12",
     "vulture>=2.14",
     "zizmor>=1.5",
+    # The engine this repository is executed by: `uv run torve …` on a
+    # developer's machine resolves to the engine the lock pins, not to
+    # whatever `torve` is on PATH. Tracks main; the lock holds the commit.
+    "torve; python_version >= '3.13'",
 ]
 # Tier-5 engine matrix (RFC 0009 §5.2): opt-in, needs Docker. Kept out of `dev`
 # so the default sync stays light on machines without Docker.
@@ -141,6 +145,7 @@ docs = [
 override-dependencies = ["sqlparse>=0.6.0"]
 
 [tool.uv.sources]
+torve = { git = "https://github.com/morzecrew/torve", branch = "main" }
 # Zensical's mike fork (no PyPI release). Pin the exact commit: an unpinned git
 # source tracks the default branch's HEAD, so any later `uv lock` (e.g. bumping
 # another dep) would silently re-resolve mike — a docs-build change with no diff
