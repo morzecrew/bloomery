@@ -212,18 +212,4 @@ bloomery **declares** freshness and never measures it. The threshold is emitted;
 - Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/quality/reject.py` `src/bloomery/spec/catalog.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0064/D-2 — `LOCKED` (Declared source freshness)
-
-**Superseded by D2c.** A `freshness:` block on an entity that requires no `_ingested_at` is refused, and the requirement is over **every** consumer of the relation rather than the declaring one.
-
-- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/quality/reject.py` `src/bloomery/spec/catalog.py`
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0064/D-9 — `LOCKED` (Declared source freshness)
-
-(Row 2B of the RFC's table.) **Superseded by D2c.** One mapping declaring a threshold while another on the same relation omits it is refused too, not resolved in favour of the explicit one.
-
-- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/quality/reject.py` `src/bloomery/spec/catalog.py`
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
 <!-- /torve:managed -->

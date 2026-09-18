@@ -235,7 +235,7 @@ risks: |
 sections:
   - key: provenance
     md: |
-      This document is a backfill of S-0007, carried across into
+      This document is a backfill of `rfcs/0076-dimension-algebra.md`, carried across into
       the specification corpus without redesign. That document's status line reads
       **Draft — not scheduled**, and its index row in `rfcs/INDEX.md` says the same. Its
       eight decision rows are carried here one for one with the grades its own table gives

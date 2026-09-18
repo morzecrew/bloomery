@@ -17,12 +17,14 @@ decisions:
   - id: D-3
     grade: ASSUMED
     text: >-
-      A `LOCKED` row no file cites becomes `ASSUMED` with its text marked, and is
-      re-locked by hand naming the file
+      A `LOCKED` row no file cites keeps its lock, with the directories and files
+      its RFC's header names as its paths, or its siblings' paths where the header
+      names none
     paths: [.torve/specs/**]
     consequence: >-
-      74 rows changed grade; a lock nobody cites would otherwise tax every task under
-      a directory-wide glob
+      The 74 such rows are `LOCKED` with their RFC's scope as of 2026-09-19; each
+      governs that scope until a file cites it and narrows it, and a task under the
+      scope owes a divergence entry for it
   - id: D-4
     grade: ASSUMED
     text: A decision's `paths` are the files that cite it

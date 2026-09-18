@@ -186,7 +186,7 @@ design:
       `src/bloomery/guardrails/grain.py`. A mart at document grain carrying chunk embeddings
       has either duplicated a vector or collapsed several, and both make top-k meaningless.
       Strict key equality against the corpus relation, the same rule already applied to
-      measures; when the grain vocabulary of S-0017 lands, both
+      measures; when the grain vocabulary of `rfcs/0037-semantic-grain-model.md` lands, both
       can be restated on it at once.
 
       The source proposal's rule that returned fields must not change grain folds into the
@@ -302,7 +302,7 @@ sections:
   - key: provenance
     md: |
       This document is a backfill, not a new design. Its source is
-      S-0011, adopted in commit `f10cfaee` and carried in
+      `rfcs/0053-retrieval-semantics.md`, adopted in commit `f10cfaee` and carried in
       `rfcs/INDEX.md` as number 0053, "Retrieval semantics", status "Draft" — blocked on the
       domain question this document carries as Q-1. The source is still live in the tree and
       is still the owner's authority; nothing here edits it.
@@ -324,7 +324,7 @@ sections:
       instead. None of the three changes a grade.
 
       **What landed.** Nothing. `grep -ril retrieval src tests examples pages` matches no
-      file, `git log --oneline -- S-0011 has the single adopting
+      file, `git log --oneline -- rfcs/0053-retrieval-semantics.md` has the single adopting
       commit and no execution, and no file under `tasks/` or `logs/` names this design —
       `logs/T-0053.md` shares the number but executes a different document entirely. All
       three of the source's phases therefore remain, and all three are phased below.

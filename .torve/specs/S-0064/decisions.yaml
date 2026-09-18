@@ -20,6 +20,7 @@ decisions:
       - src/bloomery/emit/dbt/__init__.py
       - src/bloomery/quality/reject.py
       - src/bloomery/spec/catalog.py
+    superseded_by: D-10
   - id: D-3
     grade: ASSUMED
     text: >-
@@ -74,6 +75,7 @@ decisions:
       - src/bloomery/emit/dbt/__init__.py
       - src/bloomery/quality/reject.py
       - src/bloomery/spec/catalog.py
+    superseded_by: D-10
   - id: D-10
     grade: LOCKED
     text: >-

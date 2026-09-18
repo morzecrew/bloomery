@@ -15,7 +15,7 @@ decisions:
       computed rather than refused
     rationale: >-
       The single highest-risk line in the port and the one whose failure is silent;
-      carried at the grade row D1 of S-0014 gives it
+      carried at the grade row D1 of `rfcs/0048-bigquery-dialect.md` gives it
   - id: D-2
     grade: LOCKED
     text: >-
@@ -29,7 +29,8 @@ decisions:
       instead of becoming NULL where `coercible` can see it and the row can be quarantined
     rationale: >-
       The quality system's entire coercion story is that a bad value becomes NULL
-      rather than aborting a run; carried at the grade row D2 of S-0014 gives it
+      rather than aborting a run; carried at the grade row D2 of `rfcs/0048-bigquery-dialect.md`
+      gives it
   - id: D-3
     grade: LOCKED
     text: >-
@@ -43,10 +44,10 @@ decisions:
       be quoted as engine conformance, which is why the claim has to be kept out of
       the test's name rather than only out of its body
     rationale: >-
-      Rows D1 and D3 of S-0012 applied. Recorded on this port because BigQuery's emulator
-      is good enough and its dry run cheap enough that the tempting shortcut is the
-      opposite of the usual one: skipping the emulator is defensible, skipping the
-      dry run is not
+      Rows D1 and D3 of `rfcs/0046-validating-a-dialect-port.md` applied. Recorded
+      on this port because BigQuery's emulator is good enough and its dry run cheap
+      enough that the tempting shortcut is the opposite of the usual one: skipping
+      the emulator is defensible, skipping the dry run is not
   - id: D-4
     grade: ASSUMED
     text: >-
@@ -63,7 +64,7 @@ decisions:
       Not `LOCKED` because the trade is operational rather than semantic — a project
       without federation configured may start with a scoped key and a rotation note,
       and that is the departure this grade licenses; carried at the grade row D4 of
-      S-0014 gives it
+      `rfcs/0048-bigquery-dialect.md` gives it
   - id: D-5
     grade: ASSUMED
     text: >-
@@ -75,9 +76,9 @@ decisions:
       which would make the lane look authoritative in a report while proving roughly
       what rung 3 already proves for free
     rationale: >-
-      Carried at the grade row D5 of S-0014 gives it; departing means a lane that
-      names its own weaker claim rather than one that quietly inherits the stronger
-      one
+      Carried at the grade row D5 of `rfcs/0048-bigquery-dialect.md` gives it; departing
+      means a lane that names its own weaker claim rather than one that quietly inherits
+      the stronger one
   - id: D-6
     grade: OPEN
     text: >-
@@ -90,8 +91,8 @@ decisions:
       slot on every pull request buys time from every contributor for a signal that
       may be redundant
     rationale: >-
-      Left open by row D6 of S-0014, and left open here: the answer is a measurement
-      nobody has taken, not an argument
+      Left open by row D6 of `rfcs/0048-bigquery-dialect.md`, and left open here:
+      the answer is a measurement nobody has taken, not an argument
   - id: D-7
     grade: OPEN
     text: >-
@@ -106,6 +107,7 @@ decisions:
       behaviour, and bloomery forbids floats in emission paths, so this mapping decides
       what a declared decimal can express at all on this engine
     rationale: >-
-      Left open by row D7 of S-0014; the battery is what can answer it, and the declared-against-produced
-      corpus exists because `to_utc` declared one type and produced another on all
-      three shipped ports for the whole life of the project without any tier noticing
+      Left open by row D7 of `rfcs/0048-bigquery-dialect.md`; the battery is what
+      can answer it, and the declared-against-produced corpus exists because `to_utc`
+      declared one type and produced another on all three shipped ports for the whole
+      life of the project without any tier noticing

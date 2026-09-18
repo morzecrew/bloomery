@@ -45,7 +45,7 @@ motivation: |
   space. It is the same question with the sampling fixed.
 current_state: |
   Verified against the working tree on 2026-09-18, and the reason this document exists
-  separately from the fuzzing document S-0008.
+  separately from the fuzzing document `rfcs/0071-fuzzing-the-compile-boundary.md`.
 
   - **Both dependencies are already installed, for this purpose.** The `dev` group in
     `pyproject.toml` carries `hypothesis>=6.130` and `jsonschema>=4.23`, the latter
@@ -85,7 +85,7 @@ goals: |
 non_goals: |
   **Finding parser-level bugs.** Schema-valid generation cannot produce input the schema
   forbids, so it will never find them. That is the text layer of
-  S-0008, and the two are deliberately run together.
+  `rfcs/0071-fuzzing-the-compile-boundary.md`, and the two are deliberately run together.
 
   **Replacing that document's targets.** Disjoint bug sets, structurally rather than
   incidentally: one can only produce input the schema permits, the other mostly produces
@@ -102,7 +102,7 @@ design:
   - key: why-the-property-tier
     md: |
       The seam is already drawn, as a rule, by
-      S-0008: the fuzzer owns the text layer and the
+      `rfcs/0071-fuzzing-the-compile-boundary.md`: the fuzzer owns the text layer and the
       accept/refuse boundary; the property tier owns the semantic layer inside valid
       space. Schema-directed generation produces valid input by construction, so it is on
       the property tier's side of a line this corpus drew before either document existed.
@@ -132,7 +132,7 @@ design:
 
       **Totality.** Any schema-valid document either compiles or raises a `BloomeryError`
       carrying a `source_path`. Nothing else. This is the boundary oracle of
-      S-0008, restated over valid input instead of
+      `rfcs/0071-fuzzing-the-compile-boundary.md`, restated over valid input instead of
       mutated bytes — and it is the property that reaches the guardrails, because a
       generated document that resolves is one that got far enough to be refused for a
       *semantic* reason.
@@ -191,7 +191,7 @@ design:
   - key: running-both-deliberately
     md: |
       Schema-directed generation and the text-layer targets of
-      S-0008 find disjoint bug sets, and the
+      `rfcs/0071-fuzzing-the-compile-boundary.md` find disjoint bug sets, and the
       disjointness is structural rather than incidental. Neither subsumes the other, and
       dropping either because the other is green is the mistake this section exists to
       prevent.
@@ -218,9 +218,9 @@ docs: |
   `hypothesis-jsonschema` is adopted, its `dev`-group entry carries the same explanatory
   comment style `jsonschema` already has — *why* it is there, not merely that it is.
 out_of_scope: |
-  - **The text-layer fuzz targets** — S-0008.
+  - **The text-layer fuzz targets** — `rfcs/0071-fuzzing-the-compile-boundary.md`.
     Explicitly complementary; this document would be wrong to subsume them.
-  - **Corpus storage and scheduling** — S-0009. Everything
+  - **Corpus storage and scheduling** — `rfcs/0072-continuous-fuzzing-in-ci.md`. Everything
     here runs in the default test tiers, which need neither.
   - **Generating catalogs.** The catalog is a separate document with a separate schema and
     a different trust story, loaded by its own entry point. Reachable by the same
@@ -251,7 +251,7 @@ risks: |
 sections:
   - key: provenance
     md: |
-      This document carries S-0010 across into the
+      This document carries `rfcs/0073-generating-from-the-spec-schema.md` across into the
       corpus torve reads. That file is number 0073 in bloomery's own hand-kept corpus,
       status Draft in `rfcs/INDEX.md`, and it is the accepted design authority for this
       work; nothing about the design is decided here.

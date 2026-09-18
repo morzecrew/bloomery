@@ -119,15 +119,18 @@ alternatives:
       RFCs are the landed design the code cites as governing, so they are live and
       complete
   - option: >-
-      Keep a `LOCKED` row's lock with the RFC's scope directory as its paths
+      Make a `LOCKED` row no file cites `ASSUMED`, and re-lock by hand where it matters
     rejected_because: >-
-      Every task under `src/bloomery/resolve/**` would owe an entry for every lock
-      the RFC ever made there, most of which no file names
+      It was the conversion's first answer, taken to spare every task under a directory-wide
+      glob an owed entry; the owner chose the lock the RFC made, scope and all, on
+      2026-09-19
 questions:
   - id: Q-1
     text: >-
       Which of the 74 downgraded locks are re-locked, each naming the file that pins
       it
+    status: settled
+    settled_by: D-3
   - id: Q-2
     text: >-
       Whether the historical `tasks/*.json` and the vendored `rfc-writer` skill go

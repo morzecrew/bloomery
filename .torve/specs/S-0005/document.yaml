@@ -228,7 +228,7 @@ risks: |
 sections:
   - key: provenance
     md: |
-      Carried across from S-0005, corpus number 0039, third in
+      Carried across from `rfcs/0039-semantic-proof-ir.md`, corpus number 0039, third in
       the semantic-correctness sequence, status *in progress* in `rfcs/INDEX.md`. The rows
       D-1 through D-9 below are rows 1 through 9 of that document's decision table, each
       with the grade it was given there; the `paths` on every row are read from the working

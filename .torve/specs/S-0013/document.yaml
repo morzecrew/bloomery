@@ -12,7 +12,7 @@ owner: author role
 schema_version: 4
 summary: |
   A `snowflake` `DialectPort`, its rewrite surface, and the fixtures and tiers that
-  establish it, carried across from S-0013: of the four cloud
+  establish it, carried across from `rfcs/0047-snowflake-dialect.md`: of the four cloud
   ports it has the strongest story at both ends, and its risks are semantic rather than
   architectural.
 
@@ -91,7 +91,7 @@ goals: |
 non_goals: |
   No change to the shipped three dialects: this port is additive, and a rewrite that would
   improve DuckDB, PostgreSQL or Trino is a separate change against those ports. Not the
-  shared validation method, which is S-0012's and is only
+  shared validation method, which is `rfcs/0046-validating-a-dialect-port.md`'s and is only
   applied here. Not the other three cloud ports — BigQuery, Redshift and Databricks each
   carry their own risks and none of them depends on this one. Not an engine driver inside
   `src/bloomery`: the package is a pure compiler and every live harness is test apparatus.
@@ -243,7 +243,7 @@ sections:
   - key: provenance
     md: |
       This document is a backfill, not a new design. Its source is
-      S-0013, number 0047 in bloomery's own corpus, status
+      `rfcs/0047-snowflake-dialect.md`, number 0047 in bloomery's own corpus, status
       **Draft — proposed, not scheduled** in `rfcs/INDEX.md` at the row for that file. The
       source is live in the tree and is not edited by this translation; nothing here
       supersedes it, and the corpus retires a document only when the design it argued for
@@ -274,7 +274,7 @@ sections:
   - key: validation-method
     md: |
       The ladder this port is measured on is not defined here. It is
-      S-0012, the root of the four-document cloud
+      `rfcs/0046-validating-a-dialect-port.md`, the root of the four-document cloud
       sequence, and it carries what the four share so the shared half cannot drift into
       four differing accounts: six rungs from unit through golden, syntax sanity, surrogate
       execution, authoritative compile and authoritative execution; the rule that a

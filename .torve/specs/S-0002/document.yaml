@@ -215,7 +215,7 @@ sections:
   - key: provenance
     md: |
       This document is a backfill. Its source is the accepted design record
-      S-0002, numbered 0059, whose status row in
+      `rfcs/0059-multi-project-composition.md`, numbered 0059, whose status row in
       `rfcs/INDEX.md` reads "In progress". Every decision row below is that document's own
       table carried across with the grade its owner gave it; no grade was raised, and the
       row texts are its sentences tightened rather than rewritten. The prose sections are

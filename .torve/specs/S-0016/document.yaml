@@ -61,8 +61,8 @@ design:
 
       - **`TIMESTAMP` versus `TIMESTAMP_NTZ`**, against the zoneless-UTC invariant this
         repository holds across every dialect. The same shape, and the same risk, as the
-        first row of S-0013 and of
-        S-0014.
+        first row of `rfcs/0047-snowflake-dialect.md` and of
+        `rfcs/0048-bigquery-dialect.md`.
       - **ISO-8601 parsing**, and the offset guard that refuses an offset-bearing timestamp
         text rather than silently reinterpreting it.
       - **`try_cast`**, against the NULL-on-failure contract the quality layer depends on.
@@ -233,10 +233,10 @@ risks: |
 sections:
   - key: provenance
     md: |
-      Carried across from S-0016, numbered 0050 in that corpus,
+      Carried across from `rfcs/0050-databricks-dialect.md`, numbered 0050 in that corpus,
       where its status row reads "Draft — proposed, not scheduled". Its validation method
       — the six-rung ladder, the surrogate-naming discipline and the credential rules — is
-      the separate document S-0012, which is also a
+      the separate document `rfcs/0046-validating-a-dialect-port.md`, which is also a
       draft and which the four cloud-port documents share so the shared half cannot drift
       into four differing accounts.
 

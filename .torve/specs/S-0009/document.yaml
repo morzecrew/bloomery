@@ -49,7 +49,7 @@ current_state: |
   `fuzz`, `.github/workflows/fuzz.yml` and `pages/docs/contributing/fuzzing.md` is empty.
   All four phases of the source RFC remain.
 
-  The targets this schedules do not exist either: S-0008
+  The targets this schedules do not exist either: `rfcs/0071-fuzzing-the-compile-boundary.md`
   is still marked Draft in `rfcs/INDEX.md`, and this document is gated on that document's
   P1 — there is no point running in CI what has not run on a laptop.
 
@@ -175,9 +175,9 @@ docs: |
   — gains a short section on what runs when, and how to fetch a crashing input from a failed
   run. No user-facing page changes; `pages/docs/` gains no other tree.
 out_of_scope: |
-  - **The targets themselves.** S-0008 writes them;
+  - **The targets themselves.** `rfcs/0071-fuzzing-the-compile-boundary.md` writes them;
     this document schedules them.
-  - **Schema-directed generation.** S-0010.
+  - **Schema-directed generation.** `rfcs/0073-generating-from-the-spec-schema.md`.
   - **Fuzzing the container-backed examples.** A container per execution destroys
     throughput; the execution and e2e tiers own engines actually running.
   - **Automatic issue filing from findings.** Triage is a person's job, and a bot that files
@@ -205,7 +205,7 @@ risks: |
 sections:
   - key: provenance
     md: |
-      This document carries S-0009 across unchanged in
+      This document carries `rfcs/0072-continuous-fuzzing-in-ci.md` across unchanged in
       substance. That RFC is numbered 0072, is marked **📝 Draft** in `rfcs/INDEX.md` line
       125, and has landed nothing: no phase of it appears in any pull request, `tasks/` holds
       no task naming it, and `logs/` holds no entry naming it. Its decision table's seven
@@ -214,7 +214,7 @@ sections:
       write. Its four unresolved questions become Q-1 … Q-3 (its first two questions share
       one subject and stay two rows; its third is Q-3).
 
-      It is gated on the first phase of S-0008, also
+      It is gated on the first phase of `rfcs/0071-fuzzing-the-compile-boundary.md`, also
       Draft and also unlanded, which supplies the targets, oracles and seeds this schedules.
       The cross-process determinism claim the replay job tests belongs to the retired
       determinism contract, `rfcs/RETIRED.md` row 0003, readable at `33bc4f9`.

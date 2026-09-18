@@ -132,7 +132,7 @@ current_state: |
     this project before the design existed.
 
   One fact remains open and does not block anything here: the Python version in the
-  OSS-Fuzz base image, which belongs to S-0009 and to a
+  OSS-Fuzz base image, which belongs to `rfcs/0072-continuous-fuzzing-in-ci.md` and to a
   container this design deliberately does not build.
 goals: |
   - Make the boundary claim mechanically falsifiable: a target that reports any
@@ -181,7 +181,7 @@ design:
 
       The full determinism claim — across processes and across `PYTHONHASHSEED` — is not
       assertable in-process and is deliberately deferred to the replay job in
-      S-0009.
+      `rfcs/0072-continuous-fuzzing-in-ci.md`.
   - key: the-harness-tuple-and-why-it-must-not-grow
     md: |
       The harness holds one tuple, and it is the error reference restated:
@@ -348,7 +348,7 @@ tests: |
   - **Reproduction is deterministic.** Replaying a minimised input twice gives the same
     result, or the target has ambient state and is itself a determinism finding.
   - **Not tested: that the corpus is any good.** Only a coverage report answers that, and
-    that belongs to S-0009.
+    that belongs to `rfcs/0072-continuous-fuzzing-in-ci.md`.
 docs: |
   `pages/docs/contributing/fuzzing.md` — a new archetype directory. The docs tree has
   `concepts`, `get-started`, `how-to` and `reference` today, and this page is
@@ -368,11 +368,11 @@ docs: |
   boundary — which would be surprising, and would deserve private handling.
 out_of_scope: |
   - **CI, corpus persistence, containers, coverage reports** —
-    S-0009. Without persistent storage every run restarts
+    `rfcs/0072-continuous-fuzzing-in-ci.md`. Without persistent storage every run restarts
     from zero and never gets past the YAML parser, which is why the two designs are
     ordered this way rather than merged. That design is gated on phase 1 alone: there is
     no point running in CI what has not run on a laptop.
-  - **Schema-directed generation** — S-0010. The
+  - **Schema-directed generation** — `rfcs/0073-generating-from-the-spec-schema.md`. The
     ceiling on seeded mutation is how often it produces schema-valid YAML, and that is a
     design question with its own answer, including the possibility that it is a
     property-tier feature. That design is gated on phase 3, since it needs a seeded,
@@ -409,7 +409,7 @@ sections:
   - key: provenance
     md: |
       This document is a backfill, not a new design. Its authority is
-      S-0008, the live document numbered 0071 in
+      `rfcs/0071-fuzzing-the-compile-boundary.md`, the live document numbered 0071 in
       bloomery's own corpus, whose status row in `rfcs/INDEX.md` reads Draft. This is a
       translation of that document into the shape `torve plan` reads; it redesigns nothing.
 

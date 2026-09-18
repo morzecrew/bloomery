@@ -237,7 +237,7 @@ risks: |
 sections:
   - key: provenance
     md: |
-      This document carries S-0003 — number 0060 in
+      This document carries `rfcs/0060-replay-on-a-historical-entity.md` — number 0060 in
       that corpus, titled "Replay on a historical entity", status 📝 Draft in
       `rfcs/INDEX.md` as of `9e44779d`. Nothing about the source document was edited to
       write this one, and the source stays the design authority until it is retired by
