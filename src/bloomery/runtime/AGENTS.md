@@ -96,7 +96,7 @@ The LRU is confined mutable state: `runtime/` is the one impure-adjacent package
 
 ### S-0031/D-9 — `ASSUMED` (Hydration and caching of the planner artifact)
 
-**V3 verified (2026-08-07):** budgets **confirmed and kept** at 50 ms cold / 10 ms warm — measured cold hydration 10.5 ms median (`parse_raw` 5.7 ms + lookup 4.5 ms; ~19 ms worst-case with the lazy first-`explain()` tail), 1.54 MB/lookup at 30 models / 90 metrics / 144.9 KB payload, ≥4× headroom. Two additions: the bench suite gains a 3× model-size point, and hydration may issue one optional throwaway `explain()` to absorb the lazy-initialization tail before a lookup counts as warm ([`spikes/metricflow/VERIFICATION.md`](spikes/metricflow/VERIFICATION.md)).
+**V3 verified (2026-08-07):** budgets **confirmed and kept** at 50 ms cold / 10 ms warm — measured cold hydration 10.5 ms median (`parse_raw` 5.7 ms + lookup 4.5 ms; ~19 ms worst-case with the lazy first-`explain()` tail), 1.54 MB/lookup at 30 models / 90 metrics / 144.9 KB payload, ≥4× headroom. Two additions: the bench suite gains a 3× model-size point, and hydration may issue one optional throwaway `explain()` to absorb the lazy-initialization tail before a lookup counts as warm (`spikes/metricflow/VERIFICATION.md` (`spikes/metricflow/VERIFICATION.md`)).
 
 - Paths: `src/bloomery/runtime/hydration.py`
 

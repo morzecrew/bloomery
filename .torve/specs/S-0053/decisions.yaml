@@ -100,7 +100,7 @@ decisions:
       block, or accepting both words — both leave the resolved IR disagreeing with
       the document that produced it. Bloomery's own generated `quality_quarantine_rate`
       was the first spec the guard refused, which states D2's reason rather than excepting
-      it (see [`logs/T-0023.md`](logs/T-0023.md), D145, D147).
+      it (see `logs/T-0023.md` (`logs/T-0023.md`), D145, D147).
     paths:
       - src/bloomery/guardrails/additivity.py
       - tests/unit/test_guardrails/test_metrics.py
@@ -117,7 +117,7 @@ decisions:
       under its own name, and is already complete for all six members. Locked because
       it is what the `RESOLVABLE` canary's promise rests on: minting `DistinctCount`
       or `Snapshot` is an enum edit and a lowering, not a second sweep of fifteen
-      judgement calls (see [`logs/T-0023.md`](logs/T-0023.md), D146).
+      judgement calls (see `logs/T-0023.md` (`logs/T-0023.md`), D146).
   - id: D-9
     grade: ASSUMED
     text: >-
@@ -132,7 +132,7 @@ decisions:
       declared *input*, which the spec language cannot express, so `{convert: [JPY,
       USD, paid_at]}` applies the yen rate to euros and compiles clean. That fact
       is S-0066's, and R009 is minted there rather than here. Added by execution 2026-09-06
-      — see [`logs/T-0024.md`](logs/T-0024.md) (D153, D154, D155, attempt 1).
+      — see `logs/T-0024.md` (`logs/T-0024.md`) (D153, D154, D155, attempt 1).
   - id: D-10
     grade: ASSUMED
     text: >-
@@ -143,7 +143,7 @@ decisions:
       §5's `Distance<km> + Distance<m>` has its refusal and nothing else, and naming
       an escape an author cannot write is worse than naming none. A declared unit
       conversion needs factors and a dimension algebra — a document, not a row, and
-      unwritten. Added by execution 2026-09-06 — see [`logs/T-0024.md`](logs/T-0024.md)
+      unwritten. Added by execution 2026-09-06 — see `logs/T-0024.md` (`logs/T-0024.md`)
       (D156, attempt 1).
   - id: D-11
     grade: ASSUMED
@@ -162,4 +162,4 @@ decisions:
       `ColumnIR.{unit, currency}`. Every one is target-independent IR, which is what
       §3 demands; the consolidation is a refactor with no reader. §10's second question
       closes the same way: `Unit` is read through the column, as S-0066's conversion
-      rule reads currency. Added by execution 2026-09-08 — see [`logs/T-0028.md`](logs/T-0028.md).
+      rule reads currency. Added by execution 2026-09-08 — see `logs/T-0028.md` (`logs/T-0028.md`).

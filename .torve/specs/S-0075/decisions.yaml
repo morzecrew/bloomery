@@ -10,7 +10,7 @@ decisions:
       no project that can trip it. Locked because it is the whole of what makes the
       grade mean anything at the point a consumer asks; reversing it makes every other
       row here decoration. `FunctionalDependency.via` already carries the key such
-      a lookup needs. Proposed by execution — see [`logs/T-0053.md`](logs/T-0053.md)
+      a lookup needs. Proposed by execution — see `logs/T-0053.md` (`logs/T-0053.md`)
       (D2, attempt 1).
     paths:
       - pages/docs/concepts/what-bloomery-proves.md
@@ -27,7 +27,7 @@ decisions:
       *and* a `unique`/`primary_key` on the named target. Locked because the tempting
       version of this importer is the one that skips the second test, and it would
       be indistinguishable in review from the correct one. Proposed by execution —
-      see [`logs/T-0053.md`](logs/T-0053.md) (D3, attempt 1).
+      see `logs/T-0053.md` (`logs/T-0053.md`) (D3, attempt 1).
   - id: D-3
     grade: LOCKED
     text: >-
@@ -87,7 +87,7 @@ decisions:
       holds no `Project` anywhere from `resolve_request` down to `prove_rollup`. One
       relationship therefore reports two provenances until P2. It mislabels an account
       without changing a verdict, since `IMPORTED_VERIFIED` closes an obligation.
-      Added by execution 2026-09-13 — see [`logs/T-0053.md`](logs/T-0053.md) (unlisted,
+      Added by execution 2026-09-13 — see `logs/T-0053.md` (`logs/T-0053.md`) (unlisted,
       attempt 1).
   - id: D-9
     grade: ASSUMED
@@ -95,8 +95,8 @@ decisions:
       **The imported set is read from `project.entity_model` in `check_evidence`**,
       beside the `requires_evidence` read it already does. One walk of the authored
       spec, two facts — so a project cannot be strict about a relationship the same
-      function decided was authored. Added by execution 2026-09-13 — see [`logs/T-0053.md`](logs/T-0053.md)
-      (unlisted, attempt 1).
+      function decided was authored. Added by execution 2026-09-13 — see `logs/T-0053.md`
+      (`logs/T-0053.md`) (unlisted, attempt 1).
   - id: D-10
     grade: ASSUMED
     text: >-

@@ -139,16 +139,16 @@ decisions:
   - id: D-20
     grade: ASSUMED
     text: >-
-      **Semi-additive fixture seed erratum (V2, 2026-08-07 — [`spikes/metricflow/VERIFICATION.md`](spikes/metricflow/VERIFICATION.md)):**
-      the pivot's paired assertions ("unscoped Jan 1–3 → 90" and "Jan 3 → A 90 + B
-      40 = 130") are unsatisfiable on one seed — with B=40 on Jan 3 the global MAX
-      date is Jan 3, so the unscoped 3-day answer is 130. `semi_additive_inventory`
-      keeps 100/80/90 as **warehouse-A** balances (A-scoped 3-day → 90), B=40 on Jan
-      3 (global Jan-3 and unscoped 3-day → 130), and asserts by-month over three months
-      → three rows (issue #241 fixed in metricflow 0.211.0). Month-grain DuckDB results
-      are `TIMESTAMP`s — normalized in the test helper. §5.3/§5.10 amended accordingly;
-      the row-policy AST test asserts "predicate in every scan", not a fixed subquery
-      count.
+      **Semi-additive fixture seed erratum (V2, 2026-08-07 — `spikes/metricflow/VERIFICATION.md`
+      (`spikes/metricflow/VERIFICATION.md`)):** the pivot's paired assertions ("unscoped
+      Jan 1–3 → 90" and "Jan 3 → A 90 + B 40 = 130") are unsatisfiable on one seed
+      — with B=40 on Jan 3 the global MAX date is Jan 3, so the unscoped 3-day answer
+      is 130. `semi_additive_inventory` keeps 100/80/90 as **warehouse-A** balances
+      (A-scoped 3-day → 90), B=40 on Jan 3 (global Jan-3 and unscoped 3-day → 130),
+      and asserts by-month over three months → three rows (issue #241 fixed in metricflow
+      0.211.0). Month-grain DuckDB results are `TIMESTAMP`s — normalized in the test
+      helper. §5.3/§5.10 amended accordingly; the row-policy AST test asserts "predicate
+      in every scan", not a fixed subquery count.
     paths: [tests/execution/test_planner_numbers.py]
   - id: D-21
     grade: ASSUMED

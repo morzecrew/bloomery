@@ -82,5 +82,5 @@ decisions:
       at 30 models / 90 metrics / 144.9 KB payload, ≥4× headroom. Two additions: the
       bench suite gains a 3× model-size point, and hydration may issue one optional
       throwaway `explain()` to absorb the lazy-initialization tail before a lookup
-      counts as warm ([`spikes/metricflow/VERIFICATION.md`](spikes/metricflow/VERIFICATION.md)).
+      counts as warm (`spikes/metricflow/VERIFICATION.md` (`spikes/metricflow/VERIFICATION.md`)).
     paths: [src/bloomery/runtime/hydration.py]

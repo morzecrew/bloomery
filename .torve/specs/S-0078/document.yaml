@@ -22,7 +22,7 @@ summary: >-
 motivation: |-
   The seventeen live RFCs had been carried across by the author role (S-0002 to S-0017), but the sixty-seven retired ones lived only in git history, and 4,376 citations in `src/`, `pages/` and `tests/` — 1,872 naming a decision, 426 distinct decisions — pointed at them in a grammar torve reads as its own legacy. Two consequences: the tree could not carry a `spec-valid` gate, and a task inheriting a decision from a retired RFC inherited nothing, because no row existed for the engine to hand it.
 
-  torve did the same to itself once (S-0057 and RFC 0058 in its corpus): every document converted in the commit that deleted `rfcs/`, an identifier mapping beside the archive, `torve spec show` answering a legacy id through it. This document does the same for bloomery, with the differences bloomery's RFC template forces.
+  torve did the same to itself once (S-0057 and RFC number 0058 in its corpus): every document converted in the commit that deleted `rfcs/`, an identifier mapping beside the archive, `torve spec show` answering a legacy id through it. This document does the same for bloomery, with the differences bloomery's RFC template forces.
 current_state: >-
   Before this document: 17 live RFCs in `rfcs/` mirrored by S-0002 to S-0017; 67 retired
   files readable only through `rfcs/RETIRED.md`'s commit table and `git show`; `tools/check_rfc_corpus.py`
@@ -45,14 +45,14 @@ design:
     md: >-
       The 60 numbered retired RFCs take S-0018 to S-0077 in RFC-number order. A decision
       row `k` becomes `D-k` of its document; a suffixed row (`2a`, `2b`, `2c` in RFC
-      0056 and RFC 0057) becomes the next free integer after the table's last row,
-      with its text prefixed by the row it was. Section numbers map to keys: the standard
-      H2s (Summary, Motivation, Current state, Goals / Non-goals, Design, Tests, Docs,
-      Out of scope, Risks) to the typed anatomy fields; H3s under Design and every
-      non-standard H2 to design sections keyed by their title's slug; Unresolved questions
-      to `Q-n`; Alternatives considered to the alternatives list. A citation of `§n.m`
-      becomes `S-NNNN/<key>`, or `S-NNNN/<h2-key> (§n.m)` where only the H2 has a
-      key.
+      number 0056 and RFC number 0057) becomes the next free integer after the table's
+      last row, with its text prefixed by the row it was. Section numbers map to keys:
+      the standard H2s (Summary, Motivation, Current state, Goals / Non-goals, Design,
+      Tests, Docs, Out of scope, Risks) to the typed anatomy fields; H3s under Design
+      and every non-standard H2 to design sections keyed by their title's slug; Unresolved
+      questions to `Q-n`; Alternatives considered to the alternatives list. A citation
+      of `§n.m` becomes `S-NNNN/<key>`, or `S-NNNN/<h2-key> (§n.m)` where only the
+      H2 has a key.
   - key: grades-and-paths
     md: >-
       A grade the table carried is kept. A row with no grade is `ASSUMED`: it was
@@ -67,8 +67,8 @@ design:
       `RFC NNNN Dk` → `S-NNNN/D-k`; `RFC NNNN §n.m` → the section key; `RFC NNNN Pk`
       → `S-NNNN/phasing (P-k)` for a converted document (its phasing is prose) and
       `S-NNNN/P-k` for an author-converted one; `RFC NNNN D-Qk` → the row that carries
-      `D-Qk` where the RFC numbered decisions that way (RFC 0015), else `Q-k`; `RFC
-      NNNN Rk` → the section holding the rule table; `RFC NNNN/MMMM` → two documents.
+      `D-Qk` where the RFC numbered decisions that way (RFC number 0015), else `Q-k`;
+      `RFC NNNN Rk` → the section holding the rule table; `RFC NNNN/MMMM` → two documents.
       A decision number past the table's last row is an execution-log entry and is
       written `S-NNNN (log entry Dk)`. Three-digit `D-NNN` and `A-N` in prose are
       the logs' own numbering and lose their hyphen so the corpus check does not read

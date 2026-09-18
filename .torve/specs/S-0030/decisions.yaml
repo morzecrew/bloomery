@@ -149,15 +149,15 @@ decisions:
   - id: D-14
     grade: ASSUMED
     text: >-
-      **M4.5 complete (2026-08-07): V1–V4 all answered PASS** ([`spikes/metricflow/VERIFICATION.md`](spikes/metricflow/VERIFICATION.md))
-      — V1: joint resolution succeeds on Python 3.12/3.13/3.14, no `requires-python`
-      change, v1-shim/v2 coexistence clean in both import orders; V2: issue #241 fixed
-      in 0.211.0 (by-month returns the full series); V3: cold hydration 10.5 ms median,
-      1.54 MB/lookup (S-0031 budgets confirmed); V4: row-policy predicate in every
-      scan pre-aggregation, escape hatch unneeded. `metricflow==0.211.*` is **confirmed**
-      as the runtime pin — it resolves jointly with the sqlmesh dev tooling (sqlmesh
-      0.236.1, sqlglot stays `>=30.8,<31` resolving 30.8.0). Design cleared for implementation
-      (M6+).
+      **M4.5 complete (2026-08-07): V1–V4 all answered PASS** (`spikes/metricflow/VERIFICATION.md`
+      (`spikes/metricflow/VERIFICATION.md`)) — V1: joint resolution succeeds on Python
+      3.12/3.13/3.14, no `requires-python` change, v1-shim/v2 coexistence clean in
+      both import orders; V2: issue #241 fixed in 0.211.0 (by-month returns the full
+      series); V3: cold hydration 10.5 ms median, 1.54 MB/lookup (S-0031 budgets confirmed);
+      V4: row-policy predicate in every scan pre-aggregation, escape hatch unneeded.
+      `metricflow==0.211.*` is **confirmed** as the runtime pin — it resolves jointly
+      with the sqlmesh dev tooling (sqlmesh 0.236.1, sqlglot stays `>=30.8,<31` resolving
+      30.8.0). Design cleared for implementation (M6+).
   - id: D-15
     grade: ASSUMED
     text: >-

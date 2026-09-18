@@ -77,7 +77,7 @@ decisions:
       chain — and a macro's body is opaque SQL. Neither can carry a `convert` step,
       so neither can hold a conversion whose input would need declaring, and neither
       reaches the code that would ask. Answered "no" for both, and "yes" for `KeyField`,
-      which this row did not think to ask about (see [`logs/T-0025.md`](logs/T-0025.md),
+      which this row did not think to ask about (see `logs/T-0025.md` (`logs/T-0025.md`),
       D158).
     paths: [src/bloomery/evidence.py, tests/unit/test_evidence.py]
   - id: D-8
@@ -101,7 +101,7 @@ decisions:
       written to exclude what it exists to check. The residue — that nothing which
       does not convert is affected — is what the whole-corpus suite already asserts.
       Not `LOCKED` because a later phase that makes per-row real should re-read §6
-      rather than this row. Added by execution 2026-09-07 — see [`logs/T-0025.md`](logs/T-0025.md)
+      rather than this row. Added by execution 2026-09-07 — see `logs/T-0025.md` (`logs/T-0025.md`)
       (D161, attempt 4).
   - id: D-10
     grade: OPEN
@@ -113,6 +113,6 @@ decisions:
       the input declared on the field, `from` is derivable and the two-argument spelling
       is the obvious candidate; keeping a three-argument form would need something
       to write in the first slot that is not a currency. Decide with P2's lowering,
-      which is the first code that reads it. Added by execution 2026-09-07 — see [`logs/T-0025.md`](logs/T-0025.md)
-      (D162).
+      which is the first code that reads it. Added by execution 2026-09-07 — see `logs/T-0025.md`
+      (`logs/T-0025.md`) (D162).
     paths: [tests/fixtures/currency_convert_per_row/mapping.yaml]

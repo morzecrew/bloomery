@@ -10,7 +10,7 @@
 
 ### S-0066/D-10 — `OPEN` (Declared input currency for conversion)
 
-**How a per-row conversion spells its source currency.** §5.1's example wrote `{convert: [*, USD, paid_at]}`, and `*` is not an ISO-4217 code — resolution refuses it on the code format before the per-row refusal is reached, so the example was uncopyable and the question it stood in for was never asked. With the input declared on the field, `from` is derivable and the two-argument spelling is the obvious candidate; keeping a three-argument form would need something to write in the first slot that is not a currency. Decide with P2's lowering, which is the first code that reads it. Added by execution 2026-09-07 — see [`logs/T-0025.md`](logs/T-0025.md) (D162).
+**How a per-row conversion spells its source currency.** §5.1's example wrote `{convert: [*, USD, paid_at]}`, and `*` is not an ISO-4217 code — resolution refuses it on the code format before the per-row refusal is reached, so the example was uncopyable and the question it stood in for was never asked. With the input declared on the field, `from` is derivable and the two-argument spelling is the obvious candidate; keeping a three-argument form would need something to write in the first slot that is not a currency. Decide with P2's lowering, which is the first code that reads it. Added by execution 2026-09-07 — see `logs/T-0025.md` (`logs/T-0025.md`) (D162).
 
 - Paths: `tests/fixtures/currency_convert_per_row/mapping.yaml`
 

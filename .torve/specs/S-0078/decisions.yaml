@@ -33,8 +33,8 @@ decisions:
   - id: D-5
     grade: LOCKED
     text: >-
-      A converted document is `accepted` with `implementation: complete`; RFC 0012
-      is `superseded` by RFC 0014's document
+      A converted document is `accepted` with `implementation: complete`; RFC number
+      0012 is `superseded` by RFC number 0014's document
     paths: [.torve/specs/**]
     consequence: >-
       The rows stand and project; the corpus test reads completeness where it read

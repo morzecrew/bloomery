@@ -57,7 +57,7 @@ decisions:
       caller keeps today's report. Not `LOCKED`: handing `plan` the two `Project`s
       reads more naturally and re-admits the spec layer into a diff whose whole design
       is that it consumes IR, and a later document may prefer that trade. Added by
-      execution 2026-09-11 — see [`logs/T-0044.md`](logs/T-0044.md).
+      execution 2026-09-11 — see `logs/T-0044.md` (`logs/T-0044.md`).
   - id: D-9
     grade: ASSUMED
     text: >-
@@ -67,7 +67,8 @@ decisions:
       reads the old name, the marts carrying it as a measure, the exposures declaring
       it — in `Change`'s own `<kind>:<name>` grammar. A dashboard or a decision row
       cites a node too and is outside the project, which is why the list is what it
-      is rather than everything §2 imagines. Added by execution 2026-09-11 — see [`logs/T-0044.md`](logs/T-0044.md).
+      is rather than everything §2 imagines. Added by execution 2026-09-11 — see `logs/T-0044.md`
+      (`logs/T-0044.md`).
   - id: D-10
     grade: ASSUMED
     text: >-
@@ -77,7 +78,7 @@ decisions:
       There is nothing there to print as a name or to carry as an id. If `explain`
       is to carry node identity, what it would carry has to be designed first: its
       subject is a metric *request*, not a graph node. Added by execution 2026-09-11
-      — see [`logs/T-0044.md`](logs/T-0044.md).
+      — see `logs/T-0044.md` (`logs/T-0044.md`).
   - id: D-11
     grade: ASSUMED
     text: >-
@@ -87,7 +88,7 @@ decisions:
       survives lowering only as `ColumnIR.canonical`, a string reference. A renamed
       canonical field is unreachable here whatever else changes, and making it reportable
       means changing what the IR *is* rather than what `plan()` reads. Added by execution
-      2026-09-11 — see [`logs/T-0044.md`](logs/T-0044.md).
+      2026-09-11 — see `logs/T-0044.md` (`logs/T-0044.md`).
   - id: D-12
     grade: ASSUMED
     text: >-
@@ -98,7 +99,7 @@ decisions:
       two spellings in one column, harder to read than either. The label is what the
       id would have been had the project adopted nothing, which is also what makes
       it substitutable wherever an id appears. Added by execution 2026-09-11 — see
-      [`logs/T-0044.md`](logs/T-0044.md).
+      `logs/T-0044.md` (`logs/T-0044.md`).
   - id: D-13
     grade: ASSUMED
     text: >-
@@ -106,7 +107,7 @@ decisions:
       settles the first; the second is what a reader *types*, so `_find_node`'s did-you-mean
       and its collision refusal keep node ids. Offering a name `--node` does not accept
       would be worse than the mistype it answers. Added by execution 2026-09-11 —
-      see [`logs/T-0044.md`](logs/T-0044.md).
+      see `logs/T-0044.md` (`logs/T-0044.md`).
   - id: D-14
     grade: ASSUMED
     text: >-
@@ -118,7 +119,7 @@ decisions:
       code, checked *after* the substitution so a legitimate chain — `a` to `b` while
       `b` becomes `c` — still lands in one version. Reporting a merge properly means
       keying the whole diff by identity rather than by name, which is a change to
-      what `plan()` is. Added by execution 2026-09-11 — see [`logs/T-0044.md`](logs/T-0044.md).
+      what `plan()` is. Added by execution 2026-09-11 — see `logs/T-0044.md` (`logs/T-0044.md`).
   - id: D-15
     grade: ASSUMED
     text: >-
@@ -126,7 +127,8 @@ decisions:
       a `template:` lives in the catalog, so a rename moves text there too and one
       catalog read for both versions describes neither. A *version* is its documents
       and its catalog — which the CLI already had right, each spec directory carrying
-      its own — and the how-to did not. Added by execution 2026-09-11 — see [`logs/T-0044.md`](logs/T-0044.md).
+      its own — and the how-to did not. Added by execution 2026-09-11 — see `logs/T-0044.md`
+      (`logs/T-0044.md`).
   - id: D-16
     grade: ASSUMED
     text: >-
@@ -136,4 +138,4 @@ decisions:
       the `id:` section; the rename half lands in `evolve-a-spec.md` beside `renamed_from`'s.
       §7's reason is honoured and its directory is not: a concepts page is worth minting
       when there is a concept to explain rather than a surface to use. Added by execution
-      2026-09-11 — see [`logs/T-0044.md`](logs/T-0044.md).
+      2026-09-11 — see `logs/T-0044.md` (`logs/T-0044.md`).

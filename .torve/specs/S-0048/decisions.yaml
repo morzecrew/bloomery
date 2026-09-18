@@ -49,7 +49,7 @@ decisions:
       than checking it.** `resolve()` raises on cycles before anything downstream
       runs, so every graph reaching this is acyclic; a re-check would be a branch
       no caller can execute — and this project has already shipped one of those knowingly
-      (see [`logs/T-0003.md`](logs/T-0003.md) D014). Depart from this if a caller
+      (see `logs/T-0003.md` (`logs/T-0003.md`) D014). Depart from this if a caller
       turns up that wants to walk a cyclic graph in order to *see* the cycle.
   - id: D-6
     grade: ASSUMED

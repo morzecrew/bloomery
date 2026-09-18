@@ -149,23 +149,23 @@ decisions:
   - id: D-15
     grade: ASSUMED
     text: >-
-      **Supersedes 13**, which execution corrected in two places (see [`logs/T-0033.md`](logs/T-0033.md)).
-      P1 admits `additive`, and `ratio` when the rollup carries both operands and
-      each is itself **additive** — not "itself admitted", as 13 read: an operand
-      that is a ratio sends the obligation back through the same question and nothing
-      in the spec layer forbids two ratios naming each other, so the wider word had
-      no termination argument, and additive operands are the only ones R011 grants
-      anyway. Refused: `semi_additive`, `non_additive`, `distinct_count` **and `snapshot`**
-      — 13 omitted the last because `SNAPSHOT` is not in `RESOLVABLE` and no project
-      can mint one, which is a reason for the mapping to carry it for totality and
-      not a reason for the row to read as a shorter list than the code. Phase-scoped
-      as 13 was, and not an escape hatch: D3 stands, and none of the four becomes
-      admissible by declaring anything.
+      **Supersedes 13**, which execution corrected in two places (see `logs/T-0033.md`
+      (`logs/T-0033.md`)). P1 admits `additive`, and `ratio` when the rollup carries
+      both operands and each is itself **additive** — not "itself admitted", as 13
+      read: an operand that is a ratio sends the obligation back through the same
+      question and nothing in the spec layer forbids two ratios naming each other,
+      so the wider word had no termination argument, and additive operands are the
+      only ones R011 grants anyway. Refused: `semi_additive`, `non_additive`, `distinct_count`
+      **and `snapshot`** — 13 omitted the last because `SNAPSHOT` is not in `RESOLVABLE`
+      and no project can mint one, which is a reason for the mapping to carry it for
+      totality and not a reason for the row to read as a shorter list than the code.
+      Phase-scoped as 13 was, and not an escape hatch: D3 stands, and none of the
+      four becomes admissible by declaring anything.
   - id: D-16
     grade: ASSUMED
     text: >-
       **The degenerate groupings are refused, and the degenerate repeat is not** (see
-      [`logs/T-0033.md`](logs/T-0033.md)). A rollup keeping *no* dimension, one keeping
+      `logs/T-0033.md` (`logs/T-0033.md`)). A rollup keeping *no* dimension, one keeping
       a column the mart does not have, one keeping *every* column, and a mart carrying
       no measure are all refused. The first and the last would otherwise be **proved**,
       because a reduction over an empty set grants everything and a proof resting

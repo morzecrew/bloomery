@@ -62,7 +62,7 @@ decisions:
       rule was. Not `LOCKED` because nothing yet produces that provenance — S-0057/phasing
       (P-2) would — so the choice was made where it was unobservable, and S-0002 asks
       the same question from the other direction (§10). Added by execution 2026-09-09
-      — see [`logs/T-0031.md`](logs/T-0031.md) (D8, attempt 1).
+      — see `logs/T-0031.md` (`logs/T-0031.md`) (D8, attempt 1).
   - id: D-10
     grade: ASSUMED
     text: >-
@@ -71,7 +71,7 @@ decisions:
       carries no fact and no proof, and every golden pins it. S-0054/D-7 put the semantic
       plan *beside* `sql`, `columns` and `explanation` for that reason, and a phase
       §12 calls close to free should not be the one that moves a pinned surface. Added
-      by execution 2026-09-09 — see [`logs/T-0031.md`](logs/T-0031.md) (unlisted,
+      by execution 2026-09-09 — see `logs/T-0031.md` (`logs/T-0031.md`) (unlisted,
       attempt 1).
   - id: D-11
     grade: ASSUMED
@@ -81,7 +81,7 @@ decisions:
       except a spec, which is the letter of that rule and not its point. `--format
       json` carries `provenance` and is not lossy for it: the grade is a total function
       of that value and the function is public. Added by execution 2026-09-09 — see
-      [`logs/T-0031.md`](logs/T-0031.md) (unlisted, attempt 1).
+      `logs/T-0031.md` (`logs/T-0031.md`) (unlisted, attempt 1).
   - id: D-12
     grade: ASSUMED
     text: >-
@@ -89,7 +89,7 @@ decisions:
       and how to read it where a reader meets it; §7's worked example is a mart declaring
       `requires_evidence`, a key P1 does not add, so it lands with P2. Writing it
       earlier would document a key nobody can type. Added by execution 2026-09-09
-      — see [`logs/T-0031.md`](logs/T-0031.md) (unlisted, attempt 1).
+      — see `logs/T-0031.md` (`logs/T-0031.md`) (unlisted, attempt 1).
   - id: D-13
     grade: ASSUMED
     text: >-
@@ -99,7 +99,7 @@ decisions:
       from, and a renderer generates nothing. It became a named allowlist carrying
       how many reads each admitted file gets, because a per-file exemption would cover
       a generator landing in the same module later. Added by execution 2026-09-09
-      — see [`logs/T-0031.md`](logs/T-0031.md) (unlisted, attempt 1; tightened after
+      — see `logs/T-0031.md` (`logs/T-0031.md`) (unlisted, attempt 1; tightened after
       review on #94).
   - id: D-14
     grade: ASSUMED
@@ -111,7 +111,7 @@ decisions:
       determining its own columns is reached mechanically but entailed by an authored
       key. Measured: left `DERIVED`, a `requires_evidence: locked` mart refuses all
       15 marts in the corpus, and `entity_key` has no remedy an author could write,
-      which row 4 forbids. Added by execution 2026-09-10 — see [`logs/T-0040.md`](logs/T-0040.md)
+      which row 4 forbids. Added by execution 2026-09-10 — see `logs/T-0040.md` (`logs/T-0040.md`)
       (unlisted, attempt 1).
   - id: D-15
     grade: ASSUMED
@@ -122,7 +122,7 @@ decisions:
       the metric or its template and raises when both are silent, so every metric
       reaching a mart has a `DECLARED` one. The shipped refusal names a *column* whose
       derivation is weak rather than a measure whose additivity is, and keeps row
-      4's four parts. Added by execution 2026-09-10 — see [`logs/T-0040.md`](logs/T-0040.md)
+      4's four parts. Added by execution 2026-09-10 — see `logs/T-0040.md` (`logs/T-0040.md`)
       (D4, attempts 1-3).
   - id: D-16
     grade: ASSUMED
@@ -134,7 +134,7 @@ decisions:
       test for row 14 itself. **This phase therefore ships a requirement no current
       project can fail** — it first refuses when S-0057/phasing (P-2) gives `IMPORTED_VERIFIED`
       a producer. Stated rather than discovered later. Added by execution 2026-09-10
-      — see [`logs/T-0040.md`](logs/T-0040.md) (unlisted, attempt 1).
+      — see `logs/T-0040.md` (`logs/T-0040.md`) (unlisted, attempt 1).
   - id: D-17
     grade: ASSUMED
     text: >-
@@ -143,8 +143,8 @@ decisions:
       uses. `project_fingerprint` walks the IR dataclass tree, so a field there would
       move every fingerprint in the corpus for projects that never type the key —
       which is row 3 broken by the mechanism row 3 exists to protect. Settles the
-      `MartIR` half of row 6. Added by execution 2026-09-10 — see [`logs/T-0040.md`](logs/T-0040.md)
-      (D6, attempt 1).
+      `MartIR` half of row 6. Added by execution 2026-09-10 — see `logs/T-0040.md`
+      (`logs/T-0040.md`) (D6, attempt 1).
   - id: D-18
     grade: ASSUMED
     text: >-
@@ -158,7 +158,7 @@ decisions:
       produces `IMPORTED_VERIFIED`, and nothing does: 0070 P1 produces the grade `ASSUMED`,
       while `_dependency_proof` still mints `BASIS_PROVENANCE[basis]` for the same
       edge — one relationship, two provenances, which 0070 P2 owns. D8 therefore stands
-      unreopened. Added by execution 2026-09-13 — see [`logs/T-0053.md`](logs/T-0053.md).
+      unreopened. Added by execution 2026-09-13 — see `logs/T-0053.md` (`logs/T-0053.md`).
   - id: D-19
     grade: ASSUMED
     text: >-
@@ -174,7 +174,7 @@ decisions:
       two quantify over different things. (`measure_owners` is also unreachable from
       `guardrails` — `emit` sits above it in the layers contract — but that is why
       the question had to be answered, not the answer.) Added by execution 2026-09-13
-      — see [`logs/T-0054.md`](logs/T-0054.md) (unlisted, attempt 1).
+      — see `logs/T-0054.md` (`logs/T-0054.md`) (unlisted, attempt 1).
   - id: D-20
     grade: ASSUMED
     text: >-
@@ -184,7 +184,7 @@ decisions:
       `locked` is the only requirement that asks anything, so a mart in that set asked
       for exactly what the exposure did — the skip suppresses a duplicate, never a
       weaker requirement standing in for a stronger one. Added by execution 2026-09-13
-      — see [`logs/T-0054.md`](logs/T-0054.md) (unlisted, attempt 1).
+      — see `logs/T-0054.md` (`logs/T-0054.md`) (unlisted, attempt 1).
   - id: D-21
     grade: ASSUMED
     text: >-
@@ -194,5 +194,5 @@ decisions:
       asserts the page still contains them; a placeholder in the opening clause would
       leave that guard quoting a template with a hole where the noun goes, so it would
       stop pinning the sentence a reader sees. Four flat constants is more text and
-      a strictly stronger guard. Added by execution 2026-09-13 — see [`logs/T-0054.md`](logs/T-0054.md)
-      (unlisted, attempt 1).
+      a strictly stronger guard. Added by execution 2026-09-13 — see `logs/T-0054.md`
+      (`logs/T-0054.md`) (unlisted, attempt 1).
