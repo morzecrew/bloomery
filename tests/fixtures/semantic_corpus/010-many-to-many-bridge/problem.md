@@ -45,7 +45,7 @@ Three bridge rows over two orders; o1's 100.00 is counted once per promotion.
 ## The semantic failure mode
 
 Grain is a property of a **path**, and a path of safe edges is not a safe path. This is why
-the grain model is directional (RFC 0037 D5): an edge says which way values may travel, and
+the grain model is directional (S-0017/D-5): an edge says which way values may travel, and
 a bridge is two edges pointing away from a grain that neither of them is.
 
 ## How this differs from 001
@@ -58,7 +58,7 @@ that inspected relationships one at a time would pass this case.
 ## Expected bloomery behaviour
 
 - **bridged** — a mart at `order_promo` grain listing `revenue`, which originates at
-  `order`, is refused as `GrainViolation` (RFC 0010 D2). The mart contract is what catches
+  `order`, is refused as `GrainViolation` (S-0027/D-2). The mart contract is what catches
   it: a measure may be embedded only at its own grain, whatever path reached it.
 - **per_order** — revenue on a mart at its own grain is accepted and returns 150.00.
   **R011** owns it: an additive measure summed across a rollup its grain proof permits, and

@@ -1,13 +1,13 @@
-"""Path conflict — the guardrail that does not raise (RFC 0006 §5.5, D7).
+"""Path conflict — the guardrail that does not raise (S-0023/path-conflict-the-guardrail-that-does-not-raise, S-0023/D-7).
 
 When a field records both a satisfiable derivation and a direct source
-column (``direct:`` on the recipe mapping, RFC 0002 §5.5), any silent choice
+column (``direct:`` on the recipe mapping, S-0019/spec-model-surface), any silent choice
 is wrong: the two can disagree, and whichever the compiler picked, the
 discrepancy would become invisible. So the stage amends the IR to emit
 **both** — the derived column under the field's name (the recipe is the
 recorded, auditable decision), a ``<name>__direct`` shadow column carrying
 the direct value, and a ``reconcile`` :class:`~bloomery.ir.AuditIR` whose
-target-native lowering surfaces row-level disagreement (RFC 0008). Never an
+target-native lowering surfaces row-level disagreement (S-0025). Never an
 error: both paths are individually valid, so the refusal targets the
 silence, not the spec.
 """
@@ -48,12 +48,12 @@ class Shadow:
     The pair travels together for the reason :func:`resolve.build._column_pair`
     gives — a schema column with no projection is a column the SELECT cannot
     produce — and the projections are keyed by relation because a merged
-    entity's branches read different paths for it (RFC 0024 D36).
+    entity's branches read different paths for it (S-0041/D-36).
     """
 
     column: ColumnIR
     #: Source relation → that branch's projection. Read by relation, never
-    #: iterated where the order could reach output (RFC 0003).
+    #: iterated where the order could reach output (S-0020).
     projections: dict[str, SourceColumnIR]
 
 
@@ -62,7 +62,7 @@ def _shadow_column(derived: ColumnIR) -> ColumnIR:
     metadata as the derived column, since it is the same canonical field.
 
     One per entity column, never one per source — the schema of a merged
-    entity is what every mapping agrees on (RFC 0024 D26), and this half is
+    entity is what every mapping agrees on (S-0041/D-26), and this half is
     derived from the entity's own column alone.
     """
 
@@ -82,10 +82,10 @@ def _shadow_column(derived: ColumnIR) -> ColumnIR:
 
 def _shadow_projection(derived: ColumnIR, direct: str, *, cleaned: bool) -> SourceColumnIR:
     """One branch's projection of the shadow: a declared-type cast of *that
-    mapping's* direct extraction (RFC 0005 lowering rules).
+    mapping's* direct extraction (S-0022 lowering rules).
 
     ``TRY_CAST`` when the entity is in the quality system, ``CAST`` otherwise —
-    the same choice the builder makes for every other column (RFC 0016 §5.2,
+    the same choice the builder makes for every other column (S-0033/coercion-failure-is-a-rule-the-assert-boundary,
     D3), carried here on the :class:`~bloomery.guardrails.operands.Derivation`
     because this lowering is built after the builder has run and so is not in
     the loop that makes it. It was a plain ``CAST`` unconditionally, which put
@@ -96,7 +96,7 @@ def _shadow_projection(derived: ColumnIR, direct: str, *, cleaned: bool) -> Sour
     row as a disagreement — which it is — and the failure is the feature's own
     rather than an engine conversion error from the middle of a SELECT.
 
-    Per source, because ``direct:`` is per mapping (RFC 0024 D36). Under D28
+    Per source, because ``direct:`` is per mapping (S-0041/D-36). Under D28
     this was one projection for one entity and the combination was refused
     outright; the refusal named the right failure — a shadow NULL for one
     branch's rows is indistinguishable from a genuinely NULL direct value —
@@ -147,7 +147,7 @@ def path_conflict_amendments(
 
     Grouped by ``(entity, field)`` rather than taken one derivation at a time,
     because a merged entity has one derivation **per mapping** for the same
-    field (RFC 0024 D36). What that grouping decides is the arity of each half:
+    field (S-0041/D-36). What that grouping decides is the arity of each half:
     one schema column and one reconcile audit for the field, and one projection
     for each source that recorded a path. Appending per derivation instead
     would emit the audit once per branch and hand the entity N columns of one

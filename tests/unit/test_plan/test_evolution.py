@@ -1,4 +1,4 @@
-"""The RFC 0007 §5.5 worked example: ``evolution_v1..v5`` classified exactly
+"""The S-0024/worked-example-evolutionv1-v5 worked example: ``evolution_v1..v5`` classified exactly
 per the table — plan snapshots asserted as whole values (ordering is part of
 the contract), plus the negative arms: the v4 → v5′ ``ContractViolation``,
 the corrected drop-after-deprecation, and the ``renamed_from`` staleness."""
@@ -29,7 +29,7 @@ def evolution_ir(version: int) -> ProjectIR:
 
 def evolution_ir_without_discount(version: int) -> ProjectIR:
     """The fixture's spec with the ``discount`` field withdrawn from the
-    entity model and mapping — the RFC 0007 §5.5 v5′ (and corrected) drop."""
+    entity model and mapping — the S-0024/worked-example-evolutionv1-v5 v5′ (and corrected) drop."""
     sources = fixture_sources(f"evolution_v{version}")
     assert _DISCOUNT_ENTITY_LINE in sources["entity_model"]
     assert _DISCOUNT_MAPPING_LINES in sources["mapping"]
@@ -173,7 +173,7 @@ def test_dropping_discount_after_deprecation_is_breaking_without_raising() -> No
 
 def test_replaying_the_annotated_spec_against_the_applied_ir_is_stale() -> None:
     # After the v3 rename applies and v4 cleans the one-shot annotation,
-    # replaying v3's annotated spec raises (RFC 0007 D3 staleness forcing).
+    # replaying v3's annotated spec raises (S-0024/D-3 staleness forcing).
     with pytest.raises(RenameTargetMissing, match="'quantity'"):
         plan(evolution_ir(4), evolution_ir(3))
 

@@ -1,0 +1,111 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      **Provenance attaches to the relationship, not to the basis kind.** `BASIS_PROVENANCE`
+      is keyed by `DependencyBasis` value, so today every `many_to_one` in a project
+      shares one provenance and an imported edge cannot be told from an authored one
+      — which is why `IMPORTED_VERIFIED` has no producer and S-0070's refusal has
+      no project that can trip it. Locked because it is the whole of what makes the
+      grade mean anything at the point a consumer asks; reversing it makes every other
+      row here decoration. `FunctionalDependency.via` already carries the key such
+      a lookup needs. Proposed by execution — see [`logs/T-0053.md`](logs/T-0053.md)
+      (D2, attempt 1).
+    paths:
+      - pages/docs/concepts/what-bloomery-proves.md
+      - src/bloomery/guardrails/evidence.py
+      - tests/unit/test_guardrails/test_evidence.py
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **A dbt `relationships` test
+      alone imports nothing.** It asserts every value exists in a target column and
+      says nothing about the target being unique, so reading it as `many_to_one` invents
+      the cardinality that makes the edge determine anything — S-0057/D-3's failure,
+      by its own example. `many_to_one` from dbt requires the `relationships` test
+      *and* a `unique`/`primary_key` on the named target. Locked because the tempting
+      version of this importer is the one that skips the second test, and it would
+      be indistinguishable in review from the correct one. Proposed by execution —
+      see [`logs/T-0053.md`](logs/T-0053.md) (D3, attempt 1).
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      **No IR node gains a provenance field.** `project_fingerprint` walks the IR
+      dataclass tree, so a field there moves every fingerprint in the corpus for projects
+      that import nothing — S-0070 row 17's hazard, arriving from the same direction
+      a second time. The fact is read from the authored `EntityModel` at the guardrail
+      stage, the shape `requires_evidence` already uses.
+    paths:
+      - src/bloomery/semantic/proof.py
+      - tests/unit/test_guardrails/test_evidence.py
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      **Two relationships are the same relationship when `(from, to, via)` match,
+      and a cardinality disagreement between an imported and a declared one refuses
+      naming both.** S-0057/D-4 mandates the refusal and leaves the predicate undefined,
+      which makes it unimplementable. Not `name`: an importer generates names and
+      an author picks them, so name equality reports every import as a conflict and
+      every renamed import as none. Agreement on the same triple is not a contradiction
+      and is accepted silently.
+    paths: [src/bloomery/cli/__init__.py, src/bloomery/imports.py]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **The first importer reads MetricFlow, and only relationships.** MetricFlow
+      states cardinality in the artifact where dbt does not (§5.1), and relationships
+      are the only facts `weak_bases` reads — so they are the shortest path to a producer
+      that is observable. Not `LOCKED` because a second importer may show the mapping
+      table wants a shape the first did not need.
+  - id: D-6
+    grade: OPEN
+    text: >-
+      **Whether the importer writes one `imported.yaml` or one document per source
+      model.** One is a simpler contract and a worse diff on a large import; per-model
+      matches the layout of the project being imported from. Decide it against what
+      a real manifest produces, and log the decision.
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      **`imported_from:` is a free string naming the artifact, and its presence is
+      the fact.** A boolean would need a second key for the refusal to name the source,
+      and an enum invites an author to write `declared` on something they did not
+      read (§5's alternatives). Not `LOCKED` because a second importer may want structure;
+      a string is the cheapest thing to widen.
+    paths:
+      - src/bloomery/spec/entity.py
+      - tests/unit/test_guardrails/test_evidence.py
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      **P1 relabels the grade a consumer reads and leaves the proof leaf saying `declared`.**
+      `BASIS_PROVENANCE` has two consumers, not the one §3 names: `weak_bases` reads
+      the grade, and `_dependency_proof` mints `SemanticFact(provenance=BASIS_PROVENANCE[basis])`,
+      which is the literal producer a reader of §1 looks for. Closing the second needs
+      an IR field, which D3 forbids, or a spec-aware planner — and `planner/coverage.py`
+      holds no `Project` anywhere from `resolve_request` down to `prove_rollup`. One
+      relationship therefore reports two provenances until P2. It mislabels an account
+      without changing a verdict, since `IMPORTED_VERIFIED` closes an obligation.
+      Added by execution 2026-09-13 — see [`logs/T-0053.md`](logs/T-0053.md) (unlisted,
+      attempt 1).
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      **The imported set is read from `project.entity_model` in `check_evidence`**,
+      beside the `requires_evidence` read it already does. One walk of the authored
+      spec, two facts — so a project cannot be strict about a relationship the same
+      function decided was authored. Added by execution 2026-09-13 — see [`logs/T-0053.md`](logs/T-0053.md)
+      (unlisted, attempt 1).
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **A relationship's name is
+      unique across a project.** Nothing made it so and every consumer treats it as
+      a key, each resolving a collision differently and silently: a mart's `via:`
+      takes the first match, `plan` keeps the last of a `{name: rel}` dict, and D1's
+      lookup marked every same-named authored edge as imported. Refused at resolution
+      rather than fixed per reader — the readers are four and the fact is one. Locked
+      because D1's lookup is keyed by that name, so relaxing it reintroduces a wrong
+      refusal rather than an ambiguity. Added by execution 2026-09-13 — see PR #115
+      review.

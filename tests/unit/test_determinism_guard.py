@@ -1,4 +1,4 @@
-"""Named determinism guard (RFC 0003 §5.6, RFC 0009 §5.6): parse the minimal
+"""Named determinism guard (S-0020/determinism-tests-the-enforcement, S-0026/guard-tests-determinism-and-tenant-agnosticism): parse the minimal
 fixture, build a hand-constructed IR, fingerprint it, and run the full
 ``compile_project`` pipeline — all in two subprocesses with different
 ``PYTHONHASHSEED`` values; stdout (including every artifact's full content)
@@ -32,7 +32,7 @@ from bloomery.emit.metricflow import emit_manifest, manifest_json
 from bloomery.naming import DefaultNaming
 from support.ir_factory import build_project_ir
 
-# The JSON Schema export (RFC 0020 D3) is an output like any other and rides
+# The JSON Schema export (S-0037/D-3) is an output like any other and rides
 # this harness rather than growing a second subprocess pair. Pydantic walks
 # models through dicts and sets while generating; `$defs` order and any
 # constraint rendered from a set would be hash-seed-dependent without the
@@ -55,7 +55,7 @@ for artifact in compile_project(project, target=Target.SQLMESH, dialect="duckdb"
     print(artifact.path, artifact.kind, artifact.checksum)
     print(artifact.content)
 
-# The union merge (RFC 0024 §6, D3): a merged entity's branch order is the one
+# The union merge (S-0041/tests, S-0041/D-3): a merged entity's branch order is the one
 # thing about it that could drift, and it is derived from a dict grouped by
 # target and a fold over the sorted result. Both artifacts ride here — the
 # model whose UNION ALL carries the order, and the collision audit whose
@@ -86,7 +86,7 @@ for target in (Target.CUBE, Target.DBT):
         print(artifact.content)
 
 # The MetricFlow manifest (M6): the transformed manifest's sorted-keys JSON
-# is the RFC 0014 cache payload — its bytes must be hash-seed-independent.
+# is the S-0031 cache payload — its bytes must be hash-seed-independent.
 # non_additive_aov is the regression fixture for transform()'s
 # AddInputMetricMeasuresRule, which collects a RATIO metric's input_measures
 # through a builtin set — hash-seed-ordered until the emitter re-sorts them.
@@ -101,7 +101,7 @@ for manifest_fixture in ("ecom_basic", "non_additive_aov"):
     mf_ir = build_real_ir(load_project(mf_sources), catalog=mf_catalog)
     print(manifest_json(emit_manifest(mf_ir, naming=DefaultNaming())))
 
-# Spec evidence (M19, RFC 0022): an assessment is an output like any other, and
+# Spec evidence (M19, S-0039): an assessment is an output like any other, and
 # every tuple on it is sorted for exactly this reason. Both a COMPLETE
 # evaluation and a refused one, because the refusal path has its own sort — the
 # batch is unwrapped and ordered by source path, which is a list built by
@@ -121,7 +121,7 @@ for evidence_fixture in ("ecom_basic", "fanout_trap"):
     print([(u.name, u.missing) for u in evidence.unreachable])
     print([(m.name, m.grain, m.measures, m.dimensions, m.materialization) for m in evidence.marts])
     print([(r.source_path, type(r).__name__, str(r)) for r in evidence.refusals])
-    # The unresolved-work report (RFC 0030 §6). Its open set is keyed by a dict
+    # The unresolved-work report (S-0047/tests). Its open set is keyed by a dict
     # built while walking `unreachable_metrics`, its gap is decided by a walk
     # over the entity model's dicts, and `options` is deliberately *not* sorted
     # — catalog order is authored (D2), so this is the one collection here whose
@@ -133,9 +133,9 @@ for evidence_fixture in ("ecom_basic", "fanout_trap"):
     ])
     print([(p.entity, p.field, p.provenance, p.recipe_id) for p in evidence.provenance])
 
-# The grain model (M20, RFC 0037 D7). The closure is a graph walk over a
+# The grain model (M20, S-0017/D-7). The closure is a graph walk over a
 # fixpoint, which is where nondeterminism enters this codebase most easily, and
-# its members carry derivations destined for RFC 0039's proof artifacts. Every
+# its members carry derivations destined for S-0005's proof artifacts. Every
 # answer shape rides here — a proof, a refinement, an ambiguity and an
 # unanchored historical hop — so a seed-dependent walk cannot hide in a branch
 # nothing exercised.
@@ -151,7 +151,7 @@ print(dependencies(CORPUS, ANCHORED))
 for source, target in QUESTIONS:
     print(source.label, "->", target.label, can_roll_up(source, target, CORPUS))
     print(closure(source, grain_deps))
-    # The proof over the same walk (RFC 0039 D6, `LOCKED`). Its premises are
+    # The proof over the same walk (S-0005/D-6, `LOCKED`). Its premises are
     # sorted from a graph traversal and its leaves deduplicated through a set,
     # which are the two places a hash seed reaches output — and `serialize` is
     # the artifact a CI assertion would pin, so it is the byte string that has
@@ -159,7 +159,7 @@ for source, target in QUESTIONS:
     print(prove_rollup(source, target, CORPUS).serialize())
     print(prove_rollup(source, target, CORPUS, ANCHORED).serialize())
 
-# The semantic plan over the same walk (RFC 0040). It carries a proof, whose
+# The semantic plan over the same walk (S-0054). It carries a proof, whose
 # facts deduplicate through a dict keyed on a string, and its own node
 # collections sort — so it reaches output through two of the three places a
 # hash seed has ever mattered here. `serialize` rather than the repr, since
@@ -180,7 +180,7 @@ for dimensions in ((), ("order_date",), ("order_date", "order_customer_id")):
 
 
 # The quality-carrying fixtures, compiled with and without the *target
-# framework* imported into the same process (RFC 0016). SQLMesh extends SQLGlot
+# framework* imported into the same process (S-0033). SQLMesh extends SQLGlot
 # globally on import — it registers dialects and replaces generator methods —
 # so a lowering that leans on a node type SQLMesh re-renders produces different
 # bytes depending on who imported what. Nobody would notice locally (``just
@@ -225,7 +225,7 @@ def run_with_hash_seed(seed: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-#: The third axis (RFC 0033 D3): **logging is not load-bearing**.
+#: The third axis (S-0004/D-3): **logging is not load-bearing**.
 #:
 #: A caller who turns DEBUG on must get the same bytes as one who listens to
 #: nothing. That is the half of "no handler, ever" a posture test cannot reach:
@@ -267,7 +267,7 @@ for name in ("minimal", "ecom_basic", "multi_source_quality"):
         ):
             print(artifact.path, artifact.kind, artifact.checksum)
             print(artifact.content)
-    # The evidence too: advisories are a *value* (RFC 0033 D5), so they are an
+    # The evidence too: advisories are a *value* (S-0004/D-5), so they are an
     # output like any other and must not move with the listener either.
     evidence = evaluate(project, catalog=catalog)
     for advisory in evidence.advisories:
@@ -315,7 +315,7 @@ def test_output_identical_across_hash_seeds() -> None:
 def test_output_identical_whether_or_not_the_target_framework_is_imported() -> None:
     """Compilation is a pure function of the specs — including of *nothing
     else in the process*. A target framework that patches SQLGlot on import is
-    exactly the kind of ambient state RFC 0003's "same specs in ⇒ byte-identical
+    exactly the kind of ambient state S-0020's "same specs in ⇒ byte-identical
     artifacts out" rules out, and it is invisible to every other guard here:
     the hash-seed pair above imports neither, and the golden tier only imports
     sqlmesh in the e2e lane."""
@@ -327,11 +327,11 @@ def test_output_identical_whether_or_not_the_target_framework_is_imported() -> N
 
 
 def test_artifacts_are_identical_whether_or_not_anyone_is_listening() -> None:
-    """RFC 0033 D3, the check the RFC asks for by name.
+    """S-0004/D-3, the check the RFC asks for by name.
 
     Compile the corpus with a capturing handler at DEBUG on the `bloomery`
     logger, and with none, and compare every artifact's bytes. Logging sits on
-    the *output* side of RFC 0003's line and must stay there.
+    the *output* side of S-0020's line and must stay there.
     """
     silent = _run_listening("silent")
     listening = _run_listening("listening")
@@ -366,7 +366,7 @@ def test_the_quality_fixtures_are_identical_across_hash_seeds() -> None:
     fixtures — and the quality lowering is where the sets are: rule-name
     assignment, ``in_enum``'s admissible set, the flag collection's order,
     ``redact:``'s paths. "Same specs in ⇒ byte-identical artifacts out, across
-    processes and hash seeds" (RFC 0003) is one claim, and a guard that names
+    processes and hash seeds" (S-0020) is one claim, and a guard that names
     two axes has to cross them on the code that most needs it.
     """
     first = _run_framework("bare", seed="0")

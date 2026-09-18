@@ -1,4 +1,4 @@
-"""Cycle detection and topo order (RFC 0005 §5.4): lexicographic tie-breaks,
+"""Cycle detection and topo order (S-0022/cycles-and-ordering-bloomery-resolve-order-py): lexicographic tie-breaks,
 invariance under edge order, the rotated cycle message, and the id collision
 that used to be reported as a cycle."""
 
@@ -160,7 +160,7 @@ def test_a_node_listed_twice_is_one_node_not_a_cycle() -> None:
 def test_a_cycle_among_colliding_names_still_names_the_path() -> None:
     """The rendering stays names-only where the key is a pair.
 
-    RFC 0005 D4 pins the message as a path a reader retypes, so the key's kind
+    S-0022/D-4 pins the message as a path a reader retypes, so the key's kind
     half must not leak into it. Two nodes sharing a name print that name twice,
     which is the honest rendering of a project in which they *are* one id.
     """

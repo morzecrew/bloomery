@@ -2,7 +2,7 @@
 # for a rate this project never declared. A conversion is a join against a dated
 # rate table; bloomery reads that table from the catalog's `fx_rates:`, and this
 # catalog has none. Refused at emit rather than shipped as SQL with no rate in
-# it (RFC 0023 §5.4).
+# it (S-0040/phase-2-currency-as-a-declared-relation).
 spec_version: 1
 entities:
   payment:

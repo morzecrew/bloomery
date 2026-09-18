@@ -1,4 +1,4 @@
-"""The dbt emitter (RFC 0008 §5.5): config headers per materialization, the
+"""The dbt emitter (S-0025/dbt-emitter-compatibility): config headers per materialization, the
 snapshot lowering for SCD type 2, audit → schema-test lowering, scaffold and
 sources artifacts, fail-loud unsupported paths, and the port-abstraction
 proof itself — dbt and SQLMesh emit byte-identical SELECTs."""
@@ -79,13 +79,13 @@ def _column(name: str, column_type: LogicalType) -> ColumnIR:
 
 
 def _projection(name: str) -> SourceColumnIR:
-    """This source\'s lowering of the column (RFC 0024 D26)."""
+    """This source\'s lowering of the column (S-0041/D-26)."""
     return SourceColumnIR(name=name, expr=SqlExpr(name))
 
 
 #: Every column these builders declare, lowered as itself. The emitted
 #: SELECT projects `SourceIR.columns`, so a name missing here is a column
-#: the model cannot produce (RFC 0024 D26).
+#: the model cannot produce (S-0041/D-26).
 _SOURCE = SourceIR(
     relation="src",
     columns=tuple(
@@ -188,7 +188,7 @@ def test_scd2_lowers_to_a_check_strategy_snapshot() -> None:
 
 def test_the_snapshot_names_its_interval_the_way_the_ir_does() -> None:
     """Both targets must spell the validity interval identically or the as-of
-    join cannot be lowered once (RFC 0023 §5.3, D7): dbt's own defaults are
+    join cannot be lowered once (S-0040/phase-2-the-as-of-join, S-0040/D-7): dbt's own defaults are
     `dbt_valid_from`/`dbt_valid_to`, so the rename is what makes the shared
     predicate resolve on this target too."""
     snapshot = _emit(_entity(scd=SCDKind.TYPE2))["snapshots/item_snapshot.sql"]
@@ -251,7 +251,7 @@ def test_audits_lower_to_schema_tests() -> None:
 
 
 def test_generic_test_arguments_are_nested_which_is_what_sets_the_floor() -> None:
-    """RFC 0008 D22 — the emitted form and the supported dbt range are one
+    """S-0025/D-22 — the emitted form and the supported dbt range are one
     decision, pinned together because neither is safe to change alone.
 
     dbt 1.10 moved generic-test arguments under an ``arguments`` property and
@@ -304,7 +304,7 @@ MACRO_PATH = "macros/bloomery_expression_is_true.sql"
 
 
 def test_the_expression_test_is_defined_by_the_project_that_declares_it() -> None:
-    """RFC 0008 D18. The emitted project used to name
+    """S-0025/D-18. The emitted project used to name
     ``dbt_utils.expression_is_true`` and ship no ``packages.yml``, so every
     project with a ``min``/``max``/``regex``/``reconcile`` assert declared a
     test dbt could not build — ``dbt compile`` stopped at "'dbt_utils' is
@@ -349,7 +349,7 @@ def test_scd2_audits_attach_under_snapshots() -> None:
 
 
 def test_an_audit_kind_outside_the_closed_vocabulary_is_refused() -> None:
-    """RFC 0026 §5.4 counted this among the five refusals a singular test
+    """S-0043/which-refusals-lift-and-which-do-not counted this among the five refusals a singular test
     lifts. It is not one, and the reason is worth pinning rather than
     rediscovering.
 
@@ -410,9 +410,9 @@ def _reconcile_project(on_fail: OnFail = OnFail.FLAG) -> ProjectIR:
 
 
 def test_a_reconcile_check_emits_its_comparison_model_and_a_test_over_it() -> None:
-    """RFC 0016 D58's refusal is gone in both halves (RFC 0052 §5.3).
+    """S-0033/D-58's refusal is gone in both halves (S-0060/the-reconcile-model-and-its-audit).
 
-    The audit half expired with RFC 0026 — a singular test carrying
+    The audit half expired with S-0043 — a singular test carrying
     ``severity='warn'`` is a non-blocking check and this target writes five
     families of them. The model half is what lands here, from the same
     ``reconcile_select`` SQLMesh renders: a comparison both targets already
@@ -429,7 +429,7 @@ def test_a_reconcile_check_emits_its_comparison_model_and_a_test_over_it() -> No
     assert test.kind is ArtifactKind.AUDIT
     # The test reads the model through `ref()`, not by literal relation — a
     # singular test with a bare `silver.totals_match__reconcile` is a test dbt
-    # orders against nothing and runs before the model exists (RFC 0008 D20).
+    # orders against nothing and runs before the model exists (S-0025/D-20).
     assert "{{ ref('totals_match__reconcile') }}" in test.content
     assert "NOT within_tolerance" in test.content
 
@@ -448,7 +448,7 @@ def test_a_reconcile_checks_severity_is_its_own_on_fail() -> None:
 
 
 def test_a_merged_entity_emits_the_collision_audit_it_used_to_be_refused_for() -> None:
-    """RFC 0024 D30 lifted (RFC 0026 D9).
+    """S-0041/D-30 lifted (S-0043/D-9).
 
     D30's argument was correct when it was written: the merge's *correctness
     condition* is a blocking audit, this emitter's whole test surface was
@@ -489,7 +489,7 @@ def test_a_merged_entity_emits_the_collision_audit_it_used_to_be_refused_for() -
 
 def test_a_merged_entity_declares_every_source(  # D20, whole
 ) -> None:
-    """One ``source()`` per mapping — the prediction RFC 0024 D20 made about
+    """One ``source()`` per mapping — the prediction S-0041/D-20 made about
     the union, which was always true and is now the whole of what dbt needs:
     the day the refusal lifted, both relations had to resolve."""
     merged = replace(_entity(), sources=(_SOURCE, replace(_SOURCE, relation="src_b")))
@@ -509,7 +509,7 @@ def test_scaffold_and_sources_artifacts() -> None:
         "snapshot-paths": ["snapshots"],
         "macro-paths": ["macros"],
         # Declared though it is dbt's own default, exactly as `macro-paths` is
-        # (RFC 0026 §6): the claim is that the emitted project states its own
+        # (S-0043/tests): the claim is that the emitted project states its own
         # layout, *not* that removing the line would stop dbt finding the
         # tests — it would not, and an earlier draft of this said otherwise.
         "test-paths": ["tests"],
@@ -549,7 +549,7 @@ def test_a_tier_one_macro_step_contributes_no_singular_test() -> None:
 
 
 def test_the_emitted_project_carries_the_operator_contract() -> None:
-    """RFC 0026 §5.5 calls this sentence the RFC's cost and says it is not
+    """S-0043/blocking-and-the-two-honest-weakenings calls this sentence the RFC's cost and says it is not
     optional; §10 asks where it lives. It lives in both places, because they
     have different readers.
 
@@ -584,7 +584,7 @@ def test_sources_respect_the_naming_policy() -> None:
 
 
 # ....................... #
-# The port-abstraction proof (RFC 0008 D5): same SELECT, different envelope.
+# The port-abstraction proof (S-0025/D-5): same SELECT, different envelope.
 
 
 def _erase_namespaces(sql: str, dialect: str) -> str:
@@ -638,13 +638,13 @@ def test_dbt_and_sqlmesh_emit_identical_selects(dialect: str) -> None:
 
 
 def test_a_dedupe_entity_gets_its_ingestion_metadata_check() -> None:
-    """RFC 0016 D21 on dbt, which never refused it and never emitted it.
+    """S-0033/D-21 on dbt, which never refused it and never emitted it.
 
     The duplicate-identity half is a window count, and SQL forbids a window
     function in ``WHERE`` — so the body wraps the model once and filters over
     the projected count, which is not a row predicate and so had no
     ``schema.yml`` home. It was silently absent rather than refused, under
-    RFC 0016 §5.4's target-coverage sentence; that sentence was written when
+    S-0033/fixed-pipeline-order-and-lowering's target-coverage sentence; that sentence was written when
     this emitter had no artifact for it.
 
     ``dedupe:`` with no ``quality:`` surface is the shape that reaches it, and
@@ -666,8 +666,8 @@ def test_an_entity_fail_audit_lowers_even_though_no_spec_reaches_it() -> None:
     """The other half of the same extension.
 
     An ``on_fail: fail`` rule on an entity is a whole-query check over two
-    populations (RFC 0016 D32/D67). No spec could reach it on this target until
-    RFC 0052: declaring any ``quality:`` surface opts the entity into coercion
+    populations (S-0033/D-32, S-0033/D-67). No spec could reach it on this target until
+    S-0060: declaring any ``quality:`` surface opts the entity into coercion
     routing, the implicit ``coercible`` rules default to ``quarantine``, and a
     *key* column's cannot be overridden because a key mapping takes no
     ``quality:`` block — so the quarantine refusal raised first, every time.
@@ -712,7 +712,7 @@ def _normalize_audit(sql: str, dialect: str, self_relation: str) -> str:
 
     Two substitutions, both named rather than incidental. ``@this_model``
     becomes the relation it stands for, because that is the *only* thing
-    RFC 0026 D10 lets the targets differ about. Namespaces are then erased on
+    S-0043/D-10 lets the targets differ about. Namespaces are then erased on
     both sides for the reason ``_erase_namespaces`` gives — a ``ref()`` names a
     model, and a model name carries none.
 
@@ -729,7 +729,7 @@ def _normalize_audit(sql: str, dialect: str, self_relation: str) -> str:
 @pytest.mark.parametrize("dialect", ["duckdb", "postgres", "trino"])
 @pytest.mark.parametrize("fixture", sorted(_AUDIT_FIXTURES))
 def test_the_two_targets_emit_the_same_audit_body(fixture: str, dialect: str) -> None:
-    """RFC 0026 §6, and the reason the RFC asked for it in those words: "the
+    """S-0043/tests, and the reason the RFC asked for it in those words: "the
     two targets' audit bodies are compared, not merely both asserted".
 
     A test that pinned each target's body separately would pass straight
@@ -762,11 +762,11 @@ def test_the_two_targets_emit_the_same_audit_body(fixture: str, dialect: str) ->
 
 @pytest.mark.parametrize("dialect", ["duckdb", "postgres", "trino"])
 def test_the_metadata_audit_is_one_body_in_two_spellings(dialect: str) -> None:
-    """The one body RFC 0026 D10 did *not* unify, held to the same standard.
+    """The one body S-0043/D-10 did *not* unify, held to the same standard.
 
     Every other audit body is built once in shared lowering and wrapped by each
     target. The ingestion-metadata audit is not: SQLMesh has spelled its
-    windowed wrap in a Jinja envelope since RFC 0016, and RFC 0026 §4 rules out
+    windowed wrap in a Jinja envelope since S-0033, and S-0043/goals rules out
     changing an audit body that is already correct — a pretty-printed AST is
     not byte-identical to a hand-written template line, so unifying it would
     re-stamp every SQLMesh golden carrying one.
@@ -857,7 +857,7 @@ def test_empty_project_emits_only_the_scaffold() -> None:
 
 
 # ....................... #
-# Exposures — RFC 0056 §5.3
+# Exposures — S-0063/targets
 
 
 def _exposures_document(fixture: str = "ecom_basic") -> dict[str, object] | None:
@@ -1019,7 +1019,7 @@ def test_the_other_targets_emit_nothing_and_refuse_nothing(target: Target) -> No
 
 
 # ....................... #
-# Declared source freshness (RFC 0057 §5.3)
+# Declared source freshness (S-0064/targets)
 
 
 def _sources_document(*entities: EntityIR) -> dict[str, object]:
@@ -1143,7 +1143,7 @@ def test_the_freshness_keys_follow_the_table_name() -> None:
 
 
 def test_the_loaded_at_field_is_cast_and_not_the_bare_column() -> None:
-    """`_ingested_at` is a bronze landing column: RFC 0016 D21 requires it to
+    """`_ingested_at` is a bronze landing column: S-0033/D-21 requires it to
     exist, and what asserts it is a timestamp is a generated audit that
     `TRY_CAST`s it — so it may legitimately be text.
 

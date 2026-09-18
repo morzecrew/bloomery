@@ -1,4 +1,4 @@
-"""The Mapping spec kind (RFC 0002 §5.5; original spec §3.4): the simple/recipe
+"""The Mapping spec kind (S-0019/spec-model-surface; original spec §3.4): the simple/recipe
 field-mapping union and TransformStep normalization."""
 
 from __future__ import annotations
@@ -109,7 +109,7 @@ def test_bad_jsonpath_grammar() -> None:
 
 
 def test_recipe_mapping_records_an_optional_direct_path() -> None:
-    # The path-conflict state (RFC 0006 D7): recipe + direct source column.
+    # The path-conflict state (S-0023/D-7): recipe + direct source column.
     mapping = parse(
         "mapping_version: 1\nsource: s\ntarget: t\nkey: {}\n"
         'fields:\n  f: {recipe: from_total, from: {a: "$.a"}, direct: "$.f"}\n'
@@ -144,7 +144,7 @@ def test_recipe_mapping_requires_alias_paths() -> None:
 
 
 def test_retired_on_unmapped_enum_is_an_unknown_key() -> None:
-    # RFC 0016 §5.2 / D3 (an RFC 0002 amendment): the policy is retired, not
+    # S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-3 (an S-0019 amendment): the policy is retired, not
     # renamed — an unmapped enum value now fails the `in_enum` quality rule.
     # A spec still carrying it must be told, not silently accepted.
     with pytest.raises(SpecParseError) as excinfo:
@@ -174,7 +174,7 @@ def test_reserved_metric_time_target_field() -> None:
 @pytest.mark.parametrize("name", RESERVED_MEMBER_NAMES)
 def test_reserved_target_field_names(name: str) -> None:
     # a mapping cannot land a source path on a generated column either
-    # (RFC 0016 §5.5, §5.6)
+    # (S-0033/schema-additions-and-the-array-capability, S-0033/quarantine-one-reject-table-per-entity)
     with pytest.raises(SpecParseError) as excinfo:
         parse(
             "mapping_version: 1\nsource: s\ntarget: t\nkey: {}\n"
@@ -184,14 +184,14 @@ def test_reserved_target_field_names(name: str) -> None:
 
 
 # ....................... #
-# Mapping identity (RFC 0032)
+# Mapping identity (S-0049)
 
 
 def test_document_is_the_name_the_mapping_was_loaded_under() -> None:
-    """RFC 0032 D1 — the identity is bound from the loader's name.
+    """S-0049/D-1 — the identity is bound from the loader's name.
 
     `validate_document` already receives that name, because it prefixes every
-    refusal raised from this document (RFC 0002 §5.3). Binding the identity
+    refusal raised from this document (S-0019/source-paths). Binding the identity
     from the same argument is what keeps the coordinate a reader is sent to and
     the coordinate a refusal names from being two different things.
     """
@@ -205,7 +205,7 @@ def test_document_is_the_name_the_mapping_was_loaded_under() -> None:
 
 
 def test_an_authored_document_key_is_refused() -> None:
-    """RFC 0032 D3 — refused, not overwritten.
+    """S-0049/D-3 — refused, not overwritten.
 
     The field is a fact about where the document was read from, so a document
     asserting its own filename is a second source of truth that can disagree
@@ -230,7 +230,7 @@ def test_an_authored_document_key_is_refused() -> None:
 
 
 def test_an_authored_document_joins_the_documents_other_failures() -> None:
-    """The refusal batches (RFC 0002 D6), rather than pre-empting.
+    """The refusal batches (S-0019/D-6), rather than pre-empting.
 
     Raising on the authored key the moment it is seen would report it and hide
     every other shape error in the same document — the one-at-a-time fixing
@@ -258,7 +258,7 @@ def test_document_is_absent_from_the_exported_schema() -> None:
     """The authored vocabulary and the model are not the same set.
 
     `bloomery schema` exports these models for an editor to validate a spec
-    against (RFC 0020), and its audience is the author. A required `document`
+    against (S-0037), and its audience is the author. A required `document`
     there would have the editor demand the one key the loader refuses — the
     exported contract contradicting the compiler, on the surface whose entire
     job is to agree with it.
@@ -270,7 +270,7 @@ def test_document_is_absent_from_the_exported_schema() -> None:
 
 
 # ....................... #
-# Declared source freshness (RFC 0057 §5.1)
+# Declared source freshness (S-0064/the-spec-surface)
 
 
 def _with_freshness(block: str) -> Mapping:
@@ -362,7 +362,7 @@ def test_both_thresholds_are_required() -> None:
 
 
 # ....................... #
-# The declared source zone (RFC 0074 §5.2)
+# The declared source zone (S-0076/zonein-is-how-a-utc-source-says-so)
 
 
 def _with_zone(field: str) -> Mapping:

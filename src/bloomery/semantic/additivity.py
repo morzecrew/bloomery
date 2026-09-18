@@ -1,5 +1,5 @@
 """Whether a measure may be *summed* once its values are allowed to travel
-(RFC 0039 §3 — the additive-rollup and derived-ratio rules).
+(S-0005 (§3) — the additive-rollup and derived-ratio rules).
 
 Two questions look like one and are not. :func:`~bloomery.semantic.can_roll_up`
 answers whether values originating at one grain may reach another; it says
@@ -14,7 +14,7 @@ and adds the one fact that answer never reads. Nothing in this package read
 additivity before (logs/T-0029.md), which is why this is a second obligation
 rather than a refinement of an existing one.
 
-**Expressed, not substituted** (RFC 0039 D3, `LOCKED`). `guardrails/additivity`
+**Expressed, not substituted** (S-0005/D-3, `LOCKED`). `guardrails/additivity`
 still refuses a false additivity claim when a project compiles, and this does
 not replace it. What this adds is the ability to *state* the reasoning, which a
 guardrail that answers by staying silent cannot do.
@@ -90,7 +90,7 @@ def prove_additive_rollup(
     (§6), and its judgement says which of the two questions failed.
 
     The additivity fact is `DECLARED`: an author wrote `additivity: additive`
-    and owns it. RFC 0038 closed that word at six members and made the claim
+    and owns it. S-0053 closed that word at six members and made the claim
     checked rather than trusted, so what closes this obligation is a
     declaration the compiler has already refused to take on faith.
     """
@@ -266,7 +266,7 @@ def prove_ratio_reconstruction(
 
 
 # ....................... #
-# R019 — which rows the ratio is about (RFC 0075)
+# R019 — which rows the ratio is about (S-0077)
 
 
 class RatioRowsRefusal(StrEnum):
@@ -288,7 +288,7 @@ class RatioRowsRefusal(StrEnum):
 # ....................... #
 
 #: The dispositions that make a range rule a *premise* rather than a note
-#: (RFC 0075 D3). Both remove the row from the relation the ratio sums;
+#: (S-0077/D-3). Both remove the row from the relation the ratio sums;
 #: ``flag`` leaves it there, and ``repair`` rewrites the value to a fallback
 #: this rule cannot bound — it is the member D3 did not name, and it is
 #: excluded for D3's own reason rather than by omission (logs/T-0063.md).
@@ -340,7 +340,7 @@ def _above(value: object, bound: int) -> bool:
 def _numeric(value: object) -> Decimal | None:
     """``value`` as a number, or ``None`` where it is not one.
 
-    Filter values arrive as text, int or bool (RFC 0034 D8), and a bool is
+    Filter values arrive as text, int or bool (S-0050/D-8), and a bool is
     excluded on purpose: ``True == 1`` in Python, so a ``ne: [true]`` filter
     would otherwise read as "not one" and discharge nothing it claims to.
     """
@@ -368,7 +368,7 @@ def _dimension_source(metric: MetricIR, project: ProjectIR) -> dict[str, str]:
     refuses a correct ratio (logs/T-0063.md).
 
     Read from every mart carrying the metric, because that is the set whose
-    filters were checked against it (RFC 0034 D9).
+    filters were checked against it (S-0050/D-9).
 
     **A name that means two columns resolves to both of them**, joined, rather
     than to whichever mart came last. Two same-grain marts may flatten
@@ -408,7 +408,7 @@ def _restriction(
     (`resolve/build.py`). Two projects that wrote the same clauses in different
     orders are different bytes and must stay so; they are not different
     restrictions, and this is where that distinction is made rather than in the
-    IR (RFC 0075 §5.2, see logs/T-0063.md).
+    IR (S-0077/operand-restrictions-must-agree-whether-or-not-zero-is-invol, see logs/T-0063.md).
 
     Each dimension is named by the entity column it resolves to, for the same
     reason one step further out: a name is how a mart addresses a column, and

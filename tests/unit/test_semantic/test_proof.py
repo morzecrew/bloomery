@@ -1,4 +1,4 @@
-"""The proof vocabulary (RFC 0039 §10).
+"""The proof vocabulary (S-0005 (§10)).
 
 Five kinds of test, one per line of §10, plus the registry discipline D8 asks
 for. The corpus is `support.grain_model`'s — the same one the closure tests and
@@ -140,7 +140,7 @@ def test_a_composition_is_closed_through_its_premises() -> None:
 def test_premise_order_is_canonical_not_construction_order() -> None:
     """Two proofs built with their premises in opposite orders are one value.
 
-    This is the failure mode RFC 0003 keeps meeting: the walk that produces
+    This is the failure mode S-0020 keeps meeting: the walk that produces
     premises is a graph traversal, and its order is the thing least likely to
     be stable across processes.
     """
@@ -287,7 +287,7 @@ def test_every_corpus_question_renders(source: object, target: object) -> None:
 
 
 def test_a_proof_names_every_rule_that_admitted_it() -> None:
-    """RFC 0042 §10 asks which rule admitted a case, and a tree whose nodes
+    """S-0056 (§10) asks which rule admitted a case, and a tree whose nodes
     cite ids is what answers it."""
     answer = prove_rollup(
         grain("order_item", "order_id", "line_id"), grain("customer", "customer_id"), CORPUS
@@ -540,7 +540,7 @@ def test_r005_is_registered_and_named_by_no_basis() -> None:
 
 
 def test_no_basis_is_admitted_on_a_fact_that_cannot_close() -> None:
-    """RFC 0037 D3 closed the basis vocabulary so that no heuristic contributes
+    """S-0017/D-3 closed the basis vocabulary so that no heuristic contributes
     a member. This asserts the two documents agree: every way of believing a
     dependency rests on a fact that may close an obligation."""
     for basis, provenance in BASIS_PROVENANCE.items():
@@ -607,7 +607,7 @@ def test_facts_are_deduplicated_on_a_proof() -> None:
 
 
 # ....................... #
-# RFC 0065 §5.1 — the grade projection
+# S-0070/the-grades-and-what-they-project-from — the grade projection
 
 
 @pytest.mark.parametrize(
@@ -687,7 +687,7 @@ def test_a_grade_is_not_a_second_scale_for_closing() -> None:
     asks whether a human here wrote it down. ``DERIVED`` answers yes to the
     first and no to the second, and a reader who assumed the grades were a
     relabelling of ``closes`` would conclude that an ``ASSUMED`` fact fails
-    RFC 0039's floor — which is the misreading §9 warns the wording can cause.
+    S-0005's floor — which is the misreading §9 warns the wording can cause.
     """
 
     assert Provenance.DERIVED.closes

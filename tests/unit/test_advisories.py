@@ -1,4 +1,4 @@
-"""The compile-time advisory channel (RFC 0033 §5) — the vocabulary, the
+"""The compile-time advisory channel (S-0004 (§5)) — the vocabulary, the
 ordering rules, and the one producer that exists.
 
 Findings are **values**, carried on the evidence a caller already receives.
@@ -42,7 +42,7 @@ def divisions(evidence: object) -> tuple[object, ...]:
     Scoped rather than asserting the whole tuple, because the whole tuple is
     not this module's subject: `ecom_basic` also carries a classified column,
     so a second advisory arrived and turned three assertions about division
-    into assertions about the advisory channel's total contents (RFC 0055
+    into assertions about the advisory channel's total contents (S-0062
     D11). A test named for one code should fail only when that code changes.
     """
     return tuple(
@@ -316,7 +316,7 @@ def test_advisories_differing_in_any_field_both_survive(other: Advisory) -> None
 
 
 def test_the_result_is_a_tuple() -> None:
-    """RFC 0003: tuples, not sets. This value reaches a caller and is compared
+    """S-0020: tuples, not sets. This value reaches a caller and is compared
     across processes."""
     assert isinstance(_sorted_advisories([]), tuple)
 
@@ -326,13 +326,13 @@ def test_the_result_is_a_tuple() -> None:
 
 
 def test_advisories_is_the_last_field() -> None:
-    """RFC 0033 §5.1 asks for a positional-construction regression test, and
+    """S-0004 (§5.1) asks for a positional-construction regression test, and
     this is the claim behind it.
 
     Every field on `SpecEvidence` has a default, so inserting one mid-list does
     not raise for a positional caller — it silently rebinds, producing evidence
     that is wrong in two places and refuses nothing. Appending is what keeps
-    the addition additive (RFC 0018 D1).
+    the addition additive (S-0035/D-1).
     """
     names = [field.name for field in dataclasses.fields(SpecEvidence)]
 

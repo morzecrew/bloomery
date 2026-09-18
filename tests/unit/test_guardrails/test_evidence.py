@@ -1,8 +1,8 @@
-"""The consumer-evidence guard (RFC 0065 §5.2, §5.3, D3/D4).
+"""The consumer-evidence guard (S-0070/the-annotation, S-0070/the-refusal, S-0070/D-3, S-0070/D-4).
 
 A mart declares the weakest premise it accepts under its measures, and a
 violation is a compile-time refusal. Every fact reachable today grades
-``LOCKED`` — an entity key is entailed by an authored key (RFC 0037's
+``LOCKED`` — an entity key is entailed by an authored key (S-0017's
 `entity_key`, regraded in `logs/T-0040.md`), and every other basis is a
 relationship somebody declared — so the corpus satisfies ``locked`` and the
 refusal is exercised against the mapping rather than against a fixture. That
@@ -40,7 +40,7 @@ def _project(requirement: str | None, *, imported: bool = False):
     ``imported`` is what makes the refusal reachable from a project rather
     than from a monkeypatched table: `item_of_order` is the `many_to_one` the
     `order_items` mart flattens through, so marking it moves every column that
-    hop carries to `ASSUMED` (RFC 0070 P1).
+    hop carries to `ASSUMED` (S-0075/phasing (P-1)).
     """
 
     sources = fixture_sources("ecom_basic")
@@ -364,13 +364,13 @@ def test_every_basis_grades_and_the_guard_reads_that_grade() -> None:
 
     for basis, provenance in BASIS_PROVENANCE.items():
         assert isinstance(provenance.grade, EvidenceGrade), basis
-        # Every basis still closes: this guard sits above RFC 0039's floor and
+        # Every basis still closes: this guard sits above S-0005's floor and
         # never below it (D2), so nothing it admits is unsound.
         assert provenance.closes, basis
 
 
 # ....................... #
-# An imported relationship is not authored here (RFC 0070 D1, D7)
+# An imported relationship is not authored here (S-0075/D-1, S-0075/D-7)
 
 
 def test_an_imported_relationship_grades_assumed_and_a_locked_mart_refuses_it() -> None:
@@ -397,7 +397,7 @@ def test_an_imported_relationship_grades_assumed_and_a_locked_mart_refuses_it() 
     assert all(isinstance(error, InsufficientEvidence) for error in errors)
     # The message names the relationship and the artifact, not the basis: one
     # is already declared, so "declare the relationship" is advice the author
-    # cannot act on (RFC 0070 §1).
+    # cannot act on (S-0075/summary).
     message = str(errors[0])
     assert "'item_of_order'" in message
     assert "'metricflow:semantic_manifest.json'" in message
@@ -474,12 +474,12 @@ def test_a_single_imported_route_is_the_only_shape_that_refuses() -> None:
 
 
 def test_importing_a_relationship_moves_no_fingerprint() -> None:
-    """RFC 0070 D3, measured. `imported_from:` is a spec key and reaches no IR
+    """S-0075/D-3, measured. `imported_from:` is a spec key and reaches no IR
     node, so a project that adds one fingerprints identically.
 
     The claim is not decorative: `_canon_bytes` writes every dataclass field's
     *name* and writes `None` as a byte, so a field on `RelationshipIR` would
-    have moved every fingerprint in the corpus — RFC 0065 row 17's hazard,
+    have moved every fingerprint in the corpus — S-0070 row 17's hazard,
     arriving from the same direction a second time. This is the assertion that
     would go red if the key were ever moved onto the IR for convenience.
     """
@@ -512,7 +512,7 @@ def test_an_empty_imported_from_is_refused_at_parse() -> None:
 
 
 # ....................... #
-# Exposures and transitivity (RFC 0065 P3, §5.2/§6)
+# Exposures and transitivity (S-0070/phasing (P-3), S-0070/the-annotation, S-0070/tests)
 
 
 #: A second mart carrying the same measure, reached through **no** relationship

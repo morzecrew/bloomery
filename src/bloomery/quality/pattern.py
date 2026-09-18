@@ -1,4 +1,4 @@
-"""What a target dialect can do with a ``pattern`` rule (RFC 0016 §5.3, D5).
+"""What a target dialect can do with a ``pattern`` rule (S-0033/spec-schema, S-0033/D-5).
 
 Read this module for what it **is not**, first. It does not validate regex
 *semantics* per dialect, and nothing that runs at compile time can: bloomery
@@ -47,9 +47,9 @@ __all__ = [
 
 #: The dialects a `pattern` rule is checked against by default: the ports
 #: bloomery ships, named as a constant rather than read from the registry
-#: (RFC 0016 D56). The registry is process-global and mutable — an extension
+#: (S-0033/D-56). The registry is process-global and mutable — an extension
 #: dialect registered by an unrelated import could decide whether an existing
-#: project compiles, which is precisely the ambient dependency RFC 0003
+#: project compiles, which is precisely the ambient dependency S-0020
 #: forbids, and it is why :mod:`bloomery.dialects` offers no enumeration at
 #: all. A caller that targets an extension dialect passes it explicitly to
 #: :func:`unsupported_dialects`, alongside these.

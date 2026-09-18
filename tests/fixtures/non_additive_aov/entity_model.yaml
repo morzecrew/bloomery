@@ -1,4 +1,4 @@
-# The non-additive ratio fixture (RFC 0009 §5.3, §5.10): one order fact with
+# The non-additive ratio fixture (S-0026/fixture-corpus, S-0026/planner-test-obligations-rfcs-0011-0013): one order fact with
 # a store dimension. Seeded as store A 10 orders / 100 000 total, store B
 # 100 orders / 200 000 — overall AOV is 2727.27, never the 6000 an
 # average-of-averages gives or the 12000/15000 a summed ratio gives.

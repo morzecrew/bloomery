@@ -1,4 +1,4 @@
-"""The type layer (RFC 0004): the closed ``LogicalType`` set and the typecheck
+"""The type layer (S-0021): the closed ``LogicalType`` set and the typecheck
 stage that walks every transform chain (``typecheck_chain`` and its batched
 form ``typecheck_chains``)."""
 

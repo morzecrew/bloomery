@@ -1,12 +1,12 @@
-"""The closed starter set, exactly RFC 0004 D3: ``trim upper lower to_string
+"""The closed starter set, exactly S-0021/D-3: ``trim upper lower to_string
 to_int to_decimal to_bool parse_ts parse_date to_utc enum_map coalesce nullif
 split_part regex_extract strip_prefix strip_suffix multiply divide round abs
 concat json_path`` plus ``convert``, the explicit currency-conversion marker
-the currency guardrail requires (RFC 0006; typechecks decimal → decimal here,
+the currency guardrail requires (S-0023; typechecks decimal → decimal here,
 its semantic obligations are guardrail/emit concerns).
 
 Every builder constructs SQLGlot AST only — string SQL inside a builder is a
-review-time ban (RFC 0004 D7), and the property tests assert every builder
+review-time ban (S-0021/D-7), and the property tests assert every builder
 output round-trips through ``sqlglot.parse_one``.
 """
 
@@ -82,7 +82,7 @@ def _typed_literal(value: str | int, input_type: LogicalType) -> Expression:
     uncast literal makes that false: Trino will not coerce a varchar literal to
     a non-varchar column at all, and an integer fallback over a decimal column
     widens the result past the declared ``(p, s)`` on every engine
-    (RFC 0029 §2.1, §2.4).
+    (S-0046/what-was-measured (§2.1), S-0046/what-was-measured (§2.4)).
 
     A string literal against a ``string`` column is the one case where the cast
     buys nothing — all three engines already read it as text — and the emitted
@@ -116,11 +116,11 @@ def _checked_passthrough(t: LogicalType, args: tuple[str | int, ...]) -> Logical
     """``coalesce``/``nullif`` produce the input type — after proving the
     literal survives the cast :func:`_typed_literal` emits.
 
-    The cast makes the declared *type* true (RFC 0029 §2.1/§2.4) and says
+    The cast makes the declared *type* true (S-0046/what-was-measured (§2.1), S-0046/what-was-measured (§2.4)) and says
     nothing about the *value*: a fallback whose integral part cannot fit
     ``decimal(p, s)`` raises ``ConversionException`` on the engine, so the
     spec compiled and failed at run time (T-0002 D-018) — the degradation
-    RFC 0008 D3 refuses. The bound is applied to the value *rounded to the
+    S-0025/D-3 refuses. The bound is applied to the value *rounded to the
     declared scale*, because that is what the engines cast: ``9.999`` is below
     10 and still overflows ``decimal(3, 2)``, rounding to ``10.00``. Only
     decimal columns are value-checked: theirs is the one cast whose failure is
@@ -168,7 +168,7 @@ def _checked_passthrough(t: LogicalType, args: tuple[str | int, ...]) -> Logical
 
 def _literal_shape(value: str | int) -> tuple[int, int]:
     """The (precision, scale) a numeric literal contributes to arithmetic
-    tracking (RFC 0004 §5.4). The arg-kind check guarantees a finite value."""
+    tracking (S-0021/typecheck-stage-bloomery-typing-check-py). The arg-kind check guarantees a finite value."""
     parsed = Decimal(str(value))
     exponent = parsed.as_tuple().exponent
     scale = -exponent if isinstance(exponent, int) and exponent < 0 else 0
@@ -190,7 +190,7 @@ def _require_decimal(t: LogicalType, name: str) -> DecimalType:
 
 
 def _arith_output(name: str) -> OutputType:
-    """Capped-widening output for ``multiply``/``divide`` (RFC 0004 §5.4):
+    """Capped-widening output for ``multiply``/``divide`` (S-0021/typecheck-stage-bloomery-typing-check-py):
     ``decimal(p1+p2, s1+s2)``, precision capped at 38 with a loud error."""
 
     def output(t: LogicalType, args: tuple[str | int, ...]) -> LogicalType:
@@ -250,7 +250,7 @@ def lower(col: Expression) -> Expression:
     output=StringType(),
     # Out-of-range index: '' on DuckDB, NULL on Trino. Declared nullifying on
     # the portable reading — a divergence must not be resolved by whichever
-    # engine happens to run (RFC 0016 §5.2).
+    # engine happens to run (S-0033/coercion-failure-is-a-rule-the-assert-boundary).
     nullifies=True,
 )
 def split_part(col: Expression, delimiter: str, index: int) -> Expression:
@@ -344,7 +344,7 @@ def concat(col: Expression, text: str) -> Expression:
 def enum_map(col: Expression, *pairs: str) -> Expression:
     """``{enum_map: [raw, mapped, ...]}`` — flat from/to pairs. Values outside
     the map pass through: disposing of them is the ``in_enum`` quality rule's
-    job (RFC 0016 §5.2, D3 — superseding RFC 0008 D7), not a chain concern."""
+    job (S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-3 — superseding S-0025/D-7), not a chain concern."""
     ifs = [
         exp.If(this=exp.Literal.string(source), true=exp.Literal.string(mapped))
         for source, mapped in zip(pairs[0::2], pairs[1::2], strict=True)
@@ -380,7 +380,7 @@ def to_int(col: Expression, *, input_type: LogicalType) -> Expression:
     PostgreSQL converts ``int4`` to boolean and back and refuses ``bigint`` in
     either direction (``42846``), so the single cast did not run there at all —
     a whitelisted transform dying on the first run of a shipped dialect
-    (RFC 0029 §2.3). The two-step form is *neutral*, not a PostgreSQL spelling:
+    (S-0046/what-was-measured (§2.3)). The two-step form is *neutral*, not a PostgreSQL spelling:
     DuckDB and Trino render and evaluate it identically, so the fix stays in the
     builder and no port learns about booleans.
     """
@@ -430,7 +430,7 @@ def to_decimal(col: Expression, precision: int, scale: int) -> Expression:
 def to_bool(col: Expression, *, input_type: LogicalType) -> Expression:
     """``CAST(x AS BOOLEAN)``, or ``x <> 0`` when the input is an integer.
 
-    PostgreSQL refuses ``bigint`` → ``boolean`` outright. RFC 0029 D5 left open
+    PostgreSQL refuses ``bigint`` → ``boolean`` outright. S-0046/D-5 left open
     whether to spell it or refuse it, on the ground that a refusal would be
     "honest about ``to_bool`` over an arbitrary integer having no agreed
     meaning" — measured, the meaning *is* agreed: DuckDB and Trino both read
@@ -452,7 +452,7 @@ def to_bool(col: Expression, *, input_type: LogicalType) -> Expression:
 
 
 #: The marker wrapping the *text* an ISO 8601 parse is about to cast
-#: (RFC 0027 D4). Each dialect's ``render`` replaces it with whatever that
+#: (S-0044/D-4). Each dialect's ``render`` replaces it with whatever that
 #: engine needs to accept both ISO spellings — nothing at all on DuckDB and
 #: PostgreSQL, whose own casts take the ``T`` separator, and a separator
 #: rewrite on Trino, whose cast takes only the space form and returns NULL for
@@ -475,7 +475,7 @@ def iso_text(col: Expression) -> Expression:
     """Mark ``col`` as text a *timestamp* cast is about to read as ISO 8601.
 
     Public because the transform chain is not the only place that casts bronze
-    text to a timestamp: RFC 0016 D21's metadata audit does it too, to ask
+    text to a timestamp: S-0033/D-21's metadata audit does it too, to ask
     whether ``_ingested_at`` is castable at all. Built through one constructor
     so a second caller cannot spell the marker slightly differently and be
     silently ignored by :func:`~bloomery.dialects.base.strip_iso_text`.
@@ -503,7 +503,7 @@ def parse_ts(col: Expression, fmt: str) -> Expression:
 @transform("parse_date", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=DateType())
 def parse_date(col: Expression, fmt: str) -> Expression:
     if fmt == _ISO8601:
-        # Deliberately *not* marked, against RFC 0027 D6's assumption, on
+        # Deliberately *not* marked, against S-0044/D-6's assumption, on
         # engine-tier evidence. An ISO date has no `T` to rewrite, and the case
         # the marker would have covered — a full ISO timestamp fed to a date
         # parser — is not helped by it: Trino cannot cast `2026-01-06 12:00:00`
@@ -524,7 +524,7 @@ def parse_date(col: Expression, fmt: str) -> Expression:
 )
 def to_utc(col: Expression, zone: str) -> Expression:
     """Interpret a zoneless local timestamp in ``zone`` — the only door into
-    the always-UTC ``timestamp`` type (RFC 0004 §5.1)."""
+    the always-UTC ``timestamp`` type (S-0021/logical-types-bloomery-typing-types-py)."""
 
     return exp.AtTimeZone(this=col, zone=exp.Literal.string(zone))
 
@@ -549,7 +549,7 @@ def coalesce(col: Expression, fallback: str | int, *, input_type: LogicalType) -
 
     The fallback is cast because the transform declares it produces the *input*
     type and an uncast literal makes that false in two different ways
-    (RFC 0029 §2.1, §2.4):
+    (S-0046/what-was-measured (§2.1), S-0046/what-was-measured (§2.4)):
 
     * on Trino the expression does not plan at all — it does not coerce a
       varchar literal to the column's type, so ``{coalesce: "1970-01-01"}`` over
@@ -584,7 +584,7 @@ def nullif(col: Expression, sentinel: str | int, *, input_type: LogicalType) -> 
 
     Same reason as ``coalesce``: Trino refuses to compare a varchar literal
     against a non-varchar column (``TYPE_MISMATCH``), so a sentinel that worked
-    on two engines failed on the third (RFC 0029 §2.4).
+    on two engines failed on the third (S-0046/what-was-measured (§2.4)).
     """
 
     return exp.Nullif(this=col, expression=_typed_literal(sentinel, input_type))
@@ -606,13 +606,13 @@ def json_path(col: Expression, path: str) -> Expression:
 
 
 # ....................... #
-# Arithmetic (decimal precision/scale tracked — RFC 0004 §5.4)
+# Arithmetic (decimal precision/scale tracked — S-0021/typecheck-stage-bloomery-typing-check-py)
 
 
 # ....................... #
 
 
-#: The marker wrapping a ``divide``'s two operands (RFC 0029 D3).
+#: The marker wrapping a ``divide``'s two operands (S-0046/D-3).
 #:
 #: It exists to tell the transform's division apart from any other ``/`` in the
 #: tree. The treatment — exact, non-float division — is the same on every port,
@@ -624,7 +624,7 @@ DIVIDE_MARKER = "BLM_EXACT_DIV"
 
 
 #: Hoisted so the declaration and the construction call the *same* function
-#: rather than two that agree by inspection (RFC 0029 D2).
+#: rather than two that agree by inspection (S-0046/D-2).
 _MULTIPLY_OUTPUT = _arith_output("multiply")
 _DIVIDE_OUTPUT = _arith_output("divide")
 
@@ -632,7 +632,7 @@ _DIVIDE_OUTPUT = _arith_output("divide")
 def _narrowed(node: Expression, declared: LogicalType) -> Expression:
     """An arithmetic result, cast to the type the transform declares.
 
-    Every engine widens decimal arithmetic past the ``(p, s)`` RFC 0004 §5.4
+    Every engine widens decimal arithmetic past the ``(p, s)`` S-0021/typecheck-stage-bloomery-typing-check-py
     tracks, and each widens differently: ``decimal(12,4) * 2`` is
     ``decimal(18,4)`` on DuckDB, ``decimal(22,4)`` on Trino and unconstrained
     ``numeric`` on PostgreSQL, against a declared ``decimal(13,4)``. No value is
@@ -649,7 +649,7 @@ def _narrowed(node: Expression, declared: LogicalType) -> Expression:
 
     Inside the quality system this cast becomes a ``TRY_CAST`` like any other
     (``_try_cast_shape``), so an overflow is a coercion failure and a
-    quarantined row rather than an aborted run — the disposition RFC 0016
+    quarantined row rather than an aborted run — the disposition S-0033
     already gives every other bad value.
     """
 
@@ -688,7 +688,7 @@ def divide(col: Expression, divisor: str | int, *, input_type: LogicalType) -> E
 
     SQLGlot renders a bare division as ``CAST(x AS DOUBLE PRECISION) / n`` on
     PostgreSQL and ``CAST(x AS DOUBLE) / n`` on Trino — an explicit **binary
-    float** on an emission path, which RFC 0003 D5 forbids, on the transform
+    float** on an emission path, which S-0020/D-5 forbids, on the transform
     whose output is most often money.
 
     No golden moved when this was fixed, and that is worth knowing rather than
@@ -700,11 +700,11 @@ def divide(col: Expression, divisor: str | int, *, input_type: LogicalType) -> E
 
     ``exp.Div(typed=True)`` suppresses that cast and **does not survive the
     canonical round trip** — the IR keeps text and ``x / 2`` carries no flag
-    (RFC 0003 D2). Re-reading every ``Div`` at render was the other option and
+    (S-0020/D-2). Re-reading every ``Div`` at render was the other option and
     is wrong: a ratio metric dividing two counts would silently become integer
     division. So the division is marked, exactly as ``parse_ts`` marks an ISO
-    parse (RFC 0027 D4), and the marker says *this division came from the
-    transform* rather than from someone's SQL (RFC 0029 D3).
+    parse (S-0044/D-4), and the marker says *this division came from the
+    transform* rather than from someone's SQL (S-0046/D-3).
     """
     marked = exp.Anonymous(this=DIVIDE_MARKER, expressions=[col, _number(divisor)])
     return _narrowed(marked, _DIVIDE_OUTPUT(input_type, (divisor,)))
@@ -761,7 +761,7 @@ def abs_(col: Expression, *, input_type: LogicalType) -> Expression:
 
 
 # ....................... #
-# Currency-conversion marker (RFC 0004 D3) — refused at emit (RFC 0023 D4)
+# Currency-conversion marker (S-0021/D-3) — refused at emit (S-0040/D-4)
 
 
 # ....................... #
@@ -769,7 +769,7 @@ def abs_(col: Expression, *, input_type: LogicalType) -> Expression:
 
 #: The call :func:`convert` builds, and the token the lowering resolves — or,
 #: where no rate relation is declared, the token the emit side refuses on
-#: (RFC 0023 D4/§5.4). Shared rather than spelled thrice: a marker whose
+#: (S-0040/D-4, S-0040/phase-2-currency-as-a-declared-relation). Shared rather than spelled thrice: a marker whose
 #: producer, resolver and refusal disagree about its name is a refusal that
 #: never fires.
 CONVERT_MARKER = "CONVERT_CURRENCY"
@@ -801,12 +801,12 @@ CONVERT_TRANSFORM = "convert"
     input=(DecimalType,),
     output=lambda t, _args: t,
     # A rate the relation has no row for converts the amount to NULL on
-    # purpose (RFC 0023 D11), so `coercible` must not read the vanished value
+    # purpose (S-0040/D-11), so `coercible` must not read the vanished value
     # as a failed cast and quarantine the row for a coercion that did not
     # happen. Latent while every conversion named a literal — one gap in the
     # feed nulls every row equally — and acute per-row, where one unrecognised
     # code nulls one row and the reject reason names the wrong cause
-    # (RFC 0061 §10, logs/T-0052.md). Rejecting on a missing rate is still
+    # (S-0066 (§10), logs/T-0052.md). Rejecting on a missing rate is still
     # available and is now declared: `{rule: not_null}` on the field.
     nullifies=True,
     types=True,
@@ -815,14 +815,14 @@ def convert(
     col: Expression, from_ccy: str, to_ccy: str, anchor: str, *, input_type: LogicalType
 ) -> Expression:
     """Convert a decimal amount between two declared currencies, as of a date
-    (RFC 0023 §5.4).
+    (S-0040/phase-2-currency-as-a-declared-relation).
 
     ``{convert: [EUR, USD, paid_at]}`` — the currency the column is in, the
     currency it should end up in, and the field whose value dates the rate.
     All three are declared because none can be safely inferred: the source path
     carries no currency, and guessing the anchor from a mart's date role is the
     "plausible number against the wrong version of history" this RFC refuses
-    (RFC 0021 closes inference).
+    (S-0038 closes inference).
 
     What this builds is a **marker**, not the conversion. The rate lives in a
     relation named by the catalog and the anchor's value comes from a sibling

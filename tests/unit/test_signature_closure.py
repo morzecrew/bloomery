@@ -1,5 +1,5 @@
 """Signature closure: a type in a public signature is itself public
-(RFC 0018 D1).
+(S-0035/D-1).
 
 ``bloomery.__all__`` used to export functions whose parameters and returns a
 caller could not name. `compile_project` returned ``tuple[EmittedArtifact,
@@ -14,13 +14,13 @@ no mention of ``LogicalType``, which is the name a caller actually writes. The
 alias is what has to be exported, so the walk reads the raw annotation string,
 extracts its identifiers, and resolves each one in the module that declared it.
 ``get_type_hints`` is still called, on every export, because an annotation that
-cannot resolve is its own defect (RFC 0018 D10) and the walk would silently
+cannot resolve is its own defect (S-0035/D-10) and the walk would silently
 under-report if one came back.
 
 **Where it stops.** ``ProjectIR``, ``Project`` and ``Catalog`` are *handles*:
 values a caller receives and passes back without reading a field. Descending
 into them would drag the whole IR tree into the root namespace — 65 names,
-measured — which is RFC 0003's internals wearing a public import path (D9). A
+measured — which is S-0020's internals wearing a public import path (D9). A
 handle that grows a documented field stops being one, and this set shrinks.
 
 Two more exclusions, both narrower than they look. ``bloomery.errors`` is
@@ -48,11 +48,11 @@ import bloomery.errors
 
 pytestmark = pytest.mark.unit
 
-#: Values a caller receives and passes back, never destructuring (RFC 0018 D9).
+#: Values a caller receives and passes back, never destructuring (S-0035/D-9).
 #: The walk does not descend into these; their fields stay internal.
 HANDLE_TYPES = frozenset({"Catalog", "Project", "ProjectIR"})
 
-#: The one allowlisted subpackage (RFC 0018 D2) — an exemption in code rather
+#: The one allowlisted subpackage (S-0035/D-2) — an exemption in code rather
 #: than in someone's head.
 ERROR_MODULE_PREFIX = "bloomery.errors"
 
@@ -183,7 +183,7 @@ def _closure() -> dict[str, set[str]]:
 
 
 def test_every_public_annotation_resolves() -> None:
-    """The precondition for the walk below (RFC 0018 D10).
+    """The precondition for the walk below (S-0035/D-10).
 
     ``from __future__ import annotations`` plus a ``TYPE_CHECKING``-only import
     leaves a name that does not exist at run time. The closure walk would then
@@ -236,7 +236,7 @@ def test_the_walk_sees_through_a_union_alias() -> None:
 
 
 def test_the_walk_skips_non_class_exports() -> None:
-    """``bloomery.errors.guaranteed`` is a function (RFC 0003 D11), not a type.
+    """``bloomery.errors.guaranteed`` is a function (S-0020/D-11), not a type.
 
     Treating it as one would make the walk raise rather than report.
     """

@@ -1,4 +1,4 @@
-"""The dangling-exposure guard (RFC 0056 D2, `LOCKED`).
+"""The dangling-exposure guard (S-0063/D-2, `LOCKED`).
 
 An exposure is entirely references, so a name that resolves to nothing is the
 whole of what can go wrong with one — and it goes wrong *quietly*: the impact

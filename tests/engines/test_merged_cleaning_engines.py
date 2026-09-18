@@ -1,5 +1,5 @@
-"""Engine tier (RFC 0009 §5.2 tier 5): a **cleaned merged entity** built and
-queried on real PostgreSQL and real Trino (RFC 0024 P2, RFC 0035).
+"""Engine tier (S-0026/tier-contracts tier 5): a **cleaned merged entity** built and
+queried on real PostgreSQL and real Trino (S-0041/phasing (P-2), S-0051).
 
 The DuckDB tier proves the pipeline computes the right rows. This proves the
 same SQL is legal and means the same thing on the two engines a project would
@@ -11,12 +11,12 @@ all — the dialect port rewrites it — and the rewrite now has to happen over 
 union subquery rather than a plain SELECT.
 
 **``reject_id``'s digest.** DuckDB's ``SHA256(VARCHAR)`` returns hex, Postgres'
-returns ``bytea``, and Trino's does not accept text at all (RFC 0016 D83). A
+returns ``bytea``, and Trino's does not accept text at all (S-0033/D-83). A
 merged entity is the first shape where two branches compute it, and the whole
 point of the pair ``(source_relation, _source_row_id)`` is that the engines
 agree on which rows are distinct.
 
-**The metadata audit's ``PARTITION BY _source, _source_row_id``** (RFC 0024
+**The metadata audit's ``PARTITION BY _source, _source_row_id``** (S-0041
 D34), which is what keeps a blocking audit from refusing correct data the first
 time two shops with ordinary per-table row sequences are merged.
 
@@ -59,7 +59,7 @@ SHOPIFY = [
 #: ``(order_number, item_index, product_sku, qty, created, state, row_id)``.
 #: ``w2``'s quantity is uncastable on *Woo's* path; ``w3`` carries the raw value
 #: only Shopify's chain maps. Note ``w1`` shares ``s1``'s row identity — that
-#: collision is legal under RFC 0016 D21 and is exactly what D34's partition and
+#: collision is legal under S-0033/D-21 and is exactly what D34's partition and
 #: ``reject_id``'s pair exist for.
 WOO = [
     ("B-1", "1", "SKU-9", "4", "2024-03-01T00:00:00", "COMPLETE", "s1"),
@@ -80,7 +80,7 @@ CASES: list[tuple[str, str, list[tuple[object, ...]]]] = [
     ),
     (
         # `reversed` is admissible on one branch and not on the other, on the
-        # same raw text (RFC 0024 D32).
+        # same raw text (S-0041/D-32).
         "in-enum-admits-per-branch",
         "SELECT _source_row_id FROM silver.order_line__reject "
         "WHERE {failed:status_in_enum} ORDER BY _source_row_id",
@@ -94,8 +94,8 @@ CASES: list[tuple[str, str, list[tuple[object, ...]]]] = [
         [("reversed",)],
     ),
     (
-        # Provenance per branch (RFC 0035 D2), on a reject table that stays one
-        # per entity (RFC 0016 D10, upheld by RFC 0035 D1).
+        # Provenance per branch (S-0051/D-2), on a reject table that stays one
+        # per entity (S-0033/D-10, upheld by S-0051/D-1).
         "reject-rows-name-their-own-mapping",
         "SELECT _source_row_id, source_relation, mapping_version "
         "FROM silver.order_line__reject ORDER BY _source_row_id, source_relation",
@@ -129,18 +129,18 @@ CASES: list[tuple[str, str, list[tuple[object, ...]]]] = [
 #: for: an audit is a claim about what stops the run, and a test that rewrote
 #: the claim would pass while the emitted body was wrong. The metadata audit was
 #: exactly that for one commit — the lowering partitioned by
-#: ``(_source, _source_row_id)`` (RFC 0024 D34) and the SQLMesh envelope emitted
+#: ``(_source, _source_row_id)`` (S-0041/D-34) and the SQLMesh envelope emitted
 #: a hardcoded ``PARTITION BY _source_row_id``, on the only target that supports
 #: quarantine.
 AUDIT_CASES: list[tuple[str, str, int]] = [
     # Blocking, and it must be **silent** here, for two separate reasons that
     # both used to break it:
     #
-    #   * `s1` is one row identity in two source relations, which RFC 0016 D21
+    #   * `s1` is one row identity in two source relations, which S-0033/D-21
     #     makes legal — an audit partitioned by the identity alone reports it;
     #   * every row's `_ingested_at` is ISO 8601 with a `T`, and Trino's cast
     #     does not accept that separator, so an *unmarked* `TRY_CAST` reads
-    #     every row as an uncastable timestamp (RFC 0027's marker is what makes
+    #     every row as an uncastable timestamp (S-0044's marker is what makes
     #     the question the same question on every engine).
     #
     # The seed writes the `T` deliberately: it is the spelling a real bronze
@@ -154,7 +154,7 @@ AUDIT_CASES: list[tuple[str, str, int]] = [
 
 IDS = [case[0] for case in CASES]
 
-#: ``failed_rules`` is a real array on both engines (RFC 0016 D23 — the flag
+#: ``failed_rules`` is a real array on both engines (S-0033/D-23 — the flag
 #: collection is an array where the dialect has one), and the two spell
 #: membership differently. One expectations table, one placeholder, rather than
 #: two copies of every case: the claim under test is that the engines *agree*,

@@ -1,4 +1,4 @@
-"""The grain guard — the fan-out refusal (RFC 0006 §5.3, D5).
+"""The grain guard — the fan-out refusal (S-0023/grain-the-fan-out-guard, S-0023/D-5).
 
 All operands of a derivation must share the derivation's grain, or the
 expression must contain an explicit aggregation over the foreign-grain
@@ -10,8 +10,8 @@ must write as an explicit expression.
 
 The same rule runs over metric expressions whose ``requires`` span entities
 with different grains. The mart-level leaves (``GrainViolation``,
-``FanoutRisk`` — RFC 0006 D10) run where marts are lowered, with M5
-(RFC 0010); this module is the derivation/metric-level guard only.
+``FanoutRisk`` — S-0023/D-10) run where marts are lowered, with M5
+(S-0027); this module is the derivation/metric-level guard only.
 """
 
 from __future__ import annotations

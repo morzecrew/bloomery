@@ -1,4 +1,4 @@
-"""The conservation law (RFC 0016 §6) — "the single best invariant".
+"""The conservation law (S-0033/tests-rfc-0009-amendment) — "the single best invariant".
 
     Every bronze row lands in exactly one of: the entity, an **unresolved**
     reject (``resolved_at IS NULL``), or the deduped count.

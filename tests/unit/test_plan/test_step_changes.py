@@ -1,4 +1,4 @@
-"""`plan()` over steps (RFC 0017 §5.6, D6/D11).
+"""`plan()` over steps (S-0034/runtime-pinning, S-0034/D-6, S-0034/D-11).
 
 The RFC's claim is that steps need *no special-casing* in the differ: they are
 IR nodes, the encoder covers them, and a change reads as an ordinary
@@ -103,7 +103,7 @@ def test_every_behaviour_bearing_field_restates(label: str, mutation: dict[str, 
 
 
 def test_an_unchanged_step_is_the_empty_plan() -> None:
-    """RFC 0007 D2's identity property has to survive the new node kind."""
+    """S-0024/D-2's identity property has to survive the new node kind."""
     assert changes(step(), step()).changes == ()
 
 
@@ -112,7 +112,7 @@ def test_an_unchanged_step_is_the_empty_plan() -> None:
 
 
 def test_adding_a_step_is_additive_and_names_the_version() -> None:
-    """RFC 0007 D2: an initial deploy is all-ADDITIVE, and adding a step is
+    """S-0024/D-2: an initial deploy is all-ADDITIVE, and adding a step is
     that same statement in the small.
 
     The version is half the identity of what arrived — a removal reports

@@ -1,4 +1,4 @@
-"""Cross-entity coverage checks (RFC 0016 §10 → D90).
+"""Cross-entity coverage checks (S-0033 (§10) → D90).
 
 §10 asked whether "every customer has ≥1 order" was reconcile-shaped. It is
 not: a ``reconcile`` compares two *values* and alerts when they differ beyond a
@@ -179,7 +179,7 @@ def test_the_count_is_of_a_dependent_column_never_of_rows() -> None:
 
 
 def test_dbt_emits_the_check_as_a_singular_test() -> None:
-    """RFC 0026, one relation further out than the mart assertion.
+    """S-0043, one relation further out than the mart assertion.
 
     The body joins two silver relations and groups, so no schema test could
     carry it. Both relations resolve through the reference map — the dependent
@@ -272,7 +272,7 @@ def test_a_higher_minimum_reports_the_under_covered(
 
 
 # ....................... #
-# The endpoints emission assumes (RFC 0016 D91)
+# The endpoints emission assumes (S-0033/D-91)
 
 
 def test_a_referenced_entity_nothing_writes_is_refused() -> None:
@@ -297,7 +297,7 @@ def test_an_unmapped_dependent_side_is_refused() -> None:
     is the entity the audit *counts against*. This drops the ``from`` side —
     the dependent entity the audit hangs off — and D90's refusal for it had
     never been provoked: a whole detection branch in `guardrails/`, which is
-    exactly what RFC 0009 D9's 100% floor exists to make impossible. Emitted
+    exactly what S-0026/D-9's 100% floor exists to make impossible. Emitted
     against an unmapped dependent, the check would ship and never run.
     """
     project = load_project(

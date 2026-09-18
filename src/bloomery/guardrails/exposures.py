@@ -1,4 +1,4 @@
-"""The dangling-exposure guard (RFC 0056 D2, `LOCKED`): an exposure naming a
+"""The dangling-exposure guard (S-0063/D-2, `LOCKED`): an exposure naming a
 metric or a mart the project does not declare.
 
 An exposure is the one spec document that is entirely references — a name, a
@@ -68,11 +68,11 @@ def check_exposure_targets(project: Project) -> list[GuardrailError]:
     A **rollup** named under ``marts:`` gets its own message. It is a relation
     of the gold layer and a dashboard can legitimately read one, so "not
     declared" would be a refusal an author could disprove by opening the marts
-    document; what is true is narrower — this list names marts, and RFC 0056
+    document; what is true is narrower — this list names marts, and S-0063
     §5.1 scopes it that way (logs/T-0038.md).
 
     That refusal was first argued from a rollup not being a node of the lineage
-    graph, and RFC 0067 made it one — so it is restated here on the ground that
+    graph, and S-0072 made it one — so it is restated here on the ground that
     survives (D9, logs/T-0039.md). Admitting a rollup is a **grammar** change
     with two legs beyond this guard: the dbt emitter lowers a mart dependency
     to a ``ref()`` on that mart's relation, and `plan()` matches the dependency
@@ -106,7 +106,7 @@ def check_exposure_targets(project: Project) -> list[GuardrailError]:
             msg = (
                 f"exposure {name!r} depends on metric {metric!r}, which this project does not "
                 f"declare. An exposure pointing at nothing reports clean — it names no consumer "
-                f"of a change that should reach one (RFC 0056 D2). Fix: correct the name, or "
+                f"of a change that should reach one (S-0063/D-2). Fix: correct the name, or "
                 f"declare the metric. Declared metrics: {_declared(metrics)}"
             )
             errors.append(DanglingExposure(msg, source_path=source_path))
@@ -116,11 +116,11 @@ def check_exposure_targets(project: Project) -> list[GuardrailError]:
                 continue
             detail = (
                 "which this project declares as a rollup rather than a mart. An exposure's "
-                "'marts:' names marts (RFC 0056 §5.1). Fix: name the mart the rollup is of"
+                "'marts:' names marts (S-0063/the-document). Fix: name the mart the rollup is of"
                 if mart in rollups
                 else f"which this project does not declare. An exposure pointing at nothing "
                 f"reports clean — it names no consumer of a change that should reach one "
-                f"(RFC 0056 D2). Fix: correct the name, or declare the mart. Declared marts: "
+                f"(S-0063/D-2). Fix: correct the name, or declare the mart. Declared marts: "
                 f"{_declared(marts)}"
             )
             errors.append(

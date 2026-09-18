@@ -1,4 +1,4 @@
-"""Path conflict (RFC 0006 §5.5, D7): the guardrail that never raises —
+"""Path conflict (S-0023/path-conflict-the-guardrail-that-does-not-raise, S-0023/D-7): the guardrail that never raises —
 derived column kept, ``__direct`` shadow added, reconcile audit emitted."""
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ def test_both_columns_and_the_reconcile_audit_land_in_the_ir() -> None:
     (entity,) = ir.entities
     by_name = {column.name: column for column in entity.columns}
     # The shadow lands in **both** halves, and that is the property worth
-    # pinning (RFC 0024 D26): a schema column with no projection is a column
+    # pinning (S-0041/D-26): a schema column with no projection is a column
     # the SELECT cannot produce, and it would compile clean.
     lowered = {column.name: column for column in entity.sources[0].columns}
     assert sorted(by_name) == ["item_id", "net_price", "net_price__direct", "quantity"]
@@ -57,7 +57,7 @@ def test_amendments_are_computed_per_entity() -> None:
 
 
 def test_a_merged_entity_gets_one_shadow_and_one_projection_per_source() -> None:
-    """RFC 0024 D36. The arity is the whole finding: the schema half is
+    """S-0041/D-36. The arity is the whole finding: the schema half is
     per *entity* and the lowering half is per *source*.
 
     Grouping is what decides it — a merged entity has one derivation per
@@ -105,7 +105,7 @@ def test_a_merged_entity_carries_the_shadow_on_every_branch_of_the_ir() -> None:
 
 
 def test_a_branch_that_does_not_map_the_column_gets_a_typed_null_shadow() -> None:
-    """The case D36's refusal deliberately does not reach (RFC 0024 §5.2 rule
+    """The case D36's refusal deliberately does not reach (S-0041/what-the-compiler-checks rule
     3): one mapping declares the optional field with a `direct:` path and the
     other does not declare the field at all.
 
@@ -216,7 +216,7 @@ canonical_fields:
 
 
 def test_the_shadow_takes_the_coercion_shape_of_the_entity_it_lands_on() -> None:
-    """RFC 0016 §5.2/D3. On an entity in the quality system every cast is
+    """S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-3. On an entity in the quality system every cast is
     NULL-on-failure so the implicit `coercible` rule can see the failure — and
     the shadow is the one lowering built *after* the builder, so it does not
     inherit that by being in the loop that makes it.

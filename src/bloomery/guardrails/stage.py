@@ -1,18 +1,18 @@
 """The guardrail stage: ``check_guardrails(draft, project=…, catalog=…)``
-(RFC 0006 §5.1, D2, D9).
+(S-0023/stage-shape, S-0023/D-2, S-0023/D-9).
 
 Stage four of the pipeline, invoked from ``build_project_ir``'s seam after
 typecheck. Pure: seven guards are read-only checks whose violations are
 collected project-wide — together with the mart-level leaves the flattener
 reports (``GrainViolation``, ``FanoutRisk``, ``MartMissingTimeDimension`` —
-RFC 0006 D10, RFC 0010 §5.5) — and raised as **one** :class:`GuardrailError`
+S-0023/D-10, S-0027/validation-compile-errors-batched-with-guardrails) — and raised as **one** :class:`GuardrailError`
 aggregate, its leaves sorted by ``(source_path, type name)`` — authors fix a
-spec in one round-trip (RFC 0002 D6). The only amendments are the eighth
-guard's path-conflict handling (shadow column + reconcile audit, RFC 0006
+spec in one round-trip (S-0019/D-6). The only amendments are the eighth
+guard's path-conflict handling (shadow column + reconcile audit, S-0023
 D7) and the lowering of valid ``assert:`` clauses into entity audits
-(RFC 0006 D8); a project with neither returns the draft unchanged.
+(S-0023/D-8); a project with neither returns the draft unchanged.
 
-The seventh is the metric-shape guard (RFC 0034), which replaced the blanket
+The seventh is the metric-shape guard (S-0050), which replaced the blanket
 ``cumulative:`` refusal when that surface stopped being reserved.
 """
 
@@ -77,7 +77,7 @@ def _amended_entity(
             [*entity.columns, *(shadow.column for shadow in extra)], key=lambda column: column.name
         )
     )
-    # Both halves move together (RFC 0024 D26): a schema column with no
+    # Both halves move together (S-0041/D-26): a schema column with no
     # projection is a column the SELECT cannot produce, which would compile
     # clean and fail on the first run. On a merged entity each branch takes
     # the projection of *its own* mapping's ``direct:`` path (D36) — the other
@@ -109,7 +109,7 @@ def _amended_entity(
                                 ),
                                 by=(
                                     "path_conflict_amendments, which projects a path or a "
-                                    "typed NULL for every source of the entity (RFC 0024 D36)"
+                                    "typed NULL for every source of the entity (S-0041/D-36)"
                                 ),
                             )
                             for shadow in extra
@@ -136,7 +136,7 @@ def check_guardrails(
 ) -> ProjectIR:
     """Run all eight guardrails plus the data-quality leaves, the
     lineage-namespace guard and the dangling-exposure guard over the draft IR
-    (RFC 0006 D9; RFC 0016 §5.9; RFC 0051 §5.2; RFC 0056 D2).
+    (S-0023/D-9; S-0033/guardrails-vs-quality-the-boundary; S-0059/the-node-id-collision-refused-at-its-cause; S-0063/D-2).
 
     Raises one aggregated :class:`GuardrailError` if any violation exists;
     otherwise returns the draft amended only by path-conflict handling and
@@ -149,38 +149,38 @@ def check_guardrails(
     violations.extend(check_additivity(draft))
     violations.extend(check_metrics(draft))
     violations.extend(check_lineage_names(draft))
-    # Classification against grants (RFC 0055 D9-D11): a published relation
+    # Classification against grants (S-0062/D-9 S-0062/D-11): a published relation
     # carrying a `secret` column, or one granted wider than the entity the
     # column came from. Reads the draft alone — both sides are in the IR.
     violations.extend(check_classification(draft))
-    # Exposure references (RFC 0056 D2, `LOCKED`), asked of the authored
+    # Exposure references (S-0063/D-2, `LOCKED`), asked of the authored
     # documents rather than the draft — see the module docstring for why the
     # draft is the wrong side of the flattener to ask.
     violations.extend(check_exposure_targets(project))
-    # Exported names (RFC 0059 D1, `LOCKED`), asked of the authored documents
+    # Exported names (S-0002/D-1, `LOCKED`), asked of the authored documents
     # for the reason the exposure guard is — a mart that failed to flatten is
     # absent from the draft while very much declared.
     violations.extend(check_export_targets(project))
-    # Declared dependencies (RFC 0059 D1/D8): the upstream side read from the
+    # Declared dependencies (S-0002/D-1, S-0002/D-8): the upstream side read from the
     # IR it arrived as, the local side from the authored documents.
     violations.extend(check_imports(project, draft, upstream))
-    # Declared source zones (RFC 0074 §5.3, R018): asked of the draft, which
+    # Declared source zones (S-0076/r018-and-where-it-fires, S-0076 R018): asked of the draft, which
     # carries one transform chain per source — so a merged entity is answered
     # per mapping, and the mapping that declared is not sent to fix anything.
     violations.extend(check_zones(project, draft))
-    # Consumer evidence (RFC 0065 D4, `LOCKED`): the requirement is read from
+    # Consumer evidence (S-0070/D-4, `LOCKED`): the requirement is read from
     # the authored marts document and the facts from the draft, which is the
     # one guardrail that needs both sides — the key never enters `MartIR` (D3).
     violations.extend(check_evidence(project, draft))
-    # Mart-level checks (RFC 0006 D10): the flattener re-runs here as a pure
+    # Mart-level checks (S-0023/D-10): the flattener re-runs here as a pure
     # sibling stage; its leaves batch into the same aggregate as the rest.
     violations.extend(lower_marts(project.marts, draft).violations)
-    # Rollup-level checks (RFC 0058 D5, `LOCKED`): the same sibling-stage shape,
+    # Rollup-level checks (S-0065/D-5, `LOCKED`): the same sibling-stage shape,
     # asked against the draft's already-resolved marts. An unprovable rollup is
     # refused rather than warned about — it is read instead of the detail table,
     # so a wrong one answers quickly and plausibly.
     violations.extend(lower_rollups(project.marts, draft).violations)
-    # Data-quality leaves (RFC 0016 §5.9): the model-is-wrong half of this
+    # Data-quality leaves (S-0033/guardrails-vs-quality-the-boundary): the model-is-wrong half of this
     # RFC, batched into the same aggregate as everything else.
     violations.extend(check_quality(draft, project))
     assert_errors, lowered = lower_asserts(project, draft)

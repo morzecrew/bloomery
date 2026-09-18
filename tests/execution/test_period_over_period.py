@@ -1,4 +1,4 @@
-"""Metrics over time, executed (RFC 0034, RFC 0009 §5.2 tier 4).
+"""Metrics over time, executed (S-0050, S-0026/tier-contracts tier 4).
 
 The compile-time checks prove a DERIVED metric with an offset is *emitted*;
 this proves it subtracts the right two numbers, which is the claim the feature
@@ -37,7 +37,7 @@ The specimen: eight sales across 2023 and 2024.
 ``revenue_vs_month_start`` — the offset's other form
     Each day against the first day of its own month: 03-04 → 7 − 100 = −93.
 
-All money is ``Decimal`` — floats never appear (RFC 0003 D5).
+All money is ``Decimal`` — floats never appear (S-0020/D-5).
 """
 
 from __future__ import annotations
@@ -158,7 +158,7 @@ def by_day(conn: duckdb.DuckDBPyConnection, *metrics: str) -> dict[date, tuple[D
 
 
 # ....................... #
-# Period over period (RFC 0034 D1, D2)
+# Period over period (S-0050/D-1, S-0050/D-2)
 
 
 def test_year_over_year_subtracts_the_same_month_one_year_earlier(
@@ -208,7 +208,7 @@ def test_the_offset_reads_the_start_of_the_containing_period(
 
 
 # ....................... #
-# Cumulative windows (RFC 0034 D5)
+# Cumulative windows (S-0050/D-5)
 
 
 def test_month_to_date_accumulates_and_does_not_reset_per_day(
@@ -318,7 +318,7 @@ def test_an_author_who_wants_the_period_s_first_point_can_ask_for_it(
 
 
 # ....................... #
-# Metric filters (RFC 0034 D8)
+# Metric filters (S-0050/D-8)
 
 
 def test_a_filtered_metric_counts_a_subset_of_the_rows_its_sibling_counts(
@@ -389,7 +389,7 @@ def test_a_filter_reaches_sql_in_the_column_s_own_type(
     """A decimal bound and a date bound, both written through the string
     carrier, both ANDed.
 
-    The carrier is how an exact decimal is written in YAML (RFC 0015 D5), and
+    The carrier is how an exact decimal is written in YAML (S-0032/D-5), and
     rendering it as a *string* literal left the comparison to the engine's
     coercion rules — which Trino does not have: it refuses
     `decimal <= varchar` and `date <= varchar` outright. DuckDB coerces, so
@@ -424,7 +424,7 @@ def test_the_filter_is_reported_in_the_explanation(
     conn: duckdb.DuckDBPyConnection,
 ) -> None:
     """A restricted metric that explains itself as its unrestricted sibling is
-    a number the reader has no way to question (RFC 0011 §5.6)."""
+    a number the reader has no way to question (S-0028/explanation-d8)."""
     plan = PLANNER.plan(
         fixture_ir(FIXTURE),
         MetricRequest(metrics=("paid_revenue",), dimensions=("sold_month",)),

@@ -1,4 +1,4 @@
-"""Engine tier (RFC 0009 §5.2 tier 5): a reconcile check over a NULL key, run
+"""Engine tier (S-0026/tier-contracts tier 5): a reconcile check over a NULL key, run
 on real PostgreSQL.
 
 The DuckDB tier already states what the comparison must *mean*

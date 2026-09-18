@@ -1,4 +1,4 @@
-"""The command line (RFC 0020 §5.2, D4–D6, D9).
+"""The command line (S-0037/bloomery-cli-six-commands, S-0037/D-4–S-0037/D-6, S-0037/D-9).
 
 Three properties carry the section.
 
@@ -245,7 +245,7 @@ FANOUT = str(FIXTURES / "fanout_trap")
 
 
 # ....................... #
-# RFC 0022 D8 — `resolve` reports reachability *and* refusals
+# S-0039/D-8 — `resolve` reports reachability *and* refusals
 
 
 def test_a_refused_spec_still_reports_what_was_reachable(
@@ -296,7 +296,7 @@ def test_a_refused_spec_serializes_its_refusals_with_source_paths(
 def test_a_structured_fix_suggestion_reaches_json(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """RFC 0020's suggestions are values on the error. The converter reads them
+    """S-0037's suggestions are values on the error. The converter reads them
     off `vars()` rather than from a per-class list, so one added to a sixth
     error arrives in the same commit that adds it."""
     code, out, _err = run(capsys, "resolve", FANOUT, "--format", "json")
@@ -340,7 +340,7 @@ def test_resolve_json_carries_fields_the_table_does_not_print(
 def test_resolve_prints_the_open_decisions_with_their_recipe_ids(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """RFC 0030 D7, settled in ``logs/T-0007.md`` D-033.
+    """S-0047/D-7, settled in ``logs/T-0007.md`` D-033.
 
     The table prints the canonical, its gap, where the edit goes and the ids the
     catalog offers — and never a recipe's alias slots, which are bound against
@@ -392,7 +392,7 @@ def test_a_spec_refusal_exits_one_with_its_source_path(
     code, _out, err = run(capsys, "resolve", str(tmp_path))
     assert code == EXIT_REFUSED
     # A single error carries its path as an attribute, not in the message
-    # (RFC 0002 D6 renders paths only in the batched aggregate), so the CLI
+    # (S-0019/D-6 renders paths only in the batched aggregate), so the CLI
     # prepends it — without that the reader gets a sentence with no file.
     assert err.startswith("entity_model: entities.e.fields.k.type:")
 
@@ -410,7 +410,7 @@ def test_a_planner_refusal_exits_one(capsys: pytest.CaptureFixture[str]) -> None
     assert code == EXIT_REFUSED
     # Grouped by a name both marts carry and neither means the same thing by.
     # Ungrouped, the same two metrics are now answered by joining the two
-    # branch totals (RFC 0041 P1), so the request that exercises a *planner*
+    # branch totals (S-0055/phasing (P-1)), so the request that exercises a *planner*
     # refusal here is the one with nothing proven to join on.
     assert "do not mean the same column" in err
 
@@ -464,7 +464,7 @@ def test_a_bad_flag_is_reported_before_a_bad_spec(
 
 def test_a_refused_filter_construct_stays_a_refusal(capsys: pytest.CaptureFixture[str]) -> None:
     """The other side of the line above. A *well-formed* document naming a
-    construct the vocabulary reviewed and declined (RFC 0015) is a refusal, not
+    construct the vocabulary reviewed and declined (S-0032) is a refusal, not
     a typo — so it exits `1` and carries the reason."""
     code, _out, err = run(
         capsys,
@@ -543,7 +543,7 @@ def test_a_known_target_is_not_caught_by_the_name_check(
 def test_the_metricflow_target_writes_its_manifest(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    """The gap RFC 0051 §5.1 closes, at the surface it was missing from: the
+    """The gap S-0059/metricflow-as-a-fourth-core-target closes, at the surface it was missing from: the
     manifest was public, cached and golden-tested, and no CLI invocation could
     put it on disk."""
     code, _out, err = run(
@@ -561,7 +561,7 @@ def test_the_two_failure_codes_are_distinct() -> None:
 
 
 # ....................... #
-# --policy (RFC 0020 §10 question 2)
+# --policy (S-0037 (§10) question 2)
 
 
 def test_policy_reaches_the_plan(capsys: pytest.CaptureFixture[str]) -> None:
@@ -660,7 +660,7 @@ def test_a_missing_explicit_catalog_is_a_usage_error(capsys: pytest.CaptureFixtu
 
 
 def test_an_empty_plan_says_so_rather_than_printing_a_header() -> None:
-    """`plan(ir, ir)` is the empty plan (RFC 0007 D2). A table with a zero count
+    """`plan(ir, ir)` is the empty plan (S-0024/D-2). A table with a zero count
     and no rows would read as "something happened and I lost it"."""
     empty = Plan(changes=(), backfill_scope=BackfillScope(entities=(), restates_history=False), downstream_impact=())
     assert render_plan(empty) == "No changes."
@@ -690,7 +690,7 @@ def test_the_plan_table_carries_replay_and_downstream_sections() -> None:
     assert "Downstream metrics" in rendered
     assert "gross_revenue" in rendered
     # Last section, because it is the one a reader acts on: everything above
-    # says what changed, and this says who to tell (RFC 0056 §5.4).
+    # says what changed, and this says who to tell (S-0063/plan).
     assert "Affected exposures" in rendered
     assert rendered.index("Affected exposures") > rendered.index("Downstream metrics")
     assert "weekly_revenue_review" in rendered
@@ -705,7 +705,7 @@ def test_an_empty_evaluation_renders_the_stage_and_both_headers() -> None:
 
     The stage leads, which is the point: at ``COMPLETE`` these zeros mean
     "nothing unreachable", and at any other stage they mean "never computed"
-    (RFC 0022 D5). The same three lines without the first would be ambiguous.
+    (S-0039/D-5). The same three lines without the first would be ambiguous.
     """
     rendered = render_evidence(SpecEvidence(stage_reached=Stage.COMPLETE))
     assert rendered.splitlines() == [
@@ -743,7 +743,7 @@ def test_an_errors_own_attribute_cannot_redefine_the_type_discriminator() -> Non
 
 
 def test_a_decimal_serializes_as_a_string_never_a_float() -> None:
-    """The core invariant, at the one seam that could break it (RFC 0003 D5).
+    """The core invariant, at the one seam that could break it (S-0020/D-5).
 
     `json.dumps` would turn a float into a lossy decimal literal, and a caller
     reading a tolerance or a measure back as `0.1 + 0.2` is the whole reason
@@ -917,7 +917,7 @@ def test_there_is_no_execution_command() -> None:
 
     ``import`` is the one command that reads something other than specs, and it
     still executes nothing and writes nothing: it prints a ``relationships:``
-    block for the author to paste (RFC 0070 §5.5, `logs/T-0056.md`). The set
+    block for the author to paste (S-0075/the-command, `logs/T-0056.md`). The set
     below is exact rather than a subset, so a command added later shows up here
     and has to argue for itself.
     """
@@ -1008,7 +1008,7 @@ def test_fingerprint_prints_the_projects_own_fingerprint(
 
 
 # ....................... #
-# `lineage` (RFC 0031 §5.5, P2)
+# `lineage` (S-0048/cli, S-0048/phasing (P-2))
 
 
 def test_lineage_walks_upstream_by_default(capsys: pytest.CaptureFixture[str]) -> None:
@@ -1056,7 +1056,7 @@ def test_lineage_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]
 
     `labels` is a property of the *project*, not of the walk: a `Lineage`
     carries `Node`s, and a name on one would make two nodes of the same id
-    unequal and reach `Graph`'s sort and `topo_order` (RFC 0062 §5.4,
+    unequal and reach `Graph`'s sort and `topo_order` (S-0067/display,
     `logs/T-0044.md`). So it rides beside the value rather than inside it, and
     the promise this test exists for is unchanged in the direction that
     matters: every field the Python call returns is here, under the key it
@@ -1081,7 +1081,7 @@ def test_lineage_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]
 def test_lineage_json_downstream_carries_the_exposure(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """RFC 0056 §6: the JSON is the surface a script reads, so the sink has to
+    """S-0063/tests: the JSON is the surface a script reads, so the sink has to
     reach it and not only the aligned edge list a person reads.
 
     Downstream from a metric, because that is the walk the feature exists for —
@@ -1110,7 +1110,7 @@ def test_lineage_json_downstream_carries_the_exposure(
 
 
 def test_lineage_json_carries_a_mart_node(capsys: pytest.CaptureFixture[str]) -> None:
-    """RFC 0067 §6: the JSON is what a script reads, so the sixth kind has to
+    """S-0072/tests: the JSON is what a script reads, so the sixth kind has to
     reach it under its own `kind` string and not only the rendered edge list.
 
     Downstream from a metric, which is the walk §1 opens on — it named the
@@ -1170,7 +1170,7 @@ def test_lineage_says_when_max_depth_truncated_the_walk(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A bounded answer that does not say it is bounded is the failure
-    RFC 0022 D5 names."""
+    S-0039/D-5 names."""
     code, bounded, err = run(
         capsys, "lineage", ECOM, "--node", "metric.average_order_value", "--max-depth", "1"
     )
@@ -1186,7 +1186,7 @@ def test_a_mistyped_node_is_refused_with_the_spelling_it_meant(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The ids are long and dotted, and the graph holds the right spelling —
-    so "not found" alone would be withholding the answer (RFC 0031 §5.5)."""
+    so "not found" alone would be withholding the answer (S-0048/cli)."""
     code, _out, err = run(capsys, "lineage", ECOM, "--node", "metric.gross_revenu")
 
     assert code == EXIT_REFUSED
@@ -1241,7 +1241,7 @@ def test_lineage_suggestions_are_bounded_and_deterministic(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Bounded because a large graph must not print a guess per node; identical
-    across runs because the message reaches stdout and RFC 0003 binds it."""
+    across runs because the message reaches stdout and S-0020 binds it."""
     first = run(capsys, "lineage", ECOM, "--node", "metric.")[2]
     again = run(capsys, "lineage", ECOM, "--node", "metric.")[2]
 
@@ -1345,7 +1345,7 @@ def test_both_never_describes_itself_as_a_direction(
     Reaching that sentence needs a node with no edge in either direction, and
     the corpus holds exactly one: `evolution_v1`'s `canonical.discount`, a
     catalog field no mapping links and no metric requires. It used to be a
-    metric — `role_playing_dates`'s `revenue` — until RFC 0067 gave every
+    metric — `role_playing_dates`'s `revenue` — until S-0072 gave every
     measure of every mart an incoming edge, which is the kind of shift that
     makes an isolated node worth naming here rather than looking up again.
     """
@@ -1628,11 +1628,11 @@ def test_a_command_body_os_error_is_still_an_internal_error(
 
 
 # ....................... #
-# RFC 0044 P1 — `bloomery check`, the CI gate
+# S-0057/phasing (P-1) — `bloomery check`, the CI gate
 
 
 def test_check_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]) -> None:
-    """The machine surface is the value, not a summary of it (RFC 0044 D6).
+    """The machine surface is the value, not a summary of it (S-0057/D-6).
 
     ``check`` and ``resolve`` dump the same ``SpecEvidence`` through the same
     encoder, which is what keeps one refusal vocabulary across both rather than
@@ -1690,7 +1690,7 @@ def test_check_passes_a_project_with_an_unreachable_metric_and_an_open_decision(
 def test_check_prints_a_line_per_surface_and_no_total(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """One line per surface, and nothing that sums them (RFC 0044 D5).
+    """One line per surface, and nothing that sums them (S-0057/D-5).
 
     A total or a percentage is what makes a green gate read as "every future
     query is safe". The absence is asserted rather than trusted, because a
@@ -1779,7 +1779,7 @@ def test_check_labels_a_stopped_stages_counts_as_a_prefix(
     """``fanout_trap`` refuses over a draft IR, so its counts are real and partial.
 
     The banner is the same one ``resolve`` prints, and for the same reason
-    (RFC 0022 D5): every count below it is empty in two situations that mean
+    (S-0039/D-5): every count below it is empty in two situations that mean
     opposite things.
     """
 
@@ -1800,7 +1800,7 @@ def test_check_renders_the_value_it_was_given(capsys: pytest.CaptureFixture[str]
 
 
 # ....................... #
-# RFC 0065 P1 — evidence grades in `explain`
+# S-0070/phasing (P-1) — evidence grades in `explain`
 
 
 def test_explain_renders_a_grade_beside_every_fact(capsys: pytest.CaptureFixture[str]) -> None:
@@ -1857,7 +1857,7 @@ def test_the_evidence_section_walks_every_proof_in_a_composed_plan(
     """One fact is not a walk, and the single-mart case is one fact.
 
     A cross-mart request is planned as a branch per mart joined above the
-    aggregate (RFC 0041), and its authorization is mostly *inside* it: three
+    aggregate (S-0055), and its authorization is mostly *inside* it: three
     proofs, four distinct facts. A renderer reading only the top-level nodes
     would print one row here and look correct on every single-mart fixture.
 
@@ -1940,7 +1940,7 @@ def test_a_fact_under_two_proofs_is_listed_and_counted_once() -> None:
 def test_a_fact_reached_only_through_a_premise_is_still_listed() -> None:
     """Proofs compose, and a renderer reading ``facts`` would miss the halves.
 
-    R011 and R012 carry their grain proof as a premise (RFC 0039 §3), so a fact
+    R011 and R012 carry their grain proof as a premise (S-0005 (§3)), so a fact
     can sit two levels down. Nothing the planner builds today has a premise —
     every proof in the corpus is flat — which is why the sabotage that read
     ``proof.facts`` instead of ``proof.leaves`` survived, and why the input here
@@ -1967,7 +1967,7 @@ def _judgement(name: str) -> SemanticJudgement:
 
 
 # ....................... #
-# Node identity on the surfaces a person and a script read (RFC 0062 P3, §5.4)
+# Node identity on the surfaces a person and a script read (S-0067/phasing (P-3), S-0067/display)
 
 
 def _adopted(tmp_path: Path, *, metric: str = "gross_revenue", mint: str = "mtr_7f3a9c") -> str:
@@ -2036,7 +2036,7 @@ def test_lineage_json_carries_the_labels(
 
 def test_the_lineage_payload_is_the_whole_walk() -> None:
     """The payload is built field by field, so a field added to `Lineage` would
-    be dropped from `--format json` silently — RFC 0020 D4's exact failure,
+    be dropped from `--format json` silently — S-0037/D-4's exact failure,
     since the promise is that the CLI is not a lossier surface.
 
     Held against the dataclass rather than against a list written beside it.
@@ -2101,7 +2101,7 @@ def test_plan_prints_what_cited_a_renamed_node(
 
 
 # ....................... #
-# timeline (RFC 0069 P3)
+# timeline (S-0074/phasing (P-3))
 
 
 EVOLUTION = [str(FIXTURES / f"evolution_v{step}") for step in range(1, 6)]
@@ -2306,7 +2306,7 @@ def test_rendering_a_timeline_of_absences_says_so() -> None:
 
 def test_timeline_reports_boundaries_in_version_order_not_node_order() -> None:
     """The value's ordering is version order first, node within a boundary
-    (RFC 0069 §5.1), and the rendering must not re-sort it.
+    (S-0074/the-value), and the rendering must not re-sort it.
 
     Pinned because sorting every change by node reads as tidier and passes a
     test that only asks which nodes appear: v3's two changes bracket v1's when
@@ -2372,11 +2372,11 @@ def test_timeline_reads_one_catalog_for_every_version(
 
 def test_timeline_json_is_the_whole_value(capsys: pytest.CaptureFixture[str]) -> None:
     """The JSON is the value the Python call returns, converted the same way —
-    not a payload assembled beside it (RFC 0020 D4).
+    not a payload assembled beside it (S-0037/D-4).
 
     Held against `Timeline`'s own fields so that a field added there and not
     emitted fails here rather than being dropped silently, and against the
-    `facets` a change carries, which is the half a UI reads (RFC 0069 D14).
+    `facets` a change carries, which is the half a UI reads (S-0074/D-14).
     """
     payload = _json(
         capsys, "timeline", *EVOLUTION, "--node", "metric.gross_revenue", "--format", "json"
@@ -2403,7 +2403,7 @@ def _load_version(directory: str) -> tuple[bloomery.Project, bloomery.Catalog | 
 
 
 def test_the_timeline_renders_what_a_change_reaches() -> None:
-    """RFC 0064 §5.3's sinks reach the human output.
+    """S-0069/the-command-surface's sinks reach the human output.
 
     Below the facets, not above: a reader's first question is what moved and
     the second is who it reaches, and a sink list printed first buries the
@@ -2472,7 +2472,7 @@ def test_a_reached_node_id_carrying_a_newline_stays_on_one_line() -> None:
 
 
 # ....................... #
-# `bloomery import` (RFC 0070 §5.5) — the one command that produces specs
+# `bloomery import` (S-0075/the-command) — the one command that produces specs
 
 
 def _manifest_file(tmp_path: Path, models: list[dict[str, object]]) -> str:
@@ -2600,7 +2600,7 @@ def test_import_prints_nothing_when_the_project_already_says_it_all(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     """Not a refusal: two statements that agree are not a contradiction
-    (RFC 0044 D4), and there is genuinely nothing to paste."""
+    (S-0057/D-4), and there is genuinely nothing to paste."""
 
     artifact = _manifest_file(
         tmp_path,
@@ -2631,7 +2631,7 @@ def test_import_prints_nothing_when_the_project_already_says_it_all(
 def test_import_refuses_a_format_it_has_no_importer_for(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    """`dbt` is the spelling a reader will try first, and RFC 0070 row 2 is why
+    """`dbt` is the spelling a reader will try first, and S-0075 row 2 is why
     it is not here: a `relationships` test states referential integrity and
     never cardinality. argparse refuses it by exit code rather than this
     command discovering it later."""

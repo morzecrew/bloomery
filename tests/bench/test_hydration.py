@@ -1,4 +1,4 @@
-"""Hydration budgets (RFC 0014 §5.5/§6, RFC 0009 §5.9 — one of the bench
+"""Hydration budgets (S-0031/budgets, S-0031/tests, S-0026/benchmark-lane-tests-bench — one of the bench
 lane's two asserted entries, beside
 :mod:`tests.bench.test_compile_scale`): **50 ms cold** (bytes →
 ``parse_raw`` + lookup) and
@@ -10,7 +10,7 @@ models) is recorded as info — it keeps V3's roughly-linear extrapolation
 honest as tenants grow, without asserting on it.
 
 Marked ``perf``: excluded from ``just test``. It now genuinely **runs** in two
-places (RFC 0025 D13) — informational on the nightly CI lane, and blocking on a
+places (S-0042/D-13) — informational on the nightly CI lane, and blocking on a
 release-candidate job in ``release.yaml``. That sentence used to say "run in
 the scheduled lane" while no workflow ran the ``perf`` marker at all: the only
 mention of it in CI was the expression excluding it, so these assertions had
@@ -59,7 +59,7 @@ pytestmark = pytest.mark.perf
 
 NAMING = DefaultNaming()
 RUNS = 25
-CI_MULTIPLIER = 3  # documented relaxed multiplier (RFC 0014 §6)
+CI_MULTIPLIER = 3  # documented relaxed multiplier (S-0031/tests)
 COLD_BUDGET_MS = 50 * CI_MULTIPLIER
 WARM_BUDGET_MS = 10 * CI_MULTIPLIER
 
@@ -100,7 +100,7 @@ def _model(index: int) -> tuple[EntityIR, MartIR, list[MetricIR]]:
         columns=tuple(columns),
         # `columns=` is left empty deliberately: `build_manifest_bytes` reads no
         # part of `sources`, so populating it produces byte-identical payload
-        # and would be fixture the measurement cannot see (RFC 0024 D26 moved
+        # and would be fixture the measurement cannot see (S-0041/D-26 moved
         # the lowered expression here, out of `ColumnIR`).
         sources=(SourceIR(relation=f"src__{entity_name}"),),
     )
@@ -154,7 +154,7 @@ def _model(index: int) -> tuple[EntityIR, MartIR, list[MetricIR]]:
 
 def synthetic_ir(n_models: int) -> ProjectIR:
     """A reference tenant built from real IR nodes, emitted by the real
-    emitter (RFC 0009 §5.9): ``n_models`` marts × 3 measures × 6 dims."""
+    emitter (S-0026/benchmark-lane-tests-bench): ``n_models`` marts × 3 measures × 6 dims."""
     entities: list[EntityIR] = []
     marts: list[MartIR] = []
     metrics: list[MetricIR] = []
@@ -214,7 +214,7 @@ def test_warm_lru_hit_stays_inside_the_budget(
 def test_triple_size_point_is_recorded_as_info(
     record_property: Callable[[str, object], None],
 ) -> None:
-    """The 3× model-size point (RFC 0014 §5.5/§6): recorded, not asserted —
+    """The 3× model-size point (S-0031/budgets, S-0031/tests): recorded, not asserted —
     it keeps the roughly-linear extrapolation V3 measured honest."""
     ir = synthetic_ir(90)
     payload = build_manifest_bytes(ir, naming=NAMING)

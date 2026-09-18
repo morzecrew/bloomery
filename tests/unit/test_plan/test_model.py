@@ -1,4 +1,4 @@
-"""The plan-stage value objects (RFC 0007 §5.1)."""
+"""The plan-stage value objects (S-0024/public-shape)."""
 
 from __future__ import annotations
 

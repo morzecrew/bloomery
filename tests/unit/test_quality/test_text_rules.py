@@ -253,7 +253,7 @@ class NoNormalizeDialect(SQLGlotDialect):
     "Every respect" has to include the obligations a real port carries, or the
     double stops standing in for one: it strips the ISO-text marker exactly as
     DuckDB does, because a port that skips that is refused by the base renderer
-    before it can reach the refusal this class exists to exercise (RFC 0027).
+    before it can reach the refusal this class exists to exercise (S-0044).
     """
 
     name: str = "nonormalize"
@@ -265,7 +265,7 @@ class NoNormalizeDialect(SQLGlotDialect):
 
 
 def test_a_dialect_without_normalization_refuses_the_rule_rather_than_emitting_it() -> None:
-    """RFC 0008 D3: fail loud, never approximate. There is no weaker reading of
+    """S-0025/D-3: fail loud, never approximate. There is no weaker reading of
     ``normalize`` to fall back to — the comparison against a normal form is the
     entire rule — and SQLGlot emits ``NORMALIZE(...)`` for any generator, so an
     unrefused rule would render cleanly and fail at run time on a function the

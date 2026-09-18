@@ -1,10 +1,10 @@
-# The smoke floor for every tier (RFC 0009): one entity, one mapping, direct fields.
+# The smoke floor for every tier (S-0026): one entity, one mapping, direct fields.
 spec_version: 1
 entities:
   event:
     grain: one row per event
     key: [event_id]
-    # RFC 0055 §5.3. Here rather than on `ecom_basic` because Cube refuses a
+    # S-0062/owner (§5.3.) Here rather than on `ecom_basic` because Cube refuses a
     # granted project (D5) and `ecom_basic` has a Cube golden; `minimal` is in
     # the dbt-parse tier, which is the only thing that can say whether dbt
     # accepts the emitted `config: grants:` block.

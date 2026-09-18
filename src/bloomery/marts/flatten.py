@@ -1,5 +1,5 @@
 """Mart flattening: ``lower_marts(mart_set, draft) -> MartLowering``
-(RFC 0010 §5.4–§5.5, D6).
+(S-0027/martir–S-0027/validation-compile-errors-batched-with-guardrails, S-0027/D-6).
 
 Pure: spec in, wide schema out — every consumer sees the *resolved* column
 set, never the flatten recipe. Each mart resolves against the draft IR's
@@ -8,23 +8,23 @@ grain; ``via:`` steps flatten declared ``many_to_one``/``one_to_one``
 relationships transitively in authored order under mandatory prefixes;
 ``date:`` steps expand a base-entity date/timestamp column into
 ``<role>_<bucket>`` columns for exactly ``{day, week, month, quarter, year}``
-(RFC 0010 D4). Every flattened column becomes a requestable
-:class:`~bloomery.ir.MartDimensionIR` (RFC 0010 §10), and every column traces
+(S-0027/D-4). Every flattened column becomes a requestable
+:class:`~bloomery.ir.MartDimensionIR` (S-0027 (§10)), and every column traces
 to exactly one source entity column.
 
 Validation is total — this module never raises. Violations are collected as
 :class:`~bloomery.errors.GuardrailError` leaves: :class:`GrainViolation`
 (mart grain must equal the base grain, and measure grain must strictly equal
-mart grain — RFC 0010 D2), :class:`FanoutRisk` (a ``via:`` step that is not
+mart grain — S-0027/D-2), :class:`FanoutRisk` (a ``via:`` step that is not
 a declared, transitively reachable ``many_to_one``/``one_to_one``
-relationship — RFC 0010 D3), :class:`HistoricalFanout` (a ``via:`` step onto an
+relationship — S-0027/D-3), :class:`HistoricalFanout` (a ``via:`` step onto an
 ``scd: type2`` entity without an ``as_of:`` anchor, an anchor declared on an
 entity that is not historical or naming a base column that is not temporal,
-or a ``base:`` of a ``type2`` entity — RFC 0023 D1/D2, §5.3),
+or a ``base:`` of a ``type2`` entity — S-0040/D-1, S-0040/D-2, S-0040/phase-2-the-as-of-join),
 :class:`MartMissingTimeDimension` (a
-measure-carrying mart without a date role — RFC 0010 D9), and untyped
+measure-carrying mart without a date role — S-0027/D-9), and untyped
 :class:`GuardrailError` leaves for collisions and unresolvable names. The
-guardrail stage (RFC 0006 §5.1) batches them into its single aggregate; a
+guardrail stage (S-0023/stage-shape) batches them into its single aggregate; a
 mart with any violation contributes no :class:`~bloomery.ir.MartIR`.
 """
 
@@ -84,12 +84,12 @@ __all__ = [
     "lower_marts",
 ]
 
-#: The bucket set a date role expands into — exactly the RFC 0011 ``TimeGrain``
-#: set minus ``hour``, which is deliberately not expanded (RFC 0010 D4).
+#: The bucket set a date role expands into — exactly the S-0028 ``TimeGrain``
+#: set minus ``hour``, which is deliberately not expanded (S-0027/D-4).
 DATE_BUCKETS = ("day", "week", "month", "quarter", "year")
 
 #: The quality dimension every mart over a quality-carrying entity flattens in
-#: (RFC 0016 §5.5, D9 — the RFC 0010 amendment). It is an **ordinary
+#: (S-0033/schema-additions-and-the-array-capability, S-0033/D-9 — the S-0027 amendment). It is an **ordinary
 #: dimension**, which is the whole point: "revenue excluding flagged rows"
 #: becomes a plain ``MetricRequest`` filter, not a new planner concept. It is
 #: *derived* from the base entity's generated ``_quality_ok`` per the D23
@@ -158,7 +158,7 @@ def _grain_prose(entity_name: str, entities: dict[str, EntityIR]) -> str:
 
 #: What a `type2` entity's author is told to do instead. The two sides of the
 #: refusal used to share one line, because there was one shipped answer; the
-#: as-of join (RFC 0023 §5.3) gave the *flatten* side a better one and left the
+#: as-of join (S-0040/phase-2-the-as-of-join) gave the *flatten* side a better one and left the
 #: base side where it was, so they are now two.
 #:
 #: A join can be qualified by an anchor. A base cannot: there is nothing to
@@ -184,13 +184,13 @@ def _historical_leaf(
     base: EntityIR,
     step_path: str,
 ) -> list[GuardrailError]:
-    """The leaves for the historical/anchor pairing on this step (RFC 0023
+    """The leaves for the historical/anchor pairing on this step (S-0040
     D1, §5.3), or ``[]``.
 
     Which state the pairing is in is **not decided here** — it is
     :func:`~bloomery.semantic.qualify_as_of`, shared with the grain model that
     admits a dependency across a historical relationship only when the same
-    call comes back qualified (RFC 0037 D4). Two readings of SCD2 validity in
+    call comes back qualified (S-0017/D-4). Two readings of SCD2 validity in
     one compiler is the divergence that row exists to prevent. What stays here
     is the wording: a mart author is told which spec line to change, which is
     not what a rollup proof needs from the same fact.
@@ -223,7 +223,7 @@ def _historical_leaf(
                 f"predicate, so it matches every version of each {rel.to_entity!r} key "
                 "and each base row is multiplied by that key's version count. The "
                 "declared cardinality is a claim about the domain; the relation holds "
-                f"one row per version (RFC 0023 D1). {_HISTORICAL_FLATTEN_FIX}"
+                f"one row per version (S-0040/D-1). {_HISTORICAL_FLATTEN_FIX}"
             )
 
         case AsOfState.ANCHOR_ON_CURRENT:
@@ -234,19 +234,19 @@ def _historical_leaf(
                 f"flatten step declares as_of: {step.as_of!r}, but {rel.to_entity!r} is not "
                 "scd: type2 — it holds one row per key, so there is no version to read the "
                 "join as of, and the validity columns the anchor joins against do not exist "
-                "on it (RFC 0023 §5.3). Fix: drop the as_of, or declare the entity scd: type2"
+                "on it (S-0040/phase-2-the-as-of-join). Fix: drop the as_of, or declare the entity scd: type2"
             )
 
         case AsOfState.ANCHOR_UNKNOWN:
             # The anchor is read from the base row rather than from anywhere in
             # the mart, because that is where a fact's own date lives —
-            # including in the two-hop shape RFC 0023 §5.3 calls the common
+            # including in the two-hop shape S-0040/phase-2-the-as-of-join calls the common
             # case, where only the foreign key arrives through another flatten.
             known = sorted(c.name for c in base.columns)
             msg = (
                 f"flatten step declares as_of: {step.as_of!r}, which names no column of the "
                 f"mart's base entity {base.name!r}; known: {known}. The anchor is the fact's "
-                "own date, so it is read from the base row (RFC 0023 §5.3). Fix: name a date "
+                "own date, so it is read from the base row (S-0040/phase-2-the-as-of-join). Fix: name a date "
                 "or timestamp column of the base"
             )
 
@@ -268,7 +268,7 @@ def _historical_leaf(
                 f"flatten step declares as_of: {step.as_of!r}, which is "
                 f"{_type_name(column.type)} on {base.name!r} — an anchor is compared against "
                 f"{rel.to_entity!r}'s validity interval, and only a date or timestamp orders "
-                "against one (RFC 0023 §5.3). Fix: name a date or timestamp column of the "
+                "against one (S-0040/phase-2-the-as-of-join). Fix: name a date or timestamp column of the "
                 "base"
             )
 
@@ -309,7 +309,7 @@ def _flatten_via(
     if rel.cardinality is Cardinality.ONE_TO_MANY:
         msg = (
             f"relationship {rel.name!r} is one_to_many: flattening it multiplies the "
-            f"mart's own rows once per {rel.to_entity!r} row (RFC 0006 §5.3). Fix: "
+            f"mart's own rows once per {rel.to_entity!r} row (S-0023/grain-the-fan-out-guard). Fix: "
             "flatten only many_to_one/one_to_one relationships, or model a mart at "
             f"the grain of {rel.to_entity!r}"
         )
@@ -319,7 +319,7 @@ def _flatten_via(
         msg = (
             f"relationship {rel.name!r} joins from entity {rel.from_entity!r}, which is "
             "neither the base nor a previously flattened entity — chains flatten "
-            "transitively in authored order (RFC 0010 D3). Fix: flatten a relationship "
+            "transitively in authored order (S-0027/D-3). Fix: flatten a relationship "
             f"reaching {rel.from_entity!r} first"
         )
         return [*historical, FanoutRisk(msg, source_path=step_path)]
@@ -356,7 +356,7 @@ def _flatten_via(
                 f"flattened column {flattened!r} (column {column.name!r} of entity "
                 f"{rel.to_entity!r}) collides with the column already flattened from "
                 f"entity {existing.source_entity!r} — collisions are errors, never "
-                "auto-renamed (RFC 0010 D3). Fix: change the prefix"
+                "auto-renamed (S-0027/D-3). Fix: change the prefix"
             )
             violations.append(GuardrailError(msg, source_path=f"{path}.flatten[{index}].prefix"))
             continue
@@ -389,7 +389,7 @@ def _flatten_date(
     if step.role in state.roles:
         msg = (
             f"date role {step.role!r} is declared more than once — a mart may declare "
-            "the same role at most once (RFC 0010 §5.2). Fix: rename one of the roles"
+            "the same role at most once (S-0027/date-roles). Fix: rename one of the roles"
         )
         return [GuardrailError(msg, source_path=role_path)]
 
@@ -409,7 +409,7 @@ def _flatten_date(
         msg = (
             f"date role source column {step.date!r} has type "
             f"{_type_name(source.type)!r}; a role-playing time dimension requires a "
-            "date or timestamp column (RFC 0010 §5.2)"
+            "date or timestamp column (S-0027/date-roles)"
         )
         return [GuardrailError(msg, source_path=date_path)]
 
@@ -422,13 +422,13 @@ def _flatten_date(
             msg = (
                 f"date-role column {name!r} collides with the column already flattened "
                 f"from entity {existing.source_entity!r} — collisions are errors, never "
-                "auto-renamed (RFC 0010 D3). Fix: rename the role"
+                "auto-renamed (S-0027/D-3). Fix: rename the role"
             )
             violations.append(GuardrailError(msg, source_path=role_path))
             continue
         state.columns[name] = MartColumnIR(
             name=name,
-            type=DateType(),  # buckets are calendar dates; emitters cast (RFC 0010 D4)
+            type=DateType(),  # buckets are calendar dates; emitters cast (S-0027/D-4)
             source_entity=base.name,
             source_column=step.date,
             ref=DimensionRef(dimension=bucket, role=step.role),
@@ -442,7 +442,7 @@ def _flatten_date(
 
 def _flatten_quality(base: EntityIR, path: str, state: _Flatten) -> list[GuardrailError]:
     """Flatten ``has_quality_flags`` when the base entity carries rules
-    (RFC 0016 §5.5 — the RFC 0010 amendment).
+    (S-0033/schema-additions-and-the-array-capability — the S-0027 amendment).
 
     Only the **base** contributes it: a mart is a fact table at exactly its
     base grain, so "was this row suspect" is a statement about the base row.
@@ -462,13 +462,13 @@ def _flatten_quality(base: EntityIR, path: str, state: _Flatten) -> list[Guardra
     written by the generated wrapper, which projects exactly the manifest's
     declared columns, so there is no ``_quality_flags`` to reduce and no
     ``_quality_ok`` to negate; and a ``fail`` rule stops the run rather than
-    marking a row (RFC 0017 §5.8), so nothing survives to be flagged in the
+    marking a row (S-0034/emission-and-the-dag), so nothing survives to be flagged in the
     first place. Flattening the dimension anyway emitted
     ``NOT customer._quality_ok`` against a relation with no such column: a mart
     that compiled clean, passed every golden, and failed on its first run with
     a binder error naming a generated column the author never wrote. A
     ``sql_model`` output carrying an ``on_fail: flag`` rule *does* have them
-    (RFC 0051 §5.3), and gets the dimension like any other base.
+    (S-0059/onfail-flag-on-a-tier-2-output), and gets the dimension like any other base.
     """
 
     if not base.quality or not carries_quality_flags(base):
@@ -479,9 +479,9 @@ def _flatten_quality(base: EntityIR, path: str, state: _Flatten) -> list[Guardra
     if existing is not None:
         msg = (
             f"base entity {base.name!r} declares quality rules, so the mart flattens in the "
-            f"reserved dimension {HAS_QUALITY_FLAGS!r} (RFC 0016 §5.5) — but the base already "
+            f"reserved dimension {HAS_QUALITY_FLAGS!r} (S-0033/schema-additions-and-the-array-capability) — but the base already "
             f"has a column of that name. Collisions are errors, never auto-renamed "
-            f"(RFC 0010 D3). Fix: rename the entity field"
+            f"(S-0027/D-3). Fix: rename the entity field"
         )
         return [GuardrailError(msg, source_path=f"{path}.base")]
 
@@ -506,7 +506,7 @@ def _check_measures(
     draft: ProjectIR,
     entities: dict[str, EntityIR],
 ) -> list[GuardrailError]:
-    """RFC 0010 §5.5 rules 1 and 5: measures are reachable metrics whose
+    """S-0027/validation-compile-errors-batched-with-guardrails rules 1 and 5: measures are reachable metrics whose
     grain strictly equals the mart grain."""
     metrics = {m.name: m for m in draft.metrics}
     unreachable = {u.name: u for u in draft.unreachable}
@@ -520,7 +520,7 @@ def _check_measures(
                 missing = list(unreachable[measure].missing)
                 msg = (
                     f"measure {measure!r} is an unreachable metric — its leaves "
-                    f"{missing} have no mapped derivation path (RFC 0005 §5.3), so the "
+                    f"{missing} have no mapped derivation path (S-0022/availability-and-reachability-bloomery-resolve-reach-py), so the "
                     "mart cannot serve it. Fix: map the missing leaves, or remove the "
                     "measure"
                 )
@@ -533,7 +533,7 @@ def _check_measures(
                 f"measure {measure!r} has grain {metric.grain!r} "
                 f"({_grain_prose(metric.grain, entities)}), not the mart's grain "
                 f"{mart.grain!r} ({_grain_prose(mart.grain, entities)}) — measure grain "
-                "must strictly equal mart grain (RFC 0010 D2). Flattened into the mart "
+                "must strictly equal mart grain (S-0027/D-2). Flattened into the mart "
                 f"it is duplicated once per {mart.grain!r} row and any SUM over it "
                 "overstates. Fix: remove it from this mart's measures, or serve it "
                 f"from a mart at grain {metric.grain!r}"
@@ -553,7 +553,7 @@ def _check_measures(
 
 
 def _check_asserts(mart: Mart, path: str, state: _Flatten) -> list[GuardrailError]:
-    """Every assertion names columns of the **flattened** mart (RFC 0016 D89).
+    """Every assertion names columns of the **flattened** mart (S-0033/D-89).
 
     Checked against ``state.columns`` rather than the base entity's, because
     that is the schema the audit runs over: a ``by:`` naming a bucket column a
@@ -563,7 +563,7 @@ def _check_asserts(mart: Mart, path: str, state: _Flatten) -> list[GuardrailErro
 
     Names are checked here rather than at parse for the reason every other
     resolution check is: the mart's column set does not exist until the
-    flatten steps have run (RFC 0002 D4).
+    flatten steps have run (S-0019/D-4).
     """
     violations: list[GuardrailError] = []
     seen: set[str] = set()
@@ -593,7 +593,7 @@ def _check_asserts(mart: Mart, path: str, state: _Flatten) -> list[GuardrailErro
 
 
 def _materialization(mart: Mart) -> Materialization:
-    """RFC 0002 D7, applied to marts as to entities (RFC 0010 §4): explicit
+    """S-0019/D-7, applied to marts as to entities (S-0027/goals): explicit
     wins; else partitioned marts default to incremental-by-partition."""
 
     if mart.materialization is not None:
@@ -610,7 +610,7 @@ def _materialization(mart: Mart) -> Materialization:
 
 def _mart_ir(name: str, mart: Mart, state: _Flatten) -> MartIR:
     columns = tuple(sorted(state.columns.values(), key=lambda c: c.name))
-    # Every flattened column is a requestable dimension (RFC 0010 §10). A
+    # Every flattened column is a requestable dimension (S-0027 (§10)). A
     # bucket column's ref.qualified equals its column name, so sorting by
     # column name is sorting by qualified name.
     dimensions = tuple(
@@ -641,10 +641,10 @@ def _mart_ir(name: str, mart: Mart, state: _Flatten) -> MartIR:
 
 
 def _mart_asserts(mart: Mart) -> tuple[MartAssertIR, ...]:
-    """The mart's aggregate assertions, sorted by name (RFC 0016 D89).
+    """The mart's aggregate assertions, sorted by name (S-0033/D-89).
 
     Bounds ride in ``params`` as text, the carrier every other bounded rule in
-    this compiler uses (RFC 0016 D57): a ``range`` bound and a mart assertion's
+    this compiler uses (S-0033/D-57): a ``range`` bound and a mart assertion's
     bound are the same kind of value, and a second representation for it is how
     the two come to disagree about ``1e3``.
     """
@@ -679,7 +679,7 @@ def _mart_asserts(mart: Mart) -> tuple[MartAssertIR, ...]:
 def _reject_base(mart: Mart) -> str | None:
     """The message refusing a mart based on a reject table, or ``None``.
 
-    RFC 0016 D15: a mart's ``base`` must be a **silver entity**, never a
+    S-0033/D-15: a mart's ``base`` must be a **silver entity**, never a
     ``<entity>__reject`` table. Reject tables hold raw source payloads under
     their own retention and are deliberately *not* an analytic surface (§7.4:
     they are never exposed through ``MetricRequest``) — a mart over one would
@@ -696,7 +696,7 @@ def _reject_base(mart: Mart) -> str | None:
     entity = mart.base.removesuffix(REJECT_SUFFIX)
     return (
         f"mart base names the reject table {mart.base!r}: a mart's base must be a silver "
-        f"entity, never a quarantine surface (RFC 0016 §5.5, D15). Reject rows hold raw "
+        f"entity, never a quarantine surface (S-0033/schema-additions-and-the-array-capability, S-0033/D-15). Reject rows hold raw "
         "source payloads under their own retention and are deliberately not queryable "
         f"through the semantic layer (§7.4). Fix: base the mart on {entity!r}, and read "
         "quarantine volume from the gold.mart_data_quality mart (§5.8)"
@@ -728,7 +728,7 @@ def _lower_mart(
     violations: list[GuardrailError] = []
 
     if base.scd is SCDKind.TYPE2:
-        # RFC 0023 D2. Nothing is multiplied here — there is no join — but the
+        # S-0040/D-2. Nothing is multiplied here — there is no join — but the
         # mart declares one row per entity while the relation holds one per
         # entity per version, so every measure over it counts revisions rather
         # than entities. That is the same grain lie ``GrainViolation`` refuses
@@ -737,7 +737,7 @@ def _lower_mart(
             f"mart base names entity {mart.base!r}, which is declared scd: type2 — the "
             f"relation holds one row per {mart.base!r} version, while the mart's grain "
             f"({mart.grain!r}) claims one row per {mart.base!r}. Every measure over it "
-            f"counts revisions (RFC 0023 D2). {_HISTORICAL_BASE_FIX}"
+            f"counts revisions (S-0040/D-2). {_HISTORICAL_BASE_FIX}"
         )
         violations.append(HistoricalFanout(msg, source_path=f"{path}.base"))
 
@@ -745,7 +745,7 @@ def _lower_mart(
         msg = (
             f"mart grain {mart.grain!r} does not equal its base entity {mart.base!r} "
             f"(grain: {base.grain}) — a mart is a fact table at exactly its base grain "
-            f"(RFC 0010 D2). Fix: declare grain: {mart.base}, or rebase the mart"
+            f"(S-0027/D-2). Fix: declare grain: {mart.base}, or rebase the mart"
         )
         violations.append(GrainViolation(msg, source_path=f"{path}.grain"))
 
@@ -778,7 +778,7 @@ def _lower_mart(
         msg = (
             f"mart carries measures {sorted(mart.measures)} but declares no date role — "
             "MetricFlow requires agg_time_dimension on every measure and fails obscurely "
-            "without one (RFC 0010 D9). Fix: add a date role flatten step, e.g. "
+            "without one (S-0027/D-9). Fix: add a date role flatten step, e.g. "
             "{date: <date/timestamp column>, role: <role>}"
         )
         violations.append(MartMissingTimeDimension(msg, source_path=path))
@@ -793,13 +793,13 @@ def _lower_mart(
 
 
 def lower_marts(mart_set: MartSet | None, draft: ProjectIR) -> MartLowering:
-    """Resolve every authored mart against the draft IR (RFC 0010 D6).
+    """Resolve every authored mart against the draft IR (S-0027/D-6).
 
     Total — never raises: the cleanly lowered marts come back sorted by name,
     and every violation across all marts comes back as guardrail leaves for
-    the stage's single aggregate (RFC 0006 §5.1). A mart with any violation
+    the stage's single aggregate (S-0023/stage-shape). A mart with any violation
     contributes no :class:`MartIR`; a project without a marts document lowers
-    to the empty tuple (RFC 0010 D7).
+    to the empty tuple (S-0027/D-7).
     """
 
     if mart_set is None:

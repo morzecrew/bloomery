@@ -1,4 +1,4 @@
-"""The authored side of a downstream consumer (RFC 0056 §5.1).
+"""The authored side of a downstream consumer (S-0063/the-document).
 
 An exposure is a leaf the spec declares: something outside the project that
 reads what the project builds — a dashboard, a notebook, a reverse-ETL sync. It
@@ -6,7 +6,7 @@ names itself, its kind, its owner and the metrics and marts it depends on, and
 that is the whole document. Nothing here is discovered and nothing here is
 fetched (D1, D6): an exposure is a *claim* about the world, made by the author,
 and a compiler that read a BI tool to check it would need a network and
-credentials that RFC 0003 forbids it.
+credentials that S-0020 forbids it.
 
 ``kind`` is dbt's vocabulary rather than one invented here (D3). It is the only
 one of these words with a consumer, so a bloomery-specific set would have to be
@@ -90,7 +90,7 @@ class ExposureDependsOn(SpecModel):
 
 
 class Exposure(SpecModel):
-    """One declared consumer (RFC 0056 §5.1)."""
+    """One declared consumer (S-0063/the-document)."""
 
     kind: ExposureKind
     #: Who to tell when a change reaches this. A scalar here and an object in
@@ -102,7 +102,7 @@ class Exposure(SpecModel):
     url: str | None = None
     depends_on: ExposureDependsOn
     #: The weakest evidence this consumer accepts under everything it reads
-    #: (RFC 0065 §5.2). The same key a mart carries, on the kind RFC 0065 §10
+    #: (S-0070/the-annotation). The same key a mart carries, on the kind S-0070 (§10)
     #: calls the truest owner of it: strictness belongs to the consumer, and
     #: the consumer is often not the mart.
     #:
@@ -139,7 +139,7 @@ class Exposure(SpecModel):
             msg = (
                 "an exposure must depend on at least one metric or mart — one that depends "
                 "on nothing answers neither 'what does this read' nor 'who does this change "
-                "reach', and reports clean while doing it (RFC 0056 §4). Fix: name what it "
+                "reach', and reports clean while doing it (S-0063/goals). Fix: name what it "
                 "reads under 'depends_on', or delete it"
             )
             raise ValueError(msg)
@@ -152,10 +152,10 @@ class Exposure(SpecModel):
 
 class ExposureSet(SpecModel):
     """The per-project exposures document (``exposures_version``), at most one
-    per project (RFC 0002 §5.5)."""
+    per project (S-0019/spec-model-surface)."""
 
     #: Pinned to the one version bloomery implements, like every other document
-    #: kind's (RFC 0018 D7): an unbounded ``int`` accepts a document written
+    #: kind's (S-0035/D-7): an unbounded ``int`` accepts a document written
     #: for a future bloomery and silently applies v1 semantics to it. Required,
     #: because this key is also the document-kind discriminator.
     exposures_version: Literal[1]

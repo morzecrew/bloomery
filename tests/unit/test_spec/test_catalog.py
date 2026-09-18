@@ -1,4 +1,4 @@
-"""The Catalog spec kind (RFC 0002 §5.5; original spec §3.2)."""
+"""The Catalog spec kind (S-0019/spec-model-surface; original spec §3.2)."""
 
 from __future__ import annotations
 
@@ -161,7 +161,7 @@ def test_date_dimension_rejects_non_day_grain() -> None:
 
 
 # ....................... #
-# fx_rates (RFC 0023 §5.4)
+# fx_rates (S-0040/phase-2-currency-as-a-declared-relation)
 
 FX = (
     "catalog_version: 1\nvertical: x\n"
@@ -185,7 +185,7 @@ def test_fx_rates_is_optional() -> None:
 
 
 def test_fx_rates_requires_both_interval_ends() -> None:
-    """RFC 0023 D11: one end is not an interval. Declaring only `valid_from`
+    """S-0040/D-11: one end is not an interval. Declaring only `valid_from`
     would let a payment match every rate at or before its date."""
     without_upper = FX.replace(", valid_to: valid_to", "")
     with pytest.raises(SpecParseError) as excinfo:
@@ -206,7 +206,7 @@ def test_fx_rates_refuses_one_column_in_two_roles() -> None:
 
 
 # ....................... #
-# RFC 0062 §9 — two canonical fields, one identity
+# S-0067/risks — two canonical fields, one identity
 
 
 _TWO_FIELDS = """

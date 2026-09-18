@@ -1,4 +1,4 @@
-"""Planner execution acceptance (RFC 0009 §5.10, RFC 0011 D12, RFC 0013 §6):
+"""Planner execution acceptance (S-0026/planner-test-obligations-rfcs-0011-0013, S-0028/D-12, S-0030/tests):
 run the SQL the MetricFlow planner renders against DuckDB marts built from
 the emitted SQLMesh artifacts, and hard-code the additivity ledger — these
 are the exact failure modes that make a BI product untrustworthy:
@@ -14,7 +14,7 @@ are the exact failure modes that make a BI product untrustworthy:
 
 Under the MetricFlow backend these assert *our mapping into MetricFlow* —
 a wrong ``window_choice`` or a measure emitted where a ratio metric belongs
-fails here (RFC 0011 D12)."""
+fails here (S-0028/D-12)."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ pytestmark = pytest.mark.execution
 PLANNER = make_planner()
 
 #: A fixed ingestion instant for the seed — the dedupe order needs one, and a
-#: clock in a test is a flaky test (RFC 0003's ban applies to the suite too).
+#: clock in a test is a flaky test (S-0020's ban applies to the suite too).
 INGESTED_AT = datetime(2024, 4, 1, tzinfo=UTC)
 
 
@@ -54,19 +54,19 @@ def run(
 
 
 # ....................... #
-# semi_additive_inventory — the amended (satisfiable) seed (RFC 0009 D20)
+# semi_additive_inventory — the amended (satisfiable) seed (S-0026/D-20)
 
 
 def _seed_inventory(conn: duckdb.DuckDBPyConnection) -> None:
     """The spike-v2 seed: A 100/80/90 over Jan 1–3, B 40 on Jan 3, plus
     Feb/Mar rows so by-month grouping yields three rows.
 
-    The fixture carries the RFC 0016 quality surface, so the bronze relation
+    The fixture carries the S-0033 quality surface, so the bronze relation
     also carries the ingestion-metadata contract (``_load_id``,
     ``_ingested_at``, ``_source_row_id`` — D21) and the operator note the
     ``quarantine.redact`` policy strips from ``raw``. Every row here is clean:
     the additivity ledger these tests assert is a *planner* property, and
-    quarantine behaviour is the dirty corpus's job (RFC 0009 §6)."""
+    quarantine behaviour is the dirty corpus's job (S-0026/tests)."""
     conn.execute(
         "CREATE TABLE bronze.wms__stock_levels ("
         "warehouse VARCHAR, day VARCHAR, on_hand BIGINT, operator_note VARCHAR, "
@@ -93,7 +93,7 @@ def _seed_inventory(conn: duckdb.DuckDBPyConnection) -> None:
     materialize(conn, compile_fixture("semi_additive_inventory"))
 
 
-# RFC 0015 D-Q1: the shipped `between` range is now a composed gte+lte pair.
+# S-0032/D-1: the shipped `between` range is now a composed gte+lte pair.
 JAN_1_TO_3 = (
     Predicate("snapshot_day", Op.GTE, ("2024-01-01",)),
     Predicate("snapshot_day", Op.LTE, ("2024-01-03",)),
@@ -140,7 +140,7 @@ def test_semi_additive_by_warehouse_on_jan_3(conn: duckdb.DuckDBPyConnection) ->
 
 
 def test_semi_additive_by_month_gives_three_rows(conn: duckdb.DuckDBPyConnection) -> None:
-    """The issue-#241 case (RFC 0013 §9, fixed at the pin): grouping BY the
+    """The issue-#241 case (S-0030/risks, fixed at the pin): grouping BY the
     non-additive dimension's coarser grain returns the full series — last
     value per month, then summed across warehouses."""
     _seed_inventory(conn)
@@ -184,7 +184,7 @@ def test_overall_aov_is_2727_27(conn: duckdb.DuckDBPyConnection) -> None:
     assert len(rows) == 1
     aov = quantized(rows[0][0])
     assert aov == Decimal("2727.27")
-    # The named wrong-number families (RFC 0009 §5.10): 6000 is the
+    # The named wrong-number families (S-0026/planner-test-obligations-rfcs-0011-0013): 6000 is the
     # average-of-averages, 12000/15000 the summed-ratio shapes.
     assert aov not in {Decimal(n) for n in (6000, 12000, 15000)}
 
@@ -231,7 +231,7 @@ def _seed_role_playing(conn: duckdb.DuckDBPyConnection) -> None:
 def test_ordered_vs_shipped_attribution_through_the_planner(
     conn: duckdb.DuckDBPyConnection,
 ) -> None:
-    """The role-playing acceptance through the planner (RFC 0011 D6): the
+    """The role-playing acceptance through the planner (S-0028/D-6): the
     same measure grouped by the two roles yields different splits — order
     attribution vs shipment attribution — and both are right (M5 numbers)."""
     _seed_role_playing(conn)

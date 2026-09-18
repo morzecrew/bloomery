@@ -1,4 +1,4 @@
-"""The chaos meta-test (RFC 0016 §6, §8.10) — a test **about the tests**.
+"""The chaos meta-test (S-0033/tests-rfc-0009-amendment, S-0033/out-of-scope (§8.10)) — a test **about the tests**.
 
     "Mutate the lowering (invert a comparison, drop a stage, swap a
     disposition); at least one test must fail per mutation, or the dirty
@@ -108,7 +108,7 @@ def test_at_least_one_test_fails_for_each_mutation(
     result = _run(mutation)
     assert result.returncode != 0, (
         f"MUTATION SURVIVED: {mutation!r} deformed the lowering and the whole M12 "
-        f"quality battery stayed green. Per RFC 0016 §6 that is a hole in the dirty "
+        f"quality battery stayed green. Per S-0033/tests-rfc-0009-amendment that is a hole in the dirty "
         f"corpus or in the suite — add the specimen or the assertion that would have "
         f"caught it (see tests/support/chaos.py for what the mutation does).\n"
         f"{result.stdout[-4000:]}"

@@ -1,13 +1,13 @@
-"""E2E tier (RFC 0009 §5.2 tier 6): SQLMesh reads the emitted project.
+"""E2E tier (S-0026/tier-contracts tier 6): SQLMesh reads the emitted project.
 
 The sibling of ``test_dbt_parse.py``, for the target that had no such test
-because it emitted nothing for one to read. RFC 0054 §3 measured two things by
+because it emitted nothing for one to read. S-0061/current-state-measured measured two things by
 hand; this module is those measurements turned into checks that run.
 
 **Everything here goes through a subprocess, and that is not incidental.**
 Importing ``sqlmesh`` extends SQLGlot *globally* — the reason
 ``reject_when_matched`` builds assignment nodes rather than an ``exp.Whens``
-(RFC 0016 D21) — so a test that imported it in-process would make the compiled
+(S-0033/D-21) — so a test that imported it in-process would make the compiled
 bytes of every other test in the session a function of collection order. dbt's
 tier can use ``dbtRunner`` in-process precisely because dbt does no such thing.
 
@@ -87,7 +87,7 @@ def test_sqlmesh_reads_the_emitted_project(tmp_path: pathlib.Path) -> None:
 
 
 def test_the_backfill_window_opens_at_the_catalogs_first_year(tmp_path: pathlib.Path) -> None:
-    """RFC 0054 D2's regression, and the reason the artifact carries a `start`.
+    """S-0061/D-2's regression, and the reason the artifact carries a `start`.
 
     Without one SQLMesh backfills every INCREMENTAL_BY_TIME_RANGE model over a
     **single day** and reports success — a plan that goes green having loaded

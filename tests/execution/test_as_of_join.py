@@ -1,4 +1,4 @@
-"""The as-of join, executed (RFC 0023 §5.3, RFC 0009 §5.2 tier 4).
+"""The as-of join, executed (S-0040/phase-2-the-as-of-join, S-0026/tier-contracts tier 4).
 
 The compile-time checks next door prove the predicate is *emitted*; this
 proves it is *right*, which is a different claim and the one the feature
@@ -18,12 +18,12 @@ this whole feature is about: it is not a crash, it is revenue filed under the
 wrong segment, and every row count stays plausible.
 
 The second assertion is the fan-out the refusal exists for, kept for the
-reason ``test_fanout_trap`` keeps its own (RFC 0006 D10): the same join
+reason ``test_fanout_trap`` keeps its own (S-0023/D-10): the same join
 *without* the validity predicate is run here, and it returns two rows per
 order and double the revenue. That is what an unanchored flatten emitted
-before RFC 0023 P1 refused it.
+before S-0040/phasing (P-1) refused it.
 
-All money is ``Decimal`` — floats never appear (RFC 0003 D5).
+All money is ``Decimal`` — floats never appear (S-0020/D-5).
 """
 
 from __future__ import annotations
@@ -115,7 +115,7 @@ def test_revenue_is_not_multiplied(warehouse: duckdb.DuckDBPyConnection) -> None
 def test_without_the_validity_predicate_the_same_join_doubles_c1(
     warehouse: duckdb.DuckDBPyConnection,
 ) -> None:
-    """Why the refusal exists, executed rather than argued (RFC 0006 D10).
+    """Why the refusal exists, executed rather than argued (S-0023/D-10).
 
     The emitted SQL is re-run with the two validity conditions stripped —
     which is exactly what an unanchored flatten produced — and `c1`'s orders

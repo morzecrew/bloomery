@@ -1,4 +1,4 @@
-"""Step artifacts (RFC 0017 §5.8, D8/D16).
+"""Step artifacts (S-0034/emission-and-the-dag, S-0034/D-8, S-0034/D-16).
 
 Three kinds, one per tier above the DSL:
 
@@ -10,7 +10,7 @@ Three kinds, one per tier above the DSL:
 - **``sql_model``** emits an ordinary model artifact from the registry body,
   which reached the IR canonicalized at lowering.
 - **``python_model``** emits a generated SQLMesh Python-model ``.py``
-  artifact — file-shaped text like every other artifact (RFC 0008 D2) —
+  artifact — file-shaped text like every other artifact (S-0025/D-2) —
   importing the manifest ``entrypoint`` at run time and wrapping it with the
   §5.4 contract assertion.
 
@@ -26,7 +26,7 @@ the RFC, not built here.
 Every wrapper asserts **all** declared outputs, not just the one it returns:
 a step that lies about one output should be caught wherever the run starts.
 
-**Targets** (RFC 0017 D52). Tier 1 is target-neutral by construction — it was
+**Targets** (S-0034/D-52). Tier 1 is target-neutral by construction — it was
 spliced at lowering, so it is already inside whichever model reads it. Tier 2
 is a SELECT and emits for SQLMesh *and* dbt, through :func:`step_output_body`, with
 each target wrapping it in its own envelope. Tier 3 is SQLMesh-only: dbt's
@@ -77,7 +77,7 @@ __all__ = [
 
 
 def refuse_python_models(ir: ProjectIR, target: str) -> None:
-    """Refuse a Tier 3 step on a target with nowhere to run it (RFC 0017 D52).
+    """Refuse a Tier 3 step on a target with nowhere to run it (S-0034/D-52).
 
     dbt *does* have Python models, which is why this is narrower than D31's
     blanket refusal — but only on Snowflake, BigQuery and Databricks, and
@@ -97,7 +97,7 @@ def refuse_python_models(ir: ProjectIR, target: str) -> None:
 
     msg = (
         f"project wires python_model step(s) {', '.join(refused)}, which the {target} "
-        "target cannot emit (RFC 0017 D52). dbt's Python models run on Snowflake, "
+        "target cannot emit (S-0034/D-52). dbt's Python models run on Snowflake, "
         "BigQuery and Databricks only, and none of bloomery's dialects is one of them, "
         "so the wrapper would have no adapter to execute it. Fix: compile these steps "
         "for SQLMesh, or express them at a lower tier"
@@ -113,14 +113,14 @@ def step_output_body(
 ) -> Expression:
     """One Tier 2 output's SELECT: the body with its parameters substituted,
     wrapped in the data-quality pipeline where the output carries an
-    ``on_fail: flag`` rule (RFC 0051 §5.3).
+    ``on_fail: flag`` rule (S-0059/onfail-flag-on-a-tier-2-output).
 
     Public, and taking the whole decision rather than a pre-computed flag,
     because the SELECT is target-neutral while the envelope around it is not:
     SQLMesh wraps it in ``MODEL (...)`` and dbt in a ``config()`` call, and
-    everything underneath must be the one thing both share (RFC 0008 D4).
+    everything underneath must be the one thing both share (S-0025/D-4).
 
-    Both targets reach the wrap. Only SQLMesh did until RFC 0052 — a ``flag``
+    Both targets reach the wrap. Only SQLMesh did until S-0060 — a ``flag``
     rule puts a quality mart in the project and dbt refused that mart — and the
     decision was kept above the envelope split anyway, on the reasoning that
     the day the refusal lifted would be the day a per-target copy of it was
@@ -158,7 +158,7 @@ def step_output_relation(output: StepOutputIR, ctx: EmitContext) -> tuple[str, s
 
 
 # The wrapper is Python, so the envelope interpolates *pre-rendered* strings
-# exactly as the SQL envelopes do (RFC 0008 D4) — the manifest arrives as a
+# exactly as the SQL envelopes do (S-0025/D-4) — the manifest arrives as a
 # JSON literal built by json.dumps, never as template-formatted values.
 _WRAPPER = jinja2.Template(
     '''\
@@ -166,9 +166,9 @@ _WRAPPER = jinja2.Template(
 # fingerprint: {{ fingerprint }}
 """SQLMesh Python model for step {{ ref }}@{{ version }}, output {{ output_name }}.
 
-bloomery emits this wrapper; it never executes the step (RFC 0003). The
+bloomery emits this wrapper; it never executes the step (S-0020). The
 contract assertion below is generated and non-optional by construction — see
-RFC 0017 §5.4.
+S-0034/the-four-tier-ladder (§5.4.)
 """
 
 from __future__ import annotations
@@ -314,7 +314,7 @@ def _columns_literal(output: StepOutputIR, ctx: EmitContext) -> str:
 
 
 #: How each declared parameter type is reconstructed in the wrapper. The IR
-#: holds values as text (canon bytes never meet a float, RFC 0003 D5), but a
+#: holds values as text (canon bytes never meet a float, S-0020/D-5), but a
 #: step body must be *called* with the real thing — a ``threshold`` declared
 #: ``decimal`` has to arrive as ``Decimal("0.9")``, not as the string
 #: ``"0.9"``, or every comparison inside the step is a type error waiting for
@@ -556,7 +556,7 @@ def _consistency_select(
     """Rows of ``child`` whose ``column`` has no match in ``parent``'s key —
     the audit passes when there are none.
 
-    NULL references are excluded, the same three-valued discipline RFC 0016
+    NULL references are excluded, the same three-valued discipline S-0033
     applies to ``referential``: a row with no reference is not an orphan, it
     is a row that says nothing, and failing a blocking audit on it would
     punish the ordinary case.
@@ -590,7 +590,7 @@ def _consistency_select(
 
 
 def _audit_name(child: StepOutputIR, column: str, parent: StepOutputIR) -> str:
-    """Namespaced under ``step_`` so it cannot collide with an RFC 0016
+    """Namespaced under ``step_`` so it cannot collide with an S-0033
     quality audit, whose names are ``<entity>_<rule>`` over author-chosen
     parts. Two audits at one path is the two-writers collision D28 refuses for
     relations, arrived at through the audit namespace."""
@@ -610,7 +610,7 @@ _OUTPUT_ALIAS = "_output"
 def _macro_relation(_output: StepOutputIR) -> str:
     """How SQLMesh spells "the relation this audit is attached to".
 
-    The default rather than the only answer (RFC 0026 D10): a target that
+    The default rather than the only answer (S-0043/D-10): a target that
     attaches an audit by *reference* instead of by macro passes its own
     resolver, and the body is built with that spelling from the start. dbt is
     such a target — ``{{ ref('…') }}`` is what makes a singular test order
@@ -627,7 +627,7 @@ def _macro_relation(_output: StepOutputIR) -> str:
 def _quality_audit_name(output: StepOutputIR, rule: QualityRuleIR) -> str:
     """``step_<output>_<rule>`` — under the same ``step_`` namespace the
     consistency audits use, so an authored rule name cannot collide with an
-    RFC 0016 audit (``<entity>_<rule>``) on a mapped entity of the same name.
+    S-0033 audit (``<entity>_<rule>``) on a mapped entity of the same name.
     """
 
     return f"step_{_relation_name(output)}_{rule.name}"
@@ -650,10 +650,10 @@ def quality_audits(
     relation and returns the rows that violate the rule, which is what a
     blocking audit is. A ``flag`` rule on a ``sql_model`` output is not an
     audit at all — it lowers into that model's own SELECT as the
-    ``_quality_flags`` projection (RFC 0051 §5.3) — and every other
+    ``_quality_flags`` projection (S-0059/onfail-flag-on-a-tier-2-output) — and every other
     combination is refused at lowering.
 
-    Deliberately *not* RFC 0016's two-leg :func:`fail_audits` shape. Both of
+    Deliberately *not* S-0033's two-leg :func:`fail_audits` shape. Both of
     that function's legs are unavailable here rather than merely unnecessary:
     there is no staged bronze extract to read the evaluated population from —
     the wrapper writes the rows in Python — and no ``_quality_flags`` column to
@@ -666,7 +666,7 @@ def quality_audits(
     is the doctrine ``lowering.py`` states and D44 had to relearn on the
     consistency audit: a policy-spelled relation resolves to a virtual-layer
     view rather than the plan\'s snapshot. ``self_relation`` is how a target
-    that spells it differently says so (RFC 0026 D10) — it is not an opening
+    that spells it differently says so (S-0043/D-10) — it is not an opening
     for the policy spelling, which no caller passes.
     """
     rules = {
@@ -678,7 +678,7 @@ def quality_audits(
         for rule in rules.get(_relation_name(output), ()):
             if rule.on_fail is not OnFail.FAIL:
                 # A `flag` rule lowers into the model's SELECT, not into an
-                # audit (RFC 0051 §5.3); lowering refuses every other value.
+                # audit (S-0059/onfail-flag-on-a-tier-2-output); lowering refuses every other value.
                 continue
             name = _quality_audit_name(output, rule)
             select = (
@@ -705,7 +705,7 @@ def quality_audits(
 
 
 def consistency_audits(step: StepIR, ctx: EmitContext) -> tuple[AuditBody, ...]:
-    """Blocking audits that sibling outputs of one step agree (RFC 0017 D16),
+    """Blocking audits that sibling outputs of one step agree (S-0034/D-16),
     each owned by the **child output** it must be attached to.
 
     D16 accepts a real residual risk: each output gets its own wrapper, so the
@@ -771,7 +771,7 @@ def step_artifacts(
     ``sql_macro`` contributes none — it lives inside a consuming model's
     SELECT (§5.1), which is the whole point of the tier.
 
-    **Both envelopes arrive from the caller** (RFC 0026 D10). The model one
+    **Both envelopes arrive from the caller** (S-0043/D-10). The model one
     always did; the audit one used to be a template *here*, which made this
     module target-neutral by position and SQLMesh-shaped by content — a
     producer in shared code handing back an ``AUDIT (name …);`` block no other

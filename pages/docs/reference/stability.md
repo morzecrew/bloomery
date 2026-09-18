@@ -125,7 +125,7 @@ silently. When a release adds a generated column, its name joins that reserved l
 project that had already used the name stops compiling.
 
 ```
-Value error, '_source' is a reserved name (RFC 0024 D7: the generated union-merge
+Value error, '_source' is a reserved name (S-0041/D-7: the generated union-merge
 provenance column); pick a different field/metric/dimension-role name
 ```
 

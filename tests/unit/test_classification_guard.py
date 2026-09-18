@@ -1,4 +1,4 @@
-"""What a sensitive column may not do (RFC 0055 D9–D11).
+"""What a sensitive column may not do (S-0062/D-9–S-0062/D-11).
 
 Classification composes with `grants`, not with `redact`. The superseded D4
 refused `pii` on any mapped field whose path was not redacted — and a mapped
@@ -177,7 +177,7 @@ def test_an_undeclared_audience_advises_rather_than_refuses(
 
     Refusing it would refuse every project managing its gold grants outside
     bloomery, so it is an advisory: legal spec, correct artifacts, and
-    something the author would want to know (RFC 0033 D7).
+    something the author would want to know (S-0004/D-7).
     """
     evidence = evaluate(
         load_project(sources(entity_grants=entity_grants, mart_grants=mart_grants)),
@@ -420,7 +420,7 @@ def test_disjoint_grant_sets_are_refused() -> None:
 
 
 def test_a_secret_column_is_refused_without_also_being_advised_about() -> None:
-    """RFC 0033 D7: an advisory standing where a refusal belongs is a defect.
+    """S-0004/D-7: an advisory standing where a refusal belongs is a defect.
 
     A `secret` column with no grants was collecting both `SecretPublished` and
     an `undeclared_audience` advisory whose text reads "This is legal and the

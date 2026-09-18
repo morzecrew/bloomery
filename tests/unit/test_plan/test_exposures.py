@@ -1,4 +1,4 @@
-"""``Plan.affected_exposures`` (RFC 0056 §5.4, D2a).
+"""``Plan.affected_exposures`` (S-0063/plan, S-0063/D-7).
 
 The report change that makes an exposure worth declaring: a breaking change
 already names its downstream metrics, and this puts names to the dashboards
@@ -43,7 +43,7 @@ def _project(**overrides: object) -> object:
 
 
 def test_an_unchanged_project_reaches_nobody() -> None:
-    """``plan(ir, ir)`` is the empty plan (RFC 0007 D2), and an empty plan that
+    """``plan(ir, ir)`` is the empty plan (S-0024/D-2), and an empty plan that
     named a consumer would be telling someone about nothing."""
 
     ir = _project()
@@ -175,7 +175,7 @@ def test_an_additive_mart_change_reaches_nobody() -> None:
 
 
 def test_the_names_come_back_sorted() -> None:
-    """Every plan collection is sorted (RFC 0007 D6), and this one is built by
+    """Every plan collection is sorted (S-0024/D-6), and this one is built by
     filtering ``ProjectIR.exposures``, which is sorted by name — so the
     assertion is that the filter preserved it rather than that a sort ran."""
 

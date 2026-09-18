@@ -1,4 +1,4 @@
-# What this project reads from another's published surface (RFC 0059 §5.1).
+# What this project reads from another's published surface (S-0002 (§5.1)).
 #
 # Nested one level deeper than every other fixture, and deliberately. A project
 # carrying this document cannot be compiled without an upstream IR passed

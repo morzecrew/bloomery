@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) bloomery emits `config.yaml`
+      with `model_defaults` and **never** a `gateways:` block. The dbt precedent is
+      not an analogy but the same rule: `dbt_project.yml` is emitted, `profiles.yml`
+      is not, because a connection carries hosts and credentials and the compiler
+      reads no environment. M2 measures that SQLMesh accepts the split.
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      `model_defaults.start` is emitted, derived from `date_dimension.start_year`.
+      Omitting it makes `sqlmesh plan` backfill every time-range model over a single
+      day and report success (M4) — an artifact bloomery wrote, producing a plausible-but-wrong
+      result. This row is the RFC.
+    paths: [tests/e2e/test_sqlmesh_project.py]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) `start` is **derived**, never
+      a new spec key. The catalog's date dimension already states the project's temporal
+      extent; a second declaration of one fact is two declarations that will disagree.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `disable_anonymized_analytics` is not emitted, either way. It is a choice about
+      the caller's telemetry rather than a fact about their project, and an artifact
+      that set it would be the compiler holding an opinion about something outside
+      the spec.
+  - id: D-5
+    grade: OPEN
+    text: >-
+      What to emit for a project with a partitioned entity and no catalog date dimension:
+      config with the key commented and the consequence named, no config at all, or
+      a refusal. §5.3 states all three and ranks none. The case is narrow — a partitioned
+      silver entity in a project with no marts — which is why it is delegated rather
+      than settled here.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `ArtifactKind.CONFIG`, path `config.yaml` at the artifact root. The kind's definition
+      already names the dbt files this is the sibling of.
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The goldens are regenerated in a commit of their own, separate from the emitter
+      change. Every SQLMesh fixture gains a path, and a mechanical diff of that size
+      is where a real change hides.

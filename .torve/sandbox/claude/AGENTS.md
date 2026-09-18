@@ -2,7 +2,7 @@
 
 ## Decisions governing `sandboxes/claude/`
 
-### S-0063/D-18 — `LOCKED` (The image knows how to equip itself)
+### The image knows how to equip itself (torve, document 63, decision 18, locked)
 
 The seats this repository dispatches to authenticate by variable name and mount no credential — the claude image takes `CLAUDE_CODE_OAUTH_TOKEN`, dsh takes `DEEPSEEK_API_KEY`. The auth-volume route stays for a harness that has no env form, and where one is used it is mounted read-write: a harness that cannot persist a refreshed token does not fail, it hangs.
 

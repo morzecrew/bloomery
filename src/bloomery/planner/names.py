@@ -1,4 +1,4 @@
-"""Name bridging (RFC 0013 §5.5, D7): the bidirectional mapping between
+"""Name bridging (S-0030/name-bridging, S-0030/D-7): the bidirectional mapping between
 bloomery's mart vocabulary and MetricFlow's dunder names, keyed on the
 semantic model's **primary entity** — which is the mart's grain entity in
 both key shapes the emitter produces (single-column key: a PRIMARY entity
@@ -7,11 +7,11 @@ name-only on the model). A model named ``orders`` with grain ``order``
 yields ``order__carrier``, never ``orders__carrier``.
 
 The bloomery-facing dimension vocabulary is exactly the mart's flattened
-columns (RFC 0010): categorical dimensions are column names
+columns (S-0027): categorical dimensions are column names
 (``warehouse_id``), date-role dimensions are the ``<role>_<bucket>`` bucket
 columns (``ordered_month``). Because the emitter declares only the *day*
 bucket as a TIME dimension and MetricFlow derives coarser grains from it
-(RFC 0013 R1), the bridge maps ``<role>_<grain>`` onto
+(S-0030 R1), the bridge maps ``<role>_<grain>`` onto
 ``{entity}__{role}_day__{grain}``. ``metric_time`` is reserved and never
 emitted from user input.
 
@@ -64,13 +64,13 @@ __all__ = [
 _DAY_SUFFIX = "_day"
 
 #: A metric expression that is a bare column reference — used to type the
-#: measure column from the mart column it reads (RFC 0011 D2 envelope).
+#: measure column from the mart column it reads (S-0028/D-2 envelope).
 _BARE_COLUMN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 @dataclass(frozen=True, slots=True)
 class ResolvedDimension:
-    """One requested dimension after coverage resolution (RFC 0013 R3):
+    """One requested dimension after coverage resolution (S-0030 R3):
     ``name`` is the effective bloomery name — a mart column — with ``role``
     and ``grain`` set for date-role dimensions, ``None`` for categorical."""
 
@@ -90,7 +90,7 @@ def entity_key(mart: MartIR) -> str:
     here. The name has to match what was emitted or every group-by resolves
     against nothing, and two spellings of ``mart.grain`` in two packages is a
     rule defined in neither. Re-exported under this name because the planner's
-    own vocabulary is where its callers look for it (RFC 0013 §5.1).
+    own vocabulary is where its callers look for it (S-0030/what-is-superseded-and-the-boundary-that-makes-it-reversible).
     """
 
     return emit_entity_key(mart)
@@ -101,7 +101,7 @@ def entity_key(mart: MartIR) -> str:
 
 def to_mf_metrics(metrics: Sequence[str]) -> tuple[str, ...]:
     """Metric names cross the bridge unchanged — metric names are the shared
-    vocabulary (RFC 0013 §5.2: the manifest metric *is* the bloomery metric).
+    vocabulary (S-0030/emitmanifest-ir-pydanticsemanticmanifest: the manifest metric *is* the bloomery metric).
     Centralized so the seam stays visible and swappable."""
 
     return tuple(metrics)
@@ -111,7 +111,7 @@ def to_mf_metrics(metrics: Sequence[str]) -> tuple[str, ...]:
 
 
 def group_by_name(dimension: ResolvedDimension, *, entity: str) -> str:
-    """One dimension's MetricFlow group-by name (RFC 0013 D7):
+    """One dimension's MetricFlow group-by name (S-0030/D-7):
     ``{entity}__{column}`` for categorical, ``{entity}__{role}_day__{grain}``
     for date roles — the day bucket is the declared TIME dimension and
     MetricFlow derives the requested grain from it."""
@@ -146,7 +146,7 @@ def to_mf_order(
     """Order terms as MetricFlow ``order_by_names`` — a leading ``-`` marks
     descending. ``dimensions`` maps each *requested* dimension string to its
     resolution; request validation already guaranteed every field is a
-    requested metric or dimension (RFC 0011 D4)."""
+    requested metric or dimension (S-0028/D-4)."""
     names: list[str] = []
 
     for spec in order_by:
@@ -216,11 +216,11 @@ def _measure_type(metric: MetricIR, mart: MartIR) -> LogicalType:
 
 def composed_column(metric: MetricIR) -> ColumnDescriptor:
     """The descriptor for a metric the composed statement computes above the
-    join (RFC 0041 D3).
+    join (S-0055/D-3).
 
     It belongs to no branch, so no branch's :func:`columns_from` produced one.
     A wide decimal, and honestly so: both shapes reaching here — a ratio and an
-    RFC 0034 ``derived:`` metric — are what :func:`_measure_type` already
+    S-0050 ``derived:`` metric — are what :func:`_measure_type` already
     answers ``DecimalType(38, 9)`` for, without consulting a mart.
     """
 
@@ -265,7 +265,7 @@ def columns_from(
             msg = (
                 f"MetricFlow returned a group-by of type {type(spec).__name__!r} the "
                 "planner never requests — entity and metric group-bys are not part of "
-                "the bridge (RFC 0013 D7)"
+                "the bridge (S-0030/D-7)"
             )
             raise PlannerError(msg)
         columns.append(

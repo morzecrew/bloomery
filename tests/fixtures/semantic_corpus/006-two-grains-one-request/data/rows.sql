@@ -1,4 +1,4 @@
--- Three orders and six lines, small enough to check by eye (RFC 0042 D2).
+-- Three orders and six lines, small enough to check by eye (S-0056/D-2).
 -- Shipping is 9 + 5 + 2 = 16.00 once, and 27 + 5 + 4 = 36.00 counted per line.
 -- Discount is 3 * 1.00 + 2.00 + 2 * 0.50 = 6.00 either way, which is the half
 -- of the naive answer that is right.

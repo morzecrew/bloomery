@@ -1,4 +1,4 @@
-# RFC 0021 §5.1: identity resolution, end to end, on mechanisms that already
+# S-0038/identity-resolution-is-a-step-permanently: identity resolution, end to end, on mechanisms that already
 # shipped. Nothing here is new — the point of the fixture is that nothing
 # needs to be.
 #
@@ -6,7 +6,7 @@
 # issues `C-1001`, billing issues `AC-77`, and only a human or a fuzzy matcher
 # can see they are the same person. They stay separate relations because
 # bloomery refuses two mappings into one entity — a deterministic union merge
-# is its own milestone (RFC 0009 D4) — and because a step reads *inputs*,
+# is its own milestone (S-0026/D-4) — and because a step reads *inputs*,
 # plural, which is the shape identity resolution actually has. Merging them
 # first would beg the question the step exists to answer.
 #

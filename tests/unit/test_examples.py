@@ -1,4 +1,4 @@
-"""The shipped examples still do what they claim (RFC 0009).
+"""The shipped examples still do what they claim (S-0026).
 
 The runner already knows how to fail — `refuse()` raises `SystemExit` on a case
 that compiles, and its docstring says why: *"An example claiming a refusal that
@@ -30,11 +30,11 @@ behind a container. In both, the compile is the step that rots when *this*
 repository changes, and it is the one that is free to check.
 
 Rebuilding either stack in pytest was considered and refused, on a decision this
-repository already took: `tests/engines/test_trino.py` diverges from RFC 0009
+repository already took: `tests/engines/test_trino.py` diverges from S-0026
 §5.2's sketched "trino+iceberg+minio (compose)" tier for exactly this reason —
 "bloomery emits SELECTs and models and never storage-format DDL, so an object
 store and a table format would be three more moving parts serving no assertion
-here" (RFC 0009 D21). A second copy of `compose.yaml` living in the test suite
+here" (S-0026/D-21). A second copy of `compose.yaml` living in the test suite
 would be two accounts of one stack, drifting.
 """
 
@@ -144,7 +144,7 @@ def test_each_case_refuses_for_the_reason_it_documents() -> None:
 
 
 # ....................... #
-# quickstart/ (RFC 0009 — the example the README's first page sends people to)
+# quickstart/ (S-0026 — the example the README's first page sends people to)
 
 
 def test_quickstart_runs_end_to_end() -> None:
@@ -220,7 +220,7 @@ def test_the_lakehouse_merge_and_its_blocking_audit_are_emitted() -> None:
     """The two claims the README makes about this example, in the SQL.
 
     `order_line` is built by two mappings — the example exists to show a union
-    merge — and RFC 0024 D5 makes the disjointness audit blocking, because the
+    merge — and S-0041/D-5 makes the disjointness audit blocking, because the
     compiler has no data with which to establish the key sets are disjoint. A
     merge that silently stopped unioning, or an audit that stopped being
     emitted, would leave the README describing a thing the artifacts no longer

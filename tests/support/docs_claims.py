@@ -1,4 +1,4 @@
-"""Reading the docs' claims out of the pages (RFC 0025 §5.1).
+"""Reading the docs' claims out of the pages (S-0042/the-docs-floor-claims-not-links).
 
 Shared because two consumers need the same answer from opposite ends of the
 session: `tests/unit/test_docs_floor.py` checks the documented set against the

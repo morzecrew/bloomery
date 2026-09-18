@@ -1,4 +1,4 @@
-"""R009 on its own, apart from the resolution that calls it (RFC 0061 §5.4).
+"""R009 on its own, apart from the resolution that calls it (S-0066/r009-and-what-it-may-cite).
 
 The rule decides — `resolve.build` refuses on the refutation and accepts on the
 proof — so these are the tests of the decision itself, and
@@ -63,7 +63,7 @@ def test_a_chain_is_opened_once_and_carried_by_its_own_steps() -> None:
 
 
 def test_every_leaf_is_a_provenance_that_may_close() -> None:
-    """RFC 0039 §4's rule, asserted rather than assumed: a proof is only as
+    """S-0005 (§4)'s rule, asserted rather than assumed: a proof is only as
     strong as its weakest leaf, and a leaf that cannot close an obligation
     makes the whole derivation decoration."""
     answer = _prove(EUR_CHF, CHF_USD)
@@ -116,7 +116,7 @@ def test_a_refutation_is_about_the_chain_the_proof_would_have_concluded() -> Non
 
 def test_an_undeclared_input_is_refused_and_says_nothing_declares_it() -> None:
     """The bug this rule exists for. `convert` asserts the input currency and
-    the assertion is its own evidence, which is the thing RFC 0061 D1 refuses.
+    the assertion is its own evidence, which is the thing S-0066/D-1 refuses.
     """
     answer = _prove(EUR_USD, declared_in=None)
 
@@ -155,7 +155,7 @@ def test_a_chain_whose_middle_disagrees_is_refused_at_the_step_that_breaks() -> 
 
 
 # ....................... #
-# Per-row denomination (RFC 0061 §5.1 shape 3, P2)
+# Per-row denomination (S-0066/the-input-currency-is-one-of-three-things shape 3, P2)
 
 
 def test_a_per_row_input_closes_the_conversion_it_opens() -> None:

@@ -1,6 +1,6 @@
-"""Execution tier (RFC 0009 §5.2 tier 4): seed bronze fixture data in
+"""Execution tier (S-0026/tier-contracts tier 4): seed bronze fixture data in
 in-process DuckDB, materialize every compiled model's SELECT as a silver
-table, and assert numeric results with ``Decimal`` — never float (RFC 0003
+table, and assert numeric results with ``Decimal`` — never float (S-0020
 D5). Houses the M3 acceptance: the ``from_total`` recipe derivation yields
 ``Decimal("10.00")`` (original spec §7.4)."""
 
@@ -64,7 +64,7 @@ def _seed_ecom(conn: duckdb.DuckDBPyConnection) -> None:
 def test_ecom_basic_from_total_derivation_yields_decimal_10_00(
     conn: duckdb.DuckDBPyConnection,
 ) -> None:
-    """The acceptance assertion (original spec §7.4, RFC 0009): line_total
+    """The acceptance assertion (original spec §7.4, S-0026): line_total
     30.00 over quantity 3 through the recorded `from_total` recipe is exactly
     Decimal("10.00") — asserted as Decimal, never float."""
     _seed_ecom(conn)

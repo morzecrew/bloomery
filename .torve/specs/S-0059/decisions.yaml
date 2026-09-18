@@ -1,0 +1,99 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      MetricFlow ships as a fourth **core** target (`Target.METRICFLOW`), not an extension
+      registered through `register_emitter`. It is built in-tree, golden-tested and
+      hydrated by the planner already; leaving it out of `Target` would make the enum
+      a claim about maturity it does not otherwise make.
+    paths: [src/bloomery/compile.py]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      One artifact, kind `MODEL`, content `manifest_json(..., indent=2)` + one newline.
+      `MODEL` because the kind means "relation **or semantic surface**"; `CONFIG`
+      would read as scaffolding a framework maintains.
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A project with no marts emits no MetricFlow artifact, matching `CubeEmitter`.
+      An empty manifest is a file claiming a semantic layer that is not there.
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      `emit_manifest`'s missing-`date_dimension` `EmitError` propagates out of the
+      emitter unchanged rather than being caught and re-raised as an emit-layer message.
+      Two spellings of one refusal is how they come to disagree.
+    paths: [src/bloomery/emit/metricflow/__init__.py]
+  - id: D-5
+    grade: OPEN
+    text: >-
+      The manifest's artifact path — `semantic_manifest.json` at the root, or under
+      a namespace. Settled by execution; §10 states the case for the root.
+    paths: [src/bloomery/emit/metricflow/__init__.py]
+  - id: D-6
+    grade: LOCKED
+    text: >-
+      The node-id collision is **refused**, not re-spelled. `Node.name` and the `lineage
+      --node` argument are published surface, and the resolve API is not covered by
+      the emitted-artifact stability caveat. Locks the bare `<entity>.<field>` spelling
+      in: changing it later is a breaking change to every stored lineage id, which
+      is exactly what this row buys.
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/guardrails/lineage.py
+      - src/bloomery/resolve/graph.py
+      - src/bloomery/resolve/timeline.py
+      - tests/unit/test_guardrails/test_lineage.py
+      - tests/unit/test_resolve/test_graph.py
+  - id: D-7
+    grade: LOCKED
+    text: >-
+      `metric`, `canonical`, `source` and `step` are reserved as entity names **unconditionally**
+      — not only when a real collision exists. A conditional refusal makes a spec's
+      validity depend on a metric added later in another file.
+    paths: [src/bloomery/errors.py]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      The reservation is checked in one place over every entity name the graph can
+      see, authored and step-synthesized alike, rather than at each of the two sites
+      that mint names. One quantifier, one message.
+    paths:
+      - src/bloomery/guardrails/lineage.py
+      - tests/unit/test_guardrails/test_lineage.py
+      - tests/unit/test_resolve/test_graph.py
+  - id: D-9
+    grade: LOCKED
+    text: >-
+      `on_fail: flag` lowers for `sql_model` outputs only, through `_quality_pipeline`
+      — the same function the silver lowering calls, never a second copy of the projection.
+    paths: [src/bloomery/resolve/steps.py]
+  - id: D-10
+    grade: LOCKED
+    text: >-
+      `on_fail: quarantine` on a step output is **refused permanently**, and the message
+      names both blockers: no ingestion-metadata key for the reject table, and no
+      `quarantine:` retention surface in a `steps:` wiring. Not "pending".
+    paths: [src/bloomery/resolve/steps.py, tests/unit/test_steps/test_lowering.py]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      A `sql_model` output with no `flag` rule stays byte-identical — the flags columns
+      are conditional on the rule, not on the tier. Accepts an asymmetry with mapped
+      entities in exchange for leaving every existing step golden alone.
+    paths: [src/bloomery/ir/nodes.py, tests/unit/test_steps/test_lowering.py]
+  - id: D-12
+    grade: LOCKED
+    text: >-
+      `EntityIR` gains no field. `carries_quality_flags` is derived from `produced_by`
+      and the rule dispositions, because a new IR field moves every fingerprint in
+      the corpus — including projects that wire no steps.
+    paths: [src/bloomery/ir/nodes.py]
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      The two stale docstrings are corrected in this change rather than left for the
+      RFC that next touches those files. A rationale describing a constraint that
+      no longer exists is read as current by everyone who reads it.

@@ -1,4 +1,4 @@
--- One order, three lines. Small enough to check by eye (RFC 0042 D2):
+-- One order, three lines. Small enough to check by eye (S-0056/D-2):
 -- shipping is 9.00 once, and 27.00 if you count it per line.
 INSERT INTO bronze.corpus__orders VALUES ('o1', 9.00, '2025-03-01T00:00:00');
 

@@ -11,7 +11,7 @@ the log entry it supports before repairing it, because the question may no longe
 
 | Spike | Question | Answer |
 |---|---|---|
-| `rfc0060_dbt.py`, `rfc0060_sqlmesh.py` | does a row admitted into a framework-maintained `scd: type2` relation, by any route, become visible to an as-of join? (RFC 0060 §6) | yes, by two of the three routes and on both targets — see `logs/T-0057.md` |
+| `rfc0060_dbt.py`, `rfc0060_sqlmesh.py` | does a row admitted into a framework-maintained `scd: type2` relation, by any route, become visible to an as-of join? (S-0003 (§6)) | yes, by two of the three routes and on both targets — see `logs/T-0057.md` |
 
 ```bash
 PYTHONPATH=tests uv run python tools/spikes/rfc0060_dbt.py

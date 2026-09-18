@@ -1,4 +1,4 @@
-"""What an ``expression`` rule may read (RFC 0016 §5.3 → D95).
+"""What an ``expression`` rule may read (S-0033/spec-schema → D95).
 
 ``ExpressionRule.expr`` is a bare string parsed and spliced into the silver
 model, and until D95 nothing checked it — the one authored-SQL surface in the

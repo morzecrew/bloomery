@@ -1,0 +1,193 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      Flattening an entity with `scd: type2` into a mart is **refused** at compile
+      time, not silently emitted and not silently filtered to the current version.
+      The join has no validity predicate and the relation has one row per version,
+      so the emitted mart multiplies the base grain while every guardrail passes.
+      Consequence: the only shipped way to use a historical dimension in a mart is
+      a `type1` current-view entity built from it, until §5.3 exists.
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/marts/flatten.py
+      - tests/fixtures/scd2_mart_refusal/entity_model.yaml
+      - tests/fixtures/semantic_corpus/003-scd2-unqualified-join/expected/semantic_outcome.json
+      - tests/fixtures/semantic_corpus/003-scd2-unqualified-join/problem.md
+      - tests/golden/refusals/example-scd2-flatten.txt
+      - tests/golden/refusals/scd2_mart_refusal.txt
+      - tests/unit/test_fixtures.py
+      - tests/unit/test_guardrails/test_stage.py
+      - tests/unit/test_marts/test_flatten.py
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      A mart whose **`base`** is `scd: type2` is refused on the same account. There
+      is no fan-out, but the declared `grain:` claims one row per entity while the
+      relation holds one per version, so every measure counts revisions. Refusing
+      both sides keeps "a mart's grain is what it says" true without exception.
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/marts/flatten.py
+      - tests/fixtures/scd2_as_of/marts.yaml
+      - tests/fixtures/scd2_mart_refusal/entity_model.yaml
+      - tests/fixtures/scd2_replay/marts.yaml
+      - tests/golden/refusals/scd2_mart_refusal.txt
+      - tests/unit/test_fixtures.py
+      - tests/unit/test_guardrails/test_stage.py
+      - tests/unit/test_marts/test_flatten.py
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The refusal is a new `GuardrailError` subclass, `HistoricalFanout`, rather than
+      a reuse of `FanoutRisk`. Reusing it would make one error mean both "your declared
+      cardinality is wrong" and "your relation is historical", and the first reading
+      sends the reader to a `cardinality:` that is correct.
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      `convert` raises `UnsupportedByTarget` at **emit**, on all three dialects. It
+      stays a registered transform with an unchanged typecheck, so the spec surface
+      does not move and a future dialect clears the refusal by declaring a `Feature`
+      — the mechanism S-0025 already provides.
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/evidence.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/transforms/_builtins.py
+      - tests/fixtures/currency_convert_refusal/entity_model.yaml
+      - tests/support/type_conformance.py
+      - tests/unit/test_emit/test_currency_convert.py
+      - tests/unit/test_evidence.py
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      `_CONVERT_MARKER` is removed from the currency guardrail with D4. It is the
+      token that permits mixed-currency arithmetic; leaving it would keep a compile-time
+      "yes" whose only outcome is a run-time failure. Consequence: `CurrencyMismatch`
+      becomes unconditional until §5.4 ships.
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/guardrails/arithmetic.py
+      - tests/unit/test_guardrails/test_arithmetic.py
+  - id: D-6
+    grade: LOCKED
+    text: >-
+      Phase 2 (as-of join, FX relation) is **design-only and unscheduled**. Recording
+      it here rather than in two future RFCs is the point: both consumers need one
+      construct, and designing them apart would produce two.
+    paths: [src/bloomery/emit/lower/predicates.py]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      A `type2` entity's validity-interval column names belong on `EntityIR`. Today
+      each target names them privately, which is the mechanical reason no predicate
+      can be emitted; naming them in the IR is what makes the two targets agree.
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/ir/nodes.py
+      - tests/e2e/test_dbt_parse.py
+      - tests/unit/test_emit/test_dbt.py
+  - id: D-8
+    grade: OPEN
+    text: >-
+      The as-of anchor's spelling and location. §5.3 proposes `as_of:` on the `flatten`
+      entry; a mart-level default and a relationship-level declaration are both defensible.
+      Whoever builds Phase 2 decides and logs it. It must be **declared** either way
+      — inference is closed by S-0038.
+    paths:
+      - tests/fixtures/semantic_corpus/003-scd2-unqualified-join/expected/semantic_outcome.json
+      - tests/fixtures/semantic_corpus/003-scd2-unqualified-join/problem.md
+      - tests/unit/test_marts/test_flatten.py
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      A fact row whose anchor matches no version takes the existing `unknown_member`
+      disposition (S-0033) rather than a new one.
+  - id: D-10
+    grade: OPEN
+    text: >-
+      Whether `convert` is refused (D4) or removed from the transform whitelist outright.
+      Removal is cleaner and changes the exported JSON Schema's transform enum — a
+      spec-surface change this RFC declines to make on a construct that may return.
+  - id: D-11
+    grade: LOCKED
+    text: >-
+      The FX rate relation declares **both** interval ends (`valid_from` and `valid_to`),
+      never `valid_from` alone. One end is not an interval: a fact row would match
+      every rate at or before its anchor and the conversion would fan out. Deriving
+      the upper bound with `LEAD(valid_from)` is rejected — it makes every conversion
+      a window function over the whole rate table, and it extends the newest rate
+      to infinity, so a stale feed converts at last week's rate instead of failing.
+      Consequence: a gap in the rate table is a *miss*, taking D9's `unknown_member`
+      disposition, rather than silently resolving to a neighbour.
+    paths:
+      - src/bloomery/transforms/_builtins.py
+      - tests/execution/test_currency_convert.py
+      - tests/fixtures/currency_convert/catalog.yaml
+      - tests/unit/test_emit/test_currency_convert.py
+      - tests/unit/test_quality/test_lower.py
+      - tests/unit/test_spec/test_catalog.py
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      **Departure (spec-gap).** `HistoricalFanout` is raised in `marts/flatten.py`,
+      not `guardrails/grain.py` as §5.1 places it. `FanoutRisk` is *declared* in `errors.py`
+      and *raised* in the flattener; `grain.py`'s own docstring says the mart-level
+      leaves "run where marts are lowered", so the RFC's placement named a file the
+      sibling it cites is not in. Behaviour is unchanged — both leaves batch into
+      the same guardrail aggregate. §5.1's prose is left as written.
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      **Departure (spec-gap).** `scd2_customers` does **not** gain a `marts.yaml`
+      (§6). It is the only golden coverage of the SCD2 silver lowering — SQLMesh's
+      `SCD_TYPE_2_BY_COLUMN` and dbt's check-strategy snapshot — across five tiers,
+      and §8 leaves that fully supported; any mart in that fixture is necessarily
+      based on its one type2 entity, so following §6 would have deleted the coverage
+      this refusal is defined against. A new fixture `scd2_mart_refusal` carries both
+      sides instead, in **one** document rather than one per refusal: the property
+      §6 asks for is that a single line is the whole difference, and two fixtures
+      would let an unrelated difference stand in for it.
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      **Departure (spec-gap).** The `convert` refusal is **unconditional**, not gated
+      on a declared capability. D4 says a future dialect clears it "by declaring a
+      `Feature` — the mechanism S-0025 already provides", but `SQLGlotDialect.features`
+      defaults to `frozenset(DialectFeature)`: a flag for a capability *nothing* has
+      would be claimed by default by all three shipped dialects and by every dialect
+      added later, so declaring one now would encode the opposite of the fact. The
+      escape hatch is added when a dialect can actually clear it; until then the refusal
+      states what is true — no lowering exists anywhere.
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      **Answers D10 (`OPEN`).** `convert` is **refused**, not removed from the whitelist.
+      Removal is cleaner but changes the exported JSON Schema's transform enum — a
+      spec-surface change on a construct that may return, and one that would make
+      a spec still carrying the step fail as an *unknown transform* rather than as
+      the thing it is. The refusal message can say why; an enum rejection cannot.
+  - id: D-16
+    grade: ASSUMED
+    text: >-
+      **Departure (spec-gap).** The scope header says "No public signature changes
+      in Phase 1", and P1 adds two public names: `bloomery.errors.HistoricalFanout`
+      and `bloomery.transforms.CONVERT_MARKER`. The stability reference makes `bloomery.__all__`
+      **and each subpackage's `__all__`** the SemVer contract, so both count. The
+      first is unavoidable — a new `GuardrailError` subclass callers catch has to
+      be importable — which makes the scope line wrong rather than the implementation.
+      The second is a choice: the marker is shared so the transform that *builds*
+      it and the emit check that *refuses* on it cannot spell it differently, since
+      a refusal looking for a name nothing produces passes every project including
+      the ones it exists to stop. Both are additive; nothing is removed or renamed.
+  - id: D-17
+    grade: ASSUMED
+    text: >-
+      **Departure (discovery).** The `convert` refusal's `source_path` is `entity_model:
+      entities.<entity>.fields.<column>`, not the mapping path §5.2's illustrative
+      message shows. By emit the transform chain no longer exists: the marker sits
+      in a lowered `ColumnIR.expr`, and the mapping's step index is not recoverable
+      from it. Refusing earlier, where the path *is* known, would contradict D4's
+      `LOCKED` "at **emit**".

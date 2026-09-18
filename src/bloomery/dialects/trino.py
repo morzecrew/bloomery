@@ -1,4 +1,4 @@
-"""The Trino dialect (RFC 0008 D5): the federated-engine port of the M10
+"""The Trino dialect (S-0025/D-5): the federated-engine port of the M10
 port-validation milestone."""
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ class TrinoDialect(SQLGlotDialect):
     #: Trino implements the SQL standard here and nothing else: ``BEGIN`` is a
     #: syntax error, not a synonym. Measured against `trinodb/trino:483`.
     begin_transaction: str = "START TRANSACTION"
-    #: Everything, since RFC 0016 D83 split the two constructions the reject
+    #: Everything, since S-0033/D-83 split the two constructions the reject
     #: table is built from. Both gaps were real and verified against
     #: ``trinodb/trino:483``: ``SHA256`` over the concatenated canon bytes did
     #: not plan (``Unexpected parameters (varchar) for function sha256`` —
@@ -70,7 +70,7 @@ class TrinoDialect(SQLGlotDialect):
         dialects).
 
         ``to_utc`` means "interpret this zoneless timestamp as being in
-        ``zone``" (RFC 0004 §5.1), and builds :class:`sqlglot.exp.AtTimeZone`
+        ``zone``" (S-0021/logical-types-bloomery-typing-types-py), and builds :class:`sqlglot.exp.AtTimeZone`
         for it because that is what ``AT TIME ZONE`` means on DuckDB and on
         PostgreSQL — both return the instant 11:00Z for a 12:00 value read as
         ``Europe/Berlin``.
@@ -86,7 +86,7 @@ class TrinoDialect(SQLGlotDialect):
         (verified against trinodb/trino:483).
 
         One spec meaning two things on two engines, announced nowhere, is
-        exactly what RFC 0008 D3 exists to prevent — so the divergence is
+        exactly what S-0025/D-3 exists to prevent — so the divergence is
         closed here rather than documented as a caveat.
 
         The ISO-text marker becomes a separator rewrite, for the same reason
@@ -96,14 +96,14 @@ class TrinoDialect(SQLGlotDialect):
         as well. ``REPLACE(CAST(text AS VARCHAR), 'T', ' ')`` accepts both and is a
         no-op on a value that never had one; it is applied to the *text* rather
         than to the cast because the cast may already have become a
-        ``TRY_CAST`` (RFC 0027 D4).
+        ``TRY_CAST`` (S-0044/D-4).
         """
 
         def utc(at_zone: Expression) -> Expression:
             # `with_timezone` states the zone the zoneless text was written in;
             # `at_timezone(…, 'UTC')` then moves the display to UTC and the cast
             # drops the zone, leaving a zoneless UTC value that reads the same
-            # under any session (RFC 0028 §3). A bare `CAST(tstz AS TIMESTAMP)`
+            # under any session (S-0045/the-fix-and-why-it-is-not-a-choice). A bare `CAST(tstz AS TIMESTAMP)`
             # would keep the value's *own* zone's wall clock instead — the
             # defect, preserved in a shape that looks like the fix.
             stated = exp.func("with_timezone", at_zone.this, at_zone.args["zone"])
@@ -123,7 +123,7 @@ class TrinoDialect(SQLGlotDialect):
         (varchar) for function sha256*. ``TO_UTF8`` on the way in and
         ``TO_HEX`` on the way out give the same hex digest the other dialects
         produce directly; ``LOWER`` because Trino's ``to_hex`` is uppercase
-        and ``reject_id`` must agree across engines (RFC 0016 D21).
+        and ``reject_id`` must agree across engines (S-0033/D-21).
         """
         digest = exp.func("SHA256", exp.func("TO_UTF8", value))
         return exp.Lower(this=exp.func("TO_HEX", digest))

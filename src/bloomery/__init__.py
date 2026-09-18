@@ -5,27 +5,27 @@ Public API (spec §8): the pure loaders (``load_catalog``, ``load_project``),
 compilation (``compile_project`` with ``Target``), analysis without emission
 (``resolve`` / ``Resolution``, ``build_project_ir``, ``project_fingerprint``),
 spec-diff planning (``plan`` with ``Plan`` / ``Change`` / ``ChangeClass`` /
-``BackfillScope`` / ``ReplayScope`` — RFC 0007, RFC 0016), the request-time planner (``MetricFlowPlanner`` with the ``MetricRequest`` /
-``QueryPlan`` port types and ``RowPolicy`` — RFC 0011/0013), manifest
-hydration (``LruManifestHydrator``, ``HydrationKey`` — RFC 0014), the
+``BackfillScope`` / ``ReplayScope`` — S-0024, S-0033), the request-time planner (``MetricFlowPlanner`` with the ``MetricRequest`` /
+``QueryPlan`` port types and ``RowPolicy`` — S-0028, S-0030), manifest
+hydration (``LruManifestHydrator``, ``HydrationKey`` — S-0031), the
 JSON Schema export (``spec_json_schema`` / ``all_spec_schemas`` with
-``SpecKind`` and ``JsonDict`` — RFC 0020), spec assessment as one value
-(``evaluate`` with ``SpecEvidence`` / ``MartSummary`` / ``Stage`` — RFC 0022;
+``SpecKind`` and ``JsonDict`` — S-0037), spec assessment as one value
+(``evaluate`` with ``SpecEvidence`` / ``MartSummary`` / ``Stage`` — S-0039;
 ``Materialization`` comes with it, reached through ``MartSummary``), the
 unresolved-work report a chooser iterates on (``OpenDecision`` / ``Gap`` /
-``RecipeOption``, reached through ``SpecEvidence`` — RFC 0030), the
+``RecipeOption``, reached through ``SpecEvidence`` — S-0047), the
 extension points (``register_transform``, ``register_emitter``), and the
 total error hierarchy rooted at ``BloomeryError`` (import leaves from
 :mod:`bloomery.errors`) — whose structured fix suggestions carry the two
-payload types ``MartCoverage`` and ``MeasureRef`` (RFC 0020 D11), exported
+payload types ``MartCoverage`` and ``MeasureRef`` (S-0037/D-11), exported
 here because D2's allowlist exempts the *errors*, not the values they hang.
 
 The command line (``bloomery compile|plan|resolve|explain|schema|fingerprint``)
 is a separate, one-directional shell over exactly this surface: it may import
 the library, no library module may import it, and it is the only place in the
-package that touches a filesystem (RFC 0020 D5).
+package that touches a filesystem (S-0037/D-5).
 
-**Signature closure** (RFC 0018 D1) is the rule that decides this list: a type
+**Signature closure** (S-0035/D-1) is the rule that decides this list: a type
 appearing in a public signature — parameter, return, generic argument, or field
 of a returned dataclass — is exported here too, so a caller can always name what
 the API hands them. ``tests/unit/test_signature_closure.py`` enforces it; the
@@ -119,7 +119,7 @@ try:
     #: git tag. A *generated module* rather than
     #: ``importlib.metadata.version("bloomery")``, deliberately: the metadata
     #: lookup reads the installed distribution off a disk, and this package
-    #: promises to touch none (RFC 0003). Importing a static module is the
+    #: promises to touch none (S-0020). Importing a static module is the
     #: ordinary import every other line here already does.
     # Re-exported under its own name deliberately: `__version__` is not in
     # `__all__` (that list governs `import *`, and a dunder does not belong in
@@ -133,7 +133,7 @@ except ImportError:  # pragma: no cover - only in a source tree that was never b
     # report would then quote as real.
     __version__ = "0.0.0+unknown"
 
-# The library's **only** logging configuration act (RFC 0033 D1), and the
+# The library's **only** logging configuration act (S-0004/D-1), and the
 # stdlib-documented posture for a library: attach a do-nothing handler to the
 # root of the hierarchy so a caller who configures nothing sees nothing, and
 # no "No handlers could be found" message is emitted on their behalf.

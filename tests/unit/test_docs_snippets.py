@@ -1,6 +1,6 @@
 """Docs snippets that claim to be a fixture must *be* that fixture.
 
-RFC 0021 §6 asked for the how-to page's snippets to be extracted from the
+S-0038/tests asked for the how-to page's snippets to be extracted from the
 fixture rather than retyped, and gave the reason: **a docs example that drifts
 from a passing fixture is worse than no example, because it is trusted.** A
 reader copies a wiring out of a page and expects it to compile; if it stopped
@@ -47,7 +47,7 @@ EXTRACTED = [
         "metrics.yaml",
         "identity_resolution/metrics.yaml",
     ),
-    # RFC 0024 §7. The union merge's how-to shows all three documents because
+    # S-0041/docs (§7.) The union merge's how-to shows all three documents because
     # the *whole* of what a project writes is those three — the feature's claim
     # is that it needs no new syntax, and a page that showed only a fragment
     # would leave a reader wondering what else was on the page it did not show.
@@ -137,13 +137,13 @@ def test_every_extracted_page_and_document_exists() -> None:
 
 
 # ....................... #
-# A snippet that claims to run must run (RFC 0068 §6)
+# A snippet that claims to run must run (S-0073/tests)
 
 
 def test_the_reproduce_recipe_actually_runs() -> None:
     """The how-to's compile block is executed, not read.
 
-    RFC 0068 §6 asks only that the block be "checked against the library's
+    S-0073/tests asks only that the block be "checked against the library's
     actual signatures". Executing it is strictly stronger — it catches a wrong
     keyword *and* a recipe that stopped working — and it is affordable only
     because the page splits fetching from compiling: the fetch half is a `git
@@ -170,7 +170,7 @@ def test_the_reproduce_recipe_actually_runs() -> None:
 
 def test_the_timeline_recipe_actually_runs() -> None:
     """The timeline how-to's block is executed too, for the same reason and on
-    the same seam (RFC 0069 §7).
+    the same seam (S-0074/docs).
 
     The history it walks is the corpus's own five-version project, handed in as
     `versions` — the shape step 1 of the page says it returns. A reader who
@@ -211,7 +211,7 @@ def test_the_timeline_recipe_actually_runs() -> None:
 
 
 def test_the_rename_recipe_actually_runs() -> None:
-    """The rename how-to's block is executed against a real pair (RFC 0062 §7).
+    """The rename how-to's block is executed against a real pair (S-0067/docs).
 
     It is the block most worth running of the three: it names five symbols and
     two keyword arguments, one of which — the label maps — exists precisely

@@ -1,6 +1,6 @@
-"""Shared execution-tier plumbing (RFC 0009 §5.1 ``tests/support/``): a fresh
+"""Shared execution-tier plumbing (S-0026/layout-and-markers ``tests/support/``): a fresh
 in-process DuckDB warehouse, the CREATE-TABLE sweep that turns compiled model
-artifacts into relations, and the audit-body extraction the RFC 0016 audits
+artifacts into relations, and the audit-body extraction the S-0033 audits
 need.
 
 Promoted out of the individual tier-4 modules because M12 adds several more
@@ -34,14 +34,14 @@ __all__ = [
     "warehouse",
 ]
 
-#: The three layers every compiled project addresses (RFC 0008 §5.1).
+#: The three layers every compiled project addresses (S-0025/ports).
 DEFAULT_SCHEMAS = ("bronze", "silver", "gold")
 
 
 def warehouse(*schemas: str, database: str = ":memory:") -> duckdb.DuckDBPyConnection:
     """A fresh DuckDB connection with the layer schemas created and the session
     pinned to UTC — the timezone matters because ``timestamp`` is always-UTC in
-    the type system (RFC 0004 §5.1)."""
+    the type system (S-0021/logical-types-bloomery-typing-types-py)."""
     connection = duckdb.connect(database)
     connection.execute("SET TimeZone = 'UTC'")
     for schema in schemas or DEFAULT_SCHEMAS:
@@ -60,7 +60,7 @@ def _referenced(select: str, known: frozenset[str]) -> frozenset[str]:
 
     Read off the parsed AST rather than guessed from the path: the M12 graph is
     no longer layered-by-name — a ``referential`` rule LEFT JOINs a *sibling*
-    silver entity (RFC 0016 §5.1), so ``dirty_ref`` must be built after
+    silver entity (S-0033/the-disposition-model), so ``dirty_ref`` must be built after
     ``dirty_ref_parent`` even though both are silver and the second sorts last.
     """
     tree = sqlglot.parse_one(select, dialect="duckdb")
@@ -109,7 +109,7 @@ def _upsert(
     """The ``INCREMENTAL_BY_UNIQUE_KEY`` branch, honouring ``when_matched``.
 
     The framework's job, stood in for — and it has to be stood in for
-    *honestly*, because ``when_matched`` is where RFC 0016 §5.6 puts the rule
+    *honestly*, because ``when_matched`` is where S-0033/quarantine-one-reject-table-per-entity puts the rule
     that ``first_seen`` survives a re-delivery. A harness that always replaced
     the whole row would pass a test the real target fails, which is worse than
     no harness at all.
@@ -132,7 +132,7 @@ def _apply(conn: duckdb.DuckDBPyConnection, artifact: EmittedArtifact, name: str
     statement *about* the difference between these two branches. A FULL model
     replaces its table; an ``INCREMENTAL_BY_UNIQUE_KEY`` one upserts by its
     declared key, which is what makes a re-delivered source row land on the
-    **same** reject row rather than minting a new one (RFC 0016 D21).
+    **same** reject row rather than minting a new one (S-0033/D-21).
     """
     namespace, relation = name.split(".", 1)
     select = extract_select(artifact.content)
@@ -178,8 +178,8 @@ def materialize(
     so a harness that insists on building it is asserting a pipeline nobody
     runs.
     """
-    # `.sql` only: RFC 0017's python_model wrappers are ArtifactKind.MODEL too
-    # (RFC 0008 D2 — artifacts are file-shaped text, so a Python model needs no
+    # `.sql` only: S-0034's python_model wrappers are ArtifactKind.MODEL too
+    # (S-0025/D-2 — artifacts are file-shaped text, so a Python model needs no
     # new kind), and feeding Python source to DuckDB would fail somewhere far
     # from the cause. A step's *body* is platform code this harness never runs;
     # its contract is exercised by the §6 battery instead.
@@ -248,7 +248,7 @@ def audit_body(artifact: EmittedArtifact, model_relation: str) -> str:
 
 
 def replay_statements(artifact: EmittedArtifact) -> tuple[str, ...]:
-    """The runnable statements inside a replay artifact (RFC 0016 §5.6).
+    """The runnable statements inside a replay artifact (S-0033/quarantine-one-reject-table-per-entity).
 
     The artifact is not a MODEL block — it is a script the *caller* runs, and
     §5.6 says to run its statements "as one unit of work". Leading ``--`` lines

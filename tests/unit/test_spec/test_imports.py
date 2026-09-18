@@ -1,4 +1,4 @@
-"""The imports document (RFC 0059 §5.1, D1).
+"""The imports document (S-0002 (§5.1), S-0002/D-1).
 
 Everything here is decidable from the document alone — its shape, its version
 pin, and the two depths at which a dependency can declare nothing. Whether the
@@ -130,7 +130,7 @@ def test_a_project_with_no_imports_document_has_none() -> None:
 def test_the_published_schema_refuses_what_the_loader_refuses(
     label: str, document: dict[str, object]
 ) -> None:
-    """RFC 0020 D10: the schema is a pre-filter and the parser is the
+    """S-0037/D-10: the schema is a pre-filter and the parser is the
     authority — so the schema may be *stricter*, never looser. A document it
     accepts and the loader rejects is one a proposal loop emits, a user pastes,
     and nothing in either artifact explains.

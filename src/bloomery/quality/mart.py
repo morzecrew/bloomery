@@ -1,5 +1,5 @@
 """``gold.mart_data_quality`` — the quality mart as an **ordinary** semantic
-surface (RFC 0016 §5.8, D12).
+surface (S-0033/the-quality-mart, S-0033/D-12).
 
 Every rule evaluation contributes a row ``(entity, mapping, rule, disposition,
 rows_evaluated, rows_failed, rows_quarantined, rows_deduped, run_id,
@@ -28,8 +28,8 @@ every group-by, which is the only reading under which "a plain
 Deliberate divergences, both recorded in the RFC:
 
 - **No per-customer scoping column.** Document 5 §7.5's schema carries one;
-  the mart emitted here does not, and RFC 0016 §5.8 records the divergence.
-  Hard invariant #3 and the RFC 0009 D14 guard make namespace scoping via
+  the mart emitted here does not, and S-0033/the-quality-mart records the divergence.
+  Hard invariant #3 and the S-0026/D-14 guard make namespace scoping via
   ``NamingPolicy`` the *only* seam of that shape in the package — a caller
   wanting a per-customer rollup gets it from their namespace layout, as for
   every other table. (The guard is a source scan, so this module cannot even
@@ -37,7 +37,7 @@ Deliberate divergences, both recorded in the RFC:
 - **Reject tables stay unqueryable.** The mart reports *counts* over reject
   rows; the rows themselves are never exposed through ``MetricRequest``
   (§7.4) — raw payloads, different retention, a deliberately narrow operator
-  surface. Nothing here emits a reject relation as a mart base (RFC 0016 D15
+  surface. Nothing here emits a reject relation as a mart base (S-0033/D-15
   refuses that at compile time).
 
 The mart is bloomery-owned, like the ``dim_date`` calendar: it is synthesized
@@ -102,7 +102,7 @@ ENTITY_GRAIN_ROW = "(entity)"
 #: the default policy, namespace-prefixed under a scoped one.
 QUALITY_MART = "data_quality"
 
-#: The date role over ``run_date`` (RFC 0010 D9: a measure-carrying mart
+#: The date role over ``run_date`` (S-0027/D-9: a measure-carrying mart
 #: declares one, or ``MartMissingTimeDimension``). It buckets into
 #: ``run_day`` … ``run_year`` exactly as an authored role does.
 QUALITY_RUN_ROLE = "run"
@@ -171,7 +171,7 @@ _DESCRIPTIONS: dict[str, str] = {
 class RunContext:
     """How the **executing engine** supplies ``run_id`` and ``run_date``.
 
-    bloomery never reads a clock (RFC 0003): a compile that stamped "now" into
+    bloomery never reads a clock (S-0020): a compile that stamped "now" into
     a model would make the artifact a function of when it was compiled, and
     the same specs would stop producing byte-identical output. So the two run
     columns are the engine's to fill, and this value says which expression
@@ -246,7 +246,7 @@ def quality_mart_ir() -> MartIR:
         name=QUALITY_MART,
         grain=QUALITY_MART,
         # Self-based: there is no silver entity under this mart (see
-        # ``is_quality_mart``). It is never an authored ``base:``, so RFC 0016
+        # ``is_quality_mart``). It is never an authored ``base:``, so S-0033
         # D15's "a mart's base must be a silver entity" is untouched — that
         # rule governs what an author may write.
         base=QUALITY_MART,
@@ -288,7 +288,7 @@ def quality_metrics() -> tuple[MetricIR, ...]:
         MetricIR(
             name=_RATE_METRIC,
             grain=QUALITY_MART,
-            # RFC 0038 D2's member, not `NON_ADDITIVE` with a `ratio:` beside
+            # S-0053/D-2's member, not `NON_ADDITIVE` with a `ratio:` beside
             # it: this metric is the reason the class exists — a quarantine
             # rate averaged across entities is not the rate. Minting `RATIO`
             # made bloomery's own generated metric the first spec the shape
@@ -296,7 +296,7 @@ def quality_metrics() -> tuple[MetricIR, ...]:
             additivity=Additivity.RATIO,
             agg=None,
             expr=None,
-            # Which rows the rate is about (RFC 0075 R019), stated because
+            # Which rows the rate is about (S-0077 R019), stated because
             # bloomery asks it of every ratio including its own. A group with
             # nothing evaluated quarantined nothing either, so it contributes
             # zero to both operands and including it changes no number — which
@@ -330,12 +330,12 @@ def counted_entities(ir: ProjectIR) -> tuple[EntityIR, ...]:
     A ``python_model`` output's rows are written by its generated wrapper,
     which projects exactly the manifest's declared columns, so the relation has
     no ``_quality_flags`` array to reduce; and a ``fail`` rule lowers to a
-    blocking audit that stops the run rather than marking a row (RFC 0017
+    blocking audit that stops the run rather than marking a row (S-0034
     §5.8), so there is nothing evaluated-but-surviving to report. Counting one
     anyway emitted ``_quality_flags AS _flags`` against a relation with no such
     column — a gold model that compiled clean, passed every golden, and failed
     on its first run. A ``sql_model`` output with an ``on_fail: flag`` rule
-    does have the column (RFC 0051 §5.3) and is counted; it declares no
+    does have the column (S-0059/onfail-flag-on-a-tier-2-output) and is counted; it declares no
     ``quarantine:``, so :func:`_quality_rows_cte` reads its silver relation
     alone and never looks for a reject table it has not got.
 

@@ -1,6 +1,6 @@
 """The compile orchestration (spec §8): target/dialect routing, the
 public-signature contract, and the extension-dialect pattern-transport check
-(RFC 0016 D56's explicit-argument hatch)."""
+(S-0033/D-56's explicit-argument hatch)."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def test_unknown_target_is_an_emit_error() -> None:
 
 
 # ....................... #
-# Extension-dialect pattern transport (RFC 0016 D56's hatch, applied at the
+# Extension-dialect pattern transport (S-0033/D-56's hatch, applied at the
 # one seam where the dialect is a declared input rather than ambient state)
 
 

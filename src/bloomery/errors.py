@@ -1,18 +1,18 @@
-"""The total ``BloomeryError`` hierarchy (RFC 0002 §5.4).
+"""The total ``BloomeryError`` hierarchy (S-0019/error-hierarchy).
 
 Every failure the package can raise derives from :class:`BloomeryError` and
 carries a human message plus an optional ``source_path`` — a dotted/bracketed
-address into the authored spec document (RFC 0002 §5.3). All leaf classes are
+address into the authored spec document (S-0019/source-paths). All leaf classes are
 declared here, in one module importable without pulling in any pipeline stage,
-so callers can write a single ``except BloomeryError`` (RFC 0002 D3).
+so callers can write a single ``except BloomeryError`` (S-0019/D-3).
 
-Batched stages (parse — RFC 0002 D6; resolution — RFC 0005 D7; guardrails —
-RFC 0006 D2) collect their individual failures and raise one aggregate error
+Batched stages (parse — S-0019/D-6; resolution — S-0022/D-7; guardrails —
+S-0023/D-2) collect their individual failures and raise one aggregate error
 listing every path: authors fix a spec in one round-trip, not one error at a
 time. The aggregation surface is :attr:`BloomeryError.collected` plus the
 :meth:`BloomeryError.from_collected` constructor.
 
-**Fix suggestions** (RFC 0020 §5.4, D7). Five refusals carry a structured next
+**Fix suggestions** (S-0037/fix-suggestions-on-refusals, S-0037/D-7). Five refusals carry a structured next
 action beside the prose, because a human reads a message and a proposal loop
 reads a *structure*. Each field exposes a value bloomery already computed on
 its way to writing the message, and until now threw away there —
@@ -118,7 +118,7 @@ __all__ = [
 
 
 # ....................... #
-# Suggestion payloads — RFC 0020 §5.4, D11.
+# Suggestion payloads — S-0037/fix-suggestions-on-refusals, S-0037/D-11.
 #
 # Typed values rather than encoded strings. A ``tuple[str, ...]`` could name
 # the marts but not say which metric each covers at which grain, which is the
@@ -129,7 +129,7 @@ __all__ = [
 # self-defeating.
 #
 # They live here, in the bottom layer, because that is where the errors that
-# carry them live: nothing under ``src/bloomery/`` may import upward. RFC 0020
+# carry them live: nothing under ``src/bloomery/`` may import upward. S-0037
 # §5.4's table typed both grains as ``TimeGrain``, which cannot be right for
 # either — ``TimeGrain`` is the planner's *time bucket* vocabulary
 # (``day``/``month``/…), while a mart's and a metric's grain is an **entity**
@@ -172,7 +172,7 @@ class MeasureRef:
 
 
 class BloomeryError(Exception):
-    """Base of every error bloomery raises (RFC 0002 §5.4).
+    """Base of every error bloomery raises (S-0019/error-hierarchy).
 
     Carries the human message (``str(exc)``), the ``source_path`` into the
     authored document that caused the failure (always set by the parse stage,
@@ -197,7 +197,7 @@ class BloomeryError(Exception):
     def from_collected(cls, errors: tuple[BloomeryError, ...]) -> Self:
         """Build one aggregate error whose message lists every collected path.
 
-        Used by the batched stages (RFC 0002 D6): the individual failures stay
+        Used by the batched stages (S-0019/D-6): the individual failures stay
         machine-readable on :attr:`collected`; the message enumerates each one
         in collection order (callers pre-sort where determinism demands it).
         """
@@ -211,7 +211,7 @@ class BloomeryError(Exception):
 
 
 # ....................... #
-# Parse stage — RFC 0002
+# Parse stage — S-0019
 
 
 # ....................... #
@@ -219,7 +219,7 @@ class BloomeryError(Exception):
 
 class InvariantViolated(BloomeryError):
     """A guarantee an earlier stage was supposed to have established did not
-    hold (RFC 0003 D11).
+    hold (S-0020/D-11).
 
     Never an authored spec's fault. Every lookup that raises this is total
     *because a guardrail already refused the case that would break it*, so
@@ -261,19 +261,19 @@ def guaranteed[T](candidates: Iterable[T], *, expected: str, by: str) -> T:
 
 
 class SpecParseError(BloomeryError):
-    """Raised by the parse stage (loaders, RFC 0002): YAML failures, duplicate
+    """Raised by the parse stage (loaders, S-0019): YAML failures, duplicate
     keys, shape/unknown-key validation failures — batched per document (D6)."""
 
 
 # ....................... #
-# Typing and transforms — RFC 0004
+# Typing and transforms — S-0021
 
 
 # ....................... #
 
 
 class UnknownTransformError(BloomeryError):
-    """Raised by the typecheck stage (RFC 0004) when a transform chain names a
+    """Raised by the typecheck stage (S-0021) when a transform chain names a
     transform absent from the registry; the message names the closest match."""
 
 
@@ -281,7 +281,7 @@ class UnknownTransformError(BloomeryError):
 
 
 class TypeCheckError(BloomeryError):
-    """Raised by the type layer (RFC 0004): unparsable type strings and
+    """Raised by the type layer (S-0021): unparsable type strings and
     transform chains whose terminal type is not assignable to the declared."""
 
 
@@ -289,19 +289,19 @@ class TypeCheckError(BloomeryError):
 
 
 class TransformRegistrationError(BloomeryError):
-    """Raised by ``register_transform`` (RFC 0004) when a transform spec is
+    """Raised by ``register_transform`` (S-0021) when a transform spec is
     invalid or collides with an already-registered name."""
 
 
 # ....................... #
-# Resolution — RFC 0005
+# Resolution — S-0022
 
 
 # ....................... #
 
 
 class ResolutionError(BloomeryError):
-    """Raised by the resolution stage (RFC 0005): cross-spec reference and
+    """Raised by the resolution stage (S-0022): cross-spec reference and
     recipe failures over the dependency DAG — batched per stage (D7)."""
 
 
@@ -309,7 +309,7 @@ class ResolutionError(BloomeryError):
 
 
 class CircularDerivation(ResolutionError):
-    """Raised by the resolution stage (RFC 0005 D4) on any cycle in the
+    """Raised by the resolution stage (S-0022/D-4) on any cycle in the
     dependency DAG; the message names the full cycle path."""
 
 
@@ -317,19 +317,19 @@ class CircularDerivation(ResolutionError):
 
 
 class MissingReference(ResolutionError):
-    """Raised by the resolution stage (RFC 0005 D7) when a spec references a
+    """Raised by the resolution stage (S-0022/D-7) when a spec references a
     nonexistent entity, field, canonical field, template, or relationship end."""
 
 
 # ....................... #
-# Guardrails — RFC 0006 (mart-level leaves: RFC 0010; MetricFlow: RFC 0013)
+# Guardrails — S-0023 (mart-level leaves: S-0027; MetricFlow: S-0030)
 
 
 # ....................... #
 
 
 class GuardrailError(BloomeryError):
-    """Raised by the guardrail stage (RFC 0006): the aggregate whose
+    """Raised by the guardrail stage (S-0023): the aggregate whose
     ``collected`` violations are sorted by ``(source_path, type name)``."""
 
 
@@ -337,7 +337,7 @@ class GuardrailError(BloomeryError):
 
 
 class UnitMismatch(GuardrailError):
-    """Guardrail stage (RFC 0006 §5.2): operands of ``+``/``-`` with differing
+    """Guardrail stage (S-0023/metadata-provenance-unit-tax-basis-currency): operands of ``+``/``-`` with differing
     *declared* ``unit`` metadata (currency + count is the bug)."""
 
 
@@ -345,7 +345,7 @@ class UnitMismatch(GuardrailError):
 
 
 class TaxBasisMismatch(GuardrailError):
-    """Guardrail stage (RFC 0006 §5.2, worked example §5.7): ``net`` and
+    """Guardrail stage (S-0023/metadata-provenance-unit-tax-basis-currency, worked example §5.7): ``net`` and
     ``gross`` — or an unknown basis alongside a monetary operand — meeting in
     additive arithmetic (unknown poisons, D3)."""
 
@@ -354,14 +354,14 @@ class TaxBasisMismatch(GuardrailError):
 
 
 class CurrencyMismatch(GuardrailError):
-    """Guardrail stage (RFC 0006 §5.2): two operands with distinct declared
+    """Guardrail stage (S-0023/metadata-provenance-unit-tax-basis-currency): two operands with distinct declared
     ISO-4217 currency codes.
 
     Unconditional, and no token waives it. A ``convert`` marker in the chain
-    used to satisfy the rule and no longer does (RFC 0023 D5): it bought a
+    used to satisfy the rule and no longer does (S-0040/D-5): it bought a
     compile-time pass that asserted nothing about the value.
 
-    What ``convert`` offers since RFC 0023 §5.4 is an *answer* rather than an
+    What ``convert`` offers since S-0040/phase-2-currency-as-a-declared-relation is an *answer* rather than an
     escape — it converts an operand into a column the catalog declares in the
     target currency, and two operands in one currency were never a violation.
     The rule did not move; the remediation the message names does, depending on
@@ -373,7 +373,7 @@ class CurrencyMismatch(GuardrailError):
 
 
 class GrainMismatch(GuardrailError):
-    """Guardrail stage (RFC 0006 §5.3): expression combining columns of
+    """Guardrail stage (S-0023/grain-the-fan-out-guard): expression combining columns of
     different grains without an explicit aggregation."""
 
 
@@ -381,7 +381,7 @@ class GrainMismatch(GuardrailError):
 
 
 class AdditivityViolation(GuardrailError):
-    """Guardrail stage (RFC 0006 §5.4): an aggregation that contradicts the
+    """Guardrail stage (S-0023/additivity): an aggregation that contradicts the
     metric's declared additivity."""
 
 
@@ -389,12 +389,12 @@ class AdditivityViolation(GuardrailError):
 
 
 class FalseAdditivityClaim(GuardrailError):
-    """Guardrail stage (RFC 0038 D1/D2): a measure declared ``additive`` whose
+    """Guardrail stage (S-0053/D-1, S-0053/D-2): a measure declared ``additive`` whose
     aggregation or origin grain says it is not.
 
     Distinct from :class:`AdditivityViolation`, which polices a metric against
     the additivity it *declared*. This one polices the declaration itself:
-    ``additivity: additive`` is a claim, and until RFC 0038 nothing checked it,
+    ``additivity: additive`` is a claim, and until S-0053 nothing checked it,
     so the two shapes it names — an average re-averaged, and a snapshot summed
     across the axis its grain is taken along — compiled clean and answered
     wrongly. A plausible wrong number is the failure this compiler exists to
@@ -406,7 +406,7 @@ class FalseAdditivityClaim(GuardrailError):
 
 
 class AssertLoweringError(GuardrailError):
-    """Guardrail stage (RFC 0006 D8): an ``assert:`` clause ill-typed against
+    """Guardrail stage (S-0023/D-8): an ``assert:`` clause ill-typed against
     the field's logical type."""
 
 
@@ -414,10 +414,10 @@ class AssertLoweringError(GuardrailError):
 
 
 class GrainViolation(GuardrailError):
-    """Guardrail stage, mart-level (RFC 0010 D2): a mart measure whose grain
+    """Guardrail stage, mart-level (S-0027/D-2): a mart measure whose grain
     does not strictly equal the mart grain.
 
-    ``offending_measures`` names the measure and its own grain (RFC 0020
+    ``offending_measures`` names the measure and its own grain (S-0037
     §5.4). It is empty for the sibling violation this class also carries — a
     mart whose *declared* grain differs from its base entity — where no
     measure is at fault and the mart header is.
@@ -439,7 +439,7 @@ class GrainViolation(GuardrailError):
 
 
 class FanoutRisk(GuardrailError):
-    """Guardrail stage, mart-level (RFC 0010 D3): a mart ``via:`` flatten step
+    """Guardrail stage, mart-level (S-0027/D-3): a mart ``via:`` flatten step
     over a ``one_to_many`` relationship."""
 
 
@@ -447,7 +447,7 @@ class FanoutRisk(GuardrailError):
 
 
 class HistoricalFanout(GuardrailError):
-    """Guardrail stage, mart-level (RFC 0023 D1/D2): a mart that flattens — or
+    """Guardrail stage, mart-level (S-0040/D-1, S-0040/D-2): a mart that flattens — or
     is based on — an entity declared ``scd: type2``.
 
     Distinct from :class:`FanoutRisk` on purpose. That one reports a *declared
@@ -462,7 +462,7 @@ class HistoricalFanout(GuardrailError):
 
 
 class NonAdditiveWithoutComponents(GuardrailError):
-    """Guardrail stage (RFC 0006 §5.4, RFC 0011 D5): a non-additive metric
+    """Guardrail stage (S-0023/additivity, S-0028/D-5): a non-additive metric
     without a ratio / additive decomposition to recompute it from."""
 
 
@@ -470,13 +470,13 @@ class NonAdditiveWithoutComponents(GuardrailError):
 
 
 class InvalidMetricShape(GuardrailError):
-    """Guardrail stage (RFC 0034 D5–D7): a metric whose declaration contradicts
+    """Guardrail stage (S-0050/D-5–S-0050/D-7): a metric whose declaration contradicts
     itself — ``derived:`` beside ``cumulative:``, a derived metric declared
     additive, a cumulative one with no measure to accumulate, or a derived
     expression referencing an alias its ``inputs:`` do not declare.
 
     This is the narrower successor to the blanket ``cumulative:`` refusal that
-    stood while nothing lowered it (RFC 0002 D10). That refusal named reserved
+    stood while nothing lowered it (S-0019/D-10). That refusal named reserved
     surface; these name a metric that cannot mean what it says.
     """
 
@@ -485,7 +485,7 @@ class InvalidMetricShape(GuardrailError):
 
 
 class MetricFilterInvalid(GuardrailError):
-    """Guardrail stage (RFC 0034 D9): a metric ``filter:`` naming a dimension
+    """Guardrail stage (S-0050/D-9): a metric ``filter:`` naming a dimension
     the carrying mart does not flatten, a date-role dimension (a metric pinned
     to one period is a constant), or a value that does not fit the column's
     declared type.
@@ -501,7 +501,7 @@ class MetricFilterInvalid(GuardrailError):
 
 
 class MartMissingTimeDimension(GuardrailError):
-    """Guardrail stage (RFC 0010 §5.5 rule 6, RFC 0013 R1): a measure-carrying
+    """Guardrail stage (S-0027/validation-compile-errors-batched-with-guardrails rule 6, S-0030 R1): a measure-carrying
     mart that declares no date role."""
 
 
@@ -509,7 +509,7 @@ class MartMissingTimeDimension(GuardrailError):
 
 
 class UnprovableRollup(GuardrailError):
-    """Guardrail stage, rollup-level (RFC 0058 D5, `LOCKED`): a declared rollup
+    """Guardrail stage, rollup-level (S-0065/D-5, `LOCKED`): a declared rollup
     whose obligation R013 does not discharge.
 
     **Refused, never warned about.** A rollup is read *instead of* the detail
@@ -530,7 +530,7 @@ class UnprovableRollup(GuardrailError):
 
 
 class ReservedEntityName(GuardrailError):
-    """Guardrail stage (RFC 0051 §5.2, D6/D7): an entity named after one of the
+    """Guardrail stage (S-0059/the-node-id-collision-refused-at-its-cause, S-0059/D-6, S-0059/D-7): an entity named after one of the
     lineage node-id prefixes. Every node id but an entity field's carries
     a kind prefix, so an entity named ``metric`` makes ``<entity>.<field>``
     indistinguishable from ``metric.<name>`` — and the ids are published."""
@@ -540,11 +540,11 @@ class ReservedEntityName(GuardrailError):
 
 
 class ImportCollision(GuardrailError):
-    """Guardrail stage (RFC 0059 §5.4): a name this project declares is also a
+    """Guardrail stage (S-0002 (§5.4)): a name this project declares is also a
     name it imports.
 
     Two things of one kind answering to one name, and every reference to that
-    name afterwards is ambiguous — which is the refusal RFC 0059 §2 names as
+    name afterwards is ambiguous — which is the refusal S-0002 (§2) names as
     composition's payoff. Today a domain project declaring its own `customer`
     beside the platform's is two entities that happen to share a spelling and
     nothing notices; the collision is only visible once a boundary exists to
@@ -558,7 +558,7 @@ class ImportCollision(GuardrailError):
 
 
 class UndeclaredRatioRows(GuardrailError):
-    """Guardrail stage (RFC 0075 §5.1, R019): a ratio whose denominator can be
+    """Guardrail stage (S-0077/the-refusal-is-the-product, S-0077 R019): a ratio whose denominator can be
     zero on a row, with nothing saying whether that row belongs in it.
 
     A shipment cancelled after the carrier charged for it contributes cost to
@@ -580,7 +580,7 @@ class UndeclaredRatioRows(GuardrailError):
 
 
 class RatioOperandsDisagree(GuardrailError):
-    """Guardrail stage (RFC 0075 §5.2, R019): a ratio whose operands are
+    """Guardrail stage (S-0077/operand-restrictions-must-agree-whether-or-not-zero-is-invol, S-0077 R019): a ratio whose operands are
     restricted to different row sets.
 
     Its own class rather than a second message on
@@ -596,7 +596,7 @@ class RatioOperandsDisagree(GuardrailError):
 
 
 class UndeclaredZone(GuardrailError):
-    """Guardrail stage (RFC 0074 §5.3, R018): a timestamp parsed from a wall
+    """Guardrail stage (S-0076/r018-and-where-it-fires, S-0076 R018): a timestamp parsed from a wall
     clock nothing declares, whose absolute position is then read.
 
     ``parse_ts`` reads a wall clock and cannot know which clock; the type
@@ -620,7 +620,7 @@ class UndeclaredZone(GuardrailError):
 
 
 class DanglingExport(GuardrailError):
-    """Guardrail stage (RFC 0059 D1, `LOCKED`): an export naming an entity,
+    """Guardrail stage (S-0002/D-1, `LOCKED`): an export naming an entity,
     mart or metric the project does not declare.
 
     An export list is the boundary another project reads through, so a name on
@@ -637,7 +637,7 @@ class DanglingExport(GuardrailError):
 
 
 class UnexportedImport(GuardrailError):
-    """Guardrail stage (RFC 0059 D1, `LOCKED`): a project imports a name the
+    """Guardrail stage (S-0002/D-1, `LOCKED`): a project imports a name the
     upstream does not export.
 
     The boundary read from the other side. An export list is explicit
@@ -653,7 +653,7 @@ class UnexportedImport(GuardrailError):
 
 
 class UnknownUpstream(GuardrailError):
-    """Guardrail stage (RFC 0059 D8): a project declares an import from an
+    """Guardrail stage (S-0002/D-8): a project declares an import from an
     upstream the compile was not given.
 
     The shape :class:`UnknownStep` already has, one input over: a spec
@@ -663,7 +663,7 @@ class UnknownUpstream(GuardrailError):
     world. The message names the aliases that *were* supplied, since an empty
     set is a different repair from a misspelled one.
 
-    ``supplied`` is that same list as data, sorted (RFC 0020 §5.4).
+    ``supplied`` is that same list as data, sorted (S-0037/fix-suggestions-on-refusals).
     """
 
     def __init__(
@@ -679,7 +679,7 @@ class UnknownUpstream(GuardrailError):
 
 
 class DanglingExposure(GuardrailError):
-    """Guardrail stage (RFC 0056 D2, `LOCKED`): an exposure naming a metric or
+    """Guardrail stage (S-0063/D-2, `LOCKED`): an exposure naming a metric or
     a mart the project does not declare.
 
     Refused rather than dropped, and that is the whole point of the check. An
@@ -691,11 +691,11 @@ class DanglingExposure(GuardrailError):
 
 
 class InsufficientEvidence(GuardrailError):
-    """Guardrail stage (RFC 0065 D4, `LOCKED`): a consumer declaring
+    """Guardrail stage (S-0070/D-4, `LOCKED`): a consumer declaring
     ``requires_evidence: locked`` reads a measure resting on a fact nobody
     wrote down.
 
-    Strictly above RFC 0039's floor (D2): every fact named here already
+    Strictly above S-0005's floor (D2): every fact named here already
     *closes* its obligation, so the project is sound and would compile without
     the annotation. What the consumer asked is a different question — whether a
     human here wrote the premise, rather than whether the compiler reached it
@@ -709,7 +709,7 @@ class InsufficientEvidence(GuardrailError):
 
 
 # ....................... #
-# Guardrails, data-quality leaves — RFC 0016 §5.9. A guardrail says the
+# Guardrails, data-quality leaves — S-0033/the-disposition-model (§5.9.) A guardrail says the
 # *model* is wrong (compile time, decidable from the spec alone); a quality
 # rule says the *data* is wrong (run time, a disposition per row). Everything
 # this RFC can decide without data is therefore a ``GuardrailError``.
@@ -719,7 +719,7 @@ class InsufficientEvidence(GuardrailError):
 
 
 class QuarantineRetentionMissing(GuardrailError):
-    """Guardrail stage (RFC 0016 §5.6, D10): an entity with a ``quarantine``
+    """Guardrail stage (S-0033/quarantine-one-reject-table-per-entity, S-0033/D-10): an entity with a ``quarantine``
     disposition and no ``quarantine.retention`` — reject tables hold raw
     payloads, so retention is required, never defaulted."""
 
@@ -728,16 +728,16 @@ class QuarantineRetentionMissing(GuardrailError):
 
 
 class DedupeTieBreakMissing(GuardrailError):
-    """Guardrail stage (RFC 0016 §5.3, D6): ``dedupe.keep: latest_by`` without
+    """Guardrail stage (S-0033/spec-schema, S-0033/D-6): ``dedupe.keep: latest_by`` without
     ``tie_break`` — rows sharing a timestamp would make the winner arbitrary,
-    and a nondeterministic model violates the core invariant (RFC 0003)."""
+    and a nondeterministic model violates the core invariant (S-0020)."""
 
 
 # ....................... #
 
 
 class DedupeDispositionConflict(GuardrailError):
-    """Guardrail stage (RFC 0016 §5.4, D6): a weaker declared ``coercible``
+    """Guardrail stage (S-0033/fixed-pipeline-order-and-lowering, S-0033/D-6): a weaker declared ``coercible``
     disposition on a field named by ``dedupe.field``/``tie_break``, where the
     fixed pipeline order forces ``fail`` — an uncastable recency field leaves
     dedupe ordering undefined."""
@@ -747,7 +747,7 @@ class DedupeDispositionConflict(GuardrailError):
 
 
 class IngestionMetadataMissing(GuardrailError):
-    """Guardrail stage (RFC 0016 §5.6, D21): an entity using ``quarantine`` or
+    """Guardrail stage (S-0033/quarantine-one-reject-table-per-entity, S-0033/D-21): an entity using ``quarantine`` or
     ``dedupe`` whose bronze source lacks ``_load_id``/``_ingested_at``/
     ``_source_row_id``. Their NOT NULL/uniqueness properties are data facts no
     compiler can check — those become a generated blocking audit; *absence* is
@@ -758,7 +758,7 @@ class IngestionMetadataMissing(GuardrailError):
 
 
 class RedactionConflict(GuardrailError):
-    """Guardrail stage (RFC 0016 §5.6, D10): a ``quarantine.redact`` JSONPath
+    """Guardrail stage (S-0033/quarantine-one-reject-table-per-entity, S-0033/D-10): a ``quarantine.redact`` JSONPath
     intersecting a path the entity's mappings read (``from`` paths, recipe
     aliases included) — you cannot both require a field and destroy it at
     write time; the message names both sides."""
@@ -768,7 +768,7 @@ class RedactionConflict(GuardrailError):
 
 
 class SecretPublished(GuardrailError):
-    """Guardrail stage (RFC 0055 D10): a column classified ``secret`` carried
+    """Guardrail stage (S-0062/D-10): a column classified ``secret`` carried
     by a **published relation** — a mart or a rollup.
 
     A published relation is exactly the thing ``secret`` says this column is
@@ -781,7 +781,7 @@ class SecretPublished(GuardrailError):
 
 
 class AudienceWidened(GuardrailError):
-    """Guardrail stage (RFC 0055 D11): a ``pii``/``secret`` column reaching a
+    """Guardrail stage (S-0062/D-11): a ``pii``/``secret`` column reaching a
     relation that admits a role the entity it came from does not.
 
     A set difference, not a superset test — disjoint grant sets are refused
@@ -791,13 +791,13 @@ class AudienceWidened(GuardrailError):
     The leak this exists for is the ordinary one — a customer table flattened
     into a wide mart, and the mart granted to everyone. Both sides must
     *declare* their grants for this to fire: an undeclared audience is unknown
-    rather than wider, and it is an advisory instead (RFC 0033), because
+    rather than wider, and it is an advisory instead (S-0004), because
     refusing the unknown case would refuse every project that manages its gold
     grants outside bloomery."""
 
 
 # ....................... #
-# Steps — RFC 0017. Two compile-time refusals and one raised only by
+# Steps — S-0034. Two compile-time refusals and one raised only by
 # generated code, at target runtime, which is why it is a sibling of the
 # compile hierarchy rather than a GuardrailError: nothing in bloomery ever
 # raises it, and nothing in bloomery ever catches it.
@@ -807,19 +807,19 @@ class AudienceWidened(GuardrailError):
 
 
 class StepError(BloomeryError):
-    """Raised for the referenced-implementation escape hatch (RFC 0017)."""
+    """Raised for the referenced-implementation escape hatch (S-0034)."""
 
 
 # ....................... #
 
 
 class UnknownStep(StepError):
-    """Compile stage (RFC 0017 §5.3, D3): a spec references a ``ref@version``
+    """Compile stage (S-0034/purity-the-registry-is-a-compile-input, S-0034/D-3): a spec references a ``ref@version``
     the :class:`~bloomery.steps.StepRegistry` does not hold. The message names
     the versions that *are* available — there is no dynamic loading path to
     fall back on, by design, so the registry is the whole world.
 
-    ``available_versions`` is that same list as data, ascending (RFC 0020
+    ``available_versions`` is that same list as data, ascending (S-0037
     §5.4). Empty means the registry holds no version of this ``ref`` at all,
     which is a different repair from pinning a different one.
     """
@@ -840,7 +840,7 @@ class UnknownStep(StepError):
 
 
 class StepDeterminismError(StepError):
-    """Compile stage (RFC 0017 §5.5, D5): a step declaring
+    """Compile stage (S-0034/determinism-tiers, S-0034/D-5): a step declaring
     ``determinism: nondeterministic``, or a ``seeded`` step wired without a
     seed. A nondeterministic step makes a backfill disagree with the original
     run, which destroys restatement — the capability the architecture is
@@ -851,7 +851,7 @@ class StepDeterminismError(StepError):
 
 
 class StepContractViolation(StepError):
-    """**Run time**, raised only by generated wrapper code (RFC 0017 §5.4,
+    """**Run time**, raised only by generated wrapper code (S-0034/trust-the-declaration-verify-at-runtime,
     D4): the step's actual output contradicts its manifest — a missing or
     undeclared output, a column set that differs, an unassignable type, a null
     in a ``required`` column, or a duplicated grain key. Non-optional and
@@ -860,14 +860,14 @@ class StepContractViolation(StepError):
 
 
 # ....................... #
-# Plan — RFC 0007
+# Plan — S-0024
 
 
 # ....................... #
 
 
 class PlanError(BloomeryError):
-    """Raised by the plan stage (RFC 0007) when a spec diff cannot produce a
+    """Raised by the plan stage (S-0024) when a spec diff cannot produce a
     safe migration plan."""
 
 
@@ -875,7 +875,7 @@ class PlanError(BloomeryError):
 
 
 class ContractViolation(PlanError):
-    """Plan stage (RFC 0007 D5): dropping or narrowing a field still
+    """Plan stage (S-0024/D-5): dropping or narrowing a field still
     referenced by a reachable metric — expand/contract enforced."""
 
 
@@ -883,19 +883,19 @@ class ContractViolation(PlanError):
 
 
 class RenameTargetMissing(PlanError):
-    """Plan stage (RFC 0007 D3): a ``renamed_from`` annotation whose old name
+    """Plan stage (S-0024/D-3): a ``renamed_from`` annotation whose old name
     is absent from the old IR (stale one-shot annotation)."""
 
 
 # ....................... #
-# Emit — RFC 0008
+# Emit — S-0025
 
 
 # ....................... #
 
 
 class EmitError(BloomeryError):
-    """Raised by the emit stage (RFC 0008) when the IR cannot be lowered to a
+    """Raised by the emit stage (S-0025) when the IR cannot be lowered to a
     target artifact."""
 
 
@@ -903,12 +903,12 @@ class EmitError(BloomeryError):
 
 
 class UnsupportedByTarget(EmitError):
-    """Emit stage (RFC 0008 D3): an IR construct the selected target or
+    """Emit stage (S-0025/D-3): an IR construct the selected target or
     dialect cannot express — fail loud, never approximate."""
 
 
 # ....................... #
-# Planner — RFC 0011 (backend: RFC 0013). Deliberately NOT batched (0011 D9).
+# Planner — S-0028 (backend: S-0030). Deliberately NOT batched (0011 D9).
 
 
 # ....................... #
@@ -916,7 +916,7 @@ class UnsupportedByTarget(EmitError):
 
 class ArtifactImportError(BloomeryError):
     """Raised by :mod:`bloomery.imports` when an external semantic artifact
-    cannot be read into bloomery relationships exactly (RFC 0070 §5.2).
+    cannot be read into bloomery relationships exactly (S-0075/the-mapping-field-by-field).
 
     ``ArtifactImportError`` rather than ``ImportError``, which is a builtin and
     means something else entirely to every reader and every ``except`` clause.
@@ -925,7 +925,7 @@ class ArtifactImportError(BloomeryError):
     condition per row and each of them is a place where the artifact is silent
     about something the bloomery fact requires — a ``foreign`` element nothing
     declares as unique, an ``expr`` that is absent, two models claiming one
-    target. There is no weaker relationship to emit instead (RFC 0044 D3), so
+    target. There is no weaker relationship to emit instead (S-0057/D-3), so
     the alternatives are the exact edge and none.
     """
 
@@ -934,7 +934,7 @@ class ArtifactImportError(BloomeryError):
 
 
 class PlannerError(BloomeryError):
-    """Raised by the query planner (RFC 0011) on malformed or unanswerable
+    """Raised by the query planner (S-0028) on malformed or unanswerable
     requests; planner errors are not batched (D9)."""
 
 
@@ -942,13 +942,13 @@ class PlannerError(BloomeryError):
 
 
 class UnknownMember(PlannerError):
-    """Planner stage (RFC 0011 D3): a request names a metric or dimension that
+    """Planner stage (S-0028/D-3): a request names a metric or dimension that
     does not exist.
 
     ``did_you_mean`` is the closest known name, or ``None`` when nothing is
     close enough (the message then lists what *is* known). The docstring has
-    promised this field since RFC 0011 while the match was computed and
-    rendered into prose; RFC 0020 §5.4 makes the sentence true.
+    promised this field since S-0028 while the match was computed and
+    rendered into prose; S-0037/fix-suggestions-on-refusals makes the sentence true.
     """
 
     def __init__(
@@ -967,17 +967,17 @@ class UnknownMember(PlannerError):
 
 
 class UnreachableAtGrain(PlannerError):
-    """Planner stage (RFC 0011 D3): no single mart can answer the request at
+    """Planner stage (S-0028/D-3): no single mart can answer the request at
     the requested grain — refuse, never join at plan time.
 
-    ``covering_marts`` is the conflict as data (RFC 0020 §5.4): one
+    ``covering_marts`` is the conflict as data (S-0037/fix-suggestions-on-refusals): one
     :class:`MartCoverage` per required measure, naming the mart that *does*
     serve it and the grain it serves it at. Empty means genuinely no mart
     lists the metric as a measure — a different repair (define a mart) from a
     split across grains (request them separately).
 
     ``refusal_reason`` is the stable code for the *dimension* case this class
-    also covers (RFC 0040 §11a P2): a request naming a dimension another mart
+    also covers (S-0054/phasing (a) S-0054/phasing (P-2)): a request naming a dimension another mart
     carries, which this mart does not. It answers the only question an author
     acts on differently —
 
@@ -987,7 +987,7 @@ class UnreachableAtGrain(PlannerError):
       provable, and that member names which repair applies.
     - ``"unverified"``: a proof exists and does not close — it rests on a
       heuristic or an unverified import — so it authorizes nothing. Unreachable
-      until RFC 0044's imported provenance lands; the repair is to verify the
+      until S-0057's imported provenance lands; the repair is to verify the
       fact, not to edit a mart.
     - ``""``: not a dimension refusal at all — the measure-coverage cases
       above, whose shape is ``covering_marts``.
@@ -997,7 +997,7 @@ class UnreachableAtGrain(PlannerError):
     so ``RefusalReason(err.refusal_reason)`` round-trips for the second case.
     ``"not_flattened"`` is deliberately *not* a ``RefusalReason``: nothing was
     refused there, the rollup succeeded, and adding a member for it would put a
-    planner's answer inside RFC 0037's vocabulary for rollup failures.
+    planner's answer inside S-0017's vocabulary for rollup failures.
     """
 
     def __init__(
@@ -1018,7 +1018,7 @@ class UnreachableAtGrain(PlannerError):
 
 
 class AmbiguousDimension(PlannerError):
-    """Planner stage (RFC 0011 D6): an unqualified reference to a dimension
+    """Planner stage (S-0028/D-6): an unqualified reference to a dimension
     with multiple roles; the message names the available roles."""
 
 
@@ -1026,7 +1026,7 @@ class AmbiguousDimension(PlannerError):
 
 
 class InvalidRequest(PlannerError):
-    """Planner stage (RFC 0011 D9): bad filter/order/limit shapes or raw SQL
+    """Planner stage (S-0028/D-9): bad filter/order/limit shapes or raw SQL
     where a structured request member is required."""
 
 
@@ -1034,12 +1034,12 @@ class InvalidRequest(PlannerError):
 
 
 class FilterTypeMismatch(PlannerError):
-    """Planner stage (RFC 0013 D8): a filter value whose type contradicts the
+    """Planner stage (S-0030/D-8): a filter value whose type contradicts the
     dimension's logical type — refused before any SQL is rendered."""
 
 
 # ....................... #
-# Query vocabulary — RFC 0015 §5.3: the closed refusal list. Every leaf
+# Query vocabulary — S-0032/the-closed-list-what-cannot-cross: the closed refusal list. Every leaf
 # carries a stable ``reason`` code; the union of codes the three parse
 # functions can raise is exported as ``bloomery.planner.KNOWN_UNSUPPORTED``.
 
@@ -1048,7 +1048,7 @@ class FilterTypeMismatch(PlannerError):
 
 
 class UnsupportedFilter(PlannerError):
-    """Planner stage (RFC 0015 §5.3): a query-vocabulary construct bloomery
+    """Planner stage (S-0032/the-closed-list-what-cannot-cross): a query-vocabulary construct bloomery
     deliberately refuses — a *reviewed* gap, never drift.
 
     Carries ``reason`` (the stable string code adapters key refusal handling
@@ -1056,7 +1056,7 @@ class UnsupportedFilter(PlannerError):
     after normalization — ``normalized``, the post-normalization form, so the
     error is actionable rather than merely correct.
 
-    ``nearest_supported`` (RFC 0020 §5.4) names the operator that would have
+    ``nearest_supported`` (S-0037/fix-suggestions-on-refusals) names the operator that would have
     worked, where one exists: ``$regex`` refuses with ``"like"``. It is the
     :class:`~bloomery.Op` *value*, not the member, because this module is the
     bottom layer and the planner's vocabulary sits at the top —
@@ -1090,7 +1090,7 @@ class UnsupportedFilter(PlannerError):
 
 
 class UnsupportedSetRelation(UnsupportedFilter):
-    """RFC 0015 §5.3: ``$superset``/``$subset``/``$disjoint``/``$overlaps`` —
+    """S-0032/the-closed-list-what-cannot-cross: ``$superset``/``$subset``/``$disjoint``/``$overlaps`` —
     marts are flattened and scalar by construction; no array columns exist
     to relate."""
 
@@ -1101,7 +1101,7 @@ class UnsupportedSetRelation(UnsupportedFilter):
 
 
 class UnsupportedHierarchy(UnsupportedFilter):
-    """RFC 0015 §5.3: ``$descendant_of``/``$ancestor_of`` — backend-specific
+    """S-0032/the-closed-list-what-cannot-cross: ``$descendant_of``/``$ancestor_of`` — backend-specific
     (``ltree``), capability-gated even upstream; model hierarchy as
     flattened level columns on the mart."""
 
@@ -1112,7 +1112,7 @@ class UnsupportedHierarchy(UnsupportedFilter):
 
 
 class UnsupportedTextOperator(UnsupportedFilter):
-    """RFC 0015 §5.3: ``$regex`` (dialect-divergent, unbounded cost) and
+    """S-0032/the-closed-list-what-cannot-cross: ``$regex`` (dialect-divergent, unbounded cost) and
     ``$empty`` (ambiguous across types) — express as ``like``/``ilike``,
     ``eq ""``, or ``is_null true`` explicitly."""
 
@@ -1123,7 +1123,7 @@ class UnsupportedTextOperator(UnsupportedFilter):
 
 
 class FilterTooComplex(UnsupportedFilter):
-    """RFC 0015 §5.2 step 3: CNF expansion exceeded the clause cap — refused
+    """S-0032/normalize-before-refusing-planner-parse-py-new-public step 3: CNF expansion exceeded the clause cap — refused
     *during* distribution, before the expansion is ever materialized."""
 
     reason = "filter_too_complex"
@@ -1133,7 +1133,7 @@ class FilterTooComplex(UnsupportedFilter):
 
 
 class UnsupportedNegation(UnsupportedFilter):
-    """RFC 0015 §5.2 step 2: a negated leaf with no complement operator
+    """S-0032/normalize-before-refusing-planner-parse-py-new-public step 2: a negated leaf with no complement operator
     (e.g. ``$not $like``) — ``not_like`` is added only on demonstrated
     need."""
 
@@ -1144,7 +1144,7 @@ class UnsupportedNegation(UnsupportedFilter):
 
 
 class InvalidLiteral(UnsupportedFilter):
-    """RFC 0015 D5: a non-finite numeric operand (``NaN``/``Infinity``/
+    """S-0032/D-5: a non-finite numeric operand (``NaN``/``Infinity``/
     ``-Infinity``, float or string form) or an invalid ``like`` pattern
     (unpaired trailing ``\\``, NUL) — fails open if permitted."""
 
@@ -1155,7 +1155,7 @@ class InvalidLiteral(UnsupportedFilter):
 
 
 class UnsupportedSortNulls(UnsupportedFilter):
-    """RFC 0015 D-Q6: a ``nulls`` placement other than the canonical default
+    """S-0032/D-7: a ``nulls`` placement other than the canonical default
     (``first`` for asc, ``last`` for desc) — accepting-and-dropping would be
     worse than refusing."""
 
@@ -1166,7 +1166,7 @@ class UnsupportedSortNulls(UnsupportedFilter):
 
 
 class UnsupportedPagination(UnsupportedFilter):
-    """RFC 0015 D-Q7: a non-zero ``offset`` or cursor pagination — paging
+    """S-0032/D-8: a non-zero ``offset`` or cursor pagination — paging
     aggregates belongs to the serving layer (materialize, then page)."""
 
     reason = "unsupported_pagination"
@@ -1176,7 +1176,7 @@ class UnsupportedPagination(UnsupportedFilter):
 
 
 class UnsupportedFieldCompare(UnsupportedFilter):
-    """Adapter-owned (RFC 0015 §5.3): ``$fields`` field-to-field compare.
+    """Adapter-owned (S-0032/the-closed-list-what-cannot-cross): ``$fields`` field-to-field compare.
     Declared here so adapters can raise it; **never raised by bloomery** and
     its code is not part of ``KNOWN_UNSUPPORTED`` — it belongs to the
     adapter's ``APP_UNSUPPORTED`` set."""
@@ -1188,7 +1188,7 @@ class UnsupportedFieldCompare(UnsupportedFilter):
 
 
 class UnsupportedQuantifier(UnsupportedFilter):
-    """Adapter-owned (RFC 0015 §5.3): ``$any``/``$all``/``$none`` element
+    """Adapter-owned (S-0032/the-closed-list-what-cannot-cross): ``$any``/``$all``/``$none`` element
     quantifiers. Declared here so adapters can raise it; **never raised by
     bloomery** and its code is not part of ``KNOWN_UNSUPPORTED`` — it
     belongs to the adapter's ``APP_UNSUPPORTED`` set."""
@@ -1197,7 +1197,7 @@ class UnsupportedQuantifier(UnsupportedFilter):
 
 
 # ....................... #
-# Deprecation — RFC 0033 D8. Not an error: the one use of Python's `warnings`
+# Deprecation — S-0004/D-8. Not an error: the one use of Python's `warnings`
 # module in `src/`, kept apart from the advisory channel (a compile-time
 # finding, carried on `SpecEvidence`) and from log records (telemetry). The
 # three channels do not blur, and this is the only one aimed at an
@@ -1206,7 +1206,7 @@ class UnsupportedQuantifier(UnsupportedFilter):
 
 class BloomeryDeprecationWarning(DeprecationWarning):
     """A bloomery spelling that still works and will not, with the release
-    that removes it named in the message (RFC 0033 D8).
+    that removes it named in the message (S-0004/D-8).
 
     Its own category so ``filterwarnings`` can target bloomery precisely — a
     suite that wants bloomery's deprecations as errors while leaving its other
@@ -1219,14 +1219,14 @@ class BloomeryDeprecationWarning(DeprecationWarning):
     """
 
 
-#: Spellings already warned about in this process (RFC 0033 D8). Module-level
+#: Spellings already warned about in this process (S-0004/D-8). Module-level
 #: and unsynchronized, deliberately — see :func:`warn_deprecated`.
 _WARNED: Final[set[str]] = set()
 
 
 def warn_deprecated(spelling: str, *, replacement: str, removed_in: str) -> None:
     """Emit :class:`BloomeryDeprecationWarning` for ``spelling``, best-effort
-    once per process (RFC 0033 D8).
+    once per process (S-0004/D-8).
 
     **Why an explicit guard rather than the warnings machinery's default
     filter.** That filter deduplicates on ``(message, category, lineno)``,

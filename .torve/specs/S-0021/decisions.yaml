@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      Closed `LogicalType` set for v0.1: `string`, `int`, `decimal(p,s)`, `bool`,
+      `date`, `timestamp` (always UTC-normalized), `variant` — frozen dataclasses
+      parsed from the spec layer's grammar-validated type strings. Adding a type is
+      a spec-grammar + typing + dialect change, deliberately expensive.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The transform registry is a closed, versioned whitelist and is the security/reviewability
+      boundary. Each transform declares name, arity/arg kinds, input type domain,
+      output type *function* (may depend on args), and a builder producing a dialect-neutral
+      SQLGlot expression; declared via `@transform(...)` building a `TransformSpec`.
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Starter set is exactly: `trim upper lower to_string to_int to_decimal to_bool
+      parse_ts parse_date to_utc enum_map coalesce nullif split_part regex_extract
+      strip_prefix strip_suffix multiply divide round abs concat json_path`, plus
+      `convert` as the explicit currency-conversion marker required by the currency
+      guardrail (S-0023).
+    paths:
+      - src/bloomery/transforms/_builtins.py
+      - tests/unit/test_transforms/test_builtins.py
+      - tests/unit/test_transforms/test_registry.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Unknown transform name → `UnknownTransformError` naming the closest match, computed
+      with `difflib.get_close_matches` over the sorted registry — deterministic suggestions,
+      no external fuzzy dependency.
+    paths: [src/bloomery/typing/check.py]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Typecheck walks each chain and requires the terminal type assignable to the
+      declared field type. Decimal precision/scale tracked through arithmetic; widening
+      is implicit, narrowing requires an explicit `to_decimal(p,s)` step, else `TypeCheckError`.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `register_transform(spec)` is public API; the default registry is a module-level
+      immutable mapping built at import, extensions live in a process-global overlay,
+      name collisions are errors, and all registry iteration is sorted by name. Consequence:
+      determinism is scoped to a fixed installed extension set.
+    paths:
+      - src/bloomery/steps/registry.py
+      - src/bloomery/transforms/__init__.py
+      - src/bloomery/transforms/registry.py
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      Transform builders produce SQLGlot AST only — never string formatting. Dialect
+      rendering happens at emit (S-0025); dialect incapability is an emit-time `DialectPort`
+      feature failure, never a typing concern.
+    paths:
+      - src/bloomery/dialects/base.py
+      - src/bloomery/steps/splice.py
+      - src/bloomery/transforms/_builtins.py
+      - tests/unit/test_steps/test_splice.py

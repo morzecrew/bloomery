@@ -1,0 +1,134 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      The reject table preserves `first_seen` / `last_evaluated_at` **in its own SELECT**,
+      by `LEFT JOIN` to `{{ this }}` and `COALESCE`, not by dbt's `merge_exclude_columns`.
+      Column exclusion cannot express a `COALESCE`, so it would leave a null unhealed
+      where SQLMesh heals it — a divergence in the column retention reads — and it
+      requires a `merge` strategy dbt-postgres does not have and dbt-duckdb has only
+      above a DuckDB floor. Locks the reject model to one scan of itself per run,
+      in exchange for working on every adapter.
+    paths: [src/bloomery/emit/lower/silver.py, tests/e2e/test_dbt_quality.py]
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      The incremental and first-run bodies are **two pre-rendered SELECTs** chosen
+      by `{% if is_incremental() %}` in the envelope. Never one SELECT with Jinja
+      spliced into it: S-0025/D-4's rule is that envelopes interpolate rendered strings,
+      and a conditional inside a rendered string is a template no dialect port ever
+      saw.
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - tests/e2e/test_dbt_parse.py
+      - tests/property/test_compile_properties.py
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      Replay is `macros/replay_<entity>.sql`, run by `dbt run-operation`. Not ergonomics:
+      the statements name relations through `ref()`, which resolves only inside dbt's
+      Jinja, so a bare `.sql` file would be runnable by neither dbt nor a SQL client.
+      **The macro form is what is locked; how it names relations is not** — P1 measures
+      `ref()` on the supported range's floor and ceiling, and §9's naming-policy fallback
+      is the body if it is unavailable below the ceiling.
+    paths: [src/bloomery/emit/dbt/__init__.py, tests/e2e/test_dbt_quality.py]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The macro issues the statements in order through `run_query`. bloomery executes
+      nothing — emitting a macro is emitting text, and the run happens in dbt's connection
+      rather than the operator's, which is what SQLMesh's replay file already assumes
+      about `sqlmesh`.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) The dbt replay artifact keeps
+      `ArtifactKind.REPLAY` despite living under `macros/`. The kind means "a statement
+      the caller runs, not a relation the framework maintains", and a caller routing
+      the artifact stream must be able to tell those apart without parsing a path.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The reconcile model is `materialized='table'` (SQLMesh's `FULL`) and its audit
+      a singular test whose severity comes from `reconcile_audit_blocking(check)`
+      — the same function SQLMesh reads, so a check's `on_fail` means one thing across
+      targets.
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) The quality mart's dbt refusal
+      is **deleted**, not narrowed, once D1 and D6 land: no surface it reads is then
+      missing. Narrowing its predicate is the right change only if this RFC does not
+      ship — the two are alternatives, not a sequence, and pursuing both would leave
+      dead code behind.
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      dbt's `RunContext` is `invocation_id` and `run_started_at`, carried through
+      `exp.var` exactly as `@execution_ds` already is. This gives dbt a `run_id` SQLMesh
+      does not have; the asymmetry is reported, not hidden.
+    paths: [src/bloomery/emit/dbt/__init__.py]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) `python_model` steps stay
+      refused (S-0034/D-52), untouched by this RFC. Leaving one refusal standing is
+      what keeps "dbt refuses this" a specific statement rather than a historical
+      one.
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      The coverage claim is restated in the docs, not in an amendment: S-0025 is retired
+      at `7ba117b` and its "minimal but honest" sentence cannot be edited. This RFC
+      supersedes it for the S-0033 surface only.
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) The reject model names `incremental_strategy='delete+insert'`.
+      Left to the adapter it is per-adapter and project-overridable, and `append`
+      makes `unique_key` inert — every re-delivery becomes a new row, silently, because
+      the `LEFT JOIN` still computes the right values and nothing reads them back.
+      dbt-duckdb's default *is* `delete+insert` (measured), which is why this looked
+      like a free choice and is not. The value is named here rather than delegated:
+      `delete+insert` materializes the SELECT before deleting, so the join against
+      `{{ this }}` reads the incumbent row, and it exists on every adapter — `merge`
+      would be narrower with nothing left to buy once D1 moved the preservation out
+      of the merge clause.
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      Parity is proven by an equivalence leg — one spec set built on both targets
+      over one DuckDB, reject tables compared row for row — not by per-artifact goldens
+      alone. The two targets emit different bytes on purpose, so only the rows can
+      carry the claim.
+    paths: [tests/e2e/test_dbt_quality.py]
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      A `--full-refresh` **loses resolved reject history**, and the contract says
+      so rather than preventing it. The `{% else %}` branch sees only currently-quarantined
+      rows; refusing to full-refresh would leave an operator unable to recover a broken
+      relation, and SQLMesh has the same exposure under a restatement. Ships with
+      a regression test that asserts the loss.
+    paths: [tests/e2e/test_dbt_quality.py]
+  - id: D-14
+    grade: LOCKED
+    text: >-
+      The replay macro wraps its three statements in an explicit `BEGIN`/`COMMIT`.
+      `run_query` opens no transaction, and a failure between the entity `MERGE` and
+      the reject stamps leaves a row both admitted and unresolved — double-counted
+      in the quality mart and re-admitted on the next replay. SQLMesh's replay file
+      states the same requirement in prose to a human; the macro has to state it to
+      the engine.
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - tests/e2e/test_dbt_quality.py
+      - tests/unit/test_emit/test_quality_artifacts.py
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      `on_fail: quarantine` on a *step output* is refused on every target (S-0059/D-10)
+      and is **not** what this RFC lifts. It shares a word with the entity-level `quarantine:`
+      and nothing else; the coverage matrix, §5.5 and the refusal census name both
+      so neither reads as granted with the other.

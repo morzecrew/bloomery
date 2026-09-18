@@ -1,12 +1,12 @@
-"""Dialect-neutral lowering primitives shared by the IR builder (RFC 0005),
-the mart flattener (RFC 0010), and the guardrail stage's path-conflict
-amendment (RFC 0006 D7).
+"""Dialect-neutral lowering primitives shared by the IR builder (S-0022),
+the mart flattener (S-0027), and the guardrail stage's path-conflict
+amendment (S-0023/D-7).
 
 Three tiny pure functions: JSONPath-lite extraction against the bronze
 relation, the canonical-text wrap into :class:`~bloomery.ir.nodes.SqlExpr`,
 and the spec-string → :class:`~bloomery.ir.nodes.PartitionSpec` parse. They
 live in the IR layer because every consumer sits above it and the results are
-IR values — physical DDL types remain the dialect port's job (RFC 0008).
+IR values — physical DDL types remain the dialect port's job (S-0025).
 
 The neutral SQLGlot type for a logical type is **not** here. It is
 :func:`bloomery.transforms.neutral_type`, which a builder declaring ``types``
@@ -36,7 +36,7 @@ _PARTITION_RE = re.compile(PARTITION_SPEC_PATTERN)
 
 
 def canon(node: Expression) -> SqlExpr:
-    """Canonical dialect-neutral text (RFC 0003 §5.2)."""
+    """Canonical dialect-neutral text (S-0020/sql-expressions-in-the-ir-sqlexpr)."""
 
     return SqlExpr(node.sql(pretty=False))
 
@@ -61,9 +61,9 @@ def extraction(path: str) -> Expression:
 
 
 def partition_specs(entries: tuple[str, ...]) -> tuple[PartitionSpec, ...]:
-    """Parse spec-layer partition entries (``col`` or ``fn(col)``, RFC 0002
+    """Parse spec-layer partition entries (``col`` or ``fn(col)``, S-0019
     §5.5) into :class:`PartitionSpec` values, authored order preserved
-    (RFC 0003 D4)."""
+    (S-0020/D-4)."""
     specs: list[PartitionSpec] = []
 
     for entry in entries:

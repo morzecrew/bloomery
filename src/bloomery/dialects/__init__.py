@@ -1,12 +1,12 @@
-"""SQL dialect ports (RFC 0008): the registry mirrors the transform registry
-— immutable default + explicit overlay, collision is an error (RFC 0008 D8).
+"""SQL dialect ports (S-0025): the registry mirrors the transform registry
+— immutable default + explicit overlay, collision is an error (S-0025/D-8).
 Lookup by unknown name raises :class:`~bloomery.errors.EmitError` listing known
 names.
 
 There is deliberately no way to *enumerate* the registry. A compile that read
 one would not be a pure function of its specs — an extension dialect registered
 by an unrelated import could decide whether an existing project compiles, the
-ambient dependency RFC 0003 forbids (RFC 0016 D56) — so nothing inside bloomery
+ambient dependency S-0020 forbids (S-0033/D-56) — so nothing inside bloomery
 ever asks. Nor does an extension author need to: D56's escape hatch is passing
 the dialect set *explicitly* to
 :func:`~bloomery.quality.pattern.unsupported_dialects`, and a caller who
@@ -51,7 +51,7 @@ _overlay: dict[str, DialectPort] = {}
 
 
 def register_dialect(dialect: DialectPort) -> None:
-    """Register an extension dialect (RFC 0008 D8). A name collision with any
+    """Register an extension dialect (S-0025/D-8). A name collision with any
     existing dialect, default or overlay, raises :class:`EmitError`."""
 
     missing = [name for name in DIALECT_PORT_MEMBERS if not hasattr(dialect, name)]
@@ -64,7 +64,7 @@ def register_dialect(dialect: DialectPort) -> None:
         # is the boundary the caller can act at.
         msg = (
             f"dialect {getattr(dialect, 'name', dialect)!r} does not implement "
-            f"{', '.join(missing)}, which DialectPort requires (RFC 0008 D1). "
+            f"{', '.join(missing)}, which DialectPort requires (S-0025/D-1). "
             "Fix: implement the missing member, or subclass SQLGlotDialect, which "
             "supplies a default for every one that has a sensible default"
         )

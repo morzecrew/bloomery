@@ -1,4 +1,4 @@
-"""Step registries for the fixture corpus (RFC 0017 §5.3).
+"""Step registries for the fixture corpus (S-0034/purity-the-registry-is-a-compile-input).
 
 Manifests live here rather than under ``tests/fixtures/`` on purpose: a
 registry is *not* a spec. It is assembled by the caller and handed to
@@ -17,7 +17,7 @@ __all__ = [
     "registry_for",
 ]
 
-#: The worked manifest from RFC 0017 §5.2, near-verbatim. Two outputs, so the
+#: The worked manifest from S-0034/step-manifest, near-verbatim. Two outputs, so the
 #: one-wrapper-per-output rule (D16) shows up in the goldens as two files
 #: rather than as a claim in prose.
 RESOLVE_CUSTOMERS = StepManifest.model_validate(
@@ -65,12 +65,12 @@ RESOLVE_CUSTOMERS = StepManifest.model_validate(
 #: The same step, one version on: it also stamps *when* it resolved.
 #:
 #: A separate version rather than an edit to v3, because a manifest is
-#: identity (RFC 0017): changing what a version produces is how a step's
+#: identity (S-0034): changing what a version produces is how a step's
 #: consumers silently disagree about its contract. It also lets the corpus
 #: carry two versions of one ref, which is the situation `use: ref@version`
 #: exists for.
 #:
-#: `resolved_at` is what makes a mart over the resolved entity legal: RFC 0010
+#: `resolved_at` is what makes a mart over the resolved entity legal: S-0027
 #: D9 requires a measure-carrying mart to declare a time dimension, and a
 #: resolved customer has no date of its own — resolution is an event, and this
 #: is when it happened.

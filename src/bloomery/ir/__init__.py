@@ -1,4 +1,4 @@
-"""The intermediate representation (RFC 0003): frozen, hashable, order-
+"""The intermediate representation (S-0020): frozen, hashable, order-
 normalized IR nodes plus the ``blm1:`` content fingerprint."""
 
 from bloomery.ir.fingerprint import project_fingerprint

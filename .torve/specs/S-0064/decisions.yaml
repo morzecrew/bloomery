@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) bloomery **declares** freshness
+      and never measures it. The threshold is emitted; the framework runs the query.
+      This is the same line drawn everywhere else — no execution, no clock, no environment.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **Superseded by D2c.** A
+      `freshness:` block on an entity that requires no `_ingested_at` is refused,
+      and the requirement is over **every** consumer of the relation rather than the
+      declaring one.
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Durations reuse `quarantine.retention`'s grammar and validator. One spelling
+      of a duration across the spec surface.
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/spec/quality.py
+      - tests/fixtures/quality_precedence/mapping_codes.yaml
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      `error_after` below `warn_after` is refused. An unreachable warning is a spec
+      that means something other than what it says.
+    paths: [tests/unit/test_spec/test_quality.py]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      No default threshold. A source with no block gets none; a guessed six hours
+      would emit an assertion nobody made.
+    paths: [src/bloomery/plan/diff.py]
+  - id: D-6
+    grade: LOCKED
+    text: >-
+      SQLMesh and Cube emit nothing, and it is not a refusal — neither models a source
+      as an object, so there is no artifact being approximated (the S-0063/D-4 rule).
+    paths: [tests/unit/test_emit/test_cube.py, tests/unit/test_emit/test_sqlmesh.py]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      Reporting *observed* staleness is out of scope and is not a phase of this RFC.
+      It needs an evidence intake that does not exist, and folding it in would make
+      a two-commit change wait on an open question.
+  - id: D-8
+    grade: LOCKED
+    text: >-
+      (Row 2A of the RFC's table.) Two mappings declaring **different** thresholds
+      on one physical relation are refused, naming both. `_sources_artifact` emits
+      one table entry per relation, so one of the two would be silently dropped —
+      the same rule S-0041/D-33 applies to quality rules over a merged entity. Equal
+      thresholds collapse and are not a conflict.
+    paths:
+      - src/bloomery/guardrails/quality.py
+      - tests/unit/test_guardrails/test_quality.py
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) (Row 2B of the RFC's table.)
+      **Superseded by D2c.** One mapping declaring a threshold while another on the
+      same relation omits it is refused too, not resolved in favour of the explicit
+      one.
+  - id: D-10
+    grade: LOCKED
+    text: >-
+      (Row 2C of the RFC's table.) **A threshold is a statement about the relation,
+      not about the mapping that carries it.** So: the ingestion-metadata contract
+      is required of the **declaring** mapping, because that is what asserts the relation
+      exposes `_ingested_at`, and a sibling mapping of the same physical table has
+      nothing to satisfy — it neither adds nor removes a column. And a mapping that
+      omits a threshold is not disagreeing with one; it is making no statement about
+      the relation, so the mixed case is legal. D2's "every consumer" and D2b's refusal
+      each read as thorough and together admit **no valid configuration**: a plain
+      entity sharing a relation with a quarantining one could neither declare (D2
+      refuses it) nor omit (D2b refuses it), and its only escape was to declare `quarantine:`
+      it does not want. D2a survives untouched, because two different thresholds are
+      a real disagreement about one thing.
+    paths: [tests/unit/test_guardrails/test_quality.py]

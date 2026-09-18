@@ -1,4 +1,4 @@
-"""The proof vocabulary (RFC 0039): a positive derivation, not the absence of
+"""The proof vocabulary (S-0005): a positive derivation, not the absence of
 a complaint.
 
 Every guardrail in this compiler answers by raising or staying silent, so the
@@ -48,7 +48,7 @@ __all__ = [
 
 class Provenance(StrEnum):
     """Where a fact came from, and therefore whether it may close an
-    obligation (RFC 0039 §4, D1 `LOCKED`).
+    obligation (S-0005 (§4), S-0005/D-1 `LOCKED`).
 
     The ordering of the members is the ordering of trust, and
     :meth:`closes` is the line drawn through it. It is drawn once here rather
@@ -64,7 +64,7 @@ class Provenance(StrEnum):
     #: its own columns, a `many_to_one` read in its declared direction.
     DERIVED = "derived"
     #: Read from a machine-readable external artifact under a documented exact
-    #: rule (RFC 0044). Admitted because the rule is exact, not because the
+    #: rule (S-0057). Admitted because the rule is exact, not because the
     #: artifact is trusted.
     IMPORTED_VERIFIED = "imported_verified"
     #: A guess, however good. Never closes an obligation, and is carried so a
@@ -85,7 +85,7 @@ class Provenance(StrEnum):
 
     @property
     def grade(self) -> EvidenceGrade:
-        """This provenance as the grade a consumer reads (RFC 0065 §5.1).
+        """This provenance as the grade a consumer reads (S-0070/the-grades-and-what-they-project-from).
 
         A projection, never a second scale: five members collapse to three,
         and the question the three answer is "did a human *here* write this
@@ -99,7 +99,7 @@ class Provenance(StrEnum):
 
 class EvidenceGrade(StrEnum):
     """How a semantic fact was obtained, as a consumer weighs it
-    (RFC 0065 §5.1, D5 `ASSUMED`).
+    (S-0070/the-grades-and-what-they-project-from, S-0070/D-5 `ASSUMED`).
 
     Three states, not five, because the finer distinctions :class:`Provenance`
     draws do not change a consumer's answer. Ordered strongest first, and
@@ -114,7 +114,7 @@ class EvidenceGrade(StrEnum):
     every constructor caller, which is the letter of D1 and not its point.
 
     ``ASSUMED`` is not a criticism (§9). A mechanically derived fact is sound
-    under RFC 0039's floor and this says nothing about whether it is right —
+    under S-0005's floor and this says nothing about whether it is right —
     only that nobody here wrote it down. Wording that implied doubt would push
     authors to declare things they have not thought about, and a ``LOCKED``
     fact nobody considered is worse than the default it replaced.
@@ -126,7 +126,7 @@ class EvidenceGrade(StrEnum):
     #: type, a propagation through a proof rule, or an exact read of an
     #: external artifact.
     ASSUMED = "assumed"
-    #: Closes nothing, so under RFC 0039's floor a project resting on it does
+    #: Closes nothing, so under S-0005's floor a project resting on it does
     #: not compile at all. Present so the three states are total rather than
     #: because a consumer will ever be handed one.
     OPEN = "open"
@@ -138,7 +138,7 @@ class EvidenceGrade(StrEnum):
 #: whole document exists to prevent.
 _CLOSING: Final = frozenset({Provenance.DECLARED, Provenance.DERIVED, Provenance.IMPORTED_VERIFIED})
 
-#: The projection, written out member by member (RFC 0065 D7, `LOCKED`).
+#: The projection, written out member by member (S-0070/D-7, `LOCKED`).
 #:
 #: A mapping and not a chain of tests, for the reason ``_CLOSING`` is an
 #: allowlist: a member added to :class:`Provenance` without a decision here
@@ -195,7 +195,7 @@ class SemanticJudgement:
     """What a proof concludes, as a value rather than a sentence.
 
     ``AdditiveRollup(measure=shipping, from=Order, to=CustomerCountry)`` in
-    RFC 0039 §3's example is this: a ``kind`` and its named operands. Operands
+    S-0005 (§3)'s example is this: a ``kind`` and its named operands. Operands
     are sorted pairs so that two judgements about the same thing compare equal
     however they were built (D6).
     """
@@ -226,7 +226,7 @@ class Rule:
     """One named proof rule (D5).
 
     Documented individually and testable on its own, because the question
-    RFC 0042 asks of every corpus case — *which rule admitted this?* — has no
+    S-0056 asks of every corpus case — *which rule admitted this?* — has no
     answer from a monolithic checker that returns a tree.
     """
 
@@ -253,21 +253,21 @@ class Rule:
 #: that a test can assert an id never leaves it — the half of "append-only" a
 #: convention cannot enforce on its own.
 #:
-#: R001-R004 are the four bases RFC 0037 closed — nothing here invents a way to
+#: R001-R004 are the four bases S-0017 closed — nothing here invents a way to
 #: believe a dependency, it names the ones that existed. R005 is their
 #: composition and is the one rule no basis names: a composition is recognised
 #: by a derivation having more than one step (T-0041). R006 is the rollup those
 #: compose into, and R007 the axiom they start from.
 #:
 #: R009 is not a grain rule either: it is the *denomination* contract. A
-#: conversion asserts what currency its input holds, and RFC 0061 gives that
+#: conversion asserts what currency its input holds, and S-0066 gives that
 #: assertion a fact to be checked against — a `currency_in:` declaration, or
 #: the output of the conversion before it in the same chain. The rule decides
 #: rather than describes: `resolve.build` refuses on its refutation, so a
 #: citation of R009 is what the acceptance rests on rather than a label
 #: applied afterwards (logs/T-0025.md, D-157).
 #:
-#: R010 is the branch join's authorization (RFC 0041 D2, D14). It is the one
+#: R010 is the branch join's authorization (S-0055/D-2, S-0055/D-14). It is the one
 #: rule here that rests on *structure* rather than on a declaration: the node
 #: beneath each branch is an aggregate to the result grain, so one row per key
 #: is a property of the plan rather than a fact about the warehouse. Stated as
@@ -284,13 +284,13 @@ class Rule:
 #: 002, and would be unsayable if one rule answered both (logs/T-0029.md).
 #:
 #: R008 is not a grain rule at all: it is the *mart contract* — a measure may
-#: be embedded in a mart only at that mart's grain (RFC 0010 D2), checked by
-#: `check_grain` when the project compiles. RFC 0040's P1 plans within one
+#: be embedded in a mart only at that mart's grain (S-0027/D-2), checked by
+#: `check_grain` when the project compiles. S-0054's P1 plans within one
 #: pre-joined mart, so that contract is the whole of what authorizes its
 #: aggregate, and citing it is what keeps P1 a re-expression rather than a new
-#: claim (RFC 0040 D5).
+#: claim (S-0054/D-5).
 #:
-#: R017 is the offset obligation (RFC 0066 §5.6). Its content is the second
+#: R017 is the offset obligation (S-0071/making-the-field-non-optional). Its content is the second
 #: clause rather than the first: that a shifted read is the *same measure* is
 #: the declaration restating itself, and what needs proving is what happens
 #: where the shifted range has no rows. A missing prior period and a prior
@@ -299,7 +299,7 @@ class Rule:
 #: target that renders the shift as an inner join has silently chosen the
 #: other.
 #:
-#: R016 is the window obligation (RFC 0066 §5.4), and it is the one rule here
+#: R016 is the window obligation (S-0071/window-accumulation-across-rows-at-query-time), and it is the one rule here
 #: whose conclusion is *terminal*: a cumulative metric's result may not be
 #: rolled further, because a trailing 7-day total summed across weeks counts
 #: each day up to seven times. It authorizes the accumulation and forbids what
@@ -307,14 +307,14 @@ class Rule:
 #: to the metric definition — a later transformation needs something to refuse
 #: against.
 #:
-#: R015 is the semi-additive obligation (RFC 0066 §5.3). It authorizes exactly
+#: R015 is the semi-additive obligation (S-0071/reduce-one-named-dimension-collapsed-by-a-declared-rule). It authorizes exactly
 #: one thing and is worth reading for what it does *not* say: a measure declared
 #: `semi_additive` with `over: d` may be reduced along `d` by the declared rule,
 #: and the result aggregated across dimensions other than `d`. Aggregating along
 #: `d` itself stays refused — that is the whole content of the declaration, and
 #: a rule that granted it would make `semi_additive` mean `additive`.
 #:
-#: R014 is the ordering obligation on a computed metric (RFC 0066 §5.2). It
+#: R014 is the ordering obligation on a computed metric (S-0071/compute-arithmetic-above-an-aggregate). It
 #: reaches the same conclusion R012 does and could not borrow its premise: R012
 #: asks whether each operand may be rolled between *entity* grains, and a metric
 #: computed over one mart rolls nothing — its inputs are aggregated inside the
@@ -326,7 +326,7 @@ class Rule:
 #: that evaluating the expression after the aggregate is the declared number
 #: rather than a row-level one aggregated afterwards.
 #:
-#: R019 is the row-set obligation on a ratio (RFC 0075 §5.1). It stands beside
+#: R019 is the row-set obligation on a ratio (S-0077/the-refusal-is-the-product). It stands beside
 #: R012 rather than inside it: R012 is about *how* a ratio is rebuilt — from
 #: operands that each roll up, never from a summed quotient — and is silent
 #: about which rows belong in it. Corpus case 009 satisfies R012 exactly and
@@ -335,7 +335,7 @@ class Rule:
 #: denominator. The rule refuses and never chooses: both readings are metrics
 #: somebody wants, and the defect is that they are spelled identically.
 
-#: R018 is the zone obligation (RFC 0074 §5.3). It is the only rule here that
+#: R018 is the zone obligation (S-0076/r018-and-where-it-fires). It is the only rule here that
 #: fires on a *use* rather than on an operation: nothing is wrong with parsing
 #: a wall clock, and nothing is wrong with carrying one — what needs an
 #: argument is reading its absolute position, because a bucket boundary, a
@@ -344,7 +344,7 @@ class Rule:
 #: time dimension deliberately: corpus case 011 fails at the comparison, and
 #: its mart's date role is incidental.
 
-#: R013 is the rollup mart's obligation (RFC 0058 §5.2, D12). It stands beside
+#: R013 is the rollup mart's obligation (S-0065/the-obligation, S-0065/D-12). It stands beside
 #: R011 rather than under it: R011 asks whether an additive measure may be
 #: summed across a rollup *its grain proof permits*, and a rollup mart has no
 #: such proof to permit it — R006's vocabulary cannot state the target, because
@@ -413,7 +413,7 @@ SUPERSEDED: Final[tuple[str, ...]] = ()
 
 @dataclass(frozen=True, slots=True)
 class Proof:
-    """A finite derivation of one judgement (RFC 0039 §3).
+    """A finite derivation of one judgement (S-0005 (§3)).
 
     Recursive: ``premises`` are the proofs this one rests on, ``facts`` the
     leaves it reads directly. A proof with neither is an axiom, which here
@@ -437,7 +437,7 @@ class Proof:
         if self.rule not in RULES:
             msg = (
                 f"proof cites rule {self.rule!r}, which is not in the registry — a rule id "
-                "is a public contract and is never minted at a call site (RFC 0039 D8)"
+                "is a public contract and is never minted at a call site (S-0005/D-8)"
             )
             raise ValueError(msg)
 
@@ -459,7 +459,7 @@ class Proof:
                 msg = (
                     f"fact {fact.source!r} is claimed both {held.provenance.value} and "
                     f"{fact.provenance.value} in one proof — a source has one provenance, "
-                    "and the weaker of two would decide whether this closes (RFC 0039 D1)"
+                    "and the weaker of two would decide whether this closes (S-0005/D-1)"
                 )
                 raise ValueError(msg)
 
@@ -562,7 +562,7 @@ class Proof:
     # ....................... #
 
     def render(self, *, indent: int = 0) -> str:
-        """The numbered prose form RFC 0039 §7 shows, deepest premise first.
+        """The numbered prose form S-0005 (§7) shows, deepest premise first.
 
         Premises before their conclusion, because that is the order the
         argument is read in — a reader meets ``revenue originates at Order``
@@ -594,7 +594,7 @@ def _encode(document: dict[str, object]) -> str:
 
 @dataclass(frozen=True, slots=True, order=True)
 class Obligation:
-    """One thing that had to be shown and was not (RFC 0039 §6).
+    """One thing that had to be shown and was not (S-0005 (§6)).
 
     ``required`` is what the caller asked for; ``found`` is what the compiler
     has instead. Both are rendered text: a refutation is read, and the
@@ -611,7 +611,7 @@ class Obligation:
 @dataclass(frozen=True, slots=True)
 class Refutation:
     """No permitted derivation exists under the current rule set — which is
-    **not** a proof that none could (RFC 0039 §6).
+    **not** a proof that none could (S-0005 (§6)).
 
     The distinction is the whole of this docstring's reason for existing.
     "bloomery cannot prove this" and "this is impossible" differ, the second is
@@ -696,11 +696,11 @@ class Refutation:
 
 
 # ----------------------- #
-# Expressing the rollup answer as a proof (RFC 0039 §8)
+# Expressing the rollup answer as a proof (S-0005 (§8))
 
 
 #: The rule that admits each way of believing a dependency. The mapping is the
-#: whole of the translation: RFC 0037 already closed the vocabulary of *why*
+#: whole of the translation: S-0017 already closed the vocabulary of *why*
 #: the compiler believes an edge, so nothing here invents a way to believe one.
 #:
 #: Keyed by the ``DependencyBasis`` value rather than the member, so this
@@ -723,10 +723,10 @@ BASIS_RULES: Final[dict[str, str]] = {
 #: entity's key determining its own columns is reached mechanically, which is
 #: what `DERIVED` means to the first question — and it is entailed by a key the
 #: author declared, which is what `DECLARED` means to the second. It was
-#: `DERIVED` until RFC 0065 P2 needed the second answer, and the deciding
+#: `DERIVED` until S-0070/phasing (P-2) needed the second answer, and the deciding
 #: argument is that there is nothing an author could write *instead* of a
 #: declared key: a consumer requirement that refused it would be a refusal with
-#: no remedy, which is the one thing RFC 0065 D4 forbids (logs/T-0040.md).
+#: no remedy, which is the one thing S-0070/D-4 forbids (logs/T-0040.md).
 #:
 #: There is no ``transitive`` row, because there is no such basis to key it by
 #: (T-0041). Composition is carried as several :attr:`Derivation.steps`, each
@@ -735,7 +735,7 @@ BASIS_RULES: Final[dict[str, str]] = {
 #: a table row would have had to duplicate.
 #:
 #: **Two consumers read this, and they no longer agree.** :func:`weak_bases`
-#: reads it for the grade a strict consumer asks about, and since RFC 0070 it
+#: reads it for the grade a strict consumer asks about, and since S-0075 it
 #: consults a per-relationship map first — so an imported edge reads `ASSUMED`
 #: there while every row below still says `DECLARED`. :func:`_dependency_proof`
 #: reads it to mint a `SemanticFact`, and that leaf reports `DECLARED` for an
@@ -743,7 +743,7 @@ BASIS_RULES: Final[dict[str, str]] = {
 #:
 #: The split is deliberate and unclosed. Closing it needs either a provenance
 #: field on an IR node — which moves every fingerprint in the corpus for
-#: projects that import nothing, the hazard RFC 0065 row 17 and RFC 0070 D3
+#: projects that import nothing, the hazard S-0070 row 17 and S-0075/D-3
 #: both refuse — or a `Project` inside the planner, and the chain from
 #: `resolve_request` down to `prove_rollup` carries none by design. It
 #: mislabels an account without changing a verdict: `IMPORTED_VERIFIED` closes

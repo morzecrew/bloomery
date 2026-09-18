@@ -1,4 +1,4 @@
-"""Step lowering and its compile-time refusals (RFC 0017 §5.5–§5.6).
+"""Step lowering and its compile-time refusals (S-0034/determinism-tiers–S-0034/runtime-pinning).
 
 Two things are being pinned. First, that every refusal §5.5 and §5.8 name
 actually fires — a determinism tier that is not enforced is documentation.
@@ -120,7 +120,7 @@ def test_the_wiring_overrides_the_default() -> None:
 
 
 def test_parameters_are_stringified_never_floats() -> None:
-    """RFC 0003 D5 — the canonical encoding raises on a float, so the IR must
+    """S-0020/D-5 — the canonical encoding raises on a float, so the IR must
     never hold one."""
     (step,) = build().steps
     assert all(isinstance(p.value, str) for p in step.parameters)
@@ -242,7 +242,7 @@ def test_a_parameter_at_a_bound_is_accepted() -> None:
 
 
 # ....................... #
-# Batching (RFC 0006 D2) and the duplicate-relation refusal (§5.8, D8)
+# Batching (S-0023/D-2) and the duplicate-relation refusal (§5.8, D8)
 
 
 def test_every_refusal_arrives_in_one_aggregate() -> None:
@@ -343,12 +343,12 @@ def test_a_step_output_colliding_with_an_entity_is_refused() -> None:
 
 
 def test_a_mapped_entity_may_not_also_be_written_by_a_step() -> None:
-    """RFC 0024 D21, and the refusal it asks for **already exists**.
+    """S-0041/D-21, and the refusal it asks for **already exists**.
 
     D21 requires that a merged entity may not mix a mapped source with a
     step-produced output, "refused explicitly rather than left to fail
     somewhere downstream". Building the union showed the combination is
-    unreachable for a stronger reason that predates it: RFC 0017 §5.8 D8
+    unreachable for a stronger reason that predates it: S-0034/emission-and-the-dag S-0034/D-8
     refuses *any* relation with two writers, seeded from every declared entity,
     so a mapping and a step output cannot both claim one name — merged or not.
 
@@ -402,7 +402,7 @@ def _with_rule(on_fail: str) -> str:
 
 @pytest.mark.parametrize("kind", ["python_model", "sql_model"])
 def test_a_quarantine_rule_on_an_output_is_refused_on_every_tier(kind: str) -> None:
-    """Refused permanently, not pending (RFC 0051 D10) — and the message says
+    """Refused permanently, not pending (S-0059/D-10) — and the message says
     so by naming both blockers rather than one. Neither depends on the tier:
     the reject table is keyed on ingestion metadata a step wrote none of, and
     `quarantine.retention` is mandatory with no `quarantine:` block in a
@@ -455,7 +455,7 @@ def test_a_flag_rule_on_a_sql_model_output_lowers_onto_the_entity() -> None:
 
 
 def test_a_fail_rule_alone_leaves_a_step_relation_without_the_flag_columns() -> None:
-    """The asymmetry with a mapped entity, stated as a test (RFC 0051 D11):
+    """The asymmetry with a mapped entity, stated as a test (S-0059/D-11):
     `fail` stops the run rather than marking a row, so nothing survives to be
     flagged and the relation keeps exactly the manifest's declared columns."""
     ir = build(_with_rule("fail"), SQL_BODY, kind="sql_model", entrypoint=None)
@@ -481,7 +481,7 @@ def test_a_sql_model_without_a_body_is_refused() -> None:
 def test_a_non_finite_parameter_is_a_bloomery_error_not_a_decimal_crash() -> None:
     """``Decimal("NaN")`` constructs fine and raises on comparison, so a guard
     around construction alone let ``InvalidOperation`` cross the compile
-    boundary — which RFC 0002's error contract forbids."""
+    boundary — which S-0019's error contract forbids."""
     for spelling in ("NaN", "sNaN"):
         with pytest.raises(StepError):
             build(WIRING.replace("threshold: 0.9", f"threshold: '{spelling}'"))
@@ -617,7 +617,7 @@ def test_a_timestamp_parameter_still_accepts_a_time_component() -> None:
 def test_a_body_that_fails_to_tokenize_is_a_step_error_not_a_crash() -> None:
     """``TokenError`` is a *sibling* of ``ParseError`` under ``SqlglotError``,
     so an unterminated string slipped the handler entirely and crossed the
-    compile boundary as a non-``BloomeryError`` — which RFC 0002 forbids and
+    compile boundary as a non-``BloomeryError`` — which S-0019 forbids and
     D30(b) was written to prevent for the parameter path.
     """
     project = load_project(
@@ -676,7 +676,7 @@ def test_a_step_output_producing_a_reserved_column_is_refused() -> None:
 
 @pytest.mark.parametrize("column", ["_quality_ok", "_source", "_load_id", "metric_time"])
 def test_the_reserved_set_is_the_spec_layer_s_own(column: str) -> None:
-    """One list, not a second copy of it (RFC 0016 D9, RFC 0024 D7). The trap
+    """One list, not a second copy of it (S-0033/D-9, S-0041/D-7). The trap
     is not tier-specific and not flag-specific: a step column named
     ``_quality_ok`` is legal right up until someone adds a rule, which is the
     shape ``_source`` is reserved unconditionally to avoid.

@@ -1,4 +1,4 @@
-"""The ``reconcile:`` side grammar (RFC 0016 §5.3) — a **closed** two-shape
+"""The ``reconcile:`` side grammar (S-0033/spec-schema) — a **closed** two-shape
 language, parsed here and nowhere else.
 
 A reconcile check is "the check that catches a *correct formula over wrong
@@ -24,7 +24,7 @@ narrow (an RFC ambiguity resolved):
 Nothing else parses. The closed aggregate vocabulary is
 :data:`RECONCILE_AGGREGATES`. The alternative — accepting arbitrary SQL text
 and handing it to the engine — was rejected for the reason every other
-"specs never contain implementations" decision in RFC 0016 was: an authored
+"specs never contain implementations" decision in S-0033 was: an authored
 SQL fragment cannot be diffed by ``plan()``, cannot be validated against the
 declared model, and renders differently per dialect. A shape outside the
 grammar is refused at compile time with :data:`SUPPORTED_SHAPES` in the
@@ -52,13 +52,13 @@ __all__ = [
 
 #: The relation suffix a check's own model takes, mirroring ``__reject``: one
 #: ``<check>__reconcile`` per check, in the silver namespace it compares
-#: within (RFC 0016 §5.3 — "reconcile emits its own model plus a non-blocking
+#: within (S-0033/spec-schema — "reconcile emits its own model plus a non-blocking
 #: audit").
 RECONCILE_SUFFIX = "__reconcile"
 
 #: The closed aggregate vocabulary of the aggregate-by shape. Every member has
 #: a dialect-neutral SQLGlot node that renders on all three shipped dialects;
-#: extending it is an RFC amendment, not config (the RFC 0016 D5 doctrine
+#: extending it is an RFC amendment, not config (the S-0033/D-5 doctrine
 #: applied to the reconcile grammar).
 RECONCILE_AGGREGATES: tuple[str, ...] = ("avg", "count", "max", "min", "sum")
 
@@ -107,7 +107,7 @@ def parse_side(text: str) -> ReconcileSide | None:
 
     Total by design — it returns rather than raises, because its caller is the
     guardrail stage, which batches every refusal in a project into one
-    aggregate error (RFC 0006 D2) instead of stopping at the first.
+    aggregate error (S-0023/D-2) instead of stopping at the first.
     """
     match = _AGGREGATE.match(text)
 

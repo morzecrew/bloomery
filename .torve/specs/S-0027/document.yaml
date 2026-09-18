@@ -1,0 +1,219 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0027
+title: Marts and role-playing dimensions
+kind: design
+status: accepted
+implementation: complete
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  Gold is one wide, pre-joined mart per (grain × subject area): dimensions are flattened in
+  at build time, so there are no query-time joins on the common path. Marts are declared in
+  a fifth spec kind, validated at compile time (grain equality, fan-out-safe flatten paths,
+  collision-free prefixes), and lowered into `MartIR` — one definition read by both the
+  SQLMesh emitter (which builds the table, joins included) and the native planner (which
+  queries it, joins excluded). Role-playing dimensions are modeled once as `DimensionRef`
+  (dimension + role) and lowered per consumer.
+motivation: |-
+  Every classic semantic-layer failure — join fan-out, role-playing dimensions, symmetric
+  aggregates, multi-fact root guessing — is a query-time-join problem
+  (`_bloomery-changes.md` §0). Because bloomery's operator controls the physical layer, the
+  join is moved to build time where the compiler can verify it: a mart's joins are checked
+  against declared relationship cardinalities once at compile, instead of being re-planned
+  per query. The planner then degrades to "assemble a GROUP BY," and the thing that builds
+  the table and the thing that queries it read the same `MartIR`, so they cannot disagree
+  about grain or columns.
+current_state: |-
+  RFCs 0002/0003 define the four spec kinds and the entity-level IR; relationships with
+  cardinality already exist in both (`Relationship`, `RelationshipIR`). The scaffold is in
+  place; no compiler code exists yet, so this lands as new design, not a migration.
+goals: |-
+  **Goals**
+
+  - `marts:` spec kind, strict-parsed per S-0019 conventions.
+  - Deterministic flattening: relationship chains → prefixed columns; date roles → bucketed
+    `<role>_<bucket>` columns.
+  - `MartIR` + `DimensionRef` in the IR, fingerprint-covered (S-0020).
+  - Compile-time refusal of fan-out (`GrainViolation`, `FanoutRisk` — S-0023).
+non_goals: |-
+  - Query planning and mart *selection* — S-0028 (`bloomery/planner/select.py`).
+  - Cross-mart queries — refused by design, not planned (S-0028 hard rule).
+  - Automatic mart derivation from metrics — marts are authored; inference would reintroduce
+    the silent choices this package exists to refuse.
+  - Incremental mart rebuild strategy — `materialization` semantics from S-0019/D-7 apply
+    to marts as to entities; anything smarter is gated on the wide-marts-are-affordable
+    assumption (`_bloomery-changes.md` §11.1).
+design:
+  - key: spec-kind
+    md: |-
+      A document self-identified by `marts_version: 1` (S-0019/spec-model-surface conventions; at most one
+      per project, optional — a project without marts compiles silver only):
+
+      ```yaml
+      marts_version: 1
+      marts:
+        order_items:
+          grain: order_item            # must equal the base entity's grain
+          base: order_item
+          flatten:
+            - {via: item_of_order,     prefix: order_}
+            - {via: order_of_customer, prefix: customer_}
+            - {date: order_date, role: ordered}    # → ordered_day … ordered_year
+            - {date: ship_date,  role: shipped}
+          measures: [gross_revenue, discount, net_revenue, quantity]
+          partition_by: [days(ordered_day)]
+          cost_hint: 3                 # relative scan cost, tie-breaking only; default 1
+      ```
+
+      `flatten` steps are a discriminated union on `via` vs `date`. A `via:` step names a
+      declared relationship whose *from* side is the base entity or a previously flattened
+      entity (chains flatten transitively: `order_of_customer` is reachable because
+      `item_of_order` was flattened first — order of steps is authored and meaningful, S-0020
+      D4). `prefix` is required on `via:` steps; flattened columns are `<prefix><column>`.
+  - key: date-roles
+    md: |-
+      A `date:` step declares a role-playing time dimension: `{date: order_date, role: ordered}`
+      expands at build time into bucket columns `ordered_day`, `ordered_week`, `ordered_month`,
+      `ordered_quarter`, `ordered_year` — exactly the `TimeGrain` set of S-0028 minus `hour`
+      (hourly marts are storage-hostile; `hour` remains a planner-side truncation on `_day`
+      columns if ever needed — deliberately not expanded). The source column must be `date` or
+      `timestamp` typed. A mart may declare the same role at most once; two roles may share a
+      source column (rare but legal).
+  - key: dimensionref
+    md: |-
+      ```python
+      @dataclass(frozen=True, slots=True)
+      class DimensionRef:
+          dimension: str                # "date", "customer_region", ...
+          role: str | None = None       # "ordered" | "shipped" | None
+
+          @property
+          def qualified(self) -> str:
+              return f"{self.role}_{self.dimension}" if self.role else self.dimension
+      ```
+
+      Lives in `bloomery/ir/` (S-0020's tree; fingerprint-covered). Lowerings per consumer:
+      the mart builder joins/derives once per role, aliased; the planner reads the flattened
+      columns (no join — the problem does not exist there); the Cube emitter emits aliased join
+      paths per role. An unqualified reference to a dimension with multiple roles is
+      `AmbiguousDimension` naming the available roles — raised by whichever consumer resolves
+      the reference (planner: S-0028/D-6).
+  - key: martir
+    md: |-
+      ```python
+      @dataclass(frozen=True, slots=True)
+      class MartIR:
+          name: str
+          grain: str                                  # entity name
+          base: str                                   # entity name
+          columns: tuple[MartColumnIR, ...]           # sorted by name; the flattened wide schema
+          measures: tuple[str, ...]                   # metric names, sorted
+          dimensions: tuple[MartDimensionIR, ...]     # sorted by qualified name
+          partition_by: tuple[PartitionSpec, ...]
+          materialization: Materialization
+          cost_hint: int
+
+      @dataclass(frozen=True, slots=True)
+      class MartColumnIR:
+          name: str                                   # post-prefix physical name
+          type: LogicalType
+          source_entity: str
+          source_column: str
+          ref: DimensionRef | None                    # set for role/date-derived columns
+
+      @dataclass(frozen=True, slots=True)
+      class MartDimensionIR:
+          ref: DimensionRef
+          column: str                                 # the flattened column serving this ref
+      ```
+
+      `ProjectIR` gains `marts: tuple[MartIR, ...]` (sorted by name). Flattening is computed at
+      IR build in `bloomery/marts/` — spec in, wide schema out, pure — so every consumer sees
+      the *resolved* column set, never the flatten recipe.
+  - key: validation-compile-errors-batched-with-guardrails
+    md: |-
+      1. `grain` must equal the base entity's grain — a mart is a fact table at exactly its
+         base grain. Measures listed must have `grain == mart.grain`, else `GrainViolation`.
+         *Note:* `_bloomery-changes.md` D2 says "equal to or coarser" in prose but its own
+         example makes coarser the violation; this RFC resolves the contradiction to strict
+         equality — the safest reading, and the one its example and `fanout_trap` encode.
+         Relaxation (pre-aggregated finer-grain measures) is deferred until a fixture demands it.
+      2. Every `via:` must name a declared relationship with `many_to_one` or `one_to_one`
+         cardinality reachable from the already-flattened entity set; `one_to_many` is
+         `FanoutRisk` (S-0023).
+      3. Post-prefix column collisions are errors, never auto-renamed.
+      4. `date:` roles must be unique per mart; source columns date/timestamp typed.
+      5. Measures must be reachable metrics (S-0022) whose entities are the mart's base.
+      6. *(Amended for the MetricFlow pivot, S-0030:)* a mart that carries measures must
+         declare at least one date role — MetricFlow requires `agg_time_dimension` on every
+         measure and fails obscurely without it, so its absence is a compile-time
+         `MartMissingTimeDimension` (a `GuardrailError` leaf) with a clear message.
+
+      The SQLMesh emitter lowers each `MartIR` to a gold-layer model
+      (`NamingPolicy.relation(name, Layer.GOLD)`): base entity SELECT joined once per `via:`
+      step and once per date role, projecting the flattened columns — the only place joins are
+      ever emitted for a mart.
+tests: |-
+  Unit: flattening (chains, prefixes, collisions, role expansion), every validation rule.
+  Fixtures (S-0026, amended): `role_playing_dates` — grouping by `ordered_month` vs
+  `shipped_month` gives different, correct numbers, executed on DuckDB; `fanout_trap` —
+  compile-time `GrainViolation` (plus retained execution proof); `multi_mart_refusal` —
+  planner-side, S-0028. Property: flattening is deterministic (permuted spec dict order →
+  identical `MartIR`); every mart column traces to exactly one source entity column.
+docs: |-
+  Concept page "The wide-mart gold layer" (why no query-time joins, the classic-problems
+  table from `_bloomery-changes.md` §0); reference page for the `marts:` spec kind; the
+  role-playing explanation with the `ordered_*`/`shipped_*` example.
+out_of_scope: |-
+  - **Snowflaked / multi-hop dimension logic beyond relationship chains** — chains cover
+    the domain; anything deeper is a modeling smell the compiler should not paper over.
+  - **Mart-level SCD** — marts rebuild from silver; history lives in silver SCD2 entities.
+  - **Cost-based mart selection beyond `cost_hint`** — a statistics-driven optimizer is a
+    different product; `cost_hint` + lexicographic ties is deterministic and sufficient.
+risks: |-
+  - *Wide marts may be unaffordable at scale* (storage / rebuild time) —
+    `_bloomery-changes.md` §11.1's assumption; if it breaks, incremental mart strategy needs
+    design before M5 ships. The spec shape (partition_by, materialization) already carries
+    what that design would need.
+  - *Strict grain equality may prove too strict* (legitimate pre-aggregated measures) —
+    accepted; loosening a refusal is backward-compatible, tightening one is not.
+sections:
+  - key: about
+    md: |-
+      - **Status:** ✅ Complete — shipped 2026-08-07 (M5): the `marts:` spec kind,
+        build-time flattening, `DimensionRef` role-playing with date-role expansion, and
+        the compile-time fan-out refusal landed as designed (`bloomery/marts/`).
+      - **Scope:** The wide-mart gold layer as a first-class spec and IR concept: the `marts:`
+        spec kind, build-time flattening of relationships and date roles, `MartIR`, and
+        `DimensionRef` — the role-playing dimension model consumed by the mart builder, the
+        native planner (S-0028), and the Cube emitter (S-0025). Covers mart definition and
+        validation; does not cover query planning over marts (S-0028), the serialized planner
+        artifact (S-0029), or the mart-level guardrails' error taxonomy (S-0023, amended).
+        New modules: `bloomery/marts/`, spec additions in `bloomery/spec/`, IR additions in
+        `bloomery/ir/`.
+      - **Related:** `rfcs/_bloomery-changes.md` D2, D3; S-0019 (spec
+        layer), S-0020 (IR), S-0023 (grain guard moves to compile time), S-0025 (SQLMesh
+        emits the mart build), S-0028 (planner selects from marts).
+      - **Origin:** `_bloomery-changes.md` — the decision to own query planning, made tractable
+        by constraining gold to wide pre-joined marts.
+  - key: decision-notes
+    md: >-
+      _(Decision rows from here on are this document's D-1…; see `decisions.yaml`.)_
+  - key: phasing
+    md: |-
+      Lands in M5 (`_bloomery-changes.md` D10) together with S-0028 — spec + flattening +
+      `MartIR` first (this RFC), planner second, since selection needs the catalogue to exist.
+      The mart-level guardrails (S-0023 amendments) land in M4 as validation rules with the
+      mart spec parsing stubbed, or with M5 if sequencing favors it; the acceptance fixtures are
+      `fanout_trap` (M4) and `role_playing_dates` (M5).
+questions:
+  - id: Q-1
+    text: >-
+      Whether `MartDimensionIR` should also expose non-date flattened attributes as
+      requestable dimensions automatically (current answer: yes — every flattened
+      column is a dimension; the planner filters to what requests actually name).
+      Implementation may narrow this if the surface proves noisy.

@@ -1,4 +1,4 @@
-"""Rollup changes in a plan (RFC 0058 §5.2).
+"""Rollup changes in a plan (S-0065/the-obligation).
 
 A rollup is its own IR collection, so `plan()` had to be taught to walk it;
 until it was, changing one reported no impact at all — the quietest possible

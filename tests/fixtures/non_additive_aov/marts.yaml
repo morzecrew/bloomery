@@ -1,7 +1,7 @@
 # Orders-grain mart carrying BOTH additive components of the AOV ratio
-# (RFC 0010, RFC 0011 D5): the ratio itself is never stored and never a
+# (S-0027, S-0028/D-5): the ratio itself is never stored and never a
 # measure — MetricFlow recomputes it from these at the requested grain
-# (RFC 0013 D3/D4), which is what makes 2727.27 come out instead of 6000.
+# (S-0030/D-3, S-0030/D-4), which is what makes 2727.27 come out instead of 6000.
 marts_version: 1
 marts:
   orders:

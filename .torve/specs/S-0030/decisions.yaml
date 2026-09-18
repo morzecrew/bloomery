@@ -1,0 +1,184 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      S-0028's hand-written lowering (algorithm steps 3–4: additivity lowering + SQLGlot
+      assembly) and mart selection as its own module are **superseded**: MetricFlow
+      (Apache 2.0, `metricflow==0.211.*` pinned tightly) is embedded as a render-only
+      library — no dbt project, no adapter, no dbt-core, no execution. Verified: vendored
+      semantic interfaces in the wheel; plain-Pydantic manifest constructible in code;
+      `SqlClient` is a Protocol and `explain()` never executes (`RenderOnlySqlClient`
+      raises `NotImplementedError` on query/execute/dry_run). Motivating numbers:
+      ~29 ms cold hydration, ~1.6 MB/tenant vs Cube's 5–40 MB.
+    paths: [src/bloomery/runtime/sql_client.py]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `MetricRequest`/`QueryPlan`/`ColumnDescriptor`/`Explanation` (S-0028) do **not**
+      change — the stable API the Query Agent binds to. MetricFlow types never cross
+      that boundary; errors are translated (`InvalidQueryException` → `UnknownMember`/`UnreachableAtGrain`/`AmbiguousDimension`).
+      This seam is what makes the backend swappable.
+    paths:
+      - src/bloomery/planner/metricflow_planner.py
+      - tests/unit/test_planner/test_metricflow_planner.py
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `emit_manifest(ir, *, naming) -> PydanticSemanticManifest` is a pure deterministic
+      emitter. One mart = exactly one semantic model; never a semantic model for a
+      non-materialized entity (would reintroduce query-time joins). Every measure
+      carries `agg_time_dimension`; a martless time dimension is `MartMissingTimeDimension`
+      (new `GuardrailError` leaf). All collections sorted lexicographically before
+      construction — the manifest is hashed/cached. Full IR→MetricFlow mapping and
+      enum tables per §5.2.
+    paths:
+      - src/bloomery/emit/metricflow/__init__.py
+      - tests/fixtures/non_additive_aov/marts.yaml
+      - tests/unit/test_emit/test_metricflow.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `SemiAdditivePolicy.rule` maps `last → MAX`, `first → MIN`; `avg`/`max`/`min`
+      are not expressible via `non_additive_dimension` → `UnsupportedByTarget` naming
+      the rule.
+    paths:
+      - src/bloomery/emit/metricflow/__init__.py
+      - tests/fixtures/non_additive_aov/marts.yaml
+      - tests/unit/test_emit/test_metricflow.py
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **Reverses S-0025/D-6:** bloomery owns the date dimension. MetricFlow requires
+      a declared time spine; the catalog defines the date dimension once; the SQLMesh
+      emitter builds `gold.dim_date` and `PydanticTimeSpine` points at it. S-0025
+      amended in parallel.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Mart-coverage precheck runs **before** delegation and preserves the refusal
+      policy: all measures on one mart (else `UnreachableAtGrain` with S-0028's exact
+      per-metric grain/mart message), all dimensions flattened onto it, multi-candidate
+      → `cost_hint` then lexicographic. MetricFlow could plan multi-hop joins; we
+      refuse first — refuse-don't-guess enforced twice (coverage, then MetricFlow's
+      resolver). Belt and braces.
+    paths:
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/planner/coverage.py
+      - src/bloomery/planner/metricflow_planner.py
+      - tests/fixtures/multi_mart_refusal/marts.yaml
+      - tests/unit/test_emit/test_cube.py
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      `planner/names.py` owns the bidirectional bloomery↔dunder mapping (`{entity}__{dim}`,
+      `{entity}__{time_dim}__{grain}`, `metric_time__{grain}`, `-metric` for desc),
+      keyed on the **primary entity** name (not the semantic model name). Callers
+      never see dunder names. `metric_time` is reserved, rejected at spec validation.
+      Property test: every emitter-produced dimension round-trips through `names.py`.
+    paths:
+      - src/bloomery/planner/names.py
+      - src/bloomery/planner/result.py
+      - tests/property/test_metricflow_properties.py
+      - tests/property/test_planner_properties.py
+      - tests/unit/test_planner/test_names.py
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      Filters (Jinja `where_constraints`) are the highest-risk surface: values never
+      interpolated raw — typed per-dialect literal renderer or bind parameters; dimension
+      names only from validated `DimensionRef`s via `names.py`; values type-checked
+      against the dimension (`FilterTypeMismatch`); `contains`/`like` escape wildcards.
+      Adversarial fuzz property test (injection strings, template syntax, unicode
+      quotes, newlines) asserts parsed-SQL predicate structure unchanged and scanned
+      relations exactly the expected mart — **merge-blocking**. *(Superseded by D16
+      — see §5.6 note.)*
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/guardrails/metrics.py
+      - src/bloomery/planner/filters.py
+      - src/bloomery/planner/request.py
+      - tests/property/test_planner_properties.py
+      - tests/unit/test_guardrails/test_metrics.py
+      - tests/unit/test_planner/test_filters.py
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      `RowPolicy` stays a value object, applied as an additional where-constraint
+      always prepended to user filters. The row-policy-survives-every-path AST test
+      survives verbatim and stays merge-blocking, now explicitly covering ratio/semi-additive/cumulative
+      requests (multiple subqueries — the predicate must appear in every scan). V4
+      verifies MetricFlow pushes constraints into inner scans; if not, that is a security
+      defect and the escape hatch is per-tenant filtered node relations (a change
+      to D3's emitter, not the approach).
+    paths:
+      - src/bloomery/planner/explain.py
+      - src/bloomery/planner/filters.py
+      - src/bloomery/planner/policy.py
+      - tests/unit/test_planner/test_filters.py
+      - tests/unit/test_planner/test_row_policy.py
+      - tests/unit/test_semantic/test_plan.py
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      Explanations are built from the structured `MetricFlowExplainResult.dataflow_plan`/`query_spec`,
+      never scraped from SQL comments; output shape unchanged from S-0028, translated
+      to bloomery names.
+    paths: [src/bloomery/planner/explain.py]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      Version-drift canary `test_metricflow_api_surface` is mandatory — we depend
+      on internals with no stability guarantee; upgrades are deliberate PRs with goldens
+      regenerated.
+    paths: [tests/unit/test_metricflow_canary.py]
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      V1–V4 form milestone M4.5: merge nothing until all four are answered in writing;
+      the reference implementation lands as `spikes/metricflow/` first. `metricflow`
+      becomes a **runtime** dependency; if its supported Python range is narrower
+      than `>=3.12,<3.15`, `requires-python` narrows to match (S-0018 amended) — V1
+      answers this.
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      Planner-package DELETE list (`select.py`, `build.py`, `additivity.py`, `policy.py`):
+      if they contain work, delete it — no second implementation kept "just in case";
+      salvage only fixtures. The Cube equivalence suite is the second opinion.
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      **M4.5 complete (2026-08-07): V1–V4 all answered PASS** ([`spikes/metricflow/VERIFICATION.md`](spikes/metricflow/VERIFICATION.md))
+      — V1: joint resolution succeeds on Python 3.12/3.13/3.14, no `requires-python`
+      change, v1-shim/v2 coexistence clean in both import orders; V2: issue #241 fixed
+      in 0.211.0 (by-month returns the full series); V3: cold hydration 10.5 ms median,
+      1.54 MB/lookup (S-0031 budgets confirmed); V4: row-policy predicate in every
+      scan pre-aggregation, escape hatch unneeded. `metricflow==0.211.*` is **confirmed**
+      as the runtime pin — it resolves jointly with the sqlmesh dev tooling (sqlmesh
+      0.236.1, sqlglot stays `>=30.8,<31` resolving 30.8.0). Design cleared for implementation
+      (M6+).
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      *(Appended 2026-08-07, M6.)* Post-`transform()` re-sort of `input_measures`:
+      MetricFlow's `AddInputMetricMeasuresRule` collects a metric's `input_measures`
+      through a builtin `set` (hash-seed-dependent order, surfaced by RATIO metrics),
+      so `emit_manifest` sorts `metric.type_params.input_measures` by measure name
+      after `transform()` — the transformed manifest is hashed, cached (S-0031/D-5),
+      and golden-byte-compared (R1); without the re-sort, ordering drift would flake
+      goldens and silently defeat the cache. The determinism guarantee is therefore
+      ours, applied *after* the upstream transform, not assumed of it.
+  - id: D-16
+    grade: ASSUMED
+    text: >-
+      *(Appended 2026-08-07, M14 — S-0032.)* §5.6/R6 rendering is now per-`Clause`:
+      one `where_constraints` entry per clause, an `AnyOf` disjunction group **always**
+      parenthesized (`policy AND a OR b` leaks every row matching `b`), policy first
+      via `RowPolicy.as_clause()`. `like`/`ilike` operands are SQL `LIKE` patterns
+      (caller-owned wildcards, fixed `ESCAPE '\'`; the shipped `contains` auto-`%…%`
+      wrapping is removed); `ilike` lowers dialect-neutrally as `LOWER(x) LIKE LOWER(pattern)`
+      (Trino has no `ILIKE`). All D8 safety rules — names only via `names.py`, typed
+      literals, quote doubling, NUL refusal, `FilterTypeMismatch` never a cast — are
+      unchanged and remain merge-blocking; the non-finite refusal re-homes from `FilterTypeMismatch`
+      to `InvalidLiteral`.

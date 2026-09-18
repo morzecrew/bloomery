@@ -1,4 +1,4 @@
-"""The step manifest and the registry compile input (RFC 0017 §5.2–§5.3).
+"""The step manifest and the registry compile input (S-0034/step-manifest–S-0034/purity-the-registry-is-a-compile-input).
 
 What is asserted here is the *contract surface*: what a manifest may declare,
 what the registry refuses, and the two properties the purity argument rests on
@@ -112,7 +112,7 @@ def test_inverted_parameter_bounds_are_refused() -> None:
 
 
 def test_a_parameter_default_is_never_a_float() -> None:
-    """RFC 0003 D5 reaches the manifest too: a YAML float would arrive as a
+    """S-0020/D-5 reaches the manifest too: a YAML float would arrive as a
     binary approximation of the number the platform team wrote."""
     parsed = manifest(parameters={"threshold": {"type": "decimal(4,3)", "default": 0.85}})
     assert parsed.parameters["threshold"].default == Decimal("0.85")
@@ -181,7 +181,7 @@ def test_the_registry_snapshots_its_input() -> None:
 
 def test_the_registry_is_canonically_sorted_whatever_the_caller_built() -> None:
     """Insertion order is the caller's business; the compile input's order is
-    not (RFC 0003: no ambient nondeterminism)."""
+    not (S-0020: no ambient nondeterminism)."""
     # Each manifest is keyed by the identity it declares — the registry refuses
     # a disagreement (D55), and this helper defaults to version 3.
     one = manifest(ref="a_step", version=1)
@@ -251,7 +251,7 @@ def test_an_output_name_that_is_not_an_identifier_is_refused() -> None:
 
 
 def test_a_key_disagreeing_with_its_manifest_is_refused() -> None:
-    """RFC 0017 D55. The registry is keyed by ``(ref, version)`` and the
+    """S-0034/D-55. The registry is keyed by ``(ref, version)`` and the
     manifest carries the same pair, so the two can disagree — and the
     disagreement was silent, not loud: ``lower_steps`` builds ``StepIR`` from
     the *manifest* identity while the wiring's canonical links and

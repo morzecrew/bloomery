@@ -45,7 +45,7 @@ FROM (
     _evaluations.rows_failed,
     _evaluations.rows_quarantined,
     _evaluations.rows_deduped,
-    CAST(NULL AS TEXT) AS run_id, /* run_id: supplied by the executing engine's run context (RFC 0016 §5.8); the pinned target exposes no macro for it — fill this column in your runner */
+    CAST(NULL AS TEXT) AS run_id, /* run_id: supplied by the executing engine's run context (S-0033/the-quality-mart); the pinned target exposes no macro for it — fill this column in your runner */
     CAST(@execution_ds AS DATE) AS run_date
   FROM (
     SELECT

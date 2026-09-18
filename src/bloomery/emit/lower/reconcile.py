@@ -1,4 +1,4 @@
-"""Reconcile models and their audits (RFC 0016 §5.3/§5.4).
+"""Reconcile models and their audits (S-0033/spec-schema, S-0033/fixed-pipeline-order-and-lowering).
 
 "The check that catches a *correct formula over wrong data*." Both sides come
 from the closed grammar in :mod:`bloomery.quality.reconcile` and are built as
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from ..base import EmitContext
 
 # ....................... #
-# Reconcile (RFC 0016 §5.3/§5.4): one model plus a non-blocking audit per
+# Reconcile (S-0033/spec-schema, S-0033/fixed-pipeline-order-and-lowering): one model plus a non-blocking audit per
 # check — "the check that catches a *correct formula over wrong data*". The
 # two sides come from the closed grammar in :mod:`bloomery.quality.reconcile`
 # and are built as a SQLGlot AST like everything else here; no string SQL ever
@@ -65,7 +65,7 @@ _AGGREGATES: dict[str, type[exp.AggFunc]] = {
 
 def coverage_audit_name(check: CoverageIR) -> str:
     """``<check>_coverage`` — the audit's name and artifact path, suffixed the
-    way a reconcile check's relation is (RFC 0016 D90)."""
+    way a reconcile check's relation is (S-0033/D-90)."""
 
     return f"{check.name}_coverage"
 
@@ -80,7 +80,7 @@ def coverage_owner(check: CoverageIR, ir: ProjectIR) -> RelationshipIR:
     return guaranteed(
         (rel for rel in ir.relationships if rel.name == check.relationship),
         expected=f"relationship {check.relationship!r} named by coverage check {check.name!r}",
-        by="_check_coverage (RFC 0016 D90)",
+        by="_check_coverage (S-0033/D-90)",
     )
 
 
@@ -91,7 +91,7 @@ def coverage_audit_select(
     check: CoverageIR, ir: ProjectIR, ctx: EmitContext, *, relation: str = THIS_MODEL
 ) -> exp.Select:
     """The audit body: rows of the **referenced** entity with too few
-    dependents (RFC 0016 D90).
+    dependents (S-0033/D-90).
 
     ``LEFT JOIN`` from the referenced side and ``COUNT`` of a *from-side*
     column, never ``COUNT(*)``: an unmatched left row still produces one output
@@ -144,7 +144,7 @@ def _referenced_key(relationship: RelationshipIR, ir: ProjectIR) -> tuple[str, .
         (e for e in ir.entities if e.name == relationship.to_entity),
         expected=f"entity {relationship.to_entity!r} on the referenced side of "
         f"relationship {relationship.name!r}",
-        by="_check_coverage (RFC 0016 D91)",
+        by="_check_coverage (S-0033/D-91)",
     )
     return entity.key
 
@@ -176,7 +176,7 @@ def mart_assert_name(mart: MartIR, clause: MartAssertIR) -> str:
 def mart_assert_select(
     mart: MartIR, clause: MartAssertIR, *, relation: str = THIS_MODEL
 ) -> exp.Select:
-    """The audit body for one mart assertion (RFC 0016 D89).
+    """The audit body for one mart assertion (S-0033/D-89).
 
     ``SELECT <by…>, <agg>(<measure>) AS value FROM @this_model [GROUP BY <by…>]
     HAVING <agg>(<measure>) < min OR <agg>(<measure>) > max`` — an audit passes
@@ -244,7 +244,7 @@ def _assert_bound_type(mart: MartIR, clause: MartAssertIR) -> LogicalType:
     return guaranteed(
         (column.type for column in mart.columns if column.name == clause.column),
         expected=f"column {clause.column!r} on mart {mart.name!r}",
-        by="_check_asserts (RFC 0016 D89)",
+        by="_check_asserts (S-0033/D-89)",
     )
 
 
@@ -253,7 +253,7 @@ def _assert_bound_type(mart: MartIR, clause: MartAssertIR) -> LogicalType:
 
 def reconcile_relation(check: ReconcileIR) -> str:
     """``<check>__reconcile`` — one relation per check, mirroring the reject
-    table's naming (RFC 0016 §5.3)."""
+    table's naming (S-0033/spec-schema)."""
 
     return f"{check.name}{RECONCILE_SUFFIX}"
 
@@ -277,7 +277,7 @@ def _resolved_side(text: str, ir: ProjectIR) -> tuple[ReconcileSide, EntityIR, t
     if side is None or entity is None:  # pragma: no cover — the guardrail stage refuses both
         msg = (
             f"reconcile side {text!r} did not parse or names an unbuilt entity — the "
-            "guardrail stage should have refused this (RFC 0016 §5.3)"
+            "guardrail stage should have refused this (S-0033/spec-schema)"
         )
         raise EmitError(msg)
 
@@ -391,7 +391,7 @@ def reconcile_select(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> exp
         this=grouped(
             exp.LTE(
                 this=difference.copy(),
-                # ``tolerance`` is a Decimal in the IR (RFC 0003 D5): it
+                # ``tolerance`` is a Decimal in the IR (S-0020/D-5): it
                 # reaches SQL as a numeric *literal*, never a float.
                 expression=exp.Literal.number(str(check.tolerance)),
             )
@@ -499,7 +499,7 @@ def reconcile_audit_select(*, relation: str = THIS_MODEL) -> exp.Select:
 
 
 def reconcile_audit_blocking(check: ReconcileIR) -> bool:
-    """Whether a reconcile check's audit **stops the run** (RFC 0016 §5.3).
+    """Whether a reconcile check's audit **stops the run** (S-0033/spec-schema).
 
     ``reconcile`` carries an ``on_fail`` like every other disposition-bearing
     surface, and §5.3 gives it a job no rule can do: "a pipeline-stopping
@@ -517,7 +517,7 @@ def reconcile_audit_blocking(check: ReconcileIR) -> bool:
     aggregates and routes **no row** (§5.4's table: "separate model +
     non-blocking audit"), so there is nothing for the disposition to divert,
     and ``spec.quality.Reconcile.on_fail`` is typed ``Literal["flag", "fail"]``
-    (RFC 0016 D92) — the value stopped parsing where it is authored rather
+    (S-0033/D-92) — the value stopped parsing where it is authored rather
     than being quietly downgraded here.
     """
 

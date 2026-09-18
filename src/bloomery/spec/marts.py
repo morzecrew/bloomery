@@ -1,4 +1,4 @@
-"""The ``MartSet`` spec kind (RFC 0010 §5.1; RFC 0002 D9).
+"""The ``MartSet`` spec kind (S-0027/spec-kind; S-0019/D-9).
 
 The wide-mart gold layer: one mart per (grain × subject area), flattened at
 build time. ``flatten`` steps are a discriminated union on ``via`` vs ``date``:
@@ -6,7 +6,7 @@ a ``via:`` step names a declared relationship and a mandatory column prefix; a
 ``date:`` step declares a role-playing time dimension expanded into
 ``<role>_<bucket>`` columns. Shape-only at parse — relationship existence,
 cardinality, grain equality, and collision checks are compile-stage validation
-(RFC 0010 §5.5).
+(S-0027/validation-compile-errors-batched-with-guardrails).
 """
 
 from __future__ import annotations
@@ -42,18 +42,18 @@ __all__ = [
 
 class ViaStep(SpecModel):
     """Flatten one declared relationship into the mart, prefixing every
-    flattened column with ``prefix`` (RFC 0010 D3 — prefixes mandatory,
+    flattened column with ``prefix`` (S-0027/D-3 — prefixes mandatory,
     so an empty prefix is a parse error, not a silent no-op).
 
     ``as_of`` names the **anchor**: a date or timestamp column of the mart's
-    base entity, and the instant the joined entity is read *as of* (RFC 0023
+    base entity, and the instant the joined entity is read *as of* (S-0040
     §5.3, D8). It is required to flatten an ``scd: type2`` entity and refused
     on any other, because a historical relation joined without one matches
     every version of each key and multiplies the base grain, while a
     current-view relation has no version to choose between.
 
     Declared, never inferred: which date history is read on is intent, and
-    RFC 0021 closed inference. The anchor sits here rather than on the mart
+    S-0038 closed inference. The anchor sits here rather than on the mart
     because it qualifies *this* join — two historical dimensions in one mart
     can legitimately be read as of different dates.
     """
@@ -68,8 +68,8 @@ class ViaStep(SpecModel):
 
 class DateRoleStep(SpecModel):
     """Declare a role-playing time dimension: ``{date: order_date, role:
-    ordered}`` expands to ``ordered_day`` … ``ordered_year`` (RFC 0010 D4).
-    ``metric_time`` is reserved as a role name (RFC 0002 D10)."""
+    ordered}`` expands to ``ordered_day`` … ``ordered_year`` (S-0027/D-4).
+    ``metric_time`` is reserved as a role name (S-0019/D-10)."""
 
     date: str
     role: MemberName
@@ -95,18 +95,18 @@ FlattenStep = Annotated[
     Annotated[ViaStep, Tag("via")] | Annotated[DateRoleStep, Tag("date")],
     Discriminator(_flatten_tag),
 ]
-"""Discriminated union on ``via`` vs ``date`` (RFC 0010 §5.1)."""
+"""Discriminated union on ``via`` vs ``date`` (S-0027/spec-kind)."""
 
 
 #: The aggregates a mart assertion may take. Deliberately the **same** closed
-#: vocabulary the ``reconcile`` grammar uses (RFC 0016 §5.3): both compute one
+#: vocabulary the ``reconcile`` grammar uses (S-0033/spec-schema): both compute one
 #: number over a column so a human can be told it is wrong, and two lists that
 #: mean the same thing drift.
 MartAggregate = Literal["avg", "count", "max", "min", "sum"]
 
 
 class MartAssert(SpecModel):
-    """One aggregate assertion over a mart (RFC 0016 D89) — §10's "no month has
+    """One aggregate assertion over a mart (S-0033/D-89) — §10's "no month has
     zero revenue", made declarable.
 
     **Why this is an assertion and not a quality rule.** §5.9 draws the line at
@@ -120,13 +120,13 @@ class MartAssert(SpecModel):
 
     ``by`` groups the aggregate; empty means one group over the whole mart.
     Bounds carry the exact-decimal/ISO string form for the same reason
-    ``range`` does — a YAML float never reaches the IR (RFC 0003 D5).
+    ``range`` does — a YAML float never reaches the IR (S-0020/D-5).
 
     **What it cannot see, stated:** a group with no rows produces no row to
     aggregate, so an assertion over a mart cannot notice a month that is
     entirely *missing* — only one whose total is out of bounds. Closing that
     needs a join against the date spine, which is a different check with a
-    different dependency (RFC 0016 D89).
+    different dependency (S-0033/D-89).
     """
 
     name: RuleName
@@ -136,7 +136,7 @@ class MartAssert(SpecModel):
     min: RangeBound | None = None
     max: RangeBound | None = None
     #: ``fail`` blocks the run; ``flag`` emits a non-blocking audit — the same
-    #: two readings ``reconcile.on_fail`` carries (RFC 0016 D38). ``quarantine``
+    #: two readings ``reconcile.on_fail`` carries (S-0033/D-38). ``quarantine``
     #: and ``repair`` are absent rather than lowered to something weaker:
     #: neither has a meaning without a row to route.
     on_fail: Literal["flag", "fail"]
@@ -167,16 +167,16 @@ class MartAssert(SpecModel):
 
 class Mart(SpecModel):
     """One wide mart: base entity, authored-order flatten steps (order is
-    meaningful — chains flatten transitively, RFC 0010 §5.1), measures,
+    meaningful — chains flatten transitively, S-0027/spec-kind), measures,
     partitioning, aggregate assertions, and the tie-breaking ``cost_hint``
-    (RFC 0010 D8)."""
+    (S-0027/D-8)."""
 
     grain: str
     base: str
     flatten: tuple[FlattenStep, ...] = ()
     measures: tuple[str, ...] = ()
     #: The weakest evidence this consumer accepts under its measures
-    #: (RFC 0065 §5.2). ``assumed`` is the default and is what every project
+    #: (S-0070/the-annotation). ``assumed`` is the default and is what every project
     #: does today, so absence is byte-identical to not having the key (D3).
     #:
     #: There is no ``open``: it would mean "accept anything", which is the
@@ -191,7 +191,7 @@ class Mart(SpecModel):
     materialization: MaterializationName | None = None
     assert_: tuple[MartAssert, ...] = Field(default=(), alias="assert")
     cost_hint: int = Field(default=1, ge=1)
-    #: Who is responsible for this, as a free string (RFC 0055 §5.1). Reaches
+    #: Who is responsible for this, as a free string (S-0062/owner). Reaches
     #: every target's owner slot and changes no SQL.
     #:
     #: **A declaration bloomery does not verify.** Nobody is paged, the name is
@@ -200,7 +200,7 @@ class Mart(SpecModel):
     #: either (D8): every project spells this differently, and a format rule
     #: would refuse spellings that are correct for their reader.
     owner: str | None = None
-    #: Who may read the relation this becomes (RFC 0055 §5.3). Unlike the two
+    #: Who may read the relation this becomes (S-0062/grants). Unlike the two
     #: annotations above, this one is **applied** — by the framework, on the
     #: engine — so being wrong changes who can read data.
     grants: Grants | None = None
@@ -211,7 +211,7 @@ class Mart(SpecModel):
 
 class RollupMart(SpecModel):
     """A mart at a coarser grain than one this project already builds
-    (RFC 0058 §5.1), declared under the document's ``rollups:`` key.
+    (S-0065/the-shape), declared under the document's ``rollups:`` key.
 
     It names a parent and the dimensions it keeps; what it **drops** is derived
     — every column of the parent not listed — because listing what you keep and
@@ -225,7 +225,7 @@ class RollupMart(SpecModel):
     it in the end was smaller and more concrete: a discriminated union inside
     ``marts:`` puts its tag into every mart's error path, and
     ``marts.m.wide.flatten[0].via.prefix`` names a ``wide`` the author did not
-    write, which is not what a source path is (RFC 0002 §5.3). Two keys in one
+    write, which is not what a source path is (S-0019/source-paths). Two keys in one
     document mirror ``ProjectIR.marts`` and ``ProjectIR.rollups``, which is the
     same separation row 14 is built on (logs/T-0034.md).
 
@@ -242,7 +242,7 @@ class RollupMart(SpecModel):
     #: The parent's columns this rollup groups by. At least one, and each named
     #: once: a repeat is one grouping level stated twice, refused here the way
     #: :class:`MartAssert` refuses a repeated ``by:``. The obligation itself
-    #: canonicalizes a repeat rather than refusing it (RFC 0058 row 16), which
+    #: canonicalizes a repeat rather than refusing it (S-0065 row 16), which
     #: is the right answer for a library caller and the wrong one for a
     #: document a person wrote.
     keep: tuple[str, ...] = Field(min_length=1)
@@ -254,7 +254,7 @@ class RollupMart(SpecModel):
     measures: tuple[str, ...] = Field(min_length=1)
     partition_by: tuple[PartitionSpecString, ...] = ()
     materialization: MaterializationName | None = None
-    #: Who may read the relation this rollup becomes (RFC 0055 D12).
+    #: Who may read the relation this rollup becomes (S-0062/D-12).
     #:
     #: Its own, not the parent mart's. D2's rule is that authored nodes do not
     #: inherit, and a rollup is authored — so a rollup over a restricted mart is
@@ -291,9 +291,9 @@ class RollupMart(SpecModel):
 class MartSet(SpecModel):
     """The per-project marts document (``marts_version``), at most one per
     project, optional — a project without marts compiles silver only
-    (RFC 0010 D7)."""
+    (S-0027/D-7)."""
 
-    #: Pinned to the one version bloomery implements (RFC 0018 D7). It was
+    #: Pinned to the one version bloomery implements (S-0035/D-7). It was
     #: ``int`` with ``ge=1``, which accepted a document written for a future
     #: bloomery and silently applied v1 semantics to it — the exact misreading
     #: a version key exists to refuse. This key is also the document-kind
@@ -301,7 +301,7 @@ class MartSet(SpecModel):
     #: identified at all.
     marts_version: Literal[1]
     marts: dict[RelationName, Mart]
-    #: Rollups of the marts above (RFC 0058 §5.2). A second key of the same
+    #: Rollups of the marts above (S-0065/the-obligation). A second key of the same
     #: document rather than a document of its own: a rollup is meaningless
     #: without the mart it names, and the two are authored together.
     rollups: dict[RelationName, RollupMart] = Field(default_factory=dict)
@@ -311,7 +311,7 @@ class MartSet(SpecModel):
     @model_validator(mode="after")
     def _rollups_name_a_mart(self) -> Self:
         """A rollup's parent is a mart of this document, and its own name is
-        not one (RFC 0058 D10).
+        not one (S-0065/D-10).
 
         **Chaining is refused rather than resolved**, and the separate key is
         what makes that trivially true: ``of:`` names a member of ``marts:``,
@@ -332,7 +332,7 @@ class MartSet(SpecModel):
             if name in self.marts:
                 msg = (
                     f"rollup {name!r} takes the name of a mart. Both are relations of the "
-                    "gold layer, so the two would build one table (RFC 0010 §5.4). Fix: name "
+                    "gold layer, so the two would build one table (S-0027/martir). Fix: name "
                     "the rollup for the grain it holds"
                 )
                 raise ValueError(msg)

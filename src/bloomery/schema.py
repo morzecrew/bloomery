@@ -1,8 +1,8 @@
-"""JSON Schema for the six spec kinds (RFC 0020 §5.1, D1–D3).
+"""JSON Schema for the six spec kinds (S-0037/bloomery-schema-json-schema-export, S-0037/D-1–S-0037/D-3).
 
-The spec kinds are strict frozen Pydantic models (RFC 0002), so the schema is
+The spec kinds are strict frozen Pydantic models (S-0019), so the schema is
 one ``model_json_schema()`` call away and was simply never exposed. Exposing it
-is the highest-leverage item in RFC 0020 because it serves four consumers from
+is the highest-leverage item in S-0037 because it serves four consumers from
 one artifact that cannot drift from the parser: editor completion via
 ``yaml.schemas``, form validation in a control plane that would otherwise
 transcribe the models into TypeScript, reference documentation generated from
@@ -31,7 +31,7 @@ from __future__ import annotations
 
 # Imported at run time rather than under ``TYPE_CHECKING``: it appears in
 # ``all_spec_schemas``'s return annotation, and the signature-closure test
-# resolves every public annotation for real (RFC 0018 D10). Aliased because
+# resolves every public annotation for real (S-0035/D-10). Aliased because
 # ``bloomery.spec.Mapping`` — a spec kind — owns the plain name here.
 from collections.abc import Mapping as AbcMapping
 from enum import StrEnum
@@ -73,18 +73,18 @@ type JsonDict = dict[str, object]
 JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 
 #: Where the published schemas live, so ``$id`` is resolvable rather than
-#: decorative (RFC 0020 §7: they are built alongside the docs).
+#: decorative (S-0037/docs: they are built alongside the docs).
 _BASE_URI = "https://morzecrew.github.io/bloomery/schemas"
 
 
 class SpecKind(StrEnum):
-    """The nine loadable spec kinds (RFC 0020 §5.1; ``EXPOSURES`` added by
-    RFC 0056 §5.1, ``EXPORTS`` and ``IMPORTS`` by RFC 0059 §5.1).
+    """The nine loadable spec kinds (S-0037/bloomery-schema-json-schema-export; ``EXPOSURES`` added by
+    S-0063/the-document, ``EXPORTS`` and ``IMPORTS`` by S-0002 (§5.1)).
 
     Eight are project documents :func:`~bloomery.load_project` dispatches on by
     version key; :attr:`CATALOG` is loaded separately by
     :func:`~bloomery.load_catalog` because a catalog is not part of a project
-    (RFC 0002 D8). Each member's value is the kind's name in a ``$id`` and on
+    (S-0019/D-8). Each member's value is the kind's name in a ``$id`` and on
     the ``bloomery schema --kind`` command line.
     """
 
@@ -103,8 +103,8 @@ class SpecKind(StrEnum):
 
 
 #: Kind → the model that parses it, and the version key that identifies it.
-#: The version key is the document-kind discriminator (RFC 0002 §5.5) and, since
-#: RFC 0018 D7, a ``Literal[1]`` — which is where :func:`_document_version` reads
+#: The version key is the document-kind discriminator (S-0019/spec-model-surface) and, since
+#: S-0035/D-7, a ``Literal[1]`` — which is where :func:`_document_version` reads
 #: the number in each ``$id`` from, rather than a constant repeated here.
 _KINDS: dict[SpecKind, tuple[type[SpecModel], str]] = {
     SpecKind.CATALOG: (Catalog, "catalog_version"),
@@ -138,7 +138,7 @@ def _document_version(kind: SpecKind) -> int:
     model, version_key = _KINDS[kind]
     (version,) = get_args(model.model_fields[version_key].annotation)
 
-    if not isinstance(version, int):  # pragma: no cover — RFC 0018 D7 pins every one
+    if not isinstance(version, int):  # pragma: no cover — S-0035/D-7 pins every one
         msg = f"{kind.value} version key is not a pinned integer literal: {version!r}"
         raise TypeError(msg)
 
@@ -152,7 +152,7 @@ def _transform_step_schema(generated: JsonDict) -> JsonDict:
     """The three authored spellings of one transform-chain step.
 
     ``TransformStep`` has a ``mode="before"`` validator that normalizes a bare
-    name or a single-key mapping into ``{name, args}`` (RFC 0002 §5.5), and
+    name or a single-key mapping into ``{name, args}`` (S-0019/spec-model-surface), and
     Pydantic documents only what comes out of it. The generated schema
     therefore rejects ``transform: [to_string]`` — the spelling every fixture,
     every doc page and the quickstart use. A schema that refuses the
@@ -161,7 +161,7 @@ def _transform_step_schema(generated: JsonDict) -> JsonDict:
     human example shows.
 
     So the three spellings are stated explicitly, and the transform whitelist
-    (RFC 0020 D2) rides along in each of them — as an ``enum`` on the bare
+    (S-0037/D-2) rides along in each of them — as an ``enum`` on the bare
     name, as ``propertyNames`` on the single-key mapping, and as an ``enum`` on
     the normalized form's ``name``. That is what makes constrained generation
     unable to invent a transform, which is the point of the enum requirement:
@@ -314,7 +314,7 @@ def _canonical_mapping(entries: dict[str, object]) -> dict[str, object]:
 
 
 def spec_json_schema(kind: SpecKind) -> JsonDict:
-    """The JSON Schema for one spec kind (RFC 0020 D1).
+    """The JSON Schema for one spec kind (S-0037/D-1).
 
     Generated from the Pydantic model, so it cannot drift from the parser by
     more than the two validators JSON Schema cannot express — measured rather
@@ -343,7 +343,7 @@ def all_spec_schemas() -> AbcMapping[SpecKind, JsonDict]:
     """Every kind's schema, in :class:`SpecKind` order.
 
     Six standalone documents rather than one bundle with cross-references
-    (RFC 0020 §10 question 1, answered): the bundle's stated advantage was a
+    (S-0037 (§10) question 1, answered): the bundle's stated advantage was a
     single editor mapping, and an editor maps a *file glob* to a schema, which
     a bundle cannot discriminate within. Standalone documents with resolvable
     ``$id``s serve both that and ``$ref``-by-URL, and joining them later is

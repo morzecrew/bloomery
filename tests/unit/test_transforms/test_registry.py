@@ -1,4 +1,4 @@
-"""The transform registry (RFC 0004 §5.3): closed default, sorted iteration,
+"""The transform registry (S-0021/the-registry-closed-default-sorted-iteration-overlay-extensi): closed default, sorted iteration,
 overlay extension, collision-is-an-error."""
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ registry_module = importlib.import_module("bloomery.transforms.registry")
 
 pytestmark = pytest.mark.unit
 
-#: The starter set, exactly RFC 0004 D3.
+#: The starter set, exactly S-0021/D-3.
 STARTER_SET = [
     "abs",
     "coalesce",
@@ -158,7 +158,7 @@ def test_register_transform_rejects_empty_input_domain() -> None:
 
 
 def test_a_builder_is_told_its_input_type_only_when_it_declares_types() -> None:
-    """RFC 0029 D1: the declaration of what a transform produces is a function
+    """S-0046/D-1: the declaration of what a transform produces is a function
     of the input type, and the construction was not — so the two could disagree,
     and across the whole starter set they did.
 

@@ -1,4 +1,4 @@
-"""Golden JSON Schema per spec kind (RFC 0020 D3, RFC 0009 §5.4).
+"""Golden JSON Schema per spec kind (S-0037/D-3, S-0026/golden-workflow).
 
 The schemas are a published artifact — an editor resolves one by ``$id``, a
 control plane validates a form against it, a constrained decoder generates
@@ -8,7 +8,7 @@ quietly stopped being required.
 
 Two things move these files that are not bloomery edits, and both are meant to:
 a Pydantic upgrade that renders a constraint differently, and a transform added
-to the registry (RFC 0020 D2 puts the whitelist in the schema, so it must).
+to the registry (S-0037/D-2 puts the whitelist in the schema, so it must).
 Regenerate via ``just snapshot-update``; an unexplained diff fails review like
 any other.
 """

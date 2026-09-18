@@ -1,4 +1,4 @@
-"""The grain guard (RFC 0006 §5.3, D5): the fan-out refusal on derivations
+"""The grain guard (S-0023/grain-the-fan-out-guard, S-0023/D-5): the fan-out refusal on derivations
 and on metric expressions spanning entities with different grains — trigger,
 aggregated non-trigger, relationship naming, and both grains in the message."""
 
@@ -104,7 +104,7 @@ def test_shared_grain_passes() -> None:
 
 
 def test_aggregated_coarse_operand_passes() -> None:
-    # The sanctioned way in (RFC 0006 D5): an explicit aggregation step.
+    # The sanctioned way in (S-0023/D-5): an explicit aggregation step.
     assert _check("order", "SUM(price)", "price") == []
 
 
@@ -137,7 +137,7 @@ def test_unrelated_entities_report_no_declared_relationship() -> None:
 
 
 def test_non_canonical_operands_are_not_grain_checked() -> None:
-    # A mapping-local alias has no declared home entity (RFC 0006 D3).
+    # A mapping-local alias has no declared home entity (S-0023/D-3).
     assert _check("order_item", "line_total / qty", "line_total", "qty") == []
 
 

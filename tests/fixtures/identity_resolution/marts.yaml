@@ -1,5 +1,5 @@
 # A mart over a step-produced entity, referenced exactly as any silver entity
-# is (RFC 0017 D36/D37). The emitter leaves `silver.customer`'s model to the
+# is (S-0034/D-36, S-0034/D-37). The emitter leaves `silver.customer`'s model to the
 # step's generated wrapper and reads the relation like any other.
 marts_version: 1
 marts:

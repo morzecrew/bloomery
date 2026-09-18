@@ -1,5 +1,5 @@
 """Range sanity — static validation and lowering of ``assert:`` clauses
-(RFC 0006 §5.6, D8).
+(S-0023/range-sanity, S-0023/D-8).
 
 The guardrail stage validates only that each clause is **well-typed against
 the field's logical type**: ``min``/``max`` require a numeric or temporal
@@ -12,9 +12,9 @@ assertion that can never run is a silent hole in the audit net.
 
 Valid clauses lower into :class:`~bloomery.ir.AuditIR` entries on the entity
 (kinds ``not_null``/``min``/``max``/``enum``/``regex``); rendering them as
-target-native audits is the emitters' job (RFC 0008). ``enum`` members are
+target-native audits is the emitters' job (S-0025). ``enum`` members are
 carried as index-keyed params (``value_0000`` …) so the authored order
-survives the params' by-name sort (RFC 0003).
+survives the params' by-name sort (S-0020).
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ def _range_audit(
 
     msg = (
         f"{kind}: requires a numeric or temporal field, but the field is {type_string!r} "
-        f"— the bound can never run (RFC 0006 §5.6). Fix: drop the clause or retype the "
+        f"— the bound can never run (S-0023/range-sanity). Fix: drop the clause or retype the "
         "field"
     )
     return AssertLoweringError(msg, source_path=path)
@@ -193,7 +193,7 @@ def lower_asserts(
                 msg = (
                     f"assert: on field {field_name!r} of entity {entity_name!r}, but no "
                     "mapping lowers the field — the audit can never run, a silent hole "
-                    "in the audit net (RFC 0006 §5.6). Fix: map the field or drop the "
+                    "in the audit net (S-0023/range-sanity). Fix: map the field or drop the "
                     "clause"
                 )
                 errors.append(AssertLoweringError(msg, source_path=path))

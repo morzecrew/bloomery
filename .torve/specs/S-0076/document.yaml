@@ -1,0 +1,308 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0076
+title: Declared source timezone
+kind: design
+status: accepted
+implementation: complete
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  `parse_ts` turns a wall-clock string into a value the type system calls UTC. It cannot know
+  which clock the string came off, and nothing asks: the assertion *"this wall clock is UTC"*
+  is made by the **absence** of a `to_utc` step, which is the one place an assertion cannot be
+  checked.
+
+  The converting case already declares: `{to_utc: America/New_York}` names the zone, which is
+  why case 011's `anchored` arm is right. What has nowhere to go is the *other* claim — "this
+  wall clock really is UTC" — and a rule that refuses a parsed timestamp whose absolute position
+  is consumed with neither claim behind it. So: one key for the one case `to_utc` cannot
+  express, and R018. It is S-0066 for instants, minus the half that already exists.
+motivation: |-
+  **The failure is five hours wide and every check passes.** Corpus case 011: an order placed
+  at 21:30 on 31 January in New York is 02:30 on 1 February UTC. Read as a bare wall clock it
+  is a January order, and February reports `40.00` for a month that took `140.00`. The string
+  parses, the cast succeeds, the comparison is well-typed, nothing is null and no row is lost.
+
+  **A zone is a denomination, and this project already decided how to treat one.** A number
+  without a currency and an instant without a clock are the same defect: a value whose meaning
+  depends on a fact the data does not carry. S-0066 gave the first one `currency_in:` and
+  R009; the second has nothing, and the asymmetry is not a decision anybody made.
+
+  **The type system states the invariant and one transform walks past it.**
+  `typing/types.py:5` says *"``timestamp`` in bloomery **is** UTC; ``to_utc`` is the only door
+  in"* — and `parse_ts` is declared `output=TimestampType()`. Both are true and together they
+  are false: there are two doors, and one of them does not check.
+
+  **The source system knows, and writes it in its documentation.** A feed publishing local
+  times with no zone is the common case, not the exotic one (case 011's origin note). The fact
+  exists; it just has nowhere to go.
+current_state: |-
+  Verified against the tree.
+
+  | | Where | What it says |
+  |---|---|---|
+  | the invariant | [`typing/types.py:5`](src/bloomery/typing/types.py) | "``timestamp`` in bloomery *is* UTC; ``to_utc`` is the only door in" |
+  | the door that checks | `transforms/_builtins.py:523-527` | `to_utc(col, zone)` — `input=(TimestampType,)`, `output=TimestampType()`, and its docstring cites the always-UTC type |
+  | the door that does not | `transforms/_builtins.py:491-493` | `parse_ts(col, fmt)` — `input=(StringType,)`, `output=TimestampType()`. A wall clock in, a UTC instant out, no zone anywhere |
+  | the precedent | `spec/mapping.py:137,155` | `currency_in: CurrencyIn \| None` on `KeyField` and `SimpleFieldMapping` |
+  | the rule the precedent feeds | `semantic/denomination.py:309` | R009 — "a conversion's input currency is declared, or produced by the step before it" |
+
+  **Where `currency_in` lives, and why it decides where `zone_in` lives.** It is on the
+  *mapping*, not on the canonical field, and `mapping.py:150-155` gives the reason: "a
+  canonical field is shared across mappings, and one fed by a euro feed and a dollar feed
+  would need two input currencies for one declaration (D6)". A canonical `placed_at` fed by a
+  New York feed and a London feed is the same shape, so the same answer holds without
+  re-deriving it.
+
+  **`to_utc` is known to invert on Trino.** Case 011's own closing note says the `anchored` arm
+  is a DuckDB claim, and the divergence is recorded outside this document. That is a fact about
+  a dialect port, not about this design — but it is why §9 says what it says.
+goals: |-
+  **Goals**
+
+  - A mapping declares the zone its wall-clock strings were written in.
+  - A `timestamp` reaching a time dimension carries **zone provenance**: either it was parsed
+    from a declared zone, or it arrived already an instant, or the author said the wall clock
+    really is UTC.
+  - Case 011's `zoneless` arm becomes a refusal naming the missing declaration, and its
+    `anchored` arm keeps compiling **unchanged** — `to_utc`'s argument is already the
+    declaration, so a correct project needs no edit.
+  - The refusal is at compile time, not a runtime audit. The zone is a fact about a source
+    system, and a source system's clock is not discoverable from its rows.
+non_goals: |-
+  - **Changing what `timestamp` means.** It is UTC (S-0021/logical-types-bloomery-typing-types-py) and stays UTC. This closes
+    the second door; it does not move the wall.
+  - **Zone-aware arithmetic, local calendars, or a `timestamptz` type.** A report bucketed by
+    local day is a different design and a much larger one — see §8.
+  - **Guessing a zone.** Not from the column name, not from a project default, not from the
+    values' distribution. §5.4 argues why each is worse than refusing.
+  - **Fixing `to_utc` on Trino.** A dialect port's divergence is S-0012's question.
+  - **Anything about `date`.** A bare date has no instant to get wrong at a boundary; it has a
+    different bug and this is not it.
+design:
+  - key: toutc-s-argument-is-already-the-declaration
+    md: |-
+      The converting case needs no new vocabulary. `{to_utc: America/New_York}` names the zone the
+      wall clock was written in — case 011's `anchored` mapping says exactly that in its own
+      comment — so a chain that converts has already declared, and a second key beside it would be
+      two statements of one fact. This project refuses that shape elsewhere for the reason it
+      always bites: two spellings of one truth disagree, and nothing can say which is right.
+
+      So the design adds **one** thing, for the one case `to_utc` cannot express.
+  - key: zonein-is-how-a-utc-source-says-so
+    md: |-
+      ```yaml
+      fields:
+        placed_at:
+          from: $.placed_at
+          zone_in: UTC
+          transform: [{ parse_ts: "%Y-%m-%d %H:%M:%S" }]
+      ```
+
+      A feed whose wall clocks genuinely are UTC converts nothing — `to_utc: UTC` is a no-op nobody
+      would write — so it has no place to put the claim. `zone_in:` is that place, on the mapping
+      beside `currency_in:`, carrying an IANA zone name validated against the shipped zone database
+      at parse time.
+
+      It looks like ceremony and that is the point: today the claim is made by silence, and silence
+      is indistinguishable from nobody having thought about it. One key turns an unfalsifiable
+      default into a sentence with an author — which is the shape S-0066 chose for currency, for
+      the same reason.
+
+      **A non-UTC `zone_in:` is legal and is cross-checked.** `zone_in: America/New_York` beside
+      `{to_utc: America/New_York}` is a redundancy the compiler *checks*, which is a different
+      thing from one it cannot: a disagreement is a refusal naming both. An author who wants the
+      source's clock stated explicitly may say it; an author who does not is not made to.
+      `zone_in:` naming a non-UTC zone with no conversion in the chain is refused — the declaration
+      is right and the instant is still wrong.
+  - key: r018-and-where-it-fires
+    md: |-
+      > **R018** — a timestamp whose absolute position is consumed was parsed from a declared zone,
+      > or was never a wall clock.
+
+      **"Absolute position is consumed" rather than "is a time dimension",** and the difference is
+      the whole scoping decision. Case 011's wrong number does not arrive through a date role at
+      all: its metric is
+      `CASE WHEN placed_at >= TIMESTAMP '2025-02-01 …'`, a comparison against a literal instant
+      inside an expression. The mart happens to flatten `placed_at` as a role too, so a rule scoped
+      to time dimensions would fire on this fixture — **for a reason unrelated to why the fixture
+      is wrong**, and would miss the same bug in a project with no `flatten:` at all.
+
+      Three consuming sites, and the list is the rule's real surface:
+
+      | Site | Why the position matters |
+      |---|---|
+      | a **time dimension** — a mart's date role, a metric's aggregation time, a rollup's kept time column | the bucket boundary is an instant |
+      | a **comparison against a literal instant** in a measure or filter expression | the literal is in some zone and the column is in another |
+      | an **as-of anchor** (`ViaStep.as_of`) | the version chosen is the one current at an instant |
+
+      A timestamp that is only carried, projected, or compared to another timestamp **from the same
+      mapping** has no boundary to fall the wrong side of, and R018 does not fire.
+
+      Three ways to discharge, and they are the three honest provenances:
+
+      | Provenance | What happened | Fact |
+      |---|---|---|
+      | `DECLARED` | the chain contains `to_utc` | "the source writes `America/New_York`, converted at `to_utc`" |
+      | `DECLARED` | the mapping wrote `zone_in: UTC` | "the source writes UTC wall clocks" |
+      | `DERIVED` | the column never passed through `parse_ts` — an instant from the source, or a step output | "this value was never a wall clock" |
+
+      Anything else is a refusal: `UndeclaredZone`, naming the field, the mapping, and both
+      spellings that fix it.
+
+      **It is a proof rule rather than a guardrail** because it has to compose with the transform
+      chain the way R009 does — "declared, or produced by the step before it" — and because RFC
+      0042 D5 asks a converting rule to name the case it converts. A guardrail reading a field's
+      transform list would answer the single-mapping case and get a merged entity wrong.
+tests: |-
+  - **Unit:** `zone_in:` parses, an unknown zone name is refused where it is written, and the
+    key is accepted on both `SimpleFieldMapping` and `KeyField`.
+  - **Semantic:** R018 discharges on each of §5.3's three provenances and refuses the fourth;
+    the refusal names the field and both fixes.
+  - **Corpus:** case 011's `zoneless` arm converts `unguarded → refused` and gains a
+    `refusal.json`; its `anchored` arm still returns `140.00` unchanged. S-0056/corpus-as-design-gate makes this
+    the acceptance test rather than a unit assertion.
+  - **Merged entity:** two mappings feeding one canonical `placed_at` with different
+    `zone_in:`, both converting, compiling clean — the case the per-mapping placement exists
+    for, and the one a canonical-field declaration could not express.
+  - **Not tested here:** that `to_utc` produces the right instant on every dialect. It does not
+    on Trino, that is recorded elsewhere, and a test asserting otherwise in this RFC's name
+    would be asserting a dialect port's behaviour under a semantic rule's number.
+docs: |-
+  - `pages/docs/reference/errors.md` gains `UndeclaredZone`, which the docs floor requires.
+  - The logical-types page states the invariant with both doors named, since today it names
+    one.
+  - A short how-to section beside the currency one: a source writes local time, here is what
+    you declare. The two read as siblings because they are.
+out_of_scope: |-
+  - **Local-calendar reporting** — "revenue by New York day" over an instant column. That needs
+    a zone on the *dimension* rather than on the source, and it interacts with every bucketing
+    rule in the planner. Named as the thing people will ask for next, not built.
+  - **`timestamptz`.** A second temporal type is a type-system change; this is a provenance
+    check over the one that exists.
+  - **Zone drift in history.** A source that changed its clock in 2019 has two zones over one
+    column, and a per-mapping key says one. The escape hatch is two mappings; a declaration
+    with a validity range is not designed here.
+  - **Dialect divergence in `to_utc`.** S-0012's question, recorded, not answered here.
+risks: |-
+  - **`zone_in: UTC` reads as ceremony and gets pasted.** The declaration is only worth
+    something if the author thought about it, and a key that is usually `UTC` will be copied
+    without thought. Accepted, with the mitigation that the refusal names the *source system*
+    rather than the column: the question an author is asked is "what clock does this feed run
+    on", which is a question with a findable answer.
+  - **The refusal lands on old projects.** Every existing project with a `parse_ts` feeding a
+    date role starts failing. That is the rule working, and it is also a migration — §12 makes
+    it a phase rather than a surprise.
+  - **A wrong zone is worse than none.** A declared `Europe/London` on a New York feed shifts
+    every row by five hours with full compiler blessing. Nothing here catches it, and nothing
+    can: the check is that the assertion exists and is well-formed, never that it is true. The
+    docs must say this plainly rather than implying the compiler validates the clock.
+  - **`to_utc` on Trino inverts.** A project that declares correctly and compiles correctly
+    still gets the wrong instant on one dialect. This RFC makes that *more* visible, not less,
+    because it routes more projects through the door — which is an argument for fixing the port
+    and not against this design.
+sections:
+  - key: about
+    md: |-
+      - **Status:** 📝 Draft — design only, nothing built. Converts corpus case
+        `011-timezone-boundary` from `unguarded` to refused, which is one of the two cases holding
+        S-0056 open.
+      - **Scope:** The zone a wall-clock string was written in, declared where it is read and
+        checked where it becomes an instant. Touches `spec/mapping.py`, the transform registry's
+        `parse_ts`/`to_utc` pair, and one new semantic rule. Does **not** touch the `timestamp`
+        type, the dialect ports, or anything about how an instant is stored once it is one.
+      - **Related:** [`src/bloomery/typing/types.py`](src/bloomery/typing/types.py) (`timestamp`
+        is UTC and `to_utc` is the only door in),
+        [`src/bloomery/transforms/_builtins.py`](src/bloomery/transforms/_builtins.py)
+        (`parse_ts`, `to_utc`),
+        [`src/bloomery/spec/mapping.py`](src/bloomery/spec/mapping.py) (`currency_in`, the
+        precedent this copies),
+        [`src/bloomery/semantic/denomination.py`](src/bloomery/semantic/denomination.py) (R009),
+        [`tests/fixtures/semantic_corpus/011-timezone-boundary/`](tests/fixtures/semantic_corpus/011-timezone-boundary/),
+        S-0021 (logical types; retired at `33bc4f9`), S-0066 (declared input currency; retired
+        at `91ec527`).
+      - **Origin:** Corpus case 011, which records the wrong answer and names S-0056/D-5 as the
+        decision a rule converting it would answer to.
+  - key: decision-notes
+    md: >-
+      _(Decision rows from here on are this document's D-1…; see `decisions.yaml`.)_
+  - key: phasing
+    md: |-
+      Three commits, the declaration before the refusal, because a rule that refuses before
+      anything can satisfy it makes every project uncompilable for one commit:
+
+      1. **`zone_in:` and `ZoneName`**, parsed, validated against the zone database, cross-checked
+         against a `to_utc` in the same chain, carried to the IR. Nothing else reads it; every
+         existing project still compiles.
+      2. **R018 and `UndeclaredZone`**, with case 011's `zoneless` arm converting and its
+         `refusal.json` landing. This is the commit that makes existing projects fail, and it is
+         the one the docs ship with.
+      3. **The merged-entity case and the docs pair**, once the rule is real: two feeds, two zones,
+         one canonical field.
+alternatives:
+  - option: >-
+      `zone_in:` required on every parsed timestamp, converting or not.
+    rejected_because: >-
+      Symmetric, easy to explain, and rejected: beside `{to_utc: America/New_York}`
+      it is the same zone written twice. The codebase refuses that shape where it
+      can — a rollup lists what it keeps *or* what it drops, never both, because two
+      statements of one fact will disagree. Here the disagreement would be silent
+      in the worst way: two zones, one used and one read by a human.
+  - option: A project-level default zone.
+    rejected_because: >-
+      One key in a project document, applied where a mapping says nothing. Rejected:
+      it makes the wrong answer *easier* than today. A default is a declaration nobody
+      re-reads when a second feed arrives, and the second feed is where this bug lives
+      — the whole failure is one source disagreeing with another about a clock. A
+      default that is right for the first mapping and wrong for the fourth reproduces
+      case 011 under a document that looks correct.
+  - option: Infer from the column's values.
+    rejected_because: >-
+      Sample the distribution, notice the gap at 02:00 on a spring Sunday, conclude
+      `America/New_York`. Rejected on S-0020 alone — compilation reads no data — and
+      it would be wrong in a way nobody could review even if the data were free: an
+      inference cannot be told from a declaration once written down, which is S-0006/D-2's
+      argument in another setting.
+  - option: Make `parse_ts` require a zone argument.
+    rejected_because: >-
+      `parse_ts(fmt, zone)`, no new spec key, and the zone arrives at the only transform
+      that can get it wrong. Rejected: it breaks every existing mapping, it puts a
+      *source system's* fact inside a *format* argument, and it would make `to_utc`
+      redundant in a way that leaves two doors into the UTC type after all.
+  - option: A runtime audit.
+    rejected_because: >-
+      Emit a check that flags rows near a boundary. Rejected: there is nothing to
+      check. Every row is a legal instant; the wrongness is in what the instant *means*,
+      and no query over the rows recovers it.
+questions:
+  - id: Q-1
+    text: >-
+      Whether the as-of anchor is R018's to refuse or **R004's premise to gain**.
+      §5.3 lists it as a consuming site, which is the right scope; R004 already owns
+      the as-of join and a zone premise there would travel with the proof the join
+      already produces. Two defensible homes, and the deciding fact is whether an
+      anchor is ever consumed outside a join.
+  - id: Q-2
+    text: >-
+      Whether "compared against a literal instant" is **decidable over the expression**
+      as the IR holds it. It is the site case 011 actually fails at, and it needs
+      the measure's SQL walked for a timestamp literal beside a column whose provenance
+      is known. If that walk is not reliable, the rule's real surface is smaller than
+      §5.3 claims and the case converts for a weaker reason.
+  - id: Q-3
+    text: >-
+      Whether `zone_in:` belongs on a **step output** as well as a mapping. A `python_model`
+      step emitting a timestamp column is a source of instants bloomery did not parse,
+      and §5.3's third provenance currently waves it through on the grounds that it
+      never passed `parse_ts` — which is true and possibly too generous.
+  - id: Q-4
+    text: >-
+      What the rule does with a **catalog recipe** whose body parses a timestamp.
+      The recipe is chosen upstream and reproduced in the mapping (S-0022/D-2), so
+      the mapping is still the place to declare — but the transform chain R018 walks
+      is the recipe's, and whether that composes has not been checked against a recipe
+      that does it.

@@ -1,5 +1,5 @@
 """Rollup lowering: ``lower_rollups(mart_set, draft) -> RollupLowering``
-(RFC 0058 §5.2, P2).
+(S-0065/the-obligation, S-0065/phasing (P-2)).
 
 A rollup is a mart at a coarser grain than one this project already builds.
 This module resolves each declared one against the parent it names and, for
@@ -16,7 +16,7 @@ rollup is never a measure owner and never a covering mart, and it holds because
 :class:`~bloomery.ir.RollupIR` lands in ``ProjectIR.rollups`` rather than in
 ``ProjectIR.marts`` — the collection ``measure_owners`` and the planner's
 covering-mart search both walk. There is no filter to keep in step here;
-choosing to read a rollup instead of the detail is RFC 0040's job (§4).
+choosing to read a rollup instead of the detail is S-0054's job (§4).
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ def _not_on_the_parent(
     msg = (
         f"rollup {name!r} carries {', '.join(absent)}, which mart {parent.name!r} does not. "
         "A rollup aggregates the rows of the mart it names, so it can only carry measures "
-        f"that mart stores (RFC 0058 §5.2). Fix: name the measure among {parent.name!r}'s "
+        f"that mart stores (S-0065/the-obligation). Fix: name the measure among {parent.name!r}'s "
         "measures, or drop it from the rollup"
     )
 
@@ -98,7 +98,7 @@ def _refused(name: str, answer: Refutation, path: str) -> UnprovableRollup:
     msg = (
         f"rollup {name!r} is not provable: {obligation.found} (required: "
         f"{obligation.required}). A rollup is read instead of the detail table, so an "
-        "unprovable one answers quickly and plausibly rather than failing (RFC 0058 D5, "
+        "unprovable one answers quickly and plausibly rather than failing (S-0065/D-5, "
         f"R013, {answer.reason}).{fix}"
     )
 
@@ -144,7 +144,7 @@ def _dropped_declaration(
         f"rollup {name!r} carries {measure!r}, which declares {dropped}. A rollup builds its "
         "measure with one aggregate over the parent's rows, so the declaration would be "
         "dropped and the column would hold a number that is not the metric it is named after "
-        f"(RFC 0058 D5). Fix: leave {measure!r} off the rollup and request it at the grain it "
+        f"(S-0065/D-5). Fix: leave {measure!r} off the rollup and request it at the grain it "
         "is declared for"
     )
 
@@ -155,7 +155,7 @@ def _dropped_declaration(
 
 
 def lower_rollups(mart_set: MartSet | None, draft: ProjectIR) -> RollupLowering:
-    """Resolve every declared rollup against the parent it names (RFC 0058 P2).
+    """Resolve every declared rollup against the parent it names (S-0065/phasing (P-2)).
 
     Total — never raises. A project with no marts document, or one whose marts
     are all wide, lowers to the empty tuple.
@@ -183,7 +183,7 @@ def lower_rollups(mart_set: MartSet | None, draft: ProjectIR) -> RollupLowering:
             continue
 
         # `rollups.<name>`, not `marts.<name>`: a source path addresses the
-        # authored document (RFC 0002 §5.3), and a rollup is authored under its
+        # authored document (S-0019/source-paths), and a rollup is authored under its
         # own key. Sending an author to `marts.monthly` when they wrote
         # `rollups: monthly` is the same defect that ruled out putting a rollup
         # in `marts:` as a discriminated union — a path naming a key nobody

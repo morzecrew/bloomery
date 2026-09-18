@@ -1,7 +1,7 @@
-# Two marts at different grains with disjoint measures (RFC 0011 §5.3): each
+# Two marts at different grains with disjoint measures (S-0028/algorithm-and-refusals): each
 # answers its own metric alone; the pair together is structurally
 # unanswerable — the coverage precheck refuses before MetricFlow could plan
-# the join (RFC 0013 D6).
+# the join (S-0030/D-6).
 marts_version: 1
 marts:
   orders:

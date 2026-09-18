@@ -1,4 +1,4 @@
-"""Coverage precheck unit tests (RFC 0013 R3, RFC 0011 D3): every refusal
+"""Coverage precheck unit tests (S-0030 R3, S-0028/D-3): every refusal
 branch — unknown members with suggestions, zero/split mart candidates with
 the R3 message shape, ownership tie-breaks, dimension resolution including
 role ambiguity and the time-grain interplay."""
@@ -108,7 +108,7 @@ def test_split_measures_refuse_with_the_r3_message() -> None:
 
 
 def test_ownership_prefers_cheapest_cost_hint_then_name() -> None:
-    """The RFC 0010 D8 rule, shared verbatim with the emitter: cheapest
+    """The S-0027/D-8 rule, shared verbatim with the emitter: cheapest
     ``cost_hint`` wins; ties break lexicographic by mart name."""
     ir = fixture_ir("multi_mart_refusal")
     orders = next(m for m in ir.marts if m.name == "orders")
@@ -141,7 +141,7 @@ def test_filter_dimension_must_be_on_the_covering_mart() -> None:
 
 
 def test_every_any_of_member_dimension_must_resolve() -> None:
-    # RFC 0015 D-Q3: an AnyOf group resolves every member's dimension.
+    # S-0032/D-3: an AnyOf group resolves every member's dimension.
     clause = AnyOf(
         (Predicate("warehouse_id", Op.EQ, ("A",)), Predicate("nonexistent", Op.EQ, ("x",)))
     )
@@ -246,12 +246,12 @@ def test_categorical_dimensions_ignore_time_grain() -> None:
 
 
 # ....................... #
-# Derived metrics (RFC 0034 §8)
+# Derived metrics (S-0050/design-the-planner)
 
 
 def test_a_derived_metric_resolves_to_the_mart_carrying_its_inputs() -> None:
     """It has no measure of its own, so coverage follows the decomposition —
-    exactly as it does for a ratio (RFC 0011 D5)."""
+    exactly as it does for a ratio (S-0028/D-5)."""
     assert check(
         fixture_ir("period_over_period"),
         MetricRequest(metrics=("revenue_yoy",), dimensions=("sold_month",)),
@@ -306,7 +306,7 @@ def test_a_cumulative_metric_requires_its_own_measure() -> None:
 
 
 # ----------------------- #
-# A dimension another mart carries (RFC 0040 §11a P2)
+# A dimension another mart carries (S-0054/phasing (a) S-0054/phasing (P-2))
 
 
 def test_a_dimension_on_another_mart_is_not_an_unknown_one() -> None:
@@ -331,7 +331,7 @@ def test_a_provable_hop_is_refused_by_naming_the_spec_edit() -> None:
     is provable, so the gap is one line of spec, and the refusal names that
     line rather than guessing a nearest column name.
 
-    It stays a refusal: P2 adds no capability (RFC 0040 D9), and bloomery does
+    It stays a refusal: P2 adds no capability (S-0054/D-9), and bloomery does
     not join at plan time — the join belongs to the mart, proven once when it
     is built instead of re-decided per request.
     """
@@ -350,7 +350,7 @@ def test_an_unprovable_hop_carries_the_rollup_refusal_that_explains_it() -> None
     of request gets a different diagnosis — and the difference is the whole
     point of asking the prover rather than reporting "not on this mart".
 
-    The reason code is RFC 0037's own, not a planner invention: a caller that
+    The reason code is S-0017's own, not a planner invention: a caller that
     wants to branch on why gets the vocabulary that already answers it.
     """
     with pytest.raises(UnreachableAtGrain) as excinfo:
@@ -453,7 +453,7 @@ def test_no_rollup_basis_carries_a_provenance_that_leaves_a_proof_open() -> None
     branch: every basis a rollup proof rests on is `DECLARED` or `DERIVED`, so
     `prove_rollup` cannot return an unclosed proof today.
 
-    The guard is not decoration. RFC 0044 is about imported provenance, and the
+    The guard is not decoration. S-0057 is about imported provenance, and the
     first basis that arrives as `IMPORTED_VERIFIED` or `INFERRED_HEURISTIC`
     makes an open proof reachable — at which point "provable, just flatten it"
     would be said about a heuristic. This fails then, which is where someone
@@ -555,7 +555,7 @@ def test_a_one_to_many_is_never_named_as_the_flatten_to_add() -> None:
     """Provable and flattenable are different questions, and the remediation
     answers the second.
 
-    RFC 0037 admits a `one_to_many` **only inversely**, so a rollup can hold
+    S-0017 admits a `one_to_many` **only inversely**, so a rollup can hold
     across the reverse of one — while the mart flattener refuses to flatten it
     at all ("flattening it multiplies the mart's own rows once per row"). Name
     it and the author writes a line the compiler rejects (logs/T-0022.md,
@@ -755,7 +755,7 @@ def test_a_date_bucket_is_not_redirected_to_its_source_column() -> None:
 
 
 # ....................... #
-# Branch partitioning — RFC 0041 P1
+# Branch partitioning — S-0055/phasing (P-1)
 
 
 def _branches(fixture: str, metrics: tuple[str, ...], dimensions: tuple[str, ...] = ()):
@@ -767,7 +767,7 @@ def _branches(fixture: str, metrics: tuple[str, ...], dimensions: tuple[str, ...
 
 
 def test_a_single_mart_request_is_one_branch() -> None:
-    """The path every request took before RFC 0041 and nearly all still do —
+    """The path every request took before S-0055 and nearly all still do —
     one coverage, resolved by `resolve_request`, filters and policy included."""
     (only,) = _branches("cross_mart_branches", ("shipping_count",), ("region",))
 
@@ -778,7 +778,7 @@ def test_a_single_mart_request_is_one_branch() -> None:
 def test_measures_partition_by_the_mart_that_owns_them() -> None:
     """D11: ownership is the emitter's answer, read again rather than
     recomputed. Sorted by mart name, so the composed statement two runs build
-    reads its branches in one order (RFC 0003)."""
+    reads its branches in one order (S-0020)."""
     branches = _branches(
         "cross_mart_branches", ("shipping_count", "line_discount", "customer_count"), ("tier",)
     )
@@ -842,7 +842,7 @@ def test_a_dimension_no_branch_can_reach_keeps_its_own_refusal() -> None:
 def test_the_composed_path_declines_and_the_old_refusal_stands(
     metrics: tuple[str, ...], why: str
 ) -> None:
-    """RFC 0041 D4, as the shape of a decline rather than as prose: a request
+    """S-0055/D-4, as the shape of a decline rather than as prose: a request
     the phase cannot answer keeps the refusal, the class and the
     ``covering_marts`` table it had before the phase existed — which is what
     lets the parity baseline say what these phases actually converted (D16).
@@ -897,7 +897,7 @@ def test_a_component_spanning_branches_is_what_refused_the_nested_metric() -> No
 
 
 def test_a_measure_class_p1_holds_back_declines_the_composed_path() -> None:
-    """RFC 0041 §8 and D8: `SemiAdditive` is not part of P1. A semi-additive
+    """S-0055/measure-classes-held-back and D8: `SemiAdditive` is not part of P1. A semi-additive
     measure is lowered as a first/last pick over its own dimension and then
     summed, which a branch's plain `Aggregate` cannot state — so the request
     keeps the refusal it had rather than being composed.
@@ -906,14 +906,14 @@ def test_a_measure_class_p1_holds_back_declines_the_composed_path() -> None:
         _branches("semi_additive_inventory", ("stock_on_hand", "quality_rows_deduped"))
 
 
-#: `shipping_count` re-declared in each class RFC 0041 §8 holds back — one
+#: `shipping_count` re-declared in each class S-0055/measure-classes-held-back holds back — one
 #: edit per class, so the tests below run against every held-back state of the
 #: vocabulary rather than the one a fixture happened to contain.
 #: The ratio above these operands is not what any of these tests is about, and
 #: re-shaping one of its operands makes R019 ask which rows it covers — a
 #: distinct count over a nullable `customer_id` misses the orders that have
 #: none. The declaration states a reading so the variant compiles and the
-#: subject stays the plan (RFC 0075).
+#: subject stays the plan (S-0077).
 _ROW_SET_DECLARED = (
     "    ratio: {numerator: line_discount, denominator: shipping_count}",
     "    ratio: {numerator: line_discount, denominator: shipping_count, "
@@ -948,11 +948,11 @@ _HELD_BACK = {
 def test_every_held_back_class_declines_the_composed_path(
     held: str, requested: tuple[str, ...]
 ) -> None:
-    """RFC 0041 D8, decided per class (logs/T-0027.md D-183; logs/T-0028.md):
+    """S-0055/D-8, decided per class (logs/T-0027.md D-183; logs/T-0028.md):
     a distinct count is never rolled up from a coarser result, and a branch
     is exactly that — so it declines the composed path directly and as a
     component of a derived metric, the same as a semi-additive measure. The
-    restriction survives the alias (RFC 0038 §9).
+    restriction survives the alias (S-0053/tests).
     """
     ir = _variant("cross_mart_branches", metrics=_HELD_BACK[held])
 
@@ -993,7 +993,7 @@ def test_a_metric_with_its_own_restriction_declines_the_composed_path() -> None:
 
 
 def test_a_restriction_reaches_every_branch_or_the_request_refuses() -> None:
-    """RFC 0041 D4 and D5, as P2 places them (logs/T-0027.md, D-176).
+    """S-0055/D-4 and D5, as P2 places them (logs/T-0027.md, D-176).
 
     `region` is a column of the mart based at `order` and reaches the
     `order_items` mart through its flattened hop, so a filter on it can be
@@ -1191,7 +1191,7 @@ def test_a_component_carrying_its_own_restriction_declines_the_composed_path() -
     """
     # Both operands, not one: a ratio restricted on the numerator alone is a
     # quotient of two quantities about different row sets and R019 refuses it
-    # (RFC 0075 §5.2). What this test is about survives — the *component* still
+    # (S-0077/operand-restrictions-must-agree-whether-or-not-zero-is-invol). What this test is about survives — the *component* still
     # carries a restriction, which is the thing the composed path has to
     # decline — and the project it is built from is one a compiler accepts.
     # The same restriction, spelled as each operand's own mart addresses it:

@@ -15,7 +15,7 @@ fields:
   # `coercible` at `fail` — the disposition whose audit has to keep meaning
   # "the projection is NULL although its source was not". A genuinely null
   # source is not a coercion failure, and an audit that cannot tell the two
-  # apart has quietly become `not_null` (RFC 0016 §5.2, D19).
+  # apart has quietly become `not_null` (S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-19).
   note:
     from: "$.note"
     transform: [to_string]

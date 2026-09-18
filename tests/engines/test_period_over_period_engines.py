@@ -1,4 +1,4 @@
-"""Engine tier (RFC 0009 §5.2 tier 5): the RFC 0034 metric forms — a derived
+"""Engine tier (S-0026/tier-contracts tier 5): the S-0050 metric forms — a derived
 metric with an offset, both cumulative windows, and a filtered metric — planned
 per dialect and **executed** against real PostgreSQL and real Trino.
 

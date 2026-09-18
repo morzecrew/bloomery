@@ -1,0 +1,667 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0041
+title: Deterministic union merge
+kind: design
+status: accepted
+implementation: complete
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  An entity may currently be built from exactly one mapping. Two source systems holding
+  orders therefore produce `order_shopify` and `order_woo`, never `order` — so the entity
+  model, which the documentation positions as *what a tenant's data means*, stops short of
+  integrating anything.
+
+  This RFC allows several mappings to target one entity, merged by a `UNION ALL` in a fixed
+  lexicographic order, under compile-time conditions the compiler can actually check: same
+  key, required fields covered, agreeing types. What it cannot check — that the key sets are
+  disjoint — becomes a **generated blocking audit**, which is the same compile-time-shape /
+  run-time-data split the project already draws everywhere else.
+
+  Overlapping keys stay out. A key present in two sources is either a duplicate to refuse or
+  a match to resolve, and resolving it is identity resolution, which S-0038 settled as a
+  step. This RFC deliberately does not soften that.
+motivation: |-
+  **The gap is in the layer the project is named for.** `EntityModel` is presented as the
+  integrated domain model, and today an entity is a view of one source relation with the
+  columns renamed. That is a mapping layer, not an integration layer.
+
+  **The workaround is disproportionate.** Reaching a union today means Tier 3: a manifest in
+  the platform's step registry, a Python model, a contract assertion, a wrapper per output —
+  and SQLMesh only, since dbt refuses `python_model` steps (S-0034/D-52). All of that to
+  express `UNION ALL`, with no matching involved.
+
+  **The refusal already promises this.** [`resolve/build.py#L849`](src/bloomery/resolve/build.py#L849)
+  raises with the words *"deterministic union merge lands with the multi_source milestone
+  (S-0026/D-4)"*. S-0026/D-4 defined the corpus as "exactly spec §7.7", `multi_source`
+  included — *"two sources → one entity via deterministic union merge"* — and S-0026 was
+  retired ✅ Complete with that fixture never built. The refusal message cites a promise, in
+  a retired document, that nothing is scheduled to keep.
+
+  **It passes the project's own test for deserving support.** S-0038 states the reusable
+  question — *can bloomery typecheck it, guardrail it, and diff it meaningfully?* — and this
+  scores yes three times:
+
+  - **typecheck** — every mapping must produce the entity's key and its required fields, at
+    the declared types. That is the check the single-mapping path already performs, applied
+    once per mapping.
+  - **guardrail** — an identical key is a compile-time refusal; disjointness is a generated
+    blocking audit, in the vocabulary S-0033 already ships.
+  - **diff** — adding a source is `ADDITIVE`, removing one `RESTATING`, changing the key
+    `BREAKING`. All three fall out of the existing classifier.
+
+  That is the material difference from identity resolution, where the answer to all three is
+  no — which is exactly why *that* is a step and this is not.
+current_state: |-
+  Verified against `main` @ `828fd5b` (2026-08-14).
+
+  - Mappings are grouped by target in
+    [`resolve/build.py`](src/bloomery/resolve/build.py) `_build_entities`, and a group of
+    more than one raises `ResolutionError` at line 849. The grouping is already
+    by-target-then-sorted, so the data structure the union needs is the one already built —
+    the refusal sits where the merge would go.
+  - The refusal is pinned by
+    [`test_multiple_mappings_per_entity_refuse_until_multi_source`](tests/unit/test_resolve/test_build.py)
+    (line 255). It is a deliberate, tested boundary, not an oversight.
+  - **No `multi_source` fixture exists.** `tests/fixtures/` holds 20 fixtures; the one RFC
+    0009 D4 named is not among them.
+  - The silver pipeline order is fixed and documented — dedupe **before** rules
+    (`pages/docs/concepts/data-quality.md`, "The pipeline order is fixed"). A union stage
+    ahead of both is consistent with that ordering rather than a new axis.
+  - System columns already exist on silver relations (`_ingested_at`, `_load_id`,
+    `_quality_flags`, `_quality_ok`), so adding one more is an established shape rather than
+    a new concept.
+  - `unmapped:` already exists as an *explicit acknowledgement* that a source column is
+    deliberately not mapped ([`guardrails/quality.py#L238`](src/bloomery/guardrails/quality.py#L238)).
+    The same instinct — silence is not consent — drives §5.2's treatment of absent fields.
+goals: |-
+  **Goals**
+
+  - Several mappings into one entity, with a deterministic emitted artifact.
+  - Compile-time refusal of every disagreement the compiler can see: key, required-field
+    coverage, type.
+  - A run-time refusal of the one thing it cannot see: a key in two sources.
+  - Fall out of the existing plan classifier — no new change class.
+non_goals: |-
+  - **Matching of any kind.** No fuzzy comparison, no blocking keys, no thresholds. S-0038
+    settled that as a step, permanently, and nothing here reopens it.
+  - **Precedence between sources on an overlapping key.** "Billing wins over CRM" is a
+    merge policy, and a merge policy is business logic bloomery cannot typecheck. Overlap is
+    refused; a project that needs it wires a step.
+  - **Cross-source deduplication semantics.** `dedupe:` applies to the merged relation with
+    its existing meaning; it does not gain a source-aware mode.
+  - **A new spec kind.** Multi-source is a property of a *set of mappings*, expressed by
+    their existing `target:`. Nothing new to author.
+design:
+  - key: what-a-project-writes
+    md: |-
+      Nothing new. Two mappings name the same `target:`:
+
+      ```yaml
+      # mapping_shopify.yaml
+      mapping_version: 1
+      source: shopify__orders
+      target: order
+      key: {order_id: {from: "$.id", transform: [to_string]}}
+      fields:
+        customer_id: {from: "$.customer.id", transform: [to_string]}
+        placed_at:   {from: "$.created_at", transform: [to_timestamp]}
+      ```
+
+      ```yaml
+      # mapping_woo.yaml
+      mapping_version: 1
+      source: woo__orders
+      target: order          # same entity
+      key: {order_id: {from: "$.number", transform: [to_string]}}
+      fields:
+        customer_id: {from: "$.billing.customer", transform: [to_string]}
+        placed_at:   {from: "$.date_created",     transform: [to_timestamp]}
+      ```
+
+      The absence of new syntax is the design: an entity built from two mappings differs from one
+      built from one only in how many documents point at it.
+  - key: what-the-compiler-checks
+    md: |-
+      Batched with the other resolution errors, so an author sees every disagreement at once:
+
+      1. **Identical key columns.** Every mapping must produce the entity's full declared key.
+         A mapping producing a partial key is refused — a union on a partial key has no meaning.
+      2. **Required-field coverage.** Every mapping must produce every field declared
+         `required: true`. A required field NULL for one source's rows is a broken contract, and
+         NULL-filling it silently is the failure mode this check exists to prevent.
+
+         **This is coverage, not non-nullity, and the difference is load-bearing.** `required:
+         true` is a schema declaration; the runtime null check is a separate mechanism —
+         `assert: {not_null: true}`, which lowers to an audit
+         ([`guardrails/asserts.py#L132-L133`](src/bloomery/guardrails/asserts.py#L132-L133)).
+         So this check proves every mapping *declares* the field, and proves nothing about what
+         its source path returns per row. A mapping whose `$.customer.id` is absent in half the
+         payloads passes it and writes NULLs into a required column. That asymmetry exists today
+         for single-mapping entities and is not created here — but a merge makes it materially
+         worse, because one bad source silently poisons a column the other sources fill
+         correctly, and the entity looks internally inconsistent rather than externally broken.
+         Whether the union stage emits a generated `IS NULL` audit over required columns is D11.
+      3. **Optional fields may be absent, but not silently.** A field a mapping does not produce
+         is `NULL` for that mapping's rows. This is legitimate — one system has no loyalty tier —
+         and it is also exactly what a typo in a field name looks like. It therefore requires the
+         same acknowledgement `unmapped:` already demands elsewhere; the exact spelling is `OPEN`
+         (D8).
+      4. **Type agreement** falls out of the existing per-mapping typecheck: each mapping's chain
+         is checked against the entity's declared field type as it is today, so two mappings
+         disagreeing about a type both fail against the declaration rather than against each
+         other.
+  - key: what-is-emitted
+    md: |-
+      One silver model, a `UNION ALL` of one projection per mapping, ordered **lexicographically
+      by source name**:
+
+      ```sql
+      SELECT ..., 'shopify__orders' AS _source FROM bronze.shopify__orders
+      UNION ALL
+      SELECT ..., 'woo__orders'     AS _source FROM bronze.woo__orders
+      ```
+
+      **Two mappings may not name the same `source:` for one target.** Lexicographic ordering
+      needs a total order, and two branches reading one relation tie — which would leave branch
+      order undefined, `_source` ambiguous between them, and the collision audit unable to name
+      which branch it means. `(target, source)` is therefore unique, refused at compile time
+      alongside the checks above. A project genuinely reading one relation twice (two disjoint
+      row sets from one table) expresses that as one mapping with a filter, which is a shape
+      `quality:` already covers; if a real consumer needs the two-mapping form, the fix is a
+      declared per-mapping identity, not a tie-break the author cannot see.
+
+      Two things about determinism, which are different and both required:
+
+      - **Artifact determinism** — the emitted SQL text must be byte-identical across processes.
+        The lexicographic source order provides branch order; **column order is already
+        canonical** and not newly relied upon here — projections are emitted sorted today, as any
+        existing golden shows (`silver/order_item.sql` projects `line_no, order_date, order_id,
+        quantity, unit_price` against a declaration order of `order_id, line_no, unit_price,
+        quantity, order_date`). Reordering fields in a mapping therefore cannot move bytes, and
+        the union inherits that. This is the invariant S-0020 protects and the one that matters
+        here.
+      - **Row order** is *not* claimed. `UNION ALL` is a bag; no downstream model may depend on
+        which source's rows come first. Where an order is needed — `dedupe`'s
+        `keep: latest_by` — it comes from the declared ordering columns, as it does today.
+        Stating this explicitly because "deterministic union" invites the wrong reading.
+
+      `_source` carries the mapping's source name. It is not decoration: the collision audit in
+      §5.4 reports *which* sources collided, and without provenance the report is "this key is
+      duplicated somewhere", which is not actionable on a five-source entity.
+
+      The union is the **first** stage: union, then dedupe, then rules. That places it ahead of
+      the documented dedupe-before-rules order rather than beside it, and follows the same
+      argument — a rule evaluated per-source would judge a row that the merged relation does not
+      contain.
+  - key: what-is-refused-at-run-time
+    md: |-
+      The compiler has no data, so it cannot know the key sets are disjoint. A generated audit
+      does — reading the **union output, before dedupe**:
+
+      ```sql
+      SELECT order_id, line_no, COUNT(DISTINCT _source) AS sources
+      FROM <the union stage>          -- NOT silver.order, which is post-dedupe
+      GROUP BY order_id, line_no
+      HAVING COUNT(DISTINCT _source) > 1
+      ```
+
+      Two things this shape pins, both of which an earlier draft got wrong:
+
+      **It groups by every declared key column, generated from the entity's `key:`.** The
+      single-column form above is one instance, not the spec — a composite key grouped by its
+      first column alone merges distinct keys and blocks valid data, which is a false refusal on
+      a blocking audit and therefore the worst possible failure of this check.
+
+      **It reads the union stage, not `silver.order`.** `silver.order` is post-dedupe, and dedupe
+      is precisely the operation that collapses rows sharing an entity key — so an audit reading
+      it would see one surviving row where two sources collided and report nothing. The check has
+      to run on the relation *before* the stage that hides what it looks for. The collision test
+      in §6 is written for exactly that case: two sources colliding on a key that `dedupe:` would
+      have collapsed.
+
+      Blocking, `on_fail: fail`, and **not configurable to a weaker disposition**. A key in two
+      sources means one of two things, and both are refusals: either the sources genuinely
+      duplicate a row, or they share a key space by accident. Flagging it would let a
+      double-counted entity into the warehouse marked suspect, and the whole point of the union
+      being *deterministic* is that the merged relation is a faithful set union.
+
+      The message names the escape hatch, so the refusal routes rather than merely blocks:
+
+      ```
+      Key 'order_id' appears in more than one source of entity 'order'. A union merge
+      requires disjoint key sets (S-0041). Sources that overlap need a match rather
+      than a merge — wire an identity-resolution step (S-0034).
+      ```
+
+      `COUNT(DISTINCT _source) > 1` deliberately does **not** fire on a key duplicated *within*
+      one source: that is ordinary duplication, and `dedupe:` already owns it.
+  - key: how-it-diffs
+    md: |-
+      No new change class:
+
+      | Change | Class | Why |
+      | --- | --- | --- |
+      | A mapping added to an entity that already had one | `ADDITIVE` ×2 | New rows, **and** the `_source` column appears. A field added is already `ADDITIVE` ([`plan/diff.py#L358-L364`](src/bloomery/plan/diff.py#L358-L364)) |
+      | A mapping added to an already-merged entity | `ADDITIVE` | New rows only; `_source` is already present |
+      | A mapping removed, two or more remaining | `RESTATING` | Same columns, fewer rows — the relation must be rebuilt |
+      | A mapping removed, leaving one | `RESTATING` + column dropped | `_source` goes with the merge; dropping a column a metric references is the existing `ContractViolation` |
+      | A mapping's key expression changed | `BREAKING` | Redefines what a row *is* — the existing rule at [`plan/diff.py#L218`](src/bloomery/plan/diff.py#L218) |
+
+      **`_source` exists only on merged entities**, which is what makes the first row two changes
+      rather than one. An earlier draft claimed a mapping addition causes "no column change";
+      that was wrong, and it matters more than the class does — the class is `ADDITIVE` either
+      way, so the error would have survived into implementation as a comment nobody re-derived.
+
+      The alternative — emitting `_source` on *every* mapped entity so the column set never
+      depends on mapping count — is rejected: it churns every golden in the corpus for a column
+      that is a constant in the single-source case, and puts a bloomery-invented column in every
+      relation forever to spare one classified change. The transition showing up in `plan()` is
+      the better outcome anyway: it is exactly the kind of schema move an operator should see
+      before it lands, and a silent uniform column is how it would have been hidden.
+
+      The two removal rows are the ones worth verifying during implementation. The second is the
+      sharp one: dropping back to a single mapping removes `_source`, and if anything downstream
+      reads it the existing contract check must fire.
+  - key: the-quality-system-boundary
+    md: |-
+      An earlier draft of this document designed the union and said nothing about S-0033's
+      machinery. Reading the code showed the two meet in more places than §3 recorded, and in one
+      of them the meeting is a **blocking audit that would refuse valid data**.
+
+      **The row identity is per source, and a blocking audit assumes it is per entity.** The
+      generated metadata audit is, verbatim:
+
+      ```sql
+      SELECT *, COUNT(*) OVER (PARTITION BY _source_row_id) AS _row_id_count FROM @this_model
+      ```
+
+      `_source_row_id` is bronze's row identity (S-0033/D-21), unique *within a source relation*.
+      On a merged entity `@this_model` is the union, so two sources whose row ids are ordinary
+      per-table sequences collide on the first run — and the audit is blocking. That is a false
+      refusal on correct data, which D13 already names as the worst failure available to a
+      generated audit. It fires whenever the entity declares `dedupe:` **or** `quarantine:`, since
+      that pair is the audit's emission condition.
+
+      **The reject table is one per entity by a decision that assumed one mapping.**
+      `emit/lower/silver.py` records it: *"one per entity, never per mapping (S-0033/quarantine-one-reject-table-per-entity, S-0033/D-10):
+      per-mapping tables multiply into the small-file problem and make replay N-way."* A merged
+      entity is N-way by construction, and `source_relation`, `mapping` and `mapping_version` are
+      compile-time literals off the single mapping. `reject_id` survives — it is already a digest
+      of `(source_relation, row identity)`, so the pair was designed for this — but **replay
+      re-runs *the* current mapping**, and making it branch per source is precisely the N-way
+      replay D10 rejected.
+
+      **So P1 draws the boundary at the two block-level declarations**, and the boundary is exact
+      rather than approximate: every use of the row identity in the silver lowering sits behind
+      one of them — the reject projection, the conservation audit, the dedupe sort key, and the
+      replay merge. The `on_fail: fail` audit path (`emit/lower/predicates.py:audit_predicate`)
+      references it **zero** times.
+
+      A merged entity in P1 may therefore still carry field rules and row rules with `on_fail:
+      flag` and `on_fail: fail`, `assert:` clauses, `references:` and `coverage:` checks. What it
+      may not carry is `dedupe:` or `quarantine:`, refused at compile time with a message naming
+      the reason. This matches S-0033's own framing — joining the quality system is per entity
+      and explicit — rather than inventing a new kind of exclusion.
+
+      > **Correction (execution, D29).** The first sentence of that paragraph is wrong, and the
+      > error is a consequence reaching further than the argument that produced it. This section
+      > establishes its boundary by tracing **the row identity**, and that trace is sound; it then
+      > generalises to the whole quality system, which the code does not support. Rule *lowering*
+      > is per mapping and sits behind neither block — `lower_quality` takes one `Mapping`,
+      > `opts_in` reads that mapping's field-level `quality:` blocks and also selects the
+      > `TRY_CAST` shape, and the generated `coercible`/`enum` rules embed one mapping's source
+      > paths and transform chain into a rule evaluated over the merged relation. So the P1
+      > boundary is `opts_in`, not `dedupe:`/`quarantine:`. `assert:`, `references:` and
+      > `coverage:` do survive: they are lowered from the entity model and the draft IR, never
+      > from a mapping. D29 carries the argument and the measurements; the sentence is left
+      > standing rather than rewritten, because what it claimed is the thing D29 has to be read
+      > against.
+
+      **What that costs, stated rather than discovered later.** With `dedupe:` refused, nothing
+      between the union and the model output collapses rows, so §5.4's collision audit can read
+      the model directly and D13's careful distinction — read the union stage, *not* `silver.x` —
+      becomes untestable in P1: the test it names ("a collision `dedupe:` would have collapsed")
+      cannot be written, because no collapse exists. D13 is not weakened, it is unexercised, and
+      it returns with the P2 that restores `dedupe:`. Shipping a simpler audit that resembles the
+      designed one without saying so is the failure this paragraph exists to prevent.
+  - key: where-the-lowered-expression-lives-answers-d25
+    md: |-
+      A union needs one projection per source per column, and `ColumnIR` carries exactly one
+      `expr`. The shape that fixes it is not invented here — **the seam already exists**, in the
+      signature of the function that builds the node:
+
+      ```python
+      def _column_ir(name, field, declared, expr, catalog, *, recipe_id=None) -> ColumnIR:
+      ```
+
+      Everything `_column_ir` derives from `field` and `catalog` is **entity-scoped**: `name`,
+      `type` (the entity's *declared* type), `canonical`, `unit`, `tax_basis`, `required`,
+      `description`, and `renamed_from` — which is declared on the EntityModel `Field`
+      (`spec/entity.py:58`), not on a mapping. Exactly two arguments come from the mapping:
+      `expr` and `recipe_id`.
+
+      So the split is along a line the code already draws, and the schema half is *provably*
+      identical across mappings rather than merely expected to be — it is computed from the
+      entity model, which every mapping targets. §5.2 rule 4's type agreement is the same fact
+      seen from the other side: each mapping's chain is checked against the declaration, so two
+      mappings cannot disagree about a column's type without both failing first.
+
+      **The shape.** `ColumnIR` sheds the two mapping-derived fields; a new column-grained node
+      carries them per source:
+
+      ```python
+      class ColumnIR:            # EntityIR.columns — the merged schema
+          name, type, canonical, unit, tax_basis, renamed_from, required, description
+
+      class SourceColumnIR:      # SourceIR.columns — one projection, per source
+          name, expr, recipe_id
+      ```
+
+      **Not on `SourceFieldIR`**, which is the tempting shortcut and is wrong: that node is
+      *path*-grained — a recipe field mapping produces one `SourceFieldIR` per required path and
+      a single column — so hanging `expr` there would duplicate one expression across a recipe's
+      paths and leave no single place to read it from. `SourceIR` gains a second collection
+      rather than overloading the first, and the two answer different questions: `fields` is what
+      the reject payload and replay read, `columns` is what the SELECT projects.
+
+      **Where it lands in the builder**, which is why this is cheap: `_build_entity` already
+      appends to `columns` and `source_fields` in one loop, side by side. `_column_ir` splits into
+      a schema constructor and a projection constructor called from the same place, and the union
+      is then a `UNION ALL` over `SourceIR.columns` in `sources` order.
+
+      **`_column_ir` is not the only site that builds a lowering, and D27 is the one it misses.**
+      `guardrails/conflict.py:_shadow` constructs a `ColumnIR` carrying a lowered `expr` *after*
+      the builder has run — the `<field>__direct` shadow the guardrail stage merges into an
+      entity — so the split has a second constructor to feed, and a merged entity raises a
+      question about how many shadows a `direct:` path produces. See D27.
+tests: |-
+  - **`multi_source`** — the fixture S-0026/D-4 named, built at last: two sources, one
+    shared key space, disjoint key sets. Golden, execution and e2e, matching the tiers the
+    `identity_resolution` fixture runs.
+  - **A collision variant** seeded so the audit fires, asserted as a *blocking* failure
+    rather than a flag. This is the case that must be verified red — a union whose collision
+    audit silently passes is worse than no union. The seed must be a collision **`dedupe:`
+    would have collapsed**, which is the only version of this test that distinguishes D13's
+    audit placement from an audit reading `silver.<entity>`.
+    > **Scope (execution, D14).** The second sentence of that seed requirement cannot be met
+    > in P1 and is deferred with `dedupe:` itself. With no dedupe on a merged entity nothing
+    > collapses rows between the union and the model output, so there is no collision a
+    > reader could hide — the audit reads the model and the distinction D13 draws is
+    > unexercised rather than weakened. The collision test still runs, verified red; what
+    > waits for P2 is the *placement* half of it.
+  - **A composite-key fixture.** The single-column example in §5.4 passes with a partial-key
+    audit; only a composite key catches a generated `GROUP BY` that dropped a component.
+  - Compile-time refusals: partial key, missing required field, and two mappings naming one
+    source (D12). Each with the source path of the offending mapping, not the entity. The
+    "unacknowledged absent field" case is gone with D22 — there is no acknowledgement, and
+    the typo it would have caught is already a `MissingReference`.
+  - The D14 boundary as D29 widens it: a merged entity that joins the quality system at all is
+    refused — `dedupe:`, `quarantine:`, an entity-level `quality:` block, and a field-level
+    `quality:` block on any of its mappings, each asserted separately, since `opts_in` is a
+    disjunction and a test of one leg proves nothing about the others. Plus a merged entity
+    mixing a mapped source with a step output (D21), and `scd: type2` with more than one
+    mapping (D23). Each of these is a shape that compiles today for one mapping, so each needs
+    a test proving the refusal arrives only when a second one does. And the converse, which is
+    what keeps the refusal from being a wider one wearing D29's name: `assert:`,
+    `references:` and `coverage:` on a merged entity all compile.
+  - **Determinism**: the two mappings declared in both orders in the project must produce
+    byte-identical artifacts. This is the assertion that pins D3, and it belongs in the
+    existing cross-`PYTHONHASHSEED` harness.
+  - The plan classifier over `multi_source` with a source added and removed, asserting the
+    §5.5 table.
+  - Sabotage: removing the lexicographic sort must break the determinism test; weakening the
+    audit to `flag` must break the collision test.
+docs: |-
+  - A how-to on merging sources, paired with `resolve-identities.md` and **cross-linking in
+    both directions**. The pair is the point: one page for "same key space, disjoint keys",
+    one for "different key spaces, needs matching", each naming the other. Today the second
+    exists alone and reads as the answer to both.
+  - `pages/docs/concepts/` — the entity model as an integration layer, which is what this
+    makes true.
+  - The `_source` column and the collision audit in the reference, beside the other system
+    columns.
+out_of_scope: |-
+  - **Overlapping keys with precedence.** §4 and the alternatives above; the escape hatch is
+    a step, and D5's refusal message names it.
+  - **Sources with different key spaces** — identity resolution, S-0038, unchanged.
+  - **Per-source quality rules.** Rules apply to the merged relation. A rule that must fire
+    on one source only is expressible as an expression over `_source`, which is why that
+    column being real matters; a per-source rule *syntax* is not built.
+  - **Union of entities that are not both mapped from bronze** — e.g. merging a step output
+    with a mapped source. Coherent, and it needs the step-output entity synthesis (S-0034
+    D36) to interact with union ordering. Named, not designed.
+  - **Schema evolution across sources** — one source gaining a column the others lack is
+    handled by §5.2 rule 3 (NULL, acknowledged); a *migration* between source shapes is
+    `plan()`'s job and unchanged.
+risks: |-
+  - **Read as identity resolution.** The most likely misreading, and it would undo S-0038's
+    settlement. Mitigated by the refusal message naming the step, by the docs pair in §7, and
+    by the collision audit being non-negotiable — a merge that cannot be talked into
+    tolerating overlap cannot be mistaken for a matcher.
+  - **Silent NULL fill hides a typo.** A misspelled field name looks exactly like a field one
+    source genuinely lacks. §5.2 rule 3 requires acknowledgement for that reason; if D8 lands
+    as "no acknowledgement needed", this risk is accepted rather than mitigated, and the
+    decision row should say so.
+    > **Correction (execution, D22).** This risk does not exist. A mapping naming a field the
+    > entity model does not declare is already refused today — `MissingReference: mapping maps
+    > unknown field 'loyalty_teir' of entity 'order'`, measured on this tree against the
+    > single-mapping path. A misspelling is therefore a compile error, not a silent NULL, and
+    > the only thing an acknowledgement could mark is a *correctly spelled* field a source
+    > deliberately lacks — the legitimate case, not the dangerous one. Corrected in place
+    > rather than left standing: this is a claim about how the compiler behaves, not a
+    > decision, and preserving a false one would make the decision table argue from it.
+  - **The disjointness guarantee is run-time.** Compilation cannot establish it, so a project
+    can pass every compile-time check and fail on first run. That is the correct split and it
+    is the same one `dedupe` and `referential` already live with — but the docs must not
+    describe the union as *verified* disjoint.
+  - **`_source` becomes load-bearing for users.** Once it exists, projects will filter on it,
+    and it becomes a compatibility surface. Accepted: it is a system column like
+    `_quality_flags`, and the stability policy already covers those.
+sections:
+  - key: about
+    md: |-
+      - **Status:** 🚧 In progress — **P1 landed; P2 in execution.** D31's gate opened on
+        2026-09-03: the named consumer is the project's own lakehouse example, whose pitch is
+        dirty bronze cleaned on the way to silver, and a union merge that cannot be cleaned
+        composes with none of it. D16's second gate on P2c is discharged by
+        S-0051 (retired — see `RETIRED.md`), which argued against S-0033/D-10
+        directly and kept it. Departures are recorded in [`logs/T-0012.md`](logs/T-0012.md).
+        The union,
+        its compile-time checks, the collision audit, `_source`, the plan-classifier rows, the
+        `multi_source` fixture and the docs pair are shipped — five departures and one prose
+        note recorded in [`logs/T-0004.md`](logs/T-0004.md), drift count zero. This document
+        stays for
+        **P2** (§12): the quality system on a merged entity. P2's design is settled rather than
+        sketched — D32/D33 fix rule lowering, D34/D35 fix `dedupe:` — and **its code has now
+        landed**; D31's demand gate, which held that code until a project needed it, opened on
+        the consumer named at the top of this line.
+        **D30's dbt refusal lifted on 2026-08-20** — S-0043 gave that emitter a singular-test
+        surface, so a merged entity now emits on both SQL targets. D30's row below stands
+        unamended: it was correct when written, what changed is the emitter, and the record of
+        why merged entities were SQLMesh-only for one release is the point of keeping it.
+        **P2a–P2c landed 2026-09-03** at `8287f75`, and **P2d lands separately** on the branch
+        recorded in [`logs/T-0013.md`](logs/T-0013.md), as §12 asks: D36's `direct:` fan-out
+        is built and D28's refusal is replaced by the narrower one D36 names. What is left of
+        this document is the dbt tail §12 calls "Not P2".
+        Everything below describes the design as argued; the deviation log is what says where the
+        code went another way. Original scoping follows.
+      - **P1 scope (as designed, D14):** the union, its checks, the collision audit and the `multi_source` fixture, with `dedupe:` and `quarantine:` refused on a merged entity (§5.6). D8, D10 and D11 are answered by D22–D24; D14–D21 record what reading the code turned up that §3 had not. **D26 answers D25** and **D28 answers D27**: the lowered expression moves to a per-source `SourceColumnIR` while `ColumnIR` keeps the schema (§5.7), and a `direct:` path is refused on a merged entity. The surface D26 moves is enumerated and closed — **three `ColumnIR` constructors and four lowering reads** — so P1 is specified and executable in the order §5.7 → §5.1–§5.6. **D29 widens D14's boundary to `opts_in`**: §5.6 traced the row identity soundly and then generalised past it, and rule lowering turns out to be per mapping behind neither block — so P1 refuses the quality system on a merged entity rather than only its two entity-level declarations. **D30 departs from D20**: the union needs no dbt capability, but its collision audit had no dbt surface, so a merged entity **was** refused on that target rather than shipped without the check that makes it correct — lifted 2026-08-20 by S-0043, as the status line above records; the tense is marked here because this bullet is P1's scope as designed and a live RFC stating a lifted refusal in the present tense reads as a contract.
+      - **Scope:** Allowing **more than one mapping to target one entity**, merged by a
+        deterministic `UNION ALL`, when the mappings agree on the entity's key and cover its
+        required fields. Covers the shape where two systems describe the same kind of thing in
+        **one shared key space with disjoint key sets** — two shops on one platform, a
+        region-sharded table, a post-migration merge. Deliberately does **not** cover overlapping
+        keys, precedence between sources, or any matching: that is identity resolution, settled
+        as a step by S-0038 and unchanged here. Touches `resolve/build.py` (the refusal it
+        replaces), `emit/lower/silver.py` (the union), `guardrails/`, `plan/diff.py`. Adds one
+        system column and one generated audit; no public signature changes.
+      - **Related:** [`src/bloomery/resolve/build.py#L845-L851`](src/bloomery/resolve/build.py#L845-L851)
+        (the refusal), [`tests/unit/test_resolve/test_build.py#L255`](tests/unit/test_resolve/test_build.py#L255)
+        (the test that pins it), [`src/bloomery/emit/lower/silver.py`](src/bloomery/emit/lower/silver.py)
+        (silver lowering, the fixed pipeline order, the system columns), S-0026/D-4 (which named
+        the `multi_source` fixture and never built it), S-0033 (dispositions, blocking audits,
+        the fixed dedupe-before-rules order), S-0034 (steps — the Tier 3 escape hatch this
+        replaces for the simple case), S-0038 (identity resolution as a step, permanently; and
+        the reusable spec-kind test this design is measured against).
+      - **Origin:** Independently identified twice — as the one unbuilt item in S-0026's own
+        fixture corpus, and as finding F3 of the external review of `main` @ `828fd5b`
+        (2026-08-14).
+  - key: decision-notes
+    md: >-
+      _(Decision rows from here on are this document's D-1…; see `decisions.yaml`.)_
+  - key: phasing
+    md: |-
+      **P1 — §5.1–§5.7.** The IR split (§5.7), the union, the compile-time checks, the collision
+      audit, `_source`, the plan-classifier rows, and the `multi_source` fixture — with `dedupe:`
+      and `quarantine:` refused on a merged entity (D14).
+
+      **Take the IR split first, on its own.** `ColumnIR` shedding two fields into
+      `SourceColumnIR` is a pure refactor while every entity still has one source: same emitted
+      **SQL**, same behaviour, with only the `fingerprint:` header moving — one version bump, and
+      the whole golden corpus re-stamped once. (An earlier line here said "same emitted bytes",
+      which contradicts the re-fingerprint in the same sentence.)
+      Landing it before the union means the diff that adds multi-source is about multi-source,
+      and the corpus churn is not sitting on top of it — which is the difference between a
+      reviewable change and a large one. It is *not* release-gating: the refusal
+      it replaces is honest, tested, and names its own limitation, so shipping 0.1 without this
+      costs nothing but capability.
+
+      An earlier version of this section said "the whole of §5" and called the design "one
+      coherent unit". Reading the code found that it is not: the union is one unit and the union
+      *combined with the quality system* is another, and the second has a blocking audit in it
+      that would refuse valid data (D15). Splitting them is what makes P1 executable in one pass.
+
+      **P2 — the quality system on a merged entity. Demand-gated (D31).** The design below is
+      settled; the code is not scheduled, and the trigger is a project that needs quality rules on
+      a merged entity. Splitting the phase in three is what makes the gate mean anything: P2c is
+      blocked on a document that does not exist, and burying that inside one phase would let "P2"
+      name work of three different readinesses.
+
+      **P2a — rule lowering becomes mapping-invariant.** An earlier version of this section said
+      P2 "starts with rule lowering, which has to become per source or be proven
+      mapping-invariant"; D32 and D33 say which, and it is neither of those two. A per-mapping
+      *dependency* becomes a branch-local projection the entity-grained rule reads (D32), and a
+      per-mapping *disagreement* becomes a refusal (D33) — so the rule set is invariant because
+      the compiler makes it so, not because it was proven to be. Then D29's refusal narrows back
+      to D14's boundary, `dedupe:` and `quarantine:`, and §6's converse tests invert. Two carried
+      items land with it, both from the deviation log: **V-003**, because a rule over `_source` is
+      the referent D9's contract half had none of; and **V-006**, because `quality_mart.py`'s
+      raising `_sole_source` accessor fires on the first merged rule, so D19's answer has to be
+      implemented rather than deferred behind a guard.
+
+      **P2b — `dedupe:`.** D34 answers the artifact-shape question D7 and D15 both left, and D35
+      the sort key. The third piece is forced rather than chosen: with dedupe between the union and
+      the model output, D13's placement becomes load-bearing, and the collision audit moves from
+      reading the model to reading the union stage. That is also what makes §6's deferred seed
+      writable at last — a collision `dedupe:` *would have collapsed* — and it is the only test
+      that proves the audit moved rather than this document merely saying so.
+
+      **P2c — `quarantine:`.**
+
+      > **Settled (execution).** Both of P2c's gates are open. The RFC this paragraph calls
+      > unwritten is S-0051, since retired, which argued against
+      > S-0033/D-10 directly as D16 requires and *kept* it; D31's consumer is named in the
+      > status line above. The paragraph is left standing rather than rewritten, because what it
+      > demanded is the thing S-0051 has to be read against.
+
+      Blocked on an RFC that is not written. The reject table's
+      `source_relation`, `mapping` and `mapping_version` are compile-time literals off one mapping
+      (`quality/reject.py`), and S-0033/D-10 chose one table per entity *because* per-mapping
+      tables make replay N-way. D16 is `LOCKED` that reopening it gets its own document, argued
+      against D10 directly. So P2c is gated twice — on D31's consumer and on that RFC — and
+      starting it before both is exactly how D16's argument would end up as a paragraph inside a
+      feature branch, which is the thing D16 refuses.
+
+      **P2d — `direct:` on a merged entity (D36).**
+
+      > **Settled (execution).** Built on `feat/instants-and-merged-direct-paths`
+      > ([`logs/T-0013.md`](logs/T-0013.md)), separately from P2a–P2c as this paragraph
+      > asks. The execution shape below is what shipped, with one addition the paragraph does
+      > not name: the refusal is scoped to the mappings that *produce* the column, for the
+      > reason D33's is — §5.2 rule 3's optional field has no field mapping to hang a
+      > `direct:` on, so requiring one there would refuse a shape this RFC exists to allow.
+      > The `path_conflict` fixture is unchanged and `path_conflict_merged` is a second one.
+
+      Unblocked rather than scheduled here: D28
+      handed P2 a choice and D36 makes it, so what is left is execution — `Derivation` carrying
+      its source, a per-source shadow, one refusal, and a merged variant of the `path_conflict`
+      fixture. Deliberately **not** folded into the change that lands P2a–P2c: that change is
+      the quality system on a merged entity, `direct:` is S-0023's path-conflict feature
+      merely intersecting it, and the two are separately reviewable. `direct:` appears **once**
+      in the fixture corpus — D28's own count, `tests/fixtures/path_conflict/mapping.yaml` — so
+      nothing waits on it. (Inline specs inside test modules use it too; they are not projects,
+      and neither row counts them.)
+
+      **Not P2 — the dbt target.** D30 makes merged entities SQLMesh-only, and lifting that needs
+      a singular-test surface in an emitter whose whole test vocabulary is `schema.yml` entries.
+      It is independent of everything above, needs no IR change, and is the one item here a
+      shipped user meets today — so it is its own RFC under its own gate, not P2's tail.
+
+      Sequenced **after** S-0040/phasing (P-1) if both are taken: D23 needs an answer for `scd: type2`, and
+      S-0040's refusals make the SCD2-and-mart combination illegal anyway, which narrows this
+      one's surface to a decision rather than a design.
+
+      > **Settled (execution).** S-0040/phasing (P-1) landed, and D23 took the answer this paragraph
+      > anticipated: `scd: type2` with more than one mapping is refused. The sequencing constraint
+      > is discharged, not pending.
+alternatives:
+  - option: Leave it to a Tier 3 step (the status quo).
+    rejected_because: >-
+      It works today and is the honest current answer. Rejected as the *permanent*
+      answer because the cost is disproportionate to `UNION ALL` — a registry entry,
+      a Python model, a runtime contract, SQLMesh only — and because the question
+      S-0038 poses returns "yes, yes, yes" here where it returns "no" for identity
+      resolution. A step is the right home for what bloomery cannot check; this is
+      not that.
+  - option: >-
+      A new `union:` spec kind, or a `sources:` list on the entity.
+    rejected_because: >-
+      More explicit, and a reader would see at a glance that an entity is merged.
+      Rejected because it duplicates information already carried by `target:` and
+      creates two ways to say where an entity comes from — with the failure mode that
+      they can disagree.
+  - option: >-
+      Allow overlapping keys with a declared precedence
+    rejected_because: >-
+      (`priority: [billing, crm]`). Tempting, and it is what most tools do. Rejected:
+      a precedence rule is business logic bloomery can neither typecheck nor guardrail
+      — it cannot tell a correct priority from an inverted one, and the wrong one
+      silently prefers stale rows. Refusing overlap keeps the merge inside what the
+      compiler can defend, and the step remains for the rest.
+  - option: Emit `UNION` (distinct) rather than `UNION ALL`.
+    rejected_because: >-
+      It would make the collision audit unnecessary for exact duplicates. Rejected
+      because it hides them: two sources agreeing on every column of one key is still
+      a fact the operator should see, and `DISTINCT` over a wide relation is an expensive
+      way to be silent.
+questions:
+  - id: Q-1
+    text: >-
+      **What does an absent optional field require?** §5.2 rule 3 says acknowledgement
+      and D8 leaves the spelling open. Reusing `unmapped:` is the obvious move but
+      its current meaning is source-column-shaped, not entity-field-shaped, so the
+      reuse may be a pun rather than a fit.
+  - id: Q-2
+    text: >-
+      **Is `_source` the mapping's `source:` or the mapping document's name?** They
+      differ when two mappings read one source relation. The source relation is the
+      more useful provenance; the document name is the more useful diagnostic.
+  - id: Q-3
+    text: >-
+      **Should the collision audit be emitted when the entity has only one mapping?**
+      Emitting it unconditionally makes the artifact set uniform and costs a scan;
+      emitting it only for merged entities makes the artifact set depend on mapping
+      count. §5.4 assumes the latter.
+  - id: Q-4
+    text: >-
+      **How does this interact with `scd: type2`?** A merged historical entity has
+      versions per source, and the collision audit as written would fire on every
+      key with two versions from different sources. Probably the audit must read the
+      current version only — which needs the validity columns S-0040/phase-2-the-as-of-join
+      proposes and does not build. **Refusing the combination until then is the likely
+      answer**, and it is not designed here.

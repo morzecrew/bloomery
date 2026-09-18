@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A builder is told its **input logical type**. `Builder` becomes `(input type,
+      column AST, *args) -> AST` or gains it by keyword; the declaration and the construction
+      then read the same fact. This is the enabling change for §2.1 and §2.2.
+    paths:
+      - src/bloomery/resolve/build.py
+      - src/bloomery/transforms/registry.py
+      - tests/support/type_conformance.py
+      - tests/unit/test_transforms/test_registry.py
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Arithmetic transforms **narrow their own result** to the type they declare,
+      rather than leaving it to `build.py`'s terminal cast — which only fires when
+      the chain's terminal type differs from the field's, and so never fires for a
+      chain ending in `multiply`.
+    paths:
+      - src/bloomery/transforms/_builtins.py
+      - tests/unit/test_transforms/test_builtins.py
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `divide` carries a **neutral-text marker**, the pattern S-0044/D-4 established
+      for `parse_ts`, because a flag on the node does not survive the round trip and
+      re-reading every `Div` at render would change integer division in metric expressions.
+    paths: [src/bloomery/dialects/base.py, src/bloomery/transforms/_builtins.py]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Where an engine cannot express a transform, the port **declares the capability
+      absent** and emit refuses by name, rather than the engine failing on first run.
+  - id: D-5
+    grade: OPEN
+    text: >-
+      Whether `to_bool`/`to_int` across the boolean boundary get a PostgreSQL spelling
+      (`x::int::boolean`) or a refusal. A spelling is cheap; a refusal is honest about
+      `to_bool` over an arbitrary integer having no agreed meaning.
+    paths:
+      - src/bloomery/transforms/_builtins.py
+      - tests/unit/test_transforms/test_builtins.py
+  - id: D-6
+    grade: OPEN
+    text: >-
+      Whether Trino's `coalesce`/`nullif` literals are cast to the column type at
+      build (needing D1) or the spec surface narrows to reject a literal whose type
+      cannot match.

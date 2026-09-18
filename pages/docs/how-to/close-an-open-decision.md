@@ -93,7 +93,7 @@ Unreachable (0)
 ### When a step produces the relation
 
 `gap` is read off your entity model, and a step wiring is the third place a canonical link
-can live. Where the relation comes from a step (RFC 0017's `canonical:` block), an
+can live. Where the relation comes from a step (S-0034's `canonical:` block), an
 `UNLINKED` entry names the entity the catalog declares the field for — which is still where
 it belongs — but the edit goes in `steps.yaml`, beside the output that produces the column:
 

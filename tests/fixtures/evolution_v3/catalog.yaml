@@ -1,4 +1,4 @@
-# Evolution-sequence catalog (RFC 0007 §5.5, RFC 0009): stable across
+# Evolution-sequence catalog (S-0024/worked-example-evolutionv1-v5, S-0026): stable across
 # v1..v5 — the sequence evolves the project specs, never the vertical.
 catalog_version: 1
 vertical: ecom_retail

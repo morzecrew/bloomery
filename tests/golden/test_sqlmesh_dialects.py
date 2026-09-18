@@ -1,5 +1,5 @@
 """Golden artifacts for the sqlmesh × {trino, postgres} matrix cells
-(RFC 0009 §5.4, M10 port validation): the same fixtures as the duckdb cell,
+(S-0026/golden-workflow, M10 port validation): the same fixtures as the duckdb cell,
 rendered through the second and third dialect ports — one dialect-neutral
 AST per artifact, three legal renderings. Regenerate via
 ``just snapshot-update``; an unexplained golden diff fails review."""
@@ -20,10 +20,10 @@ GOLDEN = Path(__file__).resolve().parent
 #: The full three-dialect matrix runs where the fixture exercises dialect-
 #: sensitive rendering (JSON extraction, timezone shift, date bucketing,
 #: reserved-word quoting); the remaining fixtures stay duckdb-only — their
-#: rendering surface is covered by these cells (RFC 0009 §5.4).
+#: rendering surface is covered by these cells (S-0026/golden-workflow).
 EXPECTED_PATHS = {
     "minimal": ["config.yaml", "models/silver/event.sql"],
-    # RFC 0024: the union merge brings two constructs nothing else here emits —
+    # S-0041: the union merge brings two constructs nothing else here emits —
     # `UNION ALL` between branches, and the typed `NULL` that fills a column one
     # mapping does not map. Both are rendered by the dialect port, and a
     # duckdb-only cell would leave the port's claim unproven for exactly the
@@ -35,10 +35,10 @@ EXPECTED_PATHS = {
     ],
     # The cleaned merge, on both engines. What it adds over the row above is
     # every construct P2 introduced: the dedupe `QUALIFY` over a union, a
-    # metadata audit partitioned by `(_source, _source_row_id)` (RFC 0024 D34),
+    # metadata audit partitioned by `(_source, _source_row_id)` (S-0041/D-34),
     # a per-branch `reject_id` digest — which is spelled differently on every
-    # engine (RFC 0016 D83) and whose whole point is that they agree — and a
-    # replay whose branches filter on `source_relation` (RFC 0035 D3).
+    # engine (S-0033/D-83) and whose whole point is that they agree — and a
+    # replay whose branches filter on `source_relation` (S-0051/D-3).
     "multi_source_quality": [
         "audits/order_line_conservation.sql",
         "audits/order_line_ingestion_metadata.sql",

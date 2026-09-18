@@ -1,4 +1,4 @@
-"""A reconcile check over a NULL key, executed (RFC 0016 §5.3).
+"""A reconcile check over a NULL key, executed (S-0033/spec-schema).
 
 ``GROUP BY`` and ``=`` disagree about NULL, and a reconcile model contains
 both. The aggregate side groups every NULL key into one group — SQL's

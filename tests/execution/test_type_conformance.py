@@ -1,11 +1,11 @@
-"""Execution tier (RFC 0009 §5.2 tier 4): what each transform *declares* it
-produces, against what DuckDB actually produces (RFC 0028 D5).
+"""Execution tier (S-0026/tier-contracts tier 4): what each transform *declares* it
+produces, against what DuckDB actually produces (S-0045/D-5).
 
-RFC 0028 asked whether an **emit-time** check should assert that a silver
+S-0045 asked whether an **emit-time** check should assert that a silver
 column's rendered type matches its declared physical type. It should not, and
 the reasons are worth keeping next to the thing that replaced it:
 
-* Compilation does no I/O (RFC 0003), so emit has no engine to ask. The only
+* Compilation does no I/O (S-0020), so emit has no engine to ask. The only
   static model available is SQLGlot's type annotator, and it answers
   ``UNKNOWN`` for ``AtTimeZone`` on DuckDB — precisely the node ``to_utc``'s
   zone-aware value lived in — so the check would not have caught the defect

@@ -1,7 +1,7 @@
-"""The consumer-evidence guard (RFC 0065 D4, `LOCKED`): a mart declaring
+"""The consumer-evidence guard (S-0070/D-4, `LOCKED`): a mart declaring
 ``requires_evidence: locked`` whose measures rest on a fact nobody wrote down.
 
-**Strictly above RFC 0039's floor** (D2). Every fact this reads already
+**Strictly above S-0005's floor** (D2). Every fact this reads already
 *closes* its obligation — a project failing the floor never reaches here — so
 nothing refused below is unsound. The consumer asked a different question:
 :attr:`Provenance.closes` is about soundness and :attr:`Provenance.grade` is
@@ -86,24 +86,24 @@ type Step = tuple[str, str | None]
 MESSAGE = (
     "mart {mart} requires 'locked'; its measures ({measures}) rest on column "
     "{column}, which the compiler reached by {bases} rather than from anything "
-    "an author wrote (RFC 0065 §5.1). Fix: declare the relationship that carries "
+    "an author wrote (S-0070/the-grades-and-what-they-project-from). Fix: declare the relationship that carries "
     "{column}, or set 'requires_evidence: assumed' on this mart"
 )
 
 #: The refusal for a column reached only through an **imported**
 #: relationship, which is a different sentence and a different repair
-#: (RFC 0070 §1). :data:`MESSAGE` tells an author to declare the relationship,
+#: (S-0075/summary). :data:`MESSAGE` tells an author to declare the relationship,
 #: and here one is declared — by an importer, in a document they may not have
 #: read. Sending them to declare it again is advice they cannot act on, which
-#: is the remedy-free refusal RFC 0065 D4 forbids.
+#: is the remedy-free refusal S-0070/D-4 forbids.
 IMPORTED_MESSAGE = (
     "mart {mart} requires 'locked'; its measures ({measures}) rest on column "
     "{column}, carried by {relationships} — read out of {artifacts} rather than "
-    "written here (RFC 0070 D1). Fix: author the relationship in this project and "
+    "written here (S-0075/D-1). Fix: author the relationship in this project and "
     "drop its 'imported_from:', or set 'requires_evidence: assumed' on this mart"
 )
 
-#: The exposure form of :data:`MESSAGE` (RFC 0065 §5.2). An exposure has no
+#: The exposure form of :data:`MESSAGE` (S-0070/the-annotation). An exposure has no
 #: facts of its own, so the sentence names **what it reads** rather than the
 #: exposure's own measures, and §6 requires the metric to be named where a
 #: metric is how the mart was reached — "names the metric rather than the
@@ -119,17 +119,17 @@ IMPORTED_MESSAGE = (
 EXPOSURE_MESSAGE = (
     "exposure {exposure} requires 'locked'; it reads mart {mart}{via}, whose column "
     "{column} the compiler reached by {bases} rather than from anything an author wrote "
-    "(RFC 0065 §5.1). Fix: declare the relationship that carries {column}, or set "
+    "(S-0070/the-grades-and-what-they-project-from). Fix: declare the relationship that carries {column}, or set "
     "'requires_evidence: assumed' on this exposure"
 )
 
 #: The exposure form of :data:`IMPORTED_MESSAGE`, splitting on the same fact
 #: and for the same reason: the relationship *is* declared, by an importer, so
-#: telling this author to declare it is advice they cannot act on (RFC 0065 D4).
+#: telling this author to declare it is advice they cannot act on (S-0070/D-4).
 EXPOSURE_IMPORTED_MESSAGE = (
     "exposure {exposure} requires 'locked'; it reads mart {mart}{via}, whose column "
     "{column} comes in through {relationships} — read out of {artifacts} rather than written "
-    "here (RFC 0070 D1). Fix: author the relationship in this project and drop its "
+    "here (S-0075/D-1). Fix: author the relationship in this project and drop its "
     "'imported_from:', or set 'requires_evidence: assumed' on this exposure"
 )
 
@@ -146,7 +146,7 @@ def _grade(step: Step, imported: Mapping[str, str]) -> EvidenceGrade:
     :data:`~bloomery.semantic.BASIS_PROVENANCE` is keyed by basis *kind*, so on
     its own it says the same thing about every ``many_to_one`` in a project.
     A relationship an importer wrote was not authored here whatever its
-    cardinality, and that is the question this grade answers (RFC 0070 D1) —
+    cardinality, and that is the question this grade answers (S-0075/D-1) —
     so a step naming one grades `ASSUMED` before the table is consulted.
 
     ``via`` is ``None`` for ``entity_key``, which traverses no relationship and
@@ -176,7 +176,7 @@ def weak_bases(
     A route is a set of ``(basis, relationship)`` steps rather than of basis
     names, because the grade is a property of the edge and not of the kind of
     edge: two ``many_to_one`` hops differ when one of them was imported
-    (RFC 0070 D1). ``imported`` is the set of relationship names an artifact
+    (S-0075/D-1). ``imported`` is the set of relationship names an artifact
     supplied, read from the authored spec by :func:`check_evidence`.
 
     Split out because it is the whole of the rule and the corpus cannot

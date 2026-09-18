@@ -1,4 +1,4 @@
-"""The rollup mart's obligation (RFC 0058 §5.2 — R013).
+"""The rollup mart's obligation (S-0065/the-obligation — R013).
 
 R011 and R012 ask whether values that travelled from one *entity* grain to
 another may be summed on arrival. This asks the same second question about a
@@ -7,7 +7,7 @@ a mart. So every test here is about the class question and about the two ways a
 caller can put the question wrongly — a measure that is not this mart's, and a
 grouping the mart cannot offer.
 
-What is deliberately absent is a grain derivation. RFC 0058 D12 rests that half
+What is deliberately absent is a grain derivation. S-0065/D-12 rests that half
 on R008 rather than re-deriving it, and a test asserting a closure walk here
 would be asserting that this module does something it must not.
 """
@@ -81,7 +81,7 @@ def test_an_additive_measure_rolls_up() -> None:
 
 
 def test_the_grain_half_is_cited_as_the_mart_contract() -> None:
-    """RFC 0058 D12: R008, never a closure walk over the kept dimensions."""
+    """S-0065/D-12: R008, never a closure walk over the kept dimensions."""
 
     answer = prove_measure_rollup(REVENUE, items("revenue"), KEEP, PROJECT)
 
@@ -129,7 +129,7 @@ def test_a_refused_class_names_the_word_the_author_wrote() -> None:
 
 
 def test_every_additivity_has_a_rollup_answer() -> None:
-    """The mapping is total over the closed set (RFC 0038 D1). A member added
+    """The mapping is total over the closed set (S-0053/D-1). A member added
     without a decision here must fail at the commit rather than at a call
     site."""
 
@@ -384,7 +384,7 @@ def test_dropping_one_dimension_is_enough() -> None:
 def test_a_mart_carrying_no_measure_is_refused_rather_than_trivially_proved() -> None:
     """Every measure of an empty set is re-aggregable, so a reduction would
     prove this — and a proof resting on nothing is the one thing a closed-world
-    checker may never report as proven (RFC 0039 D1)."""
+    checker may never report as proven (S-0005/D-1)."""
 
     answer = prove_mart_rollup(items(), KEEP, PROJECT)
 

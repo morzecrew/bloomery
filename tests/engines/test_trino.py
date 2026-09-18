@@ -1,4 +1,4 @@
-"""Engine tier (RFC 0009 §5.2 tier 5) on real Trino.
+"""Engine tier (S-0026/tier-contracts tier 5) on real Trino.
 
 Trino was the engine bloomery made the most claims about and executed the
 least. Three decisions were verified against it **by hand**, through
@@ -16,7 +16,7 @@ those three, made permanent.
 "trino+iceberg+minio (compose)". The memory connector is used instead: bloomery
 emits SELECTs and models and never storage-format DDL, so an object store and a
 table format would be three more moving parts serving no assertion here
-(RFC 0009 D21).
+(S-0026/D-21).
 
 Opt-in (Docker required); excluded from ``just test``.
 """
@@ -189,7 +189,7 @@ def test_the_right_rows_are_kept_and_diverted(trino_db: trino.dbapi.Connection) 
 
 
 def test_every_bronze_row_is_accounted_for(trino_db: trino.dbapi.Connection) -> None:
-    """RFC 0016's conservation law on the engine D75 kept it off entirely."""
+    """S-0033's conservation law on the engine D75 kept it off entirely."""
     kept = _run(trino_db, f'SELECT COUNT(*) FROM memory.silver."{ENTITY}"')[0][0]
     diverted = _run(trino_db, f'SELECT COUNT(*) FROM memory.silver."{ENTITY}__reject"')[0][0]
     assert kept + diverted == len(ROWS)
@@ -347,7 +347,7 @@ def test_an_empty_mart_is_where_the_two_aggregates_part_company(
 
 
 # ....................... #
-# RFC 0027 — the ISO 8601 separator, executed rather than rendered
+# S-0044 — the ISO 8601 separator, executed rather than rendered
 
 
 @pytest.mark.parametrize(
@@ -363,7 +363,7 @@ def test_an_iso_parse_survives_both_separators(
 ) -> None:
     """What `{parse_ts: ISO8601}` and `{parse_date: ISO8601}` emit here, run.
 
-    This is the test RFC 0027 §6 asked for, and it is at this tier rather than
+    This is the test S-0044/what-fixed-looks-like asked for, and it is at this tier rather than
     a rendering assertion because the rendering was never what was wrong:
     `CAST(x AS TIMESTAMP)` is valid Trino, it just returns NULL for the `T`
     separator that ISO 8601 defines — and inside the quality system a NULL

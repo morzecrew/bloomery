@@ -1,4 +1,4 @@
-# The historical-dimension refusal fixture (RFC 0023 D1/D2). One line — the
+# The historical-dimension refusal fixture (S-0040/D-1, S-0040/D-2). One line — the
 # `scd: type2` on `customer` — is the whole difference between this project and
 # a clean one, which is what makes it a fixture about a *combination* rather
 # than about a spec. Both refusals hang off it: `orders` flattens the
@@ -7,7 +7,7 @@
 # Deliberately not `scd2_customers`. That fixture is the only golden coverage
 # of the SCD2 silver lowering — SQLMesh's SCD_TYPE_2_BY_COLUMN and dbt's
 # check-strategy snapshot — and `scd: type2` as a silver target stays fully
-# supported (RFC 0023 §8). Giving it a marts.yaml would have deleted that
+# supported (S-0040/out-of-scope). Giving it a marts.yaml would have deleted that
 # coverage to buy this.
 spec_version: 1
 entities:

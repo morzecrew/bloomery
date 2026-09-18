@@ -1,4 +1,4 @@
-"""The corpus loader is tested, not merely present (RFC 0042 D2/D3).
+"""The corpus loader is tested, not merely present (S-0056/D-2, S-0056/D-3).
 
 A harness that skips a malformed case reports green for work nobody did, which
 is the failure this corpus exists to catch in *other* people's pipelines. These
@@ -39,7 +39,7 @@ pytestmark = pytest.mark.unit
 #: about the loader refusing malformed input.
 REAL = cases()
 
-OUTCOME = {"one": {"outcome": "accepted", "rule": "RFC 0010 D2"}}
+OUTCOME = {"one": {"outcome": "accepted", "rule": "S-0027/D-2"}}
 
 
 def _plant(root: pathlib.Path) -> pathlib.Path:
@@ -187,7 +187,7 @@ def test_two_halves_measuring_different_columns_are_refused(planted: pathlib.Pat
     questions, and `metrics` cannot pick between them — which is why loading
     reads it.
 
-    It stopped being "exactly one column" with RFC 0041 P1: a case measuring
+    It stopped being "exactly one column" with S-0055/phasing (P-1): a case measuring
     two grains in one request measures two columns, and the property that
     survives is that the two halves agree on which.
     """
@@ -203,7 +203,7 @@ def test_an_unknown_outcome_word_is_refused(planted: pathlib.Path) -> None:
     """The vocabulary is closed. A typo would otherwise read as a new outcome
     nothing asserts."""
     (planted / "expected" / "semantic_outcome.json").write_text(
-        json.dumps({"one": {"outcome": "probably-fine", "rule": "RFC 0010 D2"}}), "utf-8"
+        json.dumps({"one": {"outcome": "probably-fine", "rule": "S-0027/D-2"}}), "utf-8"
     )
 
     with pytest.raises(ValueError, match="probably-fine"):
@@ -275,15 +275,15 @@ def test_every_answer_names_a_query_the_result_file_carries() -> None:
         ("R009", True),  # in the registry
         ("R001", True),
         ("R999", False),  # shaped like an id, in no register
-        ("RFC 0042 D3", True),  # the other register, checked against its document elsewhere
-        ("RFC 0042 §5.3", False),  # a section moves when the document is edited
+        ("S-0056/D-3", True),  # the other register, checked against its document elsewhere
+        ("S-0056/expected-artifacts (§5.3)", False),  # a section moves when the document is edited
         ("R09", False),  # not an id at all
         ("R0091", False),
         ("", False),
     ],
 )
 def test_a_cited_rule_must_resolve_in_one_of_the_two_registers(rule: str, usable: bool) -> None:
-    """RFC 0042 D3 asks for a stable rule ID, and there are now two registers
+    """S-0056/D-3 asks for a stable rule ID, and there are now two registers
     that hold one: `RULES` for a proof rule, a decision table for an RFC.
 
     Exercised here rather than only over the corpus because every real case

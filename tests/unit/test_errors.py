@@ -1,4 +1,4 @@
-"""The total error hierarchy (RFC 0002 §5.4): every leaf is a
+"""The total error hierarchy (S-0019/error-hierarchy): every leaf is a
 ``BloomeryError``, carries ``source_path``, and the batched-stage aggregation
 surface works."""
 
@@ -56,10 +56,10 @@ _EXPORTS = {name: getattr(errors_mod, name) for name in errors_mod.__all__}
 #: The exports that are deliberately not error classes. Pinned rather than
 #: filtered silently: the three properties below are about the *hierarchy*, and
 #: a filter nobody checks is how a new class quietly stops being covered by
-#: them (RFC 0003 D11 added the first entry).
+#: them (S-0020/D-11 added the first entry).
 NOT_A_CLASS = {"guaranteed", "warn_deprecated"}
 
-#: Classes here that are not errors: the fix-suggestion payloads (RFC 0020
+#: Classes here that are not errors: the fix-suggestion payloads (S-0037
 #: §5.4, D11). They live in this module because the errors that carry them do
 #: and nothing under ``src/bloomery/`` may import upward — not because they are
 #: part of the hierarchy. Pinned by name for the same reason as
@@ -85,7 +85,7 @@ def test_every_exempt_export_is_genuinely_not_an_error() -> None:
 
     ``BloomeryDeprecationWarning`` is the one exempt export that *is* a
     ``BaseException``, and it is exempt for the opposite reason to the payload
-    types: it is deliberately **not** in the hierarchy. RFC 0033 D8 makes it a
+    types: it is deliberately **not** in the hierarchy. S-0004/D-8 makes it a
     ``DeprecationWarning`` so ``filterwarnings`` can target bloomery precisely,
     and a warning that also derived from :class:`BloomeryError` would be caught
     by every ``except BloomeryError`` in every caller — turning a notice about
@@ -148,7 +148,7 @@ def test_every_class_has_a_stage_docstring(cls: type[BloomeryError]) -> None:
         (FanoutRisk, GuardrailError),
         (NonAdditiveWithoutComponents, GuardrailError),
         (MartMissingTimeDimension, GuardrailError),
-        # RFC 0016 §5.9: a guardrail says the *model* is wrong (compile
+        # S-0033/guardrails-vs-quality-the-boundary: a guardrail says the *model* is wrong (compile
         # time, decidable from the spec alone); a quality rule says the
         # *data* is wrong (run time). These five are the former.
         (QuarantineRetentionMissing, GuardrailError),
@@ -172,7 +172,7 @@ def test_stage_hierarchy(leaf: type[BloomeryError], parent: type[BloomeryError])
 
 
 def test_step_contract_violation_belongs_to_rfc_0017() -> None:
-    """RFC 0017 (M13) landed it. It is a ``StepError``, not a
+    """S-0034 (M13) landed it. It is a ``StepError``, not a
     ``GuardrailError``: it is raised at *target* runtime by generated wrapper
     code, so nothing in bloomery ever raises it and nothing batches it."""
     assert issubclass(errors_mod.StepContractViolation, errors_mod.StepError)
@@ -180,7 +180,7 @@ def test_step_contract_violation_belongs_to_rfc_0017() -> None:
 
 
 def test_retired_incompatible_artifact_is_absent() -> None:
-    # RFC 0014 retired IncompatibleArtifact: a version mismatch is a cache
+    # S-0031 retired IncompatibleArtifact: a version mismatch is a cache
     # miss by construction, never an error.
     assert not hasattr(errors_mod, "IncompatibleArtifact")
 

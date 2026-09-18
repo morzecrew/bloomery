@@ -1,4 +1,4 @@
-"""Spec analysis as a value: ``evaluate(project) -> SpecEvidence`` (RFC 0022).
+"""Spec analysis as a value: ``evaluate(project) -> SpecEvidence`` (S-0039).
 
 Everything knowable about a spec **without touching data** — which metrics are
 computable, which are not and precisely which leaf is missing, what the
@@ -52,7 +52,7 @@ from bloomery.resolve import FieldProvenance, Resolution, Stage, StageProgress, 
 # ``Catalog`` and ``Project`` are imported at run time rather than under
 # ``TYPE_CHECKING``: both appear in ``evaluate``'s signature, and the
 # signature-closure test resolves every public annotation for real
-# (RFC 0018 D10). Named here because the comment travels with whatever import
+# (S-0035/D-10). Named here because the comment travels with whatever import
 # sorts after it, and this one no longer does.
 from bloomery.spec import Catalog, Project
 from bloomery.steps import EMPTY_REGISTRY, StepRegistry
@@ -79,7 +79,7 @@ __all__ = [
 
 
 class AdvisoryCode(StrEnum):
-    """The closed advisory vocabulary (RFC 0033 §5.1).
+    """The closed advisory vocabulary (S-0004 (§5.1)).
 
     Closed, and each addition is a reviewed change — the taste
     :data:`~bloomery.planner.KNOWN_UNSUPPORTED` already sets for the refusal
@@ -102,7 +102,7 @@ class AdvisoryCode(StrEnum):
     INEXACT_DIVISION = "inexact_division"
     #: A `pii` or `secret` column published by a mart or rollup where no
     #: `grants:` block says who may read it — on the relation, on the source
-    #: entity, or on either (RFC 0055 D11). The refusal beside it needs both
+    #: entity, or on either (S-0062/D-11). The refusal beside it needs both
     #: sides declared to call one wider than the other; with either missing,
     #: bloomery has no opinion about the audience and the warehouse's own
     #: grants stand, which is unknown rather than wrong.
@@ -114,7 +114,7 @@ class AdvisoryCode(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Advisory:
-    """One compile-time finding that is not a refusal (RFC 0033 §5.1).
+    """One compile-time finding that is not a refusal (S-0004 (§5.1)).
 
     Findings are **values**, carried on the evidence a caller already receives,
     exactly as ``QueryPlan.warnings`` carries them at request time. Nothing
@@ -146,7 +146,7 @@ class Advisory:
 
 
 def _advisory_key(advisory: Advisory) -> tuple[str, str, str]:
-    """The declared sort key (RFC 0033 §5.1): total, explicit, and stable under
+    """The declared sort key (S-0004 (§5.1)): total, explicit, and stable under
     a missing source path, which normalizes to the empty string for ordering
     while staying ``None`` on the value."""
 
@@ -161,7 +161,7 @@ def _sorted_advisories(found: Iterable[Advisory]) -> tuple[Advisory, ...]:
 
     Two advisories are duplicates exactly when all three fields are equal, and
     deduplication keeps the first of an equal pair — which the total sort makes
-    indistinguishable from keeping any. A ``set`` would do neither: RFC 0003
+    indistinguishable from keeping any. A ``set`` would do neither: S-0020
     bans iterating one where order can reach output, and this tuple reaches a
     returned value.
     """
@@ -180,7 +180,7 @@ def _sorted_advisories(found: Iterable[Advisory]) -> tuple[Advisory, ...]:
 @dataclass(frozen=True, slots=True)
 class CheckedSurfaces:
     """How many of each semantic surface the pipeline actually checked
-    (RFC 0044 §3, D5).
+    (S-0057/bloomery-check, S-0057/D-5).
 
     **Counts of what was checked, never of what exists.** The distinction is
     the whole of D5: a total implying coverage nobody proved is what makes a
@@ -199,15 +199,15 @@ class CheckedSurfaces:
     ``conversions`` is counted from the mapping chains rather than from the IR,
     because a conversion is a *step inside* a field mapping and does not survive
     into :class:`~bloomery.ProjectIR` as a node of its own. Every one of them is
-    walked and proven during resolve (RFC 0061's R009), so wherever there is an
+    walked and proven during resolve (S-0066's R009), so wherever there is an
     IR to count against, the declared count and the proven count are the same
     number: a chain whose conversion could not be proven refuses before an IR
     exists, and this field is then not reported at all.
 
     A conversion refused *later*, at emit, is still counted — ``convert`` lowers
-    to a token some targets do not define (RFC 0023 D4), and that refusal
+    to a token some targets do not define (S-0040/D-4), and that refusal
     belongs to the target rather than to the project. ``check`` reaches no
-    target by construction (RFC 0044 D1), so counting it as unchecked would
+    target by construction (S-0057/D-1), so counting it as unchecked would
     report a surface as unexamined because a command that never runs would
     reject it.
 
@@ -226,14 +226,14 @@ class CheckedSurfaces:
     #: counting it would report a surface as checked that nothing checked and
     #: nobody wrote — the population mistake ``measures`` avoids one field up.
     marts: int
-    #: Declared rollups R013 discharged the obligation for (RFC 0058 D5). Its
+    #: Declared rollups R013 discharged the obligation for (S-0065/D-5). Its
     #: own number rather than folded into ``marts``: the two surfaces are ruled
     #: on by different checks, and a reader adding them would be told a rollup
     #: had a mart's flatten and grain checks run over it, which nothing did.
     rollups: int
     #: ``convert`` steps across every mapping's key and field chains.
     conversions: int
-    #: Mart joins carrying an ``as_of`` anchor (RFC 0023 §5.3).
+    #: Mart joins carrying an ``as_of`` anchor (S-0040/phase-2-the-as-of-join).
     temporal_joins: int
 
 
@@ -249,7 +249,7 @@ class MartSummary:
 
     ``dimensions`` are **role-qualified** (``ordered_at``, ``shipped_at``), the
     names a request writes, rather than the underlying entity fields they
-    flatten from. That is the whole reason role-playing dates exist (RFC 0010),
+    flatten from. That is the whole reason role-playing dates exist (S-0027),
     and a summary naming the field twice would be describing a different mart
     than the planner serves.
     """
@@ -266,7 +266,7 @@ class MartSummary:
 
 class Gap(StrEnum):
     """Why a canonical field is unavailable — which decides the edit
-    (RFC 0030 D3).
+    (S-0047/D-3).
 
     The distinction is the report's reason to exist: both states arrive as the
     same :class:`~bloomery.UnreachableMetric` today, and they are closed by
@@ -275,7 +275,7 @@ class Gap(StrEnum):
 
     #: No entity field carries ``canonical: <name>``. The edit is an
     #: entity-model one — declare the field and link it — and it does not close
-    #: the decision, it turns it into :attr:`UNMAPPED` (RFC 0030 D10).
+    #: the decision, it turns it into :attr:`UNMAPPED` (S-0047/D-10).
     UNLINKED = "unlinked"
     #: A field carries the link and no mapping produces it. The edit is a
     #: mapping field, and it is where the recipe choice is.
@@ -290,7 +290,7 @@ class RecipeOption:
     """One derivation the catalog declares, as a chooser needs it.
 
     A projection of :class:`~bloomery.spec.catalog.Recipe`, never an opinion
-    about it: the report enumerates and does not rank (RFC 0030 D2). What it
+    about it: the report enumerates and does not rank (S-0047/D-2). What it
     adds is proximity — ``requires`` names the alias slots a mapping's ``from:``
     must bind, which lives in the catalog under a different key from the
     canonical field a metric names, and a chooser that gets that join wrong
@@ -300,7 +300,7 @@ class RecipeOption:
     id: str
     #: The alias slots the mapping's ``from:`` must bind — **source paths**,
     #: never canonical fields, which is what makes the loop terminate
-    #: (RFC 0030 D6).
+    #: (S-0047/D-6).
     requires: tuple[str, ...]
     #: The recipe's expression; ``None`` is identity over a single requirement.
     expr: str | None = None
@@ -315,14 +315,14 @@ class OpenDecision:
 
     **Not a recommendation.** :attr:`options` is what the catalog declares, in
     the order the catalog declares it, and bloomery neither ranks nor picks —
-    not even when there is exactly one (RFC 0005 D2, RFC 0030 D2/D4). A caller
+    not even when there is exactly one (S-0022/D-2, S-0047/D-2, S-0047/D-4). A caller
     that reads ``options[0]`` as advice has moved the compiler's refusal to
     choose into its own code without noticing.
 
-    **Every entry names one edit** (RFC 0030 D9). An entry a caller cannot act
+    **Every entry names one edit** (S-0047/D-9). An entry a caller cannot act
     on is worse than a gap — it is a worklist item that never clears — so a
     canonical whose entity is built by more than one mapping is left out
-    entirely. The reason is no longer that no identity exists: RFC 0032 gives
+    entirely. The reason is no longer that no identity exists: S-0049 gives
     a mapping one, and :class:`~bloomery.FieldProvenance` names it. What is
     unanswered is what an entry would *mean* across N documents, since a merged
     entity's gap may be closable in **any** one of them — so an entry per
@@ -340,7 +340,7 @@ class OpenDecision:
     #: The linked field, set iff :attr:`gap` is :attr:`Gap.UNMAPPED`.
     field: str | None
     #: The catalog's recipes for :attr:`canonical`, **in catalog order**
-    #: (RFC 0030 D2) — the one collection on this type that is not sorted.
+    #: (S-0047/D-2) — the one collection on this type that is not sorted.
     #: May be empty, which says the catalog declares no derivation, and never
     #: that the data is absent: bloomery does no I/O and cannot know that.
     options: tuple[RecipeOption, ...]
@@ -355,7 +355,7 @@ class OpenDecision:
 
 @dataclass(frozen=True, slots=True)
 class SpecEvidence:
-    """Everything knowable about a spec without touching data (RFC 0022 D1).
+    """Everything knowable about a spec without touching data (S-0039/D-1).
 
     **Read :attr:`stage_reached` before any other field.** An empty
     :attr:`unreachable` means "nothing is unreachable" only at
@@ -384,7 +384,7 @@ class SpecEvidence:
     One collection escapes that rule, deliberately and in one place:
     :attr:`OpenDecision.options` is in **catalog order**, because the catalog's
     order is authored — recipes are "ordered by reliability" — and sorting it
-    would destroy information rather than normalize it (RFC 0030 D2).
+    would destroy information rather than normalize it (S-0047/D-2).
 
     ``source_path`` is optional on a refusal, so the empty string stands in for
     ``None``: a refusal with no source path sorts first, deterministically,
@@ -392,14 +392,14 @@ class SpecEvidence:
 
     **This is deliberately half of what a reviewer needs.** The other half —
     coercion rates, null deltas, sample rows — requires running the emitted SQL
-    against data, which is outside the library (RFC 0022 D6). A platform
+    against data, which is outside the library (S-0039/D-6). A platform
     composes this with its own dry-run into one review payload. The temptation
     to add "and also run it against a sample" here is real and permanent, and
     taking it would put an engine connection inside a compiler whose test suite
     needs no infrastructure.
 
     It carries facts and never judgement — no score, no confidence, no
-    approve/reject. The reviewer decides; bloomery reports (RFC 0022 D9).
+    approve/reject. The reviewer decides; bloomery reports (S-0039/D-9).
 
     **It does not carry the compiled artifacts**, even at
     :attr:`~bloomery.Stage.COMPLETE`, where it could and where that would let a
@@ -413,11 +413,11 @@ class SpecEvidence:
     stage_reached: Stage
     #: Metric names computable from what the mappings supply, sorted.
     reachable: tuple[str, ...] = ()
-    #: Metrics that are not, each with the specific missing leaves (RFC 0005 D3).
+    #: Metrics that are not, each with the specific missing leaves (S-0022/D-3).
     unreachable: tuple[UnreachableMetric, ...] = ()
     #: The batched refusals of the stage that stopped analysis. Empty at
     #: :attr:`~bloomery.Stage.COMPLETE`, and never more than one batch: a stage
-    #: batches within itself (RFC 0002/0006) and the pipeline stops at the
+    #: batches within itself (S-0019, S-0023) and the pipeline stops at the
     #: first that refuses, so there is no second stage to collect from.
     refusals: tuple[BloomeryError, ...] = ()
     #: Shape of every mart that would be built, sorted by name.
@@ -437,22 +437,22 @@ class SpecEvidence:
     # unreachable, refusals, marts, entities, fingerprint)` would land the
     # fingerprint in `unresolved` and leave `fingerprint` at `None`, producing
     # an evidence value that is wrong in two places and refuses nothing.
-    # Appending is what keeps this addition additive (RFC 0018 D1); the
+    # Appending is what keeps this addition additive (S-0035/D-1); the
     # docstring's table above is the reading order, and this is the wire order.
     #: Every decision the spec leaves open, sorted by canonical field
-    #: (RFC 0030). Read :attr:`stage_reached` first, as for every tuple here:
+    #: (S-0047). Read :attr:`stage_reached` first, as for every tuple here:
     #: empty means "nothing open" only where the resolve stage got far enough
     #: to compute it.
     unresolved: tuple[OpenDecision, ...] = ()
     #: How each mapped entity field is produced — the loop's memory of what it
-    #: has already decided, and the recipe id it decided on (RFC 0030 D8).
+    #: has already decided, and the recipe id it decided on (S-0047/D-8).
     #: Computed on every ``resolve()``; carried here rather than discarded.
     #:
-    #: One entry per ``(entity, field, mapping)`` (RFC 0032), so a **merged
+    #: One entry per ``(entity, field, mapping)`` (S-0049), so a **merged
     #: entity's** field appears once per mapping that builds it, each naming the
     #: document it was read from — see :class:`~bloomery.FieldProvenance`.
     provenance: tuple[FieldProvenance, ...] = ()
-    #: How many of each semantic surface were checked (RFC 0044 §3), or
+    #: How many of each semantic surface were checked (S-0057/bloomery-check), or
     #: ``None`` where the pipeline stopped before an IR existed to count from.
     #:
     #: ``None`` rather than a zeroed :class:`CheckedSurfaces`, and that is the
@@ -462,7 +462,7 @@ class SpecEvidence:
     #: read as "this surface was checked and held nothing" by anyone who skims.
     #: There is no honest zero to print, so the field says so itself.
     checked: CheckedSurfaces | None = None
-    #: Compile-time findings that are **not** refusals (RFC 0033 §5.1) —
+    #: Compile-time findings that are **not** refusals (S-0004 (§5.1)) —
     #: sorted by ``(code, source_path, message)`` and deduplicated. Empty means
     #: "nothing to say" only where the pipeline got far enough to look, which
     #: is the same read-``stage_reached``-first rule every tuple here carries.
@@ -499,7 +499,7 @@ def _refusals(raised: BloomeryError) -> tuple[BloomeryError, ...]:
 
     The batched stages raise **one** aggregate whose message enumerates the
     batch and whose :attr:`~bloomery.BloomeryError.collected` carries each
-    failure with its own ``source_path`` (RFC 0002 D6). Reporting the aggregate
+    failure with its own ``source_path`` (S-0019/D-6). Reporting the aggregate
     alone would hand a caller a paragraph to re-parse for the paths it already
     has structured, so the batch is unwrapped and the aggregate dropped — it
     holds nothing its members do not.
@@ -533,7 +533,7 @@ def _unresolved(
     project: Project, catalog: Catalog | None, resolution: Resolution
 ) -> tuple[OpenDecision, ...]:
     """Every open decision, joined from the resolution, the entity model and
-    the catalog (RFC 0030 §5.2).
+    the catalog (S-0047/what-open-means-exactly).
 
     **The open set is read off reachability, never recomputed.** An entry
     exists for each canonical field some unreachable metric names as a missing
@@ -545,7 +545,7 @@ def _unresolved(
 
     The rest is the three-document join a chooser would otherwise write: the
     entity model says whether anything links the canonical (the two gaps,
-    RFC 0030 D3), and the catalog says what may be recorded once something
+    S-0047/D-3), and the catalog says what may be recorded once something
     does.
     """
     blocked_by: dict[str, list[str]] = {}
@@ -576,13 +576,13 @@ def _unresolved(
         link = linked.get(canonical)
         entity = link[0] if link is not None else declared.entity
         if mappings_per_entity[entity] > 1:
-            # RFC 0030 D9: a merged entity's columns are per mapping, so no
+            # S-0047/D-9: a merged entity's columns are per mapping, so no
             # single document is the edit. The blocked metric stays visible in
             # `unreachable`; only the un-actionable worklist entry is withheld.
             #
-            # **The identity D9 was waiting on now exists** (RFC 0032 D1) — and
-            # this is deliberately still here (RFC 0032 D6). D9 gave two
-            # reasons and RFC 0032 removes one; the other is what an entry
+            # **The identity D9 was waiting on now exists** (S-0049/D-1) — and
+            # this is deliberately still here (S-0049/D-6). D9 gave two
+            # reasons and S-0049 removes one; the other is what an entry
             # *means* when N documents could each close the gap, which is a
             # decision about this report's promise rather than about nouns.
             # Note that a merged entity's gap may be closable in *any* one
@@ -624,7 +624,7 @@ def _from_ir(
     **Reachability comes from the resolution, not from ``ir.metrics``**, and
     the difference is not cosmetic: by the time the IR is finished it also
     carries the quality mart's bloomery-owned metrics (``quality_rows_deduped``
-    and its siblings, RFC 0016 §5.8), which nobody authored and which
+    and its siblings, S-0033/the-quality-mart), which nobody authored and which
     ``resolve()`` has never heard of. Reading them as "reachable" would put
     five metrics in front of a reviewer that are not in their spec, and would
     make :attr:`SpecEvidence.reachable` and :attr:`SpecEvidence.unreachable`
@@ -672,7 +672,7 @@ def _from_ir(
 
 def _advisories(catalog: Catalog | None, ir: ProjectIR | None = None) -> tuple[Advisory, ...]:
     """Every compile-time advisory, as a pure function of what the pipeline
-    already holds (RFC 0033 §5.1).
+    already holds (S-0004 (§5.1)).
 
     **A function, not an accumulator.** The RFC does not say how a finding
     produced deep in a stage reaches the evidence, and threading a mutable
@@ -700,7 +700,7 @@ def _advisories(catalog: Catalog | None, ir: ProjectIR | None = None) -> tuple[A
 
 def _undeclared_audiences(ir: ProjectIR | None) -> tuple[Advisory, ...]:
     """A sensitive column published where the audience is undeclared
-    (RFC 0055 D11).
+    (S-0062/D-11).
 
     The refusal beside this one fires when a published relation admits a role
     the entity a sensitive column came from does not. That needs both sides
@@ -709,7 +709,7 @@ def _undeclared_audiences(ir: ProjectIR | None) -> tuple[Advisory, ...]:
     rather than wider, and refusing the unknown would refuse every project
     managing its gold grants elsewhere.
 
-    So it advises instead, and the bar RFC 0033 D7 sets is met: the spec is
+    So it advises instead, and the bar S-0004/D-7 sets is met: the spec is
     legal, the artifacts are correct, and an author who classified a column
     `pii` and then published it to nobody-knows-whom would want to know.
     """
@@ -730,10 +730,10 @@ def _undeclared_audiences(ir: ProjectIR | None) -> tuple[Advisory, ...]:
             classification = sensitive.get((source_entity, source_column))
 
             # `pii` only. A `secret` column in a published relation is already
-            # refused, unconditionally (RFC 0055 D10) — so advising about its
+            # refused, unconditionally (S-0062/D-10) — so advising about its
             # audience would put "this is legal and the artifacts are correct"
             # beside a refusal saying otherwise, which is the advisory-where-a-
-            # refusal-belongs that RFC 0033 D7 calls a defect (PR #113 review).
+            # refusal-belongs that S-0004/D-7 calls a defect (PR #113 review).
             if classification != "pii":
                 continue
 
@@ -768,7 +768,7 @@ def _undeclared_audiences(ir: ProjectIR | None) -> tuple[Advisory, ...]:
 
 
 def _inexact_divisions(catalog: Catalog | None) -> tuple[Advisory, ...]:
-    """A catalog recipe whose ``expr:`` divides (RFC 0033 §5.3)."""
+    """A catalog recipe whose ``expr:`` divides (S-0004 (§5.3))."""
 
     if catalog is None:
         return ()
@@ -839,11 +839,11 @@ def _conversions(project: Project) -> int:
     Both halves are walked because ``resolve.build`` walks both: a decimal key
     is legal and a conversion on one is strange rather than refused, so a count
     reading only ``fields`` would report a surface as unchecked that the
-    compiler proved (`KeyField.currency_in`, RFC 0061 D7).
+    compiler proved (`KeyField.currency_in`, S-0066/D-7).
 
     ``getattr`` rather than a type test: only a simple mapping and a key field
     carry a chain, and a recipe or macro mapping has no ``transform`` at all —
-    neither can hold a ``convert`` step, which is the same answer RFC 0061 D7
+    neither can hold a ``convert`` step, which is the same answer S-0066/D-7
     reached for ``currency_in``.
     """
 
@@ -900,7 +900,7 @@ def _partial(
     progress: StageProgress,
     raised: BloomeryError,
 ) -> SpecEvidence:
-    """The prefix that survived a refusal at ``stage`` (RFC 0022 D3).
+    """The prefix that survived a refusal at ``stage`` (S-0039/D-3).
 
     Three widths, one per how far the pipeline got: a draft IR carries
     everything, a bare :class:`Resolution` carries reachability alone, and a
@@ -919,7 +919,7 @@ def _partial(
     advisory, not when a qualifying one is worth saying.
 
     **The unresolved-work report travels with the resolution**, not with
-    ``COMPLETE``. RFC 0030 D5 says a refusal empties it, and its argument is
+    ``COMPLETE``. S-0047/D-5 says a refusal empties it, and its argument is
     about a refusal *inside* the resolve stage — a malformed recipe id, where
     there is no graph and so nothing to project. A spec that resolved cleanly
     and was refused two stages later on a transform chain has open decisions

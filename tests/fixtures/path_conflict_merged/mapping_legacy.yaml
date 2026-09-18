@@ -14,6 +14,6 @@ fields:
     from: {line_total: "$.line_gross", quantity: "$.qty"}
     # A different path from the other shop's, on a relation that has no
     # `$.price` at all. Under one shadow for the whole entity this branch
-    # would have projected the other's extraction (RFC 0024 D36).
+    # would have projected the other's extraction (S-0041/D-36).
     direct: "$.unit_amount"
   quantity: {from: "$.qty", transform: [to_int]}

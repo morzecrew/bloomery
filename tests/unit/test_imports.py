@@ -1,4 +1,4 @@
-"""Reading a MetricFlow semantic manifest into relationships (RFC 0070 §5.2, §6).
+"""Reading a MetricFlow semantic manifest into relationships (S-0075/the-mapping-field-by-field, S-0075/tests).
 
 Every manifest here is hand-authored, and §3 of that document says why it has
 to be: bloomery's own MetricFlow output is emitted per *mart*, so compiling
@@ -335,7 +335,7 @@ def test_an_element_declared_primary_and_foreign_in_one_model_is_not_its_own_tar
 
 def test_every_refusal_is_collected_rather_than_only_the_first() -> None:
     """An import is a bulk operation, and fixing a manifest one message per run
-    is the experience batching exists to prevent (RFC 0002 §5.3)."""
+    is the experience batching exists to prevent (S-0019/source-paths)."""
 
     with pytest.raises(ArtifactImportError) as caught:
         _import(
@@ -386,7 +386,7 @@ def test_rendering_nothing_is_empty_rather_than_an_empty_block() -> None:
 def test_a_cardinality_disagreement_on_the_same_join_refuses_naming_both() -> None:
     """Same `(from, to, via)`, different cardinality: neither side wins by
     default, because "declared is more true" quietly overwrites a mechanically
-    verified fact with an authored guess (RFC 0044 D4)."""
+    verified fact with an authored guess (S-0057/D-4)."""
 
     sources = fixture_sources(_FIXTURE)
     sources["entity_model"] = sources["entity_model"].replace(
@@ -488,7 +488,7 @@ def test_the_rendered_block_loads_back_into_the_project_it_was_read_against() ->
 
 def test_an_imported_relationship_lowers_the_grade_a_strict_consumer_reads() -> None:
     """The producer, end to end (§6): a manifest in, and a refusal out that
-    RFC 0065 shipped with no project able to trip it.
+    S-0070 shipped with no project able to trip it.
 
     The relationship the manifest states is the one the `order_items` mart
     flattens through, so marking it imported moves every column that hop
@@ -544,7 +544,7 @@ def test_an_imported_relationship_lowers_the_grade_a_strict_consumer_reads() -> 
 
 
 # ....................... #
-# Determinism (RFC 0003)
+# Determinism (S-0020)
 
 
 #: Two *source* models and two targets. A version of this with one source
@@ -654,7 +654,7 @@ def test_a_refusal_stops_the_run_before_names_are_generated() -> None:
 
 
 def test_the_rendered_block_is_byte_identical_across_processes_and_hash_seeds() -> None:
-    """RFC 0003's claim, asked of the one surface this phase adds.
+    """S-0020's claim, asked of the one surface this phase adds.
 
     In subprocesses rather than in this one: `PYTHONHASHSEED` is fixed at
     interpreter start, so a same-process loop compares a value to itself and

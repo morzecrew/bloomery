@@ -1,11 +1,11 @@
-"""The ``EntityModel`` spec kind (RFC 0002 §5.5; original spec §3.3).
+"""The ``EntityModel`` spec kind (S-0019/spec-model-surface; original spec §3.3).
 
 What a project's data means: entities with grain, key, SCD kind, partitioning,
-optional explicit materialization (RFC 0002 D7 — explicit-with-derived-default),
+optional explicit materialization (S-0019/D-7 — explicit-with-derived-default),
 typed fields with optional ``canonical:`` links and ``assert:`` clauses
-(RFC 0006 D8), relationships with cardinality, and the entity-level data-
+(S-0023/D-8), relationships with cardinality, and the entity-level data-
 quality surface — ``quality:`` row rules, ``dedupe:``, ``quarantine:`` — plus
-the document-level ``reconcile:`` list (RFC 0016 §5.3).
+the document-level ``reconcile:`` list (S-0033/spec-schema).
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ __all__ = [
 
 
 class AssertClause(SpecModel):
-    """Per-field range-sanity assertions (RFC 0006 D8 / §5.6): validated for
+    """Per-field range-sanity assertions (S-0023/D-8, S-0023/range-sanity): validated for
     well-typedness at the guardrail stage, lowered to target-native audits at
     emit. Shape-only here."""
 
@@ -57,15 +57,15 @@ class AssertClause(SpecModel):
 
 class Field(SpecModel):
     """One entity field: logical type (grammar-validated string at parse,
-    RFC 0002 §5.5), optional catalog link, explicit-rename annotation
-    (RFC 0007 D3), and assert clauses."""
+    S-0019/spec-model-surface), optional catalog link, explicit-rename annotation
+    (S-0024/D-3), and assert clauses."""
 
     type: TypeString
     required: bool = False
     canonical: str | None = None
     renamed_from: str | None = None
     assert_: AssertClause | None = PydanticField(default=None, alias="assert")
-    #: What class of data this column holds (RFC 0055 §5.2), from a closed
+    #: What class of data this column holds (S-0062/classification), from a closed
     #: vocabulary. Reaches target metadata, and marks a `pii` or `secret`
     #: column `public: false` on Cube — which hides it from Cube's own UIs and
     #: leaves it queryable by anything that names it (measured; see
@@ -84,11 +84,11 @@ class Field(SpecModel):
 class Entity(SpecModel):
     """One entity: grain, authored-order key, SCD kind, partitioning, optional
     explicit materialization, named fields (generated names reserved,
-    RFC 0002 D10 / RFC 0016 §5.5), and the entity-level quality surface.
+    S-0019/D-10 / S-0033/schema-additions-and-the-array-capability), and the entity-level quality surface.
 
     ``dedupe`` partitions by this entity's ``key``; ``quality`` holds the row
     rules (``expression``, ``referential``); ``quarantine`` governs the
-    ``<entity>__reject`` table (RFC 0016 §5.3, §5.6).
+    ``<entity>__reject`` table (S-0033/spec-schema, S-0033/quarantine-one-reject-table-per-entity).
     """
 
     grain: str
@@ -100,7 +100,7 @@ class Entity(SpecModel):
     quality: tuple[EntityQualityRule, ...] = ()
     dedupe: Dedupe | None = None
     quarantine: Quarantine | None = None
-    #: Who is responsible for this, as a free string (RFC 0055 §5.1). Reaches
+    #: Who is responsible for this, as a free string (S-0062/owner). Reaches
     #: every target's owner slot and changes no SQL.
     #:
     #: **A declaration bloomery does not verify.** Nobody is paged, the name is
@@ -109,7 +109,7 @@ class Entity(SpecModel):
     #: either (D8): every project spells this differently, and a format rule
     #: would refuse spellings that are correct for their reader.
     owner: str | None = None
-    #: Who may read the relation this becomes (RFC 0055 §5.3). Unlike the two
+    #: Who may read the relation this becomes (S-0062/grants). Unlike the two
     #: annotations above, this one is **applied** — by the framework, on the
     #: engine — so being wrong changes who can read data.
     grants: Grants | None = None
@@ -133,25 +133,25 @@ class Relationship(SpecModel):
     #: ``conjunction([])``, and ``ValueError: not enough values to unpack``
     #: from inside SQLGlot when a mart flattened it. Three unhelpful
     #: exceptions with no source path, for one shape question parse can settle
-    #: (RFC 0002 D4 — shape is exactly what parse is for).
+    #: (S-0019/D-4 — shape is exactly what parse is for).
     via: dict[str, str] = PydanticField(min_length=1)
     cardinality: CardinalityName
     #: The artifact this relationship was read out of, where it was not
-    #: authored here (RFC 0070 D7). Its **presence** is the fact: a
+    #: authored here (S-0075/D-7). Its **presence** is the fact: a
     #: relationship carrying it is `IMPORTED_VERIFIED` and one without it is
     #: `DECLARED`. A string rather than a boolean because the refusal that
     #: reads it has to name the artifact for a reader to act on, and a boolean
     #: would need a second key to do that.
     #:
     #: Written by an importer, not by hand. There is no way for the compiler
-    #: to tell the difference, and RFC 0070 §9 says so rather than implying a
+    #: to tell the difference, and S-0075/risks says so rather than implying a
     #: check that does not exist.
     #:
     #: Non-empty for the reason ``via`` is: presence is the fact, and an empty
     #: string is present while naming nothing — it would lower the
     #: relationship's grade and then produce a refusal citing ``''`` as the
     #: artifact, which is a worse answer than either accepting or refusing
-    #: outright. Shape is what parse is for (RFC 0002 D4).
+    #: outright. Shape is what parse is for (S-0019/D-4).
     imported_from: str | None = PydanticField(default=None, min_length=1)
 
 
@@ -160,9 +160,9 @@ class Relationship(SpecModel):
 
 class EntityModel(SpecModel):
     """The per-project entity model document (``spec_version``), exactly one
-    per project (RFC 0002 §5.5).
+    per project (S-0019/spec-model-surface).
 
-    ``reconcile:`` sits here, at the document root, exactly where RFC 0016
+    ``reconcile:`` sits here, at the document root, exactly where S-0033
     §5.3's YAML puts it — a sibling of ``entities:``, not a member of one.
     That placement is the schema, not a convenience: a reconcile check relates
     *two* entities (``sum(order_item.line_total) by order_id`` against
@@ -170,21 +170,21 @@ class EntityModel(SpecModel):
     one document a project is guaranteed to have exactly one of.
     """
 
-    #: Pinned to the one version bloomery implements (RFC 0018 D7). It was
+    #: Pinned to the one version bloomery implements (S-0035/D-7). It was
     #: ``int`` with ``ge=1``, which accepted a document written for a future
     #: bloomery and silently applied v1 semantics to it — the exact misreading
     #: a version key exists to refuse. This key is also the document-kind
     #: discriminator, so it stays required: a document without one cannot be
     #: identified at all.
     spec_version: Literal[1]
-    #: Declared in order to be refused (RFC 0055 D7). See
+    #: Declared in order to be refused (S-0062/D-7). See
     #: :func:`~bloomery.spec.common._refuse_seeds`: a seed is data in the
     #: repository, and the answer an author needs is "never", not "unknown key".
     seeds: SeedsRefusal = None
     entities: dict[RelationName, Entity]
     relationships: tuple[Relationship, ...] = ()
     reconcile: tuple[Reconcile, ...] = ()
-    #: Cross-entity coverage checks (RFC 0016 D90). Beside ``reconcile:`` for
+    #: Cross-entity coverage checks (S-0033/D-90). Beside ``reconcile:`` for
     #: the same reason it is there: a check that relates two entities belongs
     #: to neither of them.
     coverage: tuple[Coverage, ...] = ()

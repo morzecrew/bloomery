@@ -1,0 +1,581 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      Several mappings may target one entity; they are merged with `UNION ALL`. This
+      replaces the refusal at `resolve/build.py:849` and keeps the promise its message
+      makes. Consequence: `EntityIR` gains a set of source mappings where it had one,
+      and every consumer reading "the mapping" of an entity must be revisited.
+    paths:
+      - src/bloomery/guardrails/quality.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_resolve/test_build.py
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      **No new syntax.** Multi-source is expressed by two mappings naming one `target:`.
+      A `sources:` list or a `union:` kind would duplicate what `target:` already
+      says, with the failure mode that the two can disagree.
+    paths: [tests/fixtures/multi_source/mapping_platform.yaml]
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      Mappings are unioned in **lexicographic order of source name**, so the emitted
+      artifact is byte-identical across processes. Row order is explicitly **not**
+      claimed — `UNION ALL` is a bag, and nothing downstream may depend on source
+      order.
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/ir/nodes.py
+      - tests/unit/test_determinism_guard.py
+      - tests/unit/test_emit/test_sqlmesh.py
+      - tests/unit/test_resolve/test_build.py
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      Every mapping must produce the entity's **full declared key** and **every required
+      field**. A partial key makes the union meaningless; a NULL-filled required field
+      is a broken contract silently created by the merge.
+    paths: [src/bloomery/resolve/build.py, tests/unit/test_resolve/test_build.py]
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      A key appearing in more than one source is refused by a generated **blocking**
+      audit (`on_fail: fail`), not configurable to `flag` or `quarantine`. Overlap
+      is either duplication or a shared key space by accident, and both are refusals.
+      The message names the identity-resolution step as the escape hatch. Consequence:
+      bloomery's union is for disjoint key sets, permanently — matching stays a step,
+      and S-0038 is not reopened.
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/emit/lower/silver.py
+      - tests/e2e/test_dbt_parse.py
+      - tests/e2e/test_sqlmesh_replan.py
+      - tests/execution/test_merged_cleaning.py
+      - tests/golden/test_sqlmesh_duckdb.py
+      - tests/unit/test_examples.py
+  - id: D-6
+    grade: LOCKED
+    text: >-
+      The union is the **first** silver stage: union → dedupe → rules. A rule evaluated
+      per source would judge rows the merged relation does not contain, which is the
+      same argument that fixed dedupe-before-rules in S-0033.
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - tests/unit/test_resolve/test_build.py
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      A `_source` system column carries provenance. It is load-bearing rather than
+      diagnostic: the collision audit reports which sources collided, and without
+      it the report is unactionable on a multi-source entity.
+    paths:
+      - pages/docs/reference/stability.md
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/spec/common.py
+      - tests/unit/test_emit/test_sqlmesh.py
+      - tests/unit/test_steps/test_lowering.py
+  - id: D-8
+    grade: OPEN
+    text: >-
+      Whether an optional field a mapping does not produce needs explicit acknowledgement,
+      and in what spelling. Silence is indistinguishable from a typo, which argues
+      for acknowledgement; `unmapped:` is the nearest existing mechanism but is source-column-shaped.
+      Whoever builds it decides and logs it.
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      Change classification needs no new class — but adding a mapping to a single-source
+      entity is **two** `ADDITIVE` changes, rows and the `_source` column, not one.
+      `_source` exists only on merged entities (D7), so the column set does depend
+      on mapping count; emitting it everywhere to avoid that would churn every golden
+      in the corpus for a constant. Verify the removal rows during implementation:
+      dropping to one mapping removes `_source`, and anything reading it must trip
+      the existing contract check.
+    paths:
+      - tests/unit/test_plan/test_diff.py
+      - tests/unit/test_resolve/test_build.py
+  - id: D-10
+    grade: OPEN
+    text: >-
+      `scd: type2` combined with multi-source. The collision audit would misfire across
+      versions, and fixing it needs validity columns nothing models (S-0040/phase-2-the-as-of-join).
+      Refusing the combination is the expected answer; whoever builds this decides
+      and logs it.
+  - id: D-11
+    grade: OPEN
+    text: >-
+      Whether the union stage emits a generated `IS NULL` audit over `required: true`
+      columns. D4's coverage check proves each mapping *declares* the field and proves
+      nothing about what its source path returns per row — `required:` is a schema
+      declaration, and the runtime null check is the separate `assert: {not_null:
+      true}` mechanism. The asymmetry predates this RFC; a merge makes it worse, because
+      one bad source poisons a column the others fill correctly. Whoever builds this
+      decides, and the decision is either the audit or an explicit statement that
+      `required:` means coverage only.
+  - id: D-12
+    grade: LOCKED
+    text: >-
+      `(target, source)` is **unique**: two mappings for one entity may not read the
+      same source relation. Lexicographic ordering needs a total order and two branches
+      on one relation tie, which would leave branch order undefined, `_source` ambiguous,
+      and the collision audit unable to name a branch. Consequence: reading one relation
+      twice is expressed as one mapping with a filter, not two mappings.
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_guardrails/test_quality.py
+      - tests/unit/test_resolve/test_build.py
+  - id: D-13
+    grade: LOCKED
+    text: >-
+      The collision audit reads the **union output, before dedupe**, and groups by
+      **every** declared key column. Reading `silver.order` would let dedupe collapse
+      the colliding rows before the audit counts them — the audit would be checking
+      the one relation guaranteed not to contain what it looks for. Grouping by a
+      partial key would merge distinct composite keys and block valid data, which
+      on a blocking audit is the worst failure available.
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - tests/execution/test_merged_cleaning.py
+      - tests/unit/test_emit/test_quality_artifacts.py
+  - id: D-14
+    grade: LOCKED
+    text: >-
+      **P1 refuses `dedupe:` and `quarantine:` on a merged entity** (§5.6). The boundary
+      is drawn at those two block-level declarations because it is exact, not approximate:
+      every use of the per-source row identity in the silver lowering sits behind
+      one of them — the reject projection, the conservation audit, the dedupe sort
+      key, the replay merge — and the `on_fail: fail` audit path references it zero
+      times. A merged entity may still carry field and row rules (`flag`/`fail`),
+      `assert:`, `references:` and `coverage:`. Consequence: P1 ships the union to
+      entities with no dedupe and no quarantine, which is the shape the `multi_source`
+      fixture needs, and the two blocks return in P2.
+    paths:
+      - src/bloomery/guardrails/quality.py
+      - src/bloomery/plan/diff.py
+      - tests/fixtures/multi_source/entity_model.yaml
+      - tests/unit/test_plan/test_diff.py
+      - tests/unit/test_quality/test_reconcile.py
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      **Discovery: the metadata audit would refuse valid data on a merged entity.**
+      It is `COUNT(*) OVER (PARTITION BY _source_row_id) > 1` over `@this_model`,
+      and `_source_row_id` is unique per *source relation* (S-0033/D-21), so two sources
+      with ordinary per-table row sequences collide on the first run — a **blocking
+      false refusal**, the failure D13 names as the worst available. The one-word
+      fix (`PARTITION BY _source, _source_row_id`) is deliberately not taken in P1:
+      it makes the audit body depend on mapping count, which is the same "does the
+      artifact shape vary" question as D7 and belongs with the reject-table decision
+      in P2 rather than scattered ahead of it.
+  - id: D-16
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **S-0033/D-10 is not reopened
+      here.** That decision chose one reject table per entity *on the ground that
+      per-mapping tables make replay N-way*, and a merged entity is N-way by construction.
+      `reject_id` itself survives — it is already a digest of `(source_relation, row
+      identity)`, so the pair was designed for exactly this — but replay re-runs *the*
+      current mapping, and branching it per source is the thing D10 refused. N-way
+      replay gets its own RFC, argued against D10 directly, rather than being decided
+      inside a feature branch.
+  - id: D-17
+    grade: ASSUMED
+    text: >-
+      **`bloomery_ir_version` 5 → 6.** `EntityIR` gains its source tuple, and the
+      canonical encoder writes each dataclass's field names and count, so every fingerprint
+      moves whether or not a project merges anything. Stated because it is exactly
+      what went unstated at v4, where the bump was missed and only the encoder's own
+      strictness kept it honest. `plan()` refuses to diff a v5 IR against a v6 one.
+    paths: [src/bloomery/ir/nodes.py]
+  - id: D-18
+    grade: LOCKED
+    text: >-
+      **`_source` joins `RESERVED_MEMBER_NAMES`.** Every other generated column is
+      reserved — `_quality_flags`, `_quality_ok`, `_load_id`, `_ingested_at`, `_source_row_id`,
+      `has_quality_flags` — and a generated column that is not is one an author can
+      collide with. Reserved unconditionally, not only on merged entities: a name
+      that is legal until a second mapping arrives is a trap laid for the change that
+      adds one.
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/resolve/steps.py
+      - src/bloomery/spec/common.py
+      - tests/unit/test_spec/test_entity.py
+  - id: D-19
+    grade: ASSUMED
+    text: >-
+      **The quality mart accounts per entity, not per source.** Its mapping identity
+      is `f"{source.relation}->{entity.name}"`, which has no single value on a merged
+      entity. Per entity, because the mart's row is "one rule evaluation on this entity"
+      and the rules run on the merged relation (D6) — a per-source split would report
+      rule counts against a population the rule never saw. Provenance is still reachable:
+      `_source` is a real column, so a per-source view is a filter rather than a schema.
+    paths:
+      - src/bloomery/emit/lower/quality_mart.py
+      - src/bloomery/emit/lower/silver.py
+  - id: D-20
+    grade: ASSUMED
+    text: >-
+      **dbt emits one `source()` per mapping**, and the model body unions them. Nothing
+      about the union needs a dbt capability it lacks, so refusing it there — as dbt
+      is refused for `python_model` steps, mart assertions and reject tables — would
+      be a limitation invented rather than found.
+    paths: [src/bloomery/emit/dbt/__init__.py, tests/unit/test_emit/test_dbt.py]
+  - id: D-21
+    grade: LOCKED
+    text: >-
+      **A merged entity may not mix a mapped source with a step-produced output**,
+      refused explicitly rather than left to fail somewhere downstream. §8 already
+      puts it out of scope; this is the refusal that makes the scope real, since a
+      step output entity carries `produced_by` and no mapping at all, and the union
+      has nothing to order it by.
+    paths: [src/bloomery/resolve/steps.py, tests/unit/test_steps/test_lowering.py]
+  - id: D-22
+    grade: ASSUMED
+    text: >-
+      **Answers D8 (`OPEN`) — no acknowledgement, and §9's premise for wanting one
+      is false.** A mapping naming a field the entity model does not declare is *already*
+      refused: `MissingReference: mapping maps unknown field 'loyalty_teir' of entity
+      'order'`, measured on this tree against the existing single-mapping path. So
+      a misspelling is a compile error rather than a silent NULL, and the only thing
+      an acknowledgement could mark is a correctly-spelled field a source deliberately
+      lacks — the legitimate case. Adding a key for that would also strain D2's "no
+      new syntax", to flag the one shape the RFC agrees is fine. §9's risk row is
+      corrected in place.
+    paths: [tests/fixtures/multi_source/mapping_legacy.yaml]
+  - id: D-23
+    grade: ASSUMED
+    text: >-
+      **Answers D10 (`OPEN`) — `scd: type2` plus multi-source is refused.** The expected
+      answer, and D14 makes it cheap: the collision audit would fire on every key
+      holding versions from two sources, and distinguishing a version from a collision
+      needs the validity columns S-0040/phase-2-the-as-of-join proposes and does not
+      build. Refused with a message naming that dependency, so the refusal routes
+      rather than merely blocks.
+    paths: [src/bloomery/resolve/build.py, tests/unit/test_resolve/test_build.py]
+  - id: D-24
+    grade: ASSUMED
+    text: >-
+      **Answers D11 (`OPEN`) — `required:` means coverage, and the runtime null check
+      stays `assert: {not_null: true}`.** No generated `IS NULL` audit. D11 framed
+      the choice as the audit or an explicit statement; this is the statement. Generating
+      one for merged entities only would make a third thing depend on mapping count,
+      and the authored mechanism already exists, is documented, and lowers to the
+      same audit a generated one would emit. §7's how-to says to use it on required
+      fields of a merged entity, which is where a reader meets the asymmetry.
+  - id: D-25
+    grade: OPEN
+    text: >-
+      **Where per-source column expressions live — the IR restructure D1 understates,
+      found by building.** D1 says `EntityIR` "gains a set of source mappings where
+      it had one", which reads as a one-field change. It is not: `ColumnIR` carries
+      **one** `expr: SqlExpr`, lowered from *the* mapping's field (`resolve/build.py:_column`),
+      and a union needs one projection per source per column — different source paths
+      and different transform chains. No arrangement of `EntityIR.sources` alone can
+      express that, so the union cannot be emitted until this is settled. Three shapes,
+      none free: **(a)** `SourceIR` gains `columns`, and `EntityIR.columns` becomes
+      the merged *schema* (name, type, canonical, unit, tax_basis, required) with
+      `expr`/`recipe_id` moving per-source — correct, and it touches the IR's central
+      node plus 37 `.columns` read sites outside marts, `plan/diff.py:338`'s `column.expr.sql`,
+      and the guardrails that walk derivations; **(b)** keep `expr` on `EntityIR.columns`
+      as the first source's — a lie on every merged entity and exactly the silent-wrong-answer
+      this project refuses; **(c)** `ColumnIR.exprs` as a tuple index-coupled to `sources`
+      — no new node, and a coupling nothing enforces. **Lean (a).** Whoever takes
+      this decides and logs it *before* writing the union, because it decides what
+      P1 costs.
+  - id: D-26
+    grade: ASSUMED
+    text: >-
+      **Answers D25 (`OPEN`) — option (a), and D25's blast-radius figure was wrong
+      by an order of magnitude.** The lowered expression moves to a new column-grained
+      `SourceColumnIR` on `SourceIR`; `ColumnIR` keeps the schema (§5.7). D25 said
+      "37 `.columns` read sites" and estimated the cost from that; measured, **exactly
+      8 sites read a `ColumnIR` lowering field, in 3 files** — `plan/diff.py` (`renamed_from`
+      ×4, `recipe_id`, `expr.sql`) and `emit/lower/silver.py` (`expr.ast()` ×2). Four
+      of those eight are `renamed_from`, which D25 mis-assigned to the lowering half
+      and which is declared on the EntityModel `Field`, so it does not move at all.
+      The 37 was a count of `.columns` readers, and `.columns` readers are overwhelmingly
+      *schema* readers — they survive untouched, which is the whole point of the split.
+      **Real cost: two constructors where there was one, and four call sites.** The
+      golden churn stands regardless — the IR shape moves and D17 bumps the version.
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/guardrails/conflict.py
+      - src/bloomery/guardrails/operands.py
+      - src/bloomery/guardrails/stage.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/plan/diff.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/resolve/facets.py
+      - src/bloomery/resolve/steps.py
+      - src/bloomery/resolve/timeline.py
+      - tests/bench/test_hydration.py
+      - tests/support/ir_factory.py
+      - tests/support/plan_ir.py
+      - tests/unit/test_emit/test_cube.py
+      - tests/unit/test_emit/test_dbt.py
+      - tests/unit/test_emit/test_sqlmesh.py
+      - tests/unit/test_guardrails/test_conflict.py
+      - tests/unit/test_resolve/test_build.py
+      - tests/unit/test_resolve/test_facets.py
+      - tests/unit/test_unresolved.py
+  - id: D-27
+    grade: OPEN
+    text: >-
+      **The `direct:` shadow column builds a lowering outside the builder, and on
+      a merged entity it is not one column.** `guardrails/conflict.py:_shadow` constructs
+      a `ColumnIR` with a lowered `expr` — the `<field>__direct` extraction that the
+      reconcile audit compares a recipe-derived value against — and the guardrail
+      stage merges it into the entity after `_build_entity` has finished. Under D26's
+      split that constructor has to produce a schema column *and* a projection, which
+      is mechanical. What is not mechanical: **the direct extraction reads a source
+      payload**, so a merged entity needs one shadow projection per source, and D14
+      does not refuse the combination — `direct:` is a catalog-recipe property, unrelated
+      to `dedupe:`/`quarantine:`. Three options: emit one shadow projection per source
+      and keep the audit comparing the merged column (probably right, and it is the
+      same fan-out the union already does); refuse `direct:` on a merged entity in
+      P1 (cheap, and it narrows a capability for a reason unrelated to it); or refuse
+      the whole path-conflict amendment there (worse — it removes a check rather than
+      scoping it). Decide before writing the split, not during: the shadow is built
+      from a `Derivation`, which is per entity and not yet per source.
+  - id: D-28
+    grade: LOCKED
+    text: >-
+      **Answers D27 — a `direct:` path is refused on a merged entity in P1.** `direct:`
+      is a field of `RecipeFieldMapping`, so it is per mapping, and two mappings may
+      record *different recipes* for one column — `recipe_id` is in the lowering half
+      for exactly that reason. A merged entity can therefore have a direct path on
+      one source and none on another, which leaves the `<field>__direct` shadow NULL
+      for the second source's rows. That is not a gap to fill: a NULL shadow is indistinguishable
+      from a genuinely NULL direct value, so the reconcile audit either reports a
+      false disagreement or silently skips rows it was built to check — and a check
+      that quietly stops checking is worse than one that is absent. **The cost of
+      refusing is measured, not assumed: `direct:` appears once in the entire corpus**
+      (`tests/fixtures/path_conflict/mapping.yaml`), so no project shape loses anything.
+      P2 chooses between one shadow projection per source with a null-safe audit,
+      and a coverage rule in D4's shape (if any mapping records a direct path, all
+      must); this RFC does not pick, because the choice is about what a reconcile
+      check *means* across sources and that deserves the argument. Consequence for
+      D26: `_shadow` only ever runs on a single-source entity, so the split feeds
+      it the same way it feeds `_column_ir` and nothing about it becomes N-way.
+    paths: [src/bloomery/quality/predicates.py]
+  - id: D-29
+    grade: LOCKED
+    text: >-
+      **§5.6's consequence was wider than its argument — P1 refuses the whole quality
+      system on a merged entity, not only `dedupe:` and `quarantine:`.** D14's *reason*
+      survives measurement: every use of `_source_row_id` in the silver lowering does
+      sit behind one of those two blocks. Its *consequence* — "a merged entity may
+      therefore still carry field rules and row rules" — does not follow, because
+      the row identity is not the only per-mapping coupling. **The rule lowering itself
+      is per mapping, and sits behind neither block**: `lower_quality(entity, mapping,
+      …)` takes one `Mapping` (`resolve/build.py`), so `mappings[0]` would silently
+      win; `opts_in(entity, mapping)` is true when *that mapping's* fields carry `quality:`,
+      so two mappings can disagree about whether the entity joined the system at all
+      — and that same predicate selects `_try_cast_shape`, so opt-in reaches column
+      lowering; a generated `coercible` rule carries `field_sources(mapping, column)`,
+      *that mapping's* raw JSONPaths, which the extract projects per branch, so source
+      B's branch would have to read source A's `$.a.b` off a relation that need not
+      have it, for a rule evaluated once over the merged relation; generated `enum`
+      spellings come from the mapping's transform chain the same way; and `check_quality`'s
+      `by_target` dict keeps the **last** mapping per target, so every per-mapping
+      quality guardrail would check one of N. The boundary D14 wanted — exact rather
+      than approximate — is therefore `opts_in`, one predicate that already exists
+      and already decides this. **`assert:`, `references:` and `coverage:` survive**,
+      measured rather than assumed: `lower_asserts` reads the entity model and the
+      draft IR and never a mapping, and the relationship-driven checks are entity-model-shaped.
+      Consequence: P1 ships the union to entities outside the quality system, which
+      is the shape the `multi_source` fixture needs, and P2 restores the system to
+      a merged entity as one piece rather than in two unrelated halves. *Added by
+      execution 2026-08-16 — see logs/T-0004.md (V-001, attempt 1).*
+    paths: [tests/unit/test_quality/test_reconcile.py]
+  - id: D-30
+    grade: ASSUMED
+    text: >-
+      **Departs from D20 — the dbt target refuses a merged entity in P1**. D20's claim
+      about the *union* holds and shipped: the `UNION ALL` is the same shared SELECT
+      both targets render, and the dbt emitter does emit one `source()` per mapping.
+      What D20 did not account for is that the merge's correctness condition is a
+      **blocking audit** (D5), and this emitter has no artifact for one: its whole
+      test surface is `schema.yml` entries covering `not_null`, `accepted_values`
+      and a single expression test, and it emits no singular-test path at all. A generated
+      `GROUP BY <key> HAVING COUNT(DISTINCT _source) > 1` is none of those. Emitting
+      the union without it produces a model that compiles here, runs anywhere, and
+      double-counts an entity in silence — the degradation S-0025/D-3 refuses. **S-0033/fixed-pipeline-order-and-lowering's
+      target-coverage sentence deliberately was not stretched to cover this**: it
+      authorizes dbt's partiality for the *quality* artifacts, and a rule an author
+      chose to make blocking is not the same thing as the one check a feature cannot
+      be correct without. Consequence: merged entities are SQLMesh-only until the
+      dbt emitter grows a singular-test surface, which is its own change and not P2's.
+      D20's row is left standing — what it predicted is the thing this has to be read
+      against. *Added by execution 2026-08-16 — see logs/T-0004.md (V-002, attempt
+      1).*
+    paths: [tests/e2e/test_dbt_parse.py, tests/unit/test_emit/test_dbt.py]
+  - id: D-31
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **P2 is demand-gated: the
+      design lands now, the code waits for a named consumer.** S-0040/D-6 applies
+      this test to its own P2 and this document did not, which left §12 reading as
+      a queue rather than a boundary. The asymmetry has no justification — P1's refusals
+      are honest, tested, and route to the shipped workaround, so nothing is broken
+      while P2 is unbuilt, and P2a's cost falls on S-0033's rule catalogue, which
+      every entity reads, merged or not. What is **not** deferred is the design: D29's
+      couplings were measured against this tree while P1's context was live, and that
+      context is the asset that decays — the prose does not. So D32–D35 are settled
+      here and §12's P2a–P2c are specified; implementation begins when a project needs
+      quality rules on a merged entity, and not before. Consequence: the two refusal
+      messages stop saying "until P2 restores it". A promise in an error message is
+      one a user plans around, and this decision makes P2 a phase rather than a date.
+  - id: D-32
+    grade: LOCKED
+    text: >-
+      **A rule's per-mapping dependency is projected as a branch-local column; the
+      rule stays entity-grained (P2a).** The mechanism is not invented here — `coercible`
+      already reads projected `_src_<rule>_<n>` aliases (`quality/predicates.py:source_alias`)
+      rather than inline JSONPaths, because the raw paths live one level down in the
+      extract SELECT, and P1 turned that projection site into `_branch_select`. So
+      a fact only one branch knows already has a way to reach a rule the merged relation
+      evaluates once. **D6 is not violated, and the reading that says it is — that
+      projecting a verdict per branch just *is* "a rule evaluated per source" — mistakes
+      what D6 argues.** D6 argues from the *row population* — "a rule evaluated per
+      source would judge rows the merged relation does not contain" — and the union
+      is `ALL`, so a branch-projected **scalar** verdict judges exactly the rows the
+      union contains. Dedupe runs after the union and may drop a row; that row's flag
+      is then unused, which is not a wrong answer. **The boundary is `WINDOWED_KINDS`**
+      (`quality/predicates.py`, currently `{unique}`): a windowed verdict depends
+      on the population and so may not be computed per branch — and it does not need
+      to be, since its inputs are the produced column values, which D26's split already
+      makes mapping-invariant. Consequence: `coercible` sheds its per-source alias
+      set for one branch-computed boolean ("every source path *this branch* read was
+      non-null"), which collapses the arity problem at the level where arity is known;
+      `in_enum` takes the same shape rather than a second mechanism, its admissible
+      set being the branch's own `enum_map` chain. **The tempting wrong fix is recorded
+      so it is not re-proposed:** NULL-filling a missing `_src_` alias to make the
+      arities agree renders `is_not_null` false, the conjunction never fires, and
+      the rule silently stops checking on that branch — the failure D28 refuses by
+      name, a check that quietly stops checking being worse than one that is absent.
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/guardrails/quality.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/plan/diff.py
+      - src/bloomery/quality/lower.py
+      - src/bloomery/quality/predicates.py
+      - src/bloomery/resolve/build.py
+      - tests/engines/test_merged_cleaning_engines.py
+      - tests/execution/test_merged_cleaning.py
+      - tests/fixtures/multi_source_quality/mapping_legacy.yaml
+      - tests/support/quality_rules.py
+      - tests/unit/test_quality/test_lower.py
+      - tests/unit/test_quality/test_predicates.py
+  - id: D-33
+    grade: LOCKED
+    text: >-
+      **Every mapping of an entity opts into the quality system, or none does; disagreement
+      is refused (P2a).** `opts_in(entity, mapping)` is a disjunction over one mapping's
+      field-level `quality:` blocks, so two mappings can disagree about whether the
+      entity joined the system at all — and the same predicate selects `_try_cast_shape`,
+      so the disagreement reaches column lowering and not only rule generation. This
+      is not the "where is it computed" question D32 answers; it is two contradictory
+      statements by an author, and the honest response to those is a refusal naming
+      both source paths. It also settles a **fourth** per-mapping coupling D29 did
+      not enumerate: `_repair_bodies` (`resolve/build.py`) reads `mapping.fields[<column>].quality[].repair`,
+      so two mappings may name different repair recipes for one column. Under agreement
+      that is the same refusal rather than a fifth case — and the spliced body itself
+      is invariant, since it reads the *produced* column, not a source path. Consequence:
+      `lower_quality` may go on taking one `Mapping`. Agreement is what makes any
+      of them the same answer, and the refusal — not a merge rule — is what makes
+      that safe.
+    paths:
+      - src/bloomery/guardrails/quality.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_guardrails/test_quality.py
+      - tests/unit/test_resolve/test_build.py
+  - id: D-34
+    grade: LOCKED
+    text: >-
+      **Artifact shape varies with mapping count; `_source` stays merged-only (P2b).**
+      The question D7 and D15 both defer, answered once for the provenance column,
+      the metadata audit body and the collision audit together. The metadata audit
+      becomes `PARTITION BY _source, _source_row_id` on a merged entity and stays
+      `PARTITION BY _source_row_id` elsewhere. **The cost is a new precedent, stated
+      here rather than discovered later:** until now the *set* of emitted artifacts
+      varied with a spec, never a generated **body**. The alternative — `_source`
+      on every entity, one uniform audit body, mapping count invisible in the artifacts
+      — buys a reader the property that a merged entity looks like any other, and
+      costs a corpus-wide golden re-stamp plus a constant column on every single-source
+      silver model, which is precisely what D9 declined to pay on measured grounds.
+      Continuing that decision is cheaper than reversing it, and reversing it buys
+      nothing but uniformity. **A third option is named only to close it:** making
+      `_source_row_id` globally unique in bronze would dissolve the question, and
+      it does so by relocating the problem into S-0033/D-21's ingestion contract and
+      breaking every table already landed under it.
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - tests/engines/test_merged_cleaning_engines.py
+      - tests/execution/test_merged_cleaning.py
+      - tests/golden/test_sqlmesh_dialects.py
+  - id: D-35
+    grade: LOCKED
+    text: >-
+      **`_source` joins the dedupe sort key, immediately ahead of `_source_row_id`
+      (P2b).** `dedupe_sort_columns` ends in the row identity, and its totality argument
+      is "no two rows can compare equal *given the D21 metadata contract*" — an identity
+      unique per **source relation**. On a merged entity two rows from different sources
+      sharing an entity key therefore compare equal and the survivor is undefined.
+      That shape is what D5's collision audit refuses, but an audit runs *after* the
+      model materialises, so the window is real and the totality argument would be
+      leaning on a blocking check in a different artifact. Adding `_source` restores
+      it structurally and locally, for one extra sort term on merged entities only
+      (D34). It is the same defense-in-depth already pinned into that exact column
+      by `NULLS LAST`, against an illegally-null identity the audit also catches.
+      Consequence: where two rows would have compared equal, the survivor is the lexicographically-later
+      source — arbitrary as business logic, deterministic as an artifact, and reachable
+      only in the run the collision audit then stops.
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/quality/dedupe.py
+      - tests/execution/test_merged_cleaning.py
+  - id: D-36
+    grade: ASSUMED
+    text: >-
+      **Answers D28 — `direct:` is allowed on a merged entity when *every* mapping
+      records one for the column, and refused when they disagree.** D28 refused the
+      combination outright and handed P2 a choice between "one shadow projection per
+      source with a null-safe audit" and "a coverage rule in D4's shape". Measured
+      with the refusal disabled against two mappings that *agree*, the null-safe audit
+      is answering the wrong question: the shadow column is duplicated on the entity
+      **and on every branch**, the reconcile audit is emitted twice, and each branch
+      carries the other's extraction — `shop__items` projecting `$.unit_price` off
+      a relation that does not have it. That is not a NULL-shadow problem, it is `Derivation`
+      being built per mapping while `_shadow` returns one projection: the same per-mapping-fact-on-a-shared-node
+      shape D26 split for `expr` and D32 for the rule inputs. So the coverage rule
+      is the answer and the null-safe audit is unnecessary under it — under agreement
+      no branch's shadow is NULL for want of a path, and the reconcile check keeps
+      the meaning it has on one source: the recipe-derived value against the direct
+      value *that row's own mapping* extracted, which is D32's principle applied to
+      a second reader. Consequence: `Derivation` carries its source relation, `path_conflict_amendments`
+      fans out per source like every other lowering, and disagreement is refused by
+      D33's pattern rather than tolerated. D28's row stands unamended — its refusal
+      is correct until this one is executed, and what it predicted is the thing this
+      has to be read against. *Added by execution 2026-09-03 — see logs/T-0012.md
+      (F-8), which carries the probe output.*
+    paths:
+      - src/bloomery/guardrails/conflict.py
+      - src/bloomery/guardrails/stage.py
+      - src/bloomery/resolve/build.py
+      - tests/execution/test_path_conflict.py
+      - tests/fixtures/path_conflict_merged/entity_model.yaml
+      - tests/fixtures/path_conflict_merged/mapping_legacy.yaml
+      - tests/golden/test_sqlmesh_duckdb.py
+      - tests/unit/test_fixtures.py
+      - tests/unit/test_guardrails/test_conflict.py
+      - tests/unit/test_resolve/test_build.py
+      - tests/unit/test_resolve/test_resolution.py

@@ -1,5 +1,5 @@
 """The edge-label vocabulary is closed, and guarded from both sides
-(RFC 0031 §5.3, §6, D6; ``logs/T-0005.md`` D-021).
+(S-0048/every-label-is-handled-and-the-vocabulary-is-closed-here, S-0048/tests, S-0048/D-6; ``logs/T-0005.md`` D-021).
 
 ``_EDGE_SHAPES`` is the closed set of ``(label family, src kind, dst kind)``
 triples the two builders in ``resolve/graph.py`` can emit. Two guards hold it
@@ -7,7 +7,7 @@ true, and **neither alone is enough**:
 
 - the **corpus** guard compiles every fixture and asserts what it emits is a
   *subset*. It cannot see a shape no fixture exercises, which is exactly how
-  RFC 0031's first draft lost both ``step → step`` forms and the whole
+  S-0048's first draft lost both ``step → step`` forms and the whole
   ``step:<ref@version>`` label.
 - the **source** guard reads every ``Edge(...)`` construction in that module
   and asserts the same subset relation. It sees shapes nothing exercises,

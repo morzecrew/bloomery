@@ -1,5 +1,5 @@
 # A wide mart at order-line grain, and a rollup of it at month × customer
-# (RFC 0058 §5.1). The rollup names what it *keeps*; what it drops — every
+# (S-0065/the-shape). The rollup names what it *keeps*; what it drops — every
 # other column of `order_items` — is derived, because listing both is two
 # statements of one fact that will disagree (D4).
 marts_version: 1

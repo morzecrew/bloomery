@@ -119,7 +119,7 @@ def test_a_derived_metric_expression_must_parse(expr: str) -> None:
 
 
 def test_two_bad_expressions_in_one_document_are_one_batched_refusal() -> None:
-    """RFC 0002 D6, which is the reason this lives at the parse stage: an
+    """S-0019/D-6, which is the reason this lives at the parse stage: an
     author fixing one typo at a time is the failure mode the batching exists
     to remove, and a validator that raised per field would reintroduce it."""
     with pytest.raises(SpecParseError) as excinfo:
@@ -161,7 +161,7 @@ def test_the_validator_returns_the_authored_text_byte_for_byte() -> None:
     one that did would be invisible.
 
     The authored string is what reaches the IR and therefore the project
-    fingerprint (RFC 0003), so normalising it here — returning
+    fingerprint (S-0020), so normalising it here — returning
     ``parse_one(expr).sql()`` instead of ``expr`` — would move every
     fingerprint in every project. Sabotaged exactly that way, the whole
     default test profile stayed green: the fixture corpus is already written in
@@ -193,7 +193,7 @@ def test_a_second_statement_is_refused() -> None:
     which SQLGlot will not re-parse, so it crashed the emitter with the same
     raw ``ParseError`` this validator exists to prevent. The quality guardrail
     reached the same refusal from the same reasoning for an expression rule
-    (RFC 0016 D95).
+    (S-0033/D-95).
     """
     with pytest.raises(SpecParseError) as excinfo:
         load_catalog(catalog(recipe="total / qty; DROP TABLE x"))

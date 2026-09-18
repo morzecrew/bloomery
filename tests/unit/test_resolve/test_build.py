@@ -1,4 +1,4 @@
-"""The IR builder (RFC 0003 §12, RFC 0004/0005 integration): lowering rules,
+"""The IR builder (S-0020/phasing, S-0021, S-0022 integration): lowering rules,
 materialization defaults, reachable-only metrics, batched typecheck failures."""
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def test_minimal_ir_lowering() -> None:
     assert entity.materialization is Materialization.FULL
     assert [c.name for c in entity.columns] == ["event_id", "kind", "occurred_at"]
     by_name = {c.name: c for c in entity.columns}
-    # The lowered expression moved to the source (RFC 0024 D26).
+    # The lowered expression moved to the source (S-0041/D-26).
     lowered = {c.name: c for c in entity.sources[0].columns}
     # A chain lowers through the registry builders; a chain-less mapping is a
     # declared-type cast at extraction.
@@ -79,7 +79,7 @@ def test_materialization_default_derives_from_partitioning() -> None:
     project, catalog = load_fixture("ecom_basic")
     ir = build_project_ir(project, catalog)
     by_name = {e.name: e for e in ir.entities}
-    # partition_by present → incremental_by_partition (RFC 0002 D7).
+    # partition_by present → incremental_by_partition (S-0019/D-7).
     assert by_name["order_item"].materialization is Materialization.INCREMENTAL_BY_PARTITION
     assert by_name["order_item"].partition_by == (
         PartitionSpec(transform="days", column="order_date"),
@@ -145,7 +145,7 @@ def test_relationships_are_lowered_sorted() -> None:
 
 
 def test_ecom_basic_mart_lowers_to_the_flattened_wide_schema() -> None:
-    """ecom_basic's mart document lowers at M5 (RFC 0010 D6): base columns
+    """ecom_basic's mart document lowers at M5 (S-0027/D-6): base columns
     unprefixed, via-flattened columns prefixed, the ordered date role expanded
     into the five buckets, the join resolved — all collections sorted."""
     project, catalog = load_fixture("ecom_basic")
@@ -182,7 +182,7 @@ def test_ecom_basic_mart_lowers_to_the_flattened_wide_schema() -> None:
         ),
     )
     assert mart.measures == ("gross_revenue",)
-    # RFC 0010 §10: every flattened column is a requestable dimension.
+    # S-0027 (§10): every flattened column is a requestable dimension.
     assert [d.ref.qualified for d in mart.dimensions] == [c.name for c in mart.columns]
     assert mart.materialization is Materialization.INCREMENTAL_BY_PARTITION
     assert mart.partition_by == (PartitionSpec(transform="days", column="ordered_day"),)
@@ -216,7 +216,7 @@ def test_role_playing_dates_lowers_both_roles() -> None:
 
 def test_catalog_date_dimension_lowers_onto_the_ir() -> None:
     """One catalog definition drives dim_date and the M6 time spine
-    (RFC 0008 D13); a catalog-free project carries none."""
+    (S-0025/D-13); a catalog-free project carries none."""
     project, catalog = load_fixture("ecom_basic")
     ir = build_project_ir(project, catalog)
     assert ir.date_dimension == DateDimensionIR(
@@ -267,7 +267,7 @@ fields:
 
 
 # ....................... #
-# The union merge (RFC 0024): two mappings, one entity.
+# The union merge (S-0041): two mappings, one entity.
 
 
 _MERGE_ENTITY_MODEL = """\
@@ -329,7 +329,7 @@ def _merge_sources(**overrides: str) -> dict[str, str]:
 
 
 def test_two_mappings_build_one_entity_ordered_lexicographically() -> None:
-    """RFC 0024 D1/D3: the refusal this replaces kept a promise nothing else
+    """S-0041/D-1, S-0041/D-3: the refusal this replaces kept a promise nothing else
     was scheduled to keep."""
     ir = build_project_ir(load_project(_merge_sources()))
     (entity,) = ir.entities
@@ -355,7 +355,7 @@ def test_two_mappings_build_one_entity_ordered_lexicographically() -> None:
 
 
 def test_a_field_no_mapping_produces_is_a_typed_null_in_every_branch() -> None:
-    """RFC 0024 §5.2 rule 3. A branch missing a column is not a narrower
+    """S-0041/what-the-compiler-checks rule 3. A branch missing a column is not a narrower
     branch — it is a `UNION ALL` whose arms disagree on arity."""
     ir = build_project_ir(load_project(_merge_sources()))
     (entity,) = ir.entities
@@ -403,7 +403,7 @@ def test_declaration_order_cannot_move_the_ir() -> None:
 
 
 def test_two_mappings_on_one_relation_are_refused() -> None:
-    """RFC 0024 D12: lexicographic order needs a total order, and two branches
+    """S-0041/D-12: lexicographic order needs a total order, and two branches
     on one relation tie."""
     sources = _merge_sources(
         mapping_z="""\
@@ -418,12 +418,12 @@ key:
         build_project_ir(load_project(sources))
     message = str(excinfo.value)
     assert "src_z" in message
-    assert "RFC 0024 D12" in message
+    assert "S-0041/D-12" in message
     assert "one mapping with a filter" in message
 
 
 def test_a_required_field_one_mapping_omits_is_refused() -> None:
-    """RFC 0024 D4. The check is the merge's, deliberately: one bad source
+    """S-0041/D-4. The check is the merge's, deliberately: one bad source
     silently poisons a column the others fill correctly."""
     sources = _merge_sources(
         mapping_a="""\
@@ -457,7 +457,7 @@ fields:
         build_project_ir(load_project(sources))
     message = str(excinfo.value)
     assert "'event_id'" in message
-    assert "RFC 0024 D4" in message
+    assert "S-0041/D-4" in message
     # The offending mapping, not the entity — an author needs the document to
     # open, in the message and in the source path (§6).
     assert "src_a" in message
@@ -484,10 +484,10 @@ key:
 
 
 def test_a_merged_entity_carries_dedupe_and_quarantine() -> None:
-    """RFC 0024 P2b and P2c: the two blocks D14 refused now reach the IR.
+    """S-0041/phasing (P-2)b and P2c: the two blocks D14 refused now reach the IR.
 
     D14's reason was the per-source row identity, which is unique within *one*
-    source relation (RFC 0016 D21) — so the dedupe order was not total and the
+    source relation (S-0033/D-21) — so the dedupe order was not total and the
     metadata audit would have refused correct data. Both are answered
     structurally: ``_source`` joins the sort key ahead of the identity (D35)
     and the audit partitions by the pair (D34).
@@ -527,7 +527,7 @@ def test_a_merged_entity_carries_dedupe_and_quarantine() -> None:
 
 
 def test_a_merged_entity_carries_quality_rules() -> None:
-    """RFC 0024 P2a: what D29 refused outright now compiles.
+    """S-0041/phasing (P-2)a: what D29 refused outright now compiles.
 
     Both mappings declare the same rule, which is what D33 requires — and the
     rule reaches the IR once, evaluated over the merged relation, while each
@@ -539,7 +539,7 @@ def test_a_merged_entity_carries_quality_rules() -> None:
 """
     metadata = 'unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]\n'
     sources = _merge_sources(
-        # The implicit `coercible` rule defaults to `quarantine` (RFC 0016
+        # The implicit `coercible` rule defaults to `quarantine` (S-0033
         # §5.2), so an entity with any quality surface needs a reject table.
         entity_model=_MERGE_ENTITY_MODEL.replace(
             "      note: {type: string}\n",
@@ -570,7 +570,7 @@ def test_a_merged_entity_carries_quality_rules() -> None:
 
 
 def test_two_mappings_declaring_different_rules_are_refused() -> None:
-    """RFC 0024 D33: the rules are evaluated once over the merged relation, so
+    """S-0041/D-33: the rules are evaluated once over the merged relation, so
     a set lowered from one mapping would silently drop what the others wrote.
 
     This is the shape ``opts_in`` alone cannot catch — both mappings *do* opt
@@ -591,7 +591,7 @@ def test_two_mappings_declaring_different_rules_are_refused() -> None:
     with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(sources))
     message = str(excinfo.value)
-    assert "RFC 0024 D33" in message
+    assert "S-0041/D-33" in message
     # It names a rule that differs, and routes to both documents.
     assert "kind_length_max" in message
     assert "src_a" in message
@@ -599,7 +599,7 @@ def test_two_mappings_declaring_different_rules_are_refused() -> None:
 
 
 def test_a_mart_over_a_merged_entity_flattens() -> None:
-    """Marts are not in RFC 0024's surface, and that is the claim being tested.
+    """Marts are not in S-0041's surface, and that is the claim being tested.
 
     A mart reads the base entity's *schema* — `columns`, `key` — and the silver
     relation, and the merge changes the shape of neither: the union is below the
@@ -680,7 +680,7 @@ def test_a_mapping_lowering_a_partial_key_is_refused() -> None:
 
 
 def test_a_direct_path_is_refused_on_a_merged_entity() -> None:
-    """RFC 0024 D36, answering D28. `direct:` is per mapping, so a merged
+    """S-0041/D-36, answering D28. `direct:` is per mapping, so a merged
     entity can have one on one source and none on another — which leaves the
     shadow NULL for the other's rows, indistinguishable from a genuinely NULL
     direct value, and the reconcile audit either reports a false disagreement
@@ -734,7 +734,7 @@ canonical_fields:
     with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(sources), catalog)
     message = str(excinfo.value)
-    assert "RFC 0024 D36" in message
+    assert "S-0041/D-36" in message
     assert "kind__direct" in message
     # Both documents named: the one that must gain a path and the one that
     # could drop it, because either is a fix and the author picks.
@@ -743,7 +743,7 @@ canonical_fields:
 
 
 def test_a_direct_path_agreed_by_every_mapping_is_accepted() -> None:
-    """RFC 0024 D36's other half, and the one a refusal test cannot reach: an
+    """S-0041/D-36's other half, and the one a refusal test cannot reach: an
     agreeing merge compiles, and each branch projects **its own** path.
 
     Without this the D36 change would pass its suite by refusing everything,
@@ -808,7 +808,7 @@ canonical_fields:
 
 
 def test_a_key_lowered_column_counts_as_producing_it() -> None:
-    """RFC 0024 D36. `resolve.refs` lets a mapping lower a **declared non-key**
+    """S-0041/D-36. `resolve.refs` lets a mapping lower a **declared non-key**
     entity field under `key:` — it refuses only an undeclared name, and the
     same field under both blocks — so a column can be produced by one branch's
     `fields:` and another's `key:`.
@@ -863,7 +863,7 @@ canonical_fields:
     with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(sources), catalog)
     message = str(excinfo.value)
-    assert "RFC 0024 D36" in message
+    assert "S-0041/D-36" in message
     # The fix has to be one the silent mapping can perform: a `key:` block has
     # no `direct` key, so "record a direct: path there too" names nothing.
     assert "only a recipe mapping can record a direct: path" in message
@@ -1016,7 +1016,7 @@ canonical_fields:
 
 
 def test_a_field_occupying_the_shadow_name_is_refused() -> None:
-    """RFC 0006 §5.5. The guardrail adds `<field>__direct` only when the entity
+    """S-0023/stage-shape (§5.5.) The guardrail adds `<field>__direct` only when the entity
     does not already carry that column — an idempotence guard — so an
     *authored* column of that name silently takes the shadow's place while the
     reconcile audit goes on referencing it.
@@ -1065,7 +1065,7 @@ canonical_fields:
         build_project_ir(load_project(sources), catalog)
     message = str(excinfo.value)
     assert "net_price__direct" in message
-    assert "RFC 0006 §5.5" in message
+    assert "S-0023/path-conflict-the-guardrail-that-does-not-raise" in message
 
 
 def test_a_shadow_name_without_a_direct_path_stays_legal() -> None:
@@ -1128,22 +1128,22 @@ def test_the_shadow_suffix_is_the_one_the_guardrail_appends() -> None:
 
 
 def test_scd_type2_is_refused_on_a_merged_entity() -> None:
-    """RFC 0024 D23: the collision audit would fire on every key holding
+    """S-0041/D-23: the collision audit would fire on every key holding
     versions from two sources, and telling a version from a collision needs the
     audit to read the validity interval — which the union's lowering does not,
-    even now that RFC 0023 §5.3 models the interval."""
+    even now that S-0040/phase-2-the-as-of-join models the interval."""
     model = _MERGE_ENTITY_MODEL.replace(
         "    key: [event_id]\n", "    key: [event_id]\n    scd: type2\n"
     )
     with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(_merge_sources(entity_model=model)))
     message = str(excinfo.value)
-    assert "RFC 0024 D23" in message
-    assert "RFC 0023" in message
+    assert "S-0041/D-23" in message
+    assert "S-0040" in message
 
 
 def test_the_refusals_are_batched() -> None:
-    """§5.2: an author sees every disagreement at once (RFC 0002 D6), rather
+    """§5.2: an author sees every disagreement at once (S-0019/D-6), rather
     than fixing one and recompiling to find the next."""
     model = _MERGE_ENTITY_MODEL.replace(
         "    key: [event_id]\n", "    key: [event_id]\n    scd: type2\n"
@@ -1164,7 +1164,7 @@ def test_the_refusals_are_batched() -> None:
 
 
 def test_a_type2_entity_may_not_carry_a_validity_column_name() -> None:
-    """RFC 0023 §5.3: the target's snapshot writes `valid_from`/`valid_to` onto
+    """S-0040/phase-2-the-as-of-join: the target's snapshot writes `valid_from`/`valid_to` onto
     the historical relation, so an authored column of that name would leave two
     columns with one name and an as-of join comparing against whichever the
     engine resolved."""
@@ -1203,7 +1203,7 @@ def test_a_type1_entity_may_carry_one() -> None:
 
 
 def test_two_validity_collisions_report_together() -> None:
-    """RFC 0002 D6: refusals batch, so an author fixes a spec in one
+    """S-0019/D-6: refusals batch, so an author fixes a spec in one
     round-trip. This check first raised on the entity it found, which sent an
     author with two historical entities round twice — the exact cost the
     batching discipline in this module exists to avoid."""
@@ -1264,7 +1264,7 @@ unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
 
 
 def test_a_type_two_entity_that_quarantines_and_dedupes_compiles() -> None:
-    """The pair the compiler used to refuse outright (RFC 0060 P1).
+    """The pair the compiler used to refuse outright (S-0003/P-1).
 
     Replay no longer merges a recovered row into a type 2 entity — it writes it
     back to bronze as a new delivery and the framework versions it — so the
@@ -1396,14 +1396,14 @@ def test_a_validity_column_in_the_key_is_refused_before_this_check_sees_it() -> 
 
 def test_a_rule_may_not_read_the_provenance_column() -> None:
     """`_source` is a column of the merged relation and is **not** readable by a
-    rule (RFC 0024 D6, D9).
+    rule (S-0041/D-6, S-0041/D-9).
 
     D6 argues rules judge the merged relation, so a rule branching on which
     source a row came from would be judging per source over a relation the
     union built to be judged once. The refusal is not new code — an
     `expression` rule is checked against the entity's lowered columns plus the
     ingestion metadata, and `_source` is in neither set — which is why it is
-    pinned here rather than assumed: it is the reason RFC 0024 D9's contract
+    pinned here rather than assumed: it is the reason S-0041/D-9's contract
     half still has nothing to protect now that P2 allows rules at all.
     """
     metadata = 'unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]\n'
@@ -1473,7 +1473,7 @@ def test_a_rule_on_a_column_only_one_mapping_produces_reaches_the_entity() -> No
 
 
 # ....................... #
-# Exposures — RFC 0056 §5.1
+# Exposures — S-0063/the-document
 
 
 def _with_exposures(body: str) -> tuple[str, ...]:
@@ -1489,7 +1489,7 @@ def _with_exposures(body: str) -> tuple[str, ...]:
 
 def test_a_dependency_list_is_sorted_on_the_way_in() -> None:
     """Authored order carries no meaning here, unlike a mart's flatten chain
-    (RFC 0003 D4) — so two spellings of one exposure must not produce two
+    (S-0020/D-4) — so two spellings of one exposure must not produce two
     fingerprints, and the fixture's own list is already sorted, which would
     let an unsorted lowering pass unnoticed.
     """
@@ -1507,7 +1507,7 @@ exposures:
 
 def test_the_kind_is_lowered_to_the_closed_vocabulary() -> None:
     """A closed vocabulary is an enum in this IR, like every sibling: the
-    builder is the validator (RFC 0003 D1), so a hand-built node cannot carry a
+    builder is the validator (S-0020/D-1), so a hand-built node cannot carry a
     type the dbt emitter would write out and dbt would refuse."""
 
     sources = fixture_sources("ecom_basic")
@@ -1521,7 +1521,7 @@ def test_the_kind_is_lowered_to_the_closed_vocabulary() -> None:
 
 
 # ....................... #
-# Exports — RFC 0059 §5.1
+# Exports — S-0002 (§5.1)
 
 
 def _with_exports(body: str, *, fixture: str = "cross_mart_branches") -> ExportsIR | None:
@@ -1540,7 +1540,7 @@ def _with_exports(body: str, *, fixture: str = "cross_mart_branches") -> Exports
 
 def test_each_exported_list_is_sorted_on_the_way_in() -> None:
     """Authored order carries no meaning in an export list, so two spellings of
-    one surface must not produce two fingerprints (RFC 0003 §5.1).
+    one surface must not produce two fingerprints (S-0020/ir-shape).
 
     All three lists are given out of order, because sorting one and
     transcribing the others is the shape this would take if it were wrong.

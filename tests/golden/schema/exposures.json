@@ -2,7 +2,7 @@
   "$defs": {
     "Exposure": {
       "additionalProperties": false,
-      "description": "One declared consumer (RFC 0056 \u00a75.1).",
+      "description": "One declared consumer (S-0063/the-document).",
       "properties": {
         "depends_on": {
           "$ref": "#/$defs/ExposureDependsOn"
@@ -81,7 +81,7 @@
   "$id": "https://morzecrew.github.io/bloomery/schemas/v1/exposures.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "The per-project exposures document (``exposures_version``), at most one\nper project (RFC 0002 \u00a75.5).",
+  "description": "The per-project exposures document (``exposures_version``), at most one\nper project (S-0019/spec-model-surface).",
   "properties": {
     "exposures": {
       "patternProperties": {

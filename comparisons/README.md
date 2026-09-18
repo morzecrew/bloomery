@@ -1,6 +1,6 @@
 # Comparisons
 
-Reproduction bundles behind [`MATRIX.md`](MATRIX.md), one per system per case, as RFC 0043
+Reproduction bundles behind [`MATRIX.md`](MATRIX.md), one per system per case, as S-0006
 §3 lays them out:
 
 ```text
@@ -23,7 +23,7 @@ not as "system X cannot do Y". The difference is not politeness: a true cell quo
 a general statement is the failure mode this whole tree is arranged to prevent, and the
 phrasing is the only thing preventing it.
 
-Six values, from RFC 0043 §2:
+Six values, from S-0006 (§2):
 
 | Value | Meaning |
 |---|---|
@@ -41,7 +41,7 @@ and one guess voids the table.
 ## Rows are the corpus's cases
 
 Every row is an expectation of a case in
-[`tests/fixtures/semantic_corpus/`](../tests/fixtures/semantic_corpus/) (RFC 0043 D4, RFC
+[`tests/fixtures/semantic_corpus/`](../tests/fixtures/semantic_corpus/) (S-0006/D-4, RFC
 0042). One set of cases keeps this table and the regression suite from becoming two accounts
 of the same question. A row this matrix needs and the corpus does not carry is a **missing
 corpus case** first.
@@ -77,7 +77,7 @@ the date half applies and the bundle says so.
 
 ## Running a bundle
 
-Every cell here is **manual** in RFC 0043 §7's sense: each bundle's `commands.txt` is the
+Every cell here is **manual** in S-0006 (§7)'s sense: each bundle's `commands.txt` is the
 exact invocation, run by hand from the repository root, and nothing schedules it. They are
 not tests — no marker, no CI, no fixture contract. A bundle that stops working is a fact
 about the tree or the pinned version having moved, and the first thing to re-read is the

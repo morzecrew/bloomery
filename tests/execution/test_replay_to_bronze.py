@@ -1,4 +1,4 @@
-"""Replay on a historical entity, executed (RFC 0060 §5.2, RFC 0009 §5.2 tier 4).
+"""Replay on a historical entity, executed (S-0003 (§5.2), S-0026/tier-contracts tier 4).
 
 A ``scd: type2`` entity's relation belongs to the target framework, so replay
 does not merge a recovered row into it — the merge would write a version with
@@ -9,11 +9,11 @@ it on its next run.
 What tier 4 can assert is the half the spike could not reach: bloomery's own
 bookkeeping across that route. DuckDB is not dbt and is not SQLMesh, so nothing
 here versions anything; the claim that an as-of join *finds* the recovered row
-(RFC 0060 D3) is the e2e tier's, next door.
+(S-0003/D-3) is the e2e tier's, next door.
 
 The specimen: two customers are delivered, and ``c2`` arrives with a segment
 the spec does not know. It is diverted to ``customer__reject``. Someone widens
-the rule to admit it — the enum-widening walkthrough RFC 0016 §5.6 calls "the
+the rule to admit it — the enum-widening walkthrough S-0033/quarantine-one-reject-table-per-entity calls "the
 normal path" — and replay re-derives the row from its stored payload.
 
 Bronze is never edited here, only the spec: a row that could be fixed in bronze
@@ -192,7 +192,7 @@ def test_the_pipeline_admits_the_re_delivered_row_and_the_next_replay_resolves_i
 def test_re_running_replay_does_not_multiply_the_delivery(
     warehouse: duckdb.DuckDBPyConnection,
 ) -> None:
-    """Replay is idempotent (RFC 0016 D22), and on this route that is a claim
+    """Replay is idempotent (S-0033/D-22), and on this route that is a claim
     about bronze rather than about the entity.
 
     A second run before the framework has admitted the row re-delivers it —
@@ -264,7 +264,7 @@ def test_one_entity_key_can_have_at_most_one_candidate(
     The merge path picks one winner per entity key before admitting anything,
     because it writes into the entity directly. This route does not, and the
     reason is the pipeline's fixed order: dedupe runs **before** the rules
-    (RFC 0016 §5.4), partitioned by the entity key — so at most one row per key
+    (S-0033/fixed-pipeline-order-and-lowering), partitioned by the entity key — so at most one row per key
     ever reaches a quarantine rule, and the reject table cannot hold two
     candidates for one key. The route refuses an entity without `dedupe:`,
     which is what makes that true rather than usual.

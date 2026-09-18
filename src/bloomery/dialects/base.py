@@ -1,10 +1,10 @@
-"""The ``DialectPort`` (RFC 0008 §5.1): SQL rendering + physical type
+"""The ``DialectPort`` (S-0025/ports): SQL rendering + physical type
 mapping. Wraps SQLGlot; knows nothing about targets — SQLMesh-on-DuckDB and
 dbt-on-DuckDB share every line of dialect logic through this port.
 
 A transform whose AST cannot render on some dialect is an emit-time
 :class:`~bloomery.errors.UnsupportedByTarget` failure discovered through
-:meth:`DialectPort.supports` — never a typing concern (RFC 0004 D7).
+:meth:`DialectPort.supports` — never a typing concern (S-0021/D-7).
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ __all__ = [
 
 #: The first character after an ISO 8601 calendar date. ``YYYY-MM-DD`` is ten
 #: characters, so every ``-`` belonging to the date sits behind this window and
-#: every ``+`` or ``-`` inside it belongs to a UTC offset (RFC 0036 D5).
+#: every ``+`` or ``-`` inside it belongs to a UTC offset (S-0052/D-5).
 _OFFSET_WINDOW = 11
 
 
@@ -52,28 +52,28 @@ def _without_offset(text: Expression, parsed: Expression) -> Expression:
     """``parsed``, or NULL when ``text`` carries a numeric UTC offset.
 
     ``parse_ts: ISO8601`` reads a *local wall clock*, and ``to_utc`` is the only
-    door into the always-UTC ``timestamp`` type (RFC 0028). Text spelling its
+    door into the always-UTC ``timestamp`` type (S-0045). Text spelling its
     own offset — ``2026-01-06T12:00:00+01:00`` — says something that contract
     does not let it say, and every engine bloomery targets resolves the
     contradiction the same silent way: it discards the offset and keeps the
     wall clock, so the instant is wrong by the offset and nothing reports it.
     Measured identically on PostgreSQL 16, Trino 483 and DuckDB — this is not a
     port divergence, which is why the guard is here and not in one of them
-    (RFC 0036 D6).
+    (S-0052/D-6).
 
     NULL rather than a conversion, because converting would make one
     declaration mean two different things depending on the row's bytes
-    (RFC 0036 D2), and NULL is what the rest of the system already reads: the
-    implicit ``coercible`` rule, the reject table, and RFC 0016 D21's blocking
+    (S-0052/D-2), and NULL is what the rest of the system already reads: the
+    implicit ``coercible`` rule, the reject table, and S-0033/D-21's blocking
     metadata audit.
 
     A ``Z`` suffix is deliberately **not** refused. It names UTC, which is the
     zone the target type is already in, so truncating it loses nothing — where
-    a numeric offset loses exactly the difference (RFC 0036 D4).
+    a numeric offset loses exactly the difference (S-0052/D-4).
 
     The window is taken over an explicit ``VARCHAR`` cast for the reason the
     Trino port already casts before its own ``replace``: the marker is text in
-    a transform chain by ``parse_ts``'s declared input type, but on RFC 0016
+    a transform chain by ``parse_ts``'s declared input type, but on S-0033
     D21's metadata audit it sits on a **bronze column**, which is whatever the
     project landed. Against a project that lands ``_ingested_at`` typed,
     ``SUBSTRING(<timestamp>, 11)`` does not plan on any of the three engines —
@@ -111,7 +111,7 @@ def space_separated(text: Expression) -> Expression:
 
     ``CAST(… AS VARCHAR)`` first, because the marked operand is not always
     text. A transform chain's is, by ``parse_ts``'s declared input type, and
-    there the cast is a no-op — but RFC 0016 D21's metadata audit marks a
+    there the cast is a no-op — but S-0033/D-21's metadata audit marks a
     *bronze column*, and a project is free to land ``_ingested_at`` already
     typed. Trino's ``replace`` takes varchar and nothing else, and DuckDB's
     binder matches no ``replace(TIMESTAMP, …)`` either: a port's spelling has to
@@ -119,7 +119,7 @@ def space_separated(text: Expression) -> Expression:
     happened to hand it.
 
     Applied to the *text* rather than to the cast, because the cast may already
-    have become a ``TRY_CAST`` (RFC 0027 D4). A no-op on a value that never had
+    have become a ``TRY_CAST`` (S-0044/D-4). A no-op on a value that never had
     a separator.
     """
     replaced = cast("Expression", exp.cast(text, exp.DataType.build("VARCHAR")))
@@ -143,7 +143,7 @@ def strip_iso_text(node: Expression, spelling: Callable[[Expression], Expression
     :data:`~bloomery.transforms.ISO_TEXT_MARKER`, because the engines disagree
     about what their own casts accept and the IR carries canonical *text* — so
     by emit time nothing distinguishes an ISO parse's cast from any other cast
-    unless the spec layer said so (RFC 0027 §3). ``parse_date: ISO8601`` is
+    unless the spec layer said so (S-0044/why-the-toutc-fix-does-not-generalise). ``parse_date: ISO8601`` is
     deliberately **not** marked, so do not add date-specific rewriting here:
     an ISO date has no ``T``, and no engine is helped by rewriting one.
 
@@ -156,7 +156,7 @@ def strip_iso_text(node: Expression, spelling: Callable[[Expression], Expression
     Every replacement is wrapped in :func:`_without_offset`, so the refusal of
     offset-bearing text lands on every port at once — including one written
     later, which inherits it by satisfying the "must call this" rule rather
-    than by remembering a second one (RFC 0036 D3).
+    than by remembering a second one (S-0052/D-3).
     """
 
     def replace(child: Expression) -> Expression:
@@ -176,7 +176,7 @@ def utc_from_zone(node: Expression, to_utc: Callable[[Expression], Expression]) 
     """Replace every zone interpretation with ``to_utc(interpretation)``.
 
     ``to_utc`` is the only door into the ``timestamp`` type, and that type is
-    **always UTC** and zoneless (RFC 0004 §5.1). Every engine's zone
+    **always UTC** and zoneless (S-0021/logical-types-bloomery-typing-types-py). Every engine's zone
     interpretation returns a zone-*aware* value instead — the right instant
     carrying a display rule — and every consumer that derives a date, an hour or
     a bucket reads the display rule rather than the instant.
@@ -184,7 +184,7 @@ def utc_from_zone(node: Expression, to_utc: Callable[[Expression], Expression]) 
     That made a mart's date role depend on something no spec said: the reader's
     session zone on DuckDB and PostgreSQL, the mapping's own zone on Trino. Two
     rows at one instant, mapped from two shops in two zones, landed in different
-    days (RFC 0028 §2).
+    days (S-0045/what-was-measured).
 
     So each port normalizes to UTC and drops the zone. ``to_utc`` here is the
     port's spelling of that, applied to the whole interpretation.
@@ -205,13 +205,13 @@ def capture_group(node: Expression) -> Expression:
     ``regex_extract`` builds :class:`sqlglot.exp.RegexpExtract` with ``group``
     set, and that renders correctly on every port. The IR does not keep the
     node: it keeps canonical dialect-neutral **text** and re-parses at emit
-    (RFC 0003 D2), and ``REGEXP_EXTRACT(x, p, 1)`` re-parses with the third
+    (S-0020/D-2), and ``REGEXP_EXTRACT(x, p, 1)`` re-parses with the third
     argument bound to ``position`` — the Oracle/PostgreSQL reading — after
     which SQLGlot's duckdb and trino generators **drop it silently**, warning
     to a stderr nothing reads. So ``{regex_extract: [pattern, 1]}`` returned
     group 0, the whole match, on both engines that can run it. No fixture used
     the transform, so no golden showed it; the declared-vs-produced battery is
-    what found it (RFC 0028 D5).
+    what found it (S-0045/D-5).
 
     Reading the third argument as the group is correct rather than merely
     convenient: DuckDB and Trino both define ``regexp_extract``'s third
@@ -253,11 +253,11 @@ def _exact_division(node: Expression) -> Expression:
     ``exp.Div(typed=True)`` is what suppresses SQLGlot's
     ``CAST(x AS DOUBLE PRECISION) /`` on PostgreSQL and ``CAST(x AS DOUBLE) /``
     on Trino. It cannot be set by the builder, because the IR keeps canonical
-    text and the flag does not survive the re-parse (RFC 0003 D2), and it
+    text and the flag does not survive the re-parse (S-0020/D-2), and it
     cannot be set on every ``Div`` at render, because a ratio metric's
     ``COUNT(a) / COUNT(b)`` would silently become integer division. The marker
     is the difference, and it is the only thing a port could not have worked
-    out for itself (RFC 0029 D3).
+    out for itself (S-0046/D-3).
 
     Applied centrally rather than per port: unlike the ISO-text marker, whose
     right treatment differs per engine, this one has a single treatment
@@ -267,7 +267,7 @@ def _exact_division(node: Expression) -> Expression:
     DuckDB is left inexact by this and knowingly. Its ``/`` is float division
     and ``//`` is integer division; the engine has no exact decimal division to
     reach for, so the float is bounded by a narrowing cast to the declared type
-    rather than removed (RFC 0029 §4, logs/T-0002.md D-003).
+    rather than removed (S-0046/what-fixed-looks-like, logs/T-0002.md D-003).
     """
 
     def replace(child: Expression) -> Expression:
@@ -284,32 +284,32 @@ def _exact_division(node: Expression) -> Expression:
 
 
 class DialectFeature(StrEnum):
-    """Capabilities an emitter may query before lowering (RFC 0008 §5.1)."""
+    """Capabilities an emitter may query before lowering (S-0025/ports)."""
 
     JSON_EXTRACT = "json_extract"
     TIMEZONE_CONVERT = "timezone_convert"
     REGEXP_EXTRACT = "regexp_extract"
     VARIANT_TYPE = "variant_type"
-    #: A first-class array type (RFC 0016 D9). Deliberately a *dialect*
+    #: A first-class array type (S-0033/D-9). Deliberately a *dialect*
     #: feature, not a target ``Feature``, diverging from Document 5 §5.3:
     #: array support is an engine property, and SQLMesh-on-DuckDB and
-    #: dbt-on-DuckDB share it — the RFC 0008 D1 split. All three shipped
+    #: dbt-on-DuckDB share it — the S-0025/D-1 split. All three shipped
     #: dialects have arrays (DuckDB ``STRING[]``, Postgres ``TEXT[]``, Trino
     #: ``ARRAY(VARCHAR)``); a dialect without one lowers ``_quality_flags``
     #: and ``failed_rules`` to the comma-delimited string fallback (D23).
     ARRAY = "array"
     #: A cast that yields NULL instead of raising — the shape the
-    #: coercion-failure marker needs (RFC 0016 §5.2, D3: "``TRY_CAST``-shaped
+    #: coercion-failure marker needs (S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-3: "``TRY_CAST``-shaped
     #: lowering **per dialect**"). DuckDB and Trino have ``TRY_CAST``;
     #: Postgres has no equivalent, and SQLGlot's postgres generator renders
     #: :class:`sqlglot.exp.TryCast` as a plain ``CAST``. Silently accepting
     #: that would turn "quarantine the uncastable row" into "abort the run" —
     #: a degradation nobody asked for — so the capability is declared and an
     #: entity carrying ``coercible`` rules refuses to emit on a dialect
-    #: without it (RFC 0008 D3: fail loud, never approximate).
+    #: without it (S-0025/D-3: fail loud, never approximate).
     TRY_CAST = "try_cast"
     #: ``SHA256`` over a text value yielding a stable hex *string* — what
-    #: ``reject_id`` is (RFC 0016 D21). DuckDB's ``SHA256(VARCHAR)`` returns
+    #: ``reject_id`` is (S-0033/D-21). DuckDB's ``SHA256(VARCHAR)`` returns
     #: the hex digest directly. Trino's ``sha256`` takes ``varbinary`` and
     #: returns ``varbinary``, so the same AST renders a call Trino refuses to
     #: even plan (``Unexpected parameters (varchar) for function sha256``);
@@ -320,7 +320,7 @@ class DialectFeature(StrEnum):
     #: this feature cannot carry a reject table.
     TEXT_SHA256 = "text_sha256"
     #: Unicode normalization to NFC — what a ``normalize`` rule compares a
-    #: value against (RFC 0016 D86). Postgres and Trino spell it
+    #: value against (S-0033/D-86). Postgres and Trino spell it
     #: ``NORMALIZE(x, NFC)``; DuckDB has ``nfc_normalize(x)`` and no
     #: ``NORMALIZE`` at all, and SQLGlot's duckdb generator renders
     #: :class:`sqlglot.exp.Normalize` verbatim — a call the engine has never
@@ -330,7 +330,7 @@ class DialectFeature(StrEnum):
     #: defines.
     UNICODE_NORMALIZE = "unicode_normalize"
     #: ``JSON_OBJECT('k', v, ...)`` in its positional form — how the reject
-    #: table builds ``raw`` and ``key_values`` (RFC 0016 §5.6). Trino accepts
+    #: table builds ``raw`` and ``key_values`` (S-0033/quarantine-one-reject-table-per-entity). Trino accepts
     #: only the SQL-standard ``JSON_OBJECT(KEY 'k' VALUE v)`` spelling and
     #: fails to parse the positional one, so ``lowering._json_object``'s claim
     #: to be "the one construction SQLGlot renders verbatim on every shipped
@@ -338,7 +338,7 @@ class DialectFeature(StrEnum):
     JSON_OBJECT_POSITIONAL = "json_object_positional"
     #: ``a IS NOT DISTINCT FROM b`` — equality that treats two NULLs as equal,
     #: which is what a branch join needs to keep a NULL group instead of
-    #: dropping it (RFC 0041 D13). All three shipped dialects render the
+    #: dropping it (S-0055/D-13). All three shipped dialects render the
     #: standard spelling identically and were checked doing so; the flag
     #: exists because a fourth might spell it ``<=>`` or not have it at all,
     #: and a planner that composed a join on `=` there would answer a
@@ -375,7 +375,7 @@ DIALECT_PORT_MEMBERS: Final = (
 
 
 class DialectPort(Protocol):
-    """SQL rendering + physical type mapping (RFC 0008 D1)."""
+    """SQL rendering + physical type mapping (S-0025/D-1)."""
 
     name: str
 
@@ -416,7 +416,7 @@ class SQLGlotDialect:
     #: (measured, `trinodb/trino:483`). It is a port attribute rather than a
     #: rendered node because no AST node means "open a transaction" — it is
     #: envelope text, and the emitter interpolates it like every other
-    #: pre-rendered string (RFC 0008 D4).
+    #: pre-rendered string (S-0025/D-4).
     begin_transaction: str = "BEGIN"
     features: ClassVar[frozenset[DialectFeature]] = frozenset(DialectFeature)
     scalar_types: ClassVar[dict[type[LogicalType], str]] = {
@@ -459,7 +459,7 @@ class SQLGlotDialect:
             msg = (
                 f"dialect {self.name!r} rendered an ISO 8601 parse without deciding what "
                 f"its engine needs: the {ISO_TEXT_MARKER} marker reached SQL generation "
-                "(RFC 0027). Engines disagree about what their own casts accept — "
+                "(S-0044). Engines disagree about what their own casts accept — "
                 "DuckDB and PostgreSQL take the 'T' separator, Trino returns NULL for it "
                 "— so the choice cannot be defaulted without risking silently NULL data. "
                 "Fix: call bloomery.dialects.base.strip_iso_text in this port's render, "
@@ -472,7 +472,7 @@ class SQLGlotDialect:
     # ....................... #
 
     def physical_type(self, t: LogicalType) -> str:
-        """The engine type for a logical type (RFC 0004 non-goal: physical
+        """The engine type for a logical type (S-0021 non-goal: physical
         mapping lives here, not in the type layer)."""
 
         if isinstance(t, DecimalType):
@@ -488,14 +488,14 @@ class SQLGlotDialect:
     # ....................... #
 
     def text_sha256(self, value: Expression) -> Expression:
-        """A SHA-256 hex *string* over a text value (RFC 0016 D21).
+        """A SHA-256 hex *string* over a text value (S-0033/D-21).
 
         Built here rather than in the emitter because the portable spellings
         are not interchangeable: DuckDB's ``SHA256(VARCHAR)`` already returns
         hex, and applying Trino's ``LOWER(TO_HEX(SHA256(TO_UTF8(…))))`` to it
         would hex-encode an already-hex digest and double its length. A
         construction that differs per engine belongs to the port that knows
-        the engine (RFC 0008 D1), not to a lowering that is supposed to be
+        the engine (S-0025/D-1), not to a lowering that is supposed to be
         dialect-neutral.
         """
 
@@ -506,10 +506,10 @@ class SQLGlotDialect:
     def utc_now(self) -> Expression:
         """The engine's current instant as a **zoneless UTC** timestamp.
 
-        ``timestamp`` is always UTC and zoneless here (RFC 0004 §5.1), and
+        ``timestamp`` is always UTC and zoneless here (S-0021/logical-types-bloomery-typing-types-py), and
         every engine's ``CURRENT_TIMESTAMP`` is zone-*aware* instead. Casting
         one to the other keeps the *session's* wall clock, which is the defect
-        RFC 0028 §2 is about — two rows at one instant landing in different
+        S-0045/what-was-measured is about — two rows at one instant landing in different
         days because two readers had different session zones. So the zone is
         stated rather than inherited.
 

@@ -1,4 +1,4 @@
-"""Cross-spec reference validation (RFC 0005 §5.5, D7): every check kind,
+"""Cross-spec reference validation (S-0022/cross-spec-reference-validation-bloomery-resolve-refs-py, S-0022/D-7): every check kind,
 error types, source paths, and per-stage batching."""
 
 from __future__ import annotations
@@ -229,7 +229,7 @@ def test_reference_failures_are_batched_across_kinds() -> None:
 
 def test_a_derived_metric_reading_an_unknown_metric_is_a_missing_reference() -> None:
     """The reference stage runs *before* the template merge and reads the spec
-    models directly, so it validates `derived.inputs` itself (RFC 0034 D3) —
+    models directly, so it validates `derived.inputs` itself (S-0050/D-3) —
     through the same `input_metrics` property the merge reads, so the two
     cannot disagree about what a derived metric depends on."""
     metrics = (
@@ -261,7 +261,7 @@ def test_each_unknown_derived_input_names_its_own_alias() -> None:
 
     The alias is the identity the author wrote — it is the mapping key, so it
     always exists — and reporting the block instead would send them to the same
-    line twice, which is the round-trip RFC 0002 D6's batching exists to avoid.
+    line twice, which is the round-trip S-0019/D-6's batching exists to avoid.
     """
     metrics = (
         "metrics_version: 1\n"

@@ -1,4 +1,4 @@
-# The fan-out trap (RFC 0009 §5.3, RFC 0006 §5.3): `shipping_cost` lives at
+# The fan-out trap (S-0026/fixture-corpus, S-0023/grain-the-fan-out-guard): `shipping_cost` lives at
 # order grain; `landed_cost` combines it at line grain with no aggregation —
 # the formula is right, the data is right, and every SUM is 3× wrong.
 spec_version: 1

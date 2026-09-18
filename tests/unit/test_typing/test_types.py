@@ -1,4 +1,4 @@
-"""The closed LogicalType set (RFC 0004 §5.1): parse_type happy/sad paths and
+"""The closed LogicalType set (S-0021/logical-types-bloomery-typing-types-py): parse_type happy/sad paths and
 the assignability matrix including decimal widening/narrowing."""
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ def test_parse_type_decimal(text: str, expected: LogicalType) -> None:
 @pytest.mark.parametrize(
     "text",
     [
-        "float",  # banned package-wide (RFC 0003 D5)
+        "float",  # banned package-wide (S-0020/D-5)
         "time",
         "array",
         "STRING",
@@ -82,7 +82,7 @@ def test_parse_type_returns_frozen_hashable_values() -> None:
 
 
 # ....................... #
-# Assignability (RFC 0004 §5.1)
+# Assignability (S-0021/logical-types-bloomery-typing-types-py)
 
 
 @pytest.mark.parametrize(("_text", "logical"), SCALARS, ids=lambda v: str(v))

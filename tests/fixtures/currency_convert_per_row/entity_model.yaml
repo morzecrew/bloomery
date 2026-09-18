@@ -1,4 +1,4 @@
-# The per-row denomination fixture (RFC 0061 §5.1 shape 3, P2). One payment
+# The per-row denomination fixture (S-0066/the-input-currency-is-one-of-three-things shape 3, P2). One payment
 # processor, many currencies: the amount and the code it was taken in arrive on
 # the same row, so the rate is picked per row rather than per column.
 spec_version: 1

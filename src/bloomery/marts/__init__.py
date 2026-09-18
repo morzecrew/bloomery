@@ -1,6 +1,6 @@
-"""Mart flattening (RFC 0010): the wide-mart gold layer resolved at IR
+"""Mart flattening (S-0027): the wide-mart gold layer resolved at IR
 build — spec in, wide schema out, pure. Validation violations are
-``GuardrailError`` leaves batched by the guardrail stage (RFC 0006 §5.1);
+``GuardrailError`` leaves batched by the guardrail stage (S-0023/stage-shape);
 this package never raises."""
 
 from bloomery.marts.flatten import (

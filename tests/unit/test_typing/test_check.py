@@ -1,4 +1,4 @@
-"""The typecheck stage (RFC 0004 §5.4): chain happy/sad paths, deterministic
+"""The typecheck stage (S-0021/typecheck-stage-bloomery-typing-check-py): chain happy/sad paths, deterministic
 closest-match suggestions, decimal tracking through arithmetic, batching."""
 
 from __future__ import annotations

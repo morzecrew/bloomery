@@ -1,4 +1,4 @@
-"""Equivalence tier (RFC 0009 §5.2 tier 7, §5.8): MetricFlow ↔ Cube ↔ reference SQL.
+"""Equivalence tier (S-0026/tier-contracts tier 7, S-0026/equivalence-tier-three-way-metricflow-cube-reference-sql): MetricFlow ↔ Cube ↔ reference SQL.
 
 "The strongest correctness evidence available: independent implementations
 agreeing." Two of the three legs are implementations bloomery *drives* — the
@@ -13,12 +13,12 @@ only come from the query. Two seeding routines kept in step would have made
 every result ambiguous.
 
 **Binding is positional, and that is a finding.** ``QueryPlan.columns``
-describes the result frame — RFC 0011 calls it "the self-describing envelope"
+describes the result frame — S-0028 calls it "the self-describing envelope"
 — but its dimension names are the *requested* ones (``ordered_month``) while
 the SQL MetricFlow generates aliases them its own way
 (``order_item__ordered_day__month``). A caller matching descriptor to cursor
 column by name gets nothing. Positional zip works and is what this module does;
-RFC 0009 D24 records the mismatch and the two ways to close it.
+S-0026/D-24 records the mismatch and the two ways to close it.
 
 Nightly (containers). ``engine("cube")``-marked per §5.8.
 """
@@ -109,7 +109,7 @@ def _planner_frame(
     with connection.cursor() as cursor:
         cursor.execute(plan.sql)
         rows = cursor.fetchall()
-    # Positional, never by name — see the module docstring and RFC 0009 D24.
+    # Positional, never by name — see the module docstring and S-0026/D-24.
     width = len(entry["dimensions"])
     return as_frame(rows, width)
 

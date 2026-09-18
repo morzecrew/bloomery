@@ -1,6 +1,6 @@
-"""Violation predicates (RFC 0016 §5.4, D18/D19).
+"""Violation predicates (S-0033/fixed-pipeline-order-and-lowering, S-0033/D-18, S-0033/D-19).
 
-Three things are asserted here, and RFC 0016 §6 names all three:
+Three things are asserted here, and S-0033/tests-rfc-0009-amendment names all three:
 
 - the **exhaustive** rule × disposition lowering matrix — ``product(ALL_RULES,
   ALL_DISPOSITIONS)``, every pair **executed against DuckDB in the position
@@ -83,7 +83,7 @@ pytestmark = pytest.mark.unit
 
 
 # ....................... #
-# The exhaustive matrix (RFC 0016 §6), executed
+# The exhaustive matrix (S-0033/tests-rfc-0009-amendment), executed
 
 
 @dataclass(frozen=True)
@@ -168,7 +168,7 @@ def _seed(connection: duckdb.DuckDBPyConnection, specimen: _Specimen) -> None:
 
 
 def stage(rule: QualityRuleIR) -> str:
-    """The staged extract the emitter builds (D33, RFC 0024 D32).
+    """The staged extract the emitter builds (D33, S-0041/D-32).
 
     Two kinds of rule are computed **once**, as a projection, and read back by
     name from every other position: a windowed one, because SQL forbids a
@@ -313,7 +313,7 @@ def _seed_referential(connection: duckdb.DuckDBPyConnection) -> str:
 def test_referential_executes_where_its_on_missing_puts_it(
     seeded: duckdb.DuckDBPyConnection, on_missing: str
 ) -> None:
-    """``referential`` contributes its own axis (RFC 0016 §6), and each value
+    """``referential`` contributes its own axis (S-0033/tests-rfc-0009-amendment), and each value
     lands in a different position: ``unknown_member`` rewrites the fk in the
     entity's **projection**, ``quarantine`` drives the routing ``WHERE``,
     ``flag`` joins the flag construct. All three read the same LEFT JOIN probe,
@@ -408,7 +408,7 @@ def test_the_window_alias_is_derived_from_the_rule_name() -> None:
 
 @pytest.mark.parametrize("on_missing", ALL_ON_MISSING)
 def test_referential_lowers_once_per_on_missing(on_missing: str) -> None:
-    """``referential`` contributes its own axis (RFC 0016 §6), one row per
+    """``referential`` contributes its own axis (S-0033/tests-rfc-0009-amendment), one row per
     ``on_missing`` — each asserting its §5.4 lowering."""
     rule = ON_MISSING_RULES[on_missing]
     # Shape, not execution — compact rendering, so the assertion stays one line.
@@ -430,7 +430,7 @@ def test_ref_alias_is_derived_from_the_relationship_not_the_entity() -> None:
 
 
 # ....................... #
-# Three-valued logic (RFC 0016 D19) — executed, not merely inspected
+# Three-valued logic (S-0033/D-19) — executed, not merely inspected
 
 
 def _evaluate(rule: QualityRuleIR, row: dict[str, object]) -> bool | None:
@@ -533,10 +533,10 @@ def test_not_null_owns_nulls() -> None:
 def test_coercible_fires_only_when_the_source_was_present() -> None:
     """The marker is "the projection is NULL although every source it reads
     was not" — a genuinely null source is a legitimate null, not a coercion
-    failure (RFC 0016 §5.2).
+    failure (S-0033/coercion-failure-is-a-rule-the-assert-boundary).
 
     The source is read by name here because that is what a branch does with it
-    (RFC 0024 D32): the predicate inlines the branch's own extraction rather
+    (S-0041/D-32): the predicate inlines the branch's own extraction rather
     than referring to a projected alias.
     """
     rule = rule_of_kind("coercible")
@@ -550,7 +550,7 @@ def test_a_branch_that_maps_nothing_reports_no_coercion_failure() -> None:
     """Empty facts mean ``FALSE``, not the empty conjunction's ``TRUE``.
 
     A branch of a merged entity that does not map a column projects a typed
-    NULL for it (RFC 0024 §5.2 rule 3). Were the marker vacuously true over
+    NULL for it (S-0041/what-the-compiler-checks rule 3). Were the marker vacuously true over
     zero sources, every row of that source would be reported as a failed cast
     — a blocking false positive on correct data, which is the failure the
     "although every source was not null" clause exists to prevent.
@@ -653,7 +653,7 @@ def test_qualification_never_mutates_the_input_ast() -> None:
 
 
 # ....................... #
-# Disposition precedence (RFC 0016 D18)
+# Disposition precedence (S-0033/D-18)
 
 
 def test_severity_order_is_fail_over_quarantine_over_flag() -> None:
@@ -703,7 +703,7 @@ def test_an_unknown_rule_kind_is_a_loud_key_error() -> None:
 
 
 def test_predicates_render_on_every_shipped_dialect() -> None:
-    """One neutral AST, per-dialect legal rendering (RFC 0008 doctrine)."""
+    """One neutral AST, per-dialect legal rendering (S-0025 doctrine)."""
     for kind in ALL_RULES:
         node = predicate_of(rule_of_kind(kind))
         for dialect in ("duckdb", "postgres", "trino"):

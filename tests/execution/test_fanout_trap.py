@@ -1,7 +1,7 @@
-"""The fan-out regression suite (RFC 0009 §5.2 tier 4, spec §7.4).
+"""The fan-out regression suite (S-0026/tier-contracts tier 4, spec §7.4).
 
-``fanout_trap`` fails closed at compile time (`GrainMismatch`, RFC 0006 D5);
-the execution-level assertion is **kept on purpose** — per RFC 0006 D10 it
+``fanout_trap`` fails closed at compile time (`GrainMismatch`, S-0023/D-5);
+the execution-level assertion is **kept on purpose** — per S-0023/D-10 it
 documents *why* the compile error exists: the unguarded SQL below runs
 against DuckDB and produces the 3×-wrong shipping sum the guard refuses.
 
@@ -14,7 +14,7 @@ line — the naive line-grain sum counts it three times:
 - correct landed total:   30.00 + 9.00  = 39.00
 - naive landed total:     30.00 + 27.00 = 57.00
 
-All assertions are ``Decimal`` — floats never appear (RFC 0003 D5).
+All assertions are ``Decimal`` — floats never appear (S-0020/D-5).
 """
 
 from __future__ import annotations

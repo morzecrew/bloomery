@@ -1,4 +1,4 @@
-"""The aggregate body a rollup mart is built from (RFC 0058 §5.3, P2).
+"""The aggregate body a rollup mart is built from (S-0065/targets, S-0065/phasing (P-2)).
 
 Rendered here rather than only through a golden, because two of the three
 things this lowering decides are refusals, and a golden only ever shows the
@@ -94,7 +94,7 @@ def test_every_aggregate_a_rollup_builds_renders_as_itself(agg: str, rendered: s
 def test_a_computed_measure_is_not_a_column() -> None:
     """A ratio is recomputed from its operands at query time and is never a
     stored number, so a column for it would be the materialized quotient
-    RFC 0038 D2 exists to prevent. R013 has already required that the rollup
+    S-0053/D-2 exists to prevent. R013 has already required that the rollup
     carry the operands, so what is dropped is only the arithmetic."""
 
     aov = MetricIR(

@@ -1,4 +1,4 @@
-"""The exports document (RFC 0059 §5.1, D1).
+"""The exports document (S-0002 (§5.1), S-0002/D-1).
 
 Everything here is decidable from the document alone — its shape, its version
 pin, and the two ways an export list can be self-defeating without naming
@@ -82,7 +82,7 @@ def test_each_kind_checks_its_own_repeats() -> None:
 
 def test_the_version_key_is_pinned_to_the_one_bloomery_implements() -> None:
     """An unbounded int accepts a document written for a future bloomery and
-    silently applies v1 semantics to it (RFC 0018 D7)."""
+    silently applies v1 semantics to it (S-0035/D-7)."""
 
     with pytest.raises(ValidationError):
         ExportSet.model_validate({"exports_version": 2, "exports": {"marts": ["a"]}})
@@ -117,13 +117,13 @@ def test_a_project_with_no_exports_document_has_none() -> None:
 def test_the_published_schema_refuses_what_the_loader_refuses(
     label: str, document: dict[str, object]
 ) -> None:
-    """RFC 0020 D10: the schema is a pre-filter and may be stricter than the
+    """S-0037/D-10: the schema is a pre-filter and may be stricter than the
     parser, never looser.
 
     Three defaulted arrays make `minProperties` useless — `{"marts": []}` has a
     property and publishes nothing — so the constraint is an `anyOf`, and it is
     the same one the imports document carries. Found on the imports side in
-    review and true here since RFC 0059 P1; the two documents mirror each
+    review and true here since S-0002/P-1; the two documents mirror each
     other, so a rule on one of them only is a rule that will be asked about.
     """
 

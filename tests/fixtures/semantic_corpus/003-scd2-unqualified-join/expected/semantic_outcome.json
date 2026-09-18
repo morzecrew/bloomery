@@ -2,10 +2,10 @@
   "unanchored": {
     "outcome": "refused",
     "error": "HistoricalFanout",
-    "rule": "RFC 0023 D1"
+    "rule": "S-0040/D-1"
   },
   "anchored": {
     "outcome": "accepted",
-    "rule": "RFC 0023 D8"
+    "rule": "S-0040/D-8"
   }
 }

@@ -55,9 +55,9 @@ validator to planner rather than being rewritten at each step:
 
 | Expectation | Spec | Outcome | Owner |
 | --- | --- | --- | --- |
-| **representation** | a wide mart at line grain listing an order-grain measure | refused | `GrainViolation`, RFC 0010 D2 |
-| **rollup** | shipping aggregated at order grain | accepted | RFC 0010 D2 |
-| **refinement** | shipping pulled into a line-grain derivation | refused | `GrainMismatch`, RFC 0006 D5 |
+| **representation** | a wide mart at line grain listing an order-grain measure | refused | `GrainViolation`, S-0027/D-2 |
+| **rollup** | shipping aggregated at order grain | accepted | S-0027/D-2 |
+| **refinement** | shipping pulled into a line-grain derivation | refused | `GrainMismatch`, S-0023/D-5 |
 
 The middle row is what makes the other two mean something: a compiler that refused all
 three would be safe and useless.
@@ -65,8 +65,8 @@ three would be safe and useless.
 ## What this case is waiting for
 
 `accepted` is today's word for the rollup, not `proven` — bloomery compiles it and no proof
-value exists yet to record. When RFC 0039 lands, this row gains a `proof.json` and the
-outcome becomes `proven`; when RFC 0040 lands, the refinement refusal should carry a
+value exists yet to record. When S-0005 lands, this row gains a `proof.json` and the
+outcome becomes `proven`; when S-0054 lands, the refinement refusal should carry a
 refutation naming the missing functional dependency rather than a grain-string comparison.
 Neither changes the fixture, which is the property D4 is about.
 

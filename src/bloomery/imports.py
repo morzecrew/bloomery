@@ -1,23 +1,23 @@
-"""Reading an external semantic artifact into bloomery relationships (RFC 0070).
+"""Reading an external semantic artifact into bloomery relationships (S-0075).
 
-``IMPORTED_VERIFIED`` was a provenance nothing produced: RFC 0039 minted it,
-RFC 0065 graded it, and every fact the compile path reached graded ``LOCKED``
+``IMPORTED_VERIFIED`` was a provenance nothing produced: S-0005 minted it,
+S-0070 graded it, and every fact the compile path reached graded ``LOCKED``
 anyway — so the refusal a strict consumer asks for could not be tripped by any
 project a person could write. This is its producer.
 
 **Pure, and the reads stay in the CLI.** A manifest arrives here as text and a
 ``relationships:`` block leaves as text; nothing here opens a file. That is not
 tidiness — it is what lets the importer be a *command* without weakening
-RFC 0003: what it produces is specs, the author commits them, and compilation
+S-0020: what it produces is specs, the author commits them, and compilation
 stays a function of what is on disk rather than of an artifact nobody reviewed.
 
-**Nothing is inferred.** Each row of RFC 0070 §5.2 maps one artifact field to
+**Nothing is inferred.** Each row of S-0075/the-mapping-field-by-field maps one artifact field to
 one bloomery fact, and where the artifact is silent the import refuses instead
 of emitting a weaker edge — there is no weaker edge in the basis vocabulary to
-emit (RFC 0044 D3). A ``foreign`` element nothing declares unique, an absent
+emit (S-0057/D-3). A ``foreign`` element nothing declares unique, an absent
 ``expr``, two models claiming one target: all of them are the artifact failing
 to state a cardinality, and guessing one is exactly the failure this document
-was split out of RFC 0044 to prevent.
+was split out of S-0057 to prevent.
 
 **Two things in MetricFlow are called entities and they are not the same
 thing.** A *semantic model* is the relation and corresponds to a bloomery
@@ -65,7 +65,7 @@ __all__ = [
 #: whole of what ``many_to_one`` needs on the to-side. ``natural`` is
 #: deliberately absent: MetricFlow's own docs call it a key that is *not*
 #: unique, so no cardinality follows from it and a relationship pointing at one
-#: would be the guessed edge RFC 0044 D3 forbids. It contributes nothing rather
+#: would be the guessed edge S-0057/D-3 forbids. It contributes nothing rather
 #: than refusing, because an artifact carrying one alongside a valid pair is a
 #: well-formed artifact.
 _UNIQUE_SIDE: Final[frozenset[EntityType]] = frozenset({EntityType.PRIMARY, EntityType.UNIQUE})
@@ -174,7 +174,7 @@ def _entity(
     source relations and a bloomery project names its entities for itself, so
     the two agreeing is luck. Inferring the pairing — comparing a primary
     element's ``expr`` to an entity's ``key``, or singularising a model name —
-    is the guessed default RFC 0044 D3 forbids, with the added property that it
+    is the guessed default S-0057/D-3 forbids, with the added property that it
     would be wrong silently rather than loudly.
     """
 
@@ -289,7 +289,7 @@ def _generated_names(edges: list[tuple[str, str, dict[str, str]]]) -> list[str]:
 
     A name is a key — a mart's ``via:``, an entity's referential rule and the
     plan diff all refer to a relationship by it, and ``resolve`` refuses two of
-    one name (RFC 0070 row 10). So the scheme has to survive a project with two
+    one name (S-0075 row 10). So the scheme has to survive a project with two
     edges between the same pair of entities, which a manifest produces whenever
     one model carries two ``foreign`` elements resolving to one target.
 
@@ -344,14 +344,14 @@ def metricflow_relationships(
 
     Every refusal is collected rather than raised at the first one: an import
     is a bulk operation and fixing a manifest one message per run is the
-    experience batching exists to prevent (RFC 0002 §5.3). The aggregate is a
+    experience batching exists to prevent (S-0019/source-paths). The aggregate is a
     single :class:`~bloomery.errors.ArtifactImportError` whose ``collected``
     holds each one.
 
     A relationship the project already declares identically is **not** returned
     — two statements that agree are not a contradiction, and returning it would
     ask the author to paste a duplicate that ``resolve`` then refuses by name
-    (RFC 0070 D4). A disagreement about cardinality on the same ``(from, to,
+    (S-0075/D-4). A disagreement about cardinality on the same ``(from, to,
     via)`` refuses, naming both.
     """
 

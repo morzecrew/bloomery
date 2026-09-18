@@ -1,5 +1,5 @@
 # v5 — v4 with net_revenue removed (BREAKING, returned not raised) and
-# scd flipped type1 → type2 (entity-level BREAKING, RFC 0007 D7). The
+# scd flipped type1 → type2 (entity-level BREAKING, S-0024/D-7). The
 # discount column stays: dropping it while net_revenue still referenced it
 # is the v4 → v5′ ContractViolation case (D5) — deprecation lands here
 # first, the drop may follow in a later version.

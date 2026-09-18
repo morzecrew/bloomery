@@ -1,6 +1,6 @@
 # The shop being migrated *onto*. One of two mappings that name
 # `target: order_line` — and that is the whole of the syntax for a merge
-# (RFC 0024 D2): no `union:` kind, no `sources:` list, just two documents
+# (S-0041/D-2): no `union:` kind, no `sources:` list, just two documents
 # pointing at one entity.
 #
 # Branch order in the emitted UNION ALL is lexicographic by **source relation**,
@@ -49,7 +49,7 @@ fields:
 
   gift_note: {from: "$.payload.gift_note", transform: [to_string]}
 
-# The ingestion-metadata contract (RFC 0016 D21), acknowledged rather than
+# The ingestion-metadata contract (S-0033/D-21), acknowledged rather than
 # mapped — see `mapping_crm.yaml`. **Both** shops must supply it: the reject
 # table holds rows from either, and each one points back at the row it came
 # from through its own `source_relation`.

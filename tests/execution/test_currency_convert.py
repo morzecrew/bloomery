@@ -1,4 +1,4 @@
-"""Currency conversion, executed (RFC 0023 §5.4, RFC 0009 §5.2 tier 4).
+"""Currency conversion, executed (S-0040/phase-2-currency-as-a-declared-relation, S-0026/tier-contracts tier 4).
 
 The compile-time checks prove a rate subquery is *emitted*; this proves it
 converts at the rate that was current when the payment was made, which is the
@@ -20,7 +20,7 @@ ends declared it matches no rate and converts to NULL (D11) — the alternative,
 extending the oldest or newest rate to cover it, prices a payment at a rate
 that did not exist and says nothing.
 
-All money is ``Decimal`` — floats never appear (RFC 0003 D5).
+All money is ``Decimal`` — floats never appear (S-0020/D-5).
 """
 
 from __future__ import annotations
@@ -218,7 +218,7 @@ def test_the_converted_column_carries_the_type_it_declares(
 
 
 # ....................... #
-# Per-row denomination, executed (RFC 0061 §5.1 shape 3, P2)
+# Per-row denomination, executed (S-0066/the-input-currency-is-one-of-three-things shape 3, P2)
 
 PER_ROW_FIXTURE = "currency_convert_per_row"
 
@@ -296,9 +296,9 @@ def test_each_row_converts_at_its_own_currencys_rate(
 def test_a_code_the_feed_has_no_row_for_converts_to_null(
     per_row_warehouse: duckdb.DuckDBPyConnection,
 ) -> None:
-    """RFC 0061 §10, answered where it can be tested. Per-row changes the
+    """S-0066 (§10), answered where it can be tested. Per-row changes the
     multiplicity of a miss, not its meaning: `JPY` matches no rate and the
-    amount is NULL (RFC 0023 D11), rather than the row being dropped or
+    amount is NULL (S-0040/D-11), rather than the row being dropped or
     silently priced at a neighbouring currency's rate.
 
     The row survives, which is the half worth pinning — the payment happened

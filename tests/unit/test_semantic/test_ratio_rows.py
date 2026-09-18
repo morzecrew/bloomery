@@ -1,4 +1,4 @@
-"""R019, the row-set obligation on a ratio (RFC 0075).
+"""R019, the row-set obligation on a ratio (S-0077).
 
 R012 is about *how* a ratio is rebuilt and says nothing about which rows belong
 in it, which is why corpus case 009 satisfies it exactly and answers `4.00`
@@ -135,7 +135,7 @@ def _drafted(project, catalog=None):
 
     `StageProgress` carries what analysis had produced *before* the stage it is
     yielded with, and never narrows — so the last one holding an IR is the IR
-    the guardrails read (RFC 0022 D3).
+    the guardrails read (S-0039/D-3).
     """
 
     drafted = None
@@ -521,7 +521,7 @@ def test_a_range_rule_of_min_zero_does_not_discharge_it() -> None:
 def test_a_boolean_filter_value_is_not_read_as_a_number() -> None:
     """`False == 0` in Python, so a `ne: [false]` clause would otherwise read as
     "not zero" and discharge a premise nobody stated. The values a filter
-    carries are text, ints and bools (RFC 0034 D8), and only the first two are
+    carries are text, ints and bools (S-0050/D-8), and only the first two are
     numbers."""
 
     restriction = "\n    filter:\n      - {dimension: parcels, op: ne, values: [false]}\n"

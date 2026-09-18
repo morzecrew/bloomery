@@ -1,19 +1,19 @@
-"""``RenderOnlySqlClient`` (RFC 0013 §5.3, D1): the ``SqlClient`` MetricFlow's
+"""``RenderOnlySqlClient`` (S-0030/the-adapter-and-the-render-only-client, S-0030/D-1): the ``SqlClient`` MetricFlow's
 engine plans through — it renders SQL and can never connect to anything, by
-construction. ``explain()`` never executes (verified, RFC 0013 D1); the three
+construction. ``explain()`` never executes (verified, S-0030/D-1); the three
 execution members raise :class:`NotImplementedError` so the impossibility is
 structural, not conventional.
 
 ``sql_client_for_dialect`` maps bloomery dialect names onto the (engine type,
 plan renderer) pairs MetricFlow ships in-package. ``duckdb``, ``trino`` and
-``postgres`` are wired — the shipped dialect set (RFC 0008 D5, M10); the
+``postgres`` are wired — the shipped dialect set (S-0025/D-5, M10); the
 remaining upstream renderers (snowflake, bigquery, databricks, redshift)
 slot in here when a dialect port ships for them.
 
 This module lives in ``bloomery/runtime/`` — request-time planner
 infrastructure, deliberately *outside* the compile pipeline: the import
 contract keeps ``runtime`` an independent top-layer sibling of ``compile``
-(RFC 0014 §layering), so no emitter or resolver can ever reach it and it can
+(S-0031 §layering), so no emitter or resolver can ever reach it and it can
 never reach them.
 """
 
@@ -43,7 +43,7 @@ __all__ = [
 
 
 class RenderOnlySqlClient(SqlClient):
-    """Renders SQL. Cannot connect to anything, by construction (RFC 0013 D1)."""
+    """Renders SQL. Cannot connect to anything, by construction (S-0030/D-1)."""
 
     def __init__(self, engine: SqlEngine, renderer: SqlPlanRenderer) -> None:
         self._engine = engine
@@ -91,7 +91,7 @@ class RenderOnlySqlClient(SqlClient):
 
 
 #: Dialect name → (engine type, plan-renderer class): the shipped dialect
-#: set (RFC 0008 D5). The remaining upstream renderers (snowflake, bigquery,
+#: set (S-0025/D-5). The remaining upstream renderers (snowflake, bigquery,
 #: databricks, redshift) slot in alongside a matching dialect port.
 _DIALECTS: Mapping[str, tuple[SqlEngine, type[SqlPlanRenderer]]] = MappingProxyType(
     {
@@ -106,7 +106,7 @@ def sql_client_for_dialect(name: str) -> RenderOnlySqlClient:
     """A fresh render-only client for a bloomery dialect name.
 
     Unknown names raise :class:`~bloomery.errors.PlannerError` listing every
-    wired dialect, sorted — same doctrine as the dialect registry (RFC 0008 D8).
+    wired dialect, sorted — same doctrine as the dialect registry (S-0025/D-8).
     """
     entry = _DIALECTS.get(name)
 

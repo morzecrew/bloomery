@@ -1,7 +1,7 @@
-# The replay-on-a-historical-entity fixture (RFC 0060 §5.2). This is
+# The replay-on-a-historical-entity fixture (S-0003 (§5.2)). This is
 # `scd2_as_of` with a quarantine policy added to the historical dimension —
 # the one thing `scd2_as_of` leaves out, and the pair nothing in this corpus
-# combined, because the compiler refused it outright until RFC 0060 P1 gave a
+# combined, because the compiler refused it outright until S-0003/P-1 gave a
 # recovered row a route back in.
 #
 # `segment` carries a quarantining rule, so a customer delivered with an

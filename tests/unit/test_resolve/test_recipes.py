@@ -1,4 +1,4 @@
-"""Recorded-recipe validation (RFC 0005 §5.2, D2): the compiler validates,
+"""Recorded-recipe validation (S-0022/recipe-validation-bloomery-resolve-recipes-py, S-0022/D-2): the compiler validates,
 never chooses — every failure branch, with exact alias-set enforcement."""
 
 from __future__ import annotations

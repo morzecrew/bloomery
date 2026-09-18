@@ -1,4 +1,4 @@
-"""The JSON Schema export (RFC 0020 §5.1, D1–D3).
+"""The JSON Schema export (S-0037/bloomery-schema-json-schema-export, S-0037/D-1–S-0037/D-3).
 
 The load-bearing property is D2: **every closed set appears as an enumeration,
 never a free string.** That is what constrained generation depends on — a
@@ -107,7 +107,7 @@ def test_every_schema_declares_its_dialect_and_a_versioned_id() -> None:
 
 def test_the_id_version_is_the_version_the_parser_accepts() -> None:
     """``$id`` is what a consumer pins to, so it has to be read off the model's
-    own pinned literal rather than written down twice. RFC 0018 D7 pinned all
+    own pinned literal rather than written down twice. S-0035/D-7 pinned all
     six keys to ``Literal[1]``; a bump that moved one and not the other would
     hand out a schema for a version bloomery does not parse."""
     for kind, schema in SCHEMAS.items():
@@ -116,7 +116,7 @@ def test_the_id_version_is_the_version_the_parser_accepts() -> None:
 
 
 def test_the_version_key_is_required_on_every_kind() -> None:
-    """It is the document-kind discriminator (RFC 0002 §5.5), so a schema that
+    """It is the document-kind discriminator (S-0019/spec-model-surface), so a schema that
     made it optional would accept a document ``load_project`` cannot identify."""
     for kind, schema in SCHEMAS.items():
         required = schema["required"]
@@ -125,7 +125,7 @@ def test_the_version_key_is_required_on_every_kind() -> None:
 
 
 def test_unknown_keys_are_refused_at_every_level() -> None:
-    """``SpecModel`` is ``extra="forbid"`` (RFC 0002 §5.2). A schema that let
+    """``SpecModel`` is ``extra="forbid"`` (S-0019/the-base-model). A schema that let
     unknown keys through would accept documents the parser rejects, which is
     the divergence direction that costs a proposal loop a round-trip."""
     for kind, schema in SCHEMAS.items():
@@ -188,13 +188,13 @@ def test_the_transform_whitelist_is_an_enumeration_in_every_authored_spelling() 
     # The normalized form is two branches, one per alternative, because every
     # field carries a default and Pydantic writes nothing required — so a
     # single branch admitted `{}` and `{name, step}`, which the model validator
-    # refuses (RFC 0017 D51: a chain step is a name or a step, never both).
+    # refuses (S-0034/D-51: a chain step is a name or a step, never both).
     assert normalized["required"] == ["name"] and normalized["not"] == {"required": ["step"]}
     assert link["required"] == ["step"] and link["not"] == {"required": ["name"]}
 
 
 def test_the_logical_type_grammar_is_a_pattern_rather_than_an_enum() -> None:
-    """RFC 0020 D2 lists ``LogicalType`` among the closed sets. It is closed as
+    """S-0037/D-2 lists ``LogicalType`` among the closed sets. It is closed as
     a *grammar*, not as a list: ``decimal(p, s)`` is parameterized, so an
     enumeration would have to spell out every precision/scale pair. The pattern
     is the faithful expression, and regex-constrained decoders consume it —
@@ -212,7 +212,7 @@ def test_the_steps_document_carries_no_determinism_key() -> None:
 
     ``determinism`` (``pure``/``seeded``/``nondeterministic``) is declared on
     ``StepManifest`` — the platform-owned side a caller assembles into a
-    ``StepRegistry``, which bloomery never reads from a document (RFC 0017 D3).
+    ``StepRegistry``, which bloomery never reads from a document (S-0034/D-3).
     The authored ``steps:`` document holds wiring only. Pinned so that moving
     the key into the spec is a decision someone makes rather than a schema that
     quietly stops describing a closed set.
@@ -224,8 +224,8 @@ def test_the_steps_document_carries_no_determinism_key() -> None:
 
 
 def test_op_appears_in_no_spec_kind() -> None:
-    """The other half of the same audit. RFC 0020 D2 also lists ``Op``, which
-    no spec document carries: filters are request-time (RFC 0011/0015), not
+    """The other half of the same audit. S-0037/D-2 also lists ``Op``, which
+    no spec document carries: filters are request-time (S-0028, S-0032), not
     authored. The requirement is vacuous rather than unmet, and pinning it
     stops a future ``Op``-shaped spec field from arriving as a free string.
     """

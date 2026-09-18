@@ -1,4 +1,4 @@
-"""The lineage-namespace guard (RFC 0051 §5.2, D6–D8).
+"""The lineage-namespace guard (S-0059/the-node-id-collision-refused-at-its-cause, S-0059/D-6–S-0059/D-8).
 
 Every node id but an entity field's is kind-prefixed, so an entity named after
 one of those prefixes mints ids in another kind's namespace. The

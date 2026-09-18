@@ -1,4 +1,4 @@
-"""Entity and mart names are identifiers (RFC 0002 D14).
+"""Entity and mart names are identifiers (S-0019/D-14).
 
 A field name reaches SQL through SQLGlot, which quotes and escapes it — that
 path was always safe and is asserted here so the distinction stays visible. A

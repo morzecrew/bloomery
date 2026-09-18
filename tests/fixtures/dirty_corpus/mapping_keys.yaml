@@ -5,7 +5,7 @@ key:
   order_id: {from: "$.order_id", transform: [to_string]}
   line_no: {from: "$.line_no", transform: [to_int]}
 fields:
-  # RFC 0016 §5.3's worked example, on live data. Two rows one ulp apart sit on
+  # S-0033/spec-schema's worked example, on live data. Two rows one ulp apart sit on
   # the bound (`amount_at_range_min` / `amount_below_range_min`, D78): `min`
   # lowers to `col < min`, so the edge itself is kept and only the row below it
   # is diverted. Every *other* out-of-bounds value in the corpus is uncastable,

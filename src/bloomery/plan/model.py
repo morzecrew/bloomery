@@ -1,11 +1,11 @@
-"""The plan-stage value objects (RFC 0007 §5.1, amended by RFC 0016 §5.7):
+"""The plan-stage value objects (S-0024/public-shape, amended by S-0033/plan-integration-rfc-0007-amendment):
 the five-member :class:`ChangeClass`, the :class:`Change` record,
 :class:`BackfillScope`, :class:`ReplayScope`, and the :class:`Plan` a diff
 returns.
 
-Frozen slotted stdlib dataclasses, like the IR they describe (RFC 0003 D1):
+Frozen slotted stdlib dataclasses, like the IR they describe (S-0020/D-1):
 plans are value-like, hashable, and byte-comparable — every collection is a
-tuple in a deterministic lexicographic order (RFC 0007 D6).
+tuple in a deterministic lexicographic order (S-0024/D-6).
 """
 
 from __future__ import annotations
@@ -25,14 +25,14 @@ __all__ = [
 
 
 class ChangeClass(StrEnum):
-    """The closed classification vocabulary (RFC 0007 D1 — spec §5.5):
+    """The closed classification vocabulary (S-0024/D-1 — spec §5.5):
     every diffable difference maps to exactly one class."""
 
     #: New optional column / metric — metadata-only, nothing existing moves.
     ADDITIVE = "additive"
-    #: Type widened per the RFC 0004 lattice (e.g. decimal(10,2) → (12,4)).
+    #: Type widened per the S-0021 lattice (e.g. decimal(10,2) → (12,4)).
     WIDENING = "widening"
-    #: Field identity preserved via an explicit ``renamed_from`` (RFC 0007 D3).
+    #: Field identity preserved via an explicit ``renamed_from`` (S-0024/D-3).
     RENAME = "rename"
     #: Same shape, different meaning — history must be recomputed (D4).
     RESTATING = "restating"
@@ -46,11 +46,11 @@ class ChangeClass(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Change:
-    """One classified difference between two IRs (RFC 0007 §5.1).
+    """One classified difference between two IRs (S-0024/public-shape).
 
     ``subject`` follows the fixed grammar ``<kind>:<name>`` with kinds
     ``entity``, ``field``, ``metric``, ``mart``, ``relationship``,
-    ``date_dimension`` and — since RFC 0016 §5.7 — the data-quality kinds
+    ``date_dimension`` and — since S-0033/plan-integration-rfc-0007-amendment — the data-quality kinds
     ``quality`` (named by the rule), ``dedupe`` and ``quarantine`` (named by
     the owning entity) and ``reconcile`` (named by the check). ``entity`` is
     the owning entity for entity- and field-level subjects and ``None`` for
@@ -66,7 +66,7 @@ class Change:
     old: str | None = None
     new: str | None = None
     #: What names the **old** node, for a node :attr:`ChangeClass.RENAME` and
-    #: empty for every other change (RFC 0062 §5.3). Sorted, in this class's
+    #: empty for every other change (S-0067/what-plan-gains). Sorted, in this class's
     #: own ``<kind>:<name>`` grammar.
     #:
     #: A rename is not a breaking change to the graph — the vertex is
@@ -88,7 +88,7 @@ class Change:
 
 @dataclass(frozen=True, slots=True)
 class BackfillScope:
-    """Which stored rows a plan invalidates (RFC 0007 §5.1): the sorted
+    """Which stored rows a plan invalidates (S-0024/public-shape): the sorted
     entities whose rows must be recomputed, and whether any RESTATING change
     is present — i.e. whether historical numbers change meaning."""
 
@@ -102,7 +102,7 @@ class BackfillScope:
 @dataclass(frozen=True, slots=True)
 class ReplayScope:
     """Which entities' ``<entity>__reject`` tables a plan invalidates
-    (RFC 0016 §5.7, D11) — sorted, like every other plan collection.
+    (S-0033/plan-integration-rfc-0007-amendment, S-0033/D-11) — sorted, like every other plan collection.
 
     Distinct from :class:`BackfillScope` because the two name different
     *storage*. A backfill recomputes an entity from bronze; a replay re-runs
@@ -112,7 +112,7 @@ class ReplayScope:
     backfilling would leave those rows quarantined forever: the backfill reads
     bronze, and bronze's window has long since moved past them.
 
-    Populated only where a change can actually free rows (RFC 0016 D52): the
+    Populated only where a change can actually free rows (S-0033/D-52): the
     rule's **old** disposition was ``quarantine`` — otherwise nothing sits in
     the reject table on its account — *and* it is now gone, now disposes as
     ``flag``, or has relaxed parameters. Two shapes deliberately do **not**
@@ -135,17 +135,17 @@ class ReplayScope:
 
 @dataclass(frozen=True, slots=True)
 class Plan:
-    """The product of :func:`bloomery.plan.plan` (RFC 0007 D6): classified
+    """The product of :func:`bloomery.plan.plan` (S-0024/D-6): classified
     changes sorted by ``(entity, subject, class, detail)``, the backfill
-    scope, the quarantine replay scope (RFC 0016 §5.7), the affected
+    scope, the quarantine replay scope (S-0033/plan-integration-rfc-0007-amendment), the affected
     metric names computed from the IR's own ``depends_on`` edges — no
-    external lineage — and the exposures those changes reach (RFC 0056 §5.4)."""
+    external lineage — and the exposures those changes reach (S-0063/plan)."""
 
     changes: tuple[Change, ...]
     backfill_scope: BackfillScope
     downstream_impact: tuple[str, ...]
     replay_scope: ReplayScope = ReplayScope(entities=())
-    #: The declared consumers this plan reaches, sorted by name (RFC 0056
+    #: The declared consumers this plan reaches, sorted by name (S-0063
     #: §5.4). Computed from the downstream metrics **and** the changed marts,
     #: never from the metric walk alone: an exposure may depend only on a mart,
     #: and that is exactly the one a metric-only walk omits — from a report
@@ -157,7 +157,7 @@ class Plan:
     @property
     def has_changes(self) -> bool:
         """Whether the diff found anything at all — ``plan(ir, ir)`` is the
-        empty plan (RFC 0007 D2)."""
+        empty plan (S-0024/D-2)."""
 
         return bool(self.changes)
 

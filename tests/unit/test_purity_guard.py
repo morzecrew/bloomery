@@ -1,4 +1,4 @@
-"""The purity gate is tested, not merely present (RFC 0019 §6).
+"""The purity gate is tested, not merely present (S-0036/tests).
 
 A guard that has never failed is indistinguishable from one that is
 misconfigured — and a guard spelled as *configuration* is the shape where that
@@ -74,7 +74,7 @@ def findings_for(source: str) -> str:
         # auditing the guard rather than by using it.
         ("from random import choice\n", "`random` is banned"),
         ("import secrets\n", "`secrets` is banned"),
-        # Logging is telemetry, never configuration (RFC 0033 D1). The library
+        # Logging is telemetry, never configuration (S-0004/D-1). The library
         # attaches one `NullHandler` and nothing else; `basicConfig` would pick
         # a root handler and a format for every embedder in the process.
         ("import logging\nlogging.basicConfig()\n", "`logging.basicConfig` is banned"),
@@ -106,7 +106,7 @@ def test_a_planted_violation_is_caught(source: str, expected: str) -> None:
         # A method of one's own that happens to be spelled like a clock.
         "x = self.now()\n",
         "x = context.time()\n",
-        # The one logging call the library *must* make (RFC 0033 D1), and the
+        # The one logging call the library *must* make (S-0004/D-1), and the
         # ordinary ones every module makes. Banning the module would have taken
         # these with it, which is why the ban is per member.
         "import logging\nlogging.getLogger('bloomery').addHandler(logging.NullHandler())\n",
@@ -122,7 +122,7 @@ def test_what_only_looks_banned_is_not_reported(source: str) -> None:
 
 
 def test_the_filesystem_carve_out_is_two_lines_not_the_cli_package() -> None:
-    """RFC 0020 D12. ``cli/io.py`` may open a file; nothing else under ``cli/``
+    """S-0037/D-12. ``cli/io.py`` may open a file; nothing else under ``cli/``
     may, and not even ``io.py`` may read a clock.
 
     A per-file ignore would pass every test that only checks ``cli/io.py`` may
@@ -160,7 +160,7 @@ def test_the_carve_out_does_not_exempt_a_clock() -> None:
 
 
 def test_the_pygrep_hook_it_replaces_is_gone() -> None:
-    """Two guards over one invariant drift apart (RFC 0019 D6). The banned-api
+    """Two guards over one invariant drift apart (S-0036/D-6). The banned-api
     table is a superset of the hook's four spellings, so the hook is removed —
     this pins that it stays removed."""
     config = (ROOT / ".pre-commit-config.yaml").read_text()

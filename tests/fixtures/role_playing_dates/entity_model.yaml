@@ -1,4 +1,4 @@
-# The role-playing fixture (RFC 0009 D12, RFC 0010): one order fact with two
+# The role-playing fixture (S-0026/D-12, S-0027): one order fact with two
 # date columns — grouping by ordered_month vs shipped_month gives different,
 # correct totals, executed on DuckDB.
 spec_version: 1

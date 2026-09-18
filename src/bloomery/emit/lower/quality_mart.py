@@ -1,4 +1,4 @@
-"""The quality mart (RFC 0016 §5.8).
+"""The quality mart (S-0033/the-quality-mart).
 
 Every rule evaluation as one row of an ordinary gold model. Counts only — the
 reject *rows* are never exposed through the semantic layer (§7.4), and nothing
@@ -49,7 +49,7 @@ if TYPE_CHECKING:
     from ..base import EmitContext
 
 # ....................... #
-# The quality mart (RFC 0016 §5.8): every rule evaluation as one row of an
+# The quality mart (S-0033/the-quality-mart): every rule evaluation as one row of an
 # ordinary gold model. Counts only — the reject *rows* are never exposed
 # through the semantic layer (§7.4), and nothing here reads a clock.
 
@@ -74,7 +74,7 @@ def _mapping_identity(entity: EntityIR) -> str:
     records, so the two surfaces name one mapping the same way.
 
     **On a merged entity it names every branch**, joined by ``+`` in
-    ``EntityIR.sources`` order: ``woo+shopify->order_line``. RFC 0024 D19 fixes
+    ``EntityIR.sources`` order: ``woo+shopify->order_line``. S-0041/D-19 fixes
     the mart's *grain* — one row per rule evaluation on the entity, because the
     rules run on the merged relation — and leaves the string unnamed, which was
     fine while D29 refused rules on a merged entity and is a choice now that P2
@@ -134,7 +134,7 @@ def _quality_rows_cte(entity: EntityIR, ctx: EmitContext) -> exp.Select | exp.Un
 def _counted(predicate: Expression) -> Expression:
     """``COALESCE(SUM(CASE WHEN <predicate> THEN 1 ELSE 0 END), 0)`` — a count
     that is 0, never NULL, on an empty **or** never-matching partition
-    (RFC 0016 D68).
+    (S-0033/D-68).
 
     The two halves answer different things and both are needed. ``ELSE 0``
     covers the partition that has rows and matches none of them; the
@@ -188,7 +188,7 @@ def _rows_deduped(entity: EntityIR, ctx: EmitContext) -> Expression:
         return exp.Literal.number(0)
 
     # Every branch: the count is "rows that arrived", and on a merged entity
-    # they arrived from more than one relation (RFC 0024 D19).
+    # they arrived from more than one relation (S-0041/D-19).
     bronze = (
         exp.Select()
         .select(exp.Count(this=exp.Star()))
@@ -233,7 +233,7 @@ def _branch(entity: EntityIR, rule: str, verdict: str, counts: list[Expression])
 
 def _entity_branch(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     """The entity's **accounting row**: the counts that belong to the entity
-    rather than to any one rule (RFC 0016 §5.8, resolved per D12 — see
+    rather than to any one rule (S-0033/the-quality-mart, resolved per D12 — see
     :data:`~bloomery.quality.ENTITY_GRAIN_ROW`).
 
     ``rows_evaluated``, ``rows_quarantined`` and ``rows_deduped`` are facts
@@ -341,7 +341,7 @@ def _reconcile_branch(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> ex
 def _run_column(macro: str | None, name: str, type_name: str) -> Expression:
     """One run-context column: the engine's expression, or declared-but-NULL.
 
-    bloomery never reads a clock (RFC 0003), so neither value can be computed
+    bloomery never reads a clock (S-0020), so neither value can be computed
     here. Where the target framework offers a macro, its literal text is
     substituted; where it does not, the column is emitted as a typed NULL
     carrying an inline comment naming what the caller supplies — the schema
@@ -356,7 +356,7 @@ def _run_column(macro: str | None, name: str, type_name: str) -> Expression:
     )
     column.comments = [
         (
-            f" {name}: supplied by the executing engine's run context (RFC 0016 §5.8); "
+            f" {name}: supplied by the executing engine's run context (S-0033/the-quality-mart); "
             "the pinned target exposes no macro for it — fill this column in your runner "
         )
     ]
@@ -367,7 +367,7 @@ def _run_column(macro: str | None, name: str, type_name: str) -> Expression:
 
 
 def quality_mart_select(ir: ProjectIR, ctx: EmitContext, run: RunContext) -> exp.Select:
-    """``gold.mart_data_quality`` (RFC 0016 §5.8): one row per rule
+    """``gold.mart_data_quality`` (S-0033/the-quality-mart): one row per rule
     evaluation, plus one per reconcile check.
 
     Three nested levels, so each concern is readable on its own: the branches

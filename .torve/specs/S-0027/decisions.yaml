@@ -1,0 +1,119 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      Gold is wide pre-joined marts declared in a fifth spec kind (`marts_version:
+      1`); no query-time joins on the common path. One `MartIR` is read by both the
+      mart builder (SQLMesh, joins at build) and the planner (no joins) — they cannot
+      disagree.
+    paths: [src/bloomery/ir/nodes.py]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Measure grain must strictly equal mart grain; coarser or finer is `GrainViolation`.
+      Resolves D2's prose/example contradiction to the strict reading; relaxation
+      is a future additive change.
+    paths:
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - src/bloomery/errors.py
+      - src/bloomery/marts/flatten.py
+      - src/bloomery/planner/semantic_plan.py
+      - src/bloomery/semantic/proof.py
+      - src/bloomery/semantic/rollup.py
+      - tests/fixtures/fanout_trap/marts.yaml
+      - tests/fixtures/fanout_trap/metrics.yaml
+      - tests/fixtures/semantic_corpus/001-order-shipping-fanout/expected/semantic_outcome.json
+      - tests/fixtures/semantic_corpus/001-order-shipping-fanout/problem.md
+      - tests/fixtures/semantic_corpus/010-many-to-many-bridge/expected/semantic_outcome.json
+      - tests/fixtures/semantic_corpus/010-many-to-many-bridge/problem.md
+      - tests/golden/refusals/example-wrong-grain.txt
+      - tests/golden/refusals/fanout_trap.txt
+      - tests/support/semantic_corpus.py
+      - tests/unit/test_emit/test_period_over_period.py
+      - tests/unit/test_semantic_corpus_guard.py
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `flatten` via-steps require declared `many_to_one`/`one_to_one` relationships
+      (else `FanoutRisk`); chains flatten transitively in authored order; prefixes
+      mandatory; collisions are errors, never auto-renames.
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/marts/flatten.py
+      - src/bloomery/spec/marts.py
+      - tests/golden/schema/marts.json
+      - tests/unit/test_marts/test_flatten.py
+      - tests/unit/test_spec/test_marts.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Date roles expand to exactly `{day, week, month, quarter, year}` bucket columns
+      named `<role>_<bucket>`; `hour` is deliberately not expanded.
+    paths:
+      - src/bloomery/emit/cube/__init__.py
+      - src/bloomery/emit/lower/marts.py
+      - src/bloomery/marts/flatten.py
+      - src/bloomery/planner/coverage.py
+      - src/bloomery/planner/request.py
+      - src/bloomery/spec/marts.py
+      - src/bloomery/spec/metrics.py
+      - tests/golden/schema/marts.json
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      `DimensionRef(dimension, role)` is the single role-playing model, defined in
+      the IR and lowered per consumer (build-time join aliasing; planner column reads;
+      Cube aliased join paths).
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Mart flattening is resolved at IR build (`bloomery/marts/`, pure): consumers
+      see the wide schema, never the recipe. `ProjectIR.marts` is fingerprint-covered.
+    paths:
+      - src/bloomery/marts/flatten.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_evidence.py
+      - tests/unit/test_resolve/test_build.py
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      Marts are optional: a project without a `marts:` document compiles silver only;
+      the planner then refuses everything with `UnreachableAtGrain` (no marts, no
+      serving surface).
+    paths:
+      - src/bloomery/marts/flatten.py
+      - src/bloomery/spec/marts.py
+      - tests/golden/schema/marts.json
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      `cost_hint` (int, default 1) is a tie-breaking scan-cost hint only; selection
+      ties break lexicographically (S-0020 determinism).
+    paths:
+      - src/bloomery/emit/lower/marts.py
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/guardrails/metrics.py
+      - src/bloomery/spec/marts.py
+      - tests/golden/schema/marts.json
+      - tests/unit/test_emit/test_metricflow.py
+      - tests/unit/test_planner/test_coverage.py
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      (Amended for `_bloomery-metricflow-pivot.md`) Marts are the emission source
+      for MetricFlow semantic models — one mart = exactly one semantic model (S-0030
+      R1); a measure-carrying mart must declare a date role (`MartMissingTimeDimension`
+      otherwise). Marts and role-playing are *more* load-bearing after the pivot,
+      not less.
+    paths:
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/marts/flatten.py
+      - src/bloomery/quality/mart.py
+      - src/bloomery/resolve/graph.py
+      - tests/fixtures/ecom_basic/marts.yaml
+      - tests/fixtures/quality_precedence/entity_model.yaml
+      - tests/unit/test_emit/test_quality_mart.py
+      - tests/unit/test_fixtures.py
+      - tests/unit/test_quality/test_mart.py
+      - tests/unit/test_resolve/test_graph.py

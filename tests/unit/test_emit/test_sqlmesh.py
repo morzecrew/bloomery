@@ -1,4 +1,4 @@
-"""The SQLMesh emitter (RFC 0008 §5.3): artifact shape, path ordering,
+"""The SQLMesh emitter (S-0025/sqlmesh-emitter-primary): artifact shape, path ordering,
 fingerprint headers, kind mapping, naming-policy routing, and audit lowering
 (builtin-style in the MODEL block; custom bodies under ``audits/``)."""
 
@@ -61,7 +61,7 @@ def test_artifacts_are_sorted_by_path() -> None:
 
 def test_fingerprint_header_matches_the_built_ir() -> None:
     """Every artifact carries it, in its own comment syntax: `--` for SQL,
-    `#` for the YAML project file (RFC 0054)."""
+    `#` for the YAML project file (S-0061)."""
     project, catalog = load_fixture("ecom_basic")
     fingerprint = project_fingerprint(build_project_ir(project, catalog))
     for artifact in compile_fixture("ecom_basic"):
@@ -268,7 +268,7 @@ def test_a_temporal_leading_mart_partition_column_passes() -> None:
 
 
 # ....................... #
-# Audit lowering (RFC 0006 §5.6/D7 → RFC 0008 §5.3)
+# Audit lowering (S-0023/range-sanity, S-0023/D-7 → S-0025/sqlmesh-emitter-primary)
 
 
 def _column(name: str, column_type: LogicalType) -> ColumnIR:
@@ -284,13 +284,13 @@ def _column(name: str, column_type: LogicalType) -> ColumnIR:
 
 
 def _projection(name: str) -> SourceColumnIR:
-    """This source\'s lowering of the column (RFC 0024 D26)."""
+    """This source\'s lowering of the column (S-0041/D-26)."""
     return SourceColumnIR(name=name, expr=SqlExpr(name))
 
 
 #: Every column these builders declare, lowered as itself. The emitted
 #: SELECT projects `SourceIR.columns`, so a name missing here is a column
-#: the model cannot produce (RFC 0024 D26).
+#: the model cannot produce (S-0041/D-26).
 _SOURCE = SourceIR(
     relation="src",
     columns=tuple(
@@ -326,7 +326,7 @@ def _merged_entity() -> EntityIR:
 
 
 def test_the_union_orders_branches_and_stamps_provenance() -> None:
-    """RFC 0024 D3/D7: lexicographic branch order, and a ``_source`` literal
+    """S-0041/D-3, S-0041/D-7: lexicographic branch order, and a ``_source`` literal
     per branch."""
     artifacts = SQLMeshEmitter().emit(ProjectIR(entities=(_merged_entity(),)), _ctx())
     model = next(a for a in artifacts if a.path == "models/silver/item.sql")
@@ -478,7 +478,7 @@ def test_entities_without_audits_render_no_audits_property() -> None:
 
 
 # ....................... #
-# Mart lowering (RFC 0010 / RFC 0008 D11) — the only join-emitting path
+# Mart lowering (S-0027 / S-0025/D-11) — the only join-emitting path
 
 
 def _mart_artifact_for(fixture: str, relation: str) -> str:
@@ -573,7 +573,7 @@ def test_naming_policy_routes_the_gold_layer() -> None:
 
 
 # ....................... #
-# Date dimension (RFC 0008 D13)
+# Date dimension (S-0025/D-13)
 
 
 def test_dim_date_emits_a_deterministic_calendar_from_the_catalog() -> None:
@@ -591,12 +591,12 @@ def test_dim_date_emits_a_deterministic_calendar_from_the_catalog() -> None:
 
 def test_projects_without_a_date_dimension_emit_no_dim_date() -> None:
     # `minimal` has no catalog at all — the only fixture left without a date
-    # dimension now that every mart fixture declares one (RFC 0013 R1 rule 4).
+    # dimension now that every mart fixture declares one (S-0030 R1 rule 4).
     assert not any("dim_date" in a.path for a in compile_fixture("minimal"))
 
 
 # ....................... #
-# The project file (RFC 0054)
+# The project file (S-0061)
 
 
 def _config(fixture: str) -> str | None:
@@ -608,7 +608,7 @@ def _config(fixture: str) -> str | None:
 
 def test_the_emitted_tree_carries_a_project_file() -> None:
     """Without it SQLMesh does not read the models at all — "SQLMesh project
-    config could not be found" (RFC 0054 §3 M1). The dbt target has emitted
+    config could not be found" (S-0061/current-state-measured M1). The dbt target has emitted
     `dbt_project.yml` all along; this is the same artifact for the primary
     target."""
     (config,) = [a for a in compile_fixture("ecom_basic", dialect="duckdb") if a.path == "config.yaml"]
@@ -750,7 +750,7 @@ def test_no_project_file_where_the_start_cannot_be_stated() -> None:
 
 
 # ....................... #
-# Rollup kinds (RFC 0058 §5.3)
+# Rollup kinds (S-0065/targets)
 
 _ROLLUP_SOURCES = {
     "entity_model": """\
@@ -872,11 +872,11 @@ def test_a_rollup_partitioned_on_a_column_it_dropped_is_refused() -> None:
 
 
 def test_a_declared_freshness_threshold_reaches_nothing_here() -> None:
-    """RFC 0057 D6, pinned as a decision rather than left as an absence.
+    """S-0064/D-6, pinned as a decision rather than left as an absence.
 
     A bronze relation is a name in a `FROM` clause on this target — SQLMesh has
     no source object to attach a threshold to, so emitting nothing is not a
-    degradation and is deliberately **not** a refusal (the RFC 0056 D4 rule for
+    degradation and is deliberately **not** a refusal (the S-0063/D-4 rule for
     exposures, applied again).
 
     A golden cannot make this claim: an artifact set that never mentions

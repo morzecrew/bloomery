@@ -1,4 +1,4 @@
-"""The metric-shape guard (RFC 0034 D5, D7, D9) — the refusals the four
+"""The metric-shape guard (S-0050/D-5, S-0050/D-7, S-0050/D-9) — the refusals the four
 time- and filter-shaped metric forms need.
 
 Everything here is decidable from the draft IR, and every failure is a *model*
@@ -9,7 +9,7 @@ emitter as an invalid manifest or — worse — compile clean and answer with a
 number nobody asked for.
 
 This replaces the blanket ``cumulative:`` refusal that stood while nothing
-lowered it (RFC 0002 D10). The refusal was right for as long as it held; what
+lowered it (S-0019/D-10). The refusal was right for as long as it held; what
 survives it is narrower and named per case, because "reserved surface" is no
 longer why any of these fail.
 """
@@ -59,7 +59,7 @@ def _is_temporal(value: str, *, with_time: bool) -> bool:
     ``"2026-99-99"``, which then reaches SQL as a literal compared against a
     date column and fails on the engine — a model error decidable from the spec
     alone, surfacing at run time with the engine's message instead of at compile
-    time with the column's name. That is the trade RFC 0016 D13 already refused
+    time with the column's name. That is the trade S-0033/D-13 already refused
     for range bounds, and it is refused here for the same reason.
 
     ``date.fromisoformat`` accepts only a date; a ``timestamp`` column takes
@@ -90,7 +90,7 @@ def _within(value: Decimal, declared: DecimalType) -> bool:
     scale)``.
 
     Finiteness alone let a 23-digit value through against a ``decimal(12,4)``
-    column, and the emitted literal is never cast (RFC 0013 D8) — so the
+    column, and the emitted literal is never cast (S-0030/D-8) — so the
     comparison reached the engine as a number the column cannot represent. Both
     halves are checked: digits after the point beyond ``scale`` would be
     silently rounded, and digits before it beyond ``precision - scale`` cannot
@@ -130,7 +130,7 @@ def _within(value: Decimal, declared: DecimalType) -> bool:
 
 def _fits(value: str | int | bool | Decimal, declared: LogicalType) -> bool:
     """Whether one filter value can be compared against a column of this type
-    without a cast (RFC 0013 D8's rule, applied at compile time).
+    without a cast (S-0030/D-8's rule, applied at compile time).
 
     ``str`` is the carrier for decimals YAML would round and for temporals the
     IR has no tag for, so it is accepted against a numeric or temporal column
@@ -172,7 +172,7 @@ def _fits(value: str | int | bool | Decimal, declared: LogicalType) -> bool:
 def _check_filter(
     metric: MetricIR, clause: MetricFilterIR, mart: MartIR, path: str
 ) -> list[GuardrailError]:
-    """One filter clause against one mart carrying the metric (RFC 0034 D9)."""
+    """One filter clause against one mart carrying the metric (S-0050/D-9)."""
 
     categorical = {
         dimension.column: dimension for dimension in mart.dimensions if dimension.ref.role is None
@@ -188,7 +188,7 @@ def _check_filter(
                 f"{clause.dimension!r}. A metric restricted to a fixed period is a "
                 "constant, not a metric — express the time relation as cumulative: "
                 "{window|grain_to_date} or as a derived metric with an offset: "
-                "(RFC 0034)"
+                "(S-0050)"
             )
             return [MetricFilterInvalid(msg, source_path=path)]
 
@@ -214,7 +214,7 @@ def _check_filter(
         msg = (
             f"metric {metric.name!r} filters {clause.dimension!r} "
             f"({type(declared).__name__}) against {unfit!r}, which does not fit the "
-            "column's declared type — filter values are never cast (RFC 0013 D8). "
+            "column's declared type — filter values are never cast (S-0030/D-8). "
             "Fix: write the value in the column's own type"
         )
         return [MetricFilterInvalid(msg, source_path=path)]
@@ -243,7 +243,7 @@ def _has_no_measure(metric: MetricIR) -> bool:
 
 
 def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
-    """The metric's own declaration, read against itself (RFC 0034 D5–D7)."""
+    """The metric's own declaration, read against itself (S-0050/D-5–S-0050/D-7)."""
 
     violations: list[GuardrailError] = []
 
@@ -251,7 +251,7 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
         msg = (
             f"metric {metric.name!r} declares both derived: and cumulative:. A derived "
             "metric has no measure of its own and a cumulative window accumulates one, "
-            "so the two name mutually exclusive shapes (RFC 0034 D7). Fix: accumulate a "
+            "so the two name mutually exclusive shapes (S-0050/D-7). Fix: accumulate a "
             "simple metric, then derive from *it*"
         )
         violations.append(InvalidMetricShape(msg, source_path=path))
@@ -274,7 +274,7 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
         msg = (
             f"metric {metric.name!r} declares derived: and also {', '.join(also)}. A metric "
             "has one shape: the emitter lowers the derived expression and silently discards "
-            "the rest, so the metric would mean less than it says (RFC 0034 D1). Fix: keep "
+            "the rest, so the metric would mean less than it says (S-0050/D-1). Fix: keep "
             "the derivation, or drop it and keep the measure"
         )
         violations.append(InvalidMetricShape(msg, source_path=path))
@@ -284,7 +284,7 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
             f"metric {metric.name!r} is derived: but declares additivity "
             f"{metric.additivity.value!r}. A derived metric has no measure to aggregate — "
             "it is recomputed from its inputs at query time, which is what non_additive "
-            "means (RFC 0011 D5). Fix: additivity: non_additive"
+            "means (S-0028/D-5). Fix: additivity: non_additive"
         )
         violations.append(InvalidMetricShape(msg, source_path=path))
 
@@ -294,7 +294,7 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
         # The two halves of one declaration, refused together rather than
         # separately: `ratio:` says what the operands are and `additivity:
         # ratio` says the quotient is never stored, and a metric carrying one
-        # without the other means half of what it says. Before RFC 0038 minted
+        # without the other means half of what it says. Before S-0053 minted
         # the member there was only one spelling — `non_additive` plus a
         # `ratio:` block — so this refuses specs that compiled yesterday, which
         # §7 licenses and CHANGELOG's migration note names
@@ -308,14 +308,14 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
                 f"metric {metric.name!r} declares ratio: but additivity "
                 f"{metric.additivity.value!r}. A ratio is stored as its operands and never "
                 "as the materialized quotient — SUM(num)/SUM(den) and AVG(ratio) differ, "
-                "and the second is what a numeric-looking column invites (RFC 0038 D2). "
+                "and the second is what a numeric-looking column invites (S-0053/D-2). "
                 "Fix: additivity: ratio"
             )
             if metric.ratio is not None
             else (
                 f"metric {metric.name!r} declares additivity: ratio but no ratio: block, so "
                 "nothing names the numerator and denominator it is recomputed from at query "
-                "time (RFC 0038 D2). Fix: ratio: {numerator, denominator} naming its "
+                "time (S-0053/D-2). Fix: ratio: {numerator, denominator} naming its "
                 "additive components, or a different additivity"
             )
         )
@@ -339,7 +339,7 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
             "A semi-additive metric may not be summed along its over: dimension, and that "
             "dimension is a date role; a cumulative window accumulates along it. Both "
             "lower, and the product is a number with no meaning — the rule's self-join "
-            "fans the measure out and the window then sums the copies (RFC 0034 D6). "
+            "fans the measure out and the window then sums the copies (S-0050/D-6). "
             "Fix: drop one of the two — accumulate an additive metric, or keep the "
             "point-in-time rule and read the series at its own grain"
         )
@@ -354,7 +354,7 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
         msg = (
             f"metric {metric.name!r} is cumulative: but {because}, so it has no measure to "
             "accumulate. The additivity describes the measure and the window describes how "
-            "it accumulates (RFC 0034 D6). Fix: declare the aggregation this accumulates — "
+            "it accumulates (S-0050/D-6). Fix: declare the aggregation this accumulates — "
             "agg:/expr: with an additive or semi_additive additivity"
         )
         violations.append(InvalidMetricShape(msg, source_path=path))
@@ -371,7 +371,7 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
             f"{metric.additivity.value} metric is never a measure — it is recomputed from "
             "its components at query time — so a filter here restricts those components "
             "rather than the metric it is written on: a post-aggregate filter, which "
-            "bloomery does not express (RFC 0034 §9). Fix: filter the components and "
+            "bloomery does not express (S-0050/what-is-deliberately-absent). Fix: filter the components and "
             "decompose from the filtered ones"
         )
         violations.append(InvalidMetricShape(msg, source_path=path))
@@ -426,7 +426,7 @@ def _check_aliases(metric: MetricIR, path: str) -> list[GuardrailError]:
 #: table rather than as a branch, for the reason the denomination consequences
 #: are one: a reason added to the rule and not here would take its neighbour's
 #: class, and an author would be told to fix the question they did not get
-#: wrong (RFC 0075 §5.2).
+#: wrong (S-0077/operand-restrictions-must-agree-whether-or-not-zero-is-invol).
 _RATIO_ROW_REFUSALS: Final[dict[str, type[GuardrailError]]] = {
     RatioRowsRefusal.UNDECLARED_ROWS.value: UndeclaredRatioRows,
     RatioRowsRefusal.OPERANDS_DISAGREE.value: RatioOperandsDisagree,
@@ -434,9 +434,9 @@ _RATIO_ROW_REFUSALS: Final[dict[str, type[GuardrailError]]] = {
 
 
 def _check_ratio_rows(metric: MetricIR, draft: ProjectIR, path: str) -> list[GuardrailError]:
-    """R019 over one metric: which rows this ratio is about (RFC 0075 §5.1).
+    """R019 over one metric: which rows this ratio is about (S-0077/the-refusal-is-the-product).
 
-    The proof decides and this reports, which is the shape RFC 0074's zone
+    The proof decides and this reports, which is the shape S-0076's zone
     guard took and R009's denomination check before it: an accepted ratio rests
     on the rule rather than on a guardrail staying quiet.
 
@@ -466,7 +466,7 @@ def _check_ratio_rows(metric: MetricIR, draft: ProjectIR, path: str) -> list[Gua
 
     return [
         _RATIO_ROW_REFUSALS[answer.reason](
-            f"{obligation.found} (RFC 0075 R019) — required: {obligation.required}. "
+            f"{obligation.found} (S-0077 R019) — required: {obligation.required}. "
             f"Fix: {answer.remediation}",
             source_path=path,
         )
@@ -481,9 +481,9 @@ def check_metrics(draft: ProjectIR) -> list[GuardrailError]:
 
     Filters are checked against **every** mart listing the metric among its
     measures, rather than against the one that will own it: ownership is the
-    cheapest-mart rule of RFC 0010 D8, which lives in the lowering package a
+    cheapest-mart rule of S-0027/D-8, which lives in the lowering package a
     layer above this one, and checking every candidate is a superset of what
-    correctness needs (RFC 0034 D9). A metric no mart lists carries no
+    correctness needs (S-0050/D-9). A metric no mart lists carries no
     checkable filter and none is claimed.
     """
 

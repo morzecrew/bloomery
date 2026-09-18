@@ -1,4 +1,4 @@
-"""The adversarial fake-step battery (RFC 0017 §6, Document 5 §8.7).
+"""The adversarial fake-step battery (S-0034/tests, Document 5 §8.7).
 
 Every liar fails loudly, and each one is a *separate* specimen because the
 point is not that bad steps fail — it is that each named failure mode is

@@ -1,4 +1,4 @@
-"""Mart-flattening properties (RFC 0010 §6): permuted spec dict order yields
+"""Mart-flattening properties (S-0027/tests): permuted spec dict order yields
 an identical ``MartIR`` (byte-identical compile), and every mart column
 traces to exactly one source entity column."""
 
@@ -47,7 +47,7 @@ def test_lowering_yields_identical_mart_ir_under_permutation(order: list[str]) -
 @settings(max_examples=10, deadline=None)
 @given(name=st.sampled_from(["ecom_basic", "role_playing_dates", "semi_additive_inventory"]))
 def test_every_mart_column_traces_to_exactly_one_source_entity_column(name: str) -> None:
-    """Amended by RFC 0016 §5.5: ``has_quality_flags`` traces to the base
+    """Amended by S-0033/schema-additions-and-the-array-capability: ``has_quality_flags`` traces to the base
     entity's *generated* ``_quality_ok``, which is a column of the emitted
     silver model but not of ``EntityIR.columns`` (the IR carries authored
     columns; the two quality columns are lowered at emit). The trace is still

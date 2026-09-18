@@ -1,8 +1,8 @@
-"""The spec layer (RFC 0002): strict frozen Pydantic models for the five spec
+"""The spec layer (S-0019): strict frozen Pydantic models for the five spec
 kinds plus the ``Project`` container and the pure loaders.
 
 Parse validates *shape and grammar* only — reference existence is resolution's
-job (RFC 0002 D4). Only :mod:`bloomery.errors` is imported from below.
+job (S-0019/D-4). Only :mod:`bloomery.errors` is imported from below.
 """
 
 from bloomery.spec.catalog import (
@@ -77,18 +77,18 @@ __all__ = [
     "RecipeFieldMapping",
     "SimpleFieldMapping",
     "TransformStep",
-    # steps (RFC 0017)
+    # steps (S-0034)
     "StepSet",
     "StepUse",
     "StepWiring",
-    # exports (RFC 0059)
+    # exports (S-0002)
     "ExportSet",
     "Exports",
-    # imports (RFC 0059)
+    # imports (S-0002)
     "ImportSet",
     "Imports",
     "UpstreamAlias",
-    # exposures (RFC 0056)
+    # exposures (S-0063)
     "Exposure",
     "ExposureDependsOn",
     "ExposureSet",
@@ -102,7 +102,7 @@ __all__ = [
     "CumulativeSpec",
     "Metric",
     "MetricSet",
-    # quality (RFC 0016)
+    # quality (S-0033)
     "CoercibleRule",
     "Dedupe",
     "EntityQualityRule",

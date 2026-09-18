@@ -1,5 +1,5 @@
 """The declared-vs-produced corpus is complete and its register is well formed
-(RFC 0028 D5).
+(S-0045/D-5).
 
 The battery itself needs an engine, so it runs in tiers 4 and 5. What can be
 checked without one is the thing most likely to rot: whether the hand-written
@@ -50,7 +50,7 @@ def test_registered_divergences_name_real_cases_and_a_shipped_port(port: str) ->
 @pytest.mark.parametrize("port", sorted(KNOWN))
 def test_every_registered_divergence_says_why(port: str) -> None:
     """A register of bare type names is a list of numbers nobody can act on;
-    each row is scheduled work and has to say what it is (RFC 0029)."""
+    each row is scheduled work and has to say what it is (S-0046)."""
     silent = sorted(name for name, entry in KNOWN[port].items() if not entry.why.strip())
     assert not silent, f"{port}: divergences registered without a reason: {silent}"
 
@@ -69,7 +69,7 @@ def test_a_case_declares_what_the_registry_says_it_declares() -> None:
 
 def test_probing_uses_the_expression_emit_sees_not_the_builders() -> None:
     """The corpus round-trips every case through canonical text before probing
-    (RFC 0003 D2), and the round trip is not lossless.
+    (S-0020/D-2), and the round trip is not lossless.
 
     ``json_path`` is the visible proof: its builder leaves the path as a plain
     string literal, and only re-parsing makes it the

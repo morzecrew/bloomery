@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      **Identity resolution is a Tier 3 step, permanently — not deferred.** Modelling
+      it declaratively would require blocking keys, similarity functions and thresholds
+      that bloomery can neither typecheck nor guardrail, so a spec kind would give
+      *weaker* guarantees than a step's declared, runtime-enforced contract. S-0034/D-36,
+      S-0034/D-37 and D49 were built for this shape.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      **The evidence is a fixture, not a claim.** `tests/fixtures/identity_resolution/`
+      ships with two no-shared-key sources, a two-output step, a `references:` sibling
+      declaration, `canonical:` links, a mart and a blocking confidence rule — running
+      in the execution tier and the `step_resolution` e2e cell. "Deferred" and "solved
+      by an existing mechanism" are materially different statuses, and only a passing
+      fixture establishes the second.
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      **`runtime_lock` makes a step safer here than a spec kind would be**: a similarity-library
+      change classifies `RESTATING` and backfills the outputs. A declarative similarity
+      function would have no equivalent — the compiler could not see that the semantics
+      moved. This is the strongest form of decision 1's argument and is recorded separately
+      because it inverts the intuition.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      **Dialects are demand-driven on a named consumer, never speculative**, and **costed**
+      at roughly a week each (§5.2), BigQuery costlier. The value of costing is that
+      "we don't support Snowflake" becomes "Snowflake is about a week" without building
+      anything.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **A new dialect declares its `Feature` set honestly or is refused**, never silently
+      approximating. S-0033/D-84's Postgres `TRY_CAST` — a guard around the engine's
+      own parser rather than an approximation — is the standard, and D96's regex-cost
+      question is part of the same assessment.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      **Incremental-strategy inference is closed: no.** The general principle, which
+      recurs: **bloomery derives defaults; it does not infer intent.** A default is
+      visible in compiled output and overridable; an inference is a guess the author
+      cannot see. S-0022 draws the same line for recipes — validate a recorded choice,
+      never make one.
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      **The Cube emitter's scope is correct**; its thinness is recorded as a **triage
+      order** for equivalence divergences — Cube first, reference SQL second, planner
+      third — in `tests/equivalence/README`. It orders investigation, not conclusions.
+      `known_divergences.yaml` stays empty; an entry is an amendment, not a tolerance.
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      **The disposition is stated as a reusable test** (§5.5): before adding a spec
+      kind, ask whether it can be a referenced implementation instead — *can bloomery
+      typecheck it, guardrail it, and diff it meaningfully?* If not, it is a step.
+      The registry exists so the answer can be yes, and the library stays smaller
+      than the problem it solves.

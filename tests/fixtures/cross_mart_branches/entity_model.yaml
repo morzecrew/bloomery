@@ -1,4 +1,4 @@
-# The cross-mart branch fixture (RFC 0041 P1, logs/T-0026.md D-167).
+# The cross-mart branch fixture (S-0055/phasing (P-1), logs/T-0026.md D-167).
 #
 # Three entities, each with a mart carrying one additive measure, and every
 # mart reaching `customer.tier` — directly at `customers`, through one
@@ -8,7 +8,7 @@
 # `customer_tier` and `order_customer_tier`.
 #
 # That is the point of the fixture, and why it is a fixture rather than an
-# extension of `unflattened_hop`: RFC 0041 D12 makes those three one dimension
+# extension of `unflattened_hop`: S-0055/D-12 makes those three one dimension
 # by provenance, and nothing else in the corpus has two measure-carrying marts
 # that reach one dimension at all. `unflattened_hop` is the neighbouring case
 # — the hop declared and deliberately not flattened — and it owns checked-in

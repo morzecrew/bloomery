@@ -1,4 +1,4 @@
-"""Tier 1 splicing: a macro body as an expression (RFC 0017 §5.1, D50).
+"""Tier 1 splicing: a macro body as an expression (S-0034/the-four-tier-ladder, S-0034/D-50).
 
 A ``sql_macro`` is the one tier that emits no artifact of its own. Its body is
 a single SQL *expression* with ``:name`` placeholders, and it is substituted
@@ -13,7 +13,7 @@ that needs it. Putting it below both is what keeps the layering contract
 honest instead of routed around.
 
 Substitution is over an **AST**, never over text. That is what keeps Tier 1
-inside the SQLGlot-only discipline (RFC 0004 D7) and what makes an argument
+inside the SQLGlot-only discipline (S-0021/D-7) and what makes an argument
 data rather than syntax — the same boundary D25/D32 had to close twice on the
 generated wrapper.
 """
@@ -51,13 +51,13 @@ def parameter_literal(value: str, declared: str) -> Expression:
     A value authored in a spec reaches emitted SQL here, so it is built as an
     AST literal and never interpolated as text. That is what makes
     ``x\' OR 1=1 --`` a string containing an apostrophe rather than a
-    predicate (RFC 0013's injection boundary; RFC 0004 D7's SQLGlot-only rule).
+    predicate (S-0030's injection boundary; S-0021/D-7's SQLGlot-only rule).
 
     The *declared* type decides the spelling rather than the shape of the
     digits — the guessing game D20 refused on the Python side, where ``"0.9"``
     and ``"09"`` cannot be told apart by looking. ``date`` and ``timestamp``
     render as string literals the engine compares in the column's own type,
-    the convention ``_bound_literal`` established for RFC 0016's range bounds
+    the convention ``_bound_literal`` established for S-0033's range bounds
     (D57); no ``CAST`` spelling is invented here.
     """
     base = declared.split("(", 1)[0].strip()
@@ -66,9 +66,9 @@ def parameter_literal(value: str, declared: str) -> Expression:
         return exp.Boolean(this=value.strip().lower() in {"true", "1"})
 
     if base in {"int", "decimal"}:
-        # The text, not a parsed float: RFC 0003 D5 keeps floats out of every
+        # The text, not a parsed float: S-0020/D-5 keeps floats out of every
         # emission path. But *checked* here rather than trusted from the caller
-        # (RFC 0017 D53): a numeric literal renders unquoted, so text that is
+        # (S-0034/D-53): a numeric literal renders unquoted, so text that is
         # not a number reaches the SQL as syntax. `factor: "1 OR 1=1"` on a
         # Tier 1 call site emitted `amt * 1 OR 1 = 1` — a predicate spliced
         # into a projection, through the very function whose docstring calls
@@ -83,7 +83,7 @@ def parameter_literal(value: str, declared: str) -> Expression:
 # ....................... #
 
 
-#: SQL numeric-literal syntax, per declared type (RFC 0017 D56).
+#: SQL numeric-literal syntax, per declared type (S-0034/D-56).
 #:
 #: A *syntax* check rather than a parse, because Python's numeric parsers accept
 #: strings SQL does not and the emitted text is the original: ``Decimal("1_0")``

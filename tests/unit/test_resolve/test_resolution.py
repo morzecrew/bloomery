@@ -1,4 +1,4 @@
-"""The public ``resolve`` API and ``Resolution`` result (RFC 0005 §5.6):
+"""The public ``resolve`` API and ``Resolution`` result (S-0022/the-result-type-and-api-bloomery-resolve-init-py):
 ecom_basic reachable/unreachable reporting (M3's done-condition), provenance,
 topo determinism under permuted input, idempotence."""
 
@@ -21,7 +21,7 @@ pytestmark = pytest.mark.unit
 
 
 def test_ecom_basic_reachable_and_unreachable_reporting() -> None:
-    """The M3 done-condition (RFC 0005 §12): reachable metrics named, and
+    """The M3 done-condition (S-0022/phasing): reachable metrics named, and
     margin unreachable with the specific missing leaf `cogs`."""
     project, catalog = load_fixture("ecom_basic")
     resolution = resolve(project, catalog)
@@ -50,7 +50,7 @@ def test_ecom_basic_provenance() -> None:
     assert by_field["order_item", "order_date"].provenance is Provenance.NATIVE
     assert by_field["order", "customer_id"].provenance is Provenance.NATIVE
     assert by_field["order", "order_id"].provenance is Provenance.NATIVE
-    # Sorted by (entity, field, mapping) — RFC 0005 D6, RFC 0032 D7.
+    # Sorted by (entity, field, mapping) — S-0022/D-6, S-0049/D-7.
     keys = [(p.entity, p.field, p.mapping) for p in resolution.provenance]
     assert keys == sorted(keys)
 
@@ -59,7 +59,7 @@ def test_every_mapped_field_appears_exactly_once() -> None:
     """The report's *population*, swept over the corpus and named.
 
     Every mapped field, key fields included, exactly once **per mapping that
-    builds it** (RFC 0032 D1) — which is the invariant that replaced "last
+    builds it** (S-0049/D-1) — which is the invariant that replaced "last
     write wins", and the one a future change to the merged shape would break
     first. It says nothing about the provenance *kind*, which is pinned above;
     this is the width, and the corpus is the only place wide enough to measure
@@ -84,17 +84,17 @@ def test_every_mapped_field_appears_exactly_once() -> None:
         assert set(reported) == mapped, f"{name}: the report and the mappings disagree"
         swept += len(mapped)
 
-    # RFC 0031 §3 measured 146 when the key was `(entity, field)`. Keying on
+    # S-0048/current-state measured 146 when the key was `(entity, field)`. Keying on
     # the mapping too adds the 4 facts `multi_source`'s merged `order_line`
-    # could not represent — the whole of what RFC 0032 recovers in this corpus,
-    # reported as a number rather than a claim. RFC 0034's `period_over_period`
-    # fixture adds one mapping of eight fields, and RFC 0024 P2's
-    # `multi_source_quality` adds two of six and seven, and RFC 0024 D36's
-    # `path_conflict_merged` two of four, and RFC 0040 P2's `unflattened_hop`
-    # three of four, four and two, and RFC 0041 P1's `cross_mart_branches`
-    # three of three, four and four, and RFC 0058 P2's `rollup_mart` two of
-    # five and two, and RFC 0061 P2's `currency_convert_per_row` one of five,
-    # and RFC 0060 P1's `scd2_replay` two of two and five: the number moves
+    # could not represent — the whole of what S-0049 recovers in this corpus,
+    # reported as a number rather than a claim. S-0050's `period_over_period`
+    # fixture adds one mapping of eight fields, and S-0041/phasing (P-2)'s
+    # `multi_source_quality` adds two of six and seven, and S-0041/D-36's
+    # `path_conflict_merged` two of four, and S-0054/phasing (P-2)'s `unflattened_hop`
+    # three of four, four and two, and S-0055/phasing (P-1)'s `cross_mart_branches`
+    # three of three, four and four, and S-0065/phasing (P-2)'s `rollup_mart` two of
+    # five and two, and S-0066/phasing (P-2)'s `currency_convert_per_row` one of five,
+    # and S-0003/P-1's `scd2_replay` two of two and five: the number moves
     # with the corpus, which is exactly what this is meant to notice.
     assert swept == 231, f"{swept} mapped (entity, field, mapping) triples across the corpus"
 
@@ -123,7 +123,7 @@ def test_every_mappings_document_is_a_real_document() -> None:
 
 
 def test_renaming_a_mapping_document_moves_the_report_and_nothing_else() -> None:
-    """RFC 0032 D4's boundary, asserted rather than intended.
+    """S-0049/D-4's boundary, asserted rather than intended.
 
     The identity is a filename, so a rename *is* a change of identity — which
     is only acceptable because nothing durable is keyed on it. That is a claim
@@ -154,7 +154,7 @@ def test_renaming_a_mapping_document_moves_the_report_and_nothing_else() -> None
 
 
 def test_minimal_resolves_catalog_free() -> None:
-    """RFC 0005 §5.6: a catalog-free project is direct-and-native only, with
+    """S-0022/the-result-type-and-api-bloomery-resolve-init-py: a catalog-free project is direct-and-native only, with
     no reachable metrics by construction."""
     project, _ = load_fixture("minimal")
     resolution = resolve(project)
@@ -178,7 +178,7 @@ def test_resolve_is_idempotent() -> None:
 
 def test_resolution_is_invariant_under_document_key_order() -> None:
     """Reordering YAML mapping keys (dict insertion order) must not move a
-    single byte of the resolution (RFC 0005 D5)."""
+    single byte of the resolution (S-0022/D-5)."""
     sources = fixture_sources("minimal")
     reordered = dict(sources)
     reordered["mapping"] = reordered["mapping"].replace(

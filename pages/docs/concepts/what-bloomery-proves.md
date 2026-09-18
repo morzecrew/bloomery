@@ -184,7 +184,7 @@ measures, the column, and how the compiler reached it:
 ```
 mart 'statutory_revenue' requires 'locked'; its measures ('net_revenue') rest on column
 'customer_tier', which the compiler reached by '<basis>' rather than from anything an
-author wrote (RFC 0065 §5.1). Fix: declare the relationship that carries
+author wrote (S-0070/the-grades-and-what-they-project-from). Fix: declare the relationship that carries
 'customer_tier', or set 'requires_evidence: assumed' on this mart
 ```
 
@@ -211,7 +211,7 @@ relationships:
 ```
 mart 'statutory_revenue' requires 'locked'; its measures ('net_revenue') rest on column
 'order_customer_id', carried by 'item_of_order' — read out of
-'metricflow:semantic_manifest.json' rather than written here (RFC 0070 D1). Fix: author
+'metricflow:semantic_manifest.json' rather than written here (S-0075/D-1). Fix: author
 the relationship in this project and drop its 'imported_from:', or set
 'requires_evidence: assumed' on this mart
 ```
@@ -252,14 +252,14 @@ you to the exposure's own key:
 ```
 exposure 'exec_dashboard' requires 'locked'; it reads mart 'statutory_revenue' (carrying
 metric 'net_revenue'), whose column 'customer_tier' the compiler reached by '<basis>' rather
-than from anything an author wrote (RFC 0065 §5.1). Fix: declare the relationship that
+than from anything an author wrote (S-0070/the-grades-and-what-they-project-from). Fix: declare the relationship that
 carries 'customer_tier', or set 'requires_evidence: assumed' on this exposure
 ```
 
 ```
 exposure 'exec_dashboard' requires 'locked'; it reads mart 'statutory_revenue' (carrying
 metric 'net_revenue'), whose column 'order_customer_id' comes in through 'item_of_order' —
-read out of 'metricflow:semantic_manifest.json' rather than written here (RFC 0070 D1). Fix:
+read out of 'metricflow:semantic_manifest.json' rather than written here (S-0075/D-1). Fix:
 author the relationship in this project and drop its 'imported_from:', or set
 'requires_evidence: assumed' on this exposure
 ```

@@ -1,0 +1,144 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      The planner is a **fourth port**, separate from `TargetEmitter`: request-time,
+      called thousands of times/sec vs once per spec version — different lifecycle,
+      different envelope. `Planner.plan(ir, request, *, dialect, policy=None) -> QueryPlan`,
+      a pure function returning SQL text + metadata, executing nothing.
+    paths: [src/bloomery/planner/metricflow_planner.py]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Request/response types verbatim from D1: `TimeGrain`, `FilterExpr`, `OrderSpec`,
+      `MetricRequest` (static shape, dynamic content — what the Query Agent emits;
+      malformed requests fail validation, never execute); `ColumnDescriptor`, `QueryPlan`
+      (sql, self-describing `columns` envelope, mart, warnings, explanation, `fingerprint
+      = sha256(sql)`). All frozen dataclasses.
+    paths:
+      - src/bloomery/planner/names.py
+      - src/bloomery/planner/request.py
+      - src/bloomery/planner/result.py
+      - tests/unit/test_planner/test_request.py
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Six-step algorithm: validate (`UnknownMember` with `did_you_mean` via difflib,
+      S-0021/D-4) → mart selection (0 → `UnreachableAtGrain` naming the per-metric
+      grain/mart conflict; 1 → use; N → lowest `cost_hint`, ties lexicographic by
+      mart name) → additivity lowering → SQLGlot AST build → `dialect.render` → `Explanation`.
+    paths: [src/bloomery/errors.py, tests/unit/test_planner/test_coverage.py]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Hard rules: never join at plan time (refusal with reason beats a plausible wrong
+      number); `RowPolicy` predicate parsed via sqlglot into the WHERE conjunction
+      of the AST, never string-appended; `order_by` fields must be requested metrics/dimensions
+      (injection surface); `limit` clamped to `NativePlanner(max_limit=50_000)`, clamping
+      adds a `QueryPlan.warnings` entry.
+    paths:
+      - src/bloomery/planner/compose.py
+      - src/bloomery/planner/metricflow_planner.py
+      - src/bloomery/planner/names.py
+      - src/bloomery/planner/request.py
+      - tests/unit/test_planner/test_metricflow_planner.py
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Additivity lowering per D4 exactly: additive → SUM at requested grain; semi-additive
+      (`SemiAdditivePolicy(over, rule ∈ last/first/avg/max/min)`) → sum across every
+      dimension except `over`, rule along `over` (coarser requested grain: rule within
+      each bucket, then sum); non-additive → never stored/summed, recomputed from
+      additive components (`RatioSpec` → `SUM(num)/NULLIF(SUM(den),0)`); missing components
+      = `NonAdditiveWithoutComponents` at resolution/guardrail stage (S-0023 defense-in-depth).
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/guardrails/additivity.py
+      - src/bloomery/guardrails/metrics.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/planner/coverage.py
+      - src/bloomery/planner/explain.py
+      - src/bloomery/planner/result.py
+      - src/bloomery/spec/common.py
+      - tests/fixtures/non_additive_aov/marts.yaml
+      - tests/fixtures/non_additive_aov/metrics.yaml
+      - tests/golden/schema/catalog.json
+      - tests/golden/schema/metrics.json
+      - tests/unit/test_planner/test_coverage.py
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Every dimension reference in `MetricRequest`/`FilterExpr`/`OrderSpec` parses
+      into a `DimensionRef` (S-0027); unqualified reference to a multi-role dimension
+      → `AmbiguousDimension` naming the roles. The planner reads flattened mart columns
+      — no joins, so role-playing needs no planner logic.
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/planner/coverage.py
+      - src/bloomery/planner/request.py
+      - tests/execution/test_planner_numbers.py
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      `RowPolicy` is a value object holding a SQL predicate — not a tenant identity/session/security
+      context; the planner never resolves policies (D9). "tenant" may appear only
+      in `naming.py` docstrings, enforced by a CI grep added to `just quality` (S-0018/D-4).
+    paths: [src/bloomery/planner/policy.py]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      `Explanation` is deterministic, generated from the plan, never from an LLM;
+      dataclass + `render()` per D8. Product requirement: every number ships with
+      how it was computed.
+    paths:
+      - src/bloomery/planner/explain.py
+      - src/bloomery/planner/result.py
+      - tests/unit/test_planner/test_metricflow_planner.py
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      Errors: `PlannerError(BloomeryError)` with leaves `UnknownMember`, `UnreachableAtGrain`,
+      `AmbiguousDimension`, `InvalidRequest`, all declared in `bloomery/errors.py`
+      (S-0019/D-3). Planner errors are **not batched** — deviation from compile-time
+      batching, justified: the interactive caller fixes one request, and validation-first
+      means failures are mostly singular.
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/planner/request.py
+      - tests/unit/test_planner/test_request.py
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      Mandatory pre-merge test: row-policy-survives-every-path, asserted on the **parsed
+      AST** (predicate present in every table scan), never on a SQL substring — "a
+      string check passes on `-- tenant_id = 'acme'`" (D1).
+    paths: [tests/unit/test_planner/test_row_policy.py]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      **Supersession split (MetricFlow pivot):** the request/`QueryPlan` contract,
+      refusal policy, `RowPolicy` semantics, `Explanation` shape, and error taxonomy
+      (D1–D2, D4, D6–D10) remain binding on the backend; the native SQL assembly,
+      additivity lowering, and mart-selection internals (D3 steps 2–4, D5) are superseded
+      by S-0030. Mart selection survives as the coverage precheck (S-0030 R3) — refusal
+      before delegation.
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      Additivity lowering correctness (§5.4's semantics — 90-not-270, 130 across warehouses,
+      2727.27) is now asserted by **execution tests against MetricFlow-generated SQL**
+      (S-0026/planner-test-obligations-rfcs-0011-0013), not by unit tests of our own
+      lowering code — no such code exists under S-0030.
+    paths: [tests/execution/test_planner_numbers.py]
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      *(Appended 2026-08-07, M14 — S-0032.)* D2's request/filter types are superseded
+      by S-0032's query vocabulary: `FilterExpr` is renamed `Predicate` with the closed
+      `Op` set (`between`/`contains` removed; `like`/`ilike` added; `is_null` takes
+      exactly one bool), filters are CNF (`Clause = Predicate | AnyOf`, implicit AND,
+      one disjunction level), `Scalar` widens with the string carrier and the non-finite
+      guard, and `RowPolicy.as_filter()` renames to `as_clause()`. The rest of this
+      contract — `QueryPlan`, refusal policy, `Explanation` shape, D4/D6–D10 — is
+      untouched.

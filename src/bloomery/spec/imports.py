@@ -1,4 +1,4 @@
-"""What a project reads from another project's published surface (RFC 0059
+"""What a project reads from another project's published surface (S-0002
 §5.1, D1).
 
 The downstream half of composition, and the mirror of
@@ -45,7 +45,7 @@ UpstreamAlias = Annotated[str, StringConstraints(pattern=IDENTIFIER_PATTERN)]
 #: at least one of the three lists carries a name. Three defaulted arrays make
 #: ``minProperties`` useless — ``{"entities": []}`` has one property and reads
 #: nothing — so the constraint is an ``anyOf`` over the three, spelled here
-#: because pydantic generates the shape and not the rule (RFC 0020 D10: the
+#: because pydantic generates the shape and not the rule (S-0037/D-10: the
 #: schema is a pre-filter, and a pre-filter looser than the parser is one that
 #: passes documents the loader then rejects).
 _READS_SOMETHING: Final[dict[str, Any]] = {
@@ -97,10 +97,10 @@ class Imports(SpecModel):
 
 class ImportSet(SpecModel):
     """The per-project imports document (``imports_version``), at most one per
-    project (RFC 0059 §5.1)."""
+    project (S-0002 (§5.1))."""
 
     #: Pinned to the one version bloomery implements, like every other document
-    #: kind's (RFC 0018 D7): an unbounded ``int`` accepts a document written for
+    #: kind's (S-0035/D-7): an unbounded ``int`` accepts a document written for
     #: a future bloomery and silently applies v1 semantics to it. Required,
     #: because this key is also the document-kind discriminator.
     imports_version: Literal[1]
@@ -131,7 +131,7 @@ class ImportSet(SpecModel):
             msg = (
                 "an imports document must declare at least one upstream — one that declares "
                 "none says what a project with no imports document already says, while "
-                "reading as a dependency somebody drew (RFC 0059 D1). Fix: name what this "
+                "reading as a dependency somebody drew (S-0002/D-1). Fix: name what this "
                 "project reads, or delete the document"
             )
             raise ValueError(msg)
@@ -140,7 +140,7 @@ class ImportSet(SpecModel):
             if not (read.entities or read.marts or read.metrics):
                 msg = (
                     f"imports {alias!r} and reads nothing from it. An upstream that supplies "
-                    f"no entity, mart or metric is a dependency on nothing (RFC 0059 D1). "
+                    f"no entity, mart or metric is a dependency on nothing (S-0002/D-1). "
                     f"Fix: name what this project reads from {alias!r}, or drop the upstream"
                 )
                 raise ValueError(msg)

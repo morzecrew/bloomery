@@ -1,4 +1,4 @@
-"""Shared spec plumbing (RFC 0002 §5.3, §5.6): source-path conversion and the
+"""Shared spec plumbing (S-0019/source-paths, S-0019/yaml-parsing): source-path conversion and the
 strict duplicate-key-rejecting YAML loader."""
 
 from __future__ import annotations

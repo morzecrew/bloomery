@@ -1,5 +1,5 @@
 """``charset`` member sets: from ``U+`` items to the characters a predicate
-compares against (RFC 0016 §5.3, D86).
+compares against (S-0033/spec-schema, S-0033/D-86).
 
 The spec surface validates *spelling* — ``U+200B``, ``U+0020-U+007E``, and
 nothing else (``CODEPOINT_ITEM_PATTERN``). What it cannot decide from a regex

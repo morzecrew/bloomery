@@ -1,5 +1,5 @@
-# The union merge (RFC 0024): two shops on one platform, one shared key space
-# with disjoint key sets. The fixture RFC 0009 D4 named and never built.
+# The union merge (S-0041): two shops on one platform, one shared key space
+# with disjoint key sets. The fixture S-0026/D-4 named and never built.
 #
 # The key is **composite** on purpose. §5.4's illustration groups by one
 # column, and a generated GROUP BY that dropped a component would pass against
@@ -8,7 +8,7 @@
 # single-column key cannot catch that; this one can.
 #
 # No `quality:`, no `dedupe:`, no `quarantine:`: a merged entity is outside the
-# data-quality system in P1 (RFC 0024 D14, widened by D29), because rule
+# data-quality system in P1 (S-0041/D-14, widened by D29), because rule
 # lowering is per mapping and has no merged form yet.
 spec_version: 1
 entities:

@@ -1,4 +1,4 @@
-"""`owner` on an entity, a mart and a metric (RFC 0055 §5.1).
+"""`owner` on an entity, a mart and a metric (S-0062/owner).
 
 One value authored on a spec node, carried through the IR unchanged, and
 written into whichever metadata slot the target has. The tests are organised by
@@ -61,14 +61,14 @@ _INLINE_CLASSIFICATION = re.compile(r", classification: [a-z]+")
 
 
 def unannotated(sources: dict[str, str]) -> dict[str, str]:
-    """The same project with every RFC 0055 annotation taken back out.
+    """The same project with every S-0062 annotation taken back out.
 
     Asserted to have removed something: a stripper that silently matches
     nothing turns every before/after comparison below into a comparison of a
     project with itself, which passes and proves nothing.
     """
     # Only the documents this RFC annotates. `owner:` is not its word alone —
-    # a dbt exposure has carried a *required* one since RFC 0056, and stripping
+    # a dbt exposure has carried a *required* one since S-0063, and stripping
     # that made the project unloadable rather than un-annotated.
     annotated_kinds = {"entity_model", "marts", "metrics"}
     stripped = {
@@ -144,7 +144,7 @@ def test_the_annotation_moves_no_sql_anywhere_in_a_project(target: str) -> None:
     for any IR change at all.
 
     Not a grep for the word "owner": dbt exposures have carried a required
-    `owner:` key since RFC 0056, so "no artifact mentions an owner" is already
+    `owner:` key since S-0063, so "no artifact mentions an owner" is already
     false on this corpus and would pass for the wrong reason.
     """
     catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
@@ -355,7 +355,7 @@ def test_an_owner_is_any_string_a_project_spells_it_as() -> None:
 
 
 # ....................... #
-# `classification` (RFC 0055 §5.2)
+# `classification` (S-0062/classification)
 
 
 CLASSIFIED_MODEL = """\
@@ -520,7 +520,7 @@ def test_a_classified_column_no_mart_projects_has_no_cube_surface() -> None:
 
 
 # ....................... #
-# `grants` (RFC 0055 §5.3)
+# `grants` (S-0062/grants)
 
 
 def granted(target: str, select: str = "[analyst]") -> dict[str, str]:
@@ -756,7 +756,7 @@ def test_seeds_are_refused_by_name(written: str) -> None:
 
     assert excinfo.value.source_path == "entity_model: seeds"
     assert "refused, permanently, and not missing" in str(excinfo.value)
-    assert "RFC 0003" in str(excinfo.value)
+    assert "S-0020" in str(excinfo.value)
 
 
 def test_a_project_without_seeds_is_unaffected() -> None:

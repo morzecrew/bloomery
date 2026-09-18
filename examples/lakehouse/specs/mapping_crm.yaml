@@ -78,7 +78,7 @@ fields:
     from: "$.updated_at"
     transform: [{parse_ts: ISO8601}]
 
-# The ingestion-metadata contract (RFC 0016 D21). An entity that quarantines
+# The ingestion-metadata contract (S-0033/D-21). An entity that quarantines
 # needs a stable identity per source row so a reject can be replayed, so bronze
 # must supply these three and the mapping must say it knows about them. They are
 # acknowledged rather than mapped: they are not entity fields, they are how the

@@ -1,4 +1,4 @@
-"""RFC 0060 §6: does a row admitted by route X become visible to the as-of join?
+"""S-0003 (§6): does a row admitted by route X become visible to the as-of join?
 
 Three routes against one project. The acceptance is D3's: the mart's own as-of
 join *finding* the row, never the row being present in the relation.
@@ -156,7 +156,7 @@ results["C — §5.1, a __replayed arm in the entity's source"] = report("route 
 shutil.rmtree(root)
 
 # ---------- Correction: does a changed row rewrite its version or add one? ----------
-# Routes A, B and C all admit a key the entity did not have. RFC 0060 §10 asks a
+# Routes A, B and C all admit a key the entity did not have. S-0003 (§10) asks a
 # different question — whether replay corrects history or adds to it — and a row
 # that only ever *arrives* cannot answer it (found in review of PR #121).
 root, db = fresh("correct")

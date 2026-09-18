@@ -1,0 +1,161 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      All seven spec-§5.4 guardrails ship in v0.1 as compile errors — never warnings,
+      no severity/suppression knob. A knob makes "error" negotiable, which defeats
+      the stage's purpose.
+    paths: [src/bloomery/guardrails/__init__.py]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Violations are batched project-wide: leaf errors (`UnitMismatch`, `TaxBasisMismatch`,
+      `CurrencyMismatch`, `GrainMismatch`, `AdditivityViolation`, `AssertLoweringError`)
+      are collected and raised as one `GuardrailError` aggregate, sorted by `(source_path,
+      type)`. Matches S-0019/D-6.
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/guardrails/arithmetic.py
+      - src/bloomery/guardrails/quality.py
+      - src/bloomery/guardrails/stage.py
+      - src/bloomery/quality/reconcile.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/resolve/steps.py
+      - tests/fixtures/fanout_trap/metrics.yaml
+      - tests/unit/test_guardrails/test_metrics.py
+      - tests/unit/test_guardrails/test_quality.py
+      - tests/unit/test_guardrails/test_stage.py
+      - tests/unit/test_steps/test_lowering.py
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `unit`/`tax_basis` originate only on catalog canonical fields and propagate
+      via `canonical:`; a monetary operand without metadata is `unknown`, and `unknown`
+      in any `+`/`-` is an error. No inference from names or values, ever.
+    paths:
+      - src/bloomery/guardrails/arithmetic.py
+      - src/bloomery/guardrails/operands.py
+      - tests/unit/test_guardrails/test_arithmetic.py
+      - tests/unit/test_guardrails/test_grain.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Currency codes are checked only when both operands declare one; distinct declared
+      codes require an explicit `convert` transform. Absent codes are compatible —
+      opt-in, unlike tax basis, so single-currency tenants aren't trained to paste
+      constants.
+    paths:
+      - src/bloomery/guardrails/arithmetic.py
+      - src/bloomery/resolve/build.py
+      - tests/fixtures/semantic_corpus/004-currency-mix/expected/semantic_outcome.json
+      - tests/fixtures/semantic_corpus/004-currency-mix/problem.md
+      - tests/golden/refusals/example-mixed-currency.txt
+      - tests/unit/test_guardrails/test_arithmetic.py
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Grain guard: derivation operands must share the derivation's grain or the expression
+      must contain an explicit aggregation over the finer grain. No automatic allocation.
+      `fanout_trap` (S-0026) is the numeric proof.
+    paths:
+      - src/bloomery/guardrails/grain.py
+      - tests/execution/test_fanout_trap.py
+      - tests/fixtures/fanout_trap/catalog.yaml
+      - tests/fixtures/semantic_corpus/001-order-shipping-fanout/expected/semantic_outcome.json
+      - tests/fixtures/semantic_corpus/001-order-shipping-fanout/problem.md
+      - tests/unit/test_guardrails/test_grain.py
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Additivity: `non_additive` metrics are never materialized as stored numbers
+      (components only); `semi_additive` metrics aggregate only over dimensions other
+      than their `over:` dimension. Enforced at IR build **and** re-refused by emitters
+      (S-0025) — defense in depth.
+    paths:
+      - pages/docs/concepts/guardrails.md
+      - src/bloomery/guardrails/additivity.py
+      - src/bloomery/planner/coverage.py
+      - tests/fixtures/semantic_corpus/002-average-of-averages/expected/semantic_outcome.json
+      - tests/fixtures/semantic_corpus/002-average-of-averages/problem.md
+      - tests/fixtures/semantic_corpus/005-semi-additive-balance/problem.md
+      - tests/unit/test_guardrails/test_additivity.py
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      Path conflict does not raise (`PathConflict` is not an error class): the compiler
+      emits the derived column, a `<name>__direct` shadow, and a `RECONCILE` `AuditIR`.
+      The forbidden thing is the silent choice; both paths are valid, so the refusal
+      targets the silence, not the spec.
+    paths:
+      - src/bloomery/emit/lower/predicates.py
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - src/bloomery/guardrails/conflict.py
+      - src/bloomery/guardrails/quality.py
+      - src/bloomery/ir/lower.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/spec/mapping.py
+      - tests/fixtures/path_conflict/entity_model.yaml
+      - tests/fixtures/path_conflict/mapping.yaml
+      - tests/unit/test_emit/test_sqlmesh.py
+      - tests/unit/test_guardrails/test_conflict.py
+      - tests/unit/test_guardrails/test_quality.py
+      - tests/unit/test_ir/test_lower.py
+      - tests/unit/test_spec/test_mapping.py
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      Range sanity: the guardrail stage validates `assert:` clauses for well-typedness
+      against the field's `LogicalType` only (`AssertLoweringError`); lowering to
+      target-native audits happens via `AuditIR` at emit (S-0020, S-0025).
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/guardrails/asserts.py
+      - src/bloomery/guardrails/stage.py
+      - src/bloomery/quality/predicates.py
+      - src/bloomery/spec/entity.py
+      - src/bloomery/spec/quality.py
+      - tests/golden/schema/entity_model.json
+      - tests/golden/schema/mapping.json
+      - tests/unit/test_guardrails/test_asserts.py
+      - tests/unit/test_guardrails/test_quality.py
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      `check_guardrails(draft: ProjectIR) -> ProjectIR` is pure; its only amendment
+      is path-conflict handling (shadow column + audit). All other guardrails are
+      read-only checks.
+    paths:
+      - src/bloomery/guardrails/stage.py
+      - src/bloomery/resolve/build.py
+      - tests/property/test_guardrail_properties.py
+      - tests/unit/test_guardrails/test_stage.py
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      Mart-level fan-out guard runs at compile time (_bloomery-changes.md D2, S-0027):
+      `GrainViolation` (a measure whose grain is coarser than the mart's grain listed
+      in a finer-grain mart's `measures`) and `FanoutRisk` (a `flatten:` step whose
+      `via:` relationship is not `many_to_one`/`one_to_one`) are `GuardrailError`
+      leaves, batched like the rest. `fanout_trap` now fails at compile time; its
+      execution assertion is kept because it documents why the compile error exists.
+    paths:
+      - src/bloomery/guardrails/grain.py
+      - src/bloomery/guardrails/stage.py
+      - src/bloomery/resolve/build.py
+      - tests/execution/test_as_of_join.py
+      - tests/execution/test_fanout_trap.py
+      - tests/fixtures/fanout_trap/marts.yaml
+      - tests/unit/test_guardrails/test_stage.py
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      Additivity extends with `NonAdditiveWithoutComponents` (a `non_additive` metric
+      declared without a `RatioSpec` or equivalent additive decomposition — nothing
+      to recompute from); `SemiAdditivePolicy(over, rule)` with `rule ∈ {last, first,
+      avg, max, min}` replaces the bare `over:` annotation (_bloomery-changes.md D4).
+      The query-time lowering of `rule` is S-0028's, not this stage's.
+    paths:
+      - src/bloomery/guardrails/additivity.py
+      - tests/fixtures/semi_additive_inventory/metrics.yaml
+      - tests/unit/test_guardrails/test_additivity.py

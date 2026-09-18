@@ -1,4 +1,4 @@
-"""The MartSet spec kind (RFC 0010 §5.1): flatten-step union, prefixes, roles."""
+"""The MartSet spec kind (S-0027/spec-kind): flatten-step union, prefixes, roles."""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def test_happy_parse() -> None:
     mart = mart_set.marts["order_items"]
     assert mart.grain == "order_item"
     assert mart.base == "order_item"
-    # authored order is meaningful (chains flatten transitively, RFC 0010 D3)
+    # authored order is meaningful (chains flatten transitively, S-0027/D-3)
     step_0, step_1, step_2, step_3 = mart.flatten
     assert isinstance(step_0, ViaStep) and step_0.prefix == "order_"
     assert isinstance(step_1, ViaStep) and step_1.via == "order_of_customer"
@@ -124,7 +124,7 @@ def test_bad_partition_grammar() -> None:
 
 
 def test_empty_via_prefix_is_a_parse_error() -> None:
-    # RFC 0010 D3: prefixes are mandatory — an empty prefix would silently
+    # S-0027/D-3: prefixes are mandatory — an empty prefix would silently
     # flatten unprefixed, which is exactly the collision surface D3 refuses.
     with pytest.raises(SpecParseError) as excinfo:
         parse(

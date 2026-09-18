@@ -1,0 +1,168 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      **D-Q1:** `between` removed — callers compose `gte`+`lte`; `BETWEEN` is a rendering
+      detail a dialect may re-derive, never a DSL concept. Shipped `FilterExpr.between`
+      (arity 2) is deleted in the migration.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      **D-Q2:** `contains` splits into `like`/`ilike` (1+ patterns, OR semantics,
+      matching upstream) — a single `contains` forces a case-sensitivity guess whose
+      wrong answer is a silently wrong number. `regex` is not adopted (`UnsupportedTextOperator`).
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      **D-Q3:** filters are CNF — `Clause = Predicate | AnyOf`, `MetricRequest.filters:
+      tuple[Clause, ...]` implicit AND, exactly one level of disjunction. Covers every
+      filter a BI UI builds; each clause is one `where_constraints` entry, independently
+      renderable and explainable. Each `Predicate` is single-field; the `AnyOf` group
+      is unrestricted and may span different dimensions. After D-Q4 normalization
+      every boolean tree reaches AND-of-`AnyOf` form, and the typed constructors make
+      deeper nesting unrepresentable by construction — no nesting refusal exists (decision
+      14).
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      **D-Q4:** normalize before refusing, in new public `planner/parse.py`: De Morgan
+      → complement inversion table → capped CNF distribution (the cap — default 64,
+      counting clauses — is enforced *during* distribution, refusing `FilterTooComplex`
+      the moment the partial clause count exceeds it, never after materializing the
+      expansion) → per-predicate validation. Pure, deterministic, zero new dependencies.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **D-Q5:** string-carrier scalars — `str` operands on ordering operators are
+      parsed and validated against the resolved dimension's `LogicalType` at request-validation
+      time, before any rendering: invalid → `FilterTypeMismatch`, non-finite → `InvalidLiteral`;
+      **no SQL cast is ever emitted** (rendered literals are already in the dimension's
+      type). `NaN`/`Infinity`/`-Infinity` refused even though they parse as `Decimal`
+      — `lt "NaN"` fails open on Postgres and matches every row. `UUID` renders as
+      a string literal against string-typed dimensions; no UUID `LogicalType` is added.
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/planner/filters.py
+      - src/bloomery/planner/parse.py
+      - src/bloomery/planner/request.py
+      - src/bloomery/spec/metrics.py
+      - src/bloomery/spec/quality.py
+      - tests/execution/test_period_over_period.py
+      - tests/property/test_planner_properties.py
+      - tests/unit/test_guardrails/test_metrics.py
+      - tests/unit/test_planner/test_filters.py
+      - tests/unit/test_planner/test_request.py
+      - tests/unit/test_spec/test_metrics.py
+      - tests/unit/test_spec/test_quality.py
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      **Float amendment (S-0020/D-5):** floats accepted at the request boundary (JSON
+      numbers parse to float; refusing cripples `parse_filter_json`), normalized to
+      `Decimal` via `str(float)` at validation — no float ever reaches literal rendering
+      or emission, the ban's actual target. Reverses shipped `_check_scalar`'s outright
+      refusal.
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      **D-Q6:** `OrderSpec` carries no `nulls` field — accepting-and-dropping is worse
+      than refusing. Placements equal to the canonical default (`first`/asc, `last`/desc)
+      translate and drop; anything else → `UnsupportedSortNulls`. `Feature.SORT_NULLS_PLACEMENT`
+      added (S-0025 vocabulary) and declared unsupported by `MetricFlowPlanner`.
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      **D-Q7:** pagination is limit-only. Non-zero `offset` and cursor pagination
+      → `UnsupportedPagination`; paging aggregates belongs to the serving layer (materialize,
+      then page).
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      The §5.3 closed list is the deliverable: eight bloomery-owned refusal types
+      + two app-adapter codes (`UnsupportedFieldCompare`, `UnsupportedQuantifier`
+      — the adapter-owned `APP_UNSUPPORTED`, declared in the table for review completeness
+      but never part of bloomery's export; the reason-code sets are disjoint, though
+      the error *classes* live in `errors.py` so the adapter can raise them), all
+      subclassing new `UnsupportedFilter(PlannerError)` with `.reason` (stable code),
+      `.source_path`, optional `.normalized`. `KNOWN_UNSUPPORTED: frozenset[str]`
+      exported from `bloomery.planner` contains only bloomery-raisable codes — the
+      union raisable by the three parse functions (`parse_filter_json`/`parse_sort_json`/`parse_page_json`);
+      drift-guard test: export == that union, introspected across all three; adapter
+      conformance asserts against `KNOWN_UNSUPPORTED | APP_UNSUPPORTED`. Anything
+      not on the list must translate.
+    paths: [src/bloomery/planner/parse.py, tests/unit/test_planner/test_parse.py]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      `parse.py` is a public feature (Mongo-flavoured grammar front door: `$and`/`$or`/`$not`
+      + field maps, scalar = `$eq` shortcut, array = `$in` shortcut, null = `is_null
+      true`), with `parse_sort_json`/`parse_page_json` for symmetry. Typed constructors
+      remain the primary path. The Forze adapter (~30 lines) lives in the application
+      — out of bloomery scope.
+    paths: [tests/unit/test_planner/test_parse.py]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      Rendering: one `where_constraints` entry per `Clause`; `AnyOf` **always** parenthesized
+      (`policy AND a OR b` leaks every row matching `b`); policy first via `RowPolicy.as_clause()`
+      (renaming `as_filter()`; `RowPolicy` stays single-predicate, its op space narrowing
+      with `Op` — `between`/`contains` policies are invalid post-migration, and range
+      policies move into the request filters or become gte-only/lte-only policies);
+      all shipped S-0030/filters-the-highest-risk-surface safety rules unchanged and
+      merge-blocking; `Explanation.filters` built from `Clause` objects, never from
+      parsing SQL.
+    paths:
+      - src/bloomery/planner/explain.py
+      - src/bloomery/planner/filters.py
+      - src/bloomery/planner/policy.py
+      - tests/execution/test_planner_filters.py
+      - tests/unit/test_planner/test_filters.py
+      - tests/unit/test_planner/test_request.py
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      Migration is pre-0.1, no deprecation cycle: `FilterExpr` → `Predicate`; `between`/`contains`
+      removed; `is_null` arity 0 → exactly one bool (gaining `IS NOT NULL`). Affected
+      shipped tests (fuzz corpus, request validation, execution filters) renamed/extended
+      in the implementing wave.
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      `like`/`ilike` operands are SQL `LIKE` **patterns** — caller-owned wildcards
+      with `\` as the pattern-escape character (fixed `ESCAPE '\'`), matching upstream
+      `$like` semantics (the vocabulary-alignment point of this RFC). Not verbatim
+      strings: literal `%`/`_`/`\` are caller-escaped as `\%`/`\_`/`\\`; an unpaired
+      trailing `\` is refused with `InvalidLiteral`. The renderer adds nothing beyond
+      injection safety (quote doubling, NUL refusal). The shipped `contains` substring
+      convenience (auto-`%…%` wrapping that escaped `%`/`_`/`\`) is removed with the
+      operator — callers write `%needle%` and own their escapes. Resolves the former
+      §10 pattern-semantics question.
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      **`UnsupportedNesting` removed as a dead refusal** (review finding, credited):
+      after D-Q4 normalization every boolean tree reaches AND-of-`AnyOf` form — `AnyOf`
+      groups may span different dimensions (CNF distribution produces such groups;
+      MetricFlow renders them; refusing them would reject common BI shapes) — so deep
+      nesting is always representable. The refusals actually reachable on that path
+      are `FilterTooComplex` (cap, enforced during distribution) and `UnsupportedNegation`
+      (non-invertible negated leaf); the typed constructors make deeper nesting unrepresentable
+      by construction. Removed from the §5.3 closed list and from `KNOWN_UNSUPPORTED`.
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      *(Appended 2026-08-07, M14 — implementation.)* **The string carrier and its
+      non-finite refusal extend to `in`/`not_in`**, superseding D-Q5's ordering-operator
+      *scope* (its row stands as the historical record; everything else in it is unchanged).
+      Rationale — UX symmetry: refusing `"2"` on `in` while accepting it on `gt` is
+      gratuitous, and a membership list carries the same hazard asymmetrically: on
+      Postgres `not_in ('NaN')` is the fail-open variant (every non-NaN row satisfies
+      `<> 'NaN'`, so the filter matches everything), while `in ('NaN')` fails *closed*
+      (it matches only NaN rows). Both are refused — one for the hazard, its mirror
+      for symmetry, since accepting half an operator pair is the kind of asymmetry
+      nobody remembers. Every member of an `in`/`not_in` list follows the same parse-validate-never-cast
+      discipline: parsed against the resolved dimension's `LogicalType` at request-validation
+      time, `FilterTypeMismatch` when it does not parse, `InvalidLiteral` when non-finite,
+      **no SQL cast ever emitted**. The §6 non-finite property row now names all eight
+      scalar-taking operators.

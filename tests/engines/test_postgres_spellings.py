@@ -1,5 +1,5 @@
-"""Engine tier (RFC 0009 §5.2 tier 5): where PostgreSQL needs a *different*
-spelling for a transform, it still means the same thing (RFC 0029 §2.3).
+"""Engine tier (S-0026/tier-contracts tier 5): where PostgreSQL needs a *different*
+spelling for a transform, it still means the same thing (S-0046/what-was-measured (§2.3)).
 
 The conformance battery next door proves a transform's produced type matches
 its declared one. It cannot prove that a port which had to reach for different
@@ -11,7 +11,7 @@ value for value, over inputs chosen to break a near-equivalent:
 * a suffix containing ``%``, which the tempting ``LIKE '%' || s`` spelling
   reads as a wildcard;
 * a capture group that is not the whole match, which is what SQLGlot's
-  generators silently dropped (RFC 0028 D5);
+  generators silently dropped (S-0045/D-5);
 * a non-match, where the two engines are *allowed* to disagree — DuckDB
   returns ``''`` and PostgreSQL NULL — because ``regex_extract`` declares
   ``nullifies=True`` on exactly that portable reading.

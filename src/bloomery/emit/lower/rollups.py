@@ -1,5 +1,5 @@
 """Rollup lowering: the aggregate body a rollup mart is built from
-(RFC 0058 §5.3, P2).
+(S-0065/targets, S-0065/phasing (P-2)).
 
 ``SELECT <keep…>, <agg>(<expr>) AS <measure> … FROM <gold parent> GROUP BY
 <keep…>`` — one shared body, because SQLMesh and dbt build the same relation
@@ -72,7 +72,7 @@ def rollup_measures(rollup: RollupIR, ir: ProjectIR) -> tuple[MetricIR, ...]:
     A :data:`~bloomery.ir.COMPUTED` metric is skipped, the way both semantic
     emitters skip it: a ratio is recomputed from its operands at query time and
     is never a stored number, so a column for it here would be the materialized
-    quotient RFC 0038 D2 exists to prevent. R013 has already required that the
+    quotient S-0053/D-2 exists to prevent. R013 has already required that the
     rollup carry those operands, so what it drops is only the arithmetic.
     """
 
@@ -92,7 +92,7 @@ def _aggregate(metric: MetricIR) -> exp.AggFunc:
     if metric.agg is None or metric.expr is None:
         msg = (
             f"metric {metric.name!r} has no aggregation to build a rollup measure from — "
-            "only agg-over-expr metrics become rollup columns (RFC 0058 §5.3)"
+            "only agg-over-expr metrics become rollup columns (S-0065/targets)"
         )
         raise UnsupportedByTarget(msg)
 

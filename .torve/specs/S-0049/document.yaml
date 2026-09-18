@@ -1,0 +1,294 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0049
+title: Mapping identity
+kind: design
+status: accepted
+implementation: complete
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A mapping document has no name in the object model. `load_project` reads
+  `sources: dict[str, str]`, iterates `sorted(sources)`, and appends each `Mapping` to a
+  tuple — keeping the name for entity models (`entity_models.append((name, model))`) and
+  dropping it for mappings (`mappings.append(model)`).
+
+  Two reports need that name, and neither can be correct without it:
+
+  - **`FieldProvenance`** keys on `(entity, field)`. Where two mappings build one entity and
+    implement one field differently, it reports the last in document order and no others.
+  - **`OpenDecision`** promises "here is the edit that would close it", so S-0047/D-9 omits
+    the entry entirely when the entity has more than one mapping.
+
+  This adds `Mapping.document` — the name the loader already has — and gives
+  `FieldProvenance` a `mapping` field, one entry per `(entity, field, mapping)`. It does
+  **not** lift S-0047/D-9's omission, which is a separate question about what a worklist
+  entry means; it removes the reason D9 gave for being unable to.
+motivation: |-
+  **The arbitrary answer is invisible at the call site.** `FieldProvenance` is documented as
+  "the loop's memory of what it has already decided" — a chooser reads it to know which
+  fields already carry a recorded recipe. On a merged entity it answers for one mapping and
+  says nothing about the others, and the entry looks identical to a single-mapping one. A
+  chooser cannot tell the difference between "this field has no recipe" and "this field has
+  no recipe *in the document I happened to be shown*".
+
+  **Measured, not assumed.** Across the fixture corpus exactly one project has a merged
+  entity — `multi_source`, entity `order_line` — and **4 provenance facts are not
+  representable** there. That is the whole current cost, and it is deliberately reported as
+  small: the argument for this change is not volume but that the report is silently wrong on
+  a shape the compiler supports, and the wrongness scales with the first real merged project.
+
+  **The tie-break is opposed to the artifact.** `multi_source`'s own fixture comment records
+  that document order and branch order are deliberately opposed there — `mapping_legacy`
+  parses first while its branch (`woo__order_lines`) is unioned second. So "last in document
+  order" is not merely arbitrary; it is a coordinate with no stable relationship to anything
+  the reader can see in the emitted SQL.
+
+  **Both readers are blocked behind a gate that is about something else.** S-0047/D-9
+  (`LOCKED`) says the omission "lifts when the report can carry a mapping identity, which is
+  S-0041/phasing (P-2)'s question rather than this one's". S-0041/D-31 (`LOCKED`) demand-gates P2:
+  *"implementation begins when a project needs quality rules on a merged entity, and not
+  before."* An identity two reports need is therefore waiting on a project needing the
+  **quality system** on a merged entity — two unrelated needs joined by nothing but the word
+  "merged". Neither document can dissolve that on its own without reopening the other's
+  locked row, which is what this RFC is for.
+current_state: |-
+  Verified against `main` @ `13d2049`.
+
+  **The name exists and is discarded.** `load_project` (`spec/project.py`):
+
+  ```python
+  for name in sorted(sources):
+      ...
+      entity_models.append((name, model))   # kept
+      ...
+      mappings.append(model)                # dropped
+  ```
+
+  `Project.mappings` is documented as "ordered by document name", so the name is already
+  load-bearing for determinism — it just never survives into the model.
+
+  **`(source, target)` is not an identity.** S-0041/D-19 uses `f"{source.relation}->{entity.name}"`
+  as the quality mart's accounting key, which reads like a candidate. It is not unique:
+  two documents with identical `source:` and `target:` load without complaint.
+
+  ```python
+  sources["mapping_dup"] = sources["mapping_order_items"]      # same source, same target
+  load_project(sources)                                        # loads
+  # [('shopify__order_lines', 'order_item'), ('shopify__order_lines', 'order_item'), ...]
+  ```
+
+  Nothing in the loader, the resolver or the guardrails refuses it. A report keyed on the
+  pair would collapse two documents into one entry — the same defect one level up.
+
+  **`FieldProvenance` today** carries `(entity, field, provenance, recipe_id)` and is built
+  by `_field_provenance(project, graph)`, which iterates `project.mappings` in document order
+  writing into `recipe_of[mapping.target, field_name]` — last write wins, by construction.
+
+  **`_unresolved` today** counts `mappings_per_entity = Counter(mapping.target for ...)` and
+  `continue`s past any canonical whose entity has more than one mapping. The branch is
+  covered by `test_a_merged_entity_reports_no_open_decision`, which constructs the shape
+  rather than reading it from a fixture — no corpus fixture reaches it, because
+  `multi_source` has neither catalog nor metrics.
+
+  **`resolution.provenance` is read by `evidence.py` alone.** It reaches no IR node and no
+  emitted artifact, which is what keeps this change's blast radius to two modules and no
+  goldens.
+goals: |-
+  **Goals**
+
+  - One noun for "which mapping document", available wherever a `Mapping` is.
+  - `FieldProvenance` representing a merged entity's field honestly: one entry per mapping
+    that builds it, none silently dropped.
+  - The identity chosen so that it is what a **reader edits**, not what a compiler indexes.
+non_goals: |-
+  - **Lifting S-0047/D-9's omission.** D9 withheld the entry for two reasons — no identity,
+    and no answer to what a worklist entry *means* when N documents could each close a gap.
+    This RFC removes the first. The second is a question about the report's promise, not
+    about identity, and answering it here would decide S-0047's contract inside a document
+    about nouns. §8 names what would settle it.
+  - **Anything in S-0041/phasing (P-2).** The quality system on a merged entity is untouched; D31's
+    demand gate is unaffected, and this RFC deliberately does not consume it.
+  - **A stable identity across renames.** The document name is the identity; renaming the
+    file changes it. See D5.
+design:
+  - key: mapping-document
+    md: |-
+      The loader passes the name it already has:
+
+      ```python
+      class Mapping(SpecModel):
+          """One (source, target entity) mapping document (``mapping_version``)."""
+
+          #: The document this mapping was parsed from — the same name that prefixes
+          #: its refusals (S-0019/source-paths) and orders `Project.mappings`.
+          document: str
+          mapping_version: Literal[1]
+          source: str
+          target: str
+      ```
+
+      **It is set by the loader, never authored.** The field is not in the YAML vocabulary — a
+      document that declares `document:` is refused as an unknown key, by the same
+      `extra="forbid"` shape checking that refuses every other unknown key. The name is a fact
+      about *where the document was read from*, and a document asserting its own filename is a
+      second source of truth that can disagree with the first.
+
+      `load_project` sets it at construction, which keeps `Mapping` a value that is complete when
+      it exists rather than one filled in afterwards.
+  - key: fieldprovenance-mapping
+    md: |-
+      ```python
+      @dataclass(frozen=True, slots=True)
+      class FieldProvenance:
+          entity: str
+          field: str
+          mapping: str
+          provenance: Provenance
+          recipe_id: str | None = None
+      ```
+
+      One entry per `(entity, field, mapping)`, sorted by that triple. A single-mapping entity's
+      report grows one field and no rows; a merged entity's grows a row per mapping that builds
+      the field.
+
+      `mapping` is placed **third, before `provenance`** rather than appended last. Every field
+      before `recipe_id` is required, so there is no positional-rebinding hazard of the kind
+      `SpecEvidence` records in its own field order — a caller constructing this positionally
+      gets a `TypeError` on arity, not a silently wrong value. Reading order beats wire order
+      where the wire is safe.
+  - key: what-the-readers-do-with-it
+    md: |-
+      **`_field_provenance`** keys `recipe_of` on the triple instead of the pair, which deletes
+      the last-write-wins line rather than replacing it. The "document order, overwriting"
+      comment goes with it: there is nothing left to overwrite.
+
+      **`_unresolved` does not change in this RFC.** Its `continue` stays, and its comment is
+      amended to say what is now true: the identity exists, and what remains is the contract
+      question (§8).
+  - key: sorting
+    md: |-
+      `FieldProvenance` sorts by `(entity, field, mapping)`. Mapping is the last term so that a
+      merged entity's rows for one field stay adjacent — the reader's question is "how is this
+      field built", and the answers to it should not be interleaved with another field's.
+tests: |-
+  - **`Mapping.document` is the loader's name, not the author's.** A document declaring
+    `document:` is refused as an unknown key; a document that does not gets the name it was
+    loaded under. Both asserted, because the second alone would pass if the field were
+    silently authorable.
+  - **Corpus sweep.** Every mapping in every spec fixture has a `document` that is a key of
+    the fixture's own `read_spec_directory` result — the identity is total and correct, not
+    merely present.
+  - **The merged case, on the fixture rather than a construction.** `multi_source`'s
+    `order_line.quantity` is built by both mappings; the report carries two entries naming
+    `mapping_legacy` and `mapping_platform`. This replaces
+    `test_a_merged_entitys_field_reports_one_provenance`, which pinned the defect.
+  - **The single-mapping case does not grow rows.** `ecom_basic`'s provenance keeps its
+    length and gains a `mapping` on each entry — the change is additive for the shape almost
+    every project has.
+  - **Uniqueness of the triple**, swept over the corpus: no `(entity, field, mapping)`
+    appears twice. This is the invariant that replaces "last write wins", and it is the one
+    a future merge-shape change would break first.
+
+  Not tested: that `document` reaches no emitted artifact. That is asserted structurally
+  instead — provenance is read by `evidence.py` alone — and the golden suite is the check.
+docs: |-
+  `SpecEvidence.provenance` is documented in the how-to that S-0047 shipped
+  (*Close an open decision*). Its one sentence about a merged entity's field appearing once
+  becomes a sentence about it appearing per mapping. The CHANGELOG entry names both public
+  shape changes, since both bind under SemVer.
+out_of_scope: |-
+  - **Lifting S-0047/D-9.** With an identity available, the remaining question is what an
+    `OpenDecision` *means* when N documents could each close the gap: one entry per mapping
+    (N worklist items for one gap, each individually actionable), or one entry naming all N
+    (one item, not individually actionable). That is a decision about the report's promise
+    and belongs in whatever RFC reopens D9 — with the observation, recorded here so it is
+    not rediscovered, that a merged entity's gap may be closable in *any* one document, which
+    makes N entries an over-count rather than a list.
+  - **A mapping identity in the IR or the artifacts.** `mapping_version` is already a
+    provenance stamp in `plan/diff.py`, and the quality mart accounts per entity (S-0041
+    D19). Nothing here proposes a second coordinate down there.
+  - **S-0041/phasing (P-2).** Untouched, and deliberately not consumed: this RFC exists so that P2's
+    demand gate stops standing between two reports and a noun.
+risks: |-
+  - **The identity is a filename, so a rename is a change of identity.** Accepted, and it is
+    the honest reading: renaming a mapping document *is* a change to where an edit goes. The
+    mitigation is that nothing durable is keyed on it — it appears in an assessment value,
+    never in the IR, the fingerprint or an artifact, so a rename moves a report and nothing
+    else. Were it ever to reach the fingerprint, this decision would need reopening; D4
+    records that.
+  - **Two public shape changes at once.** Both are additive and pre-1.0, and both are in the
+    CHANGELOG. The risk is a caller constructing `FieldProvenance` positionally; §5.2 argues
+    why that fails loudly rather than silently.
+  - **This looks like it lifts D9 and does not.** Mitigated by saying so in three places —
+    the scope line, the non-goals, and the `_unresolved` comment that the change amends
+    rather than removes. A reader who assumes otherwise finds the `continue` still there.
+sections:
+  - key: about
+    md: |-
+      - **Status:** 🚧 In progress — **fully shipped, waiting on a retirement commit the mainline
+        can reach.** `Mapping.document`, `FieldProvenance.mapping`, §6's battery and §7's docs all
+        landed; D8–D11 were added by execution (`logs/T-0008.md`). The document stays here because
+        a retirement row must name a commit that holds it *and* that a fresh clone can reach, and
+        this RFC was authored and executed in one branch — so no such commit exists until this
+        lands on `main`. `INDEX.md` names exactly this case for 🚧: the status tracks the
+        document's life in this directory, which ends at retirement rather than at the last
+        decision implemented. It is retired in the change immediately after the merge.
+      - **Scope:** The identity of a mapping document, settled once for the two readers that
+        need it. `Mapping` carries no name today, so a report that must say *which document to
+        edit* either picks one arbitrarily (`FieldProvenance`, "last in document order") or
+        withholds the entry (`OpenDecision`, S-0047/D-9). Both are waiting on the same missing
+        noun, and both are waiting on it behind S-0041/phasing (P-2)'s demand gate, which is gated on an
+        unrelated need. This adds the name the loader already computes and already discards,
+        and spends it on those two readers. Touches `spec/project.py`, `spec/mapping.py`,
+        `resolve/resolution.py`, `evidence.py`. **Two public shape changes**, both additive:
+        a field on `Mapping` (exported from `bloomery.spec`, not from the top level) and a field
+        on `FieldProvenance` (top level). No IR change, no emitted artifact changes, no golden
+        moves.
+      - **Related:** [`src/bloomery/spec/project.py`](src/bloomery/spec/project.py)
+        (`load_project` — where the name is computed and dropped),
+        [`src/bloomery/spec/mapping.py`](src/bloomery/spec/mapping.py) (`Mapping`),
+        [`src/bloomery/resolve/resolution.py`](src/bloomery/resolve/resolution.py)
+        (`FieldProvenance`, `_field_provenance`),
+        [`src/bloomery/evidence.py`](src/bloomery/evidence.py) (`OpenDecision`,
+        `_unresolved`), S-0041 (the merged entity, D19/D26/D31), S-0019/source-paths (source paths
+        — where document names are already the user-facing coordinate).
+      - **Origin:** Refuted out of scope on PR #55 and recorded on `FieldProvenance`'s docstring,
+        where it has sat as prose ever since: *"an entry would have to name its mapping, which is
+        the same identity S-0047/D-9 withholds an open decision for want of."*
+  - key: decision-notes
+    md: >-
+      _(Decision rows from here on are this document's D-1…; see `decisions.yaml`.)_
+  - key: phasing
+    md: |-
+      One phase, one PR. The two shape changes and both readers land together: a `Mapping` that
+      carries a name nothing consumes is a field waiting to drift, and a `FieldProvenance` that
+      names a mapping the loader cannot supply does not compile.
+alternatives:
+  - option: >-
+      `(source, target)`, the quality mart's key (S-0041/D-19).
+    rejected_because: >-
+      Rejected on a demonstrated collision: two documents may share both. Its trade-off
+      was attractive — it is derived from declared content rather than from a filename,
+      so it survives a rename — and that is exactly what makes it wrong here: content
+      is not identity, and two documents describing the same `(source, target)` are
+      a legal spec.
+  - option: An integer index into `Project.mappings`.
+    rejected_because: >-
+      Unique and cheap. Rejected because it is a coordinate in a tuple, not in the
+      user's project: an entry saying `mapping=1` sends a reader to count documents
+      in sorted order. S-0047/D-9's whole promise is that an entry names an edit.
+  - option: A synthesised digest of the document's content.
+    rejected_because: >-
+      Stable across renames, and unique. Rejected for the same reason as the index,
+      more so: it names nothing a human can open.
+questions:
+  - id: Q-1
+    text: >-
+      None blocking. The one deliberate deferral — what an `OpenDecision` means across
+      N mappings — is §8's first bullet, and it is not a precondition for anything
+      here: the `continue` stays exactly as it is, so nothing in this RFC depends
+      on the answer.

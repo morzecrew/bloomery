@@ -1,9 +1,9 @@
-"""Emission of the data-quality artifacts (RFC 0016 §5.4–§5.6): the silver
+"""Emission of the data-quality artifacts (S-0033/fixed-pipeline-order-and-lowering–S-0033/quarantine-one-reject-table-per-entity): the silver
 pipeline's shape, the reject model, the replay merge, the generated blocking
 audits, and the two honest refusals.
 
 The execution assertions — running the SQL, checking quarantine contents,
-the conservation law — are the execution tier's (RFC 0016 §6); what is
+the conservation law — are the execution tier's (S-0033/tests-rfc-0009-amendment); what is
 asserted here is that the artifacts say what the RFC says they say.
 """
 
@@ -218,7 +218,7 @@ def test_the_ingestion_metadata_audit_is_generated_and_referenced() -> None:
     # D25/D31: a present-but-uncastable _ingested_at stops the run too — the
     # one dedupe sort key no `coercible` rule can reach, because ingestion
     # metadata is never a mapped field.
-    # RFC 0036: the cast is guarded, so an offset-bearing `_ingested_at` is
+    # S-0052: the cast is guarded, so an offset-bearing `_ingested_at` is
     # NULL and this blocking audit is what reports it — the metadata column no
     # `coercible` rule can reach is also the one this refusal has to reach.
     assert "SUBSTRING(CAST(_ingested_at AS TEXT), 11) LIKE '%+%'" in audit
@@ -253,7 +253,7 @@ def test_a_fail_disposition_rule_becomes_a_blocking_audit_over_two_populations()
 
 
 def test_the_conservation_audit_is_generated_and_blocking() -> None:
-    """RFC 0016 §6 does not merely ask for a conservation *test*: the law is
+    """S-0033/tests-rfc-0009-amendment does not merely ask for a conservation *test*: the law is
     "also emitted as a runtime audit on every production run". So it is an
     artifact, referenced from the model, and blocking like the D21 audit beside
     it — a row that reached neither side of the split has been silently
@@ -321,7 +321,7 @@ def test_a_referential_quarantine_entity_gets_no_conservation_audit() -> None:
     """The one shape the audit is skipped for, asserted rather than assumed:
     its routing predicate reads a *sibling* silver entity, and an audit body
     cannot address one on this target. Recorded as scope, not worked around —
-    the conservation property still covers the shape (RFC 0016 §6)."""
+    the conservation property still covers the shape (S-0033/tests-rfc-0009-amendment)."""
     project, catalog = load_fixture(FIXTURE)
     ir = build_project_ir(project, catalog)
     entity = ir.entities[0]
@@ -395,7 +395,7 @@ def test_the_generated_audits_count_current_versions_on_a_historical_entity() ->
     both fired on correct data.
 
     Older than the replay route that met it: `scd: type2` with `dedupe:` has
-    always compiled and always generated these audits. RFC 0060 P1 only makes
+    always compiled and always generated these audits. S-0003/P-1 only makes
     a second version the expected outcome rather than an eventual one.
     """
     artifacts = compile_fixture("scd2_replay", dialect="duckdb")
@@ -420,7 +420,7 @@ def test_a_type_one_entity_audits_every_row_it_has() -> None:
 
 
 def test_replay_on_a_historical_entity_writes_to_bronze_instead_of_merging() -> None:
-    """RFC 0060 D2: the entity's relation belongs to the framework on
+    """S-0003/D-2: the entity's relation belongs to the framework on
     ``scd: type2``, so replay does not write to it at all.
 
     A MERGE naming the entity's columns inserts a version with no validity
@@ -444,10 +444,10 @@ def test_replay_on_a_historical_entity_writes_to_bronze_instead_of_merging() -> 
 
 
 def test_the_re_delivery_keeps_the_identity_and_says_replay_wrote_it() -> None:
-    """The bookkeeping RFC 0060 does not mention and the route rests on.
+    """The bookkeeping S-0003 does not mention and the route rests on.
 
     ``_load_id`` is outside the reject identity precisely so a re-delivery of
-    one source row lands on the same reject row (RFC 0016 D21) — which is what
+    one source row lands on the same reject row (S-0033/D-21) — which is what
     lets the resolution stamp find it once the framework has admitted it. A
     fresh row identity would mint a second reject row per run and leave the
     first unresolvable, so the original ``_source_row_id`` is carried through
@@ -459,7 +459,7 @@ def test_the_re_delivery_keeps_the_identity_and_says_replay_wrote_it() -> None:
     # Zoneless UTC, stated rather than inherited. A bare `CURRENT_TIMESTAMP` is
     # zone-*aware* on every shipped engine, so the value written into bronze
     # carries an offset the project's own D21 audit refuses; casting it instead
-    # keeps the session's wall clock, which is the RFC 0028 §2 defect. Measured
+    # keeps the session's wall clock, which is the S-0045/what-was-measured defect. Measured
     # on dbt before this line existed: the emitted ingestion test failed on
     # `2026-09-17 19:18:21.796404+03`.
     assert "CAST(TIMEZONE('UTC', CURRENT_TIMESTAMP) AS TIMESTAMP)" in body
@@ -468,7 +468,7 @@ def test_the_re_delivery_keeps_the_identity_and_says_replay_wrote_it() -> None:
 
 
 def test_replay_on_a_type_one_entity_still_merges() -> None:
-    """RFC 0060 D4: type 1 replay does not change.
+    """S-0003/D-4: type 1 replay does not change.
 
     Its relation is one bloomery's own SELECT defines, so the merge names every
     column there is and is correct. The branch exists to keep the historical
@@ -485,7 +485,7 @@ def test_replay_assigns_to_unqualified_target_columns() -> None:
     ("Qualified column names in UPDATE .. SET not supported"), so emitting
     ``_target.col = …`` made the replay artifact unrunnable on every shipped
     dialect while every golden stayed green. Found by the execution tier
-    (RFC 0016 §6), pinned here."""
+    (S-0033/tests-rfc-0009-amendment), pinned here."""
     content = _artifact("replay/inventory_level.sql")
     assert "THEN UPDATE SET\n  stock_level = _replay.stock_level" in content
     assert "_target.stock_level = " not in content
@@ -512,7 +512,7 @@ def test_replay_without_a_dedupe_block_still_compares_by_the_row_identity() -> N
 
 
 def test_replay_stamps_resolution_with_the_executing_engines_clock() -> None:
-    """bloomery never reads a clock (RFC 0003); the emitted statement defers
+    """bloomery never reads a clock (S-0020); the emitted statement defers
     to the engine that runs it."""
     content = _artifact("replay/inventory_level.sql")
     assert "SET resolved_at = CURRENT_TIMESTAMP" in content
@@ -532,9 +532,9 @@ def test_replay_candidates_pass_the_same_rules_the_pipeline_applies() -> None:
 
 
 def test_dbt_emits_the_reject_model_and_the_replay_macro() -> None:
-    """The refusal this pinned was RFC 0016 §5.4's target-coverage sentence,
+    """The refusal this pinned was S-0033/fixed-pipeline-order-and-lowering's target-coverage sentence,
     written when this emitter produced no audits at all. It produces the whole
-    RFC 0026 surface now, and RFC 0052 §5.1/§5.2 builds the two artifacts the
+    S-0043 surface now, and S-0060/the-reject-table, S-0060/replay-as-a-run-operation-macro builds the two artifacts the
     sentence was standing in for.
 
     The macro rather than a loose `replay/<entity>.sql`: the statements name
@@ -569,7 +569,7 @@ def test_dbt_emits_the_reject_model_and_the_replay_macro() -> None:
 #:
 #: Not every fixture: a path-conflict `reconcile` audit is a **row predicate**,
 #: so dbt writes it as a `schema.yml` entry naming the shared generic test —
-#: the native surface RFC 0026 D4 prefers — while SQLMesh writes a per-check
+#: the native surface S-0043/D-4 prefers — while SQLMesh writes a per-check
 #: `AUDIT`. Same assertion, different artifact, and comparing names there would
 #: assert something untrue.
 _QUALITY_FIXTURES = (
@@ -652,7 +652,7 @@ def test_the_replay_macro_opens_the_transaction_the_dialect_spells() -> None:
 
 
 def test_the_replay_macro_wraps_its_statements_in_one_transaction() -> None:
-    """RFC 0052 D14. ``run_query`` opens no transaction of its own, so a failure
+    """S-0060/D-14. ``run_query`` opens no transaction of its own, so a failure
     between the entity merge and the reject stamps would leave a row both
     admitted to the entity and unresolved in the reject table — double-counted
     by the quality mart and re-admitted by the next replay. SQLMesh's replay
@@ -718,14 +718,14 @@ def test_the_reject_model_preserves_first_seen_in_its_own_projection() -> None:
 def test_the_dirty_fixture_compiles_for_dbt_with_nothing_refused() -> None:
     """Three refusals stood between this fixture and the dbt target: its
     ``reconcile:`` block, its ``quarantine:`` policy, and the quality mart the
-    first two put in the project. RFC 0052 builds all three artifact families,
+    first two put in the project. S-0060 builds all three artifact families,
     so what used to be the shortest description of dbt's coverage — "it refuses
     this fixture" — no longer says anything.
 
     Asserted as *no exception plus the four paths*, rather than as no
     exception: a project that compiled to models and silently dropped the
     quality surface would satisfy the first half and be exactly the degradation
-    RFC 0008 D3 refuses.
+    S-0025/D-3 refuses.
     """
     project, catalog = load_fixture(FIXTURE)
     paths = {
@@ -772,7 +772,7 @@ def test_a_run_dependent_datetime_literal_is_a_coercion_failure_on_postgres() ->
     """Postgres accepts ``now``/``today``/``tomorrow``/``yesterday`` as
     datetime input and resolves them to the transaction timestamp, so the same
     bronze cell would coerce to a different value on every run — a backfill
-    disagreeing with the run it replaces, which RFC 0003 exists to prevent.
+    disagreeing with the run it replaces, which S-0020 exists to prevent.
 
     The guard excludes them, which makes such a cell a coercion failure the
     ``coercible`` rule disposes of: a quarantined row rather than a silently
@@ -838,7 +838,7 @@ def test_trino_now_emits_the_reject_table_it_used_to_be_refused() -> None:
     """Trino was refused here because both constructions the reject table is
     built from were DuckDB's spellings: ``SHA256`` over text, and the
     positional ``JSON_OBJECT('k', v)``. Each dialect now spells both through
-    its own port (RFC 0016 D83), verified against ``trinodb/trino:483``.
+    its own port (S-0033/D-83), verified against ``trinodb/trino:483``.
     """
     project, catalog = load_fixture(FIXTURE)
     artifacts = compile_project(
@@ -856,7 +856,7 @@ def test_the_three_dialects_spell_the_reject_constructions_differently() -> None
 
     The property is that the three *differ*: one rendering passing everywhere
     would mean the split never happened. Each was executed against its engine
-    (RFC 0016 D83) — DuckDB's returns hex directly, Postgres' ``sha256``
+    (S-0033/D-83) — DuckDB's returns hex directly, Postgres' ``sha256``
     returns ``bytea``, and Trino's does not take text at all.
     """
     digests, objects = set(), set()
@@ -875,7 +875,7 @@ def test_the_ir_still_compiles_for_every_dialect() -> None:
 
 
 # ....................... #
-# has_quality_flags on a mart that also joins (RFC 0016 §5.5)
+# has_quality_flags on a mart that also joins (S-0033/schema-additions-and-the-array-capability)
 
 
 def test_the_quality_dimension_projects_from_the_base_alongside_joins() -> None:
@@ -1037,16 +1037,16 @@ def test_a_schema_constant_that_lost_its_column_says_so() -> None:
 
 
 def test_a_merged_entity_scopes_the_conservation_audit_by_the_source_pair() -> None:
-    """`_source_row_id` is unique within **one** source relation (RFC 0016 D21).
+    """`_source_row_id` is unique within **one** source relation (S-0033/D-21).
 
     The conservation audit reads `@this_model`, and that is not always this
     run's rows: an entity with `partition_by:` materializes
-    `INCREMENTAL_BY_PARTITION` by default (RFC 0002 D7) and any project may
+    `INCREMENTAL_BY_PARTITION` by default (S-0019/D-7) and any project may
     declare an incremental kind outright. Scoped by the identity alone, a stale
     row from one shop whose identity matches a current survivor's from another
     is counted, `entity_rows` inflates, and this audit is **blocking** — so it
     stops the run on correct data, which is the worst failure available to a
-    generated audit (RFC 0024 D13).
+    generated audit (S-0041/D-13).
 
     Pinned for both shapes, because the single-source spelling must not move:
     `(x) IN (…)` is a one-element row constructor and a different expression

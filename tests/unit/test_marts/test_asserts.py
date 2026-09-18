@@ -1,4 +1,4 @@
-"""Aggregate assertions over a mart (RFC 0016 §10 → D89).
+"""Aggregate assertions over a mart (S-0033 (§10) → D89).
 
 §10 asked whether mart-level rules were reconcile-shaped or a new surface. They
 are **neither**, and the disposition model is what decides it: a quality rule
@@ -183,7 +183,7 @@ def test_the_bound_is_a_literal_of_the_aggregates_own_type() -> None:
 
 
 def test_dbt_emits_each_assertion_as_a_singular_test() -> None:
-    """RFC 0026: the refusal was about the *artifact*, not the assertion.
+    """S-0043: the refusal was about the *artifact*, not the assertion.
 
     "dbt's schema tests are per-column or per-model predicates, and there is no
     grouped form to approximate it with" was true and incomplete — a singular
@@ -220,7 +220,7 @@ def test_the_fixture_that_used_to_refuse_now_carries_both_kinds_of_check() -> No
     for its ``quarantine:`` policy, and this test pinned *which* refusal it met
     so a later reader would not read it as the mart assertion's.
 
-    Neither refusal exists after RFC 0052, so the thing worth pinning is what
+    Neither refusal exists after S-0060, so the thing worth pinning is what
     replaced them: the mart assertion's own singular test and the reconcile
     check's, side by side. They are separate artifacts for separate reasons,
     and one silently absorbing the other is the confusion the old assertion
@@ -238,7 +238,7 @@ def test_the_fixture_that_used_to_refuse_now_carries_both_kinds_of_check() -> No
 
 
 def test_cube_is_not_asked_about_a_check_it_never_emits() -> None:
-    """Cube builds nothing (RFC 0017 D52). It writes no silver model, no reject
+    """Cube builds nothing (S-0034/D-52). It writes no silver model, no reject
     table and no audit for *anything*, so refusing this one check would single
     it out among the many this emitter already leaves to whoever maintains the
     tables — while a project full of quality rules compiles to cubes and views

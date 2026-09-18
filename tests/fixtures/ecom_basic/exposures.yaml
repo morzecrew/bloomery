@@ -1,4 +1,4 @@
-# Declared downstream consumers (RFC 0056 §5.1). Nothing is built for these:
+# Declared downstream consumers (S-0063/the-document). Nothing is built for these:
 # they are the graph's only sink, and the names `plan()` puts to a breaking
 # change.
 exposures_version: 1
@@ -12,7 +12,7 @@ exposures:
     depends_on:
       metrics: [gross_revenue, order_count]
       marts: [order_items]
-  # Mart-only, and here on purpose (RFC 0056 §5.4): it is the exposure a
+  # Mart-only, and here on purpose (S-0063/plan): it is the exposure a
   # metric-only downstream walk omits, and the one with no incoming graph edge.
   finance_extract:
     kind: application

@@ -1,8 +1,8 @@
-"""Version-drift canary (RFC 0013 D11, §6): bloomery depends on MetricFlow
+"""Version-drift canary (S-0030/D-11, S-0030/tests): bloomery depends on MetricFlow
 *internals* with no stability guarantee — this test asserts every surface the
 emitter and (M7) planner rely on still exists at the pinned ``0.211.*``, so an
 upgrade breaks loudly here instead of silently downstream. A failure means the
-pin moved: regenerate goldens and review the diff as source (RFC 0013 §9)."""
+pin moved: regenerate goldens and review the diff as source (S-0030/risks)."""
 
 from __future__ import annotations
 
@@ -39,19 +39,19 @@ pytestmark = pytest.mark.unit
 
 
 def test_metricflow_api_surface() -> None:
-    """The exact internal surfaces RFC 0013 builds on (§3, §5.9, D11)."""
+    """The exact internal surfaces S-0030 builds on (§3, §5.9, D11)."""
     # The embedded-engine entry points.
     assert callable(MetricFlowQueryRequest.create)
     assert callable(MetricFlowEngine.explain)
     assert callable(SemanticManifestLookup)
     # explain() -> MetricFlowExplainResult with the rendered SQL statement.
     assert "sql_statement" in dir(MetricFlowExplainResult)
-    # transform() is mandatory before hydration (RFC 0013 §3).
+    # transform() is mandatory before hydration (S-0030/current-state).
     assert callable(PydanticSemanticManifestTransformer.transform)
 
 
 def test_sql_client_protocol_members() -> None:
-    """RenderOnlySqlClient stubs exactly this Protocol (RFC 0013 §5.3)."""
+    """RenderOnlySqlClient stubs exactly this Protocol (S-0030/the-adapter-and-the-render-only-client)."""
     members = set(dir(SqlClient))
     assert {
         "sql_engine_type",
@@ -67,7 +67,7 @@ def test_sql_client_protocol_members() -> None:
 
 
 def test_node_relation_has_no_sql_field() -> None:
-    """RFC 0013 §5.9c: the (unbuilt) row-policy escape hatch is a per-view
+    """S-0030/what-is-superseded-and-the-boundary-that-makes-it-reversible (§5.9c): the (unbuilt) row-policy escape hatch is a per-view
     *name* swap — PydanticNodeRelation cannot carry an inline SQL body."""
     assert sorted(PydanticNodeRelation.__fields__) == [
         "alias",
@@ -99,7 +99,7 @@ def test_enum_members_the_mapping_tables_use() -> None:
 
 
 def test_emitter_survives_being_the_first_msi_import() -> None:
-    """RFC 0013 §5.9a: ``implementations.node_relation`` as the process's
+    """S-0030/what-is-superseded-and-the-boundary-that-makes-it-reversible (§5.9a): ``implementations.node_relation`` as the process's
     first metricflow_semantic_interfaces import raises a circular
     ImportError. The emitter orders its imports to finish ``protocols``
     first — this fresh-subprocess check keeps an import re-sort from
@@ -114,7 +114,7 @@ def test_emitter_survives_being_the_first_msi_import() -> None:
 
 
 def test_top_level_pydantic_shim_module_exists() -> None:
-    """RFC 0013 §5.9b: the wheel installs a top-level ``msi_pydantic_shim``
+    """S-0030/what-is-superseded-and-the-boundary-that-makes-it-reversible (§5.9b): the wheel installs a top-level ``msi_pydantic_shim``
     module — deptry/vulture configuration accounts for it; its disappearance
     would signal a repackaged wheel."""
     assert importlib.import_module("msi_pydantic_shim") is not None

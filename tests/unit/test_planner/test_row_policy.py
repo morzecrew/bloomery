@@ -1,5 +1,5 @@
 """``test_row_policy_survives_every_path`` — the named MANDATORY pre-merge
-test (RFC 0011 D10, RFC 0013 D9, RFC 0009 §5.10): for an exhaustive request
+test (S-0028/D-10, S-0030/D-9, S-0026/planner-test-obligations-rfcs-0011-0013): for an exhaustive request
 matrix (limits, ordering, filters, time grains; plain, ratio, and
 semi-additive metrics), plan with a ``RowPolicy`` and assert — on the
 **parsed AST**, never a substring ("a string check passes on a commented-out
@@ -7,7 +7,7 @@ predicate") — that the policy predicate is present in EVERY scan of the mart
 relation, at or below the first aggregation over that scan.
 
 Assert "every scan", never a fixed subquery count: the optimizer may
-collapse a ratio's component subqueries into one shared scan (RFC 0013
+collapse a ratio's component subqueries into one shared scan (S-0030
 §5.9d)."""
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ class Scenario:
 SCENARIOS = [
     # Semi-additive: the MAX-join plan scans the mart more than once. The
     # shipped `between` range is now a composed gte+lte pair — two clauses,
-    # ANDed, exactly what a caller migrating a range writes (RFC 0015 D-Q1).
+    # ANDed, exactly what a caller migrating a range writes (S-0032/D-1).
     Scenario(
         fixture="semi_additive_inventory",
         relation="gold.mart_inventory",
@@ -63,7 +63,7 @@ SCENARIOS = [
         time_dimension="ordered_month",
         clauses=(Predicate("ordered_day", Op.GTE, ("2024-01-01",)),),
     ),
-    # Plain additive, multi-metric, with a disjunction clause (RFC 0015):
+    # Plain additive, multi-metric, with a disjunction clause (S-0032):
     # the policy must still reach every scan alongside the AnyOf group.
     Scenario(
         fixture="non_additive_aov",
@@ -138,7 +138,7 @@ def test_row_policy_survives_every_path(scenario: Scenario) -> None:
 
 def test_policy_alone_still_reaches_every_scan() -> None:
     """The degenerate request (metrics only, no user filters) must still be
-    scoped — dropping a row policy fails open (RFC 0011 §9)."""
+    scoped — dropping a row policy fails open (S-0028/risks)."""
     ir = fixture_ir("semi_additive_inventory")
     plan = PLANNER.plan(
         ir,
@@ -151,7 +151,7 @@ def test_policy_alone_still_reaches_every_scan() -> None:
 
 
 def test_the_policy_reaches_every_branch_of_a_composed_statement() -> None:
-    """RFC 0041 §13a's merge-blocking half: the row policy must reach **every**
+    """S-0055/phasing (a)'s merge-blocking half: the row policy must reach **every**
     branch of a cross-mart answer.
 
     The failure this rules out is not a narrower answer, it is a mixed one — a
@@ -159,7 +159,7 @@ def test_the_policy_reaches_every_branch_of_a_composed_statement() -> None:
     result saying which is which. So the same AST audit the single-mart path
     has runs over each branch's mart relation, and a scan the predicate does
     not reach at or below its first aggregate is a defect whichever branch it
-    is in (RFC 0013 §5.9d).
+    is in (S-0030/what-is-superseded-and-the-boundary-that-makes-it-reversible (§5.9d)).
     """
     ir = fixture_ir("cross_mart_branches")
     policy = RowPolicy("region", Op.EQ, "EU")

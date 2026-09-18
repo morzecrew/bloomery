@@ -1,6 +1,6 @@
-"""The merge gates (RFC 0016 §6): idempotence and backfill equivalence.
+"""The merge gates (S-0033/tests-rfc-0009-amendment): idempotence and backfill equivalence.
 
-These two are the **executable** form of the determinism invariant (RFC 0003).
+These two are the **executable** form of the determinism invariant (S-0020).
 Byte-identical artifacts prove the compiler is deterministic; these prove the
 artifacts *behave* deterministically once an engine runs them — which is where
 a nondeterministic tie-break or an order-dependent rule actually shows up. A
@@ -57,7 +57,7 @@ def test_second_run_changes_nothing(full_run: duckdb.DuckDBPyConnection) -> None
 
 def test_a_second_independent_run_reproduces_the_same_warehouse() -> None:
     """The same specs and the same bronze, in a *different* connection, give
-    the same numbers. Determinism across processes is what RFC 0003 promises,
+    the same numbers. Determinism across processes is what S-0020 promises,
     and a hash-seed-dependent iteration order reaching a projection list would
     fail here and nowhere else in the tier."""
     first = build_corpus()

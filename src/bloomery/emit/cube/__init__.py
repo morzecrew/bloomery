@@ -1,9 +1,9 @@
-"""The Cube emitter (RFC 0008 §5.4) — the semantic target.
+"""The Cube emitter (S-0025/cube-emitter-semantic) — the semantic target.
 
 One ``model/cubes/<mart>.yml`` per mart (``sql_table`` from
 ``NamingPolicy.relation(mart, Layer.GOLD)`` — the same pair the SQLMesh mart
 build uses, so the cube and the built table cannot disagree) plus one
-``model/views/<mart>_view.yml`` exposing the mart's members (RFC 0008 §10 → D17:
+``model/views/<mart>_view.yml`` exposing the mart's members (S-0025 (§10) → D17:
 one view per **mart**, and not per metric-grain group — two marts may share
 a grain, and merging them would need a ``join_path`` between cubes that
 bloomery models no relationship to build from; per metric would repeat the
@@ -26,8 +26,8 @@ Deterministic choices pinned here (each golden/unit-tested):
 - Measures carry ``meta.additivity`` / ``meta.grain`` from ``MetricIR``;
   a semi-additive measure additionally carries ``meta.semi_additive``
   (``over``/``rule``). The measure still emits with its declared aggregation:
-  RFC 0008 §5.1 gates *trusting* Cube's semi-additive behavior on the
-  equivalence suite (RFC 0009 §5.8), not on emission — the meta is what that
+  S-0025/ports gates *trusting* Cube's semi-additive behavior on the
+  equivalence suite (S-0026/equivalence-tier-three-way-metricflow-cube-reference-sql), not on emission — the meta is what that
   suite (and any consumer) audits against.
 - A ``count`` metric emits ``type: count`` with no ``sql``: Cube's ``count``
   counts rows, which at the mart's grain equals counting the non-null key
@@ -42,15 +42,15 @@ Deterministic choices pinned here (each golden/unit-tested):
   is what the MetricFlow emitter does with the same spec.
 - A non-additive metric backed by an **additive decomposition rather than a
   ratio** is refused with :class:`~bloomery.errors.UnsupportedByTarget`. The
-  additivity guardrail accepts either form (RFC 0006 §5.4), and only the ratio
+  additivity guardrail accepts either form (S-0023/additivity), and only the ratio
   has a Cube shape: ``{num} / NULLIF({den}, 0)``. Refusing is not a
   formality — without it such a metric is dropped from the stored pass and
   skipped by the calculated one, so it vanishes from the artifact, and a ratio
   naming it as a component emits ``{member}`` templating against a measure the
-  cube does not define (RFC 0008 D3: fail loud, never approximate).
+  cube does not define (S-0025/D-3: fail loud, never approximate).
 - Cube has no SCD/incremental concepts — their absence here is *irrelevance
-  rather than error*: Cube consumes tables SQLMesh maintains (RFC 0008 §5.4).
-- **Nothing about how a relation is built is Cube's to refuse** (RFC 0017 D52).
+  rather than error*: Cube consumes tables SQLMesh maintains (S-0025/cube-emitter-semantic).
+- **Nothing about how a relation is built is Cube's to refuse** (S-0034/D-52).
   This emitter writes no silver model, no reject table, no replay statement and
   no audit — a project full of quality rules compiles to cubes and views and
   nothing else, and always has. Steps and mart assertions were briefly singled
@@ -151,7 +151,7 @@ def _yaml(document: dict[str, object]) -> str:
 def _metric_meta(metric: MetricIR) -> dict[str, object]:
     meta: dict[str, object] = {"additivity": metric.additivity.value}
 
-    # A metric's owner reaches Cube and nowhere else (RFC 0055 §5.1): a metric
+    # A metric's owner reaches Cube and nowhere else (S-0062/owner): a metric
     # has no SQLMesh model and no dbt schema entry of its own, so a measure's
     # `meta` is the only owner slot it has. First, because it is the one key
     # here a person reads rather than a machine.
@@ -159,7 +159,7 @@ def _metric_meta(metric: MetricIR) -> dict[str, object]:
         meta["owner"] = metric.owner
 
     if metric.grain:
-        # A metric with no measure of its own — a ratio, and since RFC 0034 a
+        # A metric with no measure of its own — a ratio, and since S-0050 a
         # `derived:` metric — has no grain: its components carry theirs, and an
         # empty grain entry would be noise rather than metadata.
         meta["grain"] = metric.grain
@@ -176,7 +176,7 @@ def _metric_meta(metric: MetricIR) -> dict[str, object]:
 # ....................... #
 
 
-#: Classifications that mark a Cube member `public: false` (RFC 0055 §5.2).
+#: Classifications that mark a Cube member `public: false` (S-0062/classification).
 #:
 #: **What that does, measured rather than assumed.** §5.2 says it "removes it
 #: from Cube's API surface"; against Cube v1.7.18 it does not. `/meta` still
@@ -225,7 +225,7 @@ def _dimensions(mart: MartIR, ir: ProjectIR) -> list[object]:
         entry: dict[str, object] = {"name": dimension.column, "sql": dimension.column}
         meta: dict[str, object] = {}
         if dimension.ref.role is not None:
-            # A date-role bucket column (RFC 0010 D4): a time dimension whose
+            # A date-role bucket column (S-0027/D-4): a time dimension whose
             # bucket is recorded as meta.granularity.
             entry["type"] = "time"
             meta["granularity"] = dimension.ref.dimension
@@ -264,7 +264,7 @@ def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
     if metric.expr is None:
         msg = (
             f"metric {metric.name!r} has no expression to emit as a Cube measure — only "
-            "agg-over-expr metrics lower to stored measures (RFC 0008 §5.4)"
+            "agg-over-expr metrics lower to stored measures (S-0025/cube-emitter-semantic)"
         )
         raise UnsupportedByTarget(msg)
 
@@ -275,7 +275,7 @@ def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
         entry["sql"] = metric.expr.sql
 
     if metric.filter:
-        # Cube's own measure-level filter (RFC 0034): the same clauses the
+        # Cube's own measure-level filter (S-0050): the same clauses the
         # MetricFlow manifest carries, rendered by the shared function and
         # differing only in how a column is spelled — `{CUBE}.col` here,
         # `{{ Dimension('entity__col') }}` there (D15).
@@ -313,7 +313,7 @@ def _measures(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[ob
     # as wide as the pass that picks it back up — `COMPUTED` minus `RATIO`, which
     # is `NON_ADDITIVE`, is what this loop refuses. Such a metric carries a
     # derived: block or an additive decomposition, both of which the additivity
-    # guardrail accepts (RFC 0006 §5.4), and it is refused here rather than
+    # guardrail accepts (S-0023/additivity), and it is refused here rather than
     # skipped: skipping it drops it from the artifact silently, and a ratio
     # naming it as a component then templates `{member}` against a measure the
     # cube does not define.
@@ -324,7 +324,7 @@ def _measures(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[ob
                 f"metric {name!r} is non_additive and declares an additive decomposition "
                 "rather than a ratio, which Cube has no calculated-measure shape for — "
                 "only ratio: {numerator, denominator} lowers to "
-                "'{num} / NULLIF({den}, 0)' (RFC 0008 §5.4). Fix: give the metric a "
+                "'{num} / NULLIF({den}, 0)' (S-0025/cube-emitter-semantic). Fix: give the metric a "
                 f"ratio naming its two additive components, or drop {name!r} from this "
                 "mart's measures: and let a target that can decompose it serve the metric"
             )
@@ -362,11 +362,11 @@ def _measures(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[ob
 
 def _pre_aggregations(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[object]:
     """The ``pre_aggregations`` block for every rollup of this mart
-    (RFC 0058 §5.3, P3) — the payoff the feature is worth its cost for.
+    (S-0065/targets, S-0065/phasing (P-3)) — the payoff the feature is worth its cost for.
 
     **This is the whole of P3, and deliberately.** §12 sends §9's third risk —
     whether Cube's own query-time matching agrees with the obligation bloomery
-    discharged — to RFC 0043's capability matrix to be *measured*, rather than
+    discharged — to S-0006's capability matrix to be *measured*, rather than
     asserted here. So this function states what a rollup is and lets Cube
     decide when to use it; what it must never do is state more than R013
     proved.
@@ -397,7 +397,7 @@ def _pre_aggregations(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) ->
       pre-aggregation is semantically identical and only less partitionable,
       which is a performance property rather than a wrong number.
     - No ``refresh_key``. How often Cube rebuilds its own copy is a deployment
-      fact bloomery is not a source for, and RFC 0017 D52 already says nothing
+      fact bloomery is not a source for, and S-0034/D-52 already says nothing
       about how a relation is built is Cube's to refuse.
     - ``type: rollup`` is written even though it is Cube's default. This file
       is read by people auditing what bloomery generated, ``rollup`` is the
@@ -436,11 +436,11 @@ def _pre_aggregations(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) ->
             # public and takes any `ProjectIR`, though, so the case is
             # constructible: refused loudly here rather than written out as
             # `measures: []`, which Cube rejects at load with no mention of
-            # bloomery (RFC 0008 D3).
+            # bloomery (S-0025/D-3).
             msg = (
                 f"rollup {rollup.name!r} stores no measure, so its Cube pre-aggregation would "
                 "aggregate nothing — a rollup carries at least one number that is not "
-                "computed at query time (RFC 0058 §5.3). Fix: name an additive measure among "
+                "computed at query time (S-0065/targets). Fix: name an additive measure among "
                 "the rollup's measures:"
             )
             raise UnsupportedByTarget(msg)
@@ -504,7 +504,7 @@ def _cube_artifact(
 
     if pre_aggregations:
         # Absent rather than empty on a mart nothing rolls up: every project
-        # before RFC 0058 has no rollups at all, and an empty key on every cube
+        # before S-0065 has no rollups at all, and an empty key on every cube
         # would move every existing golden to say nothing new.
         cube["pre_aggregations"] = pre_aggregations
 
@@ -547,7 +547,7 @@ def _refuse_grants(ir: ProjectIR) -> None:
     block anyway would put a restriction in a file that never restricts
     anything, and dropping it silently would let a project believe a
     restriction it declared is in force on every target it compiles for. That
-    is the silent degradation RFC 0008 D3 exists to prevent.
+    is the silent degradation S-0025/D-3 exists to prevent.
 
     By existence and project-wide, like the refusal below it: a grant on an
     *entity* has no cube of its own, so a per-cube check would pass a project
@@ -558,7 +558,7 @@ def _refuse_grants(ir: ProjectIR) -> None:
     granted = [
         *((f"entity {entity.name!r}") for entity in ir.entities if entity.grants is not None),
         *((f"mart {mart.name!r}") for mart in ir.marts if mart.grants is not None),
-        # Rollups too. A rollup declares its own audience (RFC 0055 D12), so
+        # Rollups too. A rollup declares its own audience (S-0062/D-12), so
         # leaving it out meant a project granting only a rollup compiled here
         # with the restriction dropped — the silent degradation this refusal
         # exists to prevent, reintroduced by adding a third node kind that can
@@ -570,7 +570,7 @@ def _refuse_grants(ir: ProjectIR) -> None:
         msg = (
             f"{granted[0]} declares grants:, which Cube cannot apply — it reads relations "
             "it does not own, so a grant emitted here would be a restriction in a file "
-            "that restricts nothing (RFC 0055 D5). Fix: compile this project for SQLMesh "
+            "that restricts nothing (S-0062/D-5). Fix: compile this project for SQLMesh "
             "or dbt, which do apply grants, and keep Cube for the semantic layer over "
             "relations those targets have already restricted"
         )
@@ -581,11 +581,11 @@ def _refuse_grants(ir: ProjectIR) -> None:
 
 
 def _refuse_time_shaped(ir: ProjectIR) -> None:
-    """Refuse the two RFC 0034 forms Cube has no measure shape for (D11).
+    """Refuse the two S-0050 forms Cube has no measure shape for (D11).
 
     Project-wide rather than per mart, and by *existence* rather than by a
     mart naming the metric: a derived metric need not be listed in any mart's
-    ``measures:`` at all (RFC 0034 D4), so a per-mart check would let one pass
+    ``measures:`` at all (S-0050/D-4), so a per-mart check would let one pass
     unmentioned — Cube would emit a complete-looking model quietly missing the
     metric, which is the silent hole the refusal exists to prevent.
 
@@ -625,7 +625,7 @@ def _refuse_time_shaped(ir: ProjectIR) -> None:
 
 
 class CubeEmitter:
-    """RFC 0008 §5.4: one cube per mart, one view per mart — YAML data model
+    """S-0025/cube-emitter-semantic: one cube per mart, one view per mart — YAML data model
     files, dialect-independent by construction."""
 
     name = "cube"
@@ -634,7 +634,7 @@ class CubeEmitter:
 
     def emit(self, ir: ProjectIR, ctx: EmitContext) -> tuple[EmittedArtifact, ...]:
         """Lower every mart to a cube and a view; artifacts sorted by path,
-        content ending in exactly one newline (RFC 0003 §5.5 rule 5). A
+        content ending in exactly one newline (S-0020/determinism-rules-package-wide rule 5). A
         project without marts emits nothing — Cube has no silver surface."""
 
         _refuse_grants(ir)

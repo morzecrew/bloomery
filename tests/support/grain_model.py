@@ -1,4 +1,4 @@
-"""A small hand-built project for the grain tests (RFC 0037 §6).
+"""A small hand-built project for the grain tests (S-0017 (§6)).
 
 Hand-built rather than compiled from a fixture on purpose: every case §6 asks
 for is a *shape* of the relationship graph — a transitive chain, a fan-out
@@ -151,7 +151,7 @@ def mart(
     ``measures`` is sorted the way :func:`bloomery.marts.flatten` sorts it, and
     ``dimensions`` becomes one requestable dimension per column — which is what
     the mart builder does, since every flattened column is requestable and a
-    bucket column's qualified name is its column name (RFC 0010 §10).
+    bucket column's qualified name is its column name (S-0027 (§10)).
 
     The fields the obligation never reads — joins, partitioning, assertions —
     stay empty rather than plausible, for the reason :func:`metric` gives.

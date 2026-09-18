@@ -1,0 +1,206 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0054
+title: Safe rollup planner and SemanticPlan IR
+kind: design
+status: accepted
+implementation: complete
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  bloomery should distinguish **representation safety** from **query answerability**. A mart
+  may correctly refuse `shipping@Order` at `OrderItem` grain while the query planner safely
+  answers `shipping by customer.country`.
+
+  ```text
+  MetricRequest -> semantic resolution -> proof/planning -> SemanticPlan
+                -> target lowering -> SQL / MetricFlow / other target
+  ```
+
+  SQL existence is never evidence of semantic validity.
+motivation: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+current_state: |-
+  A planner already exists: `MetricRequest` (`planner/request.py:351`) and `QueryPlan`
+  (`planner/result.py:117`), with `UnreachableAtGrain` as its refusal. This RFC does not
+  replace it wholesale — `SemanticPlan` is the layer that must exist *before* it, and P1
+  below is deliberately a no-capability-change re-expression so the two can be compared.
+goals: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+non_goals: >-
+  _Stated with the goals above; the RFC did not separate them._
+design:
+  - key: initial-capability
+    md: |-
+      Phase 1 supports one measure; zero or more dimensions; additive measures; dimensions
+      reachable through grain-preserving relationships; safe rollup from measure origin to
+      requested result grain; existing valid temporal/as-of relationship semantics where
+      required. Unsupported shapes are refused, not delegated optimistically.
+  - key: semanticplan-ir
+    md: |-
+      Illustrative nodes:
+
+      ```text
+      Scan(entity)
+      PreservingJoin(relationship, optional_as_of)
+      Aggregate(input_grain, output_grain, measures, dimensions)
+      ConvertUnit(...)
+      Project(...)
+      Filter(...)
+      ```
+
+      Every multiplicity-changing node references the proof that authorizes it. **A plan without
+      proofs is invalid IR** — not a plan that is merely unexplained.
+  - key: planning-rule
+    md: |-
+      For a single additive measure: resolve its origin grain; resolve requested dimensions;
+      compute functional dependencies and required relationship paths; reject any path that
+      refines or duplicates the measure; determine requested output grain; prove additive rollup
+      from origin to output; construct `SemanticPlan`; lower the plan to a target.
+
+      ### Accepted example
+
+      ```text
+      shipping@Order : Money<USD>, Additive
+      Order -> Customer : many_to_one
+      Customer.country : dimension
+      ```
+
+      Request `shipping by customer.country`:
+
+      ```text
+      Scan(Order)
+        -> PreservingJoin(Customer)
+        -> Aggregate(input_grain=Order, output_grain=CustomerCountry,
+                     measure=shipping, aggregation=sum)
+      ```
+
+      The plan is safe even though a wide `OrderItem` mart containing repeated `shipping` remains
+      forbidden.
+
+      > This example is the semantic argument, not a phase. `PreservingJoin` has no route to SQL
+      > in this codebase and no route from a spec that does not already flatten the hop, so
+      > §11a builds none of it; the shape it illustrates arrives, if it does, through S-0055
+      > (D9, D10).
+
+      ### Refused example
+
+      Request `shipping by item.sku`. If reaching `Item` requires `Order -> OrderItem`, the path
+      is cardinality-expanding relative to `shipping@Order`:
+
+      ```text
+      REFUSED
+      No proof permits refining shipping from Order to OrderItem.
+      ```
+
+      No target planner is invoked.
+  - key: target-lowering
+    md: |-
+      Target adapters receive a validated `SemanticPlan`. They may choose syntax and execution
+      mechanisms but must preserve the logical operators and may not introduce an unproven
+      multiplicity-changing join. A target that cannot faithfully represent the plan refuses that
+      target rather than silently rewriting semantics.
+
+      MetricFlow or another semantic engine may remain an execution and lowering backend. It is
+      not the source of bloomery's correctness decision, and bloomery must be able to explain the
+      plan before target lowering.
+  - key: the-mart-contract-does-not-move
+    md: |-
+      No change to *measure grain must strictly equal mart grain* for embedding measures in a
+      wide mart under the current mart semantics.
+
+      A future RFC may define safe pre-aggregated mart constructs, but it must be explicit.
+      Query-time planning is not a back door that changes mart meaning.
+  - key: 11a-revised-phasing-supersedes-11
+    md: |-
+      - **P1 — plan IR only.** Landed. Unchanged from §11.
+      - **P2 — proof-backed refusal.** A request this project cannot serve is refused with a
+        refutation naming the obligation and the spec edit that discharges it, in place of
+        `UnknownMember`'s nearest-name guess. No capability expansion, no query-time join, no
+        invariant moved. This is where S-0005 (§13)'s parked rules first hold a planner's
+        question (D9).
+      - **P3 and P4 are withdrawn as written.** Transitive and qualified-temporal hops inherit
+        P2's missing execution story wholesale; there is nothing to phase until D10's generator
+        question is answered.
+      - **Capability, when wanted, is S-0055's** — aggregate each branch to a common grain and
+        join only after, which is safe by construction and needs a far smaller generator than a
+        `PreservingJoin` over raw rows (D10).
+
+      The rule the phases share is unchanged and now has D11 behind it: each phase preserves
+      prior refusals except where a named proof rule deliberately converts a class, and a
+      conversion — of outcome *or* of exception class — edits `parity_baseline.tsv` and says
+      which rule did it.
+tests: |-
+  Each phase's accepted shapes, each phase's refused shapes, and — the load-bearing one — a
+  parity suite asserting that every request refused before a phase is still refused after it,
+  except where a named proof rule deliberately converts a class.
+docs: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+out_of_scope: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+risks: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+sections:
+  - key: about
+    md: |-
+      - **Status:** ✅ Complete — §11a's P1 and P2 have both landed and P3-P4 are withdrawn, so
+        nothing here is in progress. P1 is `SemanticPlan` beside `QueryPlan`, built from the same
+        resolution the explanation reads, with §8's parity suite capturing 531 requests before
+        anything moved; **nothing lowers from the plan yet** — MetricFlow still plans from the
+        request, which is what makes P1 a re-expression with no capability change (D5). P2 is
+        proof-backed refusal: a dimension another mart carries is refused with the obligation and
+        the spec edit that discharges it rather than an `UnknownMember` guess. **§11's phasing was
+        revised before P2 began** — see §11a and D9-D11: the single-hop rollup had no route to SQL
+        and no route from a spec, so the capability arrives as S-0055's aggregate-then-join
+        (D10). §4's `PreservingJoin` and `ConvertUnit` and §5's cross-entity rule are unbuilt and,
+        under §11a, are not this document's to build.
+
+        **Retained rather than retired**, on the same reasoning `INDEX.md` applies to 0037: 0058
+        argues from this document's vocabulary. 0058 §2 places its safety condition
+        across four documents — grain and functional dependencies in 0037, aggregation class in
+        0038, derivation in 0039, the proof-producing planner here — so what this one supplies is
+        the rollup-proof half the condition is stated in terms of, and deleting it would leave
+        0058 arguing from a premise no longer in the tree. It is retired with the last of its
+        dependants.
+        Execution's findings and the rows it proposes are in [`logs/T-0021.md`](logs/T-0021.md)
+        and [`logs/T-0022.md`](logs/T-0022.md); no prose below has been amended to agree with
+        what was built — §5 and §11 keep their text and carry pointers to what replaced them. Fourth in the
+        semantic-correctness sequence; depends on S-0017,
+        S-0053 and
+        S-0005.
+      - **Scope:** The first proof-producing query planner, answering single-measure requests
+        across safe rollups while keeping unsafe wide-mart representations forbidden. Introduces
+        a target-independent `SemanticPlan` produced only after every required obligation is
+        proven.
+      - **Related:** [`src/bloomery/planner/`](src/bloomery/planner/) — `MetricRequest`,
+        `QueryPlan`, `UnreachableAtGrain`; S-0028 (native planner, retired), S-0029
+        (CompiledSemantic, retired).
+  - key: decision-notes
+    md: >-
+      _(Decision rows from here on are this document's D-1…; see `decisions.yaml`.)_
+  - key: phasing
+    md: |-
+      > **Superseded by §11a** (D9). Kept verbatim: P2–P4 as written below are what execution
+      > found unbuildable, and deleting them would erase the disagreement that produced the
+      > revision.
+
+      - **P1 — plan IR only.** Represent existing trivially safe requests as `SemanticPlan`; no
+        capability expansion.
+      - **P2 — single-hop rollup.** One proven `many_to_one`/`one_to_one` dimension path.
+      - **P3 — transitive rollup.** S-0017's closure for multi-hop paths.
+      - **P4 — qualified temporal rollup.** Reuse as-of proof rules for SCD2 dimensions.
+
+      Each phase preserves prior refusals except where a new documented proof rule deliberately
+      converts one class to acceptance.
+questions:
+  - id: Q-1
+    text: >-
+      **What happens to `QueryPlan`.** Whether `SemanticPlan` lowers to it, replaces
+      it, or sits beside it is a real fork and P1 exists partly to answer it.
+  - id: Q-2
+    text: >-
+      **Whether refusal messages change for requests that are already refused.** `UnreachableAtGrain`'s
+      wording is a shipped surface; a refutation is a better message and a moved golden.

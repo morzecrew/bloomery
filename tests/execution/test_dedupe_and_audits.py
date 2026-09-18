@@ -1,4 +1,4 @@
-"""Dedupe semantics and the blocking audits, executed (RFC 0016 §5.4/D20/D21).
+"""Dedupe semantics and the blocking audits, executed (S-0033/fixed-pipeline-order-and-lowering, S-0033/D-20, S-0033/D-21).
 
 ``keys.csv`` is the corpus file built for this module: seven specimens that
 walk the dedupe total order down to its last sort key, four that pin the null
@@ -259,7 +259,7 @@ def test_a_castable_recency_field_is_not_a_metadata_violation() -> None:
 
 
 # ....................... #
-# The replay comparison agrees with the dedupe order (RFC 0016 D20)
+# The replay comparison agrees with the dedupe order (S-0033/D-20)
 
 
 def test_the_replay_comparison_agrees_with_the_dedupe_order_on_nulls() -> None:

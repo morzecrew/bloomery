@@ -1,4 +1,4 @@
-"""The Postgres dialect (RFC 0008 D5, M10): physical types for all seven
+"""The Postgres dialect (S-0025/D-5, M10): physical types for all seven
 logical types, dialect-specific rendering, and the reserved-identifier
 quoting the sqlglot postgres generator does not perform itself."""
 
@@ -66,7 +66,7 @@ def test_render_quotes_reserved_relation_names() -> None:
 
 
 def test_render_never_mutates_the_shared_ast() -> None:
-    # The same neutral AST renders on every dialect (RFC 0008 D1): quoting
+    # The same neutral AST renders on every dialect (S-0025/D-1): quoting
     # for postgres must not leak into a later duckdb rendering.
     node = exp.Select().select("x").from_(exp.table_("order", db="silver"))
     before = node.sql()
@@ -92,10 +92,10 @@ def _iso_cast() -> exp.Expression:
 def test_the_iso_text_marker_is_stripped() -> None:
     """Postgres' own cast takes both ISO spellings, so the marker adds no
     separator rewrite on this port — what is left is the offset guard every
-    port carries, in Postgres' own `SUBSTRING(… FROM …)` spelling (RFC 0036).
+    port carries, in Postgres' own `SUBSTRING(… FROM …)` spelling (S-0052).
 
     A port that left the marker in place would emit `BLM_ISO_TEXT(x)`, which no
-    engine defines — deliberately louder than silently NULL data (RFC 0027).
+    engine defines — deliberately louder than silently NULL data (S-0044).
     """
     assert DIALECT.render(_iso_cast()) == (
         "CAST(CASE\n"
@@ -108,7 +108,7 @@ def test_the_iso_text_marker_is_stripped() -> None:
 
 
 # ....................... #
-# The rewrites RFC 0029 added. Each is asserted here at the rendering level so
+# The rewrites S-0046 added. Each is asserted here at the rendering level so
 # the default suite covers it: a sabotage sweep found that neutering
 # `_zoneless_parse`, `_variant_is_jsonb` or `_jsonb_extraction` left every
 # non-Docker tier green, which makes the engine tier the only thing standing
@@ -117,7 +117,7 @@ def test_the_iso_text_marker_is_stripped() -> None:
 
 def _rendered(transform: str, *args: object, input_type: LogicalType | None = None) -> str:
     """A transform as this port emits it, through the canonical round trip the
-    IR performs at emit (RFC 0003 D2)."""
+    IR performs at emit (S-0020/D-2)."""
     spec = DEFAULT_REGISTRY[transform]
     extra = {"input_type": input_type} if spec.types else {}
     return DIALECT.render(canon(spec.builder(exp.column("x"), *args, **extra)).ast())
@@ -128,7 +128,7 @@ def test_parse_ts_with_a_format_is_cast_back_to_a_zoneless_timestamp() -> None:
     *session* zone to the clock it just parsed, so one row stored a different
     instant depending on who ran it. The cast undoes the attachment exactly,
     because PostgreSQL converts `timestamptz` to `timestamp` through the same
-    session zone (RFC 0029 §2.4).
+    session zone (S-0046/what-was-measured (§2.4)).
 
     The value half — that the written clock survives under any session — is
     asserted against the engine in `tests/engines/test_zoneless_utc.py`; a

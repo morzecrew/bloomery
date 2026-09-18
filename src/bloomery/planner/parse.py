@@ -1,4 +1,4 @@
-"""The JSON front door (RFC 0015 §5.2, D-Q4): a public, pure,
+"""The JSON front door (S-0032/normalize-before-refusing-planner-parse-py-new-public, S-0032/D-4): a public, pure,
 dependency-free parser from the Mongo-flavoured filter/sort/pagination
 grammar into the typed request vocabulary of
 :mod:`bloomery.planner.request`. The typed constructors remain the primary
@@ -69,7 +69,7 @@ __all__ = [
     "parse_sort_json",
 ]
 
-#: The CNF clause cap (RFC 0015 D-Q4): counts **clauses** only — predicates
+#: The CNF clause cap (S-0032/D-4): counts **clauses** only — predicates
 #: per clause are bounded by the input's leaf count, so no separate
 #: predicate cap is needed.
 DEFAULT_CLAUSE_CAP: Final[int] = 64
@@ -81,7 +81,7 @@ DEFAULT_CLAUSE_CAP: Final[int] = 64
 #: over the tree ``_tree`` built, so their depth never exceeds this cap.
 MAX_NESTING_DEPTH: Final[int] = 64
 
-#: Every reason code the three parse functions can raise (RFC 0015 D9): the
+#: Every reason code the three parse functions can raise (S-0032/D-9): the
 #: union across :func:`parse_filter_json`, :func:`parse_sort_json`, and
 #: :func:`parse_page_json` — which is why ``unsupported_sort_nulls`` and
 #: ``unsupported_pagination`` legitimately sit here even though the filter
@@ -116,7 +116,7 @@ _OPERATORS: Final[dict[str, Op]] = {
     "$ilike": Op.ILIKE,
 }
 
-#: The complement table (RFC 0015 §5.2 step 2). ``is_null`` complements by
+#: The complement table (S-0032/normalize-before-refusing-planner-parse-py-new-public step 2). ``is_null`` complements by
 #: flipping its bool operand; ``like``/``ilike`` have no complement.
 _COMPLEMENTS: Final[dict[Op, Op]] = {
     Op.EQ: Op.NE,
@@ -130,7 +130,7 @@ _COMPLEMENTS: Final[dict[Op, Op]] = {
 }
 
 #: Reviewed refusals for upstream operators bloomery deliberately does not
-#: adopt (RFC 0015 §5.3) — refused with their closed-list error types.
+#: adopt (S-0032/the-closed-list-what-cannot-cross) — refused with their closed-list error types.
 _REFUSED_OPERATORS: Final[dict[str, type[UnsupportedFilter]]] = {
     "$superset": UnsupportedSetRelation,
     "$subset": UnsupportedSetRelation,
@@ -159,7 +159,7 @@ _REFUSAL_REASONS: Final[dict[str, str]] = {
 }
 
 #: The supported operator each refusal is nearest to, where one exists
-#: (RFC 0020 §5.4 — :attr:`~bloomery.errors.UnsupportedFilter.nearest_supported`).
+#: (S-0037/fix-suggestions-on-refusals — :attr:`~bloomery.errors.UnsupportedFilter.nearest_supported`).
 #:
 #: One entry, and the shortness is the finding rather than an omission. A set
 #: relation and a hierarchy operator have no scalar counterpart at all — the
@@ -230,11 +230,11 @@ type _Node = _Leaf | _And | _Or | _Not
 
 def _check_operand(value: object, *, where: str) -> object:
     """One JSON scalar operand. Floats normalize downstream (``Predicate``
-    construction, RFC 0015 D5); the non-finite check is made here too so
+    construction, S-0032/D-5); the non-finite check is made here too so
     the refusal carries the parse-stage source and reason."""
 
     if isinstance(value, float) and not math.isfinite(value):
-        msg = f"{where} carries non-finite {value!r} — fails open if permitted (RFC 0015 D5)"
+        msg = f"{where} carries non-finite {value!r} — fails open if permitted (S-0032/D-5)"
         raise InvalidLiteral(msg)
 
     if value is None or isinstance(value, (str, int, float, bool)):
@@ -345,7 +345,7 @@ def _tree(payload: object, *, depth: int = 0) -> _Node:
         msg = (
             f"filter document nesting exceeded the depth cap ({MAX_NESTING_DEPTH} "
             "combinator levels) — refused before normalization; this is the "
-            "nesting-depth cap, distinct from the CNF clause cap (RFC 0015 §5.2)"
+            "nesting-depth cap, distinct from the CNF clause cap (S-0032/normalize-before-refusing-planner-parse-py-new-public)"
         )
         raise FilterTooComplex(msg, normalized=f">{MAX_NESTING_DEPTH} levels deep")
 
@@ -378,7 +378,7 @@ def _tree(payload: object, *, depth: int = 0) -> _Node:
 
 
 # ....................... #
-# Normalization (RFC 0015 §5.2): De Morgan → complement → capped CNF
+# Normalization (S-0032/normalize-before-refusing-planner-parse-py-new-public): De Morgan → complement → capped CNF
 
 
 # ....................... #
@@ -409,7 +409,7 @@ def _push_not(node: _Node, *, negate: bool) -> _Node:
                 msg = (
                     f"negated {leaf.op.value} on {leaf.field!r} has no complement "
                     "operator — not_like is added only on demonstrated need "
-                    f"(RFC 0015 §5.3); normalized form: {normalized.render()}"
+                    f"(S-0032/the-closed-list-what-cannot-cross); normalized form: {normalized.render()}"
                 )
                 raise UnsupportedNegation(
                     msg, source_path=leaf.field, normalized=normalized.render()
@@ -424,12 +424,12 @@ def _distribute(node: _Node, *, cap: int) -> list[tuple[_Leaf, ...]]:
     """Step 3: CNF distribution — a list of clauses, each a disjunction of
     leaves — with the cap enforced **during** distribution: the moment a
     partial count exceeds ``cap``, refuse; the expansion is never
-    materialized (RFC 0015 D-Q4)."""
+    materialized (S-0032/D-4)."""
 
     def too_complex(count: int) -> FilterTooComplex:
         msg = (
             f"CNF distribution exceeded the clause cap ({cap}) at {count} partial "
-            "clauses — refused during distribution, before materializing (RFC 0015 §5.2)"
+            "clauses — refused during distribution, before materializing (S-0032/normalize-before-refusing-planner-parse-py-new-public)"
         )
         return FilterTooComplex(msg, normalized=f">{cap} clauses")
 
@@ -493,7 +493,7 @@ def parse_filter_json(
     and a field map ``{field: scalar | {op: value} | [array]}`` using the
     operators in :class:`Op` (spellings ``$eq $neq $gt $gte $lt $lte $in
     $nin $null $like $ilike``). Scalars are the ``$eq`` shortcut; arrays are
-    the ``$in`` shortcut; null is ``is_null: true``. Normalizes per RFC 0015
+    the ``$in`` shortcut; null is ``is_null: true``. Normalizes per S-0032
     D-Q4 (De Morgan → complement inversion → CNF capped during
     distribution), then validates each predicate. Nesting beyond
     :data:`MAX_NESTING_DEPTH` refuses with
@@ -532,7 +532,7 @@ def parse_sort_json(payload: Mapping[str, object]) -> tuple[OrderSpec, ...]:
     A ``nulls`` placement equal to the canonical default (``first`` for
     asc, ``last`` for desc) is redundant and dropped; a well-formed
     non-default placement refuses with
-    :class:`~bloomery.errors.UnsupportedSortNulls` (RFC 0015 D-Q6 —
+    :class:`~bloomery.errors.UnsupportedSortNulls` (S-0032/D-7 —
     accepting-and-dropping a meaningful placement is worse than refusing).
     A **present** ``nulls`` key must hold exactly ``"first"`` or ``"last"``:
     a wrong type, an explicit ``null``, or an unknown word is malformed
@@ -585,7 +585,7 @@ def parse_sort_json(payload: Mapping[str, object]) -> tuple[OrderSpec, ...]:
                 msg = (
                     f"sort on {field!r} places nulls {nulls!r}, but the backend renders "
                     f"the canonical default only ({canonical!r} for {literal_direction!r}) — "
-                    "refused rather than silently dropped (RFC 0015 D-Q6)"
+                    "refused rather than silently dropped (S-0032/D-7)"
                 )
                 raise UnsupportedSortNulls(msg, source_path=field)
         specs.append(OrderSpec(field=field, direction=literal_direction))
@@ -600,7 +600,7 @@ def parse_page_json(payload: Mapping[str, object]) -> int | None:
     """Parse a pagination document — ``{"limit": …, "offset": …}`` — into
     the request ``limit``.
 
-    Pagination is limit-only (RFC 0015 D-Q7): a non-zero ``offset`` or a
+    Pagination is limit-only (S-0032/D-8): a non-zero ``offset`` or a
     cursor key (``after``/``before``) refuses with
     :class:`~bloomery.errors.UnsupportedPagination` — paging aggregates
     belongs to the serving layer. Malformed payloads (a non-mapping
@@ -614,7 +614,7 @@ def parse_page_json(payload: Mapping[str, object]) -> int | None:
     if cursors:
         msg = (
             f"cursor pagination ({cursors}) is refused — pagination is limit-only; "
-            "page a materialization at the serving layer (RFC 0015 D-Q7)"
+            "page a materialization at the serving layer (S-0032/D-8)"
         )
         raise UnsupportedPagination(msg)
 
@@ -632,7 +632,7 @@ def parse_page_json(payload: Mapping[str, object]) -> int | None:
         if offset != 0:
             msg = (
                 f"offset {offset!r} is refused — pagination is limit-only; page a "
-                "materialization at the serving layer (RFC 0015 D-Q7)"
+                "materialization at the serving layer (S-0032/D-8)"
             )
             raise UnsupportedPagination(msg)
 

@@ -1,4 +1,4 @@
-# The path-conflict fixture (RFC 0006 §5.5, D7): `net_price` has both a
+# The path-conflict fixture (S-0023/path-conflict-the-guardrail-that-does-not-raise, S-0023/D-7): `net_price` has both a
 # recorded derivation and a direct source column. The compiler emits both —
 # the derived column, the `net_price__direct` shadow, and a reconcile audit —
 # and never picks one silently.

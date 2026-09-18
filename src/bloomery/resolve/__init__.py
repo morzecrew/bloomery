@@ -1,4 +1,4 @@
-"""The resolve stage (RFC 0005): the single dependency DAG, recorded-recipe
+"""The resolve stage (S-0022): the single dependency DAG, recorded-recipe
 validation, reachability with specific missing leaves, cycle detection, the
 deterministic topological emission order — and the IR builder that lowers a
 resolved, typechecked project into :class:`~bloomery.ir.ProjectIR`."""

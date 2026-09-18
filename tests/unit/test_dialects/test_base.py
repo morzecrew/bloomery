@@ -1,4 +1,4 @@
-"""The dialect port and registry (RFC 0008 §5.1, D8): physical type mapping,
+"""The dialect port and registry (S-0025/ports, S-0025/D-8): physical type mapping,
 feature queries, registry collision/unknown-name behavior."""
 
 from __future__ import annotations
@@ -128,7 +128,7 @@ def test_the_declared_port_members_are_the_protocols() -> None:
 
 
 def test_pattern_check_does_not_consult_the_mutable_registry() -> None:
-    """RFC 0016 D56: registering a dialect must not change any verdict the
+    """S-0033/D-56: registering a dialect must not change any verdict the
     compile stage reaches. A port that refuses every regex would flip
     ``unsupported_dialects`` if the check read the registry — it does not."""
 
@@ -171,16 +171,16 @@ def test_base_physical_types() -> None:
     ids=lambda dialect: dialect.name,
 )
 def test_every_shipped_dialect_has_arrays(dialect: DialectPort) -> None:
-    # RFC 0016 D9: array support is an *engine* property, recorded as a
+    # S-0033/D-9: array support is an *engine* property, recorded as a
     # DialectFeature — SQLMesh-on-DuckDB and dbt-on-DuckDB share it (the
-    # RFC 0008 D1 split). All three shipped engines have a first-class array
+    # S-0025/D-1 split). All three shipped engines have a first-class array
     # type (DuckDB STRING[], Postgres TEXT[], Trino ARRAY(VARCHAR)), so none
     # takes the delimited fallback.
     assert dialect.supports(DialectFeature.ARRAY)
 
 
 def test_array_is_a_dialect_feature() -> None:
-    # RFC 0016 D9's deliberate divergence from Document 5 §5.3: array support
+    # S-0033/D-9's deliberate divergence from Document 5 §5.3: array support
     # is an engine property, recorded on the dialect port. (The target-side
     # Feature vocabulary it diverged from has since been removed outright —
     # nothing ever consulted it.)
@@ -188,14 +188,14 @@ def test_array_is_a_dialect_feature() -> None:
 
 
 def test_a_port_that_never_strips_the_iso_marker_is_refused() -> None:
-    """The default is neither identity nor silence (RFC 0027).
+    """The default is neither identity nor silence (S-0044).
 
     A port registered through `register_dialect` that inherits the base render
     and never decides what its engine needs would otherwise emit
     `BLM_ISO_TEXT(x)` — an undefined function that fails at *plan* time with the
     engine's own message. Defaulting to identity instead would be worse still:
     an engine whose cast rejects the `T` separator would return NULL for good
-    data, which is the defect RFC 0027 exists to close.
+    data, which is the defect S-0044 exists to close.
 
     So the base renderer refuses, at emit, naming the one call to make.
     """
@@ -255,10 +255,10 @@ def test_a_port_that_strips_the_marker_renders_normally() -> None:
 def test_the_offset_guard_reads_its_operand_as_text_on_every_port(
     dialect: DialectPort, window: str
 ) -> None:
-    """RFC 0036's guard takes its window over an explicit cast, on all three.
+    """S-0052's guard takes its window over an explicit cast, on all three.
 
     The marked operand is text in a transform chain by `parse_ts`'s declared
-    input type — but on RFC 0016 D21's metadata audit the marker sits on a
+    input type — but on S-0033/D-21's metadata audit the marker sits on a
     **bronze column**, which is whatever the project landed. Measured: none of
     the three engines plans `SUBSTRING(<timestamp>, 11)`, so a guard reading
     the operand raw would refuse to *compile* the audit instead of refusing the
@@ -281,7 +281,7 @@ def test_the_offset_guard_reads_its_operand_as_text_on_every_port(
     [
         (DuckDBDialect(), "REGEXP_EXTRACT(sku, 'sku-([0-9]+)', 1)"),
         # PostgreSQL has no `regexp_extract`; `regexp_substr`'s sixth argument
-        # is the capture group (RFC 0029 §2.3).
+        # is the capture group (S-0046/what-was-measured (§2.3)).
         (PostgresDialect(), "REGEXP_SUBSTR(sku, 'sku-([0-9]+)', 1, 1, '', 1)"),
         (TrinoDialect(), "REGEXP_EXTRACT(sku, 'sku-([0-9]+)', 1)"),
     ],
@@ -294,7 +294,7 @@ def test_the_capture_group_survives_the_canonical_round_trip(
 
     ``regex_extract`` builds :class:`sqlglot.exp.RegexpExtract` with ``group``
     set, which renders correctly — but the IR keeps canonical text and
-    re-parses at emit (RFC 0003 D2), and ``REGEXP_EXTRACT(x, p, 1)`` re-parses
+    re-parses at emit (S-0020/D-2), and ``REGEXP_EXTRACT(x, p, 1)`` re-parses
     with the third argument bound to ``position``. SQLGlot's duckdb and trino
     generators then **drop it**, warning to a stderr nothing reads, so the
     transform returned group 0 — the whole match — on both engines that can run
@@ -303,13 +303,13 @@ def test_the_capture_group_survives_the_canonical_round_trip(
 
     This asserts the rendering, not the run, and the three expectations are no
     longer the same string: PostgreSQL defines no ``regexp_extract``, so
-    RFC 0029 §2.3 gave it ``regexp_substr``, whose sixth argument is the group.
+    S-0046/what-was-measured (§2.3) gave it ``regexp_substr``, whose sixth argument is the group.
     Pinning all three is what keeps the restoration port-independent — the
     spelling PostgreSQL got still had to carry the group, and this is the test
     that said so before it existed.
 
     No fixture used ``regex_extract``, so no golden showed it; the
-    declared-vs-produced battery found it (RFC 0028 D5).
+    declared-vs-produced battery found it (S-0045/D-5).
     """
     built = DEFAULT_REGISTRY["regex_extract"].builder(exp.column("sku"), "sku-([0-9]+)", 1)
     assert dialect.render(canon(built).ast()) == expected
@@ -347,7 +347,7 @@ def test_restoring_the_capture_group_does_not_mutate_the_input() -> None:
 
 
 # ....................... #
-# `utc_now` — the engine's instant as a zoneless UTC timestamp (RFC 0060 P1)
+# `utc_now` — the engine's instant as a zoneless UTC timestamp (S-0003/P-1)
 
 
 @pytest.mark.parametrize(
@@ -366,7 +366,7 @@ def test_utc_now_states_the_zone_on_every_port(dialect: str, expected: str) -> N
     written into a text column carries an offset — measured on DuckDB through
     dbt: `2026-09-17 19:18:21.796404+03`, which the D21 audit refuses. And
     `CAST(CURRENT_TIMESTAMP AS TIMESTAMP)` keeps the *session's* wall clock,
-    which is the RFC 0028 §2 defect in a shape that looks like the fix.
+    which is the S-0045/what-was-measured defect in a shape that looks like the fix.
 
     Trino's spelling is different rather than cosmetically so: it has no
     `timezone(zone, ts)`, and `with_timezone` — the function the port's other

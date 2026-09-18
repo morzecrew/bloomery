@@ -1,4 +1,4 @@
-"""The deprecation channel (RFC 0033 D8) — the only use of Python's
+"""The deprecation channel (S-0004/D-8) — the only use of Python's
 ``warnings`` module under ``src/``.
 
 Three channels, and they do not blur: a log record is telemetry, an

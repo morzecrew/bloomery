@@ -1,4 +1,4 @@
-# The as-of join fixture (RFC 0023 §5.3). Identical to `scd2_mart_refusal`
+# The as-of join fixture (S-0040/phase-2-the-as-of-join). Identical to `scd2_mart_refusal`
 # except for its marts: `customer` is historical, `order` is a fact carrying
 # its own date, and the mart reads the dimension as of that date.
 #

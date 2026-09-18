@@ -1,4 +1,4 @@
-"""Step lowering: manifest × wiring → :class:`StepIR` (RFC 0017 §5.6).
+"""Step lowering: manifest × wiring → :class:`StepIR` (S-0034/runtime-pinning).
 
 This is where the platform's declaration and the authored spec's wiring meet,
 and where every compile-time refusal about a step is decided. It lives in
@@ -8,7 +8,7 @@ stating: ``bloomery.steps`` sits *below* the IR so that
 dragging the compile pipeline behind it, and a module that builds
 :class:`StepIR` cannot sit below the IR it builds.
 
-**Refusals are batched** (RFC 0006 D2): every step is validated, then the
+**Refusals are batched** (S-0023/D-2): every step is validated, then the
 whole crop is raised as one aggregate. An author fixing a wiring should see
 all of it in one round-trip, not discover the next problem on the next run.
 
@@ -96,7 +96,7 @@ def _check_determinism(wiring: StepWiring, manifest: StepManifest) -> list[Bloom
 
     if manifest.determinism == "nondeterministic":
         msg = (
-            f"step {wiring.use!r} declares determinism: nondeterministic (RFC 0017 §5.5). "
+            f"step {wiring.use!r} declares determinism: nondeterministic (S-0034/determinism-tiers). "
             "A backfill of a nondeterministic step disagrees with the original run, which "
             "destroys restatement — the capability this architecture exists to provide. "
             "Fix: make the step deterministic and declare pure, or seed it and declare "
@@ -107,7 +107,7 @@ def _check_determinism(wiring: StepWiring, manifest: StepManifest) -> list[Bloom
         msg = (
             f"step {wiring.use!r} declares determinism: seeded but the wiring sets no "
             "seed, so two runs may disagree and a backfill cannot be trusted "
-            "(RFC 0017 §5.5). Fix: add seed: <int>"
+            "(S-0034/determinism-tiers). Fix: add seed: <int>"
         )
         errors.append(StepDeterminismError(msg, source_path=_path(wiring)))
     elif manifest.determinism == "pure" and wiring.seed is not None:
@@ -153,7 +153,7 @@ def _check_bindings(wiring: StepWiring, manifest: StepManifest) -> list[Bloomery
     if unbound:
         msg = (
             f"step {wiring.use!r} leaves output(s) {', '.join(unbound)} unbound; every "
-            "declared output becomes its own model (RFC 0017 D16), so each needs a "
+            "declared output becomes its own model (S-0034/D-16), so each needs a "
             "relation to write to. Fix: bind them under outputs:"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
@@ -200,7 +200,7 @@ def _check_parameters(wiring: StepWiring, manifest: StepManifest) -> list[Bloome
             # Inside the guard on purpose: Decimal("NaN") *constructs* fine and
             # raises on comparison, so a guard around construction alone let
             # InvalidOperation escape compile_project — a non-BloomeryError
-            # crossing the boundary, which RFC 0002's contract forbids.
+            # crossing the boundary, which S-0019's contract forbids.
             out_of_range = (spec.min is not None and numeric < spec.min) or (
                 spec.max is not None and numeric > spec.max
             )
@@ -246,7 +246,7 @@ def _check_parameter_types(
     The emitter rebuilds a real ``int``/``Decimal``/``date`` from this text
     (§5.8), so a value that will not parse used to surface as a bare
     ``ValueError`` out of ``int()`` — a non-``BloomeryError`` crossing the
-    compile boundary, which RFC 0002 forbids — or, for the temporal and
+    compile boundary, which S-0019 forbids — or, for the temporal and
     decimal constructors, as an exception at *model import* in somebody's
     warehouse. Checked here, where it is a spec error with the step's name on
     it. Manifest **defaults** are checked too: they resolve into the IR
@@ -287,7 +287,7 @@ def _check_parameter_types(
         if problem is not None:
             msg = (
                 f"step {wiring.use!r} resolves parameter {name!r} to {value!r}, which is "
-                f"not {problem} as the manifest declares (RFC 0017 §5.2). The generated "
+                f"not {problem} as the manifest declares (S-0034/step-manifest). The generated "
                 "wrapper builds the real value from this text, so an unparseable one "
                 "fails at model import rather than here"
             )
@@ -307,7 +307,7 @@ def _resolved_parameters(wiring: StepWiring, manifest: StepManifest) -> tuple[St
     the fingerprint covers (D15): a step whose behaviour depends on a default
     must restate when that default changes, and it can only do that if the
     value is recorded. Values are stringified so the canonical encoding never
-    meets a float (RFC 0003 D5); the declared type travels beside each one so
+    meets a float (S-0020/D-5); the declared type travels beside each one so
     the generated wrapper can rebuild the real value (§5.8).
     """
 
@@ -416,7 +416,7 @@ def _check_duplicate_relations(
         if emitted in seen and seen[emitted] != f"step output {claimant}":
             msg = (
                 f"relation {emitted!r} is written by two things: {seen[emitted]} and "
-                f"step output {claimant} (RFC 0017 §5.8, D8). Each becomes its own "
+                f"step output {claimant} (S-0034/emission-and-the-dag, S-0034/D-8). Each becomes its own "
                 "model, so one relation with two writers is two models at one path "
                 "and the last run wins. Fix: bind one of them to a different relation"
             )
@@ -454,13 +454,13 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
     describing something that cannot happen, and used to compile clean and
     emit nothing at all. The refusal is permanent, not a placeholder: a macro
     is referenced from the *mapping* that uses it, as a field's ``step:``/
-    ``from:`` pair or as a chain link (RFC 0017 D50/D51), and both of those
+    ``from:`` pair or as a chain link (S-0034/D-50, S-0034/D-51), and both of those
     surfaces ship (``spec.mapping.MacroFieldMapping``,
     ``spec.mapping.TransformStep.step``).
 
     **Quality rules on outputs.** §5.2 permits them and §1 makes them the
-    reason RFC 0016 and 0017 ship as a pair. What is refusable is narrower
-    than "any disposition but ``fail``" (RFC 0051 §5.3):
+    reason S-0033 and 0017 ship as a pair. What is refusable is narrower
+    than "any disposition but ``fail``" (S-0059/onfail-flag-on-a-tier-2-output):
 
     - ``fail`` lowers on both SQL-writing tiers, as a blocking audit over the
       finished relation. It needs no SELECT.
@@ -481,7 +481,7 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
     if manifest.kind == "sql_macro":
         msg = (
             f"step {wiring.use!r} is a sql_macro, which is not wired here: Tier 1 splices "
-            "into the consuming model's query (RFC 0017 §5.1), so it writes no relation "
+            "into the consuming model's query (S-0034/the-four-tier-ladder), so it writes no relation "
             "and has no output to bind. A macro is referenced from the mapping that uses "
             "it, as a field's step:/from: pair (D50) — which is also what lets one macro "
             "serve several call sites with different arguments"
@@ -494,7 +494,7 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
     if quarantined:
         msg = (
             f"step {wiring.use!r} declares quality rule(s) {', '.join(quarantined)} on its "
-            "outputs with on_fail: quarantine, which no step tier can lower (RFC 0051 D10). "
+            "outputs with on_fail: quarantine, which no step tier can lower (S-0059/D-10). "
             "Two things are missing, not one: the <output>__reject table is keyed on the "
             "ingestion metadata a bronze extract carries (_load_id, _ingested_at, "
             "_source_row_id) and a step wrote these rows itself, so there is none; and "
@@ -509,7 +509,7 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
     if flagged and manifest.kind == "python_model":
         msg = (
             f"step {wiring.use!r} declares quality rule(s) {', '.join(flagged)} on its "
-            "outputs with on_fail: flag, which a python_model cannot carry (RFC 0051 D9). "
+            "outputs with on_fail: flag, which a python_model cannot carry (S-0059/D-9). "
             "flag compiles into the model's SELECT as the _quality_flags projection, and a "
             "Tier 3 wrapper writes its rows in Python — there is no SELECT to project into. "
             "A sql_model is a SELECT and does carry it. Fix: use on_fail: fail, express the "
@@ -533,13 +533,13 @@ def _check_reserved_columns(wiring: StepWiring, manifest: StepManifest) -> list[
 
     The break it caused is concrete rather than hypothetical. The flag lowering
     projects every declared column of the output and then aliases its own
-    ``_quality_flags`` beside them (RFC 0051 §5.3), so such an output emitted a
+    ``_quality_flags`` beside them (S-0059/onfail-flag-on-a-tier-2-output), so such an output emitted a
     model carrying the column twice, with an ambiguous reference at the level
     above: a model that compiles, matches its golden, and fails on the engine.
 
     **Every reserved name, on every tier, whether or not a rule is declared.**
     The trap is the one ``_source`` is reserved unconditionally to avoid
-    (RFC 0024 D18): a step column called ``_quality_ok`` is legal right up
+    (S-0041/D-18): a step column called ``_quality_ok`` is legal right up
     until someone adds the rule that generates it, and the author who adds the
     rule is not the author who has to move the column. Reusing the spec layer's
     own tuple rather than listing the three the lowering happens to project
@@ -620,7 +620,7 @@ def _check_body(
     if manifest.kind in {"sql_macro", "sql_model"} and body is None:
         msg = (
             f"step {wiring.use!r} is a {manifest.kind} but the registry carries no body "
-            "for it (RFC 0017 §5.3). bloomery parses Tier 1 and Tier 2 bodies at compile; "
+            "for it (S-0034/purity-the-registry-is-a-compile-input). bloomery parses Tier 1 and Tier 2 bodies at compile; "
             "with none there it would emit a model with no query at all. Fix: add the "
             "body to the registry's macro_bodies/sql_bodies"
         )
@@ -713,7 +713,7 @@ def _check_placeholders(
     if unused := sorted(available - used):
         msg = (
             f"step {wiring.use!r} resolves parameter(s) {', '.join(unused)} that its body "
-            "never uses (RFC 0017 §5.8). The value is part of the step's identity, so "
+            "never uses (S-0034/emission-and-the-dag). The value is part of the step's identity, so "
             "changing it would restate the outputs and recompute the same rows. Fix: "
             f"reference :{unused[0]} in the body, or drop it from the manifest"
         )
@@ -741,11 +741,11 @@ def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[Bloo
     # The base class, not `ParseError`: `TokenError` is its *sibling* under
     # `SqlglotError`, so an unterminated string (`SELECT 'abc`) bypassed a
     # `ParseError`-only handler and crossed the compile boundary as a
-    # non-`BloomeryError` — which RFC 0002 forbids.
+    # non-`BloomeryError` — which S-0019 forbids.
     except SqlglotError as exc:
         msg = (
             f"step {wiring.use!r} has a body that does not parse as SQL: {exc}. Bloomery "
-            "parses Tier 1 and Tier 2 bodies at compile (RFC 0017 §5.8), so this is a "
+            "parses Tier 1 and Tier 2 bodies at compile (S-0034/emission-and-the-dag), so this is a "
             "registry error rather than something an engine discovers later"
         )
         return None, [StepError(msg, source_path=_path(wiring))]
@@ -757,7 +757,7 @@ def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[Bloo
 def step_entities(
     steps: tuple[StepIR, ...], project: Project | None = None
 ) -> tuple[EntityIR, ...]:
-    """One :class:`EntityIR` per step output (RFC 0017 §5.8).
+    """One :class:`EntityIR` per step output (S-0034/emission-and-the-dag).
 
     This is what §5.8 means by "step outputs are entities in the DAG:
     downstream mappings, marts, and metrics reference them like any silver
@@ -787,14 +787,14 @@ def step_entities(
     already exists, so nothing about the IR's shape changes and no fingerprint
     moves for a project that declares no rule — where a new IR field would
     move every fingerprint in the corpus, the type-driven encoder covering
-    field names and count rather than values (RFC 0003).
+    field names and count rather than values (S-0020).
 
     ``quarantine`` stays refused in :func:`_check_scope` on both tiers, and
     ``flag`` on ``python_model`` alone: the routing ``WHERE`` needs a reject
     table this entity has no key for, and the ``_quality_flags`` projection
     needs a SELECT, which a Tier 3 wrapper writing rows in Python does not
     have. A ``sql_model`` **is** a SELECT, so its ``flag`` rules lower
-    (RFC 0051 §5.3) — through this same ``quality`` tuple, which is why nothing
+    (S-0059/onfail-flag-on-a-tier-2-output) — through this same ``quality`` tuple, which is why nothing
     here changes to carry them.
     """
     rules = _output_rules(project)
@@ -825,7 +825,7 @@ def step_entities(
                         )
                         for column in output.columns
                     ),
-                    # One source, and always exactly one (RFC 0024 D21): a step
+                    # One source, and always exactly one (S-0041/D-21): a step
                     # output is not a mapping, so there is nothing for a union
                     # to order it by, and mixing it with a mapped source is
                     # refused rather than left to fail downstream.
@@ -838,7 +838,7 @@ def step_entities(
                             # selecting from this relation would emit — an
                             # honest identity rather than a fabricated
                             # derivation. It lives here with every other
-                            # per-source projection (RFC 0024 D26).
+                            # per-source projection (S-0041/D-26).
                             columns=tuple(
                                 SourceColumnIR(
                                     name=column.name, expr=canon(exp.column(column.name))

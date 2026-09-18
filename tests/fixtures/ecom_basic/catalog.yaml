@@ -19,7 +19,7 @@ canonical_fields:
     recipes:
       - {id: direct, requires: [quantity]}
   # Deliberately unmapped by the fixture's mappings: `margin` requiring it is
-  # the corpus's unreachable-metric case (RFC 0005 §5.3 — "you can't get
+  # the corpus's unreachable-metric case (S-0022/availability-and-reachability-bloomery-resolve-reach-py — "you can't get
   # margin because cogs is missing").
   cogs:
     entity: order_item
@@ -32,7 +32,7 @@ canonical_fields:
 canonical_relationships:
   - {from: order_item, to: order, via: order_id, cardinality: many_to_one}
 
-# The vertical-owned date dimension (RFC 0008 D13, RFC 0013 R1 rule 4): one
+# The vertical-owned date dimension (S-0025/D-13, S-0030 R1 rule 4): one
 # definition emits both the gold dim_date model and, at M6, the MetricFlow
 # time-spine declaration. Bounds are calendar years — no clock involved.
 date_dimension:

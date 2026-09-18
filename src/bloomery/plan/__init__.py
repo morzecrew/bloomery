@@ -1,7 +1,7 @@
-"""The plan stage (RFC 0007): ``plan(old_ir | None, new_ir) -> Plan`` — a
+"""The plan stage (S-0024): ``plan(old_ir | None, new_ir) -> Plan`` — a
 pure structural diff of two :class:`~bloomery.ir.ProjectIR`s that classifies
 every change (``ADDITIVE | WIDENING | RENAME | RESTATING | BREAKING``),
-computes backfill scope, the RFC 0016 §5.7 quarantine replay scope, and
+computes backfill scope, the S-0033/plan-integration-rfc-0007-amendment quarantine replay scope, and
 downstream metric impact from the IR's own
 ``depends_on`` edges, and enforces the expand/contract rule
 (:class:`~bloomery.errors.ContractViolation` — the stage's only refusal)."""

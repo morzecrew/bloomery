@@ -1,4 +1,4 @@
-"""Adapter unit tests (RFC 0013 R2): plan assembly, limit clamping and
+"""Adapter unit tests (S-0030 R2): plan assembly, limit clamping and
 warnings, the fingerprint, error translation (MetricFlow types never
 escape), dialect refusal, and the Explanation ``render()`` shapes locked as
 goldens-in-code."""
@@ -119,7 +119,7 @@ def test_order_by_desc_and_limit_reach_the_sql() -> None:
 
 
 # ....................... #
-# Error translation (RFC 0013 D2) — MetricFlow types never escape
+# Error translation (S-0030/D-2) — MetricFlow types never escape
 
 
 def test_invalid_query_syntax_translates_to_invalid_request() -> None:
@@ -189,10 +189,10 @@ def test_refusals_happen_before_delegation() -> None:
 
     Grouped by `order_id`, which **both** marts carry and neither means the
     same thing by: it is the key of the mart based at `order` and the foreign
-    key on the mart based at `order_item`. RFC 0041 P1 answers a cross-mart
+    key on the mart based at `order_item`. S-0055/phasing (P-1) answers a cross-mart
     request by joining branch aggregates, so the unanswerable one is no longer
     "two grains" but "two grains with nothing proven to join on"
-    (RFC 0041 D12).
+    (S-0055/D-12).
     """
     planner = make_planner()
     with pytest.raises(UnreachableAtGrain):
@@ -204,7 +204,7 @@ def test_refusals_happen_before_delegation() -> None:
 
 
 # ....................... #
-# Explanation renders — locked shapes (RFC 0011 D8: change deliberately)
+# Explanation renders — locked shapes (S-0028/D-8: change deliberately)
 
 
 def test_day_column_falls_back_to_the_source_column_name() -> None:
@@ -234,7 +234,7 @@ def test_human_predicate_prose_covers_every_operator() -> None:
         "store like '%dh%'"
     )
     # Multi-pattern like/ilike is an OR of repeated predicates — the prose
-    # says what the renderer executes (RFC 0015 §5.1), never a value list
+    # says what the renderer executes (S-0032/types-replaces-rfc-0011-d2-s-filterexpr-orderspec), never a value list
     # that hides the disjunction.
     assert _human_predicate(Predicate("store", Op.ILIKE, ("a%", "b%")), "store") == (
         "store ilike 'a%' OR store ilike 'b%'"
@@ -386,7 +386,7 @@ def test_plan_renders_legal_sql_for_the_second_dialects(dialect: str) -> None:
 
 
 # ....................... #
-# Cross-mart requests — RFC 0041 P1
+# Cross-mart requests — S-0055/phasing (P-1)
 
 
 def _composed(
@@ -435,7 +435,7 @@ def test_the_result_columns_are_the_caller_s_order_and_the_caller_s_names() -> N
 
 
 def test_the_explanation_names_every_branch() -> None:
-    """RFC 0011 D8 asks that every number ships with how it was computed, and
+    """S-0028/D-8 asks that every number ships with how it was computed, and
     for a composed answer that is three relations rather than one."""
     rendered = _composed().explanation.render()
 
@@ -445,7 +445,7 @@ def test_the_explanation_names_every_branch() -> None:
 
 
 def test_a_limit_lands_on_the_composed_statement_and_not_in_a_branch() -> None:
-    """RFC 0041 §13a's P2 half of the limit (logs/T-0027.md, D-182).
+    """S-0055/phasing (a)'s P2 half of the limit (logs/T-0027.md, D-182).
 
     P1 dropped the planner's default and said so, because a limit pushed into
     a branch truncates it **before** the join and answers from a prefix. The
@@ -461,7 +461,7 @@ def test_a_limit_lands_on_the_composed_statement_and_not_in_a_branch() -> None:
 
 
 def test_a_clamped_limit_still_warns_on_the_composed_path() -> None:
-    """RFC 0011 D4's clamp is the planner's, not MetricFlow's, so moving the
+    """S-0028/D-4's clamp is the planner's, not MetricFlow's, so moving the
     limit onto bloomery's own statement must not leave the clamp behind — the
     composed path reuses `_effective_limit` rather than keeping a second copy
     of the rule (D-182)."""
@@ -601,7 +601,7 @@ def test_a_time_grain_with_nothing_to_apply_to_warns_on_a_composed_plan_too() ->
 
 
 # ....................... #
-# RFC 0041 P2: computation above the join.
+# S-0055/phasing (P-2): computation above the join.
 
 
 def _computed(metric: str):
@@ -619,12 +619,12 @@ def _computed(metric: str):
 def test_a_metric_whose_components_split_is_computed_above_the_join(
     metric: str, operator: str
 ) -> None:
-    """RFC 0041 D3 and D1 together: the operands are aggregated in their own
+    """S-0055/D-3 and D1 together: the operands are aggregated in their own
     branches and combined afterwards, because `SUM(a)/SUM(b)` and a row-level
     `a/b` summed afterwards are different numbers.
 
     Both shapes P2 admits — a ratio with the spelling §13a fixes, and the
-    RFC 0034 ``derived:`` expression the same phase reaches (logs/T-0027.md,
+    S-0050 ``derived:`` expression the same phase reaches (logs/T-0027.md,
     D-179). The branches were asked for the **components**; the requested name
     exists only in the composed projection.
     """
@@ -656,11 +656,11 @@ def test_a_computed_metric_is_described_though_no_branch_produced_it() -> None:
 
 
 def test_a_computed_metric_is_stated_above_the_join() -> None:
-    """RFC 0041 D3 says where the arithmetic happens, and §4's node vocabulary
+    """S-0055/D-3 says where the arithmetic happens, and §4's node vocabulary
     had nowhere to say it — so the plan was withheld rather than claim the join
     produced a column it does not (logs/T-0027.md, D-178).
 
-    `Compute` is that node (RFC 0066 §5.2), and it sits above the join for the
+    `Compute` is that node (S-0071/compute-arithmetic-above-an-aggregate), and it sits above the join for the
     same reason it sits above an aggregate: the operands are reduced first and
     the expression is evaluated over the result.
 
@@ -690,7 +690,7 @@ def test_a_computed_metric_is_stated_above_the_join() -> None:
 
 
 def test_a_filter_reaches_each_branch_in_that_branchs_own_spelling() -> None:
-    """RFC 0041 D12 applied to a restriction: `region` is `region` on the mart
+    """S-0055/D-12 applied to a restriction: `region` is `region` on the mart
     based at `order` and `order_region` on the one that flattened its way
     there, and both are the same column. Placing the requested spelling on both
     would refuse one branch; placing a same-named column on both would be the
@@ -755,7 +755,7 @@ def test_each_branch_plan_names_the_column_that_branch_restricts() -> None:
 
 def test_a_frame_needs_one_of_the_two_declared_forms() -> None:
     """`CumulativeIR` carries exactly one of `window` / `grain_to_date`
-    (RFC 0034 D5), so this raise is unreachable through the spec layer — and
+    (S-0050/D-5), so this raise is unreachable through the spec layer — and
     "unreachable" is a claim, not an excuse for leaving it unrun.
 
     What it guards is worth the line: a node reading the wrong field would

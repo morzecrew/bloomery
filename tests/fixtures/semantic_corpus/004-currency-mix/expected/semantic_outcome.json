@@ -2,7 +2,7 @@
   "mixed": {
     "outcome": "refused",
     "error": "CurrencyMismatch",
-    "rule": "RFC 0006 D4"
+    "rule": "S-0023/D-4"
   },
   "converted": {
     "outcome": "accepted",

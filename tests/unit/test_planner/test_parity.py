@@ -1,6 +1,6 @@
-"""The parity suite RFC 0040 §8 calls load-bearing.
+"""The parity suite S-0054/tests calls load-bearing.
 
-Every phase of RFC 0040 re-expresses or extends planning, and the one property
+Every phase of S-0054 re-expresses or extends planning, and the one property
 that must survive each is that **a request refused before is refused after**,
 except where a named proof rule deliberately converts a class. P1 goes further
 and changes nothing at all: D5 makes it a re-expression with no capability
@@ -29,13 +29,13 @@ and the number of requests is not the same as the number of shapes:
   requests fail identically and test one fact repeatedly rather than 76.
 
 **The generator has been widened three times, each time because it was blind
-to the phase it was guarding.** RFC 0040 P2's self-audit added the cross-mart
+to the phase it was guarding.** S-0054/phasing (P-2)'s self-audit added the cross-mart
 *dimensions* (logs/T-0022.md, finding 1): every request named a dimension of
-the mart serving it, so not one could reach that phase's conversion. RFC 0041
+the mart serving it, so not one could reach that phase's conversion. S-0055
 P1 added the cross-mart *requests* — its whole subject is a request whose
 measures live on two marts, and the generator asked only single-metric ones
 (D-128), so the corpus could not contain a single instance of the shape being
-built. RFC 0041 P2 adds the two shapes *it* is about: a cross-mart request
+built. S-0055/phasing (P-2) adds the two shapes *it* is about: a cross-mart request
 carrying a restriction, and one whose metric is computed above the join. The
 widening was written before the code this time rather than after an audit, on
 the standing evidence that a suite which cannot reach a change abstained rather
@@ -112,7 +112,7 @@ def _requests(
 
     **Single-metric shapes keep their key**, so every row of the checked-in
     baseline still names the same request. The cross-mart pairs added for
-    RFC 0041 P1 (D16) key on `a+b` in both the mart and the measure field,
+    S-0055/phasing (P-1) (D16) key on `a+b` in both the mart and the measure field,
     which no single-metric key can collide with.
     """
     shapes: list[tuple[str, str, tuple[str, ...], tuple[str, ...], tuple[Predicate, ...]]] = []
@@ -181,9 +181,9 @@ def _cross_mart(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...], tuple[st
     """One request per pair of measure-carrying marts, ungrouped and then
     grouped by each dimension of the first of the pair.
 
-    **The shape the generator was blind to.** RFC 0040 P2's own conversions
+    **The shape the generator was blind to.** S-0054/phasing (P-2)'s own conversions
     were invisible until its self-audit added cross-mart *dimensions*; this is
-    the same omission one level up, and it is the whole of what RFC 0041 P1
+    the same omission one level up, and it is the whole of what S-0055/phasing (P-1)
     changes — a request whose measures live on two marts. Without these rows
     the baseline cannot say what the phase converted, and a suite that cannot
     see the phase it guards reports green for it either way (D16).
@@ -276,7 +276,7 @@ def _outcomes() -> dict[str, str]:
 #: a phase that refuses one request and starts accepting another, and that
 #: trade is exactly the shape a rollup rule change makes (logs/T-0021.md,
 #: D-126). A phase that converts a class regenerates this file **on the merge
-#: base** and the diff names every request it moved — which is what RFC 0040
+#: base** and the diff names every request it moved — which is what S-0054
 #: D11 asks for, and what this file records for P2.
 #:
 #: Regenerate with:
@@ -308,7 +308,7 @@ def test_the_corpus_is_the_size_it_claims_to_be() -> None:
     generator reads fixtures: one that stops carrying marts shrinks the corpus
     silently, and the suite keeps passing on what is left.
 
-    It grew by 186 when `scd2_replay` landed (RFC 0060 P1). Those rows were
+    It grew by 186 when `scd2_replay` landed (S-0003/P-1). Those rows were
     **appended** to the baseline rather than regenerated into it: a fixture
     that does not exist at the merge base has no merge-base outcome to
     contradict, and regenerating the whole file would have erased the sixteen
@@ -319,7 +319,7 @@ def test_the_corpus_is_the_size_it_claims_to_be() -> None:
     assert len(outcomes) == 1193
 
 
-#: What RFC 0041 P2 licenses, as moves rather than as a list of keys: the rule
+#: What S-0055/phasing (P-2) licenses, as moves rather than as a list of keys: the rule
 #: is what the phase claims, and a list would also pass for a phase that
 #: converted some other request and un-converted one of these.
 #:
@@ -401,7 +401,7 @@ def test_the_conversion_rule_rejects_any_other_move() -> None:
 
 
 def test_only_the_licensed_conversion_moved() -> None:
-    """RFC 0040 §8, and D11: a phase preserves prior refusals except where a
+    """S-0054/tests, and D11: a phase preserves prior refusals except where a
     named proof rule deliberately converts a class, and a conversion — of
     outcome *or* of exception class — edits this baseline and says which rule
     did it.
@@ -429,8 +429,8 @@ def test_only_the_licensed_conversion_moved() -> None:
 def test_only_cross_mart_requests_became_answerable() -> None:
     """The half of §8 a licensed conversion must not quietly carry with it.
 
-    RFC 0040 P2 added no capability, and this test asserted that nothing
-    became answerable at all. RFC 0041 P1 **is** a capability, so the claim
+    S-0054/phasing (P-2) added no capability, and this test asserted that nothing
+    became answerable at all. S-0055/phasing (P-1) **is** a capability, so the claim
     moves rather than disappearing: what may newly be accepted is a cross-mart
     request and nothing else. A single-mart request that starts being answered
     is a planner that stopped refusing something for a reason this phase never
@@ -451,7 +451,7 @@ def test_only_cross_mart_requests_became_answerable() -> None:
     single_mart = [key for key in widened if "+" not in key.split("|")[1]]
 
     assert single_mart == [], f"single-mart request(s) newly accepted: {single_mart}"
-    assert widened, "no request became answerable — RFC 0041 P1 is a capability phase"
+    assert widened, "no request became answerable — S-0055/phasing (P-1) is a capability phase"
 
 
 def test_both_sides_of_the_boundary_are_exercised() -> None:

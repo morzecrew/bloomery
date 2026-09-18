@@ -1,4 +1,4 @@
-"""The lineage-namespace guard (RFC 0051 §5.2, D6–D8): entity names that would
+"""The lineage-namespace guard (S-0059/the-node-id-collision-refused-at-its-cause, S-0059/D-6–S-0059/D-8): entity names that would
 mint node ids in another kind's namespace.
 
 Every id on :class:`~bloomery.resolve.graph.Graph` but an entity field's is
@@ -62,7 +62,7 @@ def _source_path(entity: EntityIR) -> str:
 
     An authored entity is `entity_model: entities.<name>`. A **step-synthesized**
     one has no such entry — its name is the last segment of the relation its
-    wiring binds (RFC 0017 §5.8) — so pointing there sends the author to a
+    wiring binds (S-0034/emission-and-the-dag) — so pointing there sends the author to a
     document with nothing of that name in it, for a refusal whose entire value
     is naming the fix. ``produced_by`` is ``ref@version``, which is exactly how
     ``resolve.steps`` spells a wiring's own path.
@@ -82,7 +82,7 @@ def check_lineage_names(draft: ProjectIR) -> list[GuardrailError]:
 
     Over ``draft.entities`` rather than over the authored entity model: a step
     output is an entity too, named after the last segment of the relation its
-    wiring binds (RFC 0017 §5.8), so a wiring writing ``silver.metric`` reaches
+    wiring binds (S-0034/emission-and-the-dag), so a wiring writing ``silver.metric`` reaches
     the graph by a path the spec layer never sees. One quantifier over the set
     the graph is actually built from is what makes the check total (D8).
 
@@ -106,7 +106,7 @@ def check_lineage_names(draft: ProjectIR) -> list[GuardrailError]:
         msg = (
             f"entity {entity.name!r} collides with the lineage node-id namespace: an entity "
             f"field is spelled '<entity>.<field>', and {spelling} — {detail} "
-            f"(RFC 0031 §5.3). Fix: rename the entity — "
+            f"(S-0048/every-label-is-handled-and-the-vocabulary-is-closed-here). Fix: rename the entity — "
             f"{', '.join(repr(name) for name in NODE_ID_PREFIXES)} are reserved as node-id "
             f"prefixes"
         )

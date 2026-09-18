@@ -8,7 +8,7 @@ PyPI, and a PyPI upload cannot be taken back. Every other gate in this repo
 guards something a rerun can fix; this one guards the step where a rerun is not
 available.
 
-RFC 0025 D8 already ordered the work ("cut the changelog section before the
+S-0042/D-8 already ordered the work ("cut the changelog section before the
 tag"), and an ordering nothing checks is a convention. This is the check.
 
 **How it works.** The rules below are a port of the action's own parser at the
@@ -162,7 +162,7 @@ def test_there_is_a_released_section_to_publish() -> None:
     failed at the last step with the package already public."""
     assert released(), (
         "CHANGELOG.md has no released section — the release job asks for the "
-        "one named after the tag and fails if it is absent (RFC 0025 D8)"
+        "one named after the tag and fails if it is absent (S-0042/D-8)"
     )
 
 

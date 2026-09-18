@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      **Split by pipeline stage, never by target.** A per-target lowering file would
+      invert S-0025's port design — targets differ in *assembly* and share *lowering*
+      — and would invite precisely the divergence the three-way equivalence tier exists
+      to catch. `emit/lowering.py` becomes `emit/lower/{select,quality,steps,marts,audits}.py`
+      with `__init__.py` as the pipeline and the only module emitters import.
+    paths: [src/bloomery/emit/lower/__init__.py]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      **Size is not the trigger; convergence is.** `emit/lowering.py` is split because
+      it is the one module where every target, every spec kind and both run-time subsystems
+      are simultaneously in scope. `guardrails/quality.py` (1,062) and `spec/quality.py`
+      (920) are not split: large but cohesive, one domain, one reader. No file-length
+      rule is adopted — it would force bad splits on cohesive modules.
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      **Two structural symptoms are the stated trigger** for splitting any future
+      module: a change for one target requiring another target's code to be read,
+      or imports from more than three sibling packages. Written down so the next call
+      is not a judgement made from scratch.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      **Three new import-linter contracts** (§5.2), each proven by a planted violation.
+      The draft listed four; the fourth — the pipeline-wide layering — **already exists**
+      in `pyproject.toml` as a `layers` contract and runs in `just quality`, so adding
+      it would duplicate an enforced rule. What that contract cannot see is direction
+      *inside* `bloomery.emit`, which is one layer to it; the three new contracts
+      cover exactly that. All three hold today, so they land green.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **The refactor is proven inert by byte-identical goldens**, and during this
+      wave **a golden diff is a bug, never a regeneration** — stated in the PR description.
+      That inversion of the normal workflow is what makes moving 3,700 lines safe,
+      and stating it prevents a reviewer regenerating on autopilot. `project_fingerprint`
+      is asserted unchanged alongside.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      **The existing static purity hook is promoted to a CI gate and widened**, not
+      invented. A pre-commit `pygrep` already bans four spellings under `src/bloomery/`;
+      the draft's claim that the invariants are "enforced behaviourally today" understated
+      it. Two things are actually wrong: `just quality` runs only the gitleaks hook,
+      so the guard is bypassed by `--no-verify` and by CI itself, and its vocabulary
+      omits the *imports* that make I/O possible. The AST check replaces the hook
+      rather than sitting beside it — two guards over one invariant drift — with `steps/contract.py`
+      allowlisted as run-time rather than compile-time.
+    paths: [tests/unit/test_purity_guard.py]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      **`plan/diff.py` is split on the same axis if it decomposes cleanly, and left
+      whole if it does not** (§5.3), with the finding recorded either way. Two clean
+      splits are worth more than one clean and one contrived. `classify.py` and `scope.py`
+      are the parts worth isolating regardless: the ChangeClass table decides what
+      gets backfilled and is currently interleaved with the walking that feeds it.
+    paths: [src/bloomery/plan/diff.py]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      **No behaviour, artifact, or public-API change.** This wave is inert by construction;
+      anything it changes is a defect.

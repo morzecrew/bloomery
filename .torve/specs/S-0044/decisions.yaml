@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) `{parse_ts: ISO8601}` must
+      accept the `T` separator on every shipping dialect. The argument names a standard;
+      a whitelisted transform that implements it on two ports of three is a defect
+      in the transform, not a caveat for the docs.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) The fix may **not** be a
+      blanket render-time rewrite of `CAST(… AS TIMESTAMP)` on Trino. Emitted artifacts
+      already cast operands that are timestamps and NULLs, and `REPLACE` over either
+      is a type error, not a no-op (§2).
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) The fix lives in the **neutral
+      spelling**, not at the port, because provenance does not survive the canonical-text
+      round-trip (§3). Any option that needs the dialect to know a cast came from
+      `parse_ts` is out.
+  - id: D-4
+    grade: OPEN
+    text: >-
+      Which option of §4. The lean is **(a)**: it is the only one that keeps the DuckDB
+      and PostgreSQL artifacts unchanged in meaning, keeps one producer for the construct,
+      and makes a fourth dialect fail loud rather than quietly wrong.
+    paths:
+      - src/bloomery/dialects/base.py
+      - src/bloomery/dialects/trino.py
+      - src/bloomery/transforms/_builtins.py
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Whatever lands is a **fingerprint-affecting change** for projects using `parse_ts:
+      ISO8601`, and takes the stability treatment: a restating diff, not a breaking
+      one — the artifacts change, the meaning of the spec does not.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `parse_date: ISO8601` is in scope with `parse_ts`. It lowers the same way, to
+      `CAST(… AS DATE)`, and a date has no `T` — but the two are one branch in one
+      builder, and fixing one while leaving the other reads as an oversight rather
+      than a boundary.
+    paths:
+      - src/bloomery/transforms/_builtins.py
+      - tests/unit/test_transforms/test_builtins.py
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) Until this lands, the divergence
+      is **documented, not refused**. (d) is the S-0025/D-3-pure answer and it breaks
+      working projects to punish a bug they already routed around; the projects that
+      hit it hit it loudly, through the `coercible` rule, not silently.

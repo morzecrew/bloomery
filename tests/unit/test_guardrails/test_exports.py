@@ -1,4 +1,4 @@
-"""The dangling-export guard (RFC 0059 D1, `LOCKED`).
+"""The dangling-export guard (S-0002/D-1, `LOCKED`).
 
 An export list is entirely references, so a name that resolves to nothing is
 the whole of what can go wrong with one — and it goes wrong twice over. Nothing

@@ -1,7 +1,7 @@
-"""The data-quality lowering package (RFC 0016) — the run-time half of the
+"""The data-quality lowering package (S-0033) — the run-time half of the
 compiler's quality story.
 
-The boundary this package lives on is normative (RFC 0016 §5.9, D13): a
+The boundary this package lives on is normative (S-0033/guardrails-vs-quality-the-boundary, S-0033/D-13): a
 **guardrail** says the *model* is wrong and is decided at compile time from
 the spec alone (``bloomery/guardrails/``); a **quality rule** says the *data*
 is wrong and is decided per row at run time. Nothing decidable from the spec

@@ -1,15 +1,15 @@
-"""The data-quality spec surface (RFC 0016 §5.3).
+"""The data-quality spec surface (S-0033/spec-schema).
 
 Cleansing is declared, never coded: a **closed** rule catalogue attaches to
 mapping fields and to entities, every rule carrying an explicit disposition
 (``flag | quarantine | fail | repair`` — no global default, deliberately no
-``drop``, and ``repair`` only since D87 gave it a recipe contract, RFC 0016
+``drop``, and ``repair`` only since D87 gave it a recipe contract, S-0033
 D2/D17/D87). Alongside the rules sit the two
 entity-level blocks — ``dedupe:`` and ``quarantine:`` — and the
 document-level ``reconcile:`` list.
 
-Parse validates *shape and grammar* only (RFC 0002 D4), exactly as everywhere
-else in this layer. Three deliberate non-checks, because RFC 0016 §5.9 makes
+Parse validates *shape and grammar* only (S-0019/D-4), exactly as everywhere
+else in this layer. Three deliberate non-checks, because S-0033/guardrails-vs-quality-the-boundary makes
 them **guardrails** (compile-stage, batched, one aggregate error) rather than
 parse failures:
 
@@ -76,32 +76,32 @@ __all__ = [
 # ....................... #
 # Vocabularies and grammars
 
-#: The disposition vocabulary (RFC 0016 §5.1, D2): explicit per rule, never a
+#: The disposition vocabulary (S-0033/the-disposition-model, S-0033/D-2): explicit per rule, never a
 #: global default. No ``drop`` — quarantine is drop plus recoverability, and
 #: deletion happens through retention, with a paper trail. ``repair`` was
 #: deferred out of v1 on a repair-recipe contract (D17) and joined the
-#: vocabulary when RFC 0017's step registry supplied one (D87); it never stands
+#: vocabulary when S-0034's step registry supplied one (D87); it never stands
 #: alone, always beside a ``repair:`` block naming the recipe and the
 #: disposition for a row the recipe did not fix.
 OnFailName = Literal["flag", "quarantine", "fail", "repair"]
 
-#: ``referential.on_missing`` (RFC 0016 §5.3, D6). ``fail`` is deliberately
+#: ``referential.on_missing`` (S-0033/spec-schema, S-0033/D-6). ``fail`` is deliberately
 #: absent: orphans are an expected, recoverable data condition, and a pipeline
 #: that stops on every orphan punishes the normal case — a pipeline-stopping
 #: orphan gate is expressed as a ``reconcile`` check instead.
 OnMissingName = Literal["unknown_member", "quarantine", "flag"]
 
 #: ``dedupe.keep`` — a closed vocabulary that starts at one value: loosening a
-#: refusal later is backward-compatible, tightening one is not (RFC 0010 §9).
+#: refusal later is backward-compatible, tightening one is not (S-0027/risks).
 DedupeKeepName = Literal["latest_by"]
 
-#: Rule names are identifier-constrained at parse (RFC 0016 §5.5, D23) so that
+#: Rule names are identifier-constrained at parse (S-0033/schema-additions-and-the-array-capability, S-0033/D-23) so that
 #: neither ``_quality_flags`` shape — the array nor the comma-delimited string
 #: fallback — ever needs escaping. The same constraint covers ``reconcile``
 #: names, which reach the quality mart's ``rule`` dimension.
 RULE_NAME_PATTERN = r"^[a-z0-9_]+$"
 
-#: The closed retention grammar (RFC 0016 §5.6 requires ``retention:``, and
+#: The closed retention grammar (S-0033/quarantine-one-reject-table-per-entity requires ``retention:``, and
 #: names ``90d``; the grammar itself is this RFC's to pin). A positive integer
 #: with no leading zero, at most five digits, and exactly one unit suffix from
 #: ``h`` (hours), ``d`` (days), ``w`` (weeks). Months and years are deliberately
@@ -110,11 +110,11 @@ RULE_NAME_PATTERN = r"^[a-z0-9_]+$"
 #: minutes are absent because ``m`` would read as either.
 RETENTION_PATTERN = r"^[1-9][0-9]{0,4}[hdw]$"
 
-#: The Unicode normal form a ``normalize`` rule may name (RFC 0016 D86). One
+#: The Unicode normal form a ``normalize`` rule may name (S-0033/D-86). One
 #: value, and the reason is portability rather than taste: Postgres and Trino
 #: spell all four forms (``NORMALIZE(x, NFKC)``), DuckDB has ``nfc_normalize``
 #: and nothing else. Admitting ``nfkc`` here would mean a rule that compiles
-#: everywhere and runs on two engines out of three — the failure mode RFC 0008
+#: everywhere and runs on two engines out of three — the failure mode S-0025
 #: D3 exists to prevent. Widening a closed vocabulary later is
 #: backward-compatible; narrowing one is not.
 NormalFormName = Literal["nfc"]
@@ -145,9 +145,9 @@ def duration_hours(duration: str) -> int:
 
     The grammar's units are all whole numbers of hours, which is what makes an
     integer the right carrier: no rounding, and no float anywhere near a value
-    that reaches the IR (RFC 0003).
+    that reaches the IR (S-0020).
 
-    Here rather than beside a caller because the grammar is here. RFC 0057 D3
+    Here rather than beside a caller because the grammar is here. S-0064/D-3
     reuses this spelling for ``freshness:``, and two orderings of one duration
     string — one per feature — is exactly the divergence sharing the validator
     was meant to prevent.
@@ -157,7 +157,7 @@ def duration_hours(duration: str) -> int:
 
 
 # ....................... #
-# The portable regex subset (RFC 0016 §5.3, D5) — an allowlist scanner
+# The portable regex subset (S-0033/spec-schema, S-0033/D-5) — an allowlist scanner
 #
 # The subset is defined by what the scanner *accepts*; everything else,
 # including anything unrecognized, is refused. That direction is the whole
@@ -165,7 +165,7 @@ def duration_hours(duration: str) -> int:
 # nobody thought of (backreferences, atomic groups, possessive quantifiers,
 # ``\A``/``\Z``) abort the run on RE2 engines rather than compiling into
 # something wrong. Loosening a refusal later is backward-compatible;
-# tightening one is not (RFC 0010 §9), so the subset starts small.
+# tightening one is not (S-0027/risks), so the subset starts small.
 #
 # What "portable" is a claim about: DuckDB and Trino run RE2, Postgres runs
 # POSIX ARE. The accepted constructs mean the same thing on all three, with
@@ -238,7 +238,7 @@ def _refuse(construct: str, text: str, why: str) -> NoReturn:
     """One refusal, naming the construct, its text, and the reason."""
     msg = (
         f"{construct} ({text!r}) is outside the portable regex subset "
-        f"(RFC 0016 §5.3): {why} — {_SUBSET}"
+        f"(S-0033/spec-schema): {why} — {_SUBSET}"
     )
     raise ValueError(msg)
 
@@ -333,7 +333,7 @@ def _scan_portable(pattern: str) -> None:
     closed = False  # ... and its '$', with nothing after it
     # One flag per open group: does its body carry an unbounded quantifier?
     # Popped when the group closes, so the quantifier applied *to* the group
-    # can be judged against what it would be repeating (RFC 0016 D96).
+    # can be judged against what it would be repeating (S-0033/D-96).
     group_bodies: list[bool] = []  # does the open group's body match a varying length?
     just_closed_varies: bool | None = None  # the group that just closed, if any
 
@@ -461,7 +461,7 @@ def _scan_portable(pattern: str) -> None:
 
 def _refuse_nested_repetition(pattern: str) -> NoReturn:
     """An unbounded quantifier repeating a group that already repeats
-    (RFC 0016 D96).
+    (S-0033/D-96).
 
     ``^(?:a+)+$`` and friends are the standard catastrophic-backtracking
     family: the two quantifiers can split the same input exponentially many
@@ -496,7 +496,7 @@ def _refuse_nested_repetition(pattern: str) -> NoReturn:
 
 def _refuse_unanchored(pattern: str) -> NoReturn:
     msg = (
-        f"pattern {pattern!r} is not anchored (RFC 0016 §5.3): a `pattern` rule matches the "
+        f"pattern {pattern!r} is not anchored (S-0033/spec-schema): a `pattern` rule matches the "
         "whole value, and every SQL regex predicate matches a substring unless the pattern "
         "says otherwise — unanchored, '[0-9]{5}' accepts 'abc12345xyz'. Write the anchors "
         "yourself, one pair per top-level alternative: '^[0-9]{5}$', '^a$|^b$'"
@@ -535,11 +535,11 @@ PortableRegex = Annotated[str, AfterValidator(_portable_regex)]
 
 
 # ....................... #
-# Exact numeric bounds (RFC 0003 D5, RFC 0015 D5)
+# Exact numeric bounds (S-0020/D-5, S-0032/D-5)
 
 #: An exact decimal literal: optional sign, digits, optional fraction. No
 #: exponent — ``1e10`` renders as a double literal, and no float ever reaches
-#: an emission path (RFC 0003 D5). No ``NaN``/``Infinity`` — ``Decimal``
+#: an emission path (S-0020/D-5). No ``NaN``/``Infinity`` — ``Decimal``
 #: parses both, and ``amount < nan`` fails open.
 #: An exact decimal bound: optional sign, digits, optional fraction, no
 #: exponent (D57). Public because :mod:`bloomery.plan.diff` reads bounds
@@ -549,7 +549,7 @@ PortableRegex = Annotated[str, AfterValidator(_portable_regex)]
 EXACT_DECIMAL = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$")
 
 #: The ISO temporal carrier: ``str`` bounds also exist for dates and
-#: timestamps (RFC 0015 D5), which lower to string literals compared in the
+#: timestamps (S-0032/D-5), which lower to string literals compared in the
 #: column's own type.
 _ISO_TEMPORAL = re.compile(
     r"^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})?)?$"
@@ -563,7 +563,7 @@ def _exact_bound(value: int | Decimal | str) -> int | Decimal | str:
     text as a number literal, so the check is on the *rendered* text: exact
     decimal, or ISO temporal, or refused. Everything a float would smuggle in
     — ``nan``, ``inf``, ``1e10`` — is refused here, at parse, because it is
-    decidable from the spec alone (RFC 0016 D13). A non-finite ``Decimal``
+    decidable from the spec alone (S-0033/D-13). A non-finite ``Decimal``
     never reaches this function: pydantic's own numeric validation refuses it
     one layer earlier, so the non-finite branch below exists for the *string*
     spellings, which stay strings precisely because ``Decimal`` refused them.
@@ -578,21 +578,21 @@ def _exact_bound(value: int | Decimal | str) -> int | Decimal | str:
     if lowered.startswith(("nan", "snan", "inf")):
         msg = (
             f"range bound {text!r} is non-finite: `amount < nan` is never TRUE on some engines "
-            "and always TRUE on others (RFC 0015 D5). Fix: write a real bound"
+            "and always TRUE on others (S-0032/D-5). Fix: write a real bound"
         )
         raise ValueError(msg)
 
     if "e" in lowered:
         msg = (
             f"range bound {text!r} carries an exponent, which renders as a double literal, and "
-            "floats never reach an emission path (RFC 0003 D5). Fix: write the number in full, "
+            "floats never reach an emission path (S-0020/D-5). Fix: write the number in full, "
             'e.g. "10000000000"'
         )
         raise ValueError(msg)
 
     msg = (
         f"range bound {text!r} is neither an exact decimal nor an ISO date/timestamp. Bounds are "
-        "int, Decimal, or a string carrying one exactly (RFC 0015 D5) — the string form exists "
+        "int, Decimal, or a string carrying one exactly (S-0032/D-5) — the string form exists "
         "for decimals YAML would round to a float and for ISO temporals, nothing else"
     )
     raise ValueError(msg)
@@ -605,16 +605,16 @@ RangeBound = Annotated[int | Decimal | str, AfterValidator(_exact_bound)]
 
 
 # ....................... #
-# Field-level rules (RFC 0016 §5.3) — the closed catalogue
+# Field-level rules (S-0033/spec-schema) — the closed catalogue
 
 
 class Repair(SpecModel):
-    """The repair-recipe contract D17 gated the disposition on (RFC 0016 D87).
+    """The repair-recipe contract D17 gated the disposition on (S-0033/D-87).
 
     ``via`` names a registered Tier 1 ``sql_macro`` as ``ref@version``, which
     settles §10's open question — *inline vs catalog-referenced* — in favour of
     referenced, and not by preference: D1 holds that specs reference
-    implementations and never contain them, and RFC 0017's registry is where a
+    implementations and never contain them, and S-0034's registry is where a
     referenced implementation already lives, with a version, a declared
     signature, a ``runtime_lock`` and a trust-then-verify contract. An inline
     recipe would have been a second, weaker copy of all of that, reachable only
@@ -637,11 +637,11 @@ class Repair(SpecModel):
 
 class QualityRule(SpecModel):
     """Base of every disposition-carrying rule: ``on_fail`` is **required**,
-    never inherited from a project-wide default (RFC 0016 D2). The implicit
+    never inherited from a project-wide default (S-0033/D-2). The implicit
     ``coercible`` rule's ``quarantine`` default applies to the rule nobody
     wrote; a rule an author *did* write states its own disposition."""
 
-    #: Whether ``on_fail: repair`` is meaningful for this kind (RFC 0016 D87).
+    #: Whether ``on_fail: repair`` is meaningful for this kind (S-0033/D-87).
     #: ``False`` where the rule has no repairable value in hand: ``coercible``
     #: fires *because* the projection is already NULL, ``unique`` is a property
     #: of a population rather than of a value, and a row rule has no column to
@@ -659,14 +659,14 @@ class QualityRule(SpecModel):
             msg = (
                 "on_fail: repair and a repair: block are one declaration — the disposition "
                 "names no recipe on its own, and a recipe with any other disposition would "
-                "never run (RFC 0016 D87)"
+                "never run (S-0033/D-87)"
             )
             raise ValueError(msg)
 
         if self.repair is not None and not type(self).repairable:
             msg = (
                 f"a {getattr(self, 'rule', 'row')!r} rule cannot carry on_fail: repair — it has "
-                "no repairable value in hand when it fires (RFC 0016 D87). Fix the value earlier "
+                "no repairable value in hand when it fires (S-0033/D-87). Fix the value earlier "
                 "instead: a sql_macro spliced into the mapping runs before any rule sees it"
             )
             raise ValueError(msg)
@@ -679,7 +679,7 @@ class QualityRule(SpecModel):
 
 class CoercibleRule(QualityRule):
     """``{rule: coercible}`` — the implicit, always-present rule made explicit
-    to override its ``quarantine`` default (RFC 0016 §5.2, D3). Transform
+    to override its ``quarantine`` default (S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-3). Transform
     chains produce a value or a coercion-failure marker; this disposes of the
     marker. It absorbs the retired ``Mapping.on_unmapped_enum``."""
 
@@ -687,7 +687,7 @@ class CoercibleRule(QualityRule):
     # The marker means "the projection is NULL although every source it reads
     # was not", so by the time this fires the castable text is gone and a
     # recipe would be handed the NULL. Fixing a value *before* it is coerced is
-    # what a Tier 1 macro in the mapping is for (RFC 0017 D50).
+    # what a Tier 1 macro in the mapping is for (S-0034/D-50).
     repairable: ClassVar[bool] = False
 
 
@@ -695,7 +695,7 @@ class CoercibleRule(QualityRule):
 
 
 class NotNullRule(QualityRule):
-    """``{rule: not_null}`` — one of the two rules that own nulls (RFC 0016
+    """``{rule: not_null}`` — one of the two rules that own nulls (S-0033
     D19): every other rule's violation predicate stays silent on ``UNKNOWN``."""
 
     rule: Literal["not_null"]
@@ -706,7 +706,7 @@ class NotNullRule(QualityRule):
 
 class RangeRule(QualityRule):
     """``{rule: range, min: …, max: …}`` — at least one bound; bounds are
-    ``int``/``Decimal``/``str``, never ``float`` (RFC 0003 D5), and the
+    ``int``/``Decimal``/``str``, never ``float`` (S-0020/D-5), and the
     ``str`` carrier is exact: an exact decimal or an ISO temporal, never
     ``nan``/``inf`` and never an exponent (:func:`_exact_bound`). Two bounds
     may carry different dispositions, so they are two rules (§5.3's worked
@@ -755,7 +755,7 @@ class LengthRule(QualityRule):
 class PatternRule(QualityRule):
     """``{rule: pattern, regex: …}`` — ``regex`` names the expression, keeping
     one word for one concept alongside the shipped ``assert: {regex: …}``
-    (RFC 0006 D8). The portable subset is enforced here; per-dialect
+    (S-0023/D-8). The portable subset is enforced here; per-dialect
     validation through sqlglot is the lowering phase's."""
 
     rule: Literal["pattern"]
@@ -789,10 +789,10 @@ class InSetRule(QualityRule):
 
 class NormalizeRule(QualityRule):
     """``{rule: normalize, form: nfc}`` — the value must **already be** in the
-    named Unicode normal form (RFC 0016 D86).
+    named Unicode normal form (S-0033/D-86).
 
     A rule, not a transform, and deliberately so: normalizing silently would
-    rewrite the value a source delivered, and RFC 0016 D1 holds that specs
+    rewrite the value a source delivered, and S-0033/D-1 holds that specs
     describe rather than repair. What this says is "``café`` spelled with a
     combining acute is not the same bytes as ``café`` spelled precomposed, and
     I want to know" — which is what dedupe, ``unique`` and every join already
@@ -809,13 +809,13 @@ class NormalizeRule(QualityRule):
 class CharsetRule(QualityRule):
     """``{rule: charset, allow: [...]}`` or ``{rule: charset, forbid: [...]}``
     — exactly one, each a list of ``U+`` codepoints or inclusive ranges
-    (RFC 0016 D86).
+    (S-0033/D-86).
 
     This is the half of D26 that a *confusables table* was supposed to answer,
     and the table is deliberately not what this is. A confusables table is
     versioned Unicode data: embedding it would make the disposition of a row
     depend on which Unicode revision the compiler happened to ship, which is
-    an ambient input by another name (RFC 0003). Declaring the admissible
+    an ambient input by another name (S-0020). Declaring the admissible
     characters instead keeps the knowledge where D1 puts it — in the spec —
     and it is *stronger* for the case that motivated it: an allow-list of the
     script a column is actually written in catches a Cyrillic homoglyph, a
@@ -856,7 +856,7 @@ class CharsetRule(QualityRule):
 
 class UniqueRule(QualityRule):
     """``{rule: unique}`` — evaluated **per partition slice** in both full and
-    incremental runs (RFC 0016 D5); cross-partition duplicates are key-based
+    incremental runs (S-0033/D-5); cross-partition duplicates are key-based
     dedupe's job in every mode, and sampling is rejected outright."""
 
     rule: Literal["unique"]
@@ -882,12 +882,12 @@ FieldQualityRule = Annotated[
     | UniqueRule,
     Discriminator("rule"),
 ]
-"""The closed field-rule catalogue (RFC 0016 D5), discriminated on ``rule``.
+"""The closed field-rule catalogue (S-0033/D-5), discriminated on ``rule``.
 New rules are RFC amendments, not config."""
 
 
 # ....................... #
-# Entity-level rules (RFC 0016 §5.3) — row rules
+# Entity-level rules (S-0033/spec-schema) — row rules
 
 
 class ExpressionRule(QualityRule):
@@ -910,7 +910,7 @@ class ExpressionRule(QualityRule):
 class ReferentialRule(SpecModel):
     """``{rule: referential, via: …, on_missing: …}`` — a declared
     relationship probed at the row-rule stage against the referenced *silver*
-    entity (RFC 0016 §5.1).
+    entity (S-0033/the-disposition-model).
 
     It carries ``on_missing``, not ``on_fail``: ``unknown_member`` is a
     disposition no other rule has (the row passes with its fk rewritten to the
@@ -927,7 +927,7 @@ class ReferentialRule(SpecModel):
 
 
 EntityQualityRule = Annotated[ExpressionRule | ReferentialRule, Discriminator("rule")]
-"""The closed row-rule catalogue (RFC 0016 D6), discriminated on ``rule``."""
+"""The closed row-rule catalogue (S-0033/D-6), discriminated on ``rule``."""
 
 
 # ....................... #
@@ -936,7 +936,7 @@ EntityQualityRule = Annotated[ExpressionRule | ReferentialRule, Discriminator("r
 
 class Dedupe(SpecModel):
     """``dedupe: {keep: latest_by, field: …, tie_break: [...]}`` — partitions
-    by the entity key and keeps one row per key (RFC 0016 §5.4).
+    by the entity key and keeps one row per key (S-0033/fixed-pipeline-order-and-lowering).
 
     ``tie_break`` is optional *here* and mandatory *there*: its absence is the
     compile error ``DedupeTieBreakMissing`` (§5.3), a statement about the
@@ -953,7 +953,7 @@ class Dedupe(SpecModel):
 
 class Quarantine(SpecModel):
     """``quarantine: {retention: 90d, redact: [...]}`` — the per-entity reject
-    table's policy (RFC 0016 §5.6).
+    table's policy (S-0033/quarantine-one-reject-table-per-entity).
 
     ``retention:`` is required whenever the block exists because reject rows
     hold raw source payloads, and therefore PII: "trivial now and a legal
@@ -969,7 +969,7 @@ class Quarantine(SpecModel):
 
 
 class Coverage(SpecModel):
-    """One cross-entity **coverage** check (RFC 0016 §10 → D90) — §10's "every
+    """One cross-entity **coverage** check (S-0033 (§10) → D90) — §10's "every
     customer has ≥1 order", made declarable.
 
     §10 guessed "probably reconcile-style". It is not: a ``reconcile`` compares
@@ -1004,7 +1004,7 @@ class Coverage(SpecModel):
     #: ``reconcile.on_fail`` carries (D38). ``quarantine`` and ``repair`` are
     #: absent: an audit attached to the dependent side cannot route a row of
     #: the referenced one, and pretending otherwise would be the silent
-    #: degradation RFC 0008 D3 refuses.
+    #: degradation S-0025/D-3 refuses.
     on_fail: Literal["flag", "fail"]
 
 
@@ -1013,18 +1013,18 @@ class Coverage(SpecModel):
 
 class Reconcile(SpecModel):
     """One ``reconcile:`` block — the check that catches a *correct formula
-    over wrong data* (RFC 0016 §5.3), emitting its own model plus a
+    over wrong data* (S-0033/spec-schema), emitting its own model plus a
     non-blocking audit.
 
     ``tolerance`` is a quoted decimal: YAML's ``0.01`` is a float, and floats
-    never enter the IR or an emission path (RFC 0003 D5).
+    never enter the IR or an emission path (S-0020/D-5).
     """
 
     name: RuleName
     left: str
     right: str
     tolerance: Decimal = Field(ge=0)
-    #: Narrower than a rule's ``OnFailName`` (RFC 0016 D92). A reconcile
+    #: Narrower than a rule's ``OnFailName`` (S-0033/D-92). A reconcile
     #: compares two *aggregates*, so there is no row to divert: ``quarantine``
     #: has nothing to route and ``repair`` has no recipe surface to carry one.
     #: Both used to parse — ``repair`` lowered to ``OnFail.REPAIR`` with no
@@ -1045,7 +1045,7 @@ class Reconcile(SpecModel):
         if isinstance(mapping.get("tolerance"), float):
             msg = (
                 "tolerance must be a quoted decimal string — an unquoted YAML number "
-                'parses as a float, which the IR bans (RFC 0003 D5): use tolerance: "0.01"'
+                'parses as a float, which the IR bans (S-0020/D-5): use tolerance: "0.01"'
             )
             raise ValueError(msg)
 

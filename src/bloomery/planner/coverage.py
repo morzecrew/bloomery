@@ -1,7 +1,7 @@
-"""Mart-coverage precheck (RFC 0013 §5.4, R3 — RFC 0011's refusal policy,
+"""Mart-coverage precheck (S-0030/coverage-precheck-the-refusal-policy-preserved, S-0030 R3 — S-0028's refusal policy,
 preserved): every request is checked against the IR **before** anything is
 delegated to MetricFlow. MetricFlow would happily plan a multi-hop join
-across semantic models; the mart design (RFC 0010) says a cross-grain
+across semantic models; the mart design (S-0027) says a cross-grain
 request is *refused*, not silently answered — refuse-don't-guess, enforced
 twice (here first, MetricFlow's resolver second).
 
@@ -9,13 +9,13 @@ Rules, in order:
 
 1. every requested metric exists (``UnknownMember`` with a did-you-mean);
    a non-additive ratio requires its component measures, and a derived metric
-   requires whatever its inputs need, transitively (RFC 0034 §8);
+   requires whatever its inputs need, transitively (S-0050/design-the-planner);
 2. all required measures live on **one** mart — ownership by the exact rule
    the emitter placed measures with (cheapest ``cost_hint``, ties
    lexicographic — :func:`bloomery.emit.metricflow.measure_owners`), so
    emitter and planner cannot disagree; zero candidates or a split is
    ``UnreachableAtGrain`` naming the per-metric grain/mart conflict
-   (RFC 0011 §5.3's exact message shape);
+   (S-0028/algorithm-and-refusals's exact message shape);
 3. every requested, filtered, and policy dimension is flattened on the
    covering mart: bare column names resolve directly, an unqualified bucket
    (``month``) resolves through the mart's single date role or refuses with
@@ -78,7 +78,7 @@ class Coverage:
     reference resolved against it (request order preserved).
 
     ``filter_dimensions`` holds one inner tuple per filter *clause*
-    (RFC 0015 D-Q3), pairing positionally with that clause's predicates —
+    (S-0032/D-3), pairing positionally with that clause's predicates —
     a bare ``Predicate`` clause yields a 1-tuple, an ``AnyOf`` group one
     entry per member."""
 
@@ -87,14 +87,14 @@ class Coverage:
     filter_dimensions: tuple[tuple[ResolvedDimension, ...], ...]
     policy_dimension: ResolvedDimension | None
     #: The metrics this mart is asked for, in request order. One coverage is
-    #: one branch (RFC 0041 D11), and a branch that did not carry its own
+    #: one branch (S-0055/D-11), and a branch that did not carry its own
     #: metrics would leave the planner re-deriving the partition it was just
     #: handed — two answers to "which mart serves this measure" is the
     #: divergence D11 exists to prevent.
     #:
     #: These are the request's own metrics wherever a metric is a stored
     #: measure, and its **components** where it is computed above the join
-    #: (RFC 0041 D3): a branch is asked for `revenue`, never for the
+    #: (S-0055/D-3): a branch is asked for `revenue`, never for the
     #: `revenue_per_item` the wrapper divides to get.
     metrics: tuple[str, ...] = ()
 
@@ -107,14 +107,14 @@ class Projected:
     """One requested metric, and where the composed statement gets it from.
 
     A stored measure is projected from the branch that carries it and has no
-    ``expr``. Anything else is computed **above** the join (RFC 0041 D3), from
+    ``expr``. Anything else is computed **above** the join (S-0055/D-3), from
     components each branch aggregated on its own — which is the whole reason
     the ordering in D1 is locked: `SUM(a)/SUM(b)` and a row-level `a/b`
     aggregated afterwards are different numbers.
 
     ``inputs`` pairs the alias ``expr`` references with the component metric a
     branch was asked for. For a ratio the two are the same name; for an
-    RFC 0034 ``derived:`` metric they differ, because the expression was
+    S-0050 ``derived:`` metric they differ, because the expression was
     authored against aliases.
     """
 
@@ -131,7 +131,7 @@ class Projected:
         A stored measure has no ``inputs`` and answers with its own name,
         because that is what a branch is asked for. The empty case is decided
         here rather than inherited: a computed metric always has inputs — a
-        ratio has two and RFC 0034 gives ``inputs:`` a ``min_length=1`` — so
+        ratio has two and S-0050 gives ``inputs:`` a ``min_length=1`` — so
         ``inputs`` being empty means "stored" and nothing else, and the day
         that stops being true this reads as a branch asked for the metric it
         was supposed to compute.
@@ -160,7 +160,7 @@ def _did_you_mean(closest: str | None, known: list[str]) -> str:
 
     Takes the match rather than searching for it, so the sentence and
     :attr:`~bloomery.errors.UnknownMember.did_you_mean` are one computation
-    read twice (RFC 0020 §5.4) rather than two searches that happen to agree.
+    read twice (S-0037/fix-suggestions-on-refusals) rather than two searches that happen to agree.
     """
 
     return f"; did you mean {closest!r}?" if closest else f"; known: {known}"
@@ -178,11 +178,11 @@ def _gold_relation(mart: MartIR, naming: NamingPolicy) -> str:
 
 
 def _measures_of(ir: ProjectIR, metric: MetricIR, seen: set[str]) -> tuple[str, ...]:
-    """The measures one metric needs, following decompositions (RFC 0011 D5).
+    """The measures one metric needs, following decompositions (S-0028/D-5).
 
     A ratio needs both components; a derived metric needs whatever its inputs
     need, transitively — a derived metric over a ratio over two simple metrics
-    needs the two simple measures (RFC 0034 §8). ``seen`` bounds the walk: the
+    needs the two simple measures (S-0050/design-the-planner). ``seen`` bounds the walk: the
     resolution DAG is acyclic, so it can only be reached twice by a diamond,
     but a cycle that somehow arrived here would hang rather than refuse, and a
     planner that hangs is worse than one that is wrong.
@@ -213,7 +213,7 @@ def _measures_of(ir: ProjectIR, metric: MetricIR, seen: set[str]) -> tuple[str, 
             msg = (
                 f"{metric.additivity.value} metric {metric.name!r} carries neither a ratio "
                 "nor a derived decomposition — the guardrail stage should have refused it "
-                "(RFC 0006 D6)"
+                "(S-0023/D-6)"
             )
             raise PlannerError(msg)
         return (metric.ratio.numerator, metric.ratio.denominator)
@@ -226,7 +226,7 @@ def _measures_of(ir: ProjectIR, metric: MetricIR, seen: set[str]) -> tuple[str, 
 
 def _required_measures(ir: ProjectIR, name: str) -> tuple[MetricIR, tuple[str, ...]]:
     """The metric named in the request and the measure names a mart must
-    carry to serve it (a ratio needs both components — RFC 0011 D5)."""
+    carry to serve it (a ratio needs both components — S-0028/D-5)."""
     metric = next((m for m in ir.metrics if m.name == name), None)
 
     if metric is None:
@@ -234,7 +234,7 @@ def _required_measures(ir: ProjectIR, name: str) -> tuple[MetricIR, tuple[str, .
         if unreachable is not None:
             msg = (
                 f"metric {name!r} is unreachable: leaves {list(unreachable.missing)} have "
-                "no mapped derivation path (RFC 0005 §5.3) — map them before requesting it"
+                "no mapped derivation path (S-0022/availability-and-reachability-bloomery-resolve-reach-py) — map them before requesting it"
             )
             raise UnknownMember(msg)
         known = sorted(m.name for m in ir.metrics)
@@ -255,7 +255,7 @@ def _owner_entries(
     """Every measure this request needs, with its grain and the mart that owns
     it — ownership by the exact rule the emitter placed measures with.
 
-    Split out of :func:`_covering_mart` so the partition RFC 0041 D11 asks for
+    Split out of :func:`_covering_mart` so the partition S-0055/D-11 asks for
     reads the same answer the single-mart precheck does. Two computations of
     "which mart serves this measure" is precisely the divergence D11 names,
     and it would appear here first as a plan whose branches disagree with the
@@ -294,9 +294,9 @@ def _owner_entries(
 def _split_refusal(
     entries: dict[str, tuple[str, MartIR]], naming: NamingPolicy
 ) -> UnreachableAtGrain:
-    """The cross-grain refusal, unchanged from RFC 0011 §5.3.
+    """The cross-grain refusal, unchanged from S-0028/the-fourth-port (§5.3.)
 
-    Reached whenever the composed path declines — so a request that RFC 0041
+    Reached whenever the composed path declines — so a request that S-0055
     P1 cannot answer keeps the refusal and the class it had before this phase
     existed, which is what leaves the parity baseline able to say what P1
     actually converted (D16).
@@ -311,7 +311,7 @@ def _split_refusal(
     )
     lines.append(f"  {_REMEDIATION}")
 
-    # The same table the message renders, as data (RFC 0020 §5.4): one entry
+    # The same table the message renders, as data (S-0037/fix-suggestions-on-refusals): one entry
     # per required measure, naming the mart that *does* serve it and the grain
     # it does so at. ``mart`` is the logical name rather than the gold relation
     # the sentence quotes — that is the identity a caller acts on, and the one
@@ -330,7 +330,7 @@ def _split_refusal(
 
 def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) -> MartIR:
     """One mart carrying every required measure, or ``UnreachableAtGrain``
-    with the per-metric grain/mart table (RFC 0011 §5.3)."""
+    with the per-metric grain/mart table (S-0028/algorithm-and-refusals)."""
     entries = _owner_entries(ir, request, naming)
 
     if len({owner.name for _grain, owner in entries.values()}) > 1:
@@ -374,7 +374,7 @@ def _carried_elsewhere(ir: ProjectIR, mart: MartIR, name: str) -> tuple[MartIR, 
 
     Sorted by mart name rather than taken in IR order: this decides which mart
     a refusal message names, and a message that depends on iteration order is
-    one two runs can disagree about (RFC 0003).
+    one two runs can disagree about (S-0020).
     """
 
     return next(
@@ -486,7 +486,7 @@ def _hops(ir: ProjectIR, source: str, target: str) -> tuple[str, ...]:
     Empty where no flattenable route exists, or where two shortest routes do —
     picking one of two sends the author to write the wrong line. Only
     `many_to_one` and `one_to_one` are walked: a rollup can be provable across
-    the *inverse* of a `one_to_many` (RFC 0037 admits that direction, and only
+    the *inverse* of a `one_to_many` (S-0017 admits that direction, and only
     that one) while the mart flattener refuses to flatten it at all. Provable
     and flattenable are different questions, and a remediation answers the
     second (D-140).
@@ -526,7 +526,7 @@ def _not_here(
     ir: ProjectIR, mart: MartIR, name: str, other: MartIR, origin: str
 ) -> UnreachableAtGrain:
     """The refusal for a dimension another mart carries and this one does not
-    (RFC 0040 §11a P2, logs/T-0022.md D-135).
+    (S-0054/phasing (a) S-0054/phasing (P-2), logs/T-0022.md D-135).
 
     The name is not unknown, so `UnknownMember` would be false about the one
     thing an author acts on: it would send them to declare a dimension that is
@@ -562,7 +562,7 @@ def _not_here(
         # folded into it. Unreachable today and deliberately still written: every
         # basis a rollup rests on is `DECLARED` or `DERIVED`, which
         # `test_no_rollup_basis_carries_a_provenance_that_leaves_a_proof_open`
-        # asserts, and RFC 0044's imported provenance is what makes it
+        # asserts, and S-0057's imported provenance is what makes it
         # reachable. The code is its own, because the repair is to verify the
         # imported fact rather than to edit a mart.
         msg = (
@@ -605,7 +605,7 @@ def _not_here(
             f"{lead}.\n"
             f"  Values at {source!r} roll up to {target!r} safely, so the column can be "
             f"flattened onto this mart at build time: {via}.\n"
-            f"  bloomery does not join at plan time (RFC 0040 D3) — the join belongs to the "
+            f"  bloomery does not join at plan time (S-0054/D-3) — the join belongs to the "
             f"mart, where it is proven once instead of per request."
         )
         return UnreachableAtGrain(msg, refusal_reason="not_flattened")
@@ -638,7 +638,7 @@ def _resolve_dimension(
     mart: MartIR, name: str, *, apply_grain: TimeGrain | None, ir: ProjectIR
 ) -> ResolvedDimension:
     """One dimension reference against the covering mart's flattened columns
-    (RFC 0011 D6 — role-playing needs no planner logic beyond naming)."""
+    (S-0028/D-6 — role-playing needs no planner logic beyond naming)."""
     refs = {dimension.column: dimension.ref for dimension in mart.dimensions}
     ref = refs.get(name)
 
@@ -672,7 +672,7 @@ def _resolve_dimension(
         if rebucketed not in refs:
             msg = (
                 f"time_grain {apply_grain.value!r} has no flattened bucket on mart "
-                f"{mart.name!r} — date roles expand to {list(DATE_BUCKETS)} (RFC 0010 D4)"
+                f"{mart.name!r} — date roles expand to {list(DATE_BUCKETS)} (S-0027/D-4)"
             )
             raise InvalidRequest(msg)
         return ResolvedDimension(name=rebucketed, role=ref.role, grain=apply_grain)
@@ -731,7 +731,7 @@ def _candidate_triples(ir: ProjectIR, name: str) -> list[tuple[str, str, object]
 
     Sorted by the triple's text rather than left as a set: the order decides
     which candidate wins a tie below, and a set's iteration order would make
-    that depend on the hash seed (RFC 0003).
+    that depend on the hash seed (S-0020).
     """
 
     return sorted(
@@ -802,7 +802,7 @@ def _resolve_branch_dimension(
     ir: ProjectIR,
 ) -> ResolvedDimension:
     """One requested dimension against **a branch's** mart, by identity rather
-    than by name (RFC 0041 D12).
+    than by name (S-0055/D-12).
 
     A flattened join prefixes what it brings, so one dimension has one name per
     mart that reaches it: `region` on the mart based at `order`, and
@@ -860,7 +860,7 @@ def _not_one_dimension(
     name: str, resolved: Sequence[tuple[MartIR, ResolvedDimension]]
 ) -> UnreachableAtGrain:
     """The refusal for a name every branch has and no two branches mean the
-    same thing by (RFC 0041 D12, D5).
+    same thing by (S-0055/D-12, S-0055/D-5).
 
     The dangerous case, and the reason identity is checked on every branch
     rather than only where a name had to be translated: `order_id` is a column
@@ -881,7 +881,7 @@ def _not_one_dimension(
         f"dimension {name!r} is carried by every mart this request needs, and they do not "
         f"mean the same column by it:\n{listed}\n"
         "  Two columns are the same dimension when they come from the same source column, "
-        "not when they share a name (RFC 0041 D12).\n"
+        "not when they share a name (S-0055/D-12).\n"
         "  Request the measures separately, or flatten one shared dimension onto both marts."
     )
 
@@ -899,7 +899,7 @@ def _projected(ir: ProjectIR, name: str) -> Projected | None:
     back with an expression the wrapper evaluates above the join (D3), and one
     stored measure comes back bare:
 
-    * an RFC 0034 ``derived:`` metric carries its own expression over its
+    * an S-0050 ``derived:`` metric carries its own expression over its
       inputs' aliases, and is the general case P2 admits (logs/T-0027.md,
       D-179);
     * a ratio is that with the expression fixed — ``num / NULLIF(den, 0)``,
@@ -994,7 +994,7 @@ def _not_on_every_branch(
     ir: ProjectIR, name: str, marts: Sequence[MartIR], *, kind: str
 ) -> UnreachableAtGrain:
     """The refusal for a restriction one branch can evaluate and another cannot
-    (RFC 0041 D4, D5; logs/T-0027.md, D-176).
+    (S-0055/D-4, S-0055/D-5; logs/T-0027.md, D-176).
 
     Placing it on the branches that can is the outcome that returns a number:
     with a restriction on the orders mart alone, restricted revenue and
@@ -1031,7 +1031,7 @@ def _not_on_every_branch(
         f"{listed}\n"
         "  A restriction placed on some branches and not others narrows one measure and "
         "not the other, and the join reports the two side by side as though one "
-        "restriction applied throughout (RFC 0041 D4, D5).\n"
+        "restriction applied throughout (S-0055/D-4, S-0055/D-5).\n"
         f"  Request the measures separately, or flatten {name!r} onto every mart above."
     )
 
@@ -1092,7 +1092,7 @@ def _composable(
     request: MetricRequest,
     entries: dict[str, tuple[str, MartIR]],
 ) -> bool:
-    """Whether RFC 0041 P2 may answer this cross-mart request by composing
+    """Whether S-0055/phasing (P-2) may answer this cross-mart request by composing
     branches, rather than refusing it as before.
 
     Two conditions now, where P1 had five. Filters, the row policy,
@@ -1154,7 +1154,7 @@ def composed_projection(ir: ProjectIR, request: MetricRequest) -> tuple[Projecte
 
     Public because the planner needs it and must not compute it a second way:
     :func:`resolve_branches` accepted the request on exactly these projections,
-    so a planner deriving its own would be the second opinion RFC 0041 D11
+    so a planner deriving its own would be the second opinion S-0055/D-11
     exists to prevent — one level up from the partition D11 is about.
     """
 
@@ -1229,7 +1229,7 @@ def _home(ir: ProjectIR, entries: dict[str, tuple[str, MartIR]], component: str)
         msg = (
             f"component {component!r} is served by {homes or 'no mart'} — a component the "
             "composed statement reads as one column has to be aggregated by one branch "
-            "(RFC 0041 D4)"
+            "(S-0055/D-4)"
         )
         raise PlannerError(msg)
 
@@ -1246,7 +1246,7 @@ def _one_dimension(name: str, resolved: Sequence[tuple[MartIR, ResolvedDimension
     requested name resolved locally and no translation was needed. Checking
     only where a name had to be translated is the asymmetry that let
     `order_id` — a key on one mart and a foreign key on another — join two
-    branches on different things (RFC 0041 D12).
+    branches on different things (S-0055/D-12).
 
     The restrictions are not run through it, and that is a difference in what
     is *known* rather than in what matters: a restriction whose provenance no
@@ -1271,16 +1271,16 @@ def resolve_branches(
     naming: NamingPolicy,
     policy: RowPolicy | None = None,
 ) -> tuple[Coverage, *tuple[Coverage, ...]]:
-    """The precheck, widened to N branches (RFC 0041 D9, D11).
+    """The precheck, widened to N branches (S-0055/D-9, S-0055/D-11).
 
     One coverage for a request every measure of which lives on one mart —
-    which is every request this planner answered before RFC 0041 — and one per
+    which is every request this planner answered before S-0055 — and one per
     owning mart otherwise, sorted by mart name so a composed plan and the SQL
-    built from it read the branches in one order (RFC 0003).
+    built from it read the branches in one order (S-0020).
 
     Each branch carries the restrictions the composed request applies, resolved
     against **its own** mart by provenance identity: a filter and the row
-    policy reach every branch or the whole request refuses (RFC 0041 D4, D5;
+    policy reach every branch or the whole request refuses (S-0055/D-4, S-0055/D-5;
     logs/T-0027.md, D-176). The policy reaching every branch is the merge
     -blocking half — a branch left unscoped answers from rows the caller may
     not read, and the join puts that number beside a scoped one.
@@ -1398,7 +1398,7 @@ def resolve_branches(
     # Identity is checked on **every** branch, including the ones where the
     # requested name resolved locally and no translation was needed. A name
     # two marts both carry is the case that most needs the check rather than
-    # the case that can skip it (RFC 0041 D12).
+    # the case that can skip it (S-0055/D-12).
     for position, requested in enumerate(request.dimensions):
         _one_dimension(
             requested, [(branch.mart, branch.dimensions[position]) for branch in branches]
@@ -1416,7 +1416,7 @@ def resolve_branches(
     # A composed statement projects a key under the name the result will carry
     # (logs/T-0026.md, D-165), so a name that is also a requested metric would
     # be projected twice under one alias and `ColumnDescriptor.sql_alias` — the
-    # binding contract since RFC 0018 D4 — would name two columns.
+    # binding contract since S-0035/D-4 — would name two columns.
     # `MetricRequest` refuses duplicates within each tuple and cannot see
     # across them. Compared against the **effective** key names rather than the
     # requested ones, because a date role is answered under its re-bucketed
@@ -1446,6 +1446,6 @@ def resolve_branches(
 
 def check(ir: ProjectIR, request: MetricRequest, *, naming: NamingPolicy) -> str:
     """The R3 entry point: the name of the single mart able to answer
-    ``request``, or a typed refusal (RFC 0013 D6 — refuse before delegating)."""
+    ``request``, or a typed refusal (S-0030/D-6 — refuse before delegating)."""
 
     return resolve_request(ir, request, naming=naming).mart.name

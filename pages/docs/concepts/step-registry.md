@@ -73,7 +73,7 @@ steps:
 
 ### Quality rules on an output
 
-A step output takes RFC 0016 `expression` rules, and `applies_to` says which
+A step output takes S-0033 `expression` rules, and `applies_to` says which
 output each judges — an entity's `quality:` has one relation to mean, a step
 has several:
 

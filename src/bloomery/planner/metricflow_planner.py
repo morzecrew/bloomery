@@ -1,19 +1,19 @@
-"""The MetricFlow planner adapter (RFC 0013 §5.3, R2): the shipped backend
-behind RFC 0011's ``Planner`` port. ``plan()`` validates, runs the coverage
-precheck (refusal before delegation — RFC 0013 D6), hydrates the manifest
+"""The MetricFlow planner adapter (S-0030/the-adapter-and-the-render-only-client, S-0030 R2): the shipped backend
+behind S-0028's ``Planner`` port. ``plan()`` validates, runs the coverage
+precheck (refusal before delegation — S-0030/D-6), hydrates the manifest
 lookup through the injected :class:`~bloomery.runtime.LruManifestHydrator`,
 drives ``MetricFlowEngine.explain()`` — which renders SQL and **never
 executes** (the render-only client raises on every execution member) — and
 translates the result back into a :class:`~bloomery.planner.result.QueryPlan`
 in bloomery names.
 
-MetricFlow types never cross the port boundary (RFC 0013 D2): its
-exceptions are translated into the RFC 0011 taxonomy at :func:`translate_mf_error`
+MetricFlow types never cross the port boundary (S-0030/D-2): its
+exceptions are translated into the S-0028 taxonomy at :func:`translate_mf_error`
 (an unrecognized one becomes a plain ``PlannerError`` preserving the
 message), and its spec objects are consumed inside
 :mod:`bloomery.planner.names` / :mod:`bloomery.planner.explain` only.
 
-``limit`` is clamped to ``max_limit`` (default 50 000, RFC 0011 D4);
+``limit`` is clamped to ``max_limit`` (default 50 000, S-0028/D-4);
 clamping appends a ``QueryPlan.warnings`` entry, as does a ``time_grain``
 with no date-role dimension to apply to.
 """
@@ -73,7 +73,7 @@ __all__ = [
     "translate_mf_error",
 ]
 
-#: The delegation boundary (RFC 0033 §4).
+#: The delegation boundary (S-0004 (§4)).
 _LOG = logging.getLogger("bloomery.planner")
 
 #: Message fragments classifying ``InvalidQueryException`` — MetricFlow
@@ -84,7 +84,7 @@ _UNKNOWN_FRAGMENTS = ("does not match", "unknown", "not found", "no matching ite
 
 def translate_mf_error(error: MetricFlowException) -> PlannerError:
     """One MetricFlow exception as its bloomery-taxonomy equivalent
-    (RFC 0013 D2): callers never catch a MetricFlow class. Unrecognized
+    (S-0030/D-2): callers never catch a MetricFlow class. Unrecognized
     errors become a plain :class:`PlannerError` preserving the message."""
     message = str(error)
 
@@ -111,7 +111,7 @@ def translate_mf_error(error: MetricFlowException) -> PlannerError:
 
 
 class MetricFlowPlanner:
-    """RFC 0011's ``Planner`` port, backed by an embedded MetricFlow.
+    """S-0028's ``Planner`` port, backed by an embedded MetricFlow.
 
     ``naming`` must be the policy the hydrated manifests were emitted with
     (it shapes the gold relations named in refusal messages and
@@ -227,7 +227,7 @@ class MetricFlowPlanner:
         The projection comes from :func:`coverage.composed_projection` rather
         than being read off the request a second time — the precheck accepted
         the request on exactly those projections, and a planner deriving its
-        own would be RFC 0041 D11's divergence one level up. What is added
+        own would be S-0055/D-11's divergence one level up. What is added
         here is the only thing coverage does not know: which branch index each
         component landed on.
         """
@@ -262,7 +262,7 @@ class MetricFlowPlanner:
         policy: RowPolicy | None,
     ) -> QueryPlan:
         """A cross-mart request, answered by joining branch aggregates
-        (RFC 0041 D9).
+        (S-0055/D-9).
 
         Every branch is a request this planner already answered; what is new
         is the statement around them, which is bloomery's own SQL and carries
@@ -284,7 +284,7 @@ class MetricFlowPlanner:
             `order_by` nor `limit`: both are the composed statement's
             (D-182), and `order_by` naming a metric no branch was asked for
             would not even construct — `MetricRequest` refuses an order field
-            that is not a requested metric or dimension (RFC 0011 D4). The
+            that is not a requested metric or dimension (S-0028/D-4). The
             filters stay, because the branch is where they are applied.
             """
 
@@ -318,14 +318,14 @@ class MetricFlowPlanner:
 
         # The composed statement can only order by what it projects, and the
         # field reaches `_ordering` as SQL text. `MetricRequest` already refuses
-        # an order field that is not a requested metric or dimension (RFC 0011
+        # an order field that is not a requested metric or dimension (S-0028
         # D4), so this cannot fire — it is the second net `names.to_mf_order`
         # holds under the single-mart path, kept because this path builds the
         # clause itself instead of handing a name to MetricFlow.
         if unknown := sorted(field for field, _direction in ordering if field not in projected):
             raise PlannerError(  # pragma: no cover — MetricRequest refuses this first
                 f"order_by names {unknown}, which the composed statement does not project "
-                "— a cross-grain answer can only be ordered by its own columns (RFC 0011 D4)"
+                "— a cross-grain answer can only be ordered by its own columns (S-0028/D-4)"
             )
 
         sql = compose.compose(
@@ -418,7 +418,7 @@ class MetricFlowPlanner:
             keys,
             request.metrics,
             # A metric computed above the join is stated by a `Compute`
-            # node (RFC 0066 §5.2). It used to withhold the plan: the
+            # node (S-0071/compute-arithmetic-above-an-aggregate). It used to withhold the plan: the
             # vocabulary had no arithmetic, so the alternative was a plan
             # claiming the join produced a column it does not
             # (logs/T-0027.md, D-178).
@@ -495,18 +495,18 @@ class MetricFlowPlanner:
         policy: RowPolicy | None = None,
     ) -> QueryPlan:
         """Pure request-time planning: SQL text plus metadata out, nothing
-        executed (RFC 0011 D1). Refusals raise the RFC 0011 taxonomy —
+        executed (S-0028/D-1). Refusals raise the S-0028 taxonomy —
         ``UnknownMember`` / ``UnreachableAtGrain`` / ``AmbiguousDimension`` /
         ``InvalidRequest`` / ``FilterTypeMismatch`` — before delegation
         wherever the coverage precheck can see the problem.
 
         A request whose measures live on several marts is answered by
-        :meth:`_composed` when RFC 0041 P1's conditions hold, and refused by
+        :meth:`_composed` when S-0055/phasing (P-1)'s conditions hold, and refused by
         the precheck exactly as before when they do not — the branch is taken
         on the precheck's answer rather than on a second reading of the
         request here."""
         branches = coverage.resolve_branches(ir, request, naming=self._naming, policy=policy)
-        # The delegation boundary (RFC 0033 §4): one record per request, naming
+        # The delegation boundary (S-0004 (§4)): one record per request, naming
         # what was asked and how many marts it takes to answer. DEBUG for the
         # reason the hydrator's record is — this runs per request, not per
         # compile, and §4's INFO budget is per compile.
@@ -565,7 +565,7 @@ class MetricFlowPlanner:
             # `LEGACY_TYPE_GROUPED`, which orders columns within each spec group
             # "in an arbitrary order that depends on how MF generates the SQL"
             # — so dropping the argument rather than porting it would trade a
-            # deterministic column order for an engine-internal one, and RFC 0003
+            # deterministic column order for an engine-internal one, and S-0020
             # forbids that (`sql` is fingerprinted, and `columns` is a contract).
             output_column_order_mode=OutputColumnOrderMode.INPUT_ORDER,
         )
@@ -608,7 +608,7 @@ class MetricFlowPlanner:
             fingerprint=hashlib.sha256(sql.encode("utf-8")).hexdigest(),
             # Built from the same `Coverage` and the same renderers the
             # explanation reads, so the two are one account of the request
-            # rather than two (RFC 0039 §7) — over every predicate the query
+            # rather than two (S-0005 (§7)) — over every predicate the query
             # applies, not only the ones the explanation lists as `filters`.
             semantic=guaranteed(
                 (plan for plan in (single,) if plan is not None),

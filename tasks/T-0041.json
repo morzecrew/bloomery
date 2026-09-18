@@ -3,7 +3,7 @@
   "spec": "rfcs/0037-semantic-grain-model.md",
   "phase": "TRANSITIVE leaves DependencyBasis — composition is carried as Derivation.steps and proved by R005.",
   "decisions": [
-    {"id": "RFC 0037 D3", "grade": "LOCKED",
+    {"id": "S-0017/D-3", "grade": "LOCKED",
      "paths": ["src/bloomery/semantic/nodes.py", "src/bloomery/semantic/proof.py",
                "src/bloomery/semantic/closure.py"]}
   ]

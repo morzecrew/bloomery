@@ -1,4 +1,4 @@
-"""Range sanity (RFC 0006 §5.6, D8): well-typedness of assert: clauses
+"""Range sanity (S-0023/range-sanity, S-0023/D-8): well-typedness of assert: clauses
 against the field's logical type, and their lowering into AuditIR entries."""
 
 from __future__ import annotations

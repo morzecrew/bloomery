@@ -1,4 +1,4 @@
-"""The zone guard (RFC 0074 §5.3, R018): which uses of an instant demand a
+"""The zone guard (S-0076/r018-and-where-it-fires, S-0076 R018): which uses of an instant demand a
 declared clock, and which do not.
 
 The rule's surface *is* the site list, so most of what is asserted here is
@@ -589,7 +589,7 @@ fields:
 
 
 def test_a_recipe_that_parses_a_timestamp_is_not_reached_by_r018() -> None:
-    """**A known hole, pinned rather than hidden** — RFC 0074 §10's fourth
+    """**A known hole, pinned rather than hidden** — S-0076 (§10)'s fourth
     question, answered by running it (logs/T-0062.md).
 
     A catalog recipe whose body casts text to a timestamp produces the same

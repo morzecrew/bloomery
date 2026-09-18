@@ -2,7 +2,7 @@
   "$defs": {
     "AssertClause": {
       "additionalProperties": false,
-      "description": "Per-field range-sanity assertions (RFC 0006 D8 / \u00a75.6): validated for\nwell-typedness at the guardrail stage, lowered to target-native audits at\nemit. Shape-only here.",
+      "description": "Per-field range-sanity assertions (S-0023/D-8, S-0023/range-sanity): validated for\nwell-typedness at the guardrail stage, lowered to target-native audits at\nemit. Shape-only here.",
       "properties": {
         "enum": {
           "anyOf": [
@@ -100,7 +100,7 @@
     },
     "Coverage": {
       "additionalProperties": false,
-      "description": "One cross-entity **coverage** check (RFC 0016 \u00a710 \u2192 D90) \u2014 \u00a710's \"every\ncustomer has \u22651 order\", made declarable.\n\n\u00a710 guessed \"probably reconcile-style\". It is not: a ``reconcile`` compares\ntwo *values* and alerts when they differ beyond a tolerance, while this\nasserts *existence* \u2014 there is no right-hand value on the referenced entity\nto compare against, and ``right: 1`` is not a shape the reconcile grammar\nadmits or should.\n\nIt is a property of a declared **relationship**, which is what makes it\nexpressible at all: ``referential`` already asks whether every *dependent*\nrow has a parent, and this asks the mirror question \u2014 whether every\n*referenced* row has at least ``min`` dependents. Both read the same two\nrelations through the same ``via`` pairs.\n\n**Why it is an audit and not a disposition-carrying rule.** A childless\ncustomer is a perfectly well-formed row; what is \"wrong\" is another table's\ncontents. Routing it would need the referenced entity's model to read the\ndependent one \u2014 and the dependent one already reads the referenced one\nthrough this very relationship, so the pair that most wants this check is\nexactly the pair whose models would form a cycle. The audit is attached to\nthe **dependent** side instead, which already depends on the referenced\nside, so the check adds no edge the relationship did not already imply.",
+      "description": "One cross-entity **coverage** check (S-0033 (\u00a710) \u2192 D90) \u2014 \u00a710's \"every\ncustomer has \u22651 order\", made declarable.\n\n\u00a710 guessed \"probably reconcile-style\". It is not: a ``reconcile`` compares\ntwo *values* and alerts when they differ beyond a tolerance, while this\nasserts *existence* \u2014 there is no right-hand value on the referenced entity\nto compare against, and ``right: 1`` is not a shape the reconcile grammar\nadmits or should.\n\nIt is a property of a declared **relationship**, which is what makes it\nexpressible at all: ``referential`` already asks whether every *dependent*\nrow has a parent, and this asks the mirror question \u2014 whether every\n*referenced* row has at least ``min`` dependents. Both read the same two\nrelations through the same ``via`` pairs.\n\n**Why it is an audit and not a disposition-carrying rule.** A childless\ncustomer is a perfectly well-formed row; what is \"wrong\" is another table's\ncontents. Routing it would need the referenced entity's model to read the\ndependent one \u2014 and the dependent one already reads the referenced one\nthrough this very relationship, so the pair that most wants this check is\nexactly the pair whose models would form a cycle. The audit is attached to\nthe **dependent** side instead, which already depends on the referenced\nside, so the check adds no edge the relationship did not already imply.",
       "properties": {
         "min": {
           "default": 1,
@@ -136,7 +136,7 @@
     },
     "Dedupe": {
       "additionalProperties": false,
-      "description": "``dedupe: {keep: latest_by, field: \u2026, tie_break: [...]}`` \u2014 partitions\nby the entity key and keeps one row per key (RFC 0016 \u00a75.4).\n\n``tie_break`` is optional *here* and mandatory *there*: its absence is the\ncompile error ``DedupeTieBreakMissing`` (\u00a75.3), a statement about the\nmodel rather than the document.",
+      "description": "``dedupe: {keep: latest_by, field: \u2026, tie_break: [...]}`` \u2014 partitions\nby the entity key and keeps one row per key (S-0033/fixed-pipeline-order-and-lowering).\n\n``tie_break`` is optional *here* and mandatory *there*: its absence is the\ncompile error ``DedupeTieBreakMissing`` (\u00a75.3), a statement about the\nmodel rather than the document.",
       "properties": {
         "field": {
           "title": "Field",
@@ -165,7 +165,7 @@
     },
     "Entity": {
       "additionalProperties": false,
-      "description": "One entity: grain, authored-order key, SCD kind, partitioning, optional\nexplicit materialization, named fields (generated names reserved,\nRFC 0002 D10 / RFC 0016 \u00a75.5), and the entity-level quality surface.\n\n``dedupe`` partitions by this entity's ``key``; ``quality`` holds the row\nrules (``expression``, ``referential``); ``quarantine`` governs the\n``<entity>__reject`` table (RFC 0016 \u00a75.3, \u00a75.6).",
+      "description": "One entity: grain, authored-order key, SCD kind, partitioning, optional\nexplicit materialization, named fields (generated names reserved,\nS-0019/D-10 / S-0033/schema-additions-and-the-array-capability), and the entity-level quality surface.\n\n``dedupe`` partitions by this entity's ``key``; ``quality`` holds the row\nrules (``expression``, ``referential``); ``quarantine`` governs the\n``<entity>__reject`` table (S-0033/spec-schema, S-0033/quarantine-one-reject-table-per-entity).",
       "properties": {
         "dedupe": {
           "anyOf": [
@@ -348,7 +348,7 @@
     },
     "Field": {
       "additionalProperties": false,
-      "description": "One entity field: logical type (grammar-validated string at parse,\nRFC 0002 \u00a75.5), optional catalog link, explicit-rename annotation\n(RFC 0007 D3), and assert clauses.",
+      "description": "One entity field: logical type (grammar-validated string at parse,\nS-0019/spec-model-surface), optional catalog link, explicit-rename annotation\n(S-0024/D-3), and assert clauses.",
       "properties": {
         "assert": {
           "anyOf": [
@@ -422,7 +422,7 @@
     },
     "Grants": {
       "additionalProperties": false,
-      "description": "Who may read the relation a node becomes (RFC 0055 \u00a75.3).\n\nThe one annotation of this RFC with a *consequence*: an emitted grant is\napplied by the framework, on the engine, so being wrong here changes who\ncan read data rather than only what a catalogue says.\n\n``select`` alone, and required. More permissions are additive later; a\nsecond key today would buy nothing and cost D6 its clarity, because\n``grants: {}`` would then be a third state meaning neither \"no opinion\" nor\n\"no role may select\".\n\n**An empty list is not an absent block** (D6). ``grants: {select: []}``\nsays no role may select; no ``grants:`` at all says bloomery has no opinion\nand the warehouse's existing grants stand. What the empty list can promise\nis bounded by the adapter: dbt reconciles its grants on every run, SQLMesh\napplies them at creation, and a warehouse may carry privileges across a\nreplace regardless of either \u2014 so it is a statement about the\nframework-managed grant set, never about every privilege the object holds.",
+      "description": "Who may read the relation a node becomes (S-0062/grants).\n\nThe one annotation of this RFC with a *consequence*: an emitted grant is\napplied by the framework, on the engine, so being wrong here changes who\ncan read data rather than only what a catalogue says.\n\n``select`` alone, and required. More permissions are additive later; a\nsecond key today would buy nothing and cost D6 its clarity, because\n``grants: {}`` would then be a third state meaning neither \"no opinion\" nor\n\"no role may select\".\n\n**An empty list is not an absent block** (D6). ``grants: {select: []}``\nsays no role may select; no ``grants:`` at all says bloomery has no opinion\nand the warehouse's existing grants stand. What the empty list can promise\nis bounded by the adapter: dbt reconciles its grants on every run, SQLMesh\napplies them at creation, and a warehouse may carry privileges across a\nreplace regardless of either \u2014 so it is a statement about the\nframework-managed grant set, never about every privilege the object holds.",
       "properties": {
         "select": {
           "items": {
@@ -440,7 +440,7 @@
     },
     "Quarantine": {
       "additionalProperties": false,
-      "description": "``quarantine: {retention: 90d, redact: [...]}`` \u2014 the per-entity reject\ntable's policy (RFC 0016 \u00a75.6).\n\n``retention:`` is required whenever the block exists because reject rows\nhold raw source payloads, and therefore PII: \"trivial now and a legal\nproblem in eighteen months\". ``redact:`` JSONPaths apply to ``raw`` and\n``key_values`` at write time.",
+      "description": "``quarantine: {retention: 90d, redact: [...]}`` \u2014 the per-entity reject\ntable's policy (S-0033/quarantine-one-reject-table-per-entity).\n\n``retention:`` is required whenever the block exists because reject rows\nhold raw source payloads, and therefore PII: \"trivial now and a legal\nproblem in eighteen months\". ``redact:`` JSONPaths apply to ``raw`` and\n``key_values`` at write time.",
       "properties": {
         "redact": {
           "default": [],
@@ -465,7 +465,7 @@
     },
     "Reconcile": {
       "additionalProperties": false,
-      "description": "One ``reconcile:`` block \u2014 the check that catches a *correct formula\nover wrong data* (RFC 0016 \u00a75.3), emitting its own model plus a\nnon-blocking audit.\n\n``tolerance`` is a quoted decimal: YAML's ``0.01`` is a float, and floats\nnever enter the IR or an emission path (RFC 0003 D5).",
+      "description": "One ``reconcile:`` block \u2014 the check that catches a *correct formula\nover wrong data* (S-0033/spec-schema), emitting its own model plus a\nnon-blocking audit.\n\n``tolerance`` is a quoted decimal: YAML's ``0.01`` is a float, and floats\nnever enter the IR or an emission path (S-0020/D-5).",
       "properties": {
         "left": {
           "title": "Left",
@@ -514,7 +514,7 @@
     },
     "ReferentialRule": {
       "additionalProperties": false,
-      "description": "``{rule: referential, via: \u2026, on_missing: \u2026}`` \u2014 a declared\nrelationship probed at the row-rule stage against the referenced *silver*\nentity (RFC 0016 \u00a75.1).\n\nIt carries ``on_missing``, not ``on_fail``: ``unknown_member`` is a\ndisposition no other rule has (the row passes with its fk rewritten to the\nreserved ``'__unknown__'`` member, keeping aggregates correct), and\n``fail`` is deliberately unavailable (D6).",
+      "description": "``{rule: referential, via: \u2026, on_missing: \u2026}`` \u2014 a declared\nrelationship probed at the row-rule stage against the referenced *silver*\nentity (S-0033/the-disposition-model).\n\nIt carries ``on_missing``, not ``on_fail``: ``unknown_member`` is a\ndisposition no other rule has (the row passes with its fk rewritten to the\nreserved ``'__unknown__'`` member, keeping aggregates correct), and\n``fail`` is deliberately unavailable (D6).",
       "properties": {
         "on_missing": {
           "enum": [
@@ -602,7 +602,7 @@
     },
     "Repair": {
       "additionalProperties": false,
-      "description": "The repair-recipe contract D17 gated the disposition on (RFC 0016 D87).\n\n``via`` names a registered Tier 1 ``sql_macro`` as ``ref@version``, which\nsettles \u00a710's open question \u2014 *inline vs catalog-referenced* \u2014 in favour of\nreferenced, and not by preference: D1 holds that specs reference\nimplementations and never contain them, and RFC 0017's registry is where a\nreferenced implementation already lives, with a version, a declared\nsignature, a ``runtime_lock`` and a trust-then-verify contract. An inline\nrecipe would have been a second, weaker copy of all of that, reachable only\nfrom here.\n\n``fallback`` is the disposition for a row the recipe did **not** fix, and\nit is required for the same reason ``on_fail`` is (D2): a repair that\nsilently kept a still-broken value would be the ``drop`` this RFC refuses,\nwearing a friendlier name. It cannot itself be ``repair`` \u2014 a second\nattempt at the same value with the same recipe returns the same answer.",
+      "description": "The repair-recipe contract D17 gated the disposition on (S-0033/D-87).\n\n``via`` names a registered Tier 1 ``sql_macro`` as ``ref@version``, which\nsettles \u00a710's open question \u2014 *inline vs catalog-referenced* \u2014 in favour of\nreferenced, and not by preference: D1 holds that specs reference\nimplementations and never contain them, and S-0034's registry is where a\nreferenced implementation already lives, with a version, a declared\nsignature, a ``runtime_lock`` and a trust-then-verify contract. An inline\nrecipe would have been a second, weaker copy of all of that, reachable only\nfrom here.\n\n``fallback`` is the disposition for a row the recipe did **not** fix, and\nit is required for the same reason ``on_fail`` is (D2): a repair that\nsilently kept a still-broken value would be the ``drop`` this RFC refuses,\nwearing a friendlier name. It cannot itself be ``repair`` \u2014 a second\nattempt at the same value with the same recipe returns the same answer.",
       "properties": {
         "fallback": {
           "enum": [
@@ -654,7 +654,7 @@
   "$id": "https://morzecrew.github.io/bloomery/schemas/v1/entity_model.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "The per-project entity model document (``spec_version``), exactly one\nper project (RFC 0002 \u00a75.5).\n\n``reconcile:`` sits here, at the document root, exactly where RFC 0016\n\u00a75.3's YAML puts it \u2014 a sibling of ``entities:``, not a member of one.\nThat placement is the schema, not a convenience: a reconcile check relates\n*two* entities (``sum(order_item.line_total) by order_id`` against\n``order.total_amount``), so it belongs to no single entity, and this is the\none document a project is guaranteed to have exactly one of.",
+  "description": "The per-project entity model document (``spec_version``), exactly one\nper project (S-0019/spec-model-surface).\n\n``reconcile:`` sits here, at the document root, exactly where S-0033\n\u00a75.3's YAML puts it \u2014 a sibling of ``entities:``, not a member of one.\nThat placement is the schema, not a convenience: a reconcile check relates\n*two* entities (``sum(order_item.line_total) by order_id`` against\n``order.total_amount``), so it belongs to no single entity, and this is the\none document a project is guaranteed to have exactly one of.",
   "properties": {
     "coverage": {
       "default": [],

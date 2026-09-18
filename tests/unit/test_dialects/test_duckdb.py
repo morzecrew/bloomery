@@ -1,4 +1,4 @@
-"""The DuckDB dialect (RFC 0008 D5): physical types for all seven logical
+"""The DuckDB dialect (S-0025/D-5): physical types for all seven logical
 types and dialect-specific rendering of neutral ASTs."""
 
 from __future__ import annotations
@@ -67,10 +67,10 @@ def test_the_iso_text_marker_becomes_a_separator_rewrite() -> None:
     spelling — and **raises** on `2026-01-06t12:00:00`, which ISO 8601 permits
     and the other two ports read. So this port normalizes both separators, as
     Trino does and through the same function, and carries the offset guard
-    every port carries (RFC 0036 D3).
+    every port carries (S-0052/D-3).
 
     A port that left the marker in place would emit `BLM_ISO_TEXT(x)`, which no
-    engine defines — deliberately louder than silently NULL data (RFC 0027).
+    engine defines — deliberately louder than silently NULL data (S-0044).
     """
     assert DIALECT.render(_iso_cast()) == (
         "CAST(CASE\n"

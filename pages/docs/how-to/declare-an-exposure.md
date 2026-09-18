@@ -97,7 +97,7 @@ is read:
 ```
 exposure 'weekly_revenue_review' depends on metric 'revenue_gross', which this project
 does not declare. An exposure pointing at nothing reports clean — it names no consumer of
-a change that should reach one (RFC 0056 D2). Fix: correct the name, or declare the
+a change that should reach one (S-0063/D-2). Fix: correct the name, or declare the
 metric. Declared metrics: 'average_order_value', 'gross_revenue', 'margin', 'order_count'
 ```
 

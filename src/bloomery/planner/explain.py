@@ -1,4 +1,4 @@
-"""Explanation building (RFC 0013 §5.8, D10; RFC 0011 D8): the deterministic
+"""Explanation building (S-0030/explanations, S-0030/D-10; S-0028/D-8): the deterministic
 provenance record, assembled from the **structured**
 ``MetricFlowExplainResult.query_spec`` (typed objects) plus the IR — never
 scraped from the SQL comments MetricFlow also emits (comments are a
@@ -6,7 +6,7 @@ rendering detail that changes between versions). Everything is translated
 back into bloomery names via :mod:`bloomery.planner.names`; ``render()``
 output is locked by tests.
 
-Lowering notes (RFC 0011 D5 vocabulary, fixed strings the docs cite):
+Lowering notes (S-0028/D-5 vocabulary, fixed strings the docs cite):
 
 - additive → ``additive — SUM`` (or the metric's aggregation);
 - semi-additive → ``semi-additive last over snapshot_day — MAX-join then
@@ -72,7 +72,7 @@ def _day_column(mart: MartIR, source_column: str) -> str:
 
 
 def _offset_note(input_: MetricInputIR) -> str:
-    """How far back one derived input reads, as prose (RFC 0034 D2)."""
+    """How far back one derived input reads, as prose (S-0050/D-2)."""
 
     if input_.offset_window is not None:
         window = input_.offset_window
@@ -90,7 +90,7 @@ def _offset_note(input_: MetricInputIR) -> str:
 
 def _derived_explanation(metric: MetricIR, additivity: str) -> MeasureExplanation:
     """A derived metric's provenance: the expression as written, and what each
-    alias reads (RFC 0034 D1).
+    alias reads (S-0050/D-1).
 
     The offsets are the part a reader cannot infer from the expression — the
     SQL that comes back joins the measure to the time spine twice and names
@@ -112,7 +112,7 @@ def _derived_explanation(metric: MetricIR, additivity: str) -> MeasureExplanatio
 
 
 def _cumulative_note(metric: MetricIR, agg: str) -> str | None:
-    """The accumulation, when there is one (RFC 0034 D5). ``None`` says the
+    """The accumulation, when there is one (S-0050/D-5). ``None`` says the
     metric aggregates within each period like any other."""
 
     if metric.cumulative is None:
@@ -132,7 +132,7 @@ def _cumulative_note(metric: MetricIR, agg: str) -> str | None:
 
 
 def _filter_note(metric: MetricIR) -> str:
-    """The rows a metric is restricted to, when it is (RFC 0034 D8).
+    """The rows a metric is restricted to, when it is (S-0050/D-8).
 
     Always said, never implied: a filtered metric that explains itself as its
     unfiltered sibling is a number the reader has no way to question.
@@ -154,7 +154,7 @@ def _measure_explanation(metric: MetricIR, mart: MartIR | None) -> MeasureExplan
     """How one measure was computed.
 
     ``mart`` is optional because a metric the composed statement computes above
-    the join belongs to no branch (RFC 0041 D3). It is read on the
+    the join belongs to no branch (S-0055/D-3). It is read on the
     semi-additive path alone, which the composed path never reaches — §8 holds
     that class back — and a semi-additive metric arriving without one is a
     planner defect rather than a request the caller can fix.
@@ -190,7 +190,7 @@ def _measure_explanation(metric: MetricIR, mart: MartIR | None) -> MeasureExplan
         if mart is None:  # pragma: no cover — §8 keeps the class off the composed path
             msg = (
                 f"semi-additive metric {metric.name!r} has no mart to explain over — "
-                "RFC 0041 §8 holds the class back from branch planning"
+                "S-0055/measure-classes-held-back holds the class back from branch planning"
             )
             raise PlannerError(msg)
         over = _day_column(mart, policy.over.qualified)
@@ -224,8 +224,8 @@ def _scalar(value: Scalar) -> str:
 
 
 def _human_predicate(predicate: Predicate, resolved_name: str) -> str:
-    """One predicate as prose in bloomery names (RFC 0011 §5.6 shape,
-    vocabulary per RFC 0015 §5.1)."""
+    """One predicate as prose in bloomery names (S-0028/explanation-d8 shape,
+    vocabulary per S-0032/types-replaces-rfc-0011-d2-s-filterexpr-orderspec)."""
     op = predicate.op
     values = predicate.values
 
@@ -237,7 +237,7 @@ def _human_predicate(predicate: Predicate, resolved_name: str) -> str:
         return f"{resolved_name} {keyword} ({', '.join(_scalar(v) for v in values)})"
 
     if op in (Op.LIKE, Op.ILIKE):
-        # Multi-pattern like/ilike is an OR of repeated predicates (RFC 0015
+        # Multi-pattern like/ilike is an OR of repeated predicates (S-0032
         # §5.1) — the renderer emits exactly that, so the prose says it
         # rather than hiding the disjunction behind a value list.
         return " OR ".join(f"{resolved_name} {op.value} {_scalar(v)}" for v in values)
@@ -250,7 +250,7 @@ def _human_predicate(predicate: Predicate, resolved_name: str) -> str:
 
 def _human_clause(clause: Clause, resolutions: tuple[ResolvedDimension, ...]) -> str:
     """One clause as prose — always built from the ``Clause`` objects, never
-    by parsing rendered SQL (RFC 0015 D11); an ``AnyOf`` group joins its
+    by parsing rendered SQL (S-0032/D-11); an ``AnyOf`` group joins its
     members with `` OR ``."""
     rendered = tuple(
         _human_predicate(predicate, resolved.name)
@@ -268,7 +268,7 @@ def composed_clauses(request: MetricRequest) -> tuple[str, ...]:
     A branch renders a clause under its own mart's spelling of the dimension —
     `tier` on one mart, `customer_tier` on another — and the composed answer
     applied one filter rather than one per branch. The requested name is the
-    spelling every branch agreed to (RFC 0041 D12), so it is the one the
+    spelling every branch agreed to (S-0055/D-12), so it is the one the
     explanation says.
     """
 
@@ -288,10 +288,10 @@ def composed_clauses(request: MetricRequest) -> tuple[str, ...]:
 
 
 def composed_measure(metric: MetricIR) -> MeasureExplanation:
-    """How a metric computed above the join was computed (RFC 0041 D3).
+    """How a metric computed above the join was computed (S-0055/D-3).
 
     It is not any branch's measure, so no branch's explanation carries it —
-    and both shapes reaching here, a ratio and an RFC 0034 ``derived:``
+    and both shapes reaching here, a ratio and an S-0050 ``derived:``
     metric, explain from their own decomposition rather than from a mart.
     """
 
@@ -316,7 +316,7 @@ def applied_predicates(
     read as a list, a metric's own restriction rides that measure's note, and
     the policy is a boolean, because a rendered policy value in a provenance
     block shown to the requester would disclose the scoping it enforces
-    (RFC 0013 D9). A :class:`~bloomery.semantic.SemanticPlan` has the opposite
+    (S-0030/D-9). A :class:`~bloomery.semantic.SemanticPlan` has the opposite
     obligation: it is lowered, not shown, and a plan naming only the request's
     filters is one a target lowers into a broader answer than the SQL beside
     it (logs/T-0021.md, D-125).
@@ -360,7 +360,7 @@ def shared_predicates(
     filter and a metric's own filter can render to the same text, and the
     subtraction then removed a predicate that really does restrict everything —
     leaving a plan saying one measure was narrowed while the SQL narrowed all
-    of them (RFC 0066 §5.5).
+    of them (S-0071/per-measure-restriction).
     """
 
     policy_predicate: tuple[str, ...] = ()
@@ -385,7 +385,7 @@ def metric_restrictions(name: str, metrics_by_name: Mapping[str, MetricIR]) -> t
     Named separately because a metric's restriction narrows *that measure*, and
     :func:`applied_predicates` flattens every metric's into one list — correct
     for the query, which applies them all, and lossy for a plan, which has to
-    say which measure each one narrows (RFC 0066 §5.5).
+    say which measure each one narrows (S-0071/per-measure-restriction).
     """
 
     metric = metrics_by_name.get(name)
@@ -446,7 +446,7 @@ def merge(
     filters: tuple[str, ...] = (),
     policy_applied: bool = False,
 ) -> Explanation:
-    """One explanation for a composed plan, from its branches' (RFC 0041 D15).
+    """One explanation for a composed plan, from its branches' (S-0055/D-15).
 
     ``measures`` come back in **request** order rather than branch order: the
     branches were sorted by mart name so the SQL is deterministic, and a
@@ -458,7 +458,7 @@ def merge(
     names all of them.
 
     ``computed`` carries the metrics no branch produced because the composed
-    statement computes them above the join (RFC 0041 D3) — they answer to a
+    statement computes them above the join (S-0055/D-3) — they answer to a
     requested name that appears in no part's measures. ``filters`` arrives
     already rendered under the requested spellings rather than any branch's
     (:func:`composed_clauses`), because one filter reached every branch and

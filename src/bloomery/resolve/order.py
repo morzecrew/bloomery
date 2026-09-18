@@ -1,4 +1,4 @@
-"""Cycle detection and the topological emission order (RFC 0005 §5.4).
+"""Cycle detection and the topological emission order (S-0022/cycles-and-ordering-bloomery-resolve-order-py).
 
 Emission order is Kahn's algorithm over a sorted ready-heap — ties broken
 lexicographically by node name, never by set iteration. This is the package's
@@ -7,7 +7,7 @@ once and every consumer takes the order from ``Resolution``.
 
 Any cycle raises :class:`~bloomery.errors.CircularDerivation` naming the full
 cycle path, rotated to start at the lexicographically smallest node so the
-same cycle always prints identically (RFC 0005 D4).
+same cycle always prints identically (S-0022/D-4).
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ __all__ = [
 #: a kind prefix as every other kind already has, which would remove the
 #: collision rather than accommodate it. It is the better shape and it is not
 #: this change: those ids are printed by ``bloomery lineage``, pinned by tests,
-#: and rendered into ``CircularDerivation`` messages (RFC 0005 §9), so it moves
+#: and rendered into ``CircularDerivation`` messages (S-0022/risks), so it moves
 #: a published spelling and belongs in a change that says so on the tin.
 _NodeKey = tuple[str, str]
 
@@ -93,7 +93,7 @@ def _find_cycle(
 
 
 def toposort(graph: Graph) -> tuple[Node, ...]:
-    """The deterministic topological order of the DAG (RFC 0005 D5)."""
+    """The deterministic topological order of the DAG (S-0022/D-5)."""
     by_key = {_key(node): node for node in graph.nodes}
     indegree = dict.fromkeys(by_key, 0)
     successors: dict[_NodeKey, list[_NodeKey]] = {key: [] for key in by_key}
@@ -122,7 +122,7 @@ def toposort(graph: Graph) -> tuple[Node, ...]:
         remaining = {key for key, degree in indegree.items() if degree > 0}
         cycle = _find_cycle(remaining, predecessors)
         # Names alone, not keys: the message is a lineage path a reader retypes,
-        # and RFC 0005 D4 pins its rendering. Two colliding ids print the same
+        # and S-0022/D-4 pins its rendering. Two colliding ids print the same
         # name here, which is the honest rendering of a project in which they
         # *are* the same id.
         rendered = " → ".join([name for name, _kind in [*cycle, cycle[0]]])

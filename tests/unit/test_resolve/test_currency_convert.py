@@ -1,4 +1,4 @@
-"""What `convert` refuses at resolve time (RFC 0023 §5.4).
+"""What `convert` refuses at resolve time (S-0040/phase-2-currency-as-a-declared-relation).
 
 Every one of these is a detection branch — code that runs only when the bug it
 detects is present — so none of them is exercised by the feature working. They
@@ -56,7 +56,7 @@ def test_the_fixture_builds_as_written() -> None:
 
 
 # ....................... #
-# The declared input (RFC 0061 D1, D3) — R009 read through resolution
+# The declared input (S-0066/D-1, S-0066/D-3) — R009 read through resolution
 
 
 def _declare(currency_in: str | None, step: str = STEP) -> None:
@@ -115,7 +115,7 @@ def test_a_disagreement_is_not_reported_as_an_undeclared_input() -> None:
 def test_a_two_hop_chain_through_a_bridge_currency_builds() -> None:
     """Refused before this change, and correct: `EUR -> CHF -> USD` ends in the
     currency the catalog declares, and bridging through a major currency is how
-    minor pairs convert (RFC 0061 D3).
+    minor pairs convert (S-0066/D-3).
 
     The `to`-side check used to run per marker, so it failed on the
     intermediate `CHF` with a message written for a single conversion.
@@ -134,7 +134,7 @@ def test_a_two_hop_chain_whose_middle_disagrees_is_refused() -> None:
 
 
 def test_a_column_the_catalog_gives_no_currency_converts_freely() -> None:
-    """RFC 0061 checks the *input*; the output is the catalog's business and
+    """S-0066 checks the *input*; the output is the catalog's business and
     the catalog may decline to have an opinion.
 
     `_declared_currency` returns None for both "no catalog" and "no currency
@@ -154,7 +154,7 @@ def test_a_column_the_catalog_gives_no_currency_converts_freely() -> None:
 
 
 # ....................... #
-# A key column converts too (RFC 0061 D1; logs/T-0025.md, D-158)
+# A key column converts too (S-0066/D-1; logs/T-0025.md, D-158)
 
 
 def _key_converts(key_line: str) -> None:
@@ -413,7 +413,7 @@ def test_the_anchor_is_bound_in_the_emitted_sql_not_left_as_a_name() -> None:
 
 
 # ....................... #
-# Per-row denomination (RFC 0061 §5.1 shape 3, P2 — logs/T-0052.md)
+# Per-row denomination (S-0066/the-input-currency-is-one-of-three-things shape 3, P2 — logs/T-0052.md)
 
 PER_ROW = "currency_convert_per_row"
 

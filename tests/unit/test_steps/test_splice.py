@@ -1,4 +1,4 @@
-"""Tier 1 splicing (RFC 0017 §5.1, D50).
+"""Tier 1 splicing (S-0034/the-four-tier-ladder, S-0034/D-50).
 
 The substitution itself, isolated from the call sites that use it. Both
 properties asserted here are what make Tier 1 "free at runtime": the result is
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.unit
 
 def test_a_macro_splices_its_arguments() -> None:
     """An AST substitution, not string interpolation — which is what keeps the
-    splice inside the SQLGlot-only discipline (RFC 0004 D7) and lets the model
+    splice inside the SQLGlot-only discipline (S-0021/D-7) and lets the model
     stay one query."""
     spliced = splice(parse_one("LOWER(:col)"), {"col": exp.column("email")})
     assert spliced.sql() == "LOWER(email)"

@@ -34,7 +34,7 @@
           ]
         }
       ],
-      "description": "What a project publishes, grouped by kind (RFC 0059 \u00a75.1).",
+      "description": "What a project publishes, grouped by kind (S-0002 (\u00a75.1)).",
       "properties": {
         "entities": {
           "default": [],
@@ -68,7 +68,7 @@
   "$id": "https://morzecrew.github.io/bloomery/schemas/v1/exports.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "The per-project exports document (``exports_version``), at most one per\nproject (RFC 0059 \u00a75.1).",
+  "description": "The per-project exports document (``exports_version``), at most one per\nproject (S-0002 (\u00a75.1)).",
   "properties": {
     "exports": {
       "$ref": "#/$defs/Exports"

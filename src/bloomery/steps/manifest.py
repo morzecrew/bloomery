@@ -1,4 +1,4 @@
-"""The step manifest: what a platform step declares about itself (RFC 0017
+"""The step manifest: what a platform step declares about itself (S-0034
 §5.2, D2).
 
 A manifest is **not** an authored spec. It is written by the platform team beside
@@ -128,14 +128,14 @@ class StepOutput(SpecModel):
     key: tuple[str, ...] = Field(min_length=1)
     produces: dict[str, StepProduces] = Field(min_length=1)
     #: Columns of *this* output that reference a sibling output's key, as
-    #: ``{column: sibling_output}`` (RFC 0017 §5.8, D16).
+    #: ``{column: sibling_output}`` (S-0034/emission-and-the-dag, S-0034/D-16).
     #:
     #: **Declared, never inferred.** The obvious shortcut is to notice that one
     #: output happens to carry another's key columns and assume a reference —
     #: which fabricates a relationship from a coincidence. Two outputs both
     #: keyed ``id`` would get a mutual pair of blocking audits asserting their
     #: id sets are *identical*, failing every run on correct data. Guessing a
-    #: relationship nobody declared is precisely what RFC 0006 exists to
+    #: relationship nobody declared is precisely what S-0023 exists to
     #: refuse, and it does not become acceptable because the guess is cheap.
     references: dict[str, str] = Field(default_factory=dict[str, str])
 
@@ -185,7 +185,7 @@ class StepParameter(SpecModel):
     Bounds are declared here and enforced at compile against the authored
     wiring, so a parameter out of range is a spec error rather than a run-time
     surprise inside somebody's Python. ``min``/``max`` apply to numeric
-    parameters only; they are ``Decimal``, never ``float`` (RFC 0003 D5).
+    parameters only; they are ``Decimal``, never ``float`` (S-0020/D-5).
     """
 
     type: ParameterTypeString
@@ -298,7 +298,7 @@ class StepManifest(SpecModel):
         if self.kind == "python_model" and self.entrypoint is None:
             msg = (
                 "a python_model step needs an entrypoint ('package.module:function') — "
-                "it is what the generated wrapper imports at run time (RFC 0017 D13)"
+                "it is what the generated wrapper imports at run time (S-0034/D-13)"
             )
             raise ValueError(msg)
 

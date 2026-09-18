@@ -1,4 +1,4 @@
-"""``gold.mart_data_quality`` and the reconcile artifacts (RFC 0016 §5.3,
+"""``gold.mart_data_quality`` and the reconcile artifacts (S-0033/spec-schema,
 §5.8).
 
 The claim under test is "an **ordinary** semantic model": the same gold
@@ -44,7 +44,7 @@ pytestmark = pytest.mark.unit
 
 FIXTURE = "semi_additive_inventory"
 
-#: RFC 0016 §5.8's schema, plus the ``run`` date role's buckets (RFC 0010 D9 —
+#: S-0033/the-quality-mart's schema, plus the ``run`` date role's buckets (S-0027/D-9 —
 #: a measure-carrying mart declares a date role, and this one is no exception).
 EXPECTED_COLUMNS = (
     "disposition",
@@ -91,7 +91,7 @@ def test_the_emitted_select_projects_exactly_those_columns() -> None:
 
 
 def test_the_schema_carries_no_per_customer_scoping_column() -> None:
-    """The RFC 0016 §5.8 divergence from Document 5 §7.5: namespace scoping via
+    """The S-0033/the-quality-mart divergence from Document 5 §7.5: namespace scoping via
     ``NamingPolicy`` is the only seam of that shape in the package (hard
     invariant #3), so the mart gets a namespace, never a column."""
     forbidden = {"tenant", "tenant_id", "customer_id", "account_id", "org_id"}
@@ -168,7 +168,7 @@ def test_no_clock_reaches_the_emitted_sql() -> None:
 def test_dbt_emits_the_quality_mart_with_its_own_run_context() -> None:
     """The refusal was true while dbt built neither the reject tables nor the
     reconcile models this mart counts over — a mart of zeroes is the silent
-    degradation RFC 0008 D3 exists to prevent. It builds both now, so RFC 0052
+    degradation S-0025/D-3 exists to prevent. It builds both now, so S-0060
     D7 deletes the refusal rather than narrowing it.
 
     `run_id` and `run_date` are engine-side expressions, never values bloomery
@@ -182,7 +182,7 @@ def test_dbt_emits_the_quality_mart_with_its_own_run_context() -> None:
     assert "{{ invocation_id }}" in content
     assert '{{ run_started_at.strftime("%Y-%m-%d") }}' in content
     # The relations it counts over are `ref()`s, not literal `silver.<name>`
-    # (RFC 0008 D20). A literal has no dependency edge for dbt to order by and
+    # (S-0025/D-20). A literal has no dependency edge for dbt to order by and
     # names a schema the model was not materialized into — the build tier found
     # exactly that here, and it is invisible to a golden that only reads bytes
     # nobody resolves.
@@ -219,7 +219,7 @@ def test_the_rate_is_a_ratio_of_two_additive_measures() -> None:
 
 
 def test_reject_tables_are_not_exposed_through_metric_requests() -> None:
-    """RFC 0016 §7.4: raw payloads under their own retention, a deliberately
+    """S-0033/docs (§7.4): raw payloads under their own retention, a deliberately
     narrow operator surface. Counts *about* them are semantic; the rows are
     not."""
     ir = fixture_ir(FIXTURE)
@@ -283,7 +283,7 @@ def test_the_reconcile_model_compares_both_sides_within_tolerance() -> None:
     assert keys.args["distinct"] is True
     assert [join.side for join in select.find_all(exp.Join)] == ["LEFT", "LEFT"]
     # The tolerance reaches SQL as a numeric literal — floats never enter an
-    # emission path (RFC 0003 D5).
+    # emission path (S-0020/D-5).
     assert "<= 0.01" in body
     assert select.find(exp.Sum) is not None
 

@@ -1,4 +1,4 @@
-"""What `zone_in:` is cross-checked against at resolve time (RFC 0074 §5.2).
+"""What `zone_in:` is cross-checked against at resolve time (S-0076/zonein-is-how-a-utc-source-says-so).
 
 The key is a declaration, and P1 checks only what one field says about *itself*:
 a zone on something that is not an instant, a zone that disagrees with the
@@ -174,7 +174,7 @@ def test_a_zone_on_a_column_that_is_not_an_instant_is_refused() -> None:
 
 
 # ....................... #
-# The chain this cannot read (RFC 0017 D51)
+# The chain this cannot read (S-0034/D-51)
 
 
 MACRO_ENTITY_MODEL = """

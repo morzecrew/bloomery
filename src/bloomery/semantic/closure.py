@@ -1,5 +1,5 @@
 """The dependency set, its closure, and the rollup question
-(RFC 0037 §5.2, §5.4, §5.8).
+(S-0017 (§5.2), S-0017 (§5.4), S-0017 (§5.8)).
 
 Three functions, each a pure operation over :class:`~bloomery.ir.ProjectIR`:
 
@@ -68,7 +68,7 @@ __all__ = [
 #: How many derivations a closure member keeps. Two is enough to *establish*
 #: that a path is ambiguous, which is all §9 asks the vocabulary to
 #: distinguish; enumerating every route is a proof-tree question and belongs
-#: to RFC 0039.
+#: to S-0005.
 #:
 #: **Public because a consumer has to reason about the truncation**, not only
 #: about the routes that survive it. A member holding this many derivations may
@@ -94,7 +94,7 @@ def _entity_grain(entity: EntityIR) -> GrainRef | None:
       business key selects a *set* of versions. This is the same fact
       :class:`~bloomery.errors.HistoricalFanout` refuses on a mart's base
       entity, read here about the entity rather than about a join onto it
-      (RFC 0037 §5.3, D4). A historical row is reached by an anchored hop, in
+      (S-0017 (§5.3), S-0017/D-4). A historical row is reached by an anchored hop, in
       :func:`dependencies`, and by nothing else.
     """
     if not entity.key or entity.scd is SCDKind.TYPE2:
@@ -224,7 +224,7 @@ def dependencies(
         # edges of one relationship that block for different reasons — a
         # one_to_one is read both ways, and the anchor that qualifies one
         # direction names no column on the other — tie on the key and come out
-        # in `set` iteration order, which is hash-seed order (RFC 0003).
+        # in `set` iteration order, which is hash-seed order (S-0020).
         blocked=tuple(sorted(set(blocked), key=_blocked_sort_key)),
     )
 
@@ -292,7 +292,7 @@ def _blocked_by(state: AsOfState) -> RefusalReason:
 def _blocked_sort_key(edge: BlockedEdge) -> tuple[str, ...]:
     """Every field of the node, because the collection it orders was
     deduplicated through a ``set``: a key that leaves one out lets two edges
-    tie, and a tie under ``set`` iteration is hash-seed order (RFC 0003)."""
+    tie, and a tie under ``set`` iteration is hash-seed order (S-0020)."""
 
     return (edge.relationship, edge.reason, edge.state or "")
 
@@ -342,8 +342,8 @@ def _compose(parts: tuple[Derivation, ...], dep: FunctionalDependency) -> Deriva
     """One derivation for ``dep`` firing on determinants reached by ``parts``.
 
     The proof is a DAG; ``steps`` is a topological linearization of it, in
-    fire order and deduplicated. RFC 0039 is where a tree-shaped proof lives —
-    what this owes RFC 0037 D6 is *a* derivation per member, never a boolean.
+    fire order and deduplicated. S-0005 is where a tree-shaped proof lives —
+    what this owes S-0017/D-6 is *a* derivation per member, never a boolean.
     """
     steps: list[FunctionalDependency] = []
     for part in parts:
@@ -359,7 +359,7 @@ def _compose(parts: tuple[Derivation, ...], dep: FunctionalDependency) -> Deriva
 
 def closure(grain: GrainRef, deps: DependencySet) -> tuple[Determined, ...]:
     """What ``grain`` determines, sorted by reference, each with its
-    derivations (RFC 0037 §5.8).
+    derivations (S-0017 (§5.8)).
 
     The origin's own determinants are members with an empty derivation: they
     are the grain, and a grain is not argued for. Everything else carries the
@@ -427,7 +427,7 @@ def can_roll_up(
     context: RollupContext = NO_CONTEXT,
 ) -> RollupProof | RollupRefusal:
     """Whether values originating at ``source`` may be aggregated to
-    ``target`` (RFC 0037 §5.4).
+    ``target`` (S-0017 (§5.4)).
 
     Directional by construction: the question is whether ``source`` *
     determines* every determinant of ``target``, so swapping the arguments
@@ -593,7 +593,7 @@ def _diagnose(
 
 
 # ----------------------- #
-# The same answer, as a proof (RFC 0039 §8)
+# The same answer, as a proof (S-0005 (§8))
 
 
 #: What to do about each refusal, where the compiler knows. A reason with no
@@ -680,7 +680,7 @@ def _determined_proof(determined: Determined) -> Proof:
     The *first* derivation, not all of them: a member reached by two different
     joins is :attr:`Determined.ambiguous` and ``can_roll_up`` has already
     refused it, so anything arriving here has one reading. Derivations are
-    canonically ordered upstream, so "first" is deterministic (RFC 0003).
+    canonically ordered upstream, so "first" is deterministic (S-0020).
 
     Three shapes, and the middle one is why this is not a loop over steps:
 
@@ -727,7 +727,7 @@ def prove_rollup(
     project: ProjectIR,
     context: RollupContext = NO_CONTEXT,
 ) -> Proof | Refutation:
-    """:func:`can_roll_up`'s answer, expressed in RFC 0039's vocabulary.
+    """:func:`can_roll_up`'s answer, expressed in S-0005's vocabulary.
 
     Expressed rather than replaced (D3, `LOCKED`): ``can_roll_up`` stays the
     decision and this is a second reading of it, so the two cannot disagree

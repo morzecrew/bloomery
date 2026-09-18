@@ -44,14 +44,14 @@ same query re-run next month is wrong by a different amount.
 ## The semantic failure mode
 
 **Unit erasure.** The unit is metadata the warehouse dropped, so a check that only reads
-types cannot see the mismatch. This is the case that makes RFC 0038 D3's point: units have
+types cannot see the mismatch. This is the case that makes S-0053/D-3's point: units have
 to participate in type checking, or the only place a currency exists is the column name.
 
 ## Expected bloomery behaviour
 
 | Expectation | Spec | Outcome | Owner |
 | --- | --- | --- | --- |
-| **mixed** | `amount_eur + fee_usd`, no rate relation | refused | `CurrencyMismatch`, RFC 0006 D4 |
+| **mixed** | `amount_eur + fee_usd`, no rate relation | refused | `CurrencyMismatch`, S-0023/D-4 |
 | **converted** | `currency_in: EUR` with `convert: [EUR, USD, paid_at]`, `fx_rates:` declared | accepted | R009 |
 | **mislabelled** | `currency_in: EUR` with `convert: [JPY, USD, paid_at]` | refused | `ResolutionError`, R009 |
 
@@ -65,6 +65,6 @@ That distinction is why this case is `refused` today rather than `unguarded`.
 same euros with the yen rate: every cast succeeds, the rate relation has the row asked for,
 and the answer is wrong by whatever JPY→USD and EUR→USD differ by. It is the same failure
 this case is about — a denomination nothing checked — moved from the arithmetic to the
-conversion, and until RFC 0061 it compiled clean. What admits `converted` and refuses
+conversion, and until S-0066 it compiled clean. What admits `converted` and refuses
 `mislabelled` is one rule, R009: a conversion's input currency is declared, or produced by
 the step before it.

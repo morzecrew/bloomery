@@ -82,7 +82,7 @@ BloomeryError
 |---|---|---|
 | `BloomeryError` | — | Base class; carries `message`, `source_path`, and `collected` |
 | `InvariantViolated` | any | A guarantee an earlier stage was supposed to have established did not hold — never an authored spec's fault, and never spec feedback. Every total lookup that raises it is total *because* a guardrail already refused the case, so seeing one is a bug report |
-| `StepError` | steps | Base of the referenced-implementation family (RFC 0017) |
+| `StepError` | steps | Base of the referenced-implementation family (S-0034) |
 | `StepDeterminismError` | steps (compile) | A step declaring `determinism: nondeterministic`, or a `seeded` step wired without a seed — a nondeterministic step makes a backfill disagree with the run it replaces |
 | `StepContractViolation` | steps (**run time**) | Raised by the wrapper bloomery generates *into your warehouse*: the step's actual output contradicts its manifest — a missing or undeclared output, a differing column set, an unassignable type, or a NULL in a required column. The one error here a reader meets outside a compile |
 | `SpecParseError` | parse | YAML failures, duplicate keys, unknown keys, shape/grammar violations — including an `expr:` that is not parseable SQL — batched per document |
@@ -137,7 +137,7 @@ BloomeryError
 | `AmbiguousDimension` | planner | An unqualified reference to a dimension with multiple roles; message names the roles |
 | `InvalidRequest` | planner | Bad filter/order/limit shapes, duplicates, malformed filter documents |
 | `FilterTypeMismatch` | planner | A filter value whose type contradicts the dimension's logical type — refused before any SQL renders |
-| `UnsupportedFilter` | planner | Base of the closed query-vocabulary refusal family (RFC 0015): every leaf carries a stable `.reason` code and, where the refusal happens after normalization, `.normalized` — the post-normalization form |
+| `UnsupportedFilter` | planner | Base of the closed query-vocabulary refusal family (S-0032): every leaf carries a stable `.reason` code and, where the refusal happens after normalization, `.normalized` — the post-normalization form |
 | `UnsupportedSetRelation` | planner | `$superset`/`$subset`/`$disjoint`/`$overlaps` — marts are flattened and scalar; no array columns exist to relate |
 | `UnsupportedHierarchy` | planner | `$descendant_of`/`$ancestor_of` — model hierarchy as flattened level columns on the mart |
 | `UnsupportedTextOperator` | planner | `$regex` (dialect-divergent, unbounded cost) and `$empty` (ambiguous across types) — use `like`/`ilike`, `eq ""`, or `is_null true` |
@@ -169,12 +169,12 @@ addressed message inside the same batched aggregate:
 | Reconcile grammar and resolution | A side outside the closed shape, an undeclared entity, an unknown column, sides keyed on different columns, or a duplicate check name |
 | Freshness with no ingestion contract | A `freshness:` block on a mapping whose target entity declares neither `quarantine:` nor `dedupe:` — only those make `_ingested_at` mandatory, so the emitted `loaded_at_field` would name a column that may not exist and the check would error at run time on a project that compiled clean |
 | Freshness thresholds that disagree | Two mappings giving one bronze relation different `freshness:` thresholds, named on both sides — `sources.yml` holds one entry per relation, so one would be silently dropped. Equal thresholds collapse, and a mapping that declares none is making no statement about the relation rather than disagreeing |
-| `seeds:` | A key that exists in order to be refused, permanently. A seed is a table of data in your repository and bloomery reads no files while compiling (RFC 0003), so the rows would have to live in a spec — which would make the spec a data file. The message says "refused, not missing", because an author told only that a key is unknown expects it in a later release |
+| `seeds:` | A key that exists in order to be refused, permanently. A seed is a table of data in your repository and bloomery reads no files while compiling (S-0020), so the rows would have to live in a spec — which would make the spec a data file. The message says "refused, not missing", because an author told only that a key is unknown expects it in a later release |
 | Reserved metric name | A project metric colliding with one the quality mart owns (`quality_rows_evaluated`, `quality_rows_failed`, `quality_rows_quarantined`, `quality_rows_deduped`, `quality_quarantine_rate`) — one flat namespace, and two definitions of one name is a silent winner, not a merge |
 
 Data-quality refusals also happen at emit time rather than compile time, and those are
 `UnsupportedByTarget`. Two are about the *dialect*, both on an absent NULL-on-failure
-cast: an entity with `coercible` rules (RFC 0016 D30), and — because the
+cast: an entity with `coercible` rules (S-0033/D-30), and — because the
 ingestion-metadata audit asserts `_ingested_at` casts to timestamp, which is a
 `TRY_CAST` of its own — a **dedupe-only** entity too, even though it carries no quality
 rules at all (D31). A third is about an absent Unicode normalization (D86). **None of
@@ -197,7 +197,7 @@ lowers. All of them name the target or dialect that does support the construct.
 
 ## The closed refusal list
 
-The `UnsupportedFilter` family is a **closed, reviewed list** (RFC 0015), not drift:
+The `UnsupportedFilter` family is a **closed, reviewed list** (S-0032), not drift:
 every construct the query vocabulary cannot express was refused deliberately, with a
 named error and a rationale. The stable `.reason` codes raisable by bloomery's three
 parse functions (`parse_filter_json`, `parse_sort_json`, `parse_page_json`) are

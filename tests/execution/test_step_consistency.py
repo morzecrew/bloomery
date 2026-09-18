@@ -1,4 +1,4 @@
-"""The cross-output consistency audit, executed (RFC 0017 §5.8, D16).
+"""The cross-output consistency audit, executed (S-0034/emission-and-the-dag, S-0034/D-16).
 
 D16 accepts a real residual risk in exchange for one wrapper per output: the
 step runs N times, and a step *misdeclared* as `pure` can produce disagreeing
@@ -69,7 +69,7 @@ def test_the_audit_passes_on_a_consistent_run() -> None:
 
 
 def test_a_null_reference_is_not_an_orphan() -> None:
-    """RFC 0016's three-valued discipline: a row with no key value says
+    """S-0033's three-valued discipline: a row with no key value says
     nothing, and failing a blocking audit on it would punish the ordinary
     case. Both runs above carry a NULL `canonical_id`; neither reports it."""
     assert not any(row[0] is None for row in _run(DISAGREEING))

@@ -1,8 +1,8 @@
-"""e2e (RFC 0009 §5.2): the quality artifacts dbt refused until RFC 0052 —
+"""e2e (S-0026/tier-contracts): the quality artifacts dbt refused until S-0060 —
 the reject table, its replay macro and the quality mart — **executed**, not
 parsed.
 
-This tier exists because the two things RFC 0052 §9 names as risks are both
+This tier exists because the two things S-0060/risks names as risks are both
 invisible to everything cheaper. The reject model's ``{% if is_incremental() %}``
 arm does not run on a first build, so a green ``dbt build`` proves the branch
 nobody reads; and ``ref()`` inside a ``run-operation`` macro is a claim about
@@ -185,7 +185,7 @@ def test_the_first_build_quarantines_the_row_that_fails_a_rule(
 def test_a_re_delivery_keeps_first_seen_and_advances_last_seen(
     built: tuple[pathlib.Path, pathlib.Path],
 ) -> None:
-    """RFC 0052 D1, and the reason §6 makes *two* builds a requirement.
+    """S-0060/D-1, and the reason §6 makes *two* builds a requirement.
 
     The first build takes the ``{% else %}`` arm, so a green single build says
     nothing about the branch that preserves anything. Here the same source row
@@ -230,10 +230,10 @@ def test_a_re_delivery_keeps_first_seen_and_advances_last_seen(
 def test_replay_admits_a_row_the_widened_spec_now_accepts(
     built: tuple[pathlib.Path, pathlib.Path],
 ) -> None:
-    """RFC 0052 D3/D14, executed — and executed against replay's **actual** job.
+    """S-0060/D-3, S-0060/D-14, executed — and executed against replay's **actual** job.
 
     Replay re-runs the current mapping over the ``raw`` payload each reject row
-    stores (RFC 0016 §5.6). It is not what admits a row a corrected *delivery*
+    stores (S-0033/quarantine-one-reject-table-per-entity). It is not what admits a row a corrected *delivery*
     fixes: a corrected delivery is re-read by the entity model on the next run,
     so asserting on the entity afterwards credits replay for the rebuild's
     work. It is what admits a row the **spec** now accepts, without re-reading
@@ -284,7 +284,7 @@ def test_replay_admits_a_row_the_widened_spec_now_accepts(
 def test_a_full_refresh_loses_resolved_reject_history(
     built: tuple[pathlib.Path, pathlib.Path],
 ) -> None:
-    """RFC 0052 D13, asserted rather than prevented.
+    """S-0060/D-13, asserted rather than prevented.
 
     ``--full-refresh`` drops the relation and takes the ``{% else %}`` arm,
     whose SELECT sees only currently-quarantined rows — so a row that replay
@@ -311,7 +311,7 @@ def test_a_full_refresh_loses_resolved_reject_history(
 
 
 def test_the_two_targets_reject_tables_agree_row_for_row(tmp_path: pathlib.Path) -> None:
-    """RFC 0052 D12 — the leg that turns per-artifact parity into a claim about
+    """S-0060/D-12 — the leg that turns per-artifact parity into a claim about
     the rows.
 
     Per-artifact goldens cannot make it: the two targets emit different bytes on
@@ -319,7 +319,7 @@ def test_the_two_targets_reject_tables_agree_row_for_row(tmp_path: pathlib.Path)
     And the mechanisms genuinely differ — SQLMesh preserves `first_seen` in a
     `when_matched` clause the engine applies during a merge, dbt resolves it in
     the model's own projection and lets the write replace a whole row. Two
-    designs for one sentence in RFC 0016 §5.6; this is what checks they say it.
+    designs for one sentence in S-0033/quarantine-one-reject-table-per-entity; this is what checks they say it.
 
     **One bronze, copied rather than seeded twice.** The seed runs once and the
     file is duplicated, so the inputs are byte-identical by construction — two
@@ -400,7 +400,7 @@ def test_the_two_targets_reject_tables_agree_row_for_row(tmp_path: pathlib.Path)
 
 
 # ....................... #
-# Declared source freshness (RFC 0057 §6)
+# Declared source freshness (S-0064/tests)
 
 
 def test_the_emitted_threshold_is_one_dbt_can_actually_run(tmp_path: pathlib.Path) -> None:

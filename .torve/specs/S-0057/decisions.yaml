@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      **P1 requires no dbt, no SQLMesh, no credentials, no network and no emission.**
+      It is what makes the command usable in pre-commit and on an untrusted CI runner,
+      and every one of those dependencies is easy to acquire accidentally and hard
+      to remove afterwards. The compiler is already pure under S-0020; this keeps
+      the command honest to that.
+    paths: [src/bloomery/evidence.py, src/bloomery/semantic/rollup.py]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **Only `Declared`, `Derived`
+      and narrowly specified `ImportedVerified` facts close a proof obligation.**
+      `InferredHeuristic` produces advisories and never acceptance. This is S-0005/D-1
+      restated at the import boundary, which is the one place where relaxing it would
+      be most tempting and least visible — a foreign artifact is exactly where a guessed
+      default enters wearing a fact's clothes.
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      **No importer converts absence into a guessed default that strengthens semantics.**
+      The dangerous direction is specific: a missing additivity becoming `Additive`,
+      a missing grain becoming the entity's. Silence in a foreign artifact means unknown,
+      and unknown is not safe.
+    paths: [src/bloomery/errors.py, src/bloomery/imports.py]
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      **A conflict between an imported and a declared fact refuses, naming both provenances.**
+      Neither side wins by default — "declared is more true" is the rule that looks
+      obvious and quietly overwrites a mechanically verified fact with an authored
+      guess. A contradiction is a finding about the model, not a merge to resolve.
+    paths: [tests/unit/test_cli.py, tests/unit/test_imports.py]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **Counts report surfaces actually checked, never totals that imply unproven
+      coverage.** A green `check` must not read as "every future query is safe", which
+      is precisely what a large round number invites. Not `LOCKED` because the right
+      *set* of categories is a presentation question execution may adjust.
+    paths:
+      - src/bloomery/evidence.py
+      - tests/unit/test_cli.py
+      - tests/unit/test_evidence.py
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      **Machine-readable output is mandatory and its refusal codes align with S-0005's
+      rule IDs.** One vocabulary for the CLI, the proof IR and the corpus, or the
+      three drift and CI asserts on the weakest of them.
+    paths: [tests/unit/test_cli.py]
+  - id: D-7
+    grade: OPEN
+    text: >-
+      **Whether `check` is a new command or `resolve` gaining an exit-code contract.**
+      The surfaces overlap substantially and two near-identical commands is its own
+      defect; so is overloading a command whose current output people already parse.
+      Decide it against what `resolve` actually prints today, and log the decision.
+    paths: [src/bloomery/cli/__init__.py, src/bloomery/cli/render.py]
+  - id: D-8
+    grade: OPEN
+    text: >-
+      **What the "obligations proven" count means before a planner exists.** Until
+      S-0054 lands there is no request surface to count against, and a number nobody
+      can reproduce is the vanity total D5 refuses. Either define the pre-planner
+      denominator or omit the line until there is one.

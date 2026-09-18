@@ -1,0 +1,171 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0056
+title: Production-style semantic bug corpus
+kind: design
+status: accepted
+implementation: complete
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+motivation: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+current_state: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+goals: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+non_goals: >-
+  _Stated with the goals above; the RFC did not separate them._
+design:
+  - key: inclusion-rule
+    md: |-
+      A case belongs in the semantic bug corpus when:
+
+      > Ordinary syntax, type, and basic schema validation can pass while a plausible query still
+      > returns the wrong business answer because declared semantics were not preserved.
+
+      The corpus is not a replacement for parser tests, null tests, uniqueness tests, or ordinary
+      warehouse data-quality fixtures.
+  - key: why-this-is-not-the-dirty-corpus
+    md: |-
+      `tests/fixtures/dirty/` already exists and answers a different question. Its specimens are
+      *values that will not survive a cast* — `01/02/2025`, `0000-00-00`, a leap second — and
+      each one is either quarantined or passes. Every case there is about a value bloomery can
+      see is wrong.
+
+      This corpus is the opposite: every value is valid, every cast succeeds, the query runs, and
+      the number is wrong anyway. Sharing a directory with the dirty corpus would blur the one
+      distinction both exist to make, and a reader looking for "why was this row rejected" would
+      find cases where nothing was.
+
+      `fanout_trap` is the nearest existing fixture and is a single case; case 001 below is its
+      generalization.
+  - key: initial-case-set
+    md: |-
+      ```text
+      001-order-shipping-fanout/     006-distinct-users-fanout/
+      002-average-of-averages/       007-ratio-rollup/
+      003-scd2-unqualified-join/     008-null-denominator/
+      004-currency-mix/              009-many-to-many-bridge/
+      005-semi-additive-balance/     010-timezone-boundary/
+      ```
+
+      Additional cases require a short justification against §1.
+  - key: case-layout
+    md: |-
+      ```text
+      problem.md   schema/   data/   naive.sql   correct.sql   expected/   bloomery/
+      ```
+
+      `problem.md` states: the business question; declared semantic facts; the tempting naive
+      query; why that SQL is valid; the wrong result; the correct result; the semantic failure
+      mode; expected bloomery behaviour — refuse, or prove and plan; and **which proof rule or
+      guardrail owns the case**.
+
+      ### Minimal reproducibility
+
+      Fixtures must be tiny enough that a reviewer can calculate the correct result by hand.
+      Prefer 3–20 rows; scale benchmarks are separate. The failure must be deterministic and
+      independent of database query ordering.
+
+      ### Canonical example
+
+      ```text
+      orders:       order 1 shipping=10
+      order_items:  order 1 item A / item B / item C
+      ```
+
+      Naive joined sum: `30`. Correct shipping: `10`.
+
+      Expected bloomery behaviour is pinned separately for the unsafe wide-mart representation
+      (refuse), the safe order-level rollup query (prove), and the item-level shipping request
+      (refuse). **This case therefore survives the evolution from validator to planner**, which
+      is the property that makes it worth building before the planner exists.
+  - key: expected-artifacts
+    md: |-
+      ```text
+      expected/
+        result.json
+        semantic_outcome.json
+        proof.json            # when accepted
+        refusal.json          # when refused
+      ```
+
+      Only the relevant proof or refusal file is required. Stable semantic rule IDs are asserted;
+      unstable prose is golden-tested only where diagnostics are part of the public contract.
+  - key: engine-execution
+    md: |-
+      Where practical, execute both `naive.sql` and `correct.sql` against the project's existing
+      execution-tier fixture, demonstrating that the naive query is executable, that it returns a
+      plausible but wrong answer, and that the corrected semantic plan returns the expected one.
+      A case depending on a target-specific feature says so explicitly.
+  - key: sourcing-and-regression-policy
+    md: |-
+      Real incidents may be translated into synthetic fixtures, but the corpus must not contain
+      customer data or proprietary schemas. Each case may record an `origin` of `synthetic`,
+      `industry-pattern`, or `production-derived-anonymized`. No unverifiable marketing claim is
+      inferred from that label.
+
+      Every semantic correctness bug found after release should add a minimal corpus case before
+      or with the fix. A fix is incomplete if it only adds a unit test at the implementation
+      layer when the bug can be expressed end to end.
+  - key: corpus-as-design-gate
+    md: |-
+      A new proof rule identifies which corpus cases it converts from refusal to acceptance. A
+      rule that causes a previously refused unsafe case to become accepted must supply a new
+      correct result and proof, or the change fails review.
+tests: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+docs: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+out_of_scope: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+risks: >-
+  _The RFC carried no such section; converted from the retired corpus on 2026-09-18._
+sections:
+  - key: about
+    md: |-
+      - **Status:** 🚧 In progress — every name in §3's set now exists under
+        [`tests/fixtures/semantic_corpus/`](tests/fixtures/semantic_corpus/), with the loader,
+        its guard, and the execution tier that runs them. **The numbers drifted from §3's list and
+        the names did not**: 006 went to a case §3 never names, so `distinct-users-fanout` landed
+        as 007 and the last four as 008–011 (logs/T-0028.md, logs/T-0029.md). D7 is answered for
+        every case; all of them run in the default suite.
+        **It stays 🚧 rather than completing**, and not for want of cases: two of them are
+        `unguarded` and cite D5 as the decision a future rule converting them answers to, and
+        `test_a_retired_rfc_owns_no_unguarded_case` refuses a retired RFC in that position — so
+        the document is held open by the gate it wrote for itself (logs/T-0029.md).
+        Execution's findings and the rows it proposes are in
+        [`logs/T-0018.md`](logs/T-0018.md); nothing below has been amended to agree with what
+        was built. It had no upstream dependency, and it is what gives the rest of the
+        semantic-correctness sequence its acceptance evidence.
+      - **Scope:** A permanent corpus of cases where SQL and schema validation succeed while the
+        analytical answer is semantically wrong. Regression suite, design input, benchmark,
+        documentation source, and product evidence.
+      - **Related:** [`tests/fixtures/dirty/`](tests/fixtures/dirty/) — the existing
+        dirty-data corpus, which this deliberately does **not** extend (§2);
+        [`tests/fixtures/fanout_trap/`](tests/fixtures/fanout_trap/);
+        S-0026 (testing strategy and fixture corpus, retired), S-0033 (data quality,
+        retired).
+  - key: decision-notes
+    md: >-
+      _(Decision rows from here on are this document's D-1…; see `decisions.yaml`.)_
+  - key: phasing
+    md: |-
+      Cases 001–005 first: they are the ones RFCs 0037–0040 will be measured against, and 001
+      alone exercises all three of D4's expectations. The remaining five follow as the proof rules
+      that own them are designed.
+questions:
+  - id: Q-1
+    text: >-
+      **Which test tier runs it.** Execution (DuckDB) covers most; cases 003 and 010
+      may need the engine tier, which is Docker-gated and excluded from the default
+      suite.
+  - id: Q-2
+    text: >-
+      **Whether `bloomery/` holds specs or a recorded outcome**, which decides whether
+      a case breaks when unrelated spec syntax changes.

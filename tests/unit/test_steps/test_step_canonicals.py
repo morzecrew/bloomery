@@ -1,4 +1,4 @@
-"""Canonical links on step outputs (RFC 0017 D41/D49).
+"""Canonical links on step outputs (S-0034/D-41, S-0034/D-49).
 
 D36 claimed §5.8's "downstream mappings, marts, and metrics reference them
 like any silver entity" and only two thirds of it was true: marts worked,
@@ -53,7 +53,7 @@ metrics:
     grain: customer
     # `max` rather than `avg`: this fixture is about a metric reaching a step
     # output column, and an average declared additive is refused on its own
-    # account since RFC 0038 D2 — which would make every assertion below fail
+    # account since S-0053/D-2 — which would make every assertion below fail
     # for a reason that has nothing to do with what they test.
     additivity: additive
     agg: max
@@ -130,7 +130,7 @@ def test_a_metric_over_a_step_output_column_is_reachable() -> None:
 def test_without_the_link_the_metric_stays_unreachable() -> None:
     """The control: reachability must come from the declared link, not from a
     step output being present at all. Auto-linking by column name would be the
-    guessing RFC 0006 exists to refuse — `confidence` and `match_confidence`
+    guessing S-0023 exists to refuse — `confidence` and `match_confidence`
     are deliberately spelled differently here for exactly that reason."""
     ir = build(canonical="")
     assert [u.name for u in ir.unreachable] == ["peak_confidence"]
@@ -145,7 +145,7 @@ def test_the_column_carries_its_canonical_link_into_the_ir() -> None:
 
 
 # ....................... #
-# Shape refusals (RFC 0002: the spec layer checks shape, resolve checks refs)
+# Shape refusals (S-0019: the spec layer checks shape, resolve checks refs)
 
 
 def test_linking_an_output_the_wiring_does_not_bind_is_refused() -> None:

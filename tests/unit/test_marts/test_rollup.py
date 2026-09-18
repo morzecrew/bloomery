@@ -1,4 +1,4 @@
-"""Rollup lowering and its refusals (RFC 0058 §5.2, P2).
+"""Rollup lowering and its refusals (S-0065/the-obligation, S-0065/phasing (P-2)).
 
 The obligation itself is tested in `tests/unit/test_semantic/test_rollup.py`;
 what is tested here is the *stage* — that a declared rollup reaches
@@ -173,7 +173,7 @@ def test_a_project_with_no_rollups_lowers_to_nothing() -> None:
 
 def test_a_distinct_count_measure_refuses_the_rollup() -> None:
     """Summing per-group distinct counts double-counts an identity present in
-    two groups, which is what the word exists to stop (RFC 0038 §4)."""
+    two groups, which is what the word exists to stop (S-0053/additivity-algebra)."""
 
     lowering = _lowering(measures="revenue, buyers", rollups=_rollup(measures="buyers"))
 
@@ -256,7 +256,7 @@ def test_the_document_refuses_what_it_can_answer_alone(rollups: str, expected: s
 def test_a_refusal_addresses_the_key_the_author_wrote() -> None:
     """`rollups.<name>`, never `marts.<name>`.
 
-    A source path addresses the authored document (RFC 0002 §5.3), and both
+    A source path addresses the authored document (S-0019/source-paths), and both
     layers that can refuse a rollup have to spell it the same way — the spec
     layer, which sees the pydantic location, and the lowering stage, which
     builds the path itself.

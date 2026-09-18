@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      **`lineage()` returns the reachable sub-DAG, never enumerated paths.** Path
+      count is exponential in graph width; sub-DAG size is bounded by the graph, which
+      is what makes the return type's size predictable from an input the caller already
+      holds. A caller wanting paths enumerates them from the sub-DAG under its own
+      budget. Consequence: the common "show me the chain" rendering is the caller's
+      fold over the sub-DAG rather than a library product, and any future path API
+      must carry a budget parameter rather than inheriting this one's silence.
+    paths: [src/bloomery/cli/render.py]
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      **`Graph`, `Edge`, `Lineage` and `Direction` join `bloomery.__all__`, and `Resolution`
+      gains `graph` with no default.** A traversal returning a sub-DAG is unusable
+      if its return type is private, and `Node`/`NodeKind` are already public — the
+      surface is being completed. No default on the field because a `Resolution` without
+      its graph is not a state this design wants representable. Consequence: both
+      types are bound by `stability.md`'s SemVer rule from this point, and hand-constructed
+      `Resolution`s in tests break loudly rather than silently carrying an empty graph.
+    paths:
+      - src/bloomery/resolve/resolution.py
+      - tests/unit/test_resolve/test_graph.py
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      (Locked in the RFC; no file in the tree cites it.) **`truncated` is set iff
+      `max_depth` cut the walk short, and `max_depth` defaults to `None`.** A partial
+      answer that cannot say it is partial is the failure S-0039/D-5 names; defaulting
+      to unbounded means the flag can only be `True` when the caller asked for a bound,
+      so no default path can produce a silent partial.
+  - id: D-4
+    grade: OPEN
+    text: >-
+      **Whether `Direction.BOTH` returns one merged sub-DAG or an upstream/downstream
+      pair — and P1 therefore ships `UPSTREAM` and `DOWNSTREAM` only.** Merged is
+      simpler to type and loses which side a node came from, which the first renderer
+      needs to draw a root. Deferring the *member* rather than guessing its shape
+      is the point: a `BOTH` shipped in P1 and reshaped in P2 is a breaking change
+      to a published `__all__` type, and D2 has just bound `Lineage` to SemVer. Settled
+      by whoever builds that renderer; the executor decides and logs it.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      **`lineage()` requires an acyclic graph and states it as a precondition rather
+      than checking it.** `resolve()` raises on cycles before anything downstream
+      runs, so every graph reaching this is acyclic; a re-check would be a branch
+      no caller can execute — and this project has already shipped one of those knowingly
+      (see [`logs/T-0003.md`](logs/T-0003.md) D014). Depart from this if a caller
+      turns up that wants to walk a cyclic graph in order to *see* the cycle.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      **The edge-label vocabulary is closed at eight labels and nine `(label, src
+      kind, dst kind)` triples, read off the builders and pinned by a test keyed on
+      the triple.** The first draft of §5.3 was compiled from the 22 fixtures, and
+      that method cost two entries: `_step_edges` emits `step_input` at three sites
+      and the corpus reaches one, so both `step → step` forms were missing; and `_mapping_edges`
+      labels a Tier 1 `sql_macro` field `step:<ref@version>`, which no fixture declares,
+      so the label itself was missing. Consequence: the corpus is a witness to this
+      table, never its source, and a guard keyed on the label alone is specifically
+      the one that cannot catch a new shape of a label it already knows. Depart if
+      a label turns out to be constructed dynamically anywhere, which would make the
+      closed set a lie rather than a contract.
+    paths:
+      - src/bloomery/resolve/graph.py
+      - tests/unit/test_resolve/test_edge_vocabulary.py
+      - tests/unit/test_resolve/test_lineage.py
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      **`_field_provenance` stays as it is, and a test pins that it agrees with the
+      graph.** Measured: 146 entries, 0 mismatches. Unifying them is right and re-decides
+      S-0047/D-8 from inside this document, which the corpus's amendment rules forbid.
+      Consequence: two accounts of one fact ship deliberately, with the check that
+      makes the eventual unification a refactor instead of a rediscovery.
+    paths: [tests/unit/test_resolve/test_lineage_agreement.py]
+  - id: D-8
+    grade: OPEN
+    text: >-
+      **Whether `lineage()` accepts a node name as well as a `Node`.** The CLI must
+      resolve a string either way; the question is whether that resolution is a library
+      function or stays a CLI concern. The risk of the library form is a second, looser
+      way to name a node.

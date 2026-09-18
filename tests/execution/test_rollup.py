@@ -1,4 +1,4 @@
-"""Rollup execution (RFC 0058 D6): the number the rollup table holds against
+"""Rollup execution (S-0065/D-6): the number the rollup table holds against
 the same request computed from the detail beneath it.
 
 This is the acceptance the design asked for and the only one that can fail for
@@ -9,7 +9,7 @@ is compared to the aggregate over the relation it derives from — which is what
 "the same request computed from silver" means once the mart between them has
 itself been built from silver.
 
-All assertions are `Decimal`; floats never appear (RFC 0003 D5).
+All assertions are `Decimal`; floats never appear (S-0020/D-5).
 """
 
 from __future__ import annotations

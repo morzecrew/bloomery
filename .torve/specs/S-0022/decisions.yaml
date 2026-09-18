@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      Resolution builds a single dependency DAG over source columns (JSONPath refs),
+      mapped entity fields, catalog canonical fields + recipes, and metrics including
+      `requires_metrics` metric-on-metric edges. One graph feeds reachability, cycles,
+      topo order, and the guardrails (S-0023) — no parallel structures that can disagree.
+    paths: [src/bloomery/resolve/graph.py, src/bloomery/resolve/reach.py]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The compiler never chooses a recipe. The mapping's recorded `recipe:` id is
+      validated — id exists on the catalog field, every `requires` name bound by the
+      mapping's `from` aliases (exactly) — else `ResolutionError`. Choice happens
+      upstream; the compiler reproduces it (determinism + auditability, spec §3.4).
+      Consequence: catalog evolution can invalidate recorded choices, and that is
+      a loud error, not a silent re-choice.
+    paths:
+      - src/bloomery/evidence.py
+      - src/bloomery/guardrails/operands.py
+      - src/bloomery/resolve/recipes.py
+      - src/bloomery/resolve/resolution.py
+      - src/bloomery/spec/catalog.py
+      - src/bloomery/spec/mapping.py
+      - tests/golden/schema/catalog.json
+      - tests/golden/schema/mapping.json
+      - tests/unit/test_resolve/test_edge_shapes_offcorpus.py
+      - tests/unit/test_resolve/test_recipes.py
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A canonical field is available iff some mapped field links to it via `canonical:`
+      with a direct mapping or validated recipe. A metric is reachable iff every leaf
+      of its `requires`/`requires_metrics` closure is available; unreachable metrics
+      report the specific missing leaves and are stored in the IR (S-0020/D-6) as
+      product-facing output.
+    paths:
+      - src/bloomery/evidence.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/resolve/reach.py
+      - tests/unit/test_evidence.py
+      - tests/unit/test_unresolved.py
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Any cycle in the DAG raises `CircularDerivation` (a `ResolutionError` subclass)
+      naming the full cycle path, rotated to the lexicographically smallest node for
+      stable messages.
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/resolve/order.py
+      - tests/unit/test_resolve/test_order.py
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Emission order is a topological sort with ties broken lexicographically by node
+      name — implemented once in resolve; all consumers take the order from `Resolution`.
+      This is the package's main determinism hazard, contained here.
+    paths:
+      - src/bloomery/resolve/order.py
+      - tests/unit/test_resolve/test_resolution.py
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `Resolution` = reachable metrics, unreachable metrics + reasons, per-field provenance
+      (`direct` | `recipe:<id>` | `tenant-native`), topo order — all tuples, explicitly
+      sorted. `resolve(project, catalog)` is a pure function, no I/O, and public API.
+    paths:
+      - src/bloomery/resolve/resolution.py
+      - tests/unit/test_resolve/test_resolution.py
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      All cross-spec reference validation lives here, not parse (S-0019/D-4): mapping
+      targets, `canonical:` links, relationship endpoints, metric template refs. All
+      failures are `ResolutionError`s with source paths, batched per stage; later
+      checks run only on a reference-clean graph.
+    paths:
+      - src/bloomery/errors.py
+      - src/bloomery/resolve/refs.py
+      - tests/unit/test_resolve/test_refs.py

@@ -1,4 +1,4 @@
-"""Cleaning a merged entity, executed (RFC 0024 P2, RFC 0035; RFC 0009 §5.2
+"""Cleaning a merged entity, executed (S-0041/phasing (P-2), S-0051; S-0026/tier-contracts
 tier 4).
 
 The compile-time tests prove the artifacts are *emitted* with the right shape.
@@ -20,7 +20,7 @@ which is exactly what a merged admissible set would have got wrong, silently.
 two shops would compare equal without ``_source`` in the sort key (D35). They
 cannot both survive, and which one does must not depend on the engine.
 
-**Replay re-runs each row's own mapping** (RFC 0035 D3). A reject row carries
+**Replay re-runs each row's own mapping** (S-0051/D-3). A reject row carries
 the ``source_relation`` that produced it, and a replay after the vocabulary
 widens admits the rows of the branch that widened and leaves the others where
 they are. Without the filter every branch reads every reject row and applies
@@ -60,10 +60,10 @@ _SHOPIFY = (
 #: not.
 #:
 #: The first row's identity is ``s1`` — the **same** identity Shopify's first row
-#: carries. RFC 0016 D21 makes the row identity unique within *one* source
+#: carries. S-0033/D-21 makes the row identity unique within *one* source
 #: relation and says nothing across the union, so two shops with ordinary
 #: per-table sequences collide immediately. That is the ordinary case, not a
-#: contrived one, and it is what RFC 0024 D34's partition exists for: without it
+#: contrived one, and it is what S-0041/D-34's partition exists for: without it
 #: the blocking metadata audit reports these two rows and stops the run on
 #: correct data.
 _WOO = (
@@ -72,7 +72,7 @@ _WOO = (
     ("w2", "B-2", 1, "SKU-8", "twelve", "2024-03-02T00:00:00", "COMPLETE"),
     # `s3` is Shopify's *quarantined* row's identity, reused here by a row that
     # replay later admits. Two reject rows, one identity, two shops — legal
-    # under RFC 0016 D21, since the identity is unique within one source
+    # under S-0033/D-21, since the identity is unique within one source
     # relation and says nothing across the union. It is the case every "key it
     # by the row identity" shortcut gets wrong: when this row is admitted,
     # Shopify's — which still fails — must not be stamped resolved on its
@@ -147,7 +147,7 @@ def test_a_branch_compares_against_the_paths_it_actually_reads(
     The rule is one ``quantity_coercible`` over the merged relation, and if it
     carried one mapping's paths it would be comparing Shopify's ``quantity``
     column against a relation that does not have it. What each branch compares
-    against is its own extraction (RFC 0024 D32).
+    against is its own extraction (S-0041/D-32).
     """
     quarantined = _rows(
         built,
@@ -182,7 +182,7 @@ def test_one_raw_value_is_admissible_on_one_branch_and_not_the_other(
     So ``s2`` survives and ``w3`` is quarantined on the *same* raw text. A
     merged admissible set — the shape that looks harmless — would have admitted
     ``w3`` on a vocabulary its own chain can never produce, and the rule would
-    have quietly stopped checking on that branch (RFC 0024 D32).
+    have quietly stopped checking on that branch (S-0041/D-32).
     """
     kept = _rows(built, "SELECT _source_row_id FROM silver.order_line ORDER BY _source_row_id")
     diverted = _rows(
@@ -210,7 +210,7 @@ def test_every_row_lands_on_exactly_one_side(built: duckdb.DuckDBPyConnection) -
 def test_each_reject_row_carries_the_mapping_that_produced_it(
     built: duckdb.DuckDBPyConnection,
 ) -> None:
-    """RFC 0035 D2: the three provenance literals and ``reject_id`` are computed
+    """S-0051/D-2: the three provenance literals and ``reject_id`` are computed
     per branch, so a merged entity's one reject table says which mapping — and
     which version of it — rejected each row."""
     rows = _rows(
@@ -221,7 +221,7 @@ def test_each_reject_row_carries_the_mapping_that_produced_it(
     assert rows == [
         ("s3", "shopify__order_lines", "shopify__order_lines->order_line", 1),
         # Same identity, other shop, its own row — which is the whole point of
-        # `reject_id` being a digest of the *pair* (RFC 0016 D21, RFC 0035 D1).
+        # `reject_id` being a digest of the *pair* (S-0033/D-21, S-0051/D-1).
         ("s3", "woo__order_lines", "woo__order_lines->order_line", 1),
         ("w2", "woo__order_lines", "woo__order_lines->order_line", 1),
     ]
@@ -230,7 +230,7 @@ def test_each_reject_row_carries_the_mapping_that_produced_it(
 def test_reject_ids_are_distinct_across_sources_sharing_a_row_identity(
     built: duckdb.DuckDBPyConnection,
 ) -> None:
-    """``_source_row_id`` is unique within **one** source relation (RFC 0016
+    """``_source_row_id`` is unique within **one** source relation (S-0033
     D21), and a merged entity's reject table holds rows from several.
 
     ``reject_id`` is a digest of the *pair*, which is what keeps the reject
@@ -255,7 +255,7 @@ def test_reject_ids_are_distinct_across_sources_sharing_a_row_identity(
 
 def test_the_dedupe_order_is_total_across_sources(built: duckdb.DuckDBPyConnection) -> None:
     """Two shops on one entity key: only one row survives, and which one is
-    decided by ``_source`` (RFC 0024 D35).
+    decided by ``_source`` (S-0041/D-35).
 
     Seeded here rather than in the fixture because the collision audit refuses
     this shape at run time — it is a *blocking* audit (D5), and what is being
@@ -281,7 +281,7 @@ def test_the_dedupe_order_is_total_across_sources(built: duckdb.DuckDBPyConnecti
 def test_the_collision_audit_reads_the_union_and_not_the_deduped_model(
     built: duckdb.DuckDBPyConnection,
 ) -> None:
-    """RFC 0024 D13, unexercised until ``dedupe:`` came back.
+    """S-0041/D-13, unexercised until ``dedupe:`` came back.
 
     With dedupe between the union and the output, a key held by both shops is
     collapsed to one row *before* the model exists — so an audit reading
@@ -314,7 +314,7 @@ def test_the_collision_audit_reads_the_union_and_not_the_deduped_model(
 def test_a_widening_replays_only_the_branch_that_widened(
     built: duckdb.DuckDBPyConnection,
 ) -> None:
-    """RFC 0035 D3, and the property the whole filter exists for.
+    """S-0051/D-3, and the property the whole filter exists for.
 
     Woo's chain learns ``reversed``. Replay must admit ``w3`` and must leave
     ``s3`` — whose status no chain maps — in the reject table. Without the
@@ -366,18 +366,18 @@ def test_a_widening_replays_only_the_branch_that_widened(
 #: each must report against the seed. Every one is **blocking**, so a false
 #: positive here does not degrade a number — it stops the run on correct data.
 AUDITS = (
-    # RFC 0016 D21's metadata audit. `s1` is one row identity in **two** source
+    # S-0033/D-21's metadata audit. `s1` is one row identity in **two** source
     # relations, which D21 makes legal: the identity is unique within a source,
     # not across the union. Partitioned by the identity alone this reports two
-    # rows and halts. That is the shape RFC 0024 D34 exists for, and it is
+    # rows and halts. That is the shape S-0041/D-34 exists for, and it is
     # asserted here by running the emitted body rather than by re-deriving it —
     # the lowering had it right for a commit while the SQLMesh envelope emitted
     # its own hardcoded partition, and every test that wrote its own query
     # passed.
     "order_line_ingestion_metadata",
-    # RFC 0024 D5: no key is held by both shops in this seed.
+    # S-0041/D-5: no key is held by both shops in this seed.
     "order_line_source_collision",
-    # RFC 0016 §6's accounting law: rows in equal rows kept plus rows diverted.
+    # S-0033/tests-rfc-0009-amendment's accounting law: rows in equal rows kept plus rows diverted.
     "order_line_conservation",
 )
 

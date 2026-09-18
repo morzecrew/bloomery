@@ -1,11 +1,11 @@
-"""The ``Mapping`` spec kind (RFC 0002 §5.5; original spec §3.4).
+"""The ``Mapping`` spec kind (S-0019/spec-model-surface; original spec §3.4).
 
 How one bronze source becomes an entity: key lowering, field mappings (simple
 ``{from, transform}`` or recipe ``{recipe, from: {alias: path}}`` — a
 discriminated union on the presence of ``recipe``), the unmapped tail, and the
-per-field ``quality:`` rules (RFC 0016 §5.3). ``from`` paths are JSONPath-lite,
+per-field ``quality:`` rules (S-0033/spec-schema). ``from`` paths are JSONPath-lite,
 grammar-validated only; transform-name existence is checked at typecheck, not
-parse (RFC 0002 D4).
+parse (S-0019/D-4).
 """
 
 from __future__ import annotations
@@ -45,15 +45,15 @@ __all__ = [
 
 
 class TransformStep(SpecModel):
-    """One step of a transform chain, normalized at parse (RFC 0002 §5.5) from
+    """One step of a transform chain, normalized at parse (S-0019/spec-model-surface) from
     either a bare name (``to_int``) or a single-key mapping
     (``{parse_ts: "ISO8601"}``) into ``(name, args)``.
 
-    ``step`` is the Tier 1 link (RFC 0017 D51): ``{step: extract_domain@1}``
+    ``step`` is the Tier 1 link (S-0034/D-51): ``{step: extract_domain@1}``
     splices a ``sql_macro`` into the chain at that position. It is a separate
     field rather than a reserved transform *name* because a whitelist entry
     called ``step`` would otherwise shadow it silently — and the whitelist is
-    open to additions by RFC amendment (RFC 0004), so "no transform is called
+    open to additions by RFC amendment (S-0021), so "no transform is called
     that today" is not a property anything guarantees.
     """
 
@@ -108,11 +108,11 @@ class TransformStep(SpecModel):
 
 class CurrencyColumn(SpecModel):
     """Per-row denomination: the sibling column holding this row's currency
-    code (RFC 0061 D5).
+    code (S-0066/D-5).
 
     In the vocabulary from the first commit and lowered by P2, because the
     alternative is a second way to say what currency a value is in, arriving
-    later — the argument that withdrew RFC 0040's P3. Resolution refuses it as
+    later — the argument that withdrew S-0054's P3. Resolution refuses it as
     unbuilt rather than as invalid, so the refusal says which it is.
     """
 
@@ -121,7 +121,7 @@ class CurrencyColumn(SpecModel):
 
 # ....................... #
 
-#: What a conversion's input currency may be declared as (RFC 0061 §5.1): a
+#: What a conversion's input currency may be declared as (S-0066/the-input-currency-is-one-of-three-things): a
 #: literal ISO-4217 code, or the column carrying one per row. A conversion
 #: whose input is neither declared here nor produced by a prior step in the
 #: same chain is refused — there is no third state in which bloomery guesses.
@@ -141,7 +141,7 @@ class KeyField(SpecModel):
     #: because a decimal key is legal and an unwalked marker reaches emit
     #: (logs/T-0025.md, D-158).
     currency_in: CurrencyIn | None = None
-    #: The zone this path's wall clocks were written in (RFC 0074 D2). Here
+    #: The zone this path's wall clocks were written in (S-0076/D-2). Here
     #: for the reason `currency_in:` is here, one key over: a key field may
     #: carry a timestamp, and a declaration the key half cannot make is one an
     #: author has to move a column to state.
@@ -153,18 +153,18 @@ class KeyField(SpecModel):
 
 class SimpleFieldMapping(SpecModel):
     """Direct field mapping: one source path plus a transform chain, and the
-    field's ``quality:`` rules (RFC 0016 §5.3)."""
+    field's ``quality:`` rules (S-0033/spec-schema)."""
 
     from_: JsonPath = Field(alias="from")
     transform: tuple[TransformStep, ...] = ()
     quality: tuple[FieldQualityRule, ...] = ()
     #: The currency this path's values are in — the fact a `convert` step's
-    #: input is checked against (RFC 0061 D1). Declared here rather than on the
+    #: input is checked against (S-0066/D-1). Declared here rather than on the
     #: canonical field because a canonical field is shared across mappings, and
     #: one fed by a euro feed and a dollar feed would need two input currencies
     #: for one declaration (D6).
     currency_in: CurrencyIn | None = None
-    #: The zone this path's wall clocks were written in (RFC 0074 §5.2, D2).
+    #: The zone this path's wall clocks were written in (S-0076/zonein-is-how-a-utc-source-says-so, S-0076/D-2).
     #: On the mapping rather than the canonical field for the argument beside
     #: it, unchanged one type over: a canonical `placed_at` fed by a New York
     #: feed and a London feed runs on two clocks and would need two
@@ -183,11 +183,11 @@ class SimpleFieldMapping(SpecModel):
 
 class RecipeFieldMapping(SpecModel):
     """Recipe field mapping: a recorded catalog recipe id (chosen upstream,
-    reproduced here — RFC 0005 D2) plus the alias→path bindings its
+    reproduced here — S-0022/D-2) plus the alias→path bindings its
     ``requires`` names.
 
     ``direct`` records that the source *also* carries the field directly — the
-    path-conflict state (RFC 0006 §5.5, D7): the compiler then emits the
+    path-conflict state (S-0023/path-conflict-the-guardrail-that-does-not-raise, S-0023/D-7): the compiler then emits the
     derived column, a ``<name>__direct`` shadow, and a reconciliation audit.
     It never picks one silently, and omitting the direct path to silence the
     shadow is a recorded upstream decision, not a compiler default.
@@ -203,7 +203,7 @@ class RecipeFieldMapping(SpecModel):
 
 
 class MacroFieldMapping(SpecModel):
-    """A field computed by a Tier 1 ``sql_macro`` (RFC 0017 §5.1, D50).
+    """A field computed by a Tier 1 ``sql_macro`` (S-0034/the-four-tier-ladder, S-0034/D-50).
 
     The third field shape, beside a direct ``from:`` and a catalog
     ``recipe:``. ``step`` names the macro as ``ref@version``; ``from`` binds
@@ -214,7 +214,7 @@ class MacroFieldMapping(SpecModel):
 
     ``parameters`` are supplied **here**, at the call site, not in the
     ``steps:`` document. A macro writes no relation, so it has no output to
-    bind there; and one wiring per ref (RFC 0017 D13) would make a macro
+    bind there; and one wiring per ref (S-0034/D-13) would make a macro
     usable in exactly one mapping, with one parameter set — which is the
     pressure that produces ``fuzzy_score_strict`` and is the fork §5.7 exists
     to refuse.
@@ -257,8 +257,8 @@ FieldMapping = Annotated[
     | Annotated[MacroFieldMapping, Tag("macro")],
     Discriminator(_field_mapping_tag),
 ]
-"""Discriminated union on the presence of ``recipe`` or ``step`` (RFC 0002
-§5.5, RFC 0017 D50)."""
+"""Discriminated union on the presence of ``recipe`` or ``step`` (S-0019
+§5.5, S-0034/D-50)."""
 
 #: The two shapes that bind **several** source paths under aliases, rather
 #: than one path directly. They differ in where the expression comes from — a
@@ -270,12 +270,12 @@ ALIAS_BOUND = (RecipeFieldMapping, MacroFieldMapping)
 
 class Freshness(SpecModel):
     """``freshness: {warn_after: 6h, error_after: 24h}`` — the thresholds at
-    which this mapping's bronze relation counts as stale (RFC 0057 §5.1).
+    which this mapping's bronze relation counts as stale (S-0064/the-spec-surface).
 
     **A declaration, never a measurement** (D1). bloomery emits the numbers;
     ``dbt source freshness`` runs the ``SELECT MAX(_ingested_at)`` that finds
     out. Nothing here reads a clock or touches data, which is what makes a
-    threshold expressible at all under RFC 0003.
+    threshold expressible at all under S-0020.
 
     **A statement about the relation, not about the mapping that carries it**
     (D2c). That sentence decides the two cross-mapping rules in
@@ -301,7 +301,7 @@ class Freshness(SpecModel):
         An error threshold that fires before its warning makes the warning
         unreachable — a spec that means something other than what it says.
         Parse rather than guardrail because it is a shape question inside one
-        block, answerable from the document alone (RFC 0002 D4).
+        block, answerable from the document alone (S-0019/D-4).
 
         **Equal is admitted, deliberately.** D4 refuses ``error_after``
         *below* ``warn_after``; at equality both fire together and the warning
@@ -313,7 +313,7 @@ class Freshness(SpecModel):
             msg = (
                 f"freshness error_after ({self.error_after}) is sooner than warn_after "
                 f"({self.warn_after}), so the warning can never fire — the source would go "
-                "straight to error (RFC 0057 §5.1). Fix: make error_after the later of the two"
+                "straight to error (S-0064/the-spec-surface). Fix: make error_after the later of the two"
             )
             raise ValueError(msg)
 
@@ -327,23 +327,23 @@ class Mapping(SpecModel):
     """One (source, target entity) mapping document (``mapping_version``)."""
 
     #: The document this mapping was parsed from — the identity two reports need
-    #: in order to name an edit (RFC 0032 D1). It is unique by construction (a
+    #: in order to name an edit (S-0049/D-1). It is unique by construction (a
     #: key of ``load_project``'s ``sources``), already orders
     #: :attr:`~bloomery.spec.project.Project.mappings`, and is already the
-    #: prefix on this document's refusals (RFC 0002 §5.3).
+    #: prefix on this document's refusals (S-0019/source-paths).
     #:
-    #: **Set by the loader, never authored** (RFC 0032 D3): a document
+    #: **Set by the loader, never authored** (S-0049/D-3): a document
     #: declaring ``document:`` is refused, because a document asserting its own
     #: filename is a second source of truth that can disagree with the first.
     #:
     #: ``SkipJsonSchema`` for that same reason, and it is load-bearing rather
     #: than cosmetic. ``bloomery schema`` exports these models for editors to
-    #: validate against (RFC 0020), and its audience is a spec *author* — so a
+    #: validate against (S-0037), and its audience is a spec *author* — so a
     #: required ``document`` in the exported schema would have an editor demand
     #: the one key the loader refuses. The schema describes the authored
     #: vocabulary; this field is not in it.
     document: SkipJsonSchema[str]
-    #: Pinned to the one version bloomery implements (RFC 0018 D7). It was
+    #: Pinned to the one version bloomery implements (S-0035/D-7). It was
     #: ``int`` with ``ge=1``, which accepted a document written for a future
     #: bloomery and silently applied v1 semantics to it — the exact misreading
     #: a version key exists to refuse. This key is also the document-kind
@@ -352,7 +352,7 @@ class Mapping(SpecModel):
     mapping_version: Literal[1]
     source: str
     target: str
-    #: The staleness thresholds for ``source`` (RFC 0057 §5.1). At the document
+    #: The staleness thresholds for ``source`` (S-0064/the-spec-surface). At the document
     #: root beside ``source:`` because that is where the relation this mapping
     #: reads is named — §5.1's YAML hangs it off a ``sources:`` list, and no
     #: such list exists on any spec model (logs/T-0047.md).
@@ -364,9 +364,9 @@ class Mapping(SpecModel):
     key: dict[str, KeyField]
     fields: dict[MemberName, FieldMapping] = Field(default_factory=dict)
     unmapped: tuple[JsonPath, ...] = ()
-    # ``on_unmapped_enum`` is retired here (RFC 0016 §5.2, D3 — an RFC 0002
+    # ``on_unmapped_enum`` is retired here (S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-3 — an S-0019
     # amendment): a one-value policy no emitter ever implemented, superseding
-    # RFC 0008 D7's paper `<entity>__quarantine` convention. An unmapped enum
+    # S-0025/D-7's paper `<entity>__quarantine` convention. An unmapped enum
     # value now simply fails the ``in_enum`` rule and takes that rule's
     # disposition, through one mechanism and one reject table.
 
@@ -376,7 +376,7 @@ class Mapping(SpecModel):
 
 def mapping_doc(mapping: Mapping) -> str:
     """The deterministic source-path label for one mapping document — parsed
-    models do not retain their document names (RFC 0002 §5.3), so both the
+    models do not retain their document names (S-0019/source-paths), so both the
     resolve and guardrail stages address a mapping by this label."""
 
     return f"mapping[{mapping.source}->{mapping.target}]"

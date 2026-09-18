@@ -1,5 +1,5 @@
 # One mart per grain, each carrying its own measure and nothing of the other's.
-# That is the partition RFC 0041 D11 asks the planner to find, declared rather
+# That is the partition S-0055/D-11 asks the planner to find, declared rather
 # than inferred: measure ownership is the emitter's answer and the planner
 # reads the same one.
 marts_version: 1

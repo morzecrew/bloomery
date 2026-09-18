@@ -5,7 +5,7 @@
 # what a webhook landing table really looks like, and it is why the `from:`
 # paths below have three segments.
 #
-# The bronze contract (RFC 0002 §5.5): the **first** segment of a path is a
+# The bronze contract (S-0019/spec-model-surface): the **first** segment of a path is a
 # physical column, and everything after it is JSON extraction off that column.
 # So `$.payload.totals.gross_cents` lowers to
 # `JSON_EXTRACT_SCALAR(payload, '$.totals.gross_cents')` — one column read, one

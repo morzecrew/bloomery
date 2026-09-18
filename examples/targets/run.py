@@ -78,7 +78,7 @@ disable_anonymized_analytics: true
 """
 
 # bloomery emits no profiles.yml, deliberately: a profile carries hosts and
-# credentials, and the compiler stays free of environment (RFC 0003). Supplying
+# credentials, and the compiler stays free of environment (S-0020). Supplying
 # one is the caller's job — here, three lines.
 DBT_PROFILES = """\
 bloomery:

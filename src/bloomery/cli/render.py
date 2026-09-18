@@ -1,4 +1,4 @@
-"""Human-readable output for the command line (RFC 0020 §5.2, D6).
+"""Human-readable output for the command line (S-0037/bloomery-cli-six-commands, S-0037/D-6).
 
 Hand-rolled, because the alternative is a runtime dependency on ``rich`` or
 ``tabulate`` for cosmetics in a library whose dependency discipline is one of
@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Final
 
 # At run time because :func:`render_evidence` compares against ``COMPLETE``:
 # the stage decides whether the counts below it are totals or a prefix, which
-# is the one thing this module must not get wrong (RFC 0022 D5).
+# is the one thing this module must not get wrong (S-0039/D-5).
 from bloomery import Direction, EvidenceGrade, Stage
 
 if TYPE_CHECKING:
@@ -49,7 +49,7 @@ __all__ = [
 ]
 
 #: A project that adopted no `id:` has no label to print, and every lookup
-#: falls through to the node id — which is then the name (RFC 0062 D3).
+#: falls through to the node id — which is then the name (S-0067/D-3).
 _NO_LABELS: Final[Mapping[str, str]] = MappingProxyType({})
 
 
@@ -121,7 +121,7 @@ CHECKED_SURFACES: tuple[tuple[str, str], ...] = (
 #: Rollups are ``proven`` where marts are ``checked``, and the difference is
 #: real rather than decorative: a mart's leaves say a flatten step resolved and
 #: a grain matched, while a rollup reaches the IR only if R013 produced a
-#: derivation for every measure it carries (RFC 0058 D5). One is the absence of
+#: derivation for every measure it carries (S-0065/D-5). One is the absence of
 #: a violation, the other is a positive proof, and this collection has spent
 #: four RFCs on that distinction.
 #:
@@ -135,7 +135,7 @@ CHECKED_SURFACES: tuple[tuple[str, str], ...] = (
 
 def render_evidence_grades(plan: SemanticPlan) -> str:
     """The facts a plan rests on, each with the grade a consumer reads
-    (RFC 0065 P1).
+    (S-0070/phasing (P-1)).
 
     **Visible before it is enforced**, which is the whole of P1: no requirement
     exists yet and nothing is refused, so the only thing this can do is let a
@@ -186,7 +186,7 @@ def render_check(evidence: SpecEvidence) -> str:
     same value and answer different questions — "is what this project declares
     sound" against "which metrics can I compute and what is missing for the
     rest" — which is why the counts here are surfaces and the counts there are
-    metric names (RFC 0044 D7, settled in ``logs/T-0030.md``).
+    metric names (S-0057/D-7, settled in ``logs/T-0030.md``).
 
     **Whether a refused project prints counts depends on whether one was
     computed, not on whether it was refused.** A pipeline that stopped before
@@ -246,7 +246,7 @@ def render_evidence(evidence: SpecEvidence) -> str:
     **The stage comes first, and that is a decision rather than a layout.**
     Every count below it is empty in two different situations that mean
     opposite things — "nothing unreachable" and "reachability was never
-    computed" (RFC 0022 D5) — and a reader who skims the numbers without the
+    computed" (S-0039/D-5) — and a reader who skims the numbers without the
     stage draws the wrong one. Printing it first is the loudest this can be
     made; it cannot be made impossible.
 
@@ -254,7 +254,7 @@ def render_evidence(evidence: SpecEvidence) -> str:
     re-point: before this, `resolve` either printed reachability *or* raised,
     and a spec mid-draft is exactly when an author wants both.
 
-    **Open decisions print here** (RFC 0030 D7, settled in ``logs/T-0007.md``
+    **Open decisions print here** (S-0047/D-7, settled in ``logs/T-0007.md``
     D-033). The table already prints one row per unreachable metric; an open
     decision is that same fact with the edit attached, and it is bounded by the
     same set — a decision exists only for a canonical some metric requires. What
@@ -273,7 +273,7 @@ def render_evidence(evidence: SpecEvidence) -> str:
     the rest"; an entity list is neither reachability nor a refusal, and the
     relations a project declares are what ``bloomery compile`` prints paths for.
     It is on the value and in ``--format json``, which is where the CLI's
-    not-a-lossier-surface promise lives (RFC 0020 D4) — the table has always
+    not-a-lossier-surface promise lives (S-0037/D-4) — the table has always
     been a summary, as ``render_plan`` is of a ``Plan``.
     """
     lines = [f"Stage: {evidence.stage_reached.value}"]
@@ -338,18 +338,18 @@ def _via(metric: UnreachableMetric) -> str:
 
 def _decision_row(decision: OpenDecision) -> tuple[str, ...]:
     """One open decision: what is missing, where the edit goes, what may be
-    recorded there (RFC 0030 D7; ``logs/T-0007.md`` D-033).
+    recorded there (S-0047/D-7; ``logs/T-0007.md`` D-033).
 
     **Ids only, and never a recipe's ``requires``.** The alias slots are the
     half of the join that a reader cannot act on from a terminal — they are
     bound in a mapping's ``from:``, against source paths the CLI has not read —
     and printing them is what would turn this from the most actionable line
-    ``bloomery resolve`` prints into the dump RFC 0030 D7 weighs it against.
+    ``bloomery resolve`` prints into the dump S-0047/D-7 weighs it against.
     ``--format json`` carries them, which is where the lossless surface lives
-    (RFC 0020 D4).
+    (S-0037/D-4).
 
     The order of the ids is the **catalog's** and is never re-sorted here
-    (RFC 0030 D2). It is authored information — recipes are ordered by
+    (S-0047/D-2). It is authored information — recipes are ordered by
     reliability — and a renderer that alphabetized it would be destroying it at
     the last possible moment.
     """
@@ -371,7 +371,7 @@ def _refusal(refusal: BloomeryError) -> list[str]:
     """One refusal as a source path and its wrapped message.
 
     Not a table row. Every refusal message is a paragraph by design — the claim,
-    why it is wrong, then ``Fix:`` — and RFC 0002's whole argument for that
+    why it is wrong, then ``Fix:`` — and S-0019's whole argument for that
     shape is that the reader should not have to look anything up. Truncating to
     a column would cut the fix off every one of them, so the path leads and the
     message is wrapped under it.
@@ -393,7 +393,7 @@ def render_plan(plan: Plan) -> str:
     """``bloomery plan``'s human output: every classified change, then scope.
 
     The breaking count is called out separately because it is the number a
-    reader decides on — RFC 0007's expand/contract rule makes the rest
+    reader decides on — S-0024's expand/contract rule makes the rest
     informational and that one blocking.
     """
 
@@ -431,7 +431,7 @@ def render_plan(plan: Plan) -> str:
         # Its own section rather than a wider `detail` column: a rename's
         # citation list is as long as the project makes it, and a table cell
         # that grows with the project takes every other row's alignment with
-        # it (RFC 0062 §5.3).
+        # it (S-0067/what-plan-gains).
         lines.append("Renamed — what cited the old name")
         lines.extend(_table(cited))
 
@@ -452,7 +452,7 @@ def render_lineage(walk: Lineage, labels: Mapping[str, str] = _NO_LABELS) -> str
     """``bloomery lineage``'s human output: a deterministic **edge list**.
 
     ``labels`` is :func:`~bloomery.node_labels` for the project walked, and
-    every id is printed through it (RFC 0062 §5.4): a reader sees
+    every id is printed through it (S-0067/display): a reader sees
     ``metric.gross_revenue`` where the project adopted ``id: mtr_7f3a9c``,
     because the name is what a person reads and the id is what a script keys
     on. ``--format json`` carries both, so nothing is lost by not printing it
@@ -460,7 +460,7 @@ def render_lineage(walk: Lineage, labels: Mapping[str, str] = _NO_LABELS) -> str
     falls through to the id, which is the name.
 
     One line per edge, in :attr:`Lineage.edges` order, aligned on the widest
-    source. Not a tree — RFC 0031 D1 returns a sub-DAG, and a tree cannot draw
+    source. Not a tree — S-0048/D-1 returns a sub-DAG, and a tree cannot draw
     one: a node reachable two ways is either repeated, which re-creates the
     exponential output D1 exists to avoid, or drawn once with its second edge
     dropped, which loses the fact that two things feed it.
@@ -483,7 +483,7 @@ def render_lineage(walk: Lineage, labels: Mapping[str, str] = _NO_LABELS) -> str
     its root a leaf.
 
     ``truncated`` is stated whenever it is set, because a bounded answer that
-    does not say it is bounded is the failure RFC 0022 D5 names.
+    does not say it is bounded is the failure S-0039/D-5 names.
     """
     heading = f"{labels.get(walk.root.name, walk.root.name)}  ({walk.direction.value})"
 
@@ -538,7 +538,7 @@ def render_timeline(walk: Timeline) -> str:
 
     Two blocks, because the value answers two questions and a reader arrives
     with one of them. **Which versions carried this** is the entries, one line
-    each in the order supplied — never sorted, because RFC 0069 D1 says this
+    each in the order supplied — never sorted, because S-0074/D-1 says this
     project does not read a label, and sorting them would be reading them.
     **What moved** is the changes, each naming the node it is about.
 

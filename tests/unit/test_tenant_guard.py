@@ -1,4 +1,4 @@
-"""Named guard (RFC 0009 §5.6, `_bloomery-changes.md` D9): the package must
+"""Named guard (S-0026/guard-tests-determinism-and-tenant-agnosticism, `_bloomery-changes.md` D9): the package must
 remain something you could open-source with no multi-tenancy showing through.
 The word "tenant" may appear only in ``naming.py`` docstrings."""
 

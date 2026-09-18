@@ -1,4 +1,4 @@
-"""The composed branch join (RFC 0041 D9, D13), apart from the planner that
+"""The composed branch join (S-0055/D-9, S-0055/D-13), apart from the planner that
 builds its inputs.
 
 The statement this module writes is the only SQL bloomery generates for a
@@ -253,7 +253,7 @@ def test_a_two_dimension_cross_mart_request_carries_both_keys() -> None:
 
 
 # ....................... #
-# RFC 0041 P2: computation above the join, and the statement's own tail.
+# S-0055/phasing (P-2): computation above the join, and the statement's own tail.
 
 
 def _computed() -> Measure:
@@ -268,7 +268,7 @@ def _computed() -> Measure:
 
 @pytest.mark.parametrize("dialect", DIALECTS)
 def test_a_computed_measure_is_evaluated_above_the_join(dialect: str) -> None:
-    """RFC 0041 D3: the operands are aggregated in their own branches and the
+    """S-0055/D-3: the operands are aggregated in their own branches and the
     expression is evaluated once, over the joined result.
 
     What the assertion pins is that each name in the expression became **its
@@ -337,7 +337,7 @@ def test_an_expression_naming_something_no_branch_produces_is_refused(
 
 @pytest.mark.parametrize("dialect", DIALECTS)
 def test_the_order_states_where_nulls_go_on_every_dialect(dialect: str) -> None:
-    """RFC 0041 D13 mints a NULL group on purpose, so the composed `ORDER BY`
+    """S-0055/D-13 mints a NULL group on purpose, so the composed `ORDER BY`
     sorts over a key that is NULL by construction and SQL does not fix where a
     NULL lands (logs/T-0027.md, D-177).
 

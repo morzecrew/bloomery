@@ -1,8 +1,8 @@
-"""Compact hand-built IR builders for the plan-stage tests (RFC 0007).
+"""Compact hand-built IR builders for the plan-stage tests (S-0024).
 
 The differ is a pure function of two ``ProjectIR``s, so its unit tests build
 minimal trees directly — one knob per classification branch. Collections are
-sorted here exactly as the real builder sorts them (RFC 0003 §5.3), so tests
+sorted here exactly as the real builder sorts them (S-0020/ordering-rules), so tests
 may pass members in any order.
 """
 
@@ -61,7 +61,7 @@ def column(
     required: bool = False,
     description: str | None = None,
 ) -> tuple[ColumnIR, SourceColumnIR]:
-    """Both halves of one column (RFC 0024 D26).
+    """Both halves of one column (S-0041/D-26).
 
     Returns the pair rather than the schema alone so a test cannot build a
     column the emitted SELECT has no projection for — the same reason
@@ -110,7 +110,7 @@ def entity(
     resolved = columns if columns is not None else (column("id", required=True),)
     schema = tuple(sorted((pair[0] for pair in resolved), key=lambda c: c.name))
     projections = tuple(sorted((pair[1] for pair in resolved), key=lambda c: c.name))
-    # ``merged_with`` names the *other* relations of a union merge (RFC 0024
+    # ``merged_with`` names the *other* relations of a union merge (S-0041
     # D1). Every branch gets the same projections, which is what the builder
     # produces for two mappings that lower a column the same way — enough for
     # the plan classifier, whose subject is the source *set*.
@@ -152,7 +152,7 @@ def quality_rule(
     params: tuple[tuple[str, str], ...] = (("min", "0"),),
 ) -> QualityRuleIR:
     """One lowered quality rule, shaped the way ``lower_quality`` shapes them
-    (RFC 0016 §5.3) — the knob the plan-stage classification tests turn."""
+    (S-0033/spec-schema) — the knob the plan-stage classification tests turn."""
     return QualityRuleIR(
         name=name, kind=kind, column=column_name, on_fail=on_fail, params=tuple(sorted(params))
     )

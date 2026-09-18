@@ -1,7 +1,7 @@
-"""Shared planner-path helpers (RFC 0009 §5.1 ``tests/support/``): fixture
+"""Shared planner-path helpers (S-0026/layout-and-markers ``tests/support/``): fixture
 IR construction, a process-wide planner over one LRU hydrator (hydration is
 ~10 ms per fixture — one shared L1 keeps the suites fast), and the
-row-policy AST audit the M4.5 verification spike arrived at (RFC 0013
+row-policy AST audit the M4.5 verification spike arrived at (S-0030
 §5.9d: assert the predicate in EVERY scan, never a substring)."""
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ def fixture_mart(fixture: str, name: str) -> MartIR:
     """One mart of a fixture, **by name**.
 
     Never by index: every quality-carrying fixture also carries the
-    bloomery-owned ``data_quality`` mart (RFC 0016 §5.8), which sorts first
+    bloomery-owned ``data_quality`` mart (S-0033/the-quality-mart), which sorts first
     among ``ProjectIR.marts`` — so ``marts[0]`` silently means something else
     there than it did before M12.
     """
@@ -83,7 +83,7 @@ def make_planner(**kwargs: object) -> MetricFlowPlanner:
 
 def normalize_month(value: object) -> datetime.date:
     """DuckDB returns month-grain keys as TIMESTAMPs (``DATE_TRUNC('month',
-    DATE)`` → TIMESTAMP) — normalize to a date before comparing (RFC 0009
+    DATE)`` → TIMESTAMP) — normalize to a date before comparing (S-0026
     §5.10)."""
     if isinstance(value, datetime.datetime):
         return value.date()
@@ -93,7 +93,7 @@ def normalize_month(value: object) -> datetime.date:
 
 def quantized(value: object) -> Decimal:
     """A numeric result as a 2-dp Decimal — engines may hand ratios back as
-    floats; assertions stay Decimal (RFC 0003 D5)."""
+    floats; assertions stay Decimal (S-0020/D-5)."""
     return Decimal(str(value)).quantize(Decimal("0.01"))
 
 
@@ -137,7 +137,7 @@ def audit_scans(sql: str, mart_relation: str, column: str, value: str) -> list[t
     predicate applied at or below the first aggregation over that scan?
     A predicate applied only above an aggregation means the aggregate (the
     MAX-date subquery of a semi-additive plan, say) was computed over
-    unscoped rows — the security defect V4 ruled out (RFC 0013 §5.7/§5.9d)."""
+    unscoped rows — the security defect V4 ruled out (S-0030/row-policy, S-0030/what-is-superseded-and-the-boundary-that-makes-it-reversible (§5.9d))."""
     tree = sqlglot.parse_one(sql, dialect="duckdb")
     verdicts: list[tuple[str, bool]] = []
     for table in tree.find_all(exp.Table):

@@ -2,15 +2,15 @@
   "representation": {
     "outcome": "refused",
     "error": "GrainViolation",
-    "rule": "RFC 0010 D2"
+    "rule": "S-0027/D-2"
   },
   "rollup": {
     "outcome": "accepted",
-    "rule": "RFC 0010 D2"
+    "rule": "S-0027/D-2"
   },
   "refinement": {
     "outcome": "refused",
     "error": "GrainMismatch",
-    "rule": "RFC 0006 D5"
+    "rule": "S-0023/D-5"
   }
 }

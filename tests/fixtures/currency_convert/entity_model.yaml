@@ -1,4 +1,4 @@
-# The currency-conversion fixture (RFC 0023 §5.4). One line of difference from
+# The currency-conversion fixture (S-0040/phase-2-currency-as-a-declared-relation). One line of difference from
 # `currency_convert_refusal`: this project's catalog declares `fx_rates:`, and
 # that is what turns the refusal into a conversion. Everything else — the
 # entity, the mapping, the convert step — is the same spec.

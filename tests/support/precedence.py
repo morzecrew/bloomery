@@ -1,4 +1,4 @@
-"""The disposition-precedence warehouse (RFC 0016 D18/D20/D22, §5.6, §5.8).
+"""The disposition-precedence warehouse (S-0033/D-18, S-0033/D-20, S-0033/D-22, S-0033/quarantine-one-reject-table-per-entity, S-0033/the-quality-mart).
 
 The spec side lives in ``tests/fixtures/quality_precedence/``; this module is
 the data side and the build. The numbers are small and hand-checkable on
@@ -93,7 +93,7 @@ _LINES: tuple[tuple[str | None, ...], ...] = (
     # therefore the fixture's one row that reaches a **mart** carrying a flag.
     # Everything else the rules fire on is diverted before the mart sees it, so
     # without this row `has_quality_flags` would be constant FALSE on live data
-    # — which is exactly how an inverted polarity ships green (RFC 0016 §5.5).
+    # — which is exactly how an inverted polarity ships green (S-0033/schema-additions-and-the-array-capability).
     ("load_a", "2024-01-01T00:00:03Z", "r09", "O4", "1", "2024-01-01", "-7", "C09", "open"),
     ("load_a", "2024-01-01T00:00:03Z", "r10", "O4", "2", "2024-01-01", "18", "C10", "open"),
 )

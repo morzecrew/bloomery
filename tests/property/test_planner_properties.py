@@ -1,7 +1,7 @@
-"""Planner properties (RFC 0013 §6, RFC 0009 §5.10, RFC 0015) — three
+"""Planner properties (S-0030/tests, S-0026/planner-test-obligations-rfcs-0011-0013, S-0032) — three
 merge-blocking invariants:
 
-- **Filter fuzz** (RFC 0013 D8, extended per RFC 0015): adversarial
+- **Filter fuzz** (S-0030/D-8, extended per S-0032): adversarial
   ``Predicate`` string values — quote breakers, ``' OR 1=1 --``, Jinja
   template syntax, unicode quotes, newlines — always render to SQL that
   parses, scans exactly the expected mart, keeps the predicate structure of
@@ -9,13 +9,13 @@ merge-blocking invariants:
   literal. For ``like``/``ilike``, ``%``/``_`` are now *pattern characters*
   passing through verbatim (caller-owned wildcards); an unpaired trailing
   ``\\`` refuses at construction. NUL is refused.
-- **Non-finite refusal** (RFC 0015 D5, decision 15): ``NaN``/``Infinity``/
+- **Non-finite refusal** (S-0032/D-5, decision 15): ``NaN``/``Infinity``/
   ``-Infinity`` — as floats and as string carriers — are refused on every
   operator taking scalars, the ``in``/``not_in`` membership lists included.
-- **Names round-trip** (RFC 0013 D7): every dimension the emitter produces
+- **Names round-trip** (S-0030/D-7): every dimension the emitter produces
   maps through ``group_by_name`` and back to the original bloomery name and
   grain — emitter and bridge cannot drift apart.
-- **Planner determinism** (RFC 0003, RFC 0009 §5.10): the same request twice
+- **Planner determinism** (S-0020, S-0026/planner-test-obligations-rfcs-0011-0013): the same request twice
   yields an identical ``QueryPlan``, fingerprint included.
 """
 
@@ -63,7 +63,7 @@ _value_strategy = st.one_of(
 
 
 def _pattern_is_valid(value: str) -> bool:
-    """The RFC 0015 pattern-language validity rule (mirrors request.py):
+    """The S-0032 pattern-language validity rule (mirrors request.py):
     no dangling escape at the end."""
     index = 0
     while index < len(value):
@@ -114,15 +114,15 @@ def test_adversarial_filter_values_stay_literals(value: str, op: Op) -> None:
     if "\x00" in value:
         # NUL is refused on both paths, but at different stages and with
         # different types — assert the exact one per input class, never a
-        # union: a pattern refuses at construction (RFC 0015 decision 13,
-        # InvalidLiteral), a plain literal at rendering (RFC 0013 §5.6,
+        # union: a pattern refuses at construction (S-0032 decision 13,
+        # InvalidLiteral), a plain literal at rendering (S-0030/filters-the-highest-risk-surface,
         # InvalidRequest). A widened union would pass on either drift.
         expected = InvalidLiteral if op in (Op.LIKE, Op.ILIKE) else InvalidRequest
         with pytest.raises(expected, match="NUL"):
             _plan_sql(value, op)
         return
     if op in (Op.LIKE, Op.ILIKE) and not _pattern_is_valid(value):
-        # RFC 0015 decision 13: a dangling escape refuses at construction.
+        # S-0032 decision 13: a dangling escape refuses at construction.
         with pytest.raises(InvalidLiteral, match="unpaired escape"):
             _plan_sql(value, op)
         return
@@ -138,7 +138,7 @@ def test_adversarial_filter_values_stay_literals(value: str, op: Op) -> None:
     # normalizes newline sequences in the constraint template (\r\n and \r
     # become \n) — a rendering normalization, not an injection; assert on
     # the same normalization. Patterns pass through verbatim — %/_ are
-    # caller-owned wildcards, never escaped by the renderer (RFC 0015).
+    # caller-owned wildcards, never escaped by the renderer (S-0032).
     normalized = value.replace("\r\n", "\n").replace("\r", "\n")
     literals = {literal.this for literal in tree.find_all(exp.Literal) if literal.is_string}
     assert normalized in literals
@@ -150,7 +150,7 @@ def test_nul_byte_is_refused() -> None:
 
 
 # ....................... #
-# Non-finite operands (RFC 0015 §6, D5 as extended by decision 15)
+# Non-finite operands (S-0032/tests, S-0032/D-5 as extended by decision 15)
 
 #: Every operator that takes scalar operands — the six ordering operators
 #: plus the two membership operators, whose lists carry the same hazard.
@@ -168,7 +168,7 @@ AMOUNT = ResolvedDimension(name="amount")  # decimal(12,4) — the carrier targe
     ),
 )
 def test_non_finite_operands_refuse_on_every_scalar_op(op: Op, value: float | str) -> None:
-    """RFC 0015 D5 + decision 15: a non-finite operand fails open — ``lt
+    """S-0032/D-5 + decision 15: a non-finite operand fails open — ``lt
     'NaN'`` matches every row on Postgres — so it is refused on every
     operator taking scalars, membership lists included, in **both** carrier
     forms. The float form refuses at construction; the string carrier is
@@ -185,7 +185,7 @@ def test_non_finite_operands_refuse_on_every_scalar_op(op: Op, value: float | st
 
 
 # ....................... #
-# Names round-trip (RFC 0013 D7) — over the emitted dimension set
+# Names round-trip (S-0030/D-7) — over the emitted dimension set
 
 
 FIXTURES = [
@@ -230,7 +230,7 @@ def test_every_emitted_dimension_round_trips(name: str, grain: TimeGrain) -> Non
 
 
 # ....................... #
-# Planner determinism (RFC 0009 §5.10)
+# Planner determinism (S-0026/planner-test-obligations-rfcs-0011-0013)
 
 
 DETERMINISM_REQUESTS = {

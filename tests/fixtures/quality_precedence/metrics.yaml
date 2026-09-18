@@ -1,5 +1,5 @@
 # The one measure the `lines` mart carries. Plain additive sum: nothing about
-# this fixture is a metrics test — the metric exists so that RFC 0016 §5.5's
+# this fixture is a metrics test — the metric exists so that S-0033/schema-additions-and-the-array-capability's
 # `has_quality_flags` can be *filtered on* through the ordinary planner, which
 # is the form the RFC promises rather than a bespoke quality query surface.
 metrics_version: 1

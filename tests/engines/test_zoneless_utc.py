@@ -1,7 +1,7 @@
-"""Engine tier (RFC 0009 §5.2 tier 5): RFC 0028 §5's two closing tests, on
+"""Engine tier (S-0026/tier-contracts tier 5): S-0045/what-fixed-looks-like's two closing tests, on
 PostgreSQL and Trino.
 
-RFC 0028 named exactly two tests as what "fixed" looks like, and both were run
+S-0045 named exactly two tests as what "fixed" looks like, and both were run
 by hand while the fix was written. A hand-verification is a claim with a date
 on it, not a test — the argument :mod:`tests.engines.test_trino` already makes
 about three other decisions — so they live here now:
@@ -15,7 +15,7 @@ The second is the one a merged entity would have shipped: it needs no session
 change, no unusual reader, nothing but two shops in two cities. Before the fix
 the pair landed in different days.
 
-RFC 0036's guard joins them, on the same argument and against the same
+S-0052's guard joins them, on the same argument and against the same
 contract: ``parse_ts: ISO8601`` reads a local wall clock, so text that spells
 its own UTC offset is out of contract, and every one of these engines answered
 it by discarding the offset and keeping the clock. This tier is the only one
@@ -51,7 +51,7 @@ TOKYO = ("2026-01-07 07:30:00", "Asia/Tokyo")
 INSTANT_DATE = "2026-01-06"
 SESSIONS = ("UTC", "Pacific/Kiritimati")
 
-#: RFC 0036 §2's table, as `(text, expected)` — the value `parse_ts: ISO8601`
+#: S-0052/motivation's table, as `(text, expected)` — the value `parse_ts: ISO8601`
 #: must produce, with ``None`` for the two inputs the guard refuses. Compared
 #: as ``datetime`` rather than as rendered text: the engines disagree about
 #: trailing fractional digits and nothing here is a claim about their
@@ -134,7 +134,7 @@ def test_postgres_parse_ts_keeps_the_clock_that_was_written(
     attached the session zone, so the same row stored a different instant
     depending on who ran it: ``+00``, ``+14`` and ``-08`` for one input. The
     port now casts back to ``timestamp``, which PostgreSQL converts *through*
-    the session zone — undoing the attachment exactly (RFC 0029 §2.4).
+    the session zone — undoing the attachment exactly (S-0046/what-was-measured (§2.4)).
 
     Guarding the value and not only the type, because the tempting wrong fix
     passes a type check: ``AT TIME ZONE 'UTC'`` also yields a zoneless
@@ -158,7 +158,7 @@ def test_postgres_parse_ts_keeps_the_clock_that_was_written(
 def test_postgres_refuses_an_offset_and_keeps_every_other_iso_form(
     postgres: psycopg.Connection,
 ) -> None:
-    """RFC 0036 §2, executed. PostgreSQL's own cast reads
+    """S-0052/motivation, executed. PostgreSQL's own cast reads
     ``2026-01-06T12:00:00+01:00`` as ``12:00`` — the offset silently discarded
     and the instant an hour wrong, with nothing downstream able to see it.
 
@@ -253,13 +253,13 @@ def test_trino_two_mappings_at_one_instant_land_in_one_day(
 def test_trino_refuses_an_offset_and_keeps_every_other_iso_form(
     trino_cursor: trino.dbapi.Cursor,
 ) -> None:
-    """RFC 0036 §2 on the third engine, and the one where the guard shares an
+    """S-0052/motivation on the third engine, and the one where the guard shares an
     expression with the separator rewrite.
 
     Trino's cast takes neither ISO separator, so here the guard wraps a
     ``REPLACE(REPLACE(CAST(… AS VARCHAR) …))`` rather than a bare column — and
     it reads the *unrewritten* text, which is what makes position 11 mean what
-    RFC 0036 D5 says it means. Both lowercase and uppercase ``T`` are in the
+    S-0052/D-5 says it means. Both lowercase and uppercase ``T`` are in the
     table for that reason.
     """
     expression = _iso_parse_sql("trino", "written")

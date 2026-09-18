@@ -103,7 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is built *from*. `reaches` is what is built *on* it, on the same row.
 
 - **`requires_evidence:` on an exposure, applied to everything it reads.** The
-  key a mart already carries, on the consumer RFC 0065 calls its truest owner:
+  key a mart already carries, on the consumer S-0070 calls its truest owner:
   a dashboard is the thing somebody signs off, and it usually reads several
   marts none of which knows it is feeding a statutory report.
 
@@ -319,7 +319,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Durations are `quarantine.retention`'s grammar — `6h`, `24h`, `90d`, `2w` —
   so one spelling of a duration covers the spec surface. dbt has no week
   `period`, so `2w` is emitted as fourteen days. The `loaded_at_field` is
-  `CAST(_ingested_at AS TIMESTAMP)` rather than the bare column: RFC 0016 D21
+  `CAST(_ingested_at AS TIMESTAMP)` rather than the bare column: S-0033/D-21
   requires the column to *exist* and an audit asserts it casts, so a text
   landing column would otherwise make the check fail at run time on a project
   that compiled clean.
@@ -412,7 +412,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       wider; refusing it would refuse every project managing gold grants
       elsewhere.
 
-  RFC 0055 originally paired classification with `quarantine.redact`, and that
+  S-0062 originally paired classification with `quarantine.redact`, and that
   pairing could not work: a mapped field's path cannot be redacted — bloomery
   refuses that already — so every legal spelling of a `pii` column was refused
   at once. Redaction governs what a *reject row* keeps; classification governs a
@@ -541,7 +541,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from directories — and reports which versions carried the node and which
   adjacent pairs its definition moved between.
 
-  Identity is RFC 0062's `id:` where a project adopted one and the node name
+  Identity is S-0067's `id:` where a project adopted one and the node name
   otherwise, decided **per pair** and recorded on the change: minting an id
   partway through a history leaves the boundary before it matched by name and
   every boundary after it matched by id. A rename with no id reads as a delete
@@ -884,9 +884,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sent to the relationships; a measure whose grain proof passes and whose
   additivity is wrong gets a refusal naming the metric. A single rule
   answering both could not tell those apart. Both are expressed *beside* the
-  additivity guardrail rather than replacing it (RFC 0039 D3).
+  additivity guardrail rather than replacing it (S-0005/D-3).
 
-- **Four semantic corpus cases**, completing the set RFC 0042 §3 named:
+- **Four semantic corpus cases**, completing the set S-0056/initial-case-set named:
   `008-ratio-rollup` (averaging per-order quotients weights the orders instead
   of the items), `009-null-denominator` (a zero-denominator row contributes to
   the numerator and moves cost onto units that did not incur it),
@@ -894,7 +894,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   property of the path), and `011-timezone-boundary` (a zoneless local
   timestamp read as UTC puts an order in the wrong month).
 
-  Two of them are the corpus's first **`unguarded`** cases — the word RFC 0042
+  Two of them are the corpus's first **`unguarded`** cases — the word S-0056
   minted for a case whose guard does not exist yet, unused until now. Both
   compile, plan, and return the wrong number, and say so rather than being
   written as fictions or left out.
@@ -937,7 +937,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **`order_by` and `limit`** apply to the joined result. Both would be wrong
   inside a branch — an order is undone by the join and a limit answers from a
   prefix of one branch — so they are rendered on the composed statement, with
-  `RFC 0011`'s clamp unchanged. The ordering states `NULLS LAST` in both
+  `S-0028`'s clamp unchanged. The ordering states `NULLS LAST` in both
   directions rather than leaving it to the engine: the join mints a NULL group
   on purpose, and where a NULL sorts is a per-engine *setting*.
 
@@ -1154,7 +1154,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `UnsupportedByTarget` naming the construct — it compares periods at query time
   rather than as a stored measure definition, and has no `grain_to_date` equivalent —
   and emits metric filters as measure filters. The MetricFlow manifest carries all
-  four. RFC 0034.
+  four. S-0050.
 
 - **Currency conversion.** `convert` now lowers, against a dated rate relation the
   catalog declares as `fx_rates:` — the relation plus its from/to/rate/valid_from/
@@ -1169,7 +1169,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rate, and both interval ends are required — one end is not an interval, and a
   lookup with only a lower bound matches every rate at or before the anchor. Without
   `fx_rates:` in the catalog `convert` is still refused at emit, now with a message
-  naming the declaration that would lift it. RFC 0023 §5.4.
+  naming the declaration that would lift it. S-0040/phase-1-historicalfanout (§5.4.)
 
 - **Historical dimensions can be used in marts.** A `flatten:` step onto an
   `scd: type2` entity now takes an `as_of:` anchor — a date or timestamp column of
@@ -1177,7 +1177,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dimension version that was current when the fact happened. Point-in-time
   attribution ("revenue by the segment as it was then") is expressible; without an
   anchor the flatten is still refused, and a `base:` on a historical entity still is
-  too. RFC 0023 §5.3.
+  too. S-0040/phase-1-historicalfanout (§5.3.)
 
 - The CLI's exit-code contract gained `3`: an exception no handler claims prints
   its traceback under an "internal error, please report" line instead of escaping
@@ -1236,7 +1236,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`on_fail: flag` on a Tier 2 step output.** A `sql_model` output carrying a
   `flag` rule now emits `_quality_flags` and `_quality_ok` on its relation, built
-  by the same lowering every silver entity goes through. RFC 0017 made quality
+  by the same lowering every silver entity goes through. S-0034 made quality
   rules on step outputs the reason data quality and the step registry ship as a
   pair, and one of three dispositions had landed.
 
@@ -1459,7 +1459,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   This is a removal of something that never worked rather than of a capability.
   No fixture combined the two, which is why replay and native SCD2 had never
-  been observed failing to compose. Bringing it back is RFC 0060.
+  been observed failing to compose. Bringing it back is S-0003.
 
 - `UnsupportedCumulative`. The class named reserved surface no stage lowered, and
   the surface is no longer reserved. A metric that cannot mean what it says is now
@@ -1618,7 +1618,7 @@ has.
 - **MetricFlow moves to 0.212**, and the emitted MetricFlow manifest changes with it:
   `minor_version` reads `"212"` where it read `"211"`. That field is part of every emitted
   manifest, so the artifact bytes move for every project even where nothing else did —
-  and the hydration cache key carries the MetricFlow version (RFC 0014 D2), so the first
+  and the hydration cache key carries the MetricFlow version (S-0031/D-2), so the first
   planning call after upgrading is a miss by construction rather than a stale hit. No
   emitted SQL and no output-column order changed. The dependency stays pinned to one
   minor (`==0.212.*`): 0.212 renamed the output-column-order parameter with no overlap,
@@ -1636,7 +1636,7 @@ has.
 - **Two artifacts at one path are refused on dbt, as they already were on SQLMesh.**
   An audit's name comes from author-chosen parts — a mart `a` asserting `b_c` and a mart
   `a_b` asserting `c` both lower to `a_b_c` — and neither declaration is wrong on its
-  own, only the pair. SQLMesh has refused this since RFC 0017; the dbt emitter could not,
+  own, only the pair. SQLMesh has refused this since S-0034; the dbt emitter could not,
   because until now it wrote no audit artifacts to collide. **A project in that shape
   stops compiling for dbt** and the error names the path, which is the point: it
   previously emitted both files and left whichever was written last, so a declared
@@ -1655,7 +1655,7 @@ has.
 - **Two names leave the public surface, one of them a `Protocol`.**
   `bloomery.dialects.registered_dialects()` enumerated the process-global dialect registry.
   Nothing inside bloomery ever called it — a compile that read the registry would not be a
-  pure function of its specs (RFC 0016 D56) — and D56's escape hatch does not need it: a
+  pure function of its specs (S-0033/D-56) — and D56's escape hatch does not need it: a
   caller that registered a port already holds it, so
   `unsupported_dialects(pattern, dialects=(*shipped, MyDialect()))` says the same thing
   more precisely than merging a registry it does not control.
@@ -1689,7 +1689,7 @@ has.
   (fifteen rows, thirteen of them 98 or 99) and the tool that read it are replaced by the
   global floor — raised from 80 to **98**, which is what the tree has measured for a long
   time — plus one scoped report each for the two packages that are not at it:
-  `guardrails/` at 100 (RFC 0009 D9) and `steps/` at 92.
+  `guardrails/` at 100 (S-0026/D-9) and `steps/` at 92.
 
 - **`bandit` and `radon` are no longer dev dependencies.** Ruff's `S` rules are
   flake8-bandit, and they find the one thing bandit found here; the thirteen

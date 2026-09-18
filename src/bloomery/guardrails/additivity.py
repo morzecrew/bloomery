@@ -1,30 +1,30 @@
-"""The additivity guard (RFC 0006 §5.4, D6, D11).
+"""The additivity guard (S-0023/additivity, S-0023/D-6, S-0023/D-11).
 
 Checked over ``MetricIR.additivity`` on the draft IR:
 
-- A ``non_additive`` metric declared without a ``derived:`` block (RFC 0034
+- A ``non_additive`` metric declared without a ``derived:`` block (S-0050
   D1) or an equivalent additive decomposition — an expression over additive
   dependencies — is
   :class:`~bloomery.errors.NonAdditiveWithoutComponents`: with nothing
   additive to recompute from at query time, the metric could only ever be
   answered by storing it, which the next rule forbids. Its remediation names
   ``additivity: ratio`` for the quotient case, never a ``ratio:`` block under
-  this word, which the shape guard refuses (RFC 0038 D7).
+  this word, which the shape guard refuses (S-0053/D-7).
 - A :data:`~bloomery.ir.COMPUTED` metric — ``non_additive`` or ``ratio`` — may
   **never** materialize as a stored number. At M4 the only place that could
   arise is an entity column sharing the metric's name — a stored
   :class:`~bloomery.errors.AdditivityViolation`; emitters re-refuse
-  independently (RFC 0008), defense in depth.
+  independently (S-0025), defense in depth.
 - A ``ratio`` metric needs no rule of its own beyond that one. Its operands are
   guaranteed by the shape guard, which refuses ``additivity: ratio`` without a
-  ``ratio:`` block and a ``ratio:`` block under any other word (RFC 0038 D2).
+  ``ratio:`` block and a ``ratio:`` block under any other word (S-0053/D-2).
 - A ``semi_additive`` metric aggregates only over dimensions *other than* its
   ``over:`` dimension: a missing ``semi_additive: {over, rule}`` policy makes
   the invariant unenforceable, and an expression that explicitly aggregates
   the ``over`` dimension away violates it directly — both
   :class:`~bloomery.errors.AdditivityViolation`. The query-time lowering of
-  ``rule`` is RFC 0011's, not this stage's (D11).
-- An ``additive`` metric must be telling the truth (RFC 0038 D1/D2). Until
+  ``rule`` is S-0028's, not this stage's (D11).
+- An ``additive`` metric must be telling the truth (S-0053/D-1, S-0053/D-2). Until
   then the word was taken on trust — the two rules above inspect only metrics
   declared ``non_additive`` or ``semi_additive``, so a false ``additive``
   claim was the one declaration nothing read. Two shapes are decidable from
@@ -32,7 +32,7 @@ Checked over ``MetricIR.additivity`` on the draft IR:
   an ``avg`` re-averaged, and a measure summed across the very axis its origin
   grain is taken along.
 - A ``distinct_count`` metric is a ``count_distinct`` over the identity it
-  counts, and nothing else (RFC 0038 §4; logs/T-0028.md). The word is what
+  counts, and nothing else (S-0053/additivity-algebra; logs/T-0028.md). The word is what
   keeps every rollup — a composed branch, a rollup mart — from re-aggregating
   the stored count: summing per-group distinct counts double-counts an
   identity present in several. So a ``distinct_count`` with any other
@@ -70,9 +70,9 @@ __all__ = [
 
 
 def _has_decomposition(metric: MetricIR) -> bool:
-    """A decomposition the planner can recompute the metric from (RFC 0011 D5):
+    """A decomposition the planner can recompute the metric from (S-0028/D-5):
     an expression over declared dependencies, or the ``derived:`` block that
-    generalizes exactly that shape (RFC 0034 D1).
+    generalizes exactly that shape (S-0050/D-1).
 
     ``derived:`` needs no ``depends_on`` test of its own — the template merge
     unions its inputs into ``requires_metrics``, so a derived metric always has
@@ -98,14 +98,14 @@ def _aggregates_over(expr: SqlExpr, dimension: str) -> bool:
 
 
 def _check_not_stored(metric: MetricIR, draft: ProjectIR, path: str) -> list[GuardrailError]:
-    """A `COMPUTED` metric may not also exist as a stored column (RFC 0006 D6).
+    """A `COMPUTED` metric may not also exist as a stored column (S-0023/D-6).
 
     Shared by both computed classes rather than written twice: the reason is
     the class's own — a metric recomputed from components at query time and a
     column of the same name are two different numbers wearing one name, and
     re-aggregating the stored one does not give back what the components
     produce. The message says that rather than "a stored average", which was
-    true only of the class this check used to serve alone. RFC 0038 D2 is the
+    true only of the class this check used to serve alone. S-0053/D-2 is the
     same claim stated for ratios specifically.
     """
 
@@ -123,7 +123,7 @@ def _check_not_stored(metric: MetricIR, draft: ProjectIR, path: str) -> list[Gua
         f"metric {metric.name!r} is {metric.additivity.value} and may not be materialized "
         f"as a stored number, but entity {stored[0]!r} stores a column of that name — a "
         "stored result re-aggregates wrongly — the value read back is not the value the "
-        "components produce (RFC 0006 D6). Fix: store the components and rename either the "
+        "components produce (S-0023/D-6). Fix: store the components and rename either the "
         "column or the metric; this metric is recomputed at query time"
     )
 
@@ -141,7 +141,7 @@ def _check_non_additive(metric: MetricIR, draft: ProjectIR, path: str) -> list[G
             f"metric {metric.name!r} is non_additive but declares neither a derived: block "
             "nor an additive decomposition — there is nothing additive to recompute it "
             "from at query time, so it could only ever be answered by storing it, which is "
-            "forbidden (RFC 0006 §5.4). Fix: a derived: expression over other metrics, an "
+            "forbidden (S-0023/additivity). Fix: a derived: expression over other metrics, an "
             "expr over additive dependencies, or — if it is a quotient — additivity: ratio "
             "with ratio: {numerator, denominator} naming its additive components"
         )
@@ -160,7 +160,7 @@ def _check_semi_additive(metric: MetricIR, path: str) -> list[GuardrailError]:
         msg = (
             f"metric {metric.name!r} is semi_additive but declares no semi_additive: "
             "{over, rule} policy — without the over: dimension the only-aggregate-over-"
-            "other-dimensions invariant is unenforceable (RFC 0006 D11). Fix: add "
+            "other-dimensions invariant is unenforceable (S-0023/D-11). Fix: add "
             "semi_additive: {over: <date dimension>, rule: last|first|avg|min|max}"
         )
         return [AdditivityViolation(msg, source_path=path)]
@@ -171,7 +171,7 @@ def _check_semi_additive(metric: MetricIR, path: str) -> list[GuardrailError]:
         msg = (
             f"metric {metric.name!r} is semi_additive over {over!r} but its expr "
             f"aggregates {over!r} away — a semi_additive metric may only be aggregated "
-            "over dimensions other than its over: dimension (RFC 0006 D6). Fix: remove "
+            "over dimensions other than its over: dimension (S-0023/D-6). Fix: remove "
             f"the aggregation of {over!r}; the over-dimension rule "
             f"({metric.semi_additive.rule}) is applied at query time"
         )
@@ -233,7 +233,7 @@ _UNKNOWN_REMEDY = (
 
 def _check_average(metric: MetricIR, path: str) -> list[GuardrailError]:
     """An ``additive`` claim is accepted only over an aggregation whose rollup
-    is known to be sound (RFC 0038 D2).
+    is known to be sound (S-0053/D-2).
 
     ``AVG(AVG(x))`` weights each group equally instead of each row, so a
     re-aggregated average is wrong wherever the groups differ in size — which
@@ -251,7 +251,7 @@ def _check_average(metric: MetricIR, path: str) -> list[GuardrailError]:
 
     msg = (
         f"metric {metric.name!r} declares additivity: additive with agg: {metric.agg}, "
-        "which bloomery does not accept an additive claim over (RFC 0038 D2). Fix: "
+        "which bloomery does not accept an additive claim over (S-0053/D-2). Fix: "
         f"{_REMEDIES.get(metric.agg, _UNKNOWN_REMEDY)}"
     )
 
@@ -265,11 +265,11 @@ def _check_snapshot(
     metric: MetricIR, entity: EntityIR, draft: ProjectIR, path: str
 ) -> list[GuardrailError]:
     """A measure is not additive along the axis its own grain is taken over
-    (RFC 0038 D1).
+    (S-0053/D-1).
 
     The origin grain is the entity's key, read through the grain model so that
     "what the grain is" keeps one definition rather than growing a second,
-    weaker one here (RFC 0037). A temporal determinant in that key means each
+    weaker one here (S-0017). A temporal determinant in that key means each
     row is a *snapshot* — one row per account per day — and summing across the
     axis adds every day's copy of the same money. Additive across the other
     determinants, and not across this one, is exactly what ``semi_additive``
@@ -320,7 +320,7 @@ def _check_snapshot(
         f"metric {metric.name!r} declares additivity: additive, but its grain "
         f"{entity.name!r} is one row per {', '.join(entity.key)} — {over!r} is part of "
         "that key, so each row is a point-in-time snapshot and summing across "
-        f"{over!r} adds the same value once per period (RFC 0038 D1). Fix: additivity: "
+        f"{over!r} adds the same value once per period (S-0053/D-1). Fix: additivity: "
         f"semi_additive with semi_additive: {{over: {over}, rule: last|first|avg|min|max}}, "
         f"which stays additive across {', '.join(k for k in entity.key if k != over) or 'the other determinants'}"
     )
@@ -337,13 +337,13 @@ _DISTINCT: Final = "count_distinct"
 
 def _check_distinct_count(metric: MetricIR, path: str) -> list[GuardrailError]:
     """``additivity: distinct_count`` is ``count_distinct`` over the counted
-    identity, and nothing else (RFC 0038 §4).
+    identity, and nothing else (S-0053/additivity-algebra).
 
     The word exists so no rollup ever re-aggregates the stored count; a metric
     carrying it over ``sum`` would be additive in fact and non-additive in
     name — the composed path would refuse a rollup it could have answered, and
     the resolved IR would disagree with the artifact it produced, which is the
-    second-spelling risk RFC 0038 D5 names. ``expr`` is the identity being counted, so
+    second-spelling risk S-0053/D-5 names. ``expr`` is the identity being counted, so
     a metric without one has nothing to be distinct over — and the emitters
     refuse a measure with no expression anyway; saying it here names the
     class rather than the target.
@@ -365,7 +365,7 @@ def _check_distinct_count(metric: MetricIR, path: str) -> list[GuardrailError]:
     msg = (
         f"metric {metric.name!r} declares additivity: distinct_count with {what} — a "
         "distinct count is count_distinct over the identity it counts, and the word "
-        "exists so the stored count is never rolled up (RFC 0038 §4). Fix: "
+        "exists so the stored count is never rolled up (S-0053/additivity-algebra). Fix: "
         f"{fix}"
     )
 
@@ -377,7 +377,7 @@ def _check_distinct_count(metric: MetricIR, path: str) -> list[GuardrailError]:
 
 def _check_additive(metric: MetricIR, draft: ProjectIR, path: str) -> list[GuardrailError]:
     """``additivity: additive`` is a claim; these are the two shapes of it that
-    are false and decidable without a planner (RFC 0038 D1/D2)."""
+    are false and decidable without a planner (S-0053/D-1, S-0053/D-2)."""
 
     violations = _check_average(metric, path)
 
@@ -404,7 +404,7 @@ def check_additivity(draft: ProjectIR) -> list[GuardrailError]:
             # asks whether anything additive exists to recompute the metric
             # from, and for a ratio the shape guard has already answered it:
             # `additivity: ratio` without a `ratio:` block is refused there
-            # (RFC 0038 D2), so operands are guaranteed by the time this runs.
+            # (S-0053/D-2), so operands are guaranteed by the time this runs.
             violations.extend(_check_not_stored(metric, draft, path))
         elif metric.additivity is Additivity.SEMI_ADDITIVE:
             violations.extend(_check_semi_additive(metric, path))
@@ -413,7 +413,7 @@ def check_additivity(draft: ProjectIR) -> list[GuardrailError]:
         elif metric.additivity is Additivity.DISTINCT_COUNT:
             violations.extend(_check_distinct_count(metric, path))
         else:  # pragma: no cover — `RESOLVABLE` is what keeps this unreachable
-            # RFC 0038 D1 closed the enum at six while resolution mints five;
+            # S-0053/D-1 closed the enum at six while resolution mints five;
             # SNAPSHOT is declared as `semi_additive` and has no word of its
             # own (logs/T-0028.md). Raising rather than falling through is the
             # whole point (logs/T-0019.md, D-105): a silent `else` would hand
@@ -423,7 +423,7 @@ def check_additivity(draft: ProjectIR) -> list[GuardrailError]:
                 f"metric {metric.name!r} resolved to additivity "
                 f"{metric.additivity.value!r}, which no project can declare — "
                 "bloomery.ir.RESOLVABLE names the five that can, and the guard that "
-                "asserts it should have failed before this did (RFC 0038 D1)"
+                "asserts it should have failed before this did (S-0053/D-1)"
             )
             raise InvariantViolated(msg)
 

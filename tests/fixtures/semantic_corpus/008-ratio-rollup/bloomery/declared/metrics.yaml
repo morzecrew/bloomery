@@ -1,6 +1,6 @@
 # The class the measure actually has: a ratio, kept as its two operands so the
 # planner rebuilds it at whatever grain is asked for instead of summing a
-# quotient (RFC 0038 D2, and R012's premise).
+# quotient (S-0053/D-2, and R012's premise).
 metrics_version: 1
 metrics:
   revenue:
@@ -16,7 +16,7 @@ metrics:
   revenue_per_item:
     grain: order
     additivity: ratio
-    # Which rows the ratio is about, stated because R019 asks (RFC 0075): an
+    # Which rows the ratio is about, stated because R019 asks (S-0077): an
     # order with no items would contribute revenue and no items, and this case
     # seeds none — so all three readings return the same number here and only
     # the statement differs. The case's subject is the rollup, not the row set.

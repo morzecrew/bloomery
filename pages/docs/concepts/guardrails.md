@@ -120,7 +120,7 @@ Additivity classes are enforced, not advisory:
     metric 'average_order_value' is ratio and may not be materialized as a
     stored number, but entity 'order' stores a column of that name — a stored
     result re-aggregates wrongly — the value read back is not the value the
-    components produce (RFC 0006 D6). Fix: store the components and rename
+    components produce (S-0023/D-6). Fix: store the components and rename
     either the column or the metric; this metric is recomputed at query time
   ```
 

@@ -1,6 +1,6 @@
 # One month of revenue, as an expression over the instant rather than as a
 # restriction on a bucket: bloomery refuses a metric filtered to a fixed period
-# (RFC 0034), and rightly — a constant is not a metric. The period is part of
+# (S-0050), and rightly — a constant is not a metric. The period is part of
 # what this measure *is*, and the expression is identical in both arms. What
 # differs is which instant `placed_at` holds, decided in the mapping and
 # nowhere else.

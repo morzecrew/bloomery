@@ -1,4 +1,4 @@
-"""Property tier for the grain model (RFC 0037 §6, D7).
+"""Property tier for the grain model (S-0017 (§6), S-0017/D-7).
 
 Two invariants, over generated relationship graphs rather than over the
 hand-built cases:
@@ -6,7 +6,7 @@ hand-built cases:
 * **Nothing crosses a cardinality-expanding edge without a rule.** Every
   dependency the model admits has to be traceable to a declared relationship
   read in a direction D3 (`LOCKED`) permits. That is the property the whole
-  sequence's value rests on: the strength of any proof RFC 0039 or RFC 0040
+  sequence's value rests on: the strength of any proof S-0005 or S-0054
   builds is exactly the weakest fact admitted here, and a graph shape nobody
   wrote a case for is where a wrong admission would hide.
 * **The walk does not see authored order.** ``ProjectIR`` promises sorted

@@ -1,4 +1,4 @@
-"""Unit / tax-basis / currency coherence (RFC 0006 §5.2): every rule's
+"""Unit / tax-basis / currency coherence (S-0023/metadata-provenance-unit-tax-basis-currency): every rule's
 trigger, its nearest non-trigger, and the one-report-per-rule-per-expression
 dedup — over both derivation and metric expressions."""
 
@@ -71,7 +71,7 @@ def test_shared_unit_passes() -> None:
 
 
 def test_multiplication_is_unit_exempt() -> None:
-    # currency × count is how extensive quantities work (RFC 0006 §5.2).
+    # currency × count is how extensive quantities work (S-0023/metadata-provenance-unit-tax-basis-currency).
     assert _check("net_price * qty", "net_price", "qty") == []
 
 
@@ -96,7 +96,7 @@ def test_net_minus_gross_is_a_tax_basis_mismatch() -> None:
 
 
 def test_unknown_basis_with_a_monetary_operand_is_refused() -> None:
-    """RFC 0006 D3 / worked example §5.7: absent metadata on a monetary
+    """S-0023/D-3 / worked example §5.7: absent metadata on a monetary
     operand poisons additive arithmetic — a TaxBasisMismatch, not a pass."""
     (violation,) = _check("net_price - bare_money", "net_price", "bare_money")
     assert isinstance(violation, TaxBasisMismatch)
@@ -110,7 +110,7 @@ def test_shared_basis_passes() -> None:
 
 
 def test_unknown_basis_without_any_monetary_operand_passes() -> None:
-    # Neither operand is declared monetary: nothing to poison (RFC 0006 §5.2
+    # Neither operand is declared monetary: nothing to poison (S-0023/metadata-provenance-unit-tax-basis-currency
     # scopes the rule to arithmetic with a monetary operand).
     assert _check("qty + packs", "qty", "packs") == []
 
@@ -150,13 +150,13 @@ def test_same_declared_codes_pass() -> None:
 
 
 def test_absent_codes_are_compatible() -> None:
-    # Opt-in by design (RFC 0006 D4): declared ≠ declared is the bug worth
+    # Opt-in by design (S-0023/D-4): declared ≠ declared is the bug worth
     # refusing; net_price declares no code and combines with either.
     assert _check("net_eur + net_price", "net_eur", "net_price") == []
 
 
 def test_the_convert_marker_no_longer_satisfies_the_rule() -> None:
-    # RFC 0023 D5. The marker used to be the escape hatch: its presence on
+    # S-0040/D-5. The marker used to be the escape hatch: its presence on
     # either side permitted the arithmetic. It bought a compile-time "yes"
     # whose only outcome was a run-time failure, and removing it did not come
     # back when conversion shipped (§5.4): a converted amount satisfies this

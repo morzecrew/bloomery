@@ -1,4 +1,4 @@
-# What this project publishes for another project to read (RFC 0059 §5.1).
+# What this project publishes for another project to read (S-0002 (§5.1)).
 #
 # Authored out of order on purpose: the order of an export list carries no
 # meaning, so the lowering sorts it, and a fixture already in sorted order

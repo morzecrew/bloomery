@@ -1,4 +1,4 @@
-"""Planner-side runtime seam (RFC 0013 §5.3, RFC 0014): the render-only SQL
+"""Planner-side runtime seam (S-0030/the-adapter-and-the-render-only-client, S-0031): the render-only SQL
 client MetricFlow plans through, and manifest hydration/caching — the
 package's one impure-*adjacent* corner (an in-process LRU; still no I/O).
 Never imported by the compile path — the layering contract keeps ``runtime``
