@@ -9,7 +9,7 @@ it needs a CHANGELOG entry naming what moved and what to write instead.
 <!-- What changed and why, in 2–4 sentences. -->
 
 Closes #
-RFC: <!-- rfcs/NNNN -->
+Document: <!-- S-NNNN -->
 
 ## Type
 

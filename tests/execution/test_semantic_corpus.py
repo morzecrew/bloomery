@@ -1,17 +1,17 @@
-"""The semantic bug corpus, executed (RFC 0042 §6).
+"""The semantic bug corpus, executed (S-0056/engine-execution).
 
 Three assertions per case, and the first two are what make the third worth
 anything:
 
 1. **The naive query runs.** If it errored, the case would be an ordinary SQL
-   bug and belong somewhere else — RFC 0042 D1's whole distinction from
+   bug and belong somewhere else — S-0056/D-1's whole distinction from
    ``tests/fixtures/dirty/`` is that here every value is valid and every cast
    succeeds.
 2. **It returns the wrong number**, and the corrected query returns the right
    one. Both asserted against the case's own ``expected/result.json``, so the
    arithmetic a reviewer checked by hand is the arithmetic the suite checks.
 3. **bloomery does what the case says it does** — refuse with a named error,
-   accept, or (RFC 0042 §8) not guard it at all.
+   accept, or (S-0056/corpus-as-design-gate) not guard it at all.
 
 The third one alone would be a test of bloomery. All three together are a test
 that the *problem is real*, which is what a corpus is for: a refusal nobody can
@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import pathlib
 import re
-import subprocess
 from decimal import Decimal
 
 import duckdb
@@ -138,7 +137,7 @@ def test_bloomery_does_what_the_case_says(case: Case, expectation: Expectation) 
     # The arm's own answer where it has one, and the outcome's otherwise. An
     # arm declares one when it is right and returns the *other* number — a case
     # with two readings has two right answers, and only one of them is the
-    # question the naive query asked (RFC 0075 §6).
+    # question the naive query asked (S-0077/tests).
     answer = expectation.answer or expectation.outcome.answer
     assert answer is not None
     assert dict(zip(case.metrics, planned, strict=True)) == case.results()[answer], (
@@ -147,52 +146,35 @@ def test_bloomery_does_what_the_case_says(case: Case, expectation: Expectation) 
     )
 
 
+SPECS = REPO / ".torve" / "specs"
+
+
 def _decision_table(number: str) -> frozenset[str] | None:
-    """The decision numbers RFC ``number`` declares, or ``None`` if its text
-    cannot be reached.
-
-    A live RFC is read from the tree. A retired one is not in the tree at all —
-    ``RETIRED.md`` names a commit it is readable at, which is the whole reason
-    that table exists — so it is read with ``git show``. ``None`` means the
-    history is unavailable (a shallow clone), never that the RFC has no
-    decisions: the caller reports what it could not check rather than passing.
-    """
-    live = REPO / "rfcs"
-    for path in live.glob(f"{number}-*.md"):
-        return _decisions(path.read_text(encoding="utf-8"))
-
-    row = re.search(
-        rf"^\| {number} \|[^|]*\| `([0-9a-f]{{7,}})`", (live / "RETIRED.md").read_text("utf-8"), re.M
-    )
-    if row is None:
-        return frozenset()
-
-    found = subprocess.run(
-        ["git", "ls-tree", "--name-only", row.group(1), "rfcs/"],
-        capture_output=True, text=True, cwd=REPO, check=False,
-    )
-    name = next((n for n in found.stdout.split() if f"/{number}-" in n), None)
-    if found.returncode or name is None:
+    """The decision ids document ``S-number`` declares, or ``None`` when no
+    such document is in the corpus. Every document — live or landed — is in
+    `.torve/specs/`, so nothing here reads history."""
+    path = SPECS / f"S-{number}" / "decisions.yaml"
+    if not path.is_file():
         return None
-
-    shown = subprocess.run(
-        ["git", "show", f"{row.group(1)}:{name}"],
-        capture_output=True, text=True, cwd=REPO, check=False,
-    )
-
-    return _decisions(shown.stdout) if shown.returncode == 0 else None
+    return frozenset(re.findall(r"^  - id: (D-\d+)$", path.read_text(encoding="utf-8"), re.M))
 
 
-def _decisions(text: str) -> frozenset[str]:
-    return frozenset(re.findall(r"^\| (\d+) \|", text, re.M))
+def _landed() -> set[str]:
+    """The document numbers whose implementation is complete: the corpus's
+    word for what retirement used to say."""
+    return {
+        path.parent.name[2:]
+        for path in SPECS.glob("S-*/document.yaml")
+        if re.search(r"^implementation: complete$", path.read_text(encoding="utf-8"), re.M)
+    }
 
 
 def test_every_cited_rule_names_a_decision_that_exists() -> None:
-    """RFC 0042 D3 asks for a **stable rule ID**, and the ID is the whole
+    """S-0056/D-3 asks for a **stable rule ID**, and the ID is the whole
     citation, not the number in front of it.
 
-    Before this, `RFC 0010 D9999` passed: the RFC number was checked against
-    the live and retired registers and the decision after it against nothing.
+    Before this, `S-0027/D-9999` passed: the document number was checked
+    against the register and the decision after it against nothing.
     A citation nobody can follow is prose wearing an identifier.
 
     Sections are refused as well as unchecked numbers. `§5.3` moves when a
@@ -200,15 +182,15 @@ def test_every_cited_rule_names_a_decision_that_exists() -> None:
     reused, which is what makes it stable enough to cite from outside.
 
     **Two registers, both accepted, each checked against itself.** A proof rule
-    id resolves against `bloomery.semantic.RULES`, which RFC 0039 D8 governs as
-    append-only and which this process can read; an `RFC NNNN Dn` resolves
-    against that document's decision table. The R-id is the stronger citation on
+    id resolves against `bloomery.semantic.RULES`, which S-0005/D-8 governs as
+    append-only and which this process can read; an `S-NNNN/D-n` resolves
+    against that document's `decisions.yaml`. The R-id is the stronger citation on
     D3's own terms — machine-readable, never reused, and verifiable without
     opening a document that may since have been retired — and the older form
     stays because every case written before R009 uses it (logs/T-0025.md,
     D-159).
     """
-    unreachable = []
+    missing = []
 
     for case in CASES:
         for expectation in case.expectations:
@@ -222,32 +204,18 @@ def test_every_cited_rule_names_a_decision_that_exists() -> None:
             number, decision = cited.groups()
             declared = _decision_table(number)
             if declared is None:
-                unreachable.append(f"{expectation.rule} ({case.name}/{expectation.name})")
+                missing.append(f"{expectation.rule} ({case.name}/{expectation.name})")
                 continue
-            assert decision in declared, (
-                f"{case.name}/{expectation.name} cites {expectation.rule}, and RFC "
-                f"{number} declares no decision {decision}"
+            assert f"D-{decision}" in declared, (
+                f"{case.name}/{expectation.name} cites {expectation.rule}, and S-"
+                f"{number} declares no decision D-{decision}"
             )
 
-    # Reported, never silently skipped: a shallow clone cannot read a retired
-    # RFC, and a check that passes quietly there is one nobody notices has
-    # stopped running.
-    assert not unreachable or _shallow(), (
-        f"unreadable RFC text for {unreachable} in a repository with full history"
-    )
-
-
-def _shallow() -> bool:
-    result = subprocess.run(
-        ["git", "rev-parse", "--is-shallow-repository"],
-        capture_output=True, text=True, cwd=REPO, check=False,
-    )
-
-    return result.returncode != 0 or result.stdout.strip() != "false"
+    assert not missing, f"no document in the corpus for {missing}"
 
 
 def test_a_retired_rfc_owns_no_unguarded_case() -> None:
-    """RFC 0042 §8's design gate, in the one direction that holds.
+    """S-0056/corpus-as-design-gate's design gate, in the one direction that holds.
 
     Retirement is the human act that declares an RFC complete. So a retired
     RFC still named by an ``unguarded`` case is a real defect: the document was
@@ -258,9 +226,9 @@ def test_a_retired_rfc_owns_no_unguarded_case() -> None:
 
     **The converse does not hold, and asserting it was a defect of its own.**
     This test was first written as a biconditional — unguarded if and only if
-    the cited RFC is live — which assumes an RFC ships all at once. RFC 0038
+    the cited RFC is live — which assumes an RFC ships all at once. S-0053
     ships in phases (§12): D1 and D2 refuse cases 002 and 005 today while the
-    lowering of ``DistinctCount`` and ``Snapshot`` waits on RFC 0041, so the
+    lowering of ``DistinctCount`` and ``Snapshot`` waits on S-0055, so the
     document is correctly still live and its rules are correctly built. The
     biconditional failed on a tree where nothing was wrong.
 
@@ -270,7 +238,7 @@ def test_a_retired_rfc_owns_no_unguarded_case() -> None:
     kept here is the one no number can report.
 
     **It skips rather than passing when the corpus holds no unguarded case**,
-    which is the state RFC 0038 left it in by converting the last two. A guard
+    which is the state S-0053 left it in by converting the last two. A guard
     with nothing to guard reports green either way, and green is what a reader
     checks for — so the dormancy is said out loud instead. Cases 006-010 wake
     it, and so does any case added for a rule that has not shipped.
@@ -287,9 +255,7 @@ def test_a_retired_rfc_owns_no_unguarded_case() -> None:
             "shipped, so this gate has nothing to check until one is added that does not"
         )
 
-    retired = set(
-        re.findall(r"^\| (\d{4}) \|", (REPO / "rfcs" / "RETIRED.md").read_text("utf-8"), re.M)
-    )
+    retired = _landed()
 
     # The citation's *shape* and the existence of the decision row it names are
     # `test_every_cited_rule_names_a_decision_that_exists`, over every
@@ -302,5 +268,5 @@ def test_a_retired_rfc_owns_no_unguarded_case() -> None:
             f"{case.name}/{expectation.name} is unguarded and cites {expectation.rule}, "
             f"whose RFC {number} is retired — the document was declared complete without "
             "converting a case it owns. Either the rule did not do what the case says, or "
-            "the case was not revisited when it landed (RFC 0042 §8)"
+            "the case was not revisited when it landed (S-0056/corpus-as-design-gate)"
         )

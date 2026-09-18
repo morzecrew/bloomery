@@ -1,7 +1,7 @@
 {
   "file_filters": {
     "config": {
-      "include_files": "src/**/*.py,tests/**/*.py,rfcs/*.md"
+      "include_files": "src/**/*.py,tests/**/*.py,.torve/specs/**/*.yaml"
     }
   }
 }

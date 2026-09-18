@@ -7,7 +7,7 @@
 # Every `timeout` is a measured cost with headroom, never a round number picked
 # at the keyboard. Measured on 2026-09-17 on this host, one run each over
 # `main` at ad5891d7 with a warm uv cache: ruff 0.0s, ruff format 0.1s,
-# mypy 0.4s, lint-imports 0.2s, check_rfc_corpus 0.3s, the default test tiers
+# mypy 0.4s, lint-imports 0.2s, the default test tiers
 # 167.8s. Cold-cache mypy and a first `uv sync` inside a fresh worktree are
 # not in those numbers, which is the headroom.
 #
@@ -15,11 +15,8 @@
 # reddens when a gate stops working, and a manifest that names a twin for any
 # gate refuses the twinless rest. The load warns; the battery runs.
 #
-# `spec-valid` (`torve spec check`) is deliberately absent. The checker's tree
-# scan reads every `RFC NNNN` citation in `src/` and `pages/` as torve's own
-# legacy grammar — 1,208 findings on a tree that cites its design corpus that
-# way on purpose. The gate enters when the scan is the adopter's to scope
-# (filed as an operator source in torve's own corpus).
+# `spec-valid` (`torve spec check`) entered on 2026-09-18 with the corpus that
+# replaced the RFCs: the tree cites `S-NNNN/D-k` now, which the scan reads.
 schema_version: 1
 
 scope:
@@ -80,16 +77,16 @@ gates:
     origin: structural
     # 0.2s measured.
     timeout: 9
-  # The repository's own corpus discipline: a citation names a live RFC or a
-  # retired one readable at the commit RETIRED.md names.
-  - name: rfc-corpus
-    run: "uv run python tools/check_rfc_corpus.py ."
+  # The corpus is the design authority; a citation in `src/` or `pages/` that
+  # names no row, and a document that does not load, are refused here. Ten
+  # seconds over 77 documents.
+  - name: spec-valid
+    run: "uv run torve spec check"
     input: worktree
-    state: shadow
+    state: blocking
     origin: structural
     axis: form
-    # 0.3s measured.
-    timeout: 9
+    timeout: 60
   - name: acceptance
     run: "@task.acceptance"
     state: blocking

@@ -1,4 +1,4 @@
-"""The semantic bug corpus, loaded (RFC 0042).
+"""The semantic bug corpus, loaded (S-0056).
 
 Every case is a directory under ``tests/fixtures/semantic_corpus/`` holding a
 statement, a warehouse, two queries, the expected numbers, and one bloomery
@@ -78,7 +78,7 @@ class Outcome(StrEnum):
     whose guard has not been built yet can only be written as a fiction or
     left out, and leaving it out drops exactly the cases a future RFC exists
     to convert — which is the direction the semantic sequence travels, and
-    what makes the corpus a design gate (RFC 0042 §8).
+    what makes the corpus a design gate (S-0056/corpus-as-design-gate).
     """
 
     #: bloomery refuses the spec. ``error`` names the class, and there is no
@@ -107,9 +107,9 @@ class Expectation:
     name: str
     outcome: Outcome
     #: The refusal's class name, for ``REFUSED``; ``None`` otherwise. The
-    #: machine-readable half of RFC 0042 D3 — prose is not asserted.
+    #: machine-readable half of S-0056/D-3 — prose is not asserted.
     error: str | None
-    #: The decision this case belongs to, e.g. ``"RFC 0010 D2"``. Stable by
+    #: The decision this case belongs to, e.g. ``"S-0027/D-2"``. Stable by
     #: the retirement policy: a retired RFC keeps its number.
     rule: str
     directory: pathlib.Path
@@ -121,7 +121,7 @@ class Expectation:
     #: the case has two right answers to two different questions and only one
     #: of them is the question the naive query was asking. An arm that is right
     #: and returns the other number had no spelling until a case had two
-    #: readings to tell apart (RFC 0075 §6, logs/T-0063.md).
+    #: readings to tell apart (S-0077/tests, logs/T-0063.md).
     answer: str | None = None
 
     # ....................... #
@@ -184,7 +184,7 @@ class Case:
         keyed by anything but the metrics they measure would be asserting a
         number against a name nothing connects to it.
 
-        **A tuple rather than one name.** A case was one metric until RFC 0041
+        **A tuple rather than one name.** A case was one metric until S-0055
         P1, whose whole subject is a request naming measures of two grains —
         expressible only as a case that measures two columns, and a loader
         insisting on one could not hold it. Sorted, so the request a case asks
@@ -210,7 +210,7 @@ class Case:
     # ....................... #
 
     def results(self) -> dict[str, dict[str, Decimal]]:
-        """The expected numbers, as ``Decimal`` — never floats (RFC 0003 D5).
+        """The expected numbers, as ``Decimal`` — never floats (S-0020/D-5).
 
         Authored as strings for the same reason: ``9.0`` in JSON is a float
         before any of this code sees it.
@@ -303,12 +303,12 @@ def cases() -> tuple[Case, ...]:
 # ....................... #
 
 
-#: A proof-rule id, the register `bloomery.semantic.RULES` governs (RFC 0039
-#: D8), and an RFC decision citation, the register a document's decision table
+#: A proof-rule id, the register `bloomery.semantic.RULES` governs (S-0005
+#: D8), and a decision citation, the register a document's `decisions.yaml`
 #: governs. Both are stable and append-only; a section number is neither, which
-#: is why `§5.3` matches nothing here.
+#: is why `S-NNNN/some-section` matches nothing here.
 RULE_ID = re.compile(r"R\d{3}")
-DECISION_CITATION = re.compile(r"RFC (\d{4}) D(\d+)")
+DECISION_CITATION = re.compile(r"S-(\d{4})/D-(\d+)")
 
 
 def unregistered_rule(rule: str, registry: Mapping[str, object]) -> str:
@@ -336,7 +336,7 @@ def unregistered_rule(rule: str, registry: Mapping[str, object]) -> str:
         return ""
 
     return (
-        f"rule {rule!r} is neither a proof-rule id (`R0nn`) nor `RFC NNNN Dn`. A section "
-        "number is not a stable ID — it moves when the document is edited, and neither a "
+        f"rule {rule!r} is neither a proof-rule id (`R0nn`) nor `S-NNNN/D-n`. A section "
+        "key is not a stable ID — it moves when the document is edited, and neither a "
         "decision row's number nor a rule id does"
     )

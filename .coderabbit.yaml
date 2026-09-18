@@ -11,4 +11,4 @@ reviews:
 
   path_filters:
     - "src/**"
-    - "rfcs/**"
+    - ".torve/specs/**"

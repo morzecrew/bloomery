@@ -218,7 +218,7 @@ __marimo__/
 .streamlit/secrets.toml
 
 # ....................... #
-# bloomery-specific (RFC 0001)
+# bloomery-specific (S-0018)
 
 # hatch-vcs generated version file
 src/bloomery/_version.py
@@ -245,7 +245,7 @@ coverage-data/
 # stay committed — they are project conventions, this is derived state.
 .claude/CLAUDE.md
 
-# NOTE: rfcs/ is deliberately committed here — the RFC corpus is a deliverable.
+# NOTE: .torve/specs/ is deliberately committed here — the design corpus is a deliverable.
 
 # Stray warehouse files from local SQLMesh/DuckDB runs — the e2e tier builds
 # its own under tmp_path and never writes into the repo.

@@ -55,15 +55,15 @@ compiler that refuses without routing is one people learn to work around.
 ```
 measure 'shipping' has grain 'order' (one row per order), not the mart's grain
 'order_item' (one row per line on an order) — measure grain must strictly equal
-mart grain (RFC 0010 D2). Flattened into the mart it is duplicated once per
+mart grain (S-0027/D-2). Flattened into the mart it is duplicated once per
 'order_item' row and any SUM over it overstates. Fix: remove it from this mart's
 measures, or serve it from a mart at grain 'order'
 ```
 
-The `RFC NNNN Dn` citations point at the design decision behind the rule. Those
-documents are retired once shipped — `rfcs/RETIRED.md` says where to read each
-one — because the code, the tests and these messages are the account of what
-bloomery does.
+The `S-NNNN/D-n` citations point at the design decision behind the rule, a row in
+that document's `decisions.yaml` under `.torve/specs/`; `torve spec show S-NNNN/D-n`
+prints it. The code, the tests and these messages are the account of what bloomery
+does; the row is where the decision came from.
 
 ## The full catalogue
 
