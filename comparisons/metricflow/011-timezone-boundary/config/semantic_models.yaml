@@ -1,0 +1,50 @@
+semantic_model:
+  name: orders
+  node_relation:
+    alias: corpus__orders
+    schema_name: bronze
+    relation_name: bronze.corpus__orders
+  entities:
+    - name: order
+      type: primary
+      expr: order_id
+  dimensions:
+    - name: placed_at_zoneless
+      type: time
+      expr: CAST(placed_at AS TIMESTAMP)
+      type_params:
+        time_granularity: day
+    - name: placed_at_anchored
+      type: time
+      expr: CAST(placed_at AS TIMESTAMP) AT TIME ZONE 'America/New_York' AT TIME ZONE 'UTC'
+      type_params:
+        time_granularity: day
+  measures:
+    - name: revenue_zoneless
+      agg: sum
+      expr: revenue
+      agg_time_dimension: placed_at_zoneless
+    - name: revenue_anchored
+      agg: sum
+      expr: revenue
+      agg_time_dimension: placed_at_anchored
+---
+metric:
+  name: february_revenue_zoneless
+  type: simple
+  type_params:
+    measure:
+      name: revenue_zoneless
+      filter:
+        - "{{ TimeDimension('order__placed_at_zoneless', 'day') }} >= '2025-02-01'"
+        - "{{ TimeDimension('order__placed_at_zoneless', 'day') }} < '2025-03-01'"
+---
+metric:
+  name: february_revenue_anchored
+  type: simple
+  type_params:
+    measure:
+      name: revenue_anchored
+      filter:
+        - "{{ TimeDimension('order__placed_at_anchored', 'day') }} >= '2025-02-01'"
+        - "{{ TimeDimension('order__placed_at_anchored', 'day') }} < '2025-03-01'"

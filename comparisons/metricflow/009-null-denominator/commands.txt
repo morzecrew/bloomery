@@ -1,0 +1,4 @@
+uv run python comparisons/metricflow/run.py \
+    tests/fixtures/semantic_corpus/009-null-denominator \
+    comparisons/metricflow/009-null-denominator \
+    cost_per_parcel_inclusive cost_per_parcel_restricted cost_per_parcel_filled
