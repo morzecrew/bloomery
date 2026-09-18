@@ -237,7 +237,10 @@ def question() -> list[str]:
     )
 
     if drift.returncode == 3:
-        problems.append("the spec projection has drifted — re-run the projection")
+        problems.append(
+            "the spec projection has drifted — run `uv run torve spec project` "
+            "and commit what it writes"
+        )
 
     return problems
 
