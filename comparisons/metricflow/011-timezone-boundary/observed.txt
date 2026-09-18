@@ -1,0 +1,5 @@
+SemanticManifestValidator: 0 error(s), 0 warning(s)
+### february_revenue_zoneless
+  -> [(Decimal('40.00'),)]
+### february_revenue_anchored
+  -> [(Decimal('140.00'),)]

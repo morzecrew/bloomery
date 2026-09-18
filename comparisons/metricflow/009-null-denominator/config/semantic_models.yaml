@@ -1,0 +1,70 @@
+semantic_model:
+  name: shipments
+  node_relation:
+    alias: corpus__shipments
+    schema_name: bronze
+    relation_name: bronze.corpus__shipments
+  entities:
+    - name: shipment
+      type: primary
+      expr: shipment_id
+  dimensions:
+    - name: shipped_on
+      type: time
+      expr: shipped_on
+      type_params:
+        time_granularity: day
+    - name: moved_parcels
+      type: categorical
+      expr: parcels > 0
+  measures:
+    - name: carrier_cost
+      agg: sum
+      expr: carrier_cost
+      agg_time_dimension: shipped_on
+    - name: parcels
+      agg: sum
+      expr: parcels
+      agg_time_dimension: shipped_on
+---
+metric:
+  name: carrier_cost
+  type: simple
+  type_params:
+    measure: carrier_cost
+---
+metric:
+  name: parcels
+  type: simple
+  type_params:
+    measure: parcels
+---
+metric:
+  name: cost_per_parcel_inclusive
+  type: ratio
+  type_params:
+    numerator:
+      name: carrier_cost
+    denominator:
+      name: parcels
+---
+metric:
+  name: cost_per_parcel_restricted
+  type: ratio
+  type_params:
+    numerator:
+      name: carrier_cost
+      filter: "{{ Dimension('shipment__moved_parcels') }}"
+    denominator:
+      name: parcels
+      filter: "{{ Dimension('shipment__moved_parcels') }}"
+---
+metric:
+  name: cost_per_parcel_filled
+  type: ratio
+  type_params:
+    numerator:
+      name: carrier_cost
+    denominator:
+      name: parcels
+      fill_nulls_with: 0

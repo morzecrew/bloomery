@@ -1,0 +1,4 @@
+uv run python comparisons/metricflow/run.py \
+    tests/fixtures/semantic_corpus/011-timezone-boundary \
+    comparisons/metricflow/011-timezone-boundary \
+    february_revenue_zoneless february_revenue_anchored

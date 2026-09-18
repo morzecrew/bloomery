@@ -59,10 +59,12 @@ bundle is run by hand when someone remembers, and the corpus is a gate. Building
 `comparisons/bloomery/` beside it would duplicate the same question into a second account
 that can drift from the first, which is exactly what D4 exists to prevent.
 
-The standard D3 actually asks for is that bloomery's losses are published, and they are:
-`009-null-denominator` and `011-timezone-boundary` are cells where bloomery compiles the
-request and returns **the wrong number**, and they appear in the table as
-`NOT-REPRESENTED`.
+The standard D3 actually asks for is that bloomery's losses are published, and they are —
+in [`MATRIX.md`](MATRIX.md)'s own section, which today says there are none over this corpus
+and names the two that were there until recently: `009-null-denominator` / `declared` and
+`011-timezone-boundary` / `zoneless` were cells where bloomery compiled the request and
+returned **the wrong number**, pinned `unguarded` and published as `NOT-REPRESENTED` for as
+long as that was true.
 
 ## Staleness
 

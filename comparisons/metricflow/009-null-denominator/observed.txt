@@ -1,0 +1,7 @@
+SemanticManifestValidator: 0 error(s), 0 warning(s)
+### cost_per_parcel_inclusive
+  -> [(4.0,)]
+### cost_per_parcel_restricted
+  -> [(3.0,)]
+### cost_per_parcel_filled
+  -> [(4.0,)]
