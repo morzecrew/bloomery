@@ -271,7 +271,7 @@ risks: |
 sections:
   - key: provenance
     md: |
-      This document is a carry-across of `rfcs/0043-semantic-capability-matrix.md`,
+      This document is a carry-across of S-0006,
       numbered 0043 in bloomery's own design corpus and listed there as *in progress*. Its
       decision table is the source of every row below, carried with the grade the source
       gives it: rows 1 through 13 of that table map one-to-one onto D-1 through D-13, and

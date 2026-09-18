@@ -1,26 +1,41 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) `{parse_ts: ISO8601}` must
-      accept the `T` separator on every shipping dialect. The argument names a standard;
-      a whitelisted transform that implements it on two ports of three is a defect
-      in the transform, not a caveat for the docs.
+      `{parse_ts: ISO8601}` must accept the `T` separator on every shipping dialect.
+      The argument names a standard; a whitelisted transform that implements it on
+      two ports of three is a defect in the transform, not a caveat for the docs.
+    paths:
+      - examples/lakehouse/**
+      - src/bloomery/dialects/postgres.py
+      - src/bloomery/dialects/trino.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/transforms/_builtins.py
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) The fix may **not** be a
-      blanket render-time rewrite of `CAST(… AS TIMESTAMP)` on Trino. Emitted artifacts
-      already cast operands that are timestamps and NULLs, and `REPLACE` over either
-      is a type error, not a no-op (§2).
+      The fix may **not** be a blanket render-time rewrite of `CAST(… AS TIMESTAMP)`
+      on Trino. Emitted artifacts already cast operands that are timestamps and NULLs,
+      and `REPLACE` over either is a type error, not a no-op (§2).
+    paths:
+      - examples/lakehouse/**
+      - src/bloomery/dialects/postgres.py
+      - src/bloomery/dialects/trino.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/transforms/_builtins.py
   - id: D-3
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) The fix lives in the **neutral
-      spelling**, not at the port, because provenance does not survive the canonical-text
-      round-trip (§3). Any option that needs the dialect to know a cast came from
-      `parse_ts` is out.
+      The fix lives in the **neutral spelling**, not at the port, because provenance
+      does not survive the canonical-text round-trip (§3). Any option that needs the
+      dialect to know a cast came from `parse_ts` is out.
+    paths:
+      - examples/lakehouse/**
+      - src/bloomery/dialects/postgres.py
+      - src/bloomery/dialects/trino.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/transforms/_builtins.py
   - id: D-4
     grade: OPEN
     text: >-
@@ -48,9 +63,15 @@ decisions:
       - src/bloomery/transforms/_builtins.py
       - tests/unit/test_transforms/test_builtins.py
   - id: D-7
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) Until this lands, the divergence
-      is **documented, not refused**. (d) is the S-0025/D-3-pure answer and it breaks
-      working projects to punish a bug they already routed around; the projects that
-      hit it hit it loudly, through the `coercible` rule, not silently.
+      Until this lands, the divergence is **documented, not refused**. (d) is the
+      S-0025/D-3-pure answer and it breaks working projects to punish a bug they already
+      routed around; the projects that hit it hit it loudly, through the `coercible`
+      rule, not silently.
+    paths:
+      - examples/lakehouse/**
+      - src/bloomery/dialects/postgres.py
+      - src/bloomery/dialects/trino.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/transforms/_builtins.py

@@ -316,7 +316,7 @@ risks: |
 sections:
   - key: provenance
     md: |
-      This document is a carry-across of `rfcs/0033-observability-logging-and-a-warnings-channel.md`,
+      This document is a carry-across of S-0004,
       numbered 0033 in `rfcs/INDEX.md`, whose status row reads "🚧 In progress". That document is
       the design authority and is not edited by this one; nothing here is a redesign.
 

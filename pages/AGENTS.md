@@ -4,7 +4,7 @@
 
 ### S-0018/D-1 — `ASSUMED` (Project foundations: packaging, tooling, CI, docs)
 
-House scaffold adopted from forze; deliberate divergences: `rfcs/` is committed, mermaid over d2, no CI sharding/conformance/DST apparatus.
+House scaffold adopted from forze; deliberate divergences: the `rfcs` directory (since retired) is committed, mermaid over d2, no CI sharding/conformance/DST apparatus.
 
 - Paths: `pages/zensical.toml`
 

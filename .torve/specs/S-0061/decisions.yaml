@@ -1,13 +1,18 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) bloomery emits `config.yaml`
-      with `model_defaults` and **never** a `gateways:` block. The dbt precedent is
-      not an analogy but the same rule: `dbt_project.yml` is emitted, `profiles.yml`
-      is not, because a connection carries hosts and credentials and the compiler
-      reads no environment. M2 measures that SQLMesh accepts the split.
+      bloomery emits `config.yaml` with `model_defaults` and **never** a `gateways:`
+      block. The dbt precedent is not an analogy but the same rule: `dbt_project.yml`
+      is emitted, `profiles.yml` is not, because a connection carries hosts and credentials
+      and the compiler reads no environment. M2 measures that SQLMesh accepts the
+      split.
+    paths:
+      - examples/targets/run.py
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - src/bloomery/ir/nodes.py
   - id: D-2
     grade: LOCKED
     text: >-
@@ -17,11 +22,16 @@ decisions:
       result. This row is the RFC.
     paths: [tests/e2e/test_sqlmesh_project.py]
   - id: D-3
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) `start` is **derived**, never
-      a new spec key. The catalog's date dimension already states the project's temporal
-      extent; a second declaration of one fact is two declarations that will disagree.
+      `start` is **derived**, never a new spec key. The catalog's date dimension already
+      states the project's temporal extent; a second declaration of one fact is two
+      declarations that will disagree.
+    paths:
+      - examples/targets/run.py
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - src/bloomery/ir/nodes.py
   - id: D-4
     grade: ASSUMED
     text: >-

@@ -12,7 +12,7 @@ owner: author role
 schema_version: 4
 summary: |
   A `bigquery` dialect port for bloomery, its rewrite surface, and the tier ladder that
-  establishes it, carried across from `rfcs/0048-bigquery-dialect.md` with that document's
+  establishes it, carried across from S-0014 with that document's
   own grades intact. BigQuery is the cheapest of the four cloud engines to make
   authoritative: a dry run is a full parse, bind and type check that executes nothing and
   scans nothing, so the real service's own compiler is reachable for the cost of an API
@@ -76,7 +76,7 @@ goals: |
 non_goals: |
   The validation method itself. The ladder, the surrogate marker, the credential
   discipline and where a live harness may live are settled in
-  `rfcs/0046-validating-a-dialect-port.md`; this document applies them and does not
+  S-0012; this document applies them and does not
   restate them, so a reader chasing why rung 4 is never the oracle should read that file
   rather than this one.
 
@@ -235,13 +235,13 @@ risks: |
 sections:
   - key: provenance
     md: |
-      This document is a translation of `rfcs/0048-bigquery-dialect.md`, bloomery's own
+      This document is a translation of S-0014, bloomery's own
       design authority for the port, carried into the corpus so that a minted task can
       inherit it. Nothing here is a redesign.
 
-      - **Source.** The file `rfcs/0048-bigquery-dialect.md`, listed in `rfcs/INDEX.md`
+      - **Source.** The file S-0014, listed in `rfcs/INDEX.md`
         with status *Draft* — proposed, not scheduled. Its validation method is
-        `rfcs/0046-validating-a-dialect-port.md`, itself a draft; that document's rows
+        S-0012, itself a draft; that document's rows
         D1 through D5 are applied here rather than restated, and its rows D8 and D9 are
         the two open questions below.
       - **Grades.** All seven rows are the source document's own, in its own order and at

@@ -13,9 +13,9 @@ decisions:
       surfaces the conflict rather than choosing, and every timestamp fixture must
       read as the same instant on Snowflake as on the three shipped ports
     rationale: >-
-      Row D1 of `rfcs/0047-snowflake-dialect.md`, carried at the grade that document
-      gives it. The reader-dependence this removes was removed once already at real
-      cost — the retirement `rfcs/RETIRED.md` records as 0028 at `558b31c` — and it
+      Row D1 of S-0013, carried at the grade that document gives it. The reader-dependence
+      this removes was removed once already at real cost — the retirement `RETIRED.md`
+      (the retired register, since deleted) records as 0028 at `558b31c` — and it
       is not this port's decision to revisit: a port that "usefully" picked `LTZ`
       would reintroduce a shipped defect on one engine only, where the other three
       look fine
@@ -32,10 +32,10 @@ decisions:
       point Snowflake needs nothing for is answered by a capability flag or by nothing
       at all
     rationale: >-
-      Row D2 of `rfcs/0047-snowflake-dialect.md`. Snowflake has native primitives
-      for much of what those two needed workarounds for, and a carried-over workaround
-      is at best dead weight and at worst a rewrite that changes meaning on an engine
-      nobody measured it against
+      Row D2 of S-0013. Snowflake has native primitives for much of what those two
+      needed workarounds for, and a carried-over workaround is at best dead weight
+      and at worst a rewrite that changes meaning on an engine nobody measured it
+      against
   - id: D-3
     grade: ASSUMED
     text: >-
@@ -51,9 +51,8 @@ decisions:
       that matters, in which case LocalStack becomes the default and its token constraint
       follows it
     rationale: >-
-      Row D3 of `rfcs/0047-snowflake-dialect.md`, `ASSUMED` there and here: it is
-      a judgement about two emulators' documented behaviour, and building against
-      them is what settles it
+      Row D3 of S-0013, `ASSUMED` there and here: it is a judgement about two emulators'
+      documented behaviour, and building against them is what settles it
   - id: D-4
     grade: ASSUMED
     text: >-
@@ -65,9 +64,9 @@ decisions:
       is invisible — a test name in a CI log — so the tier table grows a rung rather
       than reusing one, and a green surrogate lane can never be quoted as engine conformance
     rationale: >-
-      Row D4 of `rfcs/0047-snowflake-dialect.md`. The shared method in `rfcs/0046-validating-a-dialect-port.md`
-      already requires it; the source records it again because Snowflake is the port
-      where the local story is good enough to tempt an exception
+      Row D4 of S-0013. The shared method in S-0012 already requires it; the source
+      records it again because Snowflake is the port where the local story is good
+      enough to tempt an exception
   - id: D-5
     grade: OPEN
     text: >-
@@ -81,8 +80,8 @@ decisions:
       the count, and a decision taken before that evidence exists is the thing this
       row refuses
     rationale: >-
-      Row D5 of `rfcs/0047-snowflake-dialect.md`, `OPEN` there: the source deliberately
-      delegates it to whoever builds both lanes
+      Row D5 of S-0013, `OPEN` there: the source deliberately delegates it to whoever
+      builds both lanes
   - id: D-6
     grade: OPEN
     text: >-
@@ -96,9 +95,8 @@ decisions:
       constraint and nothing else about the map is fixed, including whether `VariantType`
       keeps the base adapter's `JSON` or becomes `VARIANT`
     rationale: >-
-      Row D6 of `rfcs/0047-snowflake-dialect.md`, `OPEN` there. The source states
-      plainly that it does not guess this table, and the reason is the one-way door
-      rather than lack of interest
+      Row D6 of S-0013, `OPEN` there. The source states plainly that it does not guess
+      this table, and the reason is the one-way door rather than lack of interest
   - id: D-7
     grade: ASSUMED
     text: >-
@@ -112,8 +110,8 @@ decisions:
       a schedule and on manual dispatch behind a GitHub Environment, and a red lane
       on a missing variable would train people to ignore the lane
     rationale: >-
-      Not a row of `rfcs/0047-snowflake-dialect.md`'s decision table — it is that
-      document's own prose, which says the token "must never be committed" and gives
-      the compose fragment that reads it from the environment. A rule stated in prose
-      is inherited by nobody, so it is given a row; graded `ASSUMED` rather than `LOCKED`
-      because the author never graded it
+      Not a row of S-0013's decision table — it is that document's own prose, which
+      says the token "must never be committed" and gives the compose fragment that
+      reads it from the environment. A rule stated in prose is inherited by nobody,
+      so it is given a row; graded `ASSUMED` rather than `LOCKED` because the author
+      never graded it

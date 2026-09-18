@@ -126,11 +126,60 @@ No default threshold. A source with no block gets none; a guessed six hours woul
 
 - Paths: `src/bloomery/plan/diff.py`
 
+### S-0067/D-1 — `LOCKED` (Stable node identity across renames)
+
+Identity is declared, never inferred. No similarity heuristic over names, SQL or column sets decides that two nodes are the same node; a wrong guess here rewrites history rather than raising an error.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/model.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0067/D-3 — `LOCKED` (Stable node identity across renames)
 
 Absence of `id:` reproduces today's behaviour byte for byte. A feature that changes artifacts for projects that did not ask for it is not optional.
 
 - Paths: `src/bloomery/cli/render.py` `src/bloomery/plan/diff.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0069/D-1 — `LOCKED` (Definition supersession and change attribution)
+
+The delta is stated in spec vocabulary, never as a text diff of emitted SQL. A reader who has to decide which textual differences are semantic is doing the compiler's job.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/model.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0069/D-2 — `LOCKED` (Definition supersession and change attribution)
+
+Superseded versions are related, never overwritten. History that replaces cannot answer the question the feature exists for.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/model.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0069/D-3 — `LOCKED` (Definition supersession and change attribution)
+
+The compiler never attributes a change to data. "No definition change" is the complete and correct answer when the definition did not change.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/model.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0074/D-2 — `LOCKED` (Spec timeline)
+
+History is caller-assembled and consumed once, in order. Inherited from S-0073/D-1; restated because this is the document a reader lands on when they want the feature, and the constraint has to be where they look.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/lineage.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0074/D-3 — `LOCKED` (Spec timeline)
+
+The delta vocabulary is S-0069's and is never restated here. Two tables describing one thing is the drift this corpus has paid for before.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/lineage.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0074/D-11 — `LOCKED` (Spec timeline)
+
+**A history entry carries the `Project`, not the `ProjectIR`.** The IR does not retain the authored `id:` — S-0067 substitutes it while building node ids and keeps only names, because a field in the IR would move every fingerprint and break that document's D3. A timeline handed only IRs cannot match by id, which makes row 5 unimplementable; taking the spec side fixes it at the source, and the IR P2 needs is derivable from the same pair. Locked because reversing it silently reduces identity to name matching, which is the failure this feature exists to avoid.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/lineage.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 <!-- /torve:managed -->

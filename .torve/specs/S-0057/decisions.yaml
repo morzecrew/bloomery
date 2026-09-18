@@ -10,14 +10,14 @@ decisions:
       the command honest to that.
     paths: [src/bloomery/evidence.py, src/bloomery/semantic/rollup.py]
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **Only `Declared`, `Derived`
-      and narrowly specified `ImportedVerified` facts close a proof obligation.**
-      `InferredHeuristic` produces advisories and never acceptance. This is S-0005/D-1
-      restated at the import boundary, which is the one place where relaxing it would
-      be most tempting and least visible — a foreign artifact is exactly where a guessed
-      default enters wearing a fact's clothes.
+      **Only `Declared`, `Derived` and narrowly specified `ImportedVerified` facts
+      close a proof obligation.** `InferredHeuristic` produces advisories and never
+      acceptance. This is S-0005/D-1 restated at the import boundary, which is the
+      one place where relaxing it would be most tempting and least visible — a foreign
+      artifact is exactly where a guessed default enters wearing a fact's clothes.
+    paths: [src/bloomery/cli/__init__.py]
   - id: D-3
     grade: LOCKED
     text: >-

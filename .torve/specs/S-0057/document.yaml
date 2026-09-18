@@ -153,10 +153,10 @@ sections:
   - key: about
     md: |-
       - **Status:** ✅ Complete — §9's P1 has landed: `bloomery check`, its per-surface counts,
-        and the CI exit contract ([`logs/T-0030.md`](logs/T-0030.md)). **P2 moved out on
+        and the CI exit contract (`logs/T-0030.md` (`logs/T-0030.md`, in history)). **P2 moved out on
         2026-09-13** and is S-0075;
         executing it here halted at the plan gate on five load-bearing questions this document
-        does not settle ([`logs/T-0053.md`](logs/T-0053.md)), three of which are the phase
+        does not settle (`logs/T-0053.md` (`logs/T-0053.md`, in history)), three of which are the phase
         rather than details of it. **This document stays as the ✅ root of a live sequence**
         (`INDEX.md`): 0070 argues from D1–D4 rather than merely citing them — D3 and D4 are the
         rows it sharpens into a mapping and a conflict predicate — so it is retired with 0070

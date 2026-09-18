@@ -166,9 +166,9 @@ sections:
         `Snapshot` is answered — its declaration is `semi_additive` with a `rule`, so it stays in
         the closed set and out of the authored one (D11). D6 closed as derived, and §3's
         consolidation and §10's `Unit` question closed as met by the fields in place (D12).
-        Execution's findings and the rows it proposed are in [`logs/T-0019.md`](logs/T-0019.md),
-        [`logs/T-0023.md`](logs/T-0023.md), [`logs/T-0024.md`](logs/T-0024.md) and
-        [`logs/T-0028.md`](logs/T-0028.md); nothing below has been amended to agree with what
+        Execution's findings and the rows it proposed are in `logs/T-0019.md` (`logs/T-0019.md`, in history),
+        `logs/T-0023.md` (`logs/T-0023.md`, in history), `logs/T-0024.md` (`logs/T-0024.md`, in history) and
+        `logs/T-0028.md` (`logs/T-0028.md`, in history); nothing below has been amended to agree with what
         was built. **D3 is superseded in part** — its currency clause by D9 and its unit clause
         by D10, both proposed from T-0024, where executing it halted: the waiver it replaces was
         already deleted, and the fact a currency rule would read does not exist in the spec

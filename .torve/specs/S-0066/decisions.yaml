@@ -16,14 +16,18 @@ decisions:
       - tests/unit/test_resolve/test_currency_convert.py
       - tests/unit/test_semantic/test_denomination.py
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **A currency is never inferred
-      — not from a column name, a source path, or the data.** S-0038 closed inference
-      for this class and S-0005/D-1 refuses `INFERRED_HEURISTIC` as a way to close
-      an obligation. Locked because a guess here is indistinguishable at the call
-      site from a declaration, which is the property that makes the guess dangerous
-      rather than merely imprecise.
+      **A currency is never inferred — not from a column name, a source path, or the
+      data.** S-0038 closed inference for this class and S-0005/D-1 refuses `INFERRED_HEURISTIC`
+      as a way to close an obligation. Locked because a guess here is indistinguishable
+      at the call site from a declaration, which is the property that makes the guess
+      dangerous rather than merely imprecise.
+    paths:
+      - src/bloomery/guardrails/arithmetic.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/spec/catalog.py
+      - src/bloomery/transforms/_builtins.py
   - id: D-3
     grade: LOCKED
     text: >-

@@ -17,17 +17,22 @@ decisions:
       - src/bloomery/guardrails/evidence.py
       - tests/unit/test_guardrails/test_evidence.py
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **A dbt `relationships` test
-      alone imports nothing.** It asserts every value exists in a target column and
-      says nothing about the target being unique, so reading it as `many_to_one` invents
-      the cardinality that makes the edge determine anything — S-0057/D-3's failure,
-      by its own example. `many_to_one` from dbt requires the `relationships` test
-      *and* a `unique`/`primary_key` on the named target. Locked because the tempting
-      version of this importer is the one that skips the second test, and it would
-      be indistinguishable in review from the correct one. Proposed by execution —
-      see `logs/T-0053.md` (`logs/T-0053.md`) (D3, attempt 1).
+      **A dbt `relationships` test alone imports nothing.** It asserts every value
+      exists in a target column and says nothing about the target being unique, so
+      reading it as `many_to_one` invents the cardinality that makes the edge determine
+      anything — S-0057/D-3's failure, by its own example. `many_to_one` from dbt
+      requires the `relationships` test *and* a `unique`/`primary_key` on the named
+      target. Locked because the tempting version of this importer is the one that
+      skips the second test, and it would be indistinguishable in review from the
+      correct one. Proposed by execution — see `logs/T-0053.md` (`logs/T-0053.md`)
+      (D3, attempt 1).
+    paths:
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/guardrails/evidence.py
+      - src/bloomery/semantic/proof.py
+      - src/bloomery/spec/entity.py
   - id: D-3
     grade: LOCKED
     text: >-
@@ -98,14 +103,18 @@ decisions:
       function decided was authored. Added by execution 2026-09-13 — see `logs/T-0053.md`
       (`logs/T-0053.md`) (unlisted, attempt 1).
   - id: D-10
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **A relationship's name is
-      unique across a project.** Nothing made it so and every consumer treats it as
-      a key, each resolving a collision differently and silently: a mart's `via:`
-      takes the first match, `plan` keeps the last of a `{name: rel}` dict, and D1's
-      lookup marked every same-named authored edge as imported. Refused at resolution
-      rather than fixed per reader — the readers are four and the fact is one. Locked
-      because D1's lookup is keyed by that name, so relaxing it reintroduces a wrong
-      refusal rather than an ambiguity. Added by execution 2026-09-13 — see PR #115
-      review.
+      **A relationship's name is unique across a project.** Nothing made it so and
+      every consumer treats it as a key, each resolving a collision differently and
+      silently: a mart's `via:` takes the first match, `plan` keeps the last of a
+      `{name: rel}` dict, and D1's lookup marked every same-named authored edge as
+      imported. Refused at resolution rather than fixed per reader — the readers are
+      four and the fact is one. Locked because D1's lookup is keyed by that name,
+      so relaxing it reintroduces a wrong refusal rather than an ambiguity. Added
+      by execution 2026-09-13 — see PR #115 review.
+    paths:
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/guardrails/evidence.py
+      - src/bloomery/semantic/proof.py
+      - src/bloomery/spec/entity.py

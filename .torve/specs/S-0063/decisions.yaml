@@ -1,11 +1,16 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) Exposures are **declared**,
-      never discovered. Discovery needs a network and credentials; S-0020 forbids
-      both, and a compiler that reads a BI tool is a different program.
+      Exposures are **declared**, never discovered. Discovery needs a network and
+      credentials; S-0020 forbids both, and a compiler that reads a BI tool is a different
+      program.
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/guardrails/lineage.py
+      - src/bloomery/ir/nodes.py
   - id: D-2
     grade: LOCKED
     text: >-

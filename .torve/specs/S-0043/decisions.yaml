@@ -53,14 +53,18 @@ decisions:
       - tests/e2e/test_dbt_parse.py
       - tests/unit/test_emit/test_quality_artifacts.py
   - id: D-5
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **The model reference goes
-      through `_reference_map`, never string formatting.** It is what makes a singular
-      test a DAG participant rather than a query that happens to name a table, and
-      it is already built for exactly this shape. Consequence: a singular test is
-      ordered against its model by dbt, which is what makes "blocking" mean anything
-      at all under D2.
+      **The model reference goes through `_reference_map`, never string formatting.**
+      It is what makes a singular test a DAG participant rather than a query that
+      happens to name a table, and it is already built for exactly this shape. Consequence:
+      a singular test is ordered against its model by dbt, which is what makes "blocking"
+      mean anything at all under D2.
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - src/bloomery/emit/steps.py
   - id: D-6
     grade: OPEN
     text: >-

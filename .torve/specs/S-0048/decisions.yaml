@@ -25,13 +25,16 @@ decisions:
       - src/bloomery/resolve/resolution.py
       - tests/unit/test_resolve/test_graph.py
   - id: D-3
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **`truncated` is set iff
-      `max_depth` cut the walk short, and `max_depth` defaults to `None`.** A partial
-      answer that cannot say it is partial is the failure S-0039/D-5 names; defaulting
-      to unbounded means the flag can only be `True` when the caller asked for a bound,
-      so no default path can produce a silent partial.
+      **`truncated` is set iff `max_depth` cut the walk short, and `max_depth` defaults
+      to `None`.** A partial answer that cannot say it is partial is the failure S-0039/D-5
+      names; defaulting to unbounded means the flag can only be `True` when the caller
+      asked for a bound, so no default path can produce a silent partial.
+    paths:
+      - src/bloomery/resolve/graph.py
+      - src/bloomery/resolve/reach.py
+      - src/bloomery/resolve/resolution.py
   - id: D-4
     grade: OPEN
     text: >-

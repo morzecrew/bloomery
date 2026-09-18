@@ -363,7 +363,7 @@ sections:
         retired — readable at `654d93e`).
       - **Origin:** Executing S-0058 established that its §2 cannot be published, and why:
         `QueryPlan.semantic` is optional and four shapes leave it `None`
-        ([`logs/T-0036.md`](logs/T-0036.md)). That is a documentation decision blocked on a
+        (`logs/T-0036.md` (`logs/T-0036.md`, in history)). That is a documentation decision blocked on a
         capability nothing in the corpus owned — 0040 owned the plan IR and has retired, and
         0039's seven rules name none of the three missing operations.
   - key: decision-notes

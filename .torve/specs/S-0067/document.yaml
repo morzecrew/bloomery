@@ -180,11 +180,11 @@ sections:
         go.
 
         P1 shipped the optional `id:`, node-id construction reading it, the duplicate refusal and
-        the byte-exact opt-out ([`logs/T-0032.md`](logs/T-0032.md)); D6 and D4 are settled
+        the byte-exact opt-out (`logs/T-0032.md` (`logs/T-0032.md`, in history)); D6 and D4 are settled
         there — a write-once `id:`, and partial adoption allowed with only a collision refused.
         P2 and P3 shipped `plan()`'s second `RENAME` producer with its citation list, and
         `lineage` printing the name while `--format json` carries both
-        ([`logs/T-0044.md`](logs/T-0044.md)). Rows 8–16 are execution's, accepted; **the
+        (`logs/T-0044.md` (`logs/T-0044.md`, in history)). Rows 8–16 are execution's, accepted; **the
         `explain` half of §5.4 is struck** by row 10 and P2 reaches **metric and step renames
         only** by row 11. Nothing above the decision table has been amended to agree with what was
         built — §9's "until `check` lands" reads as written, and T-0032 records that `check`

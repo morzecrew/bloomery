@@ -16,8 +16,8 @@ decisions:
       of another framework's internals — which is the coupling the lowering layer
       exists to prevent
     rationale: >-
-      Carried from row 1 of rfcs/0060-replay-on-a-historical-entity.md, which grades
-      it LOCKED; the boundary is the same one the purity rule defends one level up
+      Carried from row 1 of S-0003, which grades it LOCKED; the boundary is the same
+      one the purity rule defends one level up
   - id: D-2
     grade: LOCKED
     text: >-
@@ -30,8 +30,7 @@ decisions:
       success — the admitted version carried a NULL interval and no snapshot identity,
       so the row was present, queryable and invisible to every as-of join
     rationale: >-
-      Carried from row 2 of rfcs/0060-replay-on-a-historical-entity.md, which grades
-      it LOCKED
+      Carried from row 2 of S-0003, which grades it LOCKED
     check: >-
       uv run pytest tests/unit/test_emit/test_quality_artifacts.py -q -k replay_on_a_historical_entity
   - id: D-3
@@ -44,10 +43,9 @@ decisions:
       Present-and-invisible is the exact failure this design exists to remove, and
       a row-count assertion cannot tell the two apart — it passes against the defect
     rationale: >-
-      Carried from row 3 of rfcs/0060-replay-on-a-historical-entity.md, which grades
-      it LOCKED. The landed dbt test asserts the snapshot is unchanged immediately
-      after replay and the mart's own as-of join after the next build, so a route
-      that merely landed a row fails it
+      Carried from row 3 of S-0003, which grades it LOCKED. The landed dbt test asserts
+      the snapshot is unchanged immediately after replay and the mart's own as-of
+      join after the next build, so a route that merely landed a row fails it
   - id: D-4
     grade: ASSUMED
     text: >-
@@ -58,8 +56,7 @@ decisions:
       A shared rewrite would put the branch nobody needs in the path everybody takes;
       every type 1 fixture already exercises the merge
     rationale: >-
-      Carried from row 4 of rfcs/0060-replay-on-a-historical-entity.md, which grades
-      it ASSUMED
+      Carried from row 4 of S-0003, which grades it ASSUMED
     check: >-
       uv run pytest tests/unit/test_emit/test_quality_artifacts.py -q -k replay_on_a_type_one_entity
   - id: D-7
@@ -77,12 +74,11 @@ decisions:
       the row arrives through the path every other row arrives through; the cost is
       that bloomery now emits a statement that writes into the caller's landing zone
     rationale: >-
-      Carried from row 7 of rfcs/0060-replay-on-a-historical-entity.md, which grades
-      it ASSUMED and records why: the measurement ruled out neither survivor — both
-      the bronze route and a staged second arm make the row visible to an as-of join
-      on both targets, while the shipped merge is invisible on both — so the ranking
-      is the whole of the remaining argument. Not LOCKED because the posture objection
-      is real and a reviewer may weigh it differently
+      Carried from row 7 of S-0003, which grades it ASSUMED and records why: the measurement
+      ruled out neither survivor — both the bronze route and a staged second arm make
+      the row visible to an as-of join on both targets, while the shipped merge is
+      invisible on both — so the ranking is the whole of the remaining argument. Not
+      LOCKED because the posture objection is real and a reviewer may weigh it differently
   - id: D-8
     grade: LOCKED
     text: >-
@@ -95,9 +91,8 @@ decisions:
       thereafter. Neither offers a caller-supplied value and the two disagree about
       the same first load, so choosing would mean computing a framework's bookkeeping
     rationale: >-
-      Carried from row 8 of rfcs/0060-replay-on-a-historical-entity.md, which grades
-      it LOCKED for D-1's reason: this is the point of routing through the framework,
-      not a cost of it
+      Carried from row 8 of S-0003, which grades it LOCKED for D-1's reason: this
+      is the point of routing through the framework, not a cost of it
   - id: D-9
     grade: ASSUMED
     text: >-
@@ -111,9 +106,9 @@ decisions:
       and a reader's sense of how urgent this is should follow the loud failure rather
       than the quiet one
     rationale: >-
-      Carried from row 9 of rfcs/0060-replay-on-a-historical-entity.md, which grades
-      it ASSUMED and records that the design's own current-state table described dbt
-      while the SQLMesh column was reasoned rather than run
+      Carried from row 9 of S-0003, which grades it ASSUMED and records that the design's
+      own current-state table described dbt while the SQLMesh column was reasoned
+      rather than run
   - id: D-10
     grade: ASSUMED
     text: >-
@@ -126,7 +121,7 @@ decisions:
       through the framework means taking the framework's answer, so the question is
       answered by the route rather than chosen
     rationale: >-
-      Carried from row 10 of rfcs/0060-replay-on-a-historical-entity.md, which grades
-      it ASSUMED: a project may re-enable restatement or full-refresh a snapshot by
-      hand, so the claim is about this route and not about what an operator can do
+      Carried from row 10 of S-0003, which grades it ASSUMED: a project may re-enable
+      restatement or full-refresh a snapshot by hand, so the claim is about this route
+      and not about what an operator can do
 retired: [D-5, D-6]

@@ -1,23 +1,24 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) Spec time and data time are
-      separate axes. `--as-of` resolves specs and reaches no emitted SELECT; S-0003's
-      problem is not this one.
+      Spec time and data time are separate axes. `--as-of` resolves specs and reaches
+      no emitted SELECT; S-0003's problem is not this one.
+    paths: [src/bloomery/cli/__init__.py, src/bloomery/resolve/build.py]
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) An unresolvable instant is
-      refused. Falling back to the working tree produces a confidently wrong artifact
-      set, which is the defect this document removes.
+      An unresolvable instant is refused. Falling back to the working tree produces
+      a confidently wrong artifact set, which is the defect this document removes.
+    paths: [src/bloomery/cli/__init__.py, src/bloomery/resolve/build.py]
   - id: D-3
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) Reconstruction is promised
-      within one compiler version. Across versions the specs may resolve and the emitted
-      bytes still differ, and pretending otherwise makes the fingerprint a lie.
+      Reconstruction is promised within one compiler version. Across versions the
+      specs may resolve and the emitted bytes still differ, and pretending otherwise
+      makes the fingerprint a lie.
+    paths: [src/bloomery/cli/__init__.py, src/bloomery/resolve/build.py]
   - id: D-4
     grade: OPEN
     text: >-
@@ -29,10 +30,10 @@ decisions:
       The working-tree adapter is the default and is what runs when the flag is absent.
       Anything else changes behaviour for projects that never asked for history.
   - id: D-6
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) The resolver sits on the
-      caller's side of S-0020's boundary and the compiler entry point gains no I/O.
-      A history feature that moved that line would trade the determinism guarantee
-      for a convenience, and every other document in this corpus is written on top
-      of it.
+      The resolver sits on the caller's side of S-0020's boundary and the compiler
+      entry point gains no I/O. A history feature that moved that line would trade
+      the determinism guarantee for a convenience, and every other document in this
+      corpus is written on top of it.
+    paths: [src/bloomery/cli/__init__.py, src/bloomery/resolve/build.py]

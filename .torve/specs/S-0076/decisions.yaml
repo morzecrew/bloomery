@@ -1,14 +1,19 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **A zone is declared, never
-      inferred.** Not from the column name, not from a project default, not from the
-      values. An inferred zone is indistinguishable from a declared one once written
-      down, and the failure it produces is a five-hour shift with full compiler blessing.
-      Locked because every cheaper alternative is a way of making the wrong answer
-      easier to reach than today.
+      **A zone is declared, never inferred.** Not from the column name, not from a
+      project default, not from the values. An inferred zone is indistinguishable
+      from a declared one once written down, and the failure it produces is a five-hour
+      shift with full compiler blessing. Locked because every cheaper alternative
+      is a way of making the wrong answer easier to reach than today.
+    paths:
+      - src/bloomery/semantic/denomination.py
+      - src/bloomery/spec/mapping.py
+      - src/bloomery/transforms/_builtins.py
+      - src/bloomery/typing/types.py
+      - tests/fixtures/semantic_corpus/011-timezone-boundary/**
   - id: D-2
     grade: LOCKED
     text: >-
@@ -18,12 +23,18 @@ decisions:
       the shape is identical, so the answer is not re-derived.
     paths: [src/bloomery/spec/mapping.py]
   - id: D-3
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **`zone_in: UTC` is a declaration,
-      not a no-op.** A feed whose wall clocks really are UTC says so. Today that claim
-      is made by silence and silence cannot be checked; the key's only job is to turn
-      an unfalsifiable default into a sentence somebody wrote.
+      **`zone_in: UTC` is a declaration, not a no-op.** A feed whose wall clocks really
+      are UTC says so. Today that claim is made by silence and silence cannot be checked;
+      the key's only job is to turn an unfalsifiable default into a sentence somebody
+      wrote.
+    paths:
+      - src/bloomery/semantic/denomination.py
+      - src/bloomery/spec/mapping.py
+      - src/bloomery/transforms/_builtins.py
+      - src/bloomery/typing/types.py
+      - tests/fixtures/semantic_corpus/011-timezone-boundary/**
   - id: D-4
     grade: ASSUMED
     text: >-

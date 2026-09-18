@@ -22,4 +22,25 @@ A `_source` system column carries provenance. It is load-bearing rather than dia
 
 - Paths: `pages/docs/reference/stability.md` `src/bloomery/emit/lower/silver.py` `src/bloomery/ir/nodes.py` `src/bloomery/spec/common.py` `tests/unit/test_emit/test_sqlmesh.py` `tests/unit/test_steps/test_lowering.py`
 
+### S-0042/D-1 — `LOCKED` (v0.1.0 release readiness)
+
+The three S-0018/out-of-scope ratchets land before the `v0.1.0` tag, not after. Their stated trigger was the release; deferring them past it converts a deliberate deferral into an oversight, and a promise nothing enforces is what the release exists to stop.
+
+- Paths: `pages/docs/reference/stability.md`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0042/D-4 — `LOCKED` (v0.1.0 release readiness)
+
+The perf gate is an **absolute ceiling with headroom** against S-0031's budgets, never a drift comparison against a stored baseline. Runner variance makes percentage drift on millisecond measurements flaky, and a flaky gate is one people learn to re-run.
+
+- Paths: `pages/docs/reference/stability.md`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0042/D-6 — `LOCKED` (v0.1.0 release readiness)
+
+`RETIRED.md` (the retired register, since deleted) is three columns — number, title, retiring SHA — and **never a summary**. A fourth column would reintroduce the drifting second account the retirement policy exists to prevent; three columns describe no behaviour and so cannot drift.
+
+- Paths: `pages/docs/reference/stability.md`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 <!-- /torve:managed -->

@@ -218,11 +218,11 @@ risks: |
 sections:
   - key: provenance
     md: |
-      Carried across from `rfcs/0046-validating-a-dialect-port.md`, numbered 0046 in that
+      Carried across from S-0012, numbered 0046 in that
       corpus, whose status in `rfcs/INDEX.md` is **📝 Draft — proposed**. It is the root of
-      the cloud-dialect sequence: `rfcs/0047-snowflake-dialect.md`,
-      `rfcs/0048-bigquery-dialect.md`, `rfcs/0049-redshift-dialect.md` and
-      `rfcs/0050-databricks-dialect.md` each cite it and carry their own engine's risks.
+      the cloud-dialect sequence: S-0013,
+      S-0014, S-0015 and
+      S-0016 each cite it and carry their own engine's risks.
 
       **Nothing of it has landed.** Its single commit is `f1fe05ac`, which adopted the
       five-document cloud-dialect validation sequence as prose; no pull request carries any

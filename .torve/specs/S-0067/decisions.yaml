@@ -1,12 +1,16 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) Identity is declared, never
-      inferred. No similarity heuristic over names, SQL or column sets decides that
-      two nodes are the same node; a wrong guess here rewrites history rather than
-      raising an error.
+      Identity is declared, never inferred. No similarity heuristic over names, SQL
+      or column sets decides that two nodes are the same node; a wrong guess here
+      rewrites history rather than raising an error.
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/guardrails/lineage.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/plan/model.py
   - id: D-2
     grade: LOCKED
     text: >-

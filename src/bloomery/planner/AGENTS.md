@@ -192,6 +192,13 @@ Rendering: one `where_constraints` entry per `Clause`; `AnyOf` **always** parent
 - Paths: `src/bloomery/emit/lower/predicates.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/planner/explain.py` `src/bloomery/semantic/additivity.py` `src/bloomery/spec/common.py` `src/bloomery/spec/metrics.py` `tests/execution/test_period_over_period.py` `tests/golden/schema/catalog.json` `tests/golden/schema/metrics.json` `tests/unit/test_emit/test_period_over_period.py` `tests/unit/test_semantic/test_ratio_rows.py` `tests/unit/test_spec/test_metrics.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0054/D-1 — `LOCKED` (Safe rollup planner and SemanticPlan IR)
+
+**Representation safety and query answerability are separate obligations, proven separately.** A mart refusing `shipping@Order` at `OrderItem` grain and a planner answering `shipping by customer.country` are both correct simultaneously. Locked because conflating them in either direction is a shipped defect: one way silently widens marts, the other way refuses answerable questions forever.
+
+- Paths: `src/bloomery/planner/**`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0054/D-3 — `LOCKED` (Safe rollup planner and SemanticPlan IR)
 
 **The mart contract does not move in this document.** Grain equality for embedded measures stands unchanged; a safe pre-aggregated mart construct needs its own RFC. Locked because query-time planning is precisely the plausible-looking back door into mart semantics, and the pressure to take it arrives exactly when the planner starts working.
@@ -211,6 +218,13 @@ Rendering: one `where_constraints` entry per `Clause`; `AnyOf` **always** parent
 **MetricFlow and any other semantic engine stay execution backends, never the correctness authority.** bloomery explains the plan before lowering. Not `LOCKED` because it is a positioning statement this document cannot enforce alone; D4 is the enforceable half.
 
 - Paths: `src/bloomery/planner/compose.py`
+
+### S-0054/D-11 — `LOCKED` (Safe rollup planner and SemanticPlan IR)
+
+**A refusal that changes exception class is a parity event, even when no capability was added.** D8 settled that the suite pins outcome and class rather than wording; this closes the gap that leaves. Converting `UnknownMember` into a refutation reads as "just a better message" and is exactly the change someone waves through under time pressure, while `parity_baseline.tsv` is the only thing that would have noticed. A phase that moves a class edits the baseline and names the rule in the commit. Added by execution 2026-09-06 — see logs/T-0022.md (D134, attempt 1).
+
+- Paths: `src/bloomery/planner/**`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0055/D-2 — `LOCKED` (Multi-grain aggregate-then-join query planning)
 

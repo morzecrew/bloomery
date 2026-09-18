@@ -1,17 +1,23 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) A fact's grade is derived
-      from how the compiler obtained it and can never be written in a spec. A declared
-      grade is an unchecked claim about a claim.
+      A fact's grade is derived from how the compiler obtained it and can never be
+      written in a spec. A declared grade is an unchecked claim about a claim.
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/errors.py
+      - src/bloomery/semantic/proof.py
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) This sits above S-0005's
-      floor and never below it. No annotation here makes a project compile that would
-      otherwise be refused.
+      This sits above S-0005's floor and never below it. No annotation here makes
+      a project compile that would otherwise be refused.
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/errors.py
+      - src/bloomery/semantic/proof.py
   - id: D-3
     grade: LOCKED
     text: >-

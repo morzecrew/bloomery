@@ -361,6 +361,13 @@ A `pii`/`secret` column reaching a relation that **admits a role its source enti
 - Paths: `pages/docs/how-to/annotate-a-spec.md` `src/bloomery/errors.py` `src/bloomery/evidence.py` `src/bloomery/guardrails/classification.py` `src/bloomery/guardrails/stage.py` `tests/unit/test_classification_guard.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0063/D-1 — `LOCKED` (Exposures and downstream consumers)
+
+Exposures are **declared**, never discovered. Discovery needs a network and credentials; S-0020 forbids both, and a compiler that reads a BI tool is a different program.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0063/D-2 — `LOCKED` (Exposures and downstream consumers)
 
 An exposure naming an undeclared metric or mart is refused. An exposure pointing at nothing reports clean, which is the failure mode the feature exists to remove.
@@ -382,6 +389,41 @@ An unprovable rollup is **refused**, never warned about. A rollup is read instea
 - Paths: `src/bloomery/cli/render.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/errors.py` `src/bloomery/evidence.py` `src/bloomery/guardrails/stage.py` `src/bloomery/marts/rollup.py` `src/bloomery/semantic/rollup.py` `tests/fixtures/semantic_corpus/012-rollup-recounts-identities/problem.md` `tests/unit/test_semantic/test_plan.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0066/D-2 — `LOCKED` (Declared input currency for conversion)
+
+**A currency is never inferred — not from a column name, a source path, or the data.** S-0038 closed inference for this class and S-0005/D-1 refuses `INFERRED_HEURISTIC` as a way to close an obligation. Locked because a guess here is indistinguishable at the call site from a declaration, which is the property that makes the guess dangerous rather than merely imprecise.
+
+- Paths: `src/bloomery/guardrails/arithmetic.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/catalog.py` `src/bloomery/transforms/_builtins.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0067/D-1 — `LOCKED` (Stable node identity across renames)
+
+Identity is declared, never inferred. No similarity heuristic over names, SQL or column sets decides that two nodes are the same node; a wrong guess here rewrites history rather than raising an error.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/model.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0069/D-1 — `LOCKED` (Definition supersession and change attribution)
+
+The delta is stated in spec vocabulary, never as a text diff of emitted SQL. A reader who has to decide which textual differences are semantic is doing the compiler's job.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/model.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0069/D-2 — `LOCKED` (Definition supersession and change attribution)
+
+Superseded versions are related, never overwritten. History that replaces cannot answer the question the feature exists for.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/model.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0069/D-3 — `LOCKED` (Definition supersession and change attribution)
+
+The compiler never attributes a change to data. "No definition change" is the complete and correct answer when the definition did not change.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/model.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0070/D-4 — `LOCKED` (Consumer-declared evidence strictness)
 
 The refusal names how the fact was obtained and what to write instead. A message that only says "insufficient evidence" gets worked around by deleting the requirement.
@@ -389,11 +431,39 @@ The refusal names how the fact was obtained and what to write instead. A message
 - Paths: `src/bloomery/errors.py` `src/bloomery/guardrails/evidence.py` `src/bloomery/guardrails/stage.py` `src/bloomery/semantic/proof.py` `tests/unit/test_guardrails/test_evidence.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0072/D-3 — `LOCKED` (Marts in the lineage graph)
+
+Follows from row 2, and stated separately because it is the thing an executor will be tempted to add: **no per-column `entity_field → mart` edge**. The consequence is stated in §9 and not mitigated: a mart dimension no metric reads is not reached by a downstream walk.
+
+- Paths: `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py` `src/bloomery/resolve/graph.py` `src/bloomery/resolve/resolution.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0072/D-4 — `LOCKED` (Marts in the lineage graph)
+
+`mart` joins `NODE_ID_PREFIXES` and the entity-name reservation, with a `_MINTS` row. A rule that held for five prefixes of six would be learned as a list of exceptions, which is S-0059/D-7's argument unchanged.
+
+- Paths: `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py` `src/bloomery/resolve/graph.py` `src/bloomery/resolve/resolution.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0075/D-1 — `LOCKED` (Mechanical imports and per-relationship provenance)
 
 **Provenance attaches to the relationship, not to the basis kind.** `BASIS_PROVENANCE` is keyed by `DependencyBasis` value, so today every `many_to_one` in a project shares one provenance and an imported edge cannot be told from an authored one — which is why `IMPORTED_VERIFIED` has no producer and S-0070's refusal has no project that can trip it. Locked because it is the whole of what makes the grade mean anything at the point a consumer asks; reversing it makes every other row here decoration. `FunctionalDependency.via` already carries the key such a lookup needs. Proposed by execution — see `logs/T-0053.md` (`logs/T-0053.md`) (D2, attempt 1).
 
 - Paths: `pages/docs/concepts/what-bloomery-proves.md` `src/bloomery/guardrails/evidence.py` `tests/unit/test_guardrails/test_evidence.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0075/D-2 — `LOCKED` (Mechanical imports and per-relationship provenance)
+
+**A dbt `relationships` test alone imports nothing.** It asserts every value exists in a target column and says nothing about the target being unique, so reading it as `many_to_one` invents the cardinality that makes the edge determine anything — S-0057/D-3's failure, by its own example. `many_to_one` from dbt requires the `relationships` test *and* a `unique`/`primary_key` on the named target. Locked because the tempting version of this importer is the one that skips the second test, and it would be indistinguishable in review from the correct one. Proposed by execution — see `logs/T-0053.md` (`logs/T-0053.md`) (D3, attempt 1).
+
+- Paths: `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/guardrails/evidence.py` `src/bloomery/semantic/proof.py` `src/bloomery/spec/entity.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0075/D-10 — `LOCKED` (Mechanical imports and per-relationship provenance)
+
+**A relationship's name is unique across a project.** Nothing made it so and every consumer treats it as a key, each resolving a collision differently and silently: a mart's `via:` takes the first match, `plan` keeps the last of a `{name: rel}` dict, and D1's lookup marked every same-named authored edge as imported. Refused at resolution rather than fixed per reader — the readers are four and the fact is one. Locked because D1's lookup is keyed by that name, so relaxing it reintroduces a wrong refusal rather than an ambiguity. Added by execution 2026-09-13 — see PR #115 review.
+
+- Paths: `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/guardrails/evidence.py` `src/bloomery/semantic/proof.py` `src/bloomery/spec/entity.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 <!-- /torve:managed -->

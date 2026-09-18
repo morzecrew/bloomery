@@ -209,7 +209,7 @@ design:
       | 0021 | Capability boundaries: identity resolution, dialects, closed questions | `828fd5b` |
       ```
 
-      `git show f4ae4a0^:rfcs/0016-data-quality.md` then prints the document, and the reader needed
+      `git show f4ae4a0^:S-0033 then prints the document, and the reader needed
       only the number they already had.
 
       This **strengthens** the retirement policy rather than weakening it. INDEX.md's argument is
@@ -298,7 +298,7 @@ sections:
         and no unbuilt capability gates the release. Touches `justfile`, `.github/workflows/`,
         `pyproject.toml`, `codecov.yml`, `rfcs/`, `CHANGELOG.md` and docs; no source changes.
       - **Related:** S-0018/out-of-scope (the deferral this collects —
-        `git show f4ae4a0^:rfcs/0001-project-foundations.md`), S-0026 (the test tiers the
+        `git show f4ae4a0^:S-0018), S-0026 (the test tiers the
         floors ratchet), S-0031 (the hydration budgets the perf gate would enforce),
         S-0035 (the stability surfaces that become binding),
         [`justfile`](justfile) (`quality`, `coverage`, `test`),

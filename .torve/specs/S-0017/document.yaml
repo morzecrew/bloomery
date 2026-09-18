@@ -249,7 +249,7 @@ risks: |
 sections:
   - key: provenance
     md: |
-      This document is a backfill. Its source is `rfcs/0037-semantic-grain-model.md`,
+      This document is a backfill. Its source is S-0017,
       numbered 0037 in bloomery's own corpus, where it is recorded as complete and retained
       rather than retired: two live documents there still argue in its vocabulary, and the
       rule in `rfcs/INDEX.md` is that such a root leaves the directory with the last of its

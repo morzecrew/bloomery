@@ -50,8 +50,8 @@ decisions:
   - id: D-7
     grade: LOCKED
     text: >-
-      `rfcs/`, its index and register, the checker and the `rfc-corpus` gate are deleted,
-      and `spec-valid` is the corpus gate
+      the `rfcs` directory (since retired), its index and register, the checker and
+      the `rfc-corpus` gate are deleted, and `spec-valid` is the corpus gate
     paths: [.torve/gates.yaml, justfile, .github/workflows/ci.yml]
     consequence: One corpus, one checker
   - id: D-8

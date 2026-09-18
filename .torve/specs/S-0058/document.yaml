@@ -122,7 +122,7 @@ sections:
         optional, so bloomery answers requests it constructs no derivation for and §2's second
         sentence is false today. The document stays whole until they land (`INDEX.md` — retire
         whole, never in part). Execution's findings and the rows it proposes are in
-        [`logs/T-0036.md`](logs/T-0036.md); nothing below has been amended to agree with what
+        `logs/T-0036.md` (`logs/T-0036.md`, in history); nothing below has been amended to agree with what
         was built. A **documentation** decision, not a code change; it binds what README and the
         reference pages may assert once proof-producing semantics land.
         S-0005 is recommended first, since the strong form of the

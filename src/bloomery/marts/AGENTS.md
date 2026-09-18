@@ -109,11 +109,46 @@ A mart whose **`base`** is `scd: type2` is refused on the same account. There is
 - Paths: `src/bloomery/errors.py` `src/bloomery/marts/flatten.py` `tests/fixtures/scd2_as_of/marts.yaml` `tests/fixtures/scd2_mart_refusal/entity_model.yaml` `tests/fixtures/scd2_replay/marts.yaml` `tests/golden/refusals/scd2_mart_refusal.txt` `tests/unit/test_fixtures.py` `tests/unit/test_guardrails/test_stage.py` `tests/unit/test_marts/test_flatten.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0065/D-1 — `LOCKED` (Rollup marts and pre-aggregations)
+
+"Aggregate marts" and Cube `pre_aggregations` are **one feature**, scheduled once. The ceiling review named it twice, and building it twice is the failure this row exists to prevent.
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/marts/**`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0065/D-2 — `LOCKED` (Rollup marts and pre-aggregations)
+
+Blocked on S-0017 and S-0054. A rollup's safety is a functional-dependency question over an aggregation class, and both are those RFCs' vocabulary. Building first means inventing it worse and then owning two.
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/marts/**`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0065/D-5 — `LOCKED` (Rollup marts and pre-aggregations)
 
 An unprovable rollup is **refused**, never warned about. A rollup is read instead of the detail table, so a wrong one answers quickly and plausibly — the class this project refuses rather than approximates.
 
 - Paths: `src/bloomery/cli/render.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/errors.py` `src/bloomery/evidence.py` `src/bloomery/guardrails/stage.py` `src/bloomery/marts/rollup.py` `src/bloomery/semantic/rollup.py` `tests/fixtures/semantic_corpus/012-rollup-recounts-identities/problem.md` `tests/unit/test_semantic/test_plan.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0065/D-7 — `LOCKED` (Rollup marts and pre-aggregations)
+
+Cube-to-cube `joins` stay out of this RFC. They reintroduce the query-time joins the wide-mart design removes — the position S-0030/D-3 states for MetricFlow semantic models, reached independently for Cube rather than inherited from it. Cube's own refusal is unwritten, and writing it belongs with whatever RFC takes Cube's surface.
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/marts/**`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0065/D-8 — `LOCKED` (Rollup marts and pre-aggregations)
+
+**No plan transformation may merge two aggregate branches before aggregation without proving the merge preserves every measure's grain.** Inherited from S-0055/cost-is-secondary-to-soundness and §10, readable at `654d93e`: that document stated the rule and asked for a property test constructing such a partition and asserting the merge is refused. Neither was built, because the optimization pass §9 deferred it to does not exist. Parked here rather than dropped at S-0055's retirement, because this is the live document holding a preservation obligation (§5.2) and the two are one shape — a transformation is legal only when it can show the aggregate it produces is the one the detail would have produced. It is **not** a rollup-mart decision and does not gate this feature: it transfers to whatever document builds a `SemanticPlan` optimization pass, which owes §6's inherited test with it. `LOCKED` because a merge without the proof is silent double counting, which this sequence refuses rather than approximates. Recorded at S-0055's retirement — see `81df8cc`.
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/marts/**`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0065/D-14 — `LOCKED` (Rollup marts and pre-aggregations)
+
+**A rollup mart is never a measure owner and never a covering mart.** §4 makes query-time rollup selection S-0054's job and nothing in the code knows it: `measure_owners` picks the cheapest mart serving a measure, a rollup is by construction the cheapest, and so the first rollup declared would take detail-grain requests silently and answer them from monthly totals — quickly, plausibly and wrongly, which is the class §2 gives as the reason this feature is the one where being wrong is worst. `LOCKED` because reversing it is not a scheduling call: it is the planner learning to choose, and that is a different document's work.
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/marts/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 <!-- /torve:managed -->

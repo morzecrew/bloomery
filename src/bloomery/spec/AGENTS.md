@@ -377,6 +377,13 @@ A `_source` system column carries provenance. It is load-bearing rather than dia
 - Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/resolve/steps.py` `src/bloomery/spec/common.py` `tests/unit/test_spec/test_entity.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0047/D-1 — `LOCKED` (The unresolved-work report)
+
+**The report is derived; no spec surface changes.** §3 measured that a `canonical:`-linked field with no mapping is a legal, complete spec whose metric is reported unreachable — including when the field is `required:`. "Undecided" is therefore already expressible, and a marker would be a second spelling of it. Consequence: this RFC touches no document kind, no `spec_version`, and no parser.
+
+- Paths: `src/bloomery/cli/render.py` `src/bloomery/evidence.py` `src/bloomery/resolve/reach.py` `src/bloomery/resolve/recipes.py` `src/bloomery/resolve/resolution.py` `src/bloomery/spec/catalog.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0049/D-1 — `LOCKED` (Mapping identity)
 
 **The identity is the document name.** It is unique by construction (a key of the `sources` mapping), already computed, already the ordering key for `Project.mappings`, and already the user-facing coordinate for refusals (S-0019/source-paths). Consequence: identity is a filename, so a rename changes it — accepted under D4's boundary.
@@ -384,11 +391,25 @@ A `_source` system column carries provenance. It is load-bearing rather than dia
 - Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/resolution.py` `src/bloomery/spec/common.py` `src/bloomery/spec/mapping.py` `tests/property/test_schema_agreement.py` `tests/unit/test_resolve/test_resolution.py` `tests/unit/test_spec/test_mapping.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0049/D-2 — `LOCKED` (Mapping identity)
+
+**`(source, target)` is refused as the identity**, against S-0041/D-19's key shape looking like a candidate. Demonstrated non-unique: two documents may declare the same pair and the loader accepts them. Consequence: D19's quality-mart key is left alone — it is an accounting key for a per-entity mart, not an identity, and this decision does not reopen it.
+
+- Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/resolution.py` `src/bloomery/spec/mapping.py` `src/bloomery/spec/project.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0049/D-3 — `LOCKED` (Mapping identity)
 
 **`document` is set by the loader and is not part of the YAML vocabulary.** A document declaring its own name is a second source of truth that can disagree with the first. Consequence: `Mapping` cannot be constructed from YAML alone in a test without the loader — which is already how every test builds one.
 
 - Paths: `src/bloomery/spec/common.py` `src/bloomery/spec/mapping.py` `tests/property/test_schema_agreement.py` `tests/unit/test_guardrails/test_operands.py` `tests/unit/test_spec/test_mapping.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0049/D-9 — `LOCKED` (Mapping identity)
+
+**`document` is `SkipJsonSchema` — absent from the schema `bloomery schema` exports.** That schema's audience is a spec author and D3 says this field is not theirs to write; a required `document` there would have an editor demand the one key the loader refuses, the exported contract contradicting the compiler on the surface whose whole job is to agree with it. Consequence: the model and the exported schema deliberately disagree about one field, recorded by `test_document_is_in_the_model_and_not_the_schema` where the other measured divergences live. *Added by execution 2026-08-30 — see logs/T-0008.md (D036, attempt 1).*
+
+- Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/resolution.py` `src/bloomery/spec/mapping.py` `src/bloomery/spec/project.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0050/D-1 — `LOCKED` (Metrics over time: derived metrics, offsets, cumulative windows, metric filters)
@@ -446,6 +467,27 @@ A `_source` system column carries provenance. It is load-bearing rather than dia
 - Paths: `src/bloomery/errors.py` `src/bloomery/guardrails/additivity.py` `src/bloomery/ir/nodes.py` `src/bloomery/spec/common.py` `tests/fixtures/semantic_corpus/005-semi-additive-balance/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/005-semi-additive-balance/problem.md` `tests/fixtures/semantic_corpus/007-distinct-users-fanout/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/007-distinct-users-fanout/problem.md` `tests/unit/test_guardrails/test_additivity.py` `tests/unit/test_semantic/test_rollup.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0062/D-1 — `LOCKED` (Ownership, classification and grants)
+
+The three annotations change no SELECT. They reach metadata slots only, and an existing golden's SQL is byte-identical with them absent — asserted, not assumed.
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/spec/entity.py` `src/bloomery/spec/quality.py` `tests/unit/test_tenant_guard.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-3 — `LOCKED` (Ownership, classification and grants)
+
+`classification` is a **closed** vocabulary. An open string is a tag that cannot be routed, and the routing — the `redact` reconciliation and Cube's `public: false` — is the whole reason this is not a `meta` passthrough.
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/spec/entity.py` `src/bloomery/spec/quality.py` `tests/unit/test_tenant_guard.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-4 — `LOCKED` (Ownership, classification and grants)
+
+**Superseded by rows 9, 10 and 11.** `pii`/`secret` on a mapped field whose path is not redacted is a refusal **when the entity quarantines**, and silent otherwise. Unsatisfiable as written: a mapped field's path cannot be redacted — `_check_redaction` refuses that already — so both branches close and the classification has no legal spelling, which is the gap §2 opened this RFC to fill (see `logs/T-0050.md`, and `logs/T-0051.md` for the replacement).
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/spec/entity.py` `src/bloomery/spec/quality.py` `tests/unit/test_tenant_guard.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0062/D-7 — `ASSUMED` (Ownership, classification and grants)
 
 Seeds are refused permanently, with a message naming S-0020 rather than a wave. A seed is data in the repository, and the only way to emit one is to put rows in a spec.
@@ -458,11 +500,32 @@ A rollup declares its own `grants:` and does not inherit its parent mart's — D
 
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/spec/marts.py`
 
+### S-0064/D-1 — `LOCKED` (Declared source freshness)
+
+bloomery **declares** freshness and never measures it. The threshold is emitted; the framework runs the query. This is the same line drawn everywhere else — no execution, no clock, no environment.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/quality/reject.py` `src/bloomery/spec/catalog.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0064/D-2 — `LOCKED` (Declared source freshness)
+
+**Superseded by D2c.** A `freshness:` block on an entity that requires no `_ingested_at` is refused, and the requirement is over **every** consumer of the relation rather than the declaring one.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/quality/reject.py` `src/bloomery/spec/catalog.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0064/D-3 — `ASSUMED` (Declared source freshness)
 
 Durations reuse `quarantine.retention`'s grammar and validator. One spelling of a duration across the spec surface.
 
 - Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/spec/quality.py` `tests/fixtures/quality_precedence/mapping_codes.yaml`
+
+### S-0064/D-9 — `LOCKED` (Declared source freshness)
+
+(Row 2B of the RFC's table.) **Superseded by D2c.** One mapping declaring a threshold while another on the same relation omits it is refused too, not resolved in favour of the explicit one.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/quality/reject.py` `src/bloomery/spec/catalog.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0065/D-10 — `ASSUMED` (Rollup marts and pre-aggregations)
 
@@ -475,6 +538,13 @@ Durations reuse `quarantine.retention`'s grammar and validator. One spelling of 
 **A conversion's input currency must be a declared or derived fact; an unknown input is refused.** This is the whole document: an assertion that nothing can check is indistinguishable from a fact, and the difference is a wrong number that passes every existing guard. Locked because relaxing it — accepting `from` as its own evidence — restores exactly the situation S-0053/D-3 was written against, and because the refusal is what makes R009 mean anything.
 
 - Paths: `src/bloomery/resolve/build.py` `src/bloomery/semantic/denomination.py` `src/bloomery/spec/mapping.py` `tests/unit/test_resolve/test_currency_convert.py` `tests/unit/test_semantic/test_denomination.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0066/D-2 — `LOCKED` (Declared input currency for conversion)
+
+**A currency is never inferred — not from a column name, a source path, or the data.** S-0038 closed inference for this class and S-0005/D-1 refuses `INFERRED_HEURISTIC` as a way to close an obligation. Locked because a guess here is indistinguishable at the call site from a declaration, which is the property that makes the guess dangerous rather than merely imprecise.
+
+- Paths: `src/bloomery/guardrails/arithmetic.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/catalog.py` `src/bloomery/transforms/_builtins.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0066/D-5 — `ASSUMED` (Declared input currency for conversion)
@@ -490,11 +560,46 @@ The id is opaque. Compared for equality, never parsed, never used to derive a pa
 - Paths: `src/bloomery/spec/project.py` `tests/unit/test_spec/test_metrics.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0073/D-2 — `LOCKED` (Caller-assembled spec history)
+
+No `--as-of` on any command. The flag would oblige bloomery to know what a history is — which store, which instant-to-version mapping, what to do when it is ambiguous — and none of those is a question about compiling. `--steps` is the same question already answered this way (S-0034/purity-the-registry-is-a-compile-input).
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/cli/io.py` `src/bloomery/spec/project.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0073/D-3 — `LOCKED` (Caller-assembled spec history)
+
+S-0068 is rejected, not deferred. An unscheduled design still shapes the documents that cite it, and two already cite this one.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/cli/io.py` `src/bloomery/spec/project.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0075/D-2 — `LOCKED` (Mechanical imports and per-relationship provenance)
+
+**A dbt `relationships` test alone imports nothing.** It asserts every value exists in a target column and says nothing about the target being unique, so reading it as `many_to_one` invents the cardinality that makes the edge determine anything — S-0057/D-3's failure, by its own example. `many_to_one` from dbt requires the `relationships` test *and* a `unique`/`primary_key` on the named target. Locked because the tempting version of this importer is the one that skips the second test, and it would be indistinguishable in review from the correct one. Proposed by execution — see `logs/T-0053.md` (`logs/T-0053.md`) (D3, attempt 1).
+
+- Paths: `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/guardrails/evidence.py` `src/bloomery/semantic/proof.py` `src/bloomery/spec/entity.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0075/D-7 — `ASSUMED` (Mechanical imports and per-relationship provenance)
 
 **`imported_from:` is a free string naming the artifact, and its presence is the fact.** A boolean would need a second key for the refusal to name the source, and an enum invites an author to write `declared` on something they did not read (§5's alternatives). Not `LOCKED` because a second importer may want structure; a string is the cheapest thing to widen.
 
 - Paths: `src/bloomery/spec/entity.py` `tests/unit/test_guardrails/test_evidence.py`
+
+### S-0075/D-10 — `LOCKED` (Mechanical imports and per-relationship provenance)
+
+**A relationship's name is unique across a project.** Nothing made it so and every consumer treats it as a key, each resolving a collision differently and silently: a mart's `via:` takes the first match, `plan` keeps the last of a `{name: rel}` dict, and D1's lookup marked every same-named authored edge as imported. Refused at resolution rather than fixed per reader — the readers are four and the fact is one. Locked because D1's lookup is keyed by that name, so relaxing it reintroduces a wrong refusal rather than an ambiguity. Added by execution 2026-09-13 — see PR #115 review.
+
+- Paths: `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/guardrails/evidence.py` `src/bloomery/semantic/proof.py` `src/bloomery/spec/entity.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0076/D-1 — `LOCKED` (Declared source timezone)
+
+**A zone is declared, never inferred.** Not from the column name, not from a project default, not from the values. An inferred zone is indistinguishable from a declared one once written down, and the failure it produces is a five-hour shift with full compiler blessing. Locked because every cheaper alternative is a way of making the wrong answer easier to reach than today.
+
+- Paths: `src/bloomery/semantic/denomination.py` `src/bloomery/spec/mapping.py` `src/bloomery/transforms/_builtins.py` `src/bloomery/typing/types.py` `tests/fixtures/semantic_corpus/011-timezone-boundary/**`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0076/D-2 — `LOCKED` (Declared source timezone)
 
@@ -503,11 +608,46 @@ The id is opaque. Compared for equality, never parsed, never used to derive a pa
 - Paths: `src/bloomery/spec/mapping.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0076/D-3 — `LOCKED` (Declared source timezone)
+
+**`zone_in: UTC` is a declaration, not a no-op.** A feed whose wall clocks really are UTC says so. Today that claim is made by silence and silence cannot be checked; the key's only job is to turn an unfalsifiable default into a sentence somebody wrote.
+
+- Paths: `src/bloomery/semantic/denomination.py` `src/bloomery/spec/mapping.py` `src/bloomery/transforms/_builtins.py` `src/bloomery/typing/types.py` `tests/fixtures/semantic_corpus/011-timezone-boundary/**`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0077/D-1 — `LOCKED` (A ratio over one row set)
+
+**bloomery does not choose which rows a ratio is about.** Both readings — per unit over units that exist, and total over units with overheads included — are metrics somebody wants, and the defect is that they are spelled identically. The rule refuses until the author says; it never picks. Locked because every cheaper design is a compiler making a decision about somebody's business, and the wrong one is invisible in the output.
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/semantic/additivity.py` `src/bloomery/spec/quality.py` `tests/fixtures/semantic_corpus/008-ratio-rollup/**` `tests/fixtures/semantic_corpus/009-null-denominator/**`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0077/D-2 — `LOCKED` (A ratio over one row set)
 
 **The inclusive reading stays reachable and is spelled out loud.** Without it the rule reduces to "exclude zero rows", which is D1 reversed with extra steps: an author who means `4.00` must be able to say so, and be seen to have said so.
 
 - Paths: `src/bloomery/ir/nodes.py` `src/bloomery/spec/common.py` `tests/fixtures/semantic_corpus/009-null-denominator/bloomery/inclusive/metrics.yaml`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0077/D-13 — `LOCKED` (A ratio over one row set)
+
+**`repair` does not discharge the positivity premise either.** D3 names only `flag`; this is D3's own sentence applied to the member it did not name. A repaired row stays in the relation carrying a fallback the rule cannot bound, because its recipe is a step and its fallback is whatever the author wrote. Only `quarantine` and `fail` discharge, because only those remove the row. Locked with D3: departing would mean proving a fallback is positive, which needs the step registry's output and is not a compile-time fact — see `logs/T-0063.md` (unlisted, 15:15Z).
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/semantic/additivity.py` `src/bloomery/spec/quality.py` `tests/fixtures/semantic_corpus/008-ratio-rollup/**` `tests/fixtures/semantic_corpus/009-null-denominator/**`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0077/D-14 — `LOCKED` (A ratio over one row set)
+
+*Superseded by D16.* **A fourth discharge: the denominator counts a column that cannot be NULL.** §5.1's three discharges refuse every ratio in this repository — eight projects, including the two corpus cases §6 calls untouched — and five of the eight are counts, where the premise holds by construction and no declaration could add anything. A count counts the very rows the numerator sums, so a row contributing to the numerator contributes 1. Without this the rule refuses `revenue / order_count`, and §9's claim that a well-declared project is not inconvenienced is false for every project in the tree — see `logs/T-0063.md` (unlisted, 15:40Z).
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/semantic/additivity.py` `src/bloomery/spec/quality.py` `tests/fixtures/semantic_corpus/008-ratio-rollup/**` `tests/fixtures/semantic_corpus/009-null-denominator/**`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0077/D-16 — `LOCKED` (A ratio over one row set)
+
+**`count` and `count_distinct` over a column that cannot be null both discharge.** Supersedes D14, which excluded the second on the grounds that a distinct count is about the group rather than the row — true, and not the premise. What R019 refuses is a denominator whose *per-row* contribution can be zero while the numerator's is not, and that is a property of a sum over a numeric column; a count of either kind is at least one for any non-empty row set. The exclusion was admitted wrong on the evidence of the message it produced: "nothing restricts … to rows with a non-zero `customer_id`" about a string column, telling the author to filter `customer_id > 0` — see `logs/T-0063.md` (unlisted, 15:55Z, attempt 2).
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/semantic/additivity.py` `src/bloomery/spec/quality.py` `tests/fixtures/semantic_corpus/008-ratio-rollup/**` `tests/fixtures/semantic_corpus/009-null-denominator/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 <!-- /torve:managed -->

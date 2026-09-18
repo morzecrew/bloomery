@@ -106,18 +106,18 @@ decisions:
       - tests/unit/test_guardrails/test_metrics.py
       - tests/unit/test_guardrails/test_stage.py
   - id: D-8
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **A site branching on additivity
-      tests the property it means, never the member it happened to observe.** Fifteen
-      sites across the emitters, the planner and the guardrails read `NON_ADDITIVE`,
-      and twelve of them meant something else — nine "never emits a measure", three
-      "a ratio specifically" — so minting `RATIO` narrowed twelve branches at once
-      and no test in the tree could see it. `bloomery.ir.COMPUTED` is that property
-      under its own name, and is already complete for all six members. Locked because
-      it is what the `RESOLVABLE` canary's promise rests on: minting `DistinctCount`
-      or `Snapshot` is an enum edit and a lowering, not a second sweep of fifteen
-      judgement calls (see `logs/T-0023.md` (`logs/T-0023.md`), D146).
+      **A site branching on additivity tests the property it means, never the member
+      it happened to observe.** Fifteen sites across the emitters, the planner and
+      the guardrails read `NON_ADDITIVE`, and twelve of them meant something else
+      — nine "never emits a measure", three "a ratio specifically" — so minting `RATIO`
+      narrowed twelve branches at once and no test in the tree could see it. `bloomery.ir.COMPUTED`
+      is that property under its own name, and is already complete for all six members.
+      Locked because it is what the `RESOLVABLE` canary's promise rests on: minting
+      `DistinctCount` or `Snapshot` is an enum edit and a lowering, not a second sweep
+      of fifteen judgement calls (see `logs/T-0023.md` (`logs/T-0023.md`), D146).
+    paths: [src/bloomery/errors.py, src/bloomery/ir/nodes.py]
   - id: D-9
     grade: ASSUMED
     text: >-

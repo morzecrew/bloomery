@@ -41,12 +41,19 @@ decisions:
       rather than the operator's, which is what SQLMesh's replay file already assumes
       about `sqlmesh`.
   - id: D-5
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) The dbt replay artifact keeps
-      `ArtifactKind.REPLAY` despite living under `macros/`. The kind means "a statement
-      the caller runs, not a relation the framework maintains", and a caller routing
-      the artifact stream must be able to tell those apart without parsing a path.
+      The dbt replay artifact keeps `ArtifactKind.REPLAY` despite living under `macros/`.
+      The kind means "a statement the caller runs, not a relation the framework maintains",
+      and a caller routing the artifact stream must be able to tell those apart without
+      parsing a path.
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/emit/lower/quality_mart.py
+      - src/bloomery/emit/lower/reconcile.py
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - tests/e2e/test_dbt_parse.py
   - id: D-6
     grade: ASSUMED
     text: >-
@@ -55,13 +62,19 @@ decisions:
       — the same function SQLMesh reads, so a check's `on_fail` means one thing across
       targets.
   - id: D-7
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) The quality mart's dbt refusal
-      is **deleted**, not narrowed, once D1 and D6 land: no surface it reads is then
-      missing. Narrowing its predicate is the right change only if this RFC does not
-      ship — the two are alternatives, not a sequence, and pursuing both would leave
-      dead code behind.
+      The quality mart's dbt refusal is **deleted**, not narrowed, once D1 and D6
+      land: no surface it reads is then missing. Narrowing its predicate is the right
+      change only if this RFC does not ship — the two are alternatives, not a sequence,
+      and pursuing both would leave dead code behind.
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/emit/lower/quality_mart.py
+      - src/bloomery/emit/lower/reconcile.py
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - tests/e2e/test_dbt_parse.py
   - id: D-8
     grade: ASSUMED
     text: >-
@@ -70,12 +83,18 @@ decisions:
       does not have; the asymmetry is reported, not hidden.
     paths: [src/bloomery/emit/dbt/__init__.py]
   - id: D-9
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) `python_model` steps stay
-      refused (S-0034/D-52), untouched by this RFC. Leaving one refusal standing is
-      what keeps "dbt refuses this" a specific statement rather than a historical
-      one.
+      `python_model` steps stay refused (S-0034/D-52), untouched by this RFC. Leaving
+      one refusal standing is what keeps "dbt refuses this" a specific statement rather
+      than a historical one.
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/emit/lower/quality_mart.py
+      - src/bloomery/emit/lower/reconcile.py
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - tests/e2e/test_dbt_parse.py
   - id: D-10
     grade: ASSUMED
     text: >-
@@ -83,18 +102,24 @@ decisions:
       at `7ba117b` and its "minimal but honest" sentence cannot be edited. This RFC
       supersedes it for the S-0033 surface only.
   - id: D-11
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) The reject model names `incremental_strategy='delete+insert'`.
-      Left to the adapter it is per-adapter and project-overridable, and `append`
-      makes `unique_key` inert — every re-delivery becomes a new row, silently, because
-      the `LEFT JOIN` still computes the right values and nothing reads them back.
-      dbt-duckdb's default *is* `delete+insert` (measured), which is why this looked
-      like a free choice and is not. The value is named here rather than delegated:
-      `delete+insert` materializes the SELECT before deleting, so the join against
-      `{{ this }}` reads the incumbent row, and it exists on every adapter — `merge`
-      would be narrower with nothing left to buy once D1 moved the preservation out
-      of the merge clause.
+      The reject model names `incremental_strategy='delete+insert'`. Left to the adapter
+      it is per-adapter and project-overridable, and `append` makes `unique_key` inert
+      — every re-delivery becomes a new row, silently, because the `LEFT JOIN` still
+      computes the right values and nothing reads them back. dbt-duckdb's default
+      *is* `delete+insert` (measured), which is why this looked like a free choice
+      and is not. The value is named here rather than delegated: `delete+insert` materializes
+      the SELECT before deleting, so the join against `{{ this }}` reads the incumbent
+      row, and it exists on every adapter — `merge` would be narrower with nothing
+      left to buy once D1 moved the preservation out of the merge clause.
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/emit/lower/quality_mart.py
+      - src/bloomery/emit/lower/reconcile.py
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - tests/e2e/test_dbt_parse.py
   - id: D-12
     grade: ASSUMED
     text: >-

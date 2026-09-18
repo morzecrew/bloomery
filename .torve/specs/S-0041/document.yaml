@@ -470,11 +470,11 @@ sections:
         dirty bronze cleaned on the way to silver, and a union merge that cannot be cleaned
         composes with none of it. D16's second gate on P2c is discharged by
         S-0051 (retired — see `RETIRED.md`), which argued against S-0033/D-10
-        directly and kept it. Departures are recorded in [`logs/T-0012.md`](logs/T-0012.md).
+        directly and kept it. Departures are recorded in `logs/T-0012.md` (`logs/T-0012.md`, in history).
         The union,
         its compile-time checks, the collision audit, `_source`, the plan-classifier rows, the
         `multi_source` fixture and the docs pair are shipped — five departures and one prose
-        note recorded in [`logs/T-0004.md`](logs/T-0004.md), drift count zero. This document
+        note recorded in `logs/T-0004.md` (`logs/T-0004.md`, in history), drift count zero. This document
         stays for
         **P2** (§12): the quality system on a merged entity. P2's design is settled rather than
         sketched — D32/D33 fix rule lowering, D34/D35 fix `dedupe:` — and **its code has now
@@ -485,7 +485,7 @@ sections:
         unamended: it was correct when written, what changed is the emitter, and the record of
         why merged entities were SQLMesh-only for one release is the point of keeping it.
         **P2a–P2c landed 2026-09-03** at `8287f75`, and **P2d lands separately** on the branch
-        recorded in [`logs/T-0013.md`](logs/T-0013.md), as §12 asks: D36's `direct:` fan-out
+        recorded in `logs/T-0013.md` (`logs/T-0013.md`, in history), as §12 asks: D36's `direct:` fan-out
         is built and D28's refusal is replaced by the narrower one D36 names. What is left of
         this document is the dbt tail §12 calls "Not P2".
         Everything below describes the design as argued; the deviation log is what says where the
@@ -580,7 +580,7 @@ sections:
       **P2d — `direct:` on a merged entity (D36).**
 
       > **Settled (execution).** Built on `feat/instants-and-merged-direct-paths`
-      > ([`logs/T-0013.md`](logs/T-0013.md)), separately from P2a–P2c as this paragraph
+      > (`logs/T-0013.md` (`logs/T-0013.md`, in history)), separately from P2a–P2c as this paragraph
       > asks. The execution shape below is what shipped, with one addition the paragraph does
       > not name: the refusal is scoped to the mappings that *produce* the column, for the
       > reason D33's is — §5.2 rule 3's optional field has no field mapping to hang a

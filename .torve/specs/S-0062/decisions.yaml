@@ -1,33 +1,49 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) The three annotations change
-      no SELECT. They reach metadata slots only, and an existing golden's SQL is byte-identical
-      with them absent — asserted, not assumed.
+      The three annotations change no SELECT. They reach metadata slots only, and
+      an existing golden's SQL is byte-identical with them absent — asserted, not
+      assumed.
+    paths:
+      - src/bloomery/emit/cube/__init__.py
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/spec/entity.py
+      - src/bloomery/spec/quality.py
+      - tests/unit/test_tenant_guard.py
   - id: D-2
     grade: ASSUMED
     text: >-
       `owner` does not inherit. A mart with no declared owner has none; silent inheritance
       makes an owner nobody wrote look like one somebody did.
   - id: D-3
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) `classification` is a **closed**
-      vocabulary. An open string is a tag that cannot be routed, and the routing —
-      the `redact` reconciliation and Cube's `public: false` — is the whole reason
-      this is not a `meta` passthrough.
+      `classification` is a **closed** vocabulary. An open string is a tag that cannot
+      be routed, and the routing — the `redact` reconciliation and Cube's `public:
+      false` — is the whole reason this is not a `meta` passthrough.
+    paths:
+      - src/bloomery/emit/cube/__init__.py
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/spec/entity.py
+      - src/bloomery/spec/quality.py
+      - tests/unit/test_tenant_guard.py
   - id: D-4
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **Superseded by rows 9, 10
-      and 11.** `pii`/`secret` on a mapped field whose path is not redacted is a refusal
-      **when the entity quarantines**, and silent otherwise. Unsatisfiable as written:
-      a mapped field's path cannot be redacted — `_check_redaction` refuses that already
-      — so both branches close and the classification has no legal spelling, which
-      is the gap §2 opened this RFC to fill (see `logs/T-0050.md`, and `logs/T-0051.md`
-      for the replacement).
+      **Superseded by rows 9, 10 and 11.** `pii`/`secret` on a mapped field whose
+      path is not redacted is a refusal **when the entity quarantines**, and silent
+      otherwise. Unsatisfiable as written: a mapped field's path cannot be redacted
+      — `_check_redaction` refuses that already — so both branches close and the classification
+      has no legal spelling, which is the gap §2 opened this RFC to fill (see `logs/T-0050.md`,
+      and `logs/T-0051.md` for the replacement).
+    paths:
+      - src/bloomery/emit/cube/__init__.py
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/spec/entity.py
+      - src/bloomery/spec/quality.py
+      - tests/unit/test_tenant_guard.py
   - id: D-5
     grade: LOCKED
     text: >-

@@ -1,31 +1,45 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) `to_utc` produces a **zoneless
-      UTC** value. The type is already documented as always-UTC and the map already
-      declares `TIMESTAMP`; producing a zone-aware value contradicts both.
+      `to_utc` produces a **zoneless UTC** value. The type is already documented as
+      always-UTC and the map already declares `TIMESTAMP`; producing a zone-aware
+      value contradicts both.
+    paths:
+      - examples/lakehouse/**
+      - src/bloomery/dialects/base.py
+      - src/bloomery/transforms/_builtins.py
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) The normalization lives in
-      the **ports**, not in the transform builder. The three spellings are one meaning,
-      and a builder produces dialect-neutral AST (S-0021/D-7). The neutral tree keeps
-      carrying `AtTimeZone`; each port renders the whole interpretation.
+      The normalization lives in the **ports**, not in the transform builder. The
+      three spellings are one meaning, and a builder produces dialect-neutral AST
+      (S-0021/D-7). The neutral tree keeps carrying `AtTimeZone`; each port renders
+      the whole interpretation.
+    paths:
+      - examples/lakehouse/**
+      - src/bloomery/dialects/base.py
+      - src/bloomery/transforms/_builtins.py
   - id: D-3
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) This is a **restating** change:
-      artifacts change, spec meaning does not, and stored values move. A project that
-      built tables before this has data whose derived dates were wrong; a restatement
-      is the migration.
+      This is a **restating** change: artifacts change, spec meaning does not, and
+      stored values move. A project that built tables before this has data whose derived
+      dates were wrong; a restatement is the migration.
+    paths:
+      - examples/lakehouse/**
+      - src/bloomery/dialects/base.py
+      - src/bloomery/transforms/_builtins.py
   - id: D-4
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) No new spec surface. A per-column
-      "keep the zone" escape hatch would reintroduce the ambiguity this removes, and
-      nothing has asked for one.
+      No new spec surface. A per-column "keep the zone" escape hatch would reintroduce
+      the ambiguity this removes, and nothing has asked for one.
+    paths:
+      - examples/lakehouse/**
+      - src/bloomery/dialects/base.py
+      - src/bloomery/transforms/_builtins.py
   - id: D-5
     grade: LOCKED
     text: >-

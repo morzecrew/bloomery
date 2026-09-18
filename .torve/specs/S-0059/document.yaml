@@ -289,7 +289,7 @@ sections:
         because a retirement row has to name a commit that already holds this document and is
         reachable from `main`, and no such commit exists until the change that ships it lands
         (`RETIRED.md` argues why that cannot be the deleting commit). Rows added
-        by execution cite [`logs/T-0014.md`](logs/T-0014.md).
+        by execution cite `logs/T-0014.md` (`logs/T-0014.md`, in history).
       - **Scope:** Five ends left dangling by RFCs that have otherwise landed, plus the
         documentation residue two of them left behind. Three are real gaps and get built:
         MetricFlow becomes a compile target so its manifest can be written to disk; the

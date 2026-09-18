@@ -220,7 +220,7 @@ sections:
         because a retirement row has to name a commit that already holds this document and is
         reachable from `main`, and no such commit exists until the change that ships it lands
         (`RETIRED.md` argues why that cannot be the deleting commit). Rows added
-        by execution cite [`logs/T-0013.md`](logs/T-0013.md).
+        by execution cite `logs/T-0013.md` (`logs/T-0013.md`, in history).
       - **Scope:** One expression, in one place: the guard `strip_iso_text` wraps around
         every `parse_ts: ISO8601` cast so that text carrying a **numeric UTC offset** yields
         NULL instead of a truncated wall clock. No spec-layer surface, no IR change, no new

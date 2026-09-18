@@ -1,16 +1,16 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **`parse_ts: ISO8601` reads
-      a local wall clock, and text carrying a numeric UTC offset is out of contract.**
-      This is S-0045's contract restated at the boundary that enforces it, not a new
-      rule: `to_utc` is the only door into UTC, so a value that states its own zone
-      is telling the compiler something the declaration already claimed to know. Locking
-      it is what makes §5.3's refusal a consequence rather than a preference — an
-      implementation that "helpfully" converted would be contradicting the spec layer,
-      not extending it.
+      **`parse_ts: ISO8601` reads a local wall clock, and text carrying a numeric
+      UTC offset is out of contract.** This is S-0045's contract restated at the boundary
+      that enforces it, not a new rule: `to_utc` is the only door into UTC, so a value
+      that states its own zone is telling the compiler something the declaration already
+      claimed to know. Locking it is what makes §5.3's refusal a consequence rather
+      than a preference — an implementation that "helpfully" converted would be contradicting
+      the spec layer, not extending it.
+    paths: [src/bloomery/dialects/base.py, src/bloomery/transforms/_builtins.py]
   - id: D-2
     grade: LOCKED
     text: >-

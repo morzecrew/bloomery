@@ -87,8 +87,8 @@ decisions:
       whether the corpus is a checked-in test input or a build artifact
     rationale: >-
       The six tiers declared in `pyproject.toml` are pytest markers, but a libFuzzer
-      target is not a pytest test. Settled by whether the replay job in `rfcs/0072-continuous-fuzzing-in-ci.md`
-      wants to be invoked through pytest
+      target is not a pytest test. Settled by whether the replay job in S-0009 wants
+      to be invoked through pytest
   - id: D-7
     grade: OPEN
     text: >-

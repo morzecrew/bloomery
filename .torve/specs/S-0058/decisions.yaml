@@ -1,38 +1,48 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **The claim is preservation
-      of declared semantics, never truth.** bloomery proves that what it emits and
-      accepts preserves what it was told, under documented rules — not that the telling
-      was right. Locked because every weaker phrasing of this ("correct analytics",
-      "guaranteed correct metrics") is unfalsifiable and would be quoted back at the
-      project the first time a wrong number came from a wrong declaration.
+      **The claim is preservation of declared semantics, never truth.** bloomery proves
+      that what it emits and accepts preserves what it was told, under documented
+      rules — not that the telling was right. Locked because every weaker phrasing
+      of this ("correct analytics", "guaranteed correct metrics") is unfalsifiable
+      and would be quoted back at the project the first time a wrong number came from
+      a wrong declaration.
+    paths:
+      - pages/docs/concepts/guardrails.md
+      - pages/docs/concepts/what-bloomery-proves.md
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **The planner claim is not
-      published before the capability exists.** §2's sentence is false today. A roadmap
-      sentence in a README is read as a description of the current release, and a
-      documentation claim that outruns the code is the one defect a reader cannot
-      check against the code.
+      **The planner claim is not published before the capability exists.** §2's sentence
+      is false today. A roadmap sentence in a README is read as a description of the
+      current release, and a documentation claim that outruns the code is the one
+      defect a reader cannot check against the code.
+    paths:
+      - pages/docs/concepts/guardrails.md
+      - pages/docs/concepts/what-bloomery-proves.md
   - id: D-3
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **Representation safety and
-      query answerability are documented as distinct guarantees.** They look contradictory
-      when a reader meets a refused mart and an accepted query over the same measure,
-      and the distinction is S-0054/D-1 stated for humans. Omitting it makes the refusal
-      look arbitrary, which is how a correct refusal gets worked around.
+      **Representation safety and query answerability are documented as distinct guarantees.**
+      They look contradictory when a reader meets a refused mart and an accepted query
+      over the same measure, and the distinction is S-0054/D-1 stated for humans.
+      Omitting it makes the refusal look arbitrary, which is how a correct refusal
+      gets worked around.
+    paths:
+      - pages/docs/concepts/guardrails.md
+      - pages/docs/concepts/what-bloomery-proves.md
   - id: D-4
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **Every README correctness
-      statement answers §8's four questions or is rewritten.** It is the gate that
-      keeps the rest of this document from being a style preference: any sentence
-      that cannot say what is proven, from what, when, and what is excluded, is a
-      claim nobody can check.
+      **Every README correctness statement answers §8's four questions or is rewritten.**
+      It is the gate that keeps the rest of this document from being a style preference:
+      any sentence that cannot say what is proven, from what, when, and what is excluded,
+      is a claim nobody can check.
+    paths:
+      - pages/docs/concepts/guardrails.md
+      - pages/docs/concepts/what-bloomery-proves.md
   - id: D-5
     grade: ASSUMED
     text: >-

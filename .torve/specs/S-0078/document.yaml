@@ -2,7 +2,7 @@
 id: S-0078
 title: The RFC corpus retired into documents
 kind: design
-status: draft
+status: accepted
 implementation: complete
 depends_on: []
 informed_by: [S-0001]
@@ -58,10 +58,10 @@ design:
       A grade the table carried is kept. A row with no grade is `ASSUMED`: it was
       never graded, and `ASSUMED` is the grade that costs nothing to revisit. A row's
       `paths` are the files that cite it in `src/`, `pages/` and `tests/` — 470 rows
-      have some. A `LOCKED` row no file cites (74 rows) becomes `ASSUMED` with its
-      text marked, because a lock over a directory-wide glob would owe a divergence
-      entry to every task under it while guarding nothing a file names; re-lock by
-      hand where it matters (Q-1).
+      have some. A `LOCKED` row no file cites (74 rows) keeps its lock, with the directories
+      and files its RFC's header names as its paths — the owner's call on 2026-09-19
+      (Q-1), taken knowing a directory-wide lock owes a divergence entry to every
+      task under it.
   - key: citations
     md: >-
       `RFC NNNN Dk` → `S-NNNN/D-k`; `RFC NNNN §n.m` → the section key; `RFC NNNN Pk`
