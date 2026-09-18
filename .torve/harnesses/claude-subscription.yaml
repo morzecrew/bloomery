@@ -65,6 +65,9 @@ env:
   BASH_MAX_OUTPUT_LENGTH: "20000"
   MAX_MCP_OUTPUT_TOKENS: "5000"
   CLAUDE_TOOLS: Bash,Read,Edit,Write,Glob,Grep
+  # bloomery versions itself from git tags the worktree does not carry; without
+  # this every `uv run` in an attempt fails until the agent rediscovers it.
+  SETUPTOOLS_SCM_PRETEND_VERSION: "0.0.0"
 
 # Claude Code speaks the Anthropic Messages dialect and only that, so a seat
 # pairing it with a provider serving no anthropic route is refused at load

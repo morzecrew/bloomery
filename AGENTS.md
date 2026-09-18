@@ -47,3 +47,110 @@ Gitmoji + Conventional Commits (`✨ feat(scope): …`) — the vendored
 - Never re-run a command to see omitted output; expand the marker instead.
 - For structure-level questions about a large indexed file ("what's in here", "which function handles X"), `get_context(["path"], include=["skeleton"])` returns the file with bodies elided — every signature plus the bodies of the most central symbols — at a fraction of the cost of a full Read.
 <!-- REPOWISE_DISTILL:END -->
+
+<!-- torve:managed root — rendered from the corpus; do not edit by hand -->
+
+## Decisions governing the repository root
+
+### S-0004/D-1 — `LOCKED` (Observability: logging and a warnings channel)
+
+No handler, ever: the library's only logging configuration act is attaching a `NullHandler` to the `bloomery` logger at package import, and it never adds, removes or configures a handler, a format or a level on a logger it does not own
+
+- Paths: `src/bloomery/__init__.py` `pyproject.toml`
+- Consequence: A library that installs a handler fights its embedder, and reversing this reaches every caller in the process; the level stays at `NOTSET` deliberately, which is the only way a caller's own `setLevel` on the `bloomery` logger can work from outside
+- Check: `uv run pytest tests/unit/test_logging_posture.py -q` (shadow; runs as `decision:S-0004/D-1`, no log entry owed)
+
+### S-0008/D-6 — `OPEN` (Fuzzing the compile boundary)
+
+Whether the lane is a seventh pytest marker or a `just` lane outside pytest
+
+- Paths: `justfile` `pyproject.toml`
+- Consequence: A marker would cover only a replay test over the corpus, so the choice decides whether the corpus is a checked-in test input or a build artifact
+
+### S-0009/D-4 — `ASSUMED` (Continuous fuzzing in CI)
+
+Coverage over the fuzz corpus is measured by a locally-runnable lane rather than a hosted report
+
+- Paths: `justfile`
+- Consequence: The only signal separating "found nothing because the code is correct" from "found nothing because it never reached the code" runs when someone remembers, not on a schedule
+
+### S-0012/D-2 — `LOCKED` (Validating a dialect port against an engine we cannot run)
+
+Rung 4 carries a `surrogate` marker distinct from `engine`, so a lane backed by an emulator, a Spark session or a Postgres shim cannot select or report as the engine matrix does
+
+- Paths: `pyproject.toml` `tests/engines/**`
+- Consequence: The marker table gains a ninth entry when the first surrogate lane lands, and `engine(name)` keeps meaning Docker plus the real engine; a CI log distinguishes the two without anyone reading a test body
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0012/D-4 — `LOCKED` (Validating a dialect port against an engine we cannot run)
+
+No engine driver, cloud SDK or Spark session enters `src/bloomery`; live harnesses live in `tests/support/` and their drivers are test-only dependency groups, never installed for `uv add bloomery`
+
+- Paths: `src/bloomery/**` `tests/support/**` `pyproject.toml`
+- Consequence: A cloud port adds a port module and a test harness and nothing else to the install path, so the package stays a pure compiler and its dependency closure stays free of a JVM and four vendor SDKs
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0012/D-5 — `LOCKED` (Validating a dialect port against an engine we cannot run)
+
+No cloud credential is reachable from an untrusted pull request and `just test` never requires one: live lanes run on `main`, releases, schedules and manual dispatch, behind a GitHub Environment, with compile-only and execution lanes as separate jobs
+
+- Paths: `.github/workflows/**` `justfile`
+- Consequence: A fork's pull request runs the offline tiers and skips the live ones with a stated reason, and the default cloud lane cannot accidentally scan or bill; the credential is isolated from unrelated jobs by the Environment's protection rules
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0012/D-7 — `ASSUMED` (Validating a dialect port against an engine we cannot run)
+
+Rungs 1 to 3 are required on every pull request, rung 4 is per port, and rungs 5 and 6 never are
+
+- Paths: `.github/workflows/ci.yml` `pyproject.toml` `justfile`
+- Consequence: The default lane stays offline and fast, and a port's authoritative evidence is gathered on `main` and on demand rather than per commit
+
+### S-0012/D-9 — `OPEN` (Validating a dialect port against an engine we cannot run)
+
+Whether `surrogate` is a new pytest marker or a parameter on `engine`; whoever adds the first surrogate lane decides and updates the marker table with the reason
+
+- Paths: `pyproject.toml`
+- Consequence: Either spelling satisfies D-2, and the parameter form keeps one selector for the whole matrix at the cost of a marker whose meaning depends on an argument
+
+<!-- /torve:managed -->
+
+<!-- torve:managed root index — rendered from the corpus; do not edit by hand -->
+
+## Governed directories
+
+Each of these carries a managed `AGENTS.md` section listing the decisions
+and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
+`<file>` and `torve spec tests S-NNNN/D-n` read the same corpus from the worktree.
+
+- `comparisons/` — 9 decision(s)
+- `examples/` — 1 decision(s)
+- `pages/docs/` — 1 decision(s)
+- `pages/docs/reference/` — 1 decision(s)
+- `src/bloomery/` — 15 decision(s)
+- `src/bloomery/cli/` — 1 decision(s)
+- `src/bloomery/dialects/` — 1 decision(s)
+- `src/bloomery/emit/` — 0 decision(s)
+- `src/bloomery/ir/` — 3 decision(s)
+- `src/bloomery/marts/` — 3 decision(s)
+- `src/bloomery/planner/` — 3 decision(s)
+- `src/bloomery/resolve/` — 4 decision(s)
+- `src/bloomery/runtime/` — 4 decision(s)
+- `src/bloomery/semantic/` — 21 decision(s)
+- `src/bloomery/spec/` — 9 decision(s)
+- `tests/` — 0 decision(s)
+- `tests/engines/` — 4 decision(s)
+- `tests/fixtures/` — 1 decision(s)
+- `tests/fixtures/semantic_corpus/` — 1 decision(s)
+- `tests/golden/` — 1 decision(s)
+- `tests/support/` — 3 decision(s)
+- `tests/unit/` — 4 decision(s)
+- `tests/unit/test_dialects/` — 0 decision(s)
+- `tests/unit/test_emit/` — 0 decision(s)
+- `tests/unit/test_marts/` — 0 decision(s)
+- `tests/unit/test_plan/` — 0 decision(s)
+- `tests/unit/test_planner/` — 0 decision(s)
+- `tests/unit/test_semantic/` — 0 decision(s)
+- `tests/unit/test_spec/` — 0 decision(s)
+- `tests/unit/test_steps/` — 0 decision(s)
+
+<!-- /torve:managed -->
