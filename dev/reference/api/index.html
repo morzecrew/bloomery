@@ -3322,7 +3322,7 @@ error taxonomy (<code>UnknownMember</code>, <code>UnreachableAtGrain</code>, <co
 metric, no duplicates, order over requested members only, <code>limit &gt;= 1</code>). <code>filters</code> is
 CNF: a tuple of clauses (implicit AND), each a <code>Predicate</code> or one <code>AnyOf</code> group.</p>
 <h3 id="predicatedimension-op-values"><code>Predicate(dimension, op, values=())</code><a class="headerlink" href="#predicatedimension-op-values" title="Permanent link">&para;</a></h3>
-<p>One typed single-dimension filter (RFC 0015). <code>op</code> is an <code>Op</code> member; value arity is
+<p>One typed single-dimension filter (S-0032). <code>op</code> is an <code>Op</code> member; value arity is
 checked per operator (<code>is_null</code> takes exactly one bool; <code>like</code>/<code>ilike</code> take one or
 more patterns). Floats are accepted and normalized to <code>Decimal(str(value))</code> at
 construction; non-finite numerics raise <code>InvalidLiteral</code>.</p>

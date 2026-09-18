@@ -1631,6 +1631,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0033/D-30 — <code>ASSUMED</code> (Data quality: declarative cleansing, dispositions, quarantine)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#s-0041d-7-assumed-deterministic-union-merge" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0041/D-7 — <code>ASSUMED</code> (Deterministic union merge)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1673,6 +1695,16 @@
 <li>Paths: <code>src/bloomery/evidence.py</code> <code>pages/docs/reference/errors.md</code> <code>tests/unit/test_docs_floor.py</code></li>
 <li>Consequence: Adding an advisory is a reviewed change that lands its documentation row with it; a documented code no path can construct fails the census, which is what blocks the deprecated-spelling advisory until a spelling is actually deprecated</li>
 <li>Check: <code>uv run pytest tests/unit/test_docs_floor.py -q</code> (shadow; runs as <code>decision:S-0004/D-10</code>, no log entry owed)</li>
+</ul>
+<h3 id="s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine">S-0033/D-30 — <code>ASSUMED</code> (Data quality: declarative cleansing, dispositions, quarantine)<a class="headerlink" href="#s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine" title="Permanent link">&para;</a></h3>
+<p><em>(2026-08-08, M12; closed by D84)</em> <strong>Postgres cannot host quality-carrying entities.</strong> <code>coercible</code> needs a real NULL-on-failure cast (<code>DialectFeature.TRY_CAST</code>); sqlglot renders <code>TRY_CAST</code> on Postgres as a plain <code>CAST</code>, which aborts the run instead of marking the row, so the dialect declares the feature gap and compiling a quality-carrying entity for it raises <code>UnsupportedByTarget</code> — loud, never a silent degradation into an aborted run. Consequence for §6's dialect matrix: there is no Postgres dirty-corpus tier to add until either sqlglot renders a real <code>TRY_CAST</code> or the lowering grows a per-type <code>CASE</code>-based fallback whose semantics are proven equal to <code>TRY_CAST</code>'s on the corpus. Named as the escape hatch, not built.</p>
+<ul>
+<li>Paths: <code>pages/docs/reference/errors.md</code> <code>src/bloomery/emit/lower/silver.py</code></li>
+</ul>
+<h3 id="s-0041d-7-assumed-deterministic-union-merge">S-0041/D-7 — <code>ASSUMED</code> (Deterministic union merge)<a class="headerlink" href="#s-0041d-7-assumed-deterministic-union-merge" title="Permanent link">&para;</a></h3>
+<p>A <code>_source</code> system column carries provenance. It is load-bearing rather than diagnostic: the collision audit reports which sources collided, and without it the report is unactionable on a multi-source entity.</p>
+<ul>
+<li>Paths: <code>pages/docs/reference/stability.md</code> <code>src/bloomery/emit/lower/silver.py</code> <code>src/bloomery/ir/nodes.py</code> <code>src/bloomery/spec/common.py</code> <code>tests/unit/test_emit/test_sqlmesh.py</code> <code>tests/unit/test_steps/test_lowering.py</code></li>
 </ul>
 <!-- /torve:managed -->
 

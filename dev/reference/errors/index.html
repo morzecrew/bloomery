@@ -2047,7 +2047,7 @@ pulling in any pipeline stage.</p>
 <tr>
 <td><code>StepError</code></td>
 <td>steps</td>
-<td>Base of the referenced-implementation family (RFC 0017)</td>
+<td>Base of the referenced-implementation family (S-0034)</td>
 </tr>
 <tr>
 <td><code>StepDeterminismError</code></td>
@@ -2322,7 +2322,7 @@ pulling in any pipeline stage.</p>
 <tr>
 <td><code>UnsupportedFilter</code></td>
 <td>planner</td>
-<td>Base of the closed query-vocabulary refusal family (RFC 0015): every leaf carries a stable <code>.reason</code> code and, where the refusal happens after normalization, <code>.normalized</code> — the post-normalization form</td>
+<td>Base of the closed query-vocabulary refusal family (S-0032): every leaf carries a stable <code>.reason</code> code and, where the refusal happens after normalization, <code>.normalized</code> — the post-normalization form</td>
 </tr>
 <tr>
 <td><code>UnsupportedSetRelation</code></td>
@@ -2435,7 +2435,7 @@ addressed message inside the same batched aggregate:</p>
 </tr>
 <tr>
 <td><code>seeds:</code></td>
-<td>A key that exists in order to be refused, permanently. A seed is a table of data in your repository and bloomery reads no files while compiling (RFC 0003), so the rows would have to live in a spec — which would make the spec a data file. The message says "refused, not missing", because an author told only that a key is unknown expects it in a later release</td>
+<td>A key that exists in order to be refused, permanently. A seed is a table of data in your repository and bloomery reads no files while compiling (S-0020), so the rows would have to live in a spec — which would make the spec a data file. The message says "refused, not missing", because an author told only that a key is unknown expects it in a later release</td>
 </tr>
 <tr>
 <td>Reserved metric name</td>
@@ -2445,7 +2445,7 @@ addressed message inside the same batched aggregate:</p>
 </table>
 <p>Data-quality refusals also happen at emit time rather than compile time, and those are
 <code>UnsupportedByTarget</code>. Two are about the <em>dialect</em>, both on an absent NULL-on-failure
-cast: an entity with <code>coercible</code> rules (RFC 0016 D30), and — because the
+cast: an entity with <code>coercible</code> rules (S-0033/D-30), and — because the
 ingestion-metadata audit asserts <code>_ingested_at</code> casts to timestamp, which is a
 <code>TRY_CAST</code> of its own — a <strong>dedupe-only</strong> entity too, even though it carries no quality
 rules at all (D31). A third is about an absent Unicode normalization (D86). <strong>None of
@@ -2464,7 +2464,7 @@ and the comparison model; what dbt still refuses is a Tier 3 <code>python_model<
 is about the adapters dbt's Python models run on rather than about anything bloomery
 lowers. All of them name the target or dialect that does support the construct.</p>
 <h2 id="the-closed-refusal-list">The closed refusal list<a class="headerlink" href="#the-closed-refusal-list" title="Permanent link">&para;</a></h2>
-<p>The <code>UnsupportedFilter</code> family is a <strong>closed, reviewed list</strong> (RFC 0015), not drift:
+<p>The <code>UnsupportedFilter</code> family is a <strong>closed, reviewed list</strong> (S-0032), not drift:
 every construct the query vocabulary cannot express was refused deliberately, with a
 named error and a rationale. The stable <code>.reason</code> codes raisable by bloomery's three
 parse functions (<code>parse_filter_json</code>, <code>parse_sort_json</code>, <code>parse_page_json</code>) are

@@ -1991,7 +1991,7 @@ outcomes, in decreasing order of what the compiler can prove:</p>
 which is the one thing <code>secret</code> says the column is not part of. It does not matter what is
 granted:</p>
 <div class="highlight"><pre><span></span><code>mart 'order_items' carries column 'order_customer_id', which is order.customer_id
-classified secret (RFC 0055 D10). A mart is the published surface, which is the one
+classified secret (S-0062/D-10). A mart is the published surface, which is the one
 thing 'secret' says this column is not part of. Fix: drop the column from the flatten,
 or reclassify it if it is not secret
 </code></pre></div>
@@ -2000,7 +2000,7 @@ refused.</strong> The ordinary leak is a customer table flattened into a wide ma
 granted to everyone:</p>
 <div class="highlight"><pre><span></span><code>mart 'order_items' carries column 'order_customer_id', which is order.customer_id
 classified pii, and grants select to everyone — role(s) entity 'order' does not grant
-(RFC 0055 D11)
+(S-0062/D-11)
 </code></pre></div>
 <p>Equal grants pass. Narrower grants pass. <code>{select: []}</code> passes, because no role at all is
 the narrowest thing there is. <strong>Disjoint sets are refused</strong>, not passed: it is a set

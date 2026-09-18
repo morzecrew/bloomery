@@ -2021,7 +2021,7 @@ severity: each of those documents has to be edited, and none of their figures mo
 <p>The one semantic rule the differ enforces is that a <strong>contraction may not land while
 something still reads the contracted surface</strong>. Dropping or narrowing a field that a
 reachable metric still references raises <code>ContractViolation</code>:</p>
-<div class="highlight"><pre><span></span><code>ContractViolation: expand/contract violation (RFC 0007 D5):
+<div class="highlight"><pre><span></span><code>ContractViolation: expand/contract violation (S-0024/D-5):
   - field 'order_item.unit_price' is dropped but still referenced by metric(s)
     gross_revenue — expand/contract: land the metric's removal (deprecation) in a
     prior version, then drop or narrow the field
