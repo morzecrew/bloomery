@@ -1,0 +1,12 @@
+# The gold layer: one wide mart at order grain. The date role expands
+# order_date into ordered_day .. ordered_year bucket columns — the dimensions
+# the planner serves requests from.
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {date: order_date, role: ordered}
+    measures: [revenue, order_count]
+    partition_by: [days(ordered_day)]

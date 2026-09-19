@@ -26,6 +26,7 @@ from bloomery.semantic.closure import (
     can_roll_up,
     closure,
     dependencies,
+    determination_closure,
     prove_rollup,
 )
 from bloomery.semantic.denomination import (
@@ -137,6 +138,7 @@ __all__ = [
     "can_roll_up",
     "closure",
     "dependencies",
+    "determination_closure",
     "grain_of",
     "qualify_as_of",
 ]

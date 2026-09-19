@@ -1,0 +1,5 @@
+metrics_version: 1
+metrics:
+  revenue: {template: revenue}
+  revenue: {template: revenue}
+
