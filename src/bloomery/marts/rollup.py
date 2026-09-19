@@ -169,9 +169,21 @@ def _determinations(mart: MartIR, project: ProjectIR) -> dict[str, tuple[str, ..
     entity taking the empty prefix. One entity flattened under two prefixes
     relates ``billing_city`` to ``billing_state`` and to nothing of the
     shipping family; matching on the source column alone would relate them
-    across families and prove a coarsening that does not hold. A column
-    matching two families contributes no edge — the ambiguous case fails by
-    proving less, which is the only direction R020 may fail in.
+    across families and prove a coarsening that does not hold. What enforces
+    that is the keeper lookup below, which spells the determined column with
+    the *matched* family's prefix.
+
+    The ``len(matched) != 1`` guard is not that enforcement and only its
+    ``== 0`` half fires — an emitted column with no family behind it, a date
+    bucket for instance. Two families cannot match one column: the column's
+    own ``source_column`` fixes the prefix to one string, so a second match
+    needs a second join carrying that prefix for that entity, and such a mart
+    never lowers — every column the second join flattens collides with the
+    first's, and :func:`~bloomery.marts.flatten.lower_marts` returns
+    violations rather than a :class:`~bloomery.ir.MartIR`. It stays as the
+    belt on a total function: a column matching two families contributes no
+    edge, and the ambiguous case fails by proving less, which is the only
+    direction R020 may fail in.
 
     Only the **direct** declarations are translated (S-0079/D-6). The
     transitive step stays inside R020, whose ``determination_closure`` runs
