@@ -1,0 +1,75 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0006
+phase: 3
+attempt: 2
+base: b8bf5932a9c7a7d8aa8b746c2a41d342f8c1d891
+commit: 763d1184c12a9439e7f938f8c09e7ae93e14d3cc
+at: '2026-09-19T01:16:16Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: OPEN
+entries:
+  - decision: D-8
+    grade: OPEN
+    at: '2026-09-19T01:13:44Z'
+    claim: >-
+      same_as: is not needed and is not built: the in-project case is fully derivable
+      from role_of:, which R021 already reads, and the cross-project case still has
+      no consumer
+    evidence: >-
+      src/bloomery/semantic/proof.py:743-806 — prove_comparable (R021) decides comparability
+      from the roles mapping built out of role_of: alone; src/bloomery/spec/exports.py:3-6
+      says nothing consumes an export yet, so the emitted-reference phase D-8 waits
+      on has not arrived
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-19T01:13:44Z'
+    claim: >-
+      landing same_as: under this contract would necessarily add a fact with no consumer:
+      every rule surface is outside the scope, so no RULES entry could reach it in
+      this task
+    evidence: >-
+      src/bloomery/semantic/proof.py:389-446 — the RULES table, which the scope of
+      this task may not touch; the allow list is src/bloomery/spec/marts.py and tests/unit/test_spec/test_marts.py
+      only
+    action: decided
+  - decision: D-8
+    grade: OPEN
+    at: '2026-09-19T01:15:54Z'
+    attempt: 2
+    claim: >-
+      same_as: stays unbuilt on attempt 2: the in-project case is what two role_of:
+      steps already state and R021 already reads, and the cross-project case still
+      has no consumer; the retirement is recorded where an author would reach for
+      the key
+    evidence: >-
+      src/bloomery/spec/marts.py:68-78 — the retirement note on ViaStep; src/bloomery/semantic/proof.py:743-806
+      is prove_comparable (R021), which decides comparability from role_of: alone
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-19T01:15:54Z'
+    attempt: 2
+    claim: >-
+      landing same_as: under this contract would add a fact with no rule: every RULES
+      surface is outside this scope, so no consumer could reach it here
+    evidence: >-
+      src/bloomery/semantic/proof.py:389-446 — the RULES table, outside this task's
+      allow list of src/bloomery/spec/marts.py and tests/unit/test_spec/test_marts.py
+    action: decided
