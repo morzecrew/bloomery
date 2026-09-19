@@ -132,13 +132,19 @@ quality strict="false":
 # corpus is a build artifact here, not a checked-in test input. What a finding
 # leaves behind is a test under `tests/`, never a file under `fuzz/corpus/`
 # (S-0008/D-4). No acceptance command and no CI job runs any of this.
+#
+# atheris is layered per-invocation rather than declared in the dev group: it
+# ships a 36 MB linux-only wheel, and a dev-group entry would put it in
+# `uv.lock` for everyone who ever runs `uv sync`, for a lane nothing but these
+# three recipes invokes. `--with` keeps the engine inside the lane that uses it.
+_atheris := "uv run --with 'atheris>=2.3' python"
 
 # Run one fuzz target against its seeds and dictionary (`just fuzz parse_doors 300`)
 fuzz target="parse_doors" seconds="60":
     {{ _uv_sync }}
 
     mkdir -p fuzz/corpus/{{ target }} fuzz/crashes
-    uv run python fuzz/fuzz_{{ target }}.py \
+    {{ _atheris }} fuzz/fuzz_{{ target }}.py \
         -dict=fuzz/fuzz_{{ target }}.dict \
         -artifact_prefix=fuzz/crashes/{{ target }}- \
         -max_total_time={{ seconds }} \
@@ -146,11 +152,11 @@ fuzz target="parse_doors" seconds="60":
 
 # Replay one input through its target — the first thing to do with a crash file
 fuzz-repro target input:
-    uv run python fuzz/fuzz_{{ target }}.py {{ input }}
+    {{ _atheris }} fuzz/fuzz_{{ target }}.py {{ input }}
 
 # Shrink a crash file to the smallest input that still reproduces it
 fuzz-min target input:
-    uv run python fuzz/fuzz_{{ target }}.py -minimize_crash=1 -runs=200000 \
+    {{ _atheris }} fuzz/fuzz_{{ target }}.py -minimize_crash=1 -runs=200000 \
         -exact_artifact_path=fuzz/crashes/{{ target }}-minimized {{ input }}
 
 # ----------------------- #

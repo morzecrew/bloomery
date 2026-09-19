@@ -33,6 +33,16 @@ measured, not arbitrary: sqlglot spends roughly 20 frames per nesting level, so
 the window between what the load-time validator accepts and what a site a few
 frames deeper can parse is about one level wide. A seed one level either side
 of it proves nothing.
+
+**One open finding, deferred rather than fixed.** A 45-second run on the
+step-body door reaches `src/bloomery/ir/nodes.py:428` (`_parse_sql`, through
+`SqlExpr.ast` at emit) with a body that `resolve/steps.py` parsed happily one
+stage earlier — the same asymmetry again, one stack position deeper. That file
+is outside this phase's allow list and the fix belongs to a follow-up task, so
+the lane currently stops on it. Until then a run is read as: *this* crash is
+the known one, anything else is new. The crash file is reproducible from any
+seed corpus run; it is not checked in, because a corpus entry is not a
+regression test (S-0008/D-4).
 """
 
 from __future__ import annotations

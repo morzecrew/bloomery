@@ -21,6 +21,12 @@ would be surprising, and it would deserve a private report.
 $ just fuzz parse_doors 300
 ```
 
+The engine is [atheris](https://github.com/google/atheris), layered onto the project
+environment by the recipe itself (`uv run --with`) rather than declared in the dev group:
+it ships a 36 MB Linux-only wheel, and nothing outside this lane imports it. There is
+nothing to install, and `uv.lock` never mentions it. The lane needs Linux; the rest of
+the suite does not.
+
 The target name is the suffix of `fuzz/fuzz_<name>.py`; the number is seconds. The lane
 creates `fuzz/corpus/<target>/` and `fuzz/crashes/`, both gitignored, and passes the
 target's seed corpus and dictionary. The corpus accumulates across runs on your machine,
@@ -30,6 +36,11 @@ not a test input, and nothing reviews it.
 Output is libFuzzer's: `cov` is edges reached, `ft` features, `corp` the corpus it is
 keeping. A run that ends on `Done` found nothing. A run that ends on a stack trace wrote
 the input that caused it to `fuzz/crashes/<target>-<hash>`.
+
+`parse_doors` currently has one **known open finding** — a `RecursionError` from
+`SqlExpr.ast` in `src/bloomery/ir/nodes.py`, reached through a step body at emit — so a
+run stops on it within a minute or so. Read a trace against the target's module docstring
+before treating it as new; that one is waiting on a follow-up task.
 
 ## Read a crash
 
