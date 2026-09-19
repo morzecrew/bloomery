@@ -6,7 +6,7 @@ phasing:
       Add `determines: tuple[str, ...] = ()` to `ColumnIR` and fill it in `_column_ir`
       from the entity model's `Field.determines`, carried unchanged the way `classification`
       is; move `bloomery_ir_version` 19 → 20 with the paragraph in `ProjectIR`'s docstring
-      that says why; regenerate the fourteen fingerprint-bearing golden fixture directories
+      that says why; regenerate the fifteen fingerprint-bearing golden fixture directories
       with `uv run pytest tests/golden --snapshot-update` and review the diff as source
       — the whole of it is the `-- fingerprint: blm1:…` header line, and a SQL body
       that moves or a diff in a directory carrying no fingerprint is a defect. **No
