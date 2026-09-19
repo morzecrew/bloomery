@@ -819,6 +819,34 @@
       "title": "StoreConfig",
       "type": "object"
     },
+    "ThreadsConfig": {
+      "additionalProperties": false,
+      "description": "The review-thread leg's terms (S-0084/D-5): which logins are bots, how\nmany rounds one pass may mint, and whether the leg runs at all.\n\nOff by default \u2014 a repository configured today gains nothing until\nsomebody writes that it should. On, it is refused at load under any\nlanding but `pull_request` with `unit: document` (see the refusal on\n`RunnerConfig`): the leg reads a document's pull request, so a\nconfiguration that could only ever fail at the first thread fails while a\nperson is standing at the terminal instead.",
+      "properties": {
+        "bots": {
+          "description": "The forge logins whose threads the engine may answer and resolve. Every other\nthread is a person's: replied to and left (S-0084/D-11). Empty answers nobody.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Bots",
+          "type": "array"
+        },
+        "enabled": {
+          "default": false,
+          "description": "Whether the leg runs at all; off by default. Spelled `enabled` rather than `on`\nbecause YAML 1.1 resolves an unquoted `on` key to a boolean.",
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "rounds_per_pass": {
+          "default": 1,
+          "description": "How many revision rounds one served pass may mint (S-0084/D-16). Bounds the leg per\npass; the night's own budget bounds it across the night.",
+          "title": "Rounds Per Pass",
+          "type": "integer"
+        }
+      },
+      "title": "ThreadsConfig",
+      "type": "object"
+    },
     "TierConfig": {
       "additionalProperties": false,
       "description": "One tier's adapter (S-0004/adapters): `tier` on the task maps to an entry\nhere, and the concern leaks no further into the design. The command runs\n*inside* the sandbox (S-0004/D-1) \u2014 the engine never links a harness SDK, it\nonly shells a line into a container it created.\n\n`api_key_env` carries names, never values (S-0001/D-13): the runtime forwards the\nvariables from its own environment, so the secret never transits a spec.\n`auth_volume` is the subscription route (\u00a72, S-0004/D-2): one volume per worker\nslot, `-<slot>` appended, mounted read-write because token refresh writes.",
@@ -1209,6 +1237,10 @@
     "store": {
       "$ref": "#/$defs/StoreConfig",
       "description": "The durable run store (S-0001/D-14, S-0001/D-15)."
+    },
+    "threads": {
+      "$ref": "#/$defs/ThreadsConfig",
+      "description": "The review-thread leg's terms, off by default (S-0084/D-5)."
     },
     "tiers": {
       "additionalProperties": {

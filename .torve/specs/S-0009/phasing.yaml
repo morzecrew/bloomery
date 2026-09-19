@@ -8,7 +8,7 @@ phasing:
       under different `PYTHONHASHSEED` values and diffs artifacts byte for byte, compiles
       to all three targets across all three dialects, and asserts artifact ordering
       is stable independently of compile order. It needs no corpus to start — it replays
-      `examples/` and `tests/golden/` on day one and picks up the fuzz corpus when
+      `examples/` and `tests/fixtures/` on day one and picks up the fuzz corpus when
       it exists — and it is the whole of D-2, which is why it lands first. This is
       the cross-process determinism check the project has never had at scale, and
       `tests/unit/test_determinism_guard.py` is the one-fixture version of it already
@@ -29,7 +29,7 @@ phasing:
       Ship the scheduled batch workflow: a `PYTHONHASHSEED` matrix of `'0'`, `'1'`
       and `'random'` with `fail-fast: false`, sharing one `actions/cache` corpus keyed
       per target and restored at job start and saved at job end, plus the seed generator
-      that copies `examples/**` and `tests/golden/**` YAML into each target's seed
+      that copies `examples/**` and `tests/fixtures/**` YAML into each target's seed
       directory. The job prints the corpus entry count before and after so a cache
       that has stopped round-tripping is visible rather than green, and the planted-crash
       test confirms the job can actually go red.

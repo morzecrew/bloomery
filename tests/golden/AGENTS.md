@@ -2,13 +2,6 @@
 
 ## Decisions governing `tests/golden/`
 
-### S-0009/D-7 — `ASSUMED` (Continuous fuzzing in CI)
-
-Fuzz seeds are generated from `examples/**` and `tests/golden/**` at build time rather than committed a second time under `fuzz/`
-
-- Paths: `examples/**` `tests/golden/**`
-- Consequence: The corpus floor tracks the examples instead of drifting from them, so a new example is a new seed without anyone copying it
-
 ### S-0025/D-2 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
 
 Emitters produce file-shaped text artifacts as data (settles open question #1). No filesystem writes, no live-context registration in core — callers build that on top.
@@ -78,5 +71,12 @@ A key appearing in more than one source is refused by a generated **blocking** a
 
 - Paths: `src/bloomery/emit/lower/silver.py` `tests/execution/test_merged_cleaning.py` `tests/golden/test_sqlmesh_dialects.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0079/D-8 — `ASSUMED` (Determinations reach the IR and the rollup lowering) — implementation: none
+
+The end-to-end proof is one **new** golden fixture, `coarsening_rollup`, registered in the three golden drivers' `EXPECTED_PATHS` tables — not an extension of `rollup_mart`
+
+- Paths: `tests/fixtures/coarsening_rollup/**` `tests/golden/coarsening_rollup/**` `tests/golden/test_cube.py` `tests/golden/test_dbt_postgres.py` `tests/golden/test_sqlmesh_duckdb.py`
+- Consequence: `rollup_mart` keeps answering the measure question alone, so a future diff in either fixture says which question moved. It also keeps the two phases' golden directories disjoint — the first phase's regeneration and the second phase's new artifacts are never the same file
 
 <!-- /torve:managed -->

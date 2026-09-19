@@ -32,4 +32,12 @@ Three-valued logic: each rule defines a violation predicate and fires only when 
 
 - Paths: `src/bloomery/__init__.py` `src/bloomery/evidence.py` `src/bloomery/ir/nodes.py` `tests/unit/test_advisories.py` `tests/unit/test_ir/test_nodes.py` `tests/unit/test_package.py` `tests/unit/test_signature_closure.py`
 
+### S-0079/D-2 — `LOCKED` (Determinations reach the IR and the rollup lowering) — implementation: none
+
+`bloomery_ir_version` moves 19 → 20 with the field, and `ProjectIR`'s docstring gains the sentence saying why. The default of `()` is not a reason to skip it: the canonical encoder writes each dataclass's field count and names per instance, so every project with an entity column re-fingerprints whether or not it declares anything
+
+- Paths: `src/bloomery/ir/nodes.py` `tests/unit/test_ir/**`
+- Consequence: Every project's fingerprint moves and `plan()` refuses to diff a version 19 IR against a version 20 one, which is the refusal that makes the change loud. The version is declared once, on the dataclass — `test_the_compiler_emits_the_declared_ir_version` is what stops it being bumped in one of two places
+- Check: `uv run pytest tests/unit/test_ir/test_nodes.py tests/unit/test_determinism_guard.py -q` (shadow; runs as `decision:S-0079/D-2`, no log entry owed)
+
 <!-- /torve:managed -->
