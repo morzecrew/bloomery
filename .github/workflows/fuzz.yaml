@@ -118,6 +118,13 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
+      # One leg at a time, so the three seeds of one target explore one corpus
+      # (S-0009/D-3): each leg restores the newest entry under the target's
+      # prefix — the previous leg's save — and saves its own, so the last leg's
+      # entry holds what all three found. Run in parallel they restored the
+      # same starting point and two of the three saves were never read again.
+      # The price is wall clock on a weekly cron, which nobody waits on.
+      max-parallel: 1
       matrix:
         target: [parse_doors, cli, load_project, metric_request, compile_determinism, cross_dialect]
         seed: ["0", "1", "random"]
@@ -136,25 +143,24 @@ jobs:
       - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.12"
-
-      - name: Install uv
+      # The interpreter the job fuzzes on is the one uv resolves, so the pin
+      # goes to setup-uv (the pattern ci.yml uses): a setup-python step beside
+      # it installed a 3.12 that `uv run` never selected over `.python-version`.
+      - name: Install uv (Python 3.12)
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          python-version: "3.12"
           enable-cache: true
           cache-dependency-glob: |
             uv.lock
             pyproject.toml
 
-      # Keyed per target and *not* per seed (S-0009/D-3): the three legs of one
-      # target explore one corpus, so what leg 0 finds is what leg `random`
-      # starts from next week. The run id makes each save a new key — a cache
-      # entry is immutable, so a fixed key would freeze the corpus at whatever
-      # the first run wrote — and the prefix restore-key is what makes the next
-      # run inherit the newest one.
+      # One corpus per target (S-0009/D-3), carried between legs and weeks by
+      # the prefix restore-key, which hands back the newest entry. The run id
+      # and the seed make each save a new key — a cache entry is immutable, so
+      # a fixed key would freeze the corpus at whatever the first run wrote —
+      # and `max-parallel: 1` above is what makes each leg's newest entry the
+      # previous leg's save rather than last week's.
       - name: Restore the corpus
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
@@ -253,8 +259,12 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
+      # `parse_doors` is left out until its one known open finding is fixed
+      # (see the target's module docstring): a 60s run reaches it, so the leg
+      # would be red on every pull request from day one — the outcome
+      # S-0009/D-5 exists to avoid. The weekly job keeps fuzzing it.
       matrix:
-        target: [parse_doors, cli, load_project, metric_request, compile_determinism, cross_dialect]
+        target: [cli, load_project, metric_request, compile_determinism, cross_dialect]
 
     env:
       CORPUS: fuzz/corpus/${{ matrix.target }}
@@ -270,14 +280,13 @@ jobs:
       - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.12"
-
-      - name: Install uv
+      # The interpreter the job fuzzes on is the one uv resolves, so the pin
+      # goes to setup-uv (the pattern ci.yml uses): a setup-python step beside
+      # it installed a 3.12 that `uv run` never selected over `.python-version`.
+      - name: Install uv (Python 3.12)
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          python-version: "3.12"
           enable-cache: true
           cache-dependency-glob: |
             uv.lock

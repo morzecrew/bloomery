@@ -2,9 +2,11 @@
 
 The fuzz lane runs one target against a corpus of mutated spec documents and reports any
 exception that is not a `BloomeryError`. It is a contributor tool: no acceptance command
-depends on it, and a target is time-boxed rather than pass-or-fail. One job in
-`.github/workflows/fuzz.yaml` runs weekly — the determinism replay below, which is not a
-fuzzer.
+depends on it, and a target is time-boxed rather than pass-or-fail. CI runs it in
+`.github/workflows/fuzz.yaml` twice over: a weekly batch (ten minutes per target and hash
+seed, plus the determinism replay below, which is not a fuzzer) and a non-blocking
+sixty-second `Short fuzz (<target>)` check on pull requests that touch `src/` or `fuzz/`.
+A red short check colours the job, never the merge.
 
 ## Replay the corpus for determinism
 
@@ -79,7 +81,8 @@ the input that caused it to `fuzz/crashes/<target>-<hash>`.
 `parse_doors` currently has one **known open finding** — a `RecursionError` from
 `SqlExpr.ast` in `src/bloomery/ir/nodes.py`, reached through a step body at emit — so a
 run stops on it within a minute or so. Read a trace against the target's module docstring
-before treating it as new; that one is waiting on a follow-up task.
+before treating it as new; that one is waiting on a follow-up task, and until it lands the
+pull-request check leaves `parse_doors` out (the weekly batch keeps fuzzing it).
 
 ## Read a crash
 

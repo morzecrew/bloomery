@@ -81,6 +81,14 @@ def test_an_empty_corpus_is_a_failure(tmp_path: Path) -> None:
     assert "no corpus entries" in result.stderr
 
 
+def test_a_single_seed_is_a_failure(corpus: Path) -> None:
+    """One `--seed` leaves nothing to compare across hash seeds, and the run
+    used to print that it had compared them anyway."""
+    result = run_replay("--root", str(corpus), "--seed", "3")
+    assert result.returncode == 1
+    assert "at least two --seed" in result.stderr
+
+
 def test_the_day_one_corpus_needs_no_fuzzing_to_exist() -> None:
     """S-0009/D-7: the seeds are the examples and the golden tier's spec
     fixtures, so the lane has a corpus before any fuzzing job has run."""

@@ -265,6 +265,13 @@ def main(argv: list[str] | None = None) -> int:
         print("replay: no corpus entries found", file=sys.stderr)
         return 1
 
+    # One seed answers the order question only, and the success line below
+    # claims both: a run that cannot compare across hash seeds must not say
+    # it did. The same vacuity as the empty corpus, refused the same way.
+    if len(seeds) < 2:
+        print("replay: at least two --seed values are needed to compare across hash seeds", file=sys.stderr)
+        return 1
+
     print(f"replay: {len(entries)} entries x {len(TARGETS)} targets x {len(DIALECTS)} dialects")
 
     reference = _run(entries, seed=seeds[0], reverse=False)

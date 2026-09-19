@@ -176,7 +176,11 @@ def test_every_target_rides_the_matrix(batch_job: dict) -> None:
 def test_the_job_runs_plain_atheris_on_setup_python(batch_job: dict) -> None:
     """S-0009/D-1: no Dockerfile, no OSS-Fuzz base image, no ClusterFuzzLite."""
     steps = batch_job["steps"]
-    assert any(step.get("uses", "").startswith("actions/setup-python@") for step in steps)
+    # The interpreter is pinned where uv resolves it: a setup-python step
+    # beside setup-uv installed a 3.12 that `uv run` never selected.
+    uv = next(step for step in steps if step.get("uses", "").startswith("astral-sh/setup-uv@"))
+    assert uv["with"]["python-version"] == "3.12"
+    assert not any(step.get("uses", "").startswith("actions/setup-python@") for step in steps)
     assert not any("clusterfuzzlite" in step.get("uses", "").lower() for step in steps)
     assert not (REPO_ROOT / "fuzz" / "Dockerfile").exists()
 
