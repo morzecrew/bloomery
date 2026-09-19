@@ -126,6 +126,12 @@ docs = [
 ]
 
 [tool.uv]
+# Every group by default: a fresh worktree's first `uv run` — the engine's
+# rebase re-gate, a reviewer's disposable copy — otherwise syncs `dev` alone,
+# and the e2e modules that import testcontainers at the top fail collection
+# under the default selector, reddening a tree that is green everywhere else
+# (2026-09-19: two document branches judged red on a missing group).
+default-groups = "all"
 # `sqlparse` reaches this lockfile only through `dbt-core`, which is a dev
 # dependency — it is never installed by anyone who installs bloomery, and no
 # bloomery code path imports it. It still carried four open advisories, three
