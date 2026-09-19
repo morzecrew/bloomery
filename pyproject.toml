@@ -133,6 +133,12 @@ docs = [
 ]
 
 [tool.uv]
+# Every group by default: a fresh worktree's first `uv run` — the engine's
+# rebase re-gate, a reviewer's disposable copy — otherwise syncs `dev` alone,
+# and the e2e modules that import testcontainers at the top fail collection
+# under the default selector, reddening a tree that is green everywhere else
+# (2026-09-19: two document branches judged red on a missing group).
+default-groups = "all"
 # `sqlparse` reaches this lockfile only through `dbt-core`, which is a dev
 # dependency — it is never installed by anyone who installs bloomery, and no
 # bloomery code path imports it. It still carried four open advisories, three
@@ -226,7 +232,14 @@ markers = [
     "golden: Tier 2 — checked-in artifact snapshot per (fixture × target × dialect)",
     "property: Tier 3 — Hypothesis property test over generated valid projects",
     "execution: Tier 4 — in-process DuckDB execution of compiled SQL",
-    "engine(name): Tier 5 — testcontainers engine matrix; requires Docker; opt-in",
+    # A surrogate is evidence, never the oracle (S-0012/D-1), and the place that
+    # claim gets made is a test name: a Postgres-backed Redshift shim marked
+    # `engine("redshift")` reads in a CI log as "Redshift passed". So rung 4 is a
+    # marker of its own rather than an argument to `engine` (S-0012/D-9) — one
+    # selector for the whole matrix would be convenient for whoever writes the
+    # lane and misleading for everyone who later reads that it passed.
+    "surrogate(name): Rung 4 — execution against something engine-shaped (an emulator, a Spark session, a Postgres shim); never engine conformance; requires Docker; opt-in, per port",
+    "engine(name): Tier 5 — testcontainers engine matrix, the real engine; requires Docker; opt-in",
     "e2e: Tier 6 — target-framework acceptance (sqlmesh/dbt/cube); opt-in",
     "chaos: Mutation meta-test — deforms the lowering and requires the M12 quality battery to notice (S-0033/tests-rfc-0009-amendment); opt-in, runs pytest in a subprocess",
     "perf: Performance benchmark — bench lane (tests/bench), excluded from `just test`, scheduled CI (S-0026/benchmark-lane-tests-bench, S-0031)",

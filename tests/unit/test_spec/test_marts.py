@@ -132,3 +132,30 @@ def test_empty_via_prefix_is_a_parse_error() -> None:
             '    flatten: [{via: r, prefix: ""}]\n'
         )
     assert excinfo.value.source_path == "marts: marts.m.flatten[0].via.prefix"
+
+
+def test_role_of_is_parsed_beside_the_prefix() -> None:
+    # S-0007/D-5: the general role is additive — the prefix stays mandatory
+    # and a step without a role_of is exactly the step that parsed before.
+    mart = parse(
+        "marts_version: 1\nmarts:\n  m:\n    grain: g\n    base: g\n"
+        "    flatten:\n"
+        "      - {via: r, prefix: billing_, role_of: address}\n"
+        "      - {via: r, prefix: shipping_}\n"
+    ).marts["m"]
+    billing, shipping = mart.flatten
+    assert isinstance(billing, ViaStep) and isinstance(shipping, ViaStep)
+    assert billing.role_of == "address"
+    assert shipping.role_of is None
+
+
+def test_reserved_role_of_is_refused() -> None:
+    # role_of reaches the emitted artifacts as a dimension name, so it is
+    # guarded like every other name that does.
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "marts_version: 1\nmarts:\n  m:\n    grain: g\n    base: g\n"
+            "    flatten: [{via: r, prefix: p_, role_of: metric_time}]\n"
+        )
+    assert excinfo.value.source_path == "marts: marts.m.flatten[0].via.role_of"
+    assert "reserved" in str(excinfo.value)

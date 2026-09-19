@@ -63,7 +63,7 @@ _uv_cmd name strict *command:
 test *args='':
     {{ _uv_sync }}
 
-    uv run pytest -m "not engine and not e2e and not chaos and not perf" --refusal-census {{ args }}
+    uv run pytest -m "not engine and not e2e and not chaos and not perf and not surrogate" --refusal-census {{ args }}
 
 # Run the full suite including the engine matrix and target e2e (Docker required)
 test-all *args='':
@@ -101,7 +101,7 @@ snapshot-update:
 coverage *args='':
     {{ _uv_sync }}
 
-    uv run pytest -m "not engine and not e2e and not chaos and not perf" \
+    uv run pytest -m "not engine and not e2e and not chaos and not perf and not surrogate" \
         --refusal-census --cov=src --cov-report=term {{ args }}
     uv run coverage report --fail-under=98
     uv run coverage report --include='src/bloomery/guardrails/*' --fail-under=100
