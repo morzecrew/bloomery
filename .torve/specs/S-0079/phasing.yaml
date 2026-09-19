@@ -1,0 +1,86 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The IR carries the determination
+    intent: >-
+      Add `determines: tuple[str, ...] = ()` to `ColumnIR` and fill it in `_column_ir`
+      from the entity model's `Field.determines`, carried unchanged the way `classification`
+      is; move `bloomery_ir_version` 19 → 20 with the paragraph in `ProjectIR`'s docstring
+      that says why; regenerate the fourteen fingerprint-bearing golden fixture directories
+      with `uv run pytest tests/golden --snapshot-update` and review the diff as source
+      — the whole of it is the `-- fingerprint: blm1:…` header line, and a SQL body
+      that moves or a diff in a directory carrying no fingerprint is a defect. **No
+      lowering change**: `src/bloomery/marts/rollup.py` is not in scope and `prove_mart_rollup`
+      is still called with three arguments when this phase is done. The phase is worth
+      landing alone because the version bump and the golden churn are the whole cost
+      of the feature and they are reviewable in isolation from the question of whether
+      the wiring is right — and because the stored fact is what the two consumers
+      S-0007 names beyond the rollup would read, whether or not the second phase is
+      ever built. D-1 is the decision this phase rests on and D-2 is the one a reviewer
+      will want to skip.
+    scope:
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_ir/test_nodes.py
+      - tests/unit/test_ir/test_fingerprint.py
+      - tests/unit/test_resolve/test_build.py
+      - tests/golden/ecom_basic/**
+      - tests/golden/identity_resolution/**
+      - tests/golden/minimal/**
+      - tests/golden/multi_source/**
+      - tests/golden/multi_source_quality/**
+      - tests/golden/non_additive_aov/**
+      - tests/golden/path_conflict/**
+      - tests/golden/path_conflict_merged/**
+      - tests/golden/quality_precedence/**
+      - tests/golden/role_playing_dates/**
+      - tests/golden/rollup_mart/**
+      - tests/golden/scd2_customers/**
+      - tests/golden/semi_additive_inventory/**
+      - tests/golden/step_resolution/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_ir tests/unit/test_resolve/test_build.py tests/unit/test_determinism_guard.py
+        tests/golden -q
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      The lowering passes it, and a coarsening compiles
+    intent: >-
+      Give `lower_rollups` a `_determinations(mart, project)` helper that translates
+      the stored entity declarations into the mart's own namespace — keyed by `ref.qualified`,
+      matched to a join family by `name == prefix + source_column`, direct edges only,
+      nothing for a column matching two families — and pass it as `prove_mart_rollup`'s
+      fourth argument, which closes the gap this document opens with. Nothing is stored:
+      no field reaches `MartIR` or `MartDimensionIR` and no fingerprint moves, which
+      is what makes this phase's golden diff purely additive. The evidence is one
+      new fixture, `coarsening_rollup` — an entity declaring `city: {determines: [state]}`,
+      a mart flattening both, a rollup keeping the `state` column and dropping the
+      `city` one — registered in the three golden drivers' `EXPECTED_PATHS` tables
+      and compiled on all three targets. It is the only assertion in the suite that
+      an author can reach R020, and until it exists the rule is proved against declarations
+      a test handed it. The changelog entry for both halves is written here, once,
+      because they are one feature to a reader and land on one branch under one pull
+      request. The wiring itself is observed, not inferred: a unit test captures the
+      fourth argument `lower_rollups` hands `prove_mart_rollup` for a project with
+      a declared determination, since the compiled artifact carries no proof and a
+      golden alone would pass with the argument missing.
+    scope:
+      - src/bloomery/marts/rollup.py
+      - tests/unit/test_marts/test_rollup.py
+      - tests/unit/test_fixtures.py
+      - tests/fixtures/coarsening_rollup/**
+      - tests/golden/coarsening_rollup/**
+      - tests/golden/test_cube.py
+      - tests/golden/test_dbt_postgres.py
+      - tests/golden/test_sqlmesh_duckdb.py
+      - CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_marts/test_rollup.py tests/unit/test_fixtures.py
+        tests/golden -q
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
