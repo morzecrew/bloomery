@@ -1,0 +1,457 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0079
+title: >-
+  Determinations reach the IR and the rollup lowering
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0007, S-0020, S-0065]
+informed_by: [S-0017, S-0026, S-0027]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  R020 proves a coarsening for declarations handed to it by a test and for no
+  project, because the IR carries no determination and `lower_rollups` has none to
+  pass; this carries the authored fact onto `ColumnIR` and derives the mart-namespace
+  mapping at lowering.
+
+  Two changes, in that order. `ColumnIR` gains `determines: tuple[str, ...]`, filled
+  by `_column_ir` from the entity model's `Field.determines` and carried unchanged
+  the way `classification` is — an authored fact the compiler stores because nothing
+  already in the IR could derive it. `bloomery_ir_version` moves 19 → 20 and every
+  golden artifact carrying a fingerprint header is regenerated. Then `lower_rollups`
+  translates that fact into the mart's own namespace — mart dimension name to the mart
+  dimension names it determines, which is the shape `prove_mart_rollup` declares — and
+  passes it as the fourth argument it has never been given. Nothing is stored on
+  `MartIR`: the mart-namespace mapping is derived at the call, which is the shape
+  S-0017/D-9 holds for the grain model and the reason no second version bump is owed.
+motivation: |
+  **A rule that reaches no project is a rule that has not landed.** S-0007's first
+  phase added `determines:` to the field vocabulary, `determination_closure` to
+  `src/bloomery/semantic/closure.py` and R020 to `prove_mart_rollup` in
+  `src/bloomery/semantic/rollup.py`. Its phasing entry says "the relation and the rule
+  are the whole of this phase", and two reviewers of pull request #142 (2026-09-19)
+  found what that leaves: the rule is complete, tested, and unreachable from a compiled
+  project.
+
+  The chain breaks in one place and it is visible in three lines of the tree. R020 reads
+  `prove_mart_rollup`'s fourth parameter, `determines`, keyed by the mart's dimension
+  names. `lower_rollups` in `src/bloomery/marts/rollup.py` — the only production caller —
+  calls `prove_mart_rollup(carried, rollup.keep, draft)`, three arguments. It has nothing to
+  put in the fourth, because `MartIR`, `MartDimensionIR` and `ColumnIR` in
+  `src/bloomery/ir/nodes.py` carry no such field: the authored `determines:` stops at the
+  spec layer and never enters the IR the semantic rules read.
+
+  **So the parameter defaults to `None` and every real rollup is judged as it was before
+  R020 existed.** `_coarsening` is written to prove more and never refuse (S-0007/D-7),
+  which is the right posture and also what makes the gap silent: a project that declares
+  a hierarchy and rolls up along it gets exactly the verdict a project that declares
+  nothing gets, with no refusal, no warning and no missing premise anyone can see. The
+  unit tier passes because it constructs the mapping by hand; the golden tier passes
+  because no artifact changes. Nothing in the suite asks whether an author can reach
+  R020 at all, and the answer is no.
+
+  **The coarsening distinction is the one thing S-0007's motivation promised an author
+  would feel.** Its opening argument is that a rollup keeping `state` while dropping
+  `city` and one keeping `sku` while dropping `city` are indistinguishable to every rule
+  in the registry. R020 distinguishes them in a test file. Until a declaration reaches
+  it, the registry's answer for a real project is still the same for both.
+current_state: |
+  **S-0007's three phases are landed on `origin/torve/S-0007` and not on `main`.** The
+  document's own `current_state` says nothing of it had landed and its header still reads
+  `implementation: none`, which was true when it was written. What follows is read from
+  that branch, which is the tree the reviewers read, with the `main` state named where the
+  two differ.
+
+  | What exists | Where | What it does not do |
+  |---|---|---|
+  | `Field.determines: tuple[MemberName, ...]` with its dangling-name and cycle refusals | `src/bloomery/spec/entity.py` (branch) | reach any layer below the spec |
+  | `determination_closure(declared)` — a fixpoint over a column-to-column mapping | `src/bloomery/semantic/closure.py` (branch) | get called by anything but R020 |
+  | `_coarsening(mart, kept, determines)` — R020, proving and never refusing | `src/bloomery/semantic/rollup.py` (branch) | get a non-empty `determines` outside a test |
+  | `prove_mart_rollup(mart, keep, project, determines=None)` | `src/bloomery/semantic/rollup.py` (three parameters on `main`) | default to anything but "nothing declared" |
+  | `lower_rollups(mart_set, draft)`, calling with three arguments | `src/bloomery/marts/rollup.py` | have a fourth argument to pass |
+  | `ColumnIR` — `name`, `type`, `canonical`, `unit`, `tax_basis`, `renamed_from`, `required`, `description`, `classification` | `src/bloomery/ir/nodes.py`, `ColumnIR` | carry a determination |
+  | `MartColumnIR` — `name`, `type`, `source_entity`, `source_column`, `ref`, and `role_of` on the branch | `src/bloomery/ir/nodes.py`, `MartColumnIR` | carry a determination |
+  | `MartDimensionIR` — `ref`, `column` | `src/bloomery/ir/nodes.py`, `MartDimensionIR` | carry a determination |
+
+  **R020's key space is the mart's requestable dimension names.** `_coarsening` takes
+  `{dimension.ref.qualified for dimension in mart.dimensions}`, subtracts `kept`, and asks
+  the closure whether each dropped name reaches a kept one. `_mart_ir` in
+  `src/bloomery/marts/flatten.py` builds one `MartDimensionIR` per flattened column,
+  with `ref = column.ref` where the column has one and `DimensionRef(dimension=column.name)`
+  where it does not — and a bucket column's `ref.qualified` equals its column name, which
+  the function says in a comment. So `ref.qualified` and the column name agree for every
+  column this tree builds, and the mapping R020 wants is keyed by names that exist in the
+  mart's own namespace, not the entity's.
+
+  **The entity-to-mart boundary is a prefix, and the prefix is recoverable.**
+  `_flatten_via` in `src/bloomery/marts/flatten.py` names a flattened column
+  `f"{step.prefix}{column.name}"`, and `MartJoinIR` carries `prefix` and `entity` for each
+  join. A flattened column therefore satisfies `name == prefix + source_column` for exactly
+  the join family it came from — and the base entity's own columns satisfy it with the empty
+  prefix, since `state.prefixes` is seeded `{base.name: ""}`. What the boundary does not
+  give for free is uniqueness: `prefixes.setdefault` keeps an entity's *earliest* prefix, so
+  one entity flattened under two prefixes yields `billing_city` and `shipping_city` sharing
+  `source_entity` and `source_column`, and matching on those two alone would relate a
+  billing column to a shipping one.
+
+  **What a stored field costs here, exactly.** `_canon_bytes` in
+  `src/bloomery/ir/fingerprint.py` writes each dataclass's field *count* and every field
+  *name*, per instance — it handles `None`, `bool`, `Enum`, `int`, `str`, `Decimal`, `tuple`
+  and dataclasses, and raises `TypeError` on anything else, including a `dict`.
+  `ProjectIR.bloomery_ir_version` is `19` in `src/bloomery/ir/nodes.py`, is part of the
+  hashed stream (S-0020/D-3), and its docstring records versions 5, 7, 13, 14, 18 and 19 as
+  additions of exactly this shape: a declaration no SELECT reads, bumping the version so
+  that `plan()` refuses to diff across a change it cannot see. Fourteen golden fixture
+  directories carry `-- fingerprint: blm1:…` headers; `tests/golden/refusals`,
+  `tests/golden/multi_mart_refusal`, `tests/golden/period_over_period` and
+  `tests/golden/schema` carry none.
+
+  **The rollup fixture that exists is not a coarsening.** `tests/fixtures/rollup_mart`
+  keeps `order_customer_id` and `ordered_month`, and its entity model declares no
+  determination — the rollup is provable on R013's measure question alone. No fixture in
+  the corpus would change its verdict if R020 were wired today.
+goals: |
+  - An authored `determines:` reaches R020 when a real project compiles, so a rollup that
+    coarsens along a declared hierarchy carries a premise the rollup that does not cannot.
+  - The IR holds the authored fact once, in the namespace it was authored in, where every
+    later consumer S-0007 names can read it without re-parsing the spec.
+  - The mart-namespace mapping R020 consumes is derived where it is needed and stored
+    nowhere, so the IR gains one field and not two.
+  - The version, the fingerprints and the golden corpus move together and loudly, on the
+    precedent the IR's own docstring sets.
+  - One golden fixture compiles a coarsening rollup end to end, so the wiring is proved by
+    an artifact rather than by a call-site assertion.
+non_goals: |
+  - **Making R020 strict.** S-0007/D-7 left the choice open and execution took the
+    permissive reading: prove more where a determination exists, refuse nothing new. That
+    reading is what makes this document safe to land against every project that compiles
+    today, and reopening it is S-0007's to reopen.
+  - **`role_of:` and `same_as:` reaching the IR.** S-0007's second phase already put
+    `role_of` on `MartColumnIR` and `MartJoinIR`; whether R021 reaches a project is the same
+    question asked about a different fact, and it is not asked here.
+  - **The spec differ's impact report and `UnsupportedHierarchy`'s remediation.** Both are
+    consumers S-0007 names for the determination relation. Storing the fact is what makes
+    them buildable; building them is not this document.
+  - **Any new spec surface.** Nothing an author writes changes. `determines:` is spelled
+    exactly as S-0007's first phase shipped it.
+  - **Verifying a declaration.** S-0007/D-1 stands: nothing here reads a row, and a wrong
+    `determines:` still buys a wrong rollup with a proof attached.
+design:
+  - key: the-stored-fact
+    md: |
+      The authored declaration is carried onto the entity's column, unchanged, one field:
+
+      ```python
+      @dataclass(frozen=True, slots=True)
+      class ColumnIR:
+          name: str
+          type: LogicalType
+          canonical: str | None
+          unit: Unit | None
+          tax_basis: TaxBasis | None
+          renamed_from: str | None
+          required: bool
+          description: str | None = None
+          classification: str | None = None
+          #: The entity's own columns each value of this one fixes
+          #: (S-0007/determination), carried unchanged from the field. Sorted,
+          #: because every IR collection is (S-0020/D-4).
+          determines: tuple[str, ...] = ()
+      ```
+
+      Filled in `_column_ir` in `src/bloomery/resolve/build.py`, from
+      `field.determines`, in the same breath as `classification` — which is the precedent
+      in every respect that matters: declared on the entity model's `Field`, identical for
+      every mapping that targets the entity, read by something that is not a SELECT, and
+      never verified.
+
+      **Stored rather than derived, and the distinction is not a preference.** S-0017/D-9
+      keeps the grain model out of the IR because a grain is *computed* from
+      `EntityIR.key`, which the IR already holds — nothing is lost by not storing it. A
+      determination has no such source. It is authored, it appears in no other IR field,
+      and a compile that drops it cannot get it back without re-reading the spec. That is
+      the line: the IR stores what an author wrote and derives what follows from it.
+
+      The field is appended with a default, so the two other `ColumnIR` construction sites
+      — `_shadow_column` in `src/bloomery/guardrails/conflict.py` and the step-output loop
+      in `src/bloomery/resolve/steps.py` — keep binding what they bound. Neither is
+      changed, and neither is an oversight: a merge shadow is a second projection of a
+      column that already carries the declaration, and a step output has no entity-model
+      field to read one from.
+  - key: the-mart-namespace-mapping
+    md: |
+      R020 asks a question in the mart's namespace — `{dropped dimension: kept dimensions it
+      determines}` — and the IR answers in the entity's. The translation is a function, at
+      the call, in `src/bloomery/marts/rollup.py`:
+
+      ```python
+      def _determinations(mart: MartIR, project: ProjectIR) -> dict[str, tuple[str, ...]]:
+          """Each of `mart`'s dimensions and the mart dimensions it determines,
+          translated from the entity declarations `mart`'s columns come from
+          (S-0007/determination). Keyed by `ref.qualified`, which is what
+          `prove_mart_rollup` reads."""
+      ```
+
+      Three steps, and the middle one is the whole of it. A column's family is the
+      `(prefix, entity)` pair it was flattened under — each `MartJoinIR` gives one, and the
+      base entity gives `("", mart.base)` — and a column belongs to the family whose
+      `entity` matches its `source_entity` and whose `prefix` satisfies
+      `column.name == prefix + column.source_column`. Within one family, an entity column
+      declaring `determines: [state]` becomes an edge from `prefix + "city"` to
+      `prefix + "state"`. Outside it, nothing: a column whose determined field is not
+      flattened into this mart contributes no edge, and a column matching two families
+      contributes none at all.
+
+      Then `lower_rollups` passes it, which is a one-line change to a three-argument call:
+
+      ```python
+      answer = prove_mart_rollup(carried, rollup.keep, draft, _determinations(parent, draft))
+      ```
+
+      `parent` rather than `carried`: `carried` is the parent with `measures` narrowed to
+      what the rollup declares, and the dimensions are the same object either way — naming
+      the parent says the mapping is a property of the mart, not of what this rollup
+      carries from it.
+
+      **Only the direct edges.** The transitive step stays inside R020, where
+      `determination_closure` already runs. Closing before the call would make every
+      witness read `DECLARED` — `_coarsening` distinguishes a declared edge from a derived
+      one by asking whether the keeper is in the *input* mapping — and the provenance R020
+      reports would stop meaning anything.
+
+      **Nothing is stored on `MartIR`.** The mapping is a `dict`, which the canonical
+      encoder cannot write at all, and it is a restatement of facts two IR collections
+      already hold. A second copy would be the shape S-0065/D-3 refuses for
+      `additive_over:`: a hand-maintained statement that can disagree with the proof.
+  - key: the-version-and-the-goldens
+    md: |
+      `bloomery_ir_version` moves 19 → 20, `ProjectIR`'s docstring gains the sentence that
+      says why, and every golden artifact carrying a fingerprint header is regenerated with
+      `uv run pytest tests/golden --snapshot-update`.
+
+      The bump is not about whether the field has a value. `_canon_bytes` writes each
+      dataclass's field count and every field name *per instance*, so the first project with
+      any entity column at all re-fingerprints — that is every fixture in the corpus. What
+      the bump buys is the case the docstring's version 7 paragraph describes: without it,
+      a compiler that knows about `determines` and one that does not would agree on the
+      version *and* on the fingerprint for some project, and `plan()` would diff across a
+      shape change it could not see. The bump is what makes `PlanError` fire instead.
+
+      Fourteen fixture directories move and the expected diff is one line each — the
+      `-- fingerprint: blm1:…` header. `tests/golden/refusals`,
+      `tests/golden/multi_mart_refusal`, `tests/golden/period_over_period` and
+      `tests/golden/schema` carry no fingerprint and must not move; a diff there is a
+      defect, and so is a SQL body that changes anywhere.
+
+      The second phase moves no fingerprint at all. It stores nothing, so the IR's shape is
+      what phase 1 left it, and a project that declares no determination compiles to the
+      same bytes.
+  - key: the-end-to-end-fixture
+    md: |
+      `tests/fixtures/coarsening_rollup` — a new fixture, registered in the three golden
+      drivers' `EXPECTED_PATHS` tables — is the only thing in the suite that asks whether an
+      author can reach R020:
+
+      ```yaml
+      # entity_model.yaml
+      entities:
+        order:
+          fields:
+            city:    {type: string, determines: [state]}
+            state:   {type: string}
+
+      # marts.yaml
+      marts:
+        order_items:
+          flatten:
+            - {via: item_of_order, prefix: order_}
+      rollups:
+        order_items_by_state:
+          of: order_items
+          keep: [order_state, ordered_month]
+          measures: [gross_revenue]
+      ```
+
+      It drops `order_city` and keeps `order_state`, and `order_city -> order_state` is the
+      edge the derivation builds from the declaration one layer down. The assertion is that
+      it compiles and emits: the proof R020 adds is a premise on an answer that was already
+      a proof, so the evidence an artifact can carry is that the rollup is admitted, which
+      is exactly the evidence `rollup_mart` carries for R013.
+
+      **A new fixture rather than an extension of `rollup_mart`.** `rollup_mart` is the
+      fixture that proves the measure question in isolation, and its rollup keeps a
+      customer id and a month for a reason — adding a hierarchy to it would make the one
+      fixture answer two questions and make a future diff ambiguous about which. It also
+      keeps the two phases' golden directories disjoint, so the snapshot regeneration of
+      the first phase and the new artifacts of the second are never the same file.
+tests: |
+  - **Unit, phase 1:** `ColumnIR.determines` is filled from `Field.determines` and defaults
+    to `()` for a column that declares none, in `tests/unit/test_resolve/test_build.py`. The
+    declared version is `20` and the compiler emits what the dataclass declares, in
+    `tests/unit/test_ir/test_nodes.py` — the second is
+    `test_the_compiler_emits_the_declared_ir_version`, which already exists and is what
+    stops a bump landing in one of the two places. Fingerprint stability across processes
+    stays where it is, in `tests/unit/test_determinism_guard.py`.
+  - **Unit, phase 2:** the mapping `lower_rollups` builds is keyed by mart dimension names
+    and relates only columns of one join family; a mart flattening one entity under two
+    prefixes relates `billing_city` to `billing_state` and to nothing of the shipping
+    family; a column matching two families contributes nothing. In
+    `tests/unit/test_marts/test_rollup.py`.
+  - **Golden, phase 1:** every artifact in the fourteen fingerprint-bearing fixture
+    directories is regenerated with `uv run pytest tests/golden --snapshot-update` and
+    reviewed like source. The whole of the expected diff is the fingerprint header line;
+    a SQL body that moves is a defect, not a snapshot to accept.
+  - **Golden, phase 2:** `coarsening_rollup` — an entity declaring `city: {determines:
+    [state]}`, a mart flattening both, and a rollup keeping the `state` column while
+    dropping the `city` one — compiles and emits on all three targets. This is the only
+    assertion in the suite that an author can reach R020, and it is the reason a new fixture
+    is worth its artifacts.
+  - **Not tested:** that a declared determination is true, and that R020's proof reaches an
+    artifact. A proof is not emitted; what the golden proves is that the project compiles
+    with the rollup admitted, which is the same evidence `rollup_mart` already carries for
+    R013.
+docs: |
+  - `CHANGELOG.md` gains one entry under `[Unreleased]` covering both halves: the IR
+    version moves to 20 and re-fingerprints every project, and a declared hierarchy now
+    reaches the rollup proof. It is written once, at the second phase, because the two
+    halves are one feature to a reader and both land on one branch under one pull request.
+  - No page is owed. `pages/docs/concepts/determinism.md` explains the fingerprint without
+    naming a version, and `pages/docs/reference/stability.md` already says
+    `bloomery_ir_version` is internal and may move. The coarsening distinction an author
+    would feel is S-0007's docs debt, not this document's.
+out_of_scope: |
+  - **A determination between columns of two different entities.** `determines:` names the
+    entity's own fields, so a mart flattening `order` and `address` cannot declare that
+    `order_city` determines `address_state`. The derivation here is per join family and
+    could not express it if it were declared. Q-4 asks whether it ever should be.
+  - **Determination on the catalog's canonical field.** S-0007/D-6 is still `OPEN` and
+    execution settled it on the entity model without amending the row. This document
+    carries what landed and adds no catalog-side carrier; Q-2 asks the owner to close it.
+  - **A second version bump for `role_of`.** S-0007's second phase added fields to
+    `MartColumnIR` and `MartJoinIR` and left `bloomery_ir_version` at 19. That is a defect
+    in that landing, not a change this document makes, and Q-1 asks what number this
+    document's bump should therefore be.
+  - **Storing the closure.** `determination_closure` runs inside R020 over whatever mapping
+    it is handed. Storing a closed mapping would put a derived fact in the IR and make the
+    `DECLARED`/`DERIVED` split R020 reports meaningless.
+risks: |
+  - **The version bump is the loudest part of the change and the least interesting.** A
+    reviewer meeting 175 changed golden files for a one-field addition will be tempted to
+    skip the bump. Version 7's paragraph in `ProjectIR`'s docstring is the standing answer
+    — a nested field addition that does not bump leaves two compilers of different shape
+    agreeing on both the version and the fingerprint — and D-2 restates it so the executor
+    meets it rather than rediscovering it.
+  - **The join-family derivation is the part most likely to be wrong quietly.** Matching a
+    column to its family by `name == prefix + source_column` is exactly right for every
+    shape `flatten.py` builds today and rests on a naming convention rather than on a
+    stored fact. D-5 makes the ambiguous case contribute nothing, so the failure mode is a
+    proof that is not made rather than one that is made wrongly — which is the only
+    direction R020 may fail in, since it is read as a premise and never as a refusal.
+  - **A wrong `determines:` is now consequential for the first time.** Until this lands, a
+    wrong declaration is inert. After it, it buys a rollup proof that does not hold, which
+    is a wrong number with a proof attached. S-0007's risks say this and this document does
+    not soften it: the standing of the declaration is a declared `many_to_one`'s, and the
+    thing that changes here is that the standing starts to matter.
+  - **It reads as a bug fix and is a shape change.** The framing — "R020 reaches no
+    project" — invites the smallest possible patch, which would be passing the spec into
+    `lower_rollups`. That patch would work and would put a second source of truth behind
+    the IR's back; the alternatives record why it is closed.
+sections:
+  - key: evidence
+    md: |
+      Everything in `current_state` was read from `origin/torve/S-0007` at `1a7e108` and
+      from `main` at `f558a77`, in this working tree. The branch carries S-0007's three
+      phases — `torve(T-0004)` through `torve(T-0006)` — and is the head of pull request
+      #142, which is where the two reviewers' finding was made on 2026-09-19. Nothing here
+      is read from S-0007's own `current_state`, which was written before any of it landed
+      and still says so.
+
+      The two trees agree on every node and function this document names except where the
+      table says otherwise: `main` has no `determines:`, no `determination_closure`, no
+      R020 and no fourth parameter at all. Whichever way Q-1 is
+      answered, the branch is what this document's first phase is cut from.
+alternatives:
+  - option: >-
+      Store the mart-namespace mapping on `MartIR` — a `determinations` field carrying
+      exactly what `prove_mart_rollup` reads, built by `_mart_ir` where the prefix
+      is already known.
+    rejected_because: >-
+      Tempting, because `flatten.py` knows each column's family for free and the derivation
+      would have no naming convention to rest on. It costs a second stored statement
+      of a fact the IR already holds, which is the shape S-0065/D-3 refuses for `additive_over:`
+      — two sources of truth that can disagree, one of them with a proof attached.
+      It also cannot be a mapping: `_canon_bytes` raises on a `dict`, so it would
+      arrive as a tuple of a new dataclass, which is a second IR node for a derived
+      fact.
+    cites: [S-0065/D-3, S-0017/D-9]
+  - option: >-
+      Store the fact only in the mart's namespace, on `MartColumnIR`, and put nothing
+      on `ColumnIR`.
+    rejected_because: >-
+      Smaller by one field and it loses the authored fact for every entity no mart
+      flattens, which is most of them in a large project. The IR is what the compile
+      pipeline produces for every later consumer to read, and S-0007 names two that
+      are not rollups — the spec differ's impact report and `UnsupportedHierarchy`'s
+      remediation. Both ask the question about an entity column, and neither would
+      find an answer.
+    cites: [S-0007/what-each-fact-buys]
+  - option: >-
+      Pass the declarations from the spec straight into `lower_rollups`, leaving the
+      IR alone entirely.
+    rejected_because: >-
+      The smallest possible patch, and the one the framing invites. `lower_rollups`
+      already takes the spec's `MartSet`, so the entity model could be threaded in
+      beside it and nothing in the IR would move — no version bump, no golden churn,
+      three lines. It makes a semantic rule read a fact the IR does not carry, so
+      two compiles with equal fingerprints could reach different verdicts, which is
+      the one claim `project_fingerprint` exists to make.
+    cites: [S-0020/D-3]
+  - option: >-
+      Add the field and leave `bloomery_ir_version` at 19, since it defaults to `()`
+      and no existing project declares anything.
+    rejected_because: >-
+      The default is not what the encoder writes. `_canon_bytes` writes each dataclass's
+      field count and names per instance, so every project with an entity column re-fingerprints
+      whether or not it declares a determination — the churn is paid either way, and
+      skipping the bump buys nothing but the case version 7's docstring paragraph
+      describes, where two compilers of different shape agree on both numbers and
+      `plan()` diffs across a change it cannot see.
+    cites: [S-0020/D-3]
+questions:
+  - id: Q-1
+    text: >-
+      What number this document's bump is. S-0007's second phase added `role_of` to
+      `MartColumnIR` and `MartJoinIR` on `origin/torve/S-0007` and left `bloomery_ir_version`
+      at 19, against the rule `ProjectIR`'s own docstring states and versions 5, 7,
+      13, 14, 18 and 19 set — and the golden fingerprints moved on that branch anyway.
+      Nothing in the corpus licenses a shape change without a bump. Either this document's
+      19 → 20 absorbs both shape changes, or S-0007's landing owes its own bump first
+      and this one is 20 → 21. The owner decides; the design is unchanged either way.
+  - id: Q-2
+    text: >-
+      Whether the catalog's canonical field ever carries a determination, and whether
+      the IR owes a carrier for it. S-0007/D-6 is still `OPEN`; execution settled
+      it on the entity model and S-0007 has no amendment recording that. This document
+      assumes the entity model is the only home and adds no catalog-side field. Closing
+      D-6 by amendment would settle this, and the answer changes what `_column_ir`
+      reads.
+  - id: Q-3
+    text: >-
+      Whether `ref.qualified == column.name` may be relied on. The derivation keys
+      the mapping by column name and `prove_mart_rollup` reads it by `ref.qualified`;
+      the two agree for every column `_mart_ir` builds today, and `flatten.py` says
+      so in a comment rather than in a test or a row. If a future role makes them
+      differ, this derivation keys on the wrong name and the failure is a proof silently
+      not made. The owner says whether that equality is a standing fact worth a row
+      of its own.
+  - id: Q-4
+    text: >-
+      Whether a determination between columns of two different entities should ever
+      be expressible. `determines:` names the entity's own fields, so a mart flattening
+      `order` and `address` cannot say that `order_city` determines `address_state`,
+      and the per-family derivation here could not carry it if it could. A real hierarchy
+      split across a relationship is a plausible shape; the corpus has no row either
+      way, and answering it is S-0007's rather than this document's.
