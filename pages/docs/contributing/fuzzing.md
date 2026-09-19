@@ -1,8 +1,49 @@
 # Fuzzing
 
 The fuzz lane runs one target against a corpus of mutated spec documents and reports any
-exception that is not a `BloomeryError`. It is a contributor tool: no CI job runs it, no
-acceptance command depends on it, and a target is time-boxed rather than pass-or-fail.
+exception that is not a `BloomeryError`. It is a contributor tool: no acceptance command
+depends on it, and a target is time-boxed rather than pass-or-fail. CI runs it in
+`.github/workflows/fuzz.yaml` twice over: a weekly batch (ten minutes per target and hash
+seed, plus the determinism replay below, which is not a fuzzer) and a non-blocking
+sixty-second `Short fuzz (<target>)` check on pull requests that touch `src/` or `fuzz/`.
+A red short check colours the job, never the merge.
+
+## Replay the corpus for determinism
+
+```console
+$ uv run python fuzz/replay.py
+```
+
+`fuzz/replay.py` compiles every corpus entry in two separate processes under different
+`PYTHONHASHSEED` values, to all three targets across all three dialects, and diffs the
+artifacts byte for byte. It then compiles the corpus a third time in the opposite order
+and asserts that each entry's artifact list is unchanged, so artifact ordering cannot
+depend on what was compiled before it. Compilation is a pure function of the specs —
+same specs in, byte-identical artifacts out, across processes and hash seeds — and this
+is that claim at corpus scale; `tests/unit/test_determinism_guard.py` is the one-fixture
+version of it.
+
+A refusal is an outcome like any other here: a refusal message that varies across hash
+seeds is the same defect as an artifact that does.
+
+The corpus needs no fuzzing to exist. By default it is every project under `examples/`
+and every spec fixture under `tests/fixtures/` — the inputs behind the golden tier — so
+the seeds track the examples instead of being copied under `fuzz/`. Whatever a fuzzing
+job later leaves in `fuzz/corpus/` is picked up as well, each blob spliced into the valid
+fixture set the way the targets splice their own input.
+
+```console
+$ uv run python fuzz/replay.py --list
+$ uv run python fuzz/replay.py --root tests/fixtures/minimal
+$ uv run python fuzz/replay.py --seed 0 --seed 1 --seed 42
+```
+
+The script exits non-zero on any differing byte, on a differing artifact order, and on an
+empty corpus — the last because comparing nothing to nothing is the one outcome
+indistinguishable from a determinism claim that holds. `tests/unit/test_fuzz_replay.py`
+asserts both colours, driving a deliberately broken compile through the
+`BLOOMERY_REPLAY_SABOTAGE` knob: a check that has never been observed to fail is
+indistinguishable from one that never fires.
 
 ## What a crash means here
 
@@ -40,7 +81,8 @@ the input that caused it to `fuzz/crashes/<target>-<hash>`.
 `parse_doors` currently has one **known open finding** — a `RecursionError` from
 `SqlExpr.ast` in `src/bloomery/ir/nodes.py`, reached through a step body at emit — so a
 run stops on it within a minute or so. Read a trace against the target's module docstring
-before treating it as new; that one is waiting on a follow-up task.
+before treating it as new; that one is waiting on a follow-up task, and until it lands the
+pull-request check leaves `parse_doors` out (the weekly batch keeps fuzzing it).
 
 ## Read a crash
 

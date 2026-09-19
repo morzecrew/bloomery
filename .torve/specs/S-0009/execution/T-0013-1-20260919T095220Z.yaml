@@ -1,0 +1,85 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0013
+phase: 1
+base: 211cb9b9f72499d377931e8246d954711e43d829
+commit: 35cf707f13bd39ecfb938b70f19970ee58ecc2de
+at: '2026-09-19T09:52:20Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-19T09:43:09Z'
+    claim: >-
+      the new lane is plain uv on ubuntu-latest with no Dockerfile, no OSS-Fuzz base
+      image and no ClusterFuzzLite action; the replay job needs no instrumented interpreter
+      at all, so it satisfies the row without even reaching setup-python
+    evidence: >-
+      .github/workflows/fuzz.yaml:49-79 — every action in the job is harden-runner,
+      checkout and setup-uv; the two run steps are `uv run python fuzz/replay.py`
+      and `uv run pytest`
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-19T09:43:09Z'
+    claim: >-
+      the replay job is the only job in the new workflow, so no fuzzing job can be
+      ordered ahead of it; it is also self-sufficient, replaying examples/ and the
+      golden tier's spec fixtures with no corpus present
+    evidence: >-
+      .github/workflows/fuzz.yaml:35-44 — `jobs:` holds `replay` alone; fuzz/replay.py:47-56
+      names the day-one roots and treats fuzz/corpus/ as optional
+    action: decided
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-09-19T09:43:09Z'
+    claim: >-
+      no cache is wired yet: replay reads fuzz/corpus/ when a later job has filled
+      it and ignores it otherwise, so the per-target cache arrives with the batch
+      job that writes it rather than as an empty key here
+    evidence: >-
+      .github/workflows/fuzz.yaml:17-22 — the comment records where the per-target
+      cache lands; fuzz/replay.py:97-105 skips a corpus root that does not exist
+    action: decided
+  - decision: D-5
+    grade: OPEN
+    class: spec-gap
+    at: '2026-09-19T09:43:09Z'
+    claim: >-
+      the replay job is not a required check and is absent from ci.yml's required-ci
+      aggregate; it does run on pull requests that touch fuzz/, where it is advisory,
+      which leaves D-5's promotion question untouched for the fuzzing job it is about
+    evidence: >-
+      .github/workflows/fuzz.yaml:27-30 — the pull_request trigger is path-scoped
+      to fuzz/** and this workflow's own file, and nothing in .github/workflows/ci.yml
+      lists it
+    action: decided
+  - decision: D-6
+    grade: OPEN
+    at: '2026-09-19T09:43:09Z'
+    claim: >-
+      the replay lane's budget is set from a measured run rather than from the first
+      week's execution counts, which do not exist for a job that executes nothing:
+      66 entries x 3 targets x 3 dialects x 3 runs is 594 compiles in 1m24s, so a
+      30-minute ceiling carries an order of magnitude of headroom and stays clear
+      of the six-hour cap; two hash seeds by default, with --seed repeatable for the
+      three D-6 wants when the fuzzing matrix arrives
+    evidence: >-
+      `time uv run python fuzz/replay.py` — `replay: 66 entries x 3 targets x 3 dialects`
+      / `replay: 594 compiles identical across processes, seeds and order` / `real
+      1m24.222s`
+    action: decided

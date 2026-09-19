@@ -305,9 +305,11 @@ tests/
 ```
 
 Beside the tiers, not among them, is the **fuzz lane** in `fuzz/` — libFuzzer targets run
-by `just fuzz <target> <seconds>`, never by `just test` and never by CI. A run is
-time-boxed rather than pass-or-fail, so it is not a marker; what a confirmed finding
-leaves behind is a test in one of the tiers above. Its engine (atheris, Linux-only) is
+by `just fuzz <target> <seconds>`, weekly in CI, and for sixty non-blocking seconds per
+target on a pull request that touches `src/` or `fuzz/`; `just test` runs only the lane's
+unit twins and the determinism replay's. A run is time-boxed rather than pass-or-fail, so
+it is not a marker; what a confirmed finding leaves behind is a test in one of the tiers
+above. Its engine (atheris, Linux-only) is
 layered by the recipe with `uv run --with`, so it is absent from `uv.lock` and there is
 nothing to install. See [the fuzzing guide](pages/docs/contributing/fuzzing.md).
 

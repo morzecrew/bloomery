@@ -1,0 +1,393 @@
+name: Fuzzing
+
+# The fuzz lane (S-0009). It runs weekly rather than nightly: the jobs here are
+# exploratory, and a lane that reports on Monday is one someone reads.
+#
+# **The replay job is the whole of the first phase** (S-0009/D-2) and lands
+# before any fuzzing job. It is the cross-process determinism claim — same
+# specs in, byte-identical artifacts out, across processes and hash seeds
+# (S-0020) — checked at corpus scale rather than over the single fixture
+# `tests/unit/test_determinism_guard.py` covers. It needs no corpus to start:
+# the seeds are the example projects and the golden tier's spec fixtures
+# (S-0009/D-7), so this job has something to replay on day one and keeps
+# working even if every fuzzing job here is later dropped. No phase slip may
+# reorder it behind the fuzzing jobs.
+#
+# The `batch` job below is the fuzzing half: plain Atheris on
+# `actions/setup-python`, never ClusterFuzzLite (S-0009/D-1) — no Dockerfile,
+# no OSS-Fuzz base image, no hand-built interpreter. The corpus it accumulates
+# lives in `actions/cache`, keyed per target (S-0009/D-3); replay reads
+# `fuzz/corpus/` when it is there and ignores it when it is not, so nothing in
+# the first phase waits on it.
+
+on:
+  schedule:
+    # Mondays, 04:00 UTC — after the nightly CI lane, clear of it.
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "src/**"
+      - "fuzz/**"
+      - "examples/**"
+      - "tests/fixtures/**"
+      - ".github/workflows/fuzz.yaml"
+
+# Superseded pull-request runs are cancelled: a second push makes the first
+# run's findings stale, and the legs are time-boxed rather than work-boxed, so
+# a queued one costs minutes without telling anyone anything new.
+#
+# Cancellation is scoped to pull requests on purpose. A cancelled scheduled run
+# loses the corpus it grew — the save step is the last one in the batch job —
+# so the weekly lane serialises instead, which is what an unset
+# `cancel-in-progress` already does.
+concurrency:
+  group: fuzz-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    name: Cross-process determinism replay
+    runs-on: ubuntu-latest
+    # 66 projects x 3 targets x 3 dialects, compiled three times over: 594
+    # compiles per run, measured at 1m24s on a developer machine. The ceiling
+    # is here so a lane nobody watches cannot run until the six-hour job cap
+    # stops it, and it has an order of magnitude of headroom for the corpus to
+    # grow into.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      # The corpora the batch job grew, one restore per target because a cache
+      # entry is one path under one key: without them this job replayed only
+      # the checked-out documents, and the determinism claim never reached
+      # what the fuzzer found. Restore only; the batch job owns the saves.
+      - name: Restore the cli corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: fuzz/corpus/cli
+          key: fuzz-corpus-cli-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-cli-
+
+      - name: Restore the compile_determinism corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: fuzz/corpus/compile_determinism
+          key: fuzz-corpus-compile_determinism-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-compile_determinism-
+
+      - name: Restore the cross_dialect corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: fuzz/corpus/cross_dialect
+          key: fuzz-corpus-cross_dialect-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-cross_dialect-
+
+      - name: Restore the load_project corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: fuzz/corpus/load_project
+          key: fuzz-corpus-load_project-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-load_project-
+
+      - name: Restore the metric_request corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: fuzz/corpus/metric_request
+          key: fuzz-corpus-metric_request-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-metric_request-
+
+      - name: Restore the parse_doors corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: fuzz/corpus/parse_doors
+          key: fuzz-corpus-parse_doors-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-parse_doors-
+
+      # The script is the deliverable and the assertion: it exits non-zero on
+      # any differing byte, on a differing artifact order, and on an empty
+      # corpus — the last because comparing nothing to nothing is the one
+      # outcome indistinguishable from a determinism claim that holds.
+      - name: Replay the corpus across hash seeds and compile orders
+        run: uv run python fuzz/replay.py
+
+      # The script's own red/green pair (S-0002/D-2): a check never observed to
+      # fail is indistinguishable from one that never fires, and this lane runs
+      # weekly, where a silently-vacuous pass has a week to go unnoticed.
+      - name: Assert the replay can fail
+        run: uv run pytest tests/unit/test_fuzz_replay.py -q
+
+  # The scheduled batch job. Plain Atheris on `actions/setup-python`
+  # (S-0009/D-1): no Dockerfile, no OSS-Fuzz base image, no hand-built
+  # interpreter. It runs after `replay` in the file and needs nothing from it —
+  # D-2 is about phase order, and the replay job above is the first phase.
+  #
+  # Three hash seeds (S-0009/D-6), `fail-fast: false`: a hash-seed-dependent
+  # finding is exactly what the other legs are for, so one red leg must not
+  # cancel the two that would have told you whether the seed is the variable.
+  # `random` is the third because 0 and 1 are both values someone could have
+  # special-cased by accident.
+  batch:
+    name: Batch fuzz (${{ matrix.target }}, PYTHONHASHSEED=${{ matrix.seed }})
+    # A weekly exploration lane, not a gate: it runs on the schedule and on
+    # demand, never on a pull request, where it would spend an hour finding
+    # what last Monday already found.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # 600s of fuzzing per leg, plus install and corpus round-trip. Well clear
+    # of the six-hour job cap with the legs running in parallel, and inside a
+    # public repository's free minutes (S-0009/D-6). The per-entry budget gets
+    # set from the first weeks' execution counts, which the run log carries.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      # One leg at a time, so the three seeds of one target explore one corpus
+      # (S-0009/D-3): each leg restores the newest entry under the target's
+      # prefix — the previous leg's save — and saves its own, so the last leg's
+      # entry holds what all three found. Run in parallel they restored the
+      # same starting point and two of the three saves were never read again.
+      # The price is wall clock on a weekly cron, which nobody waits on.
+      max-parallel: 1
+      matrix:
+        target: [parse_doors, cli, load_project, metric_request, compile_determinism, cross_dialect]
+        seed: ["0", "1", "random"]
+
+    env:
+      CORPUS: fuzz/corpus/${{ matrix.target }}
+      SEEDS: fuzz/corpus/_seeds/${{ matrix.target }}
+      PYTHONHASHSEED: ${{ matrix.seed }}
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The interpreter the job fuzzes on is the one uv resolves, so the pin
+      # goes to setup-uv (the pattern ci.yml uses): a setup-python step beside
+      # it installed a 3.12 that `uv run` never selected over `.python-version`.
+      - name: Install uv (Python 3.12)
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      # One corpus per target (S-0009/D-3), carried between legs and weeks by
+      # the prefix restore-key, which hands back the newest entry. The run id
+      # and the seed make each save a new key — a cache entry is immutable, so
+      # a fixed key would freeze the corpus at whatever the first run wrote —
+      # and `max-parallel: 1` above is what makes each leg's newest entry the
+      # previous leg's save rather than last week's.
+      - name: Restore the corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ env.CORPUS }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}-${{ matrix.seed }}
+          restore-keys: |
+            fuzz-corpus-${{ matrix.target }}-
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      # D-7: the seeds are generated from `examples/**` and `tests/golden/**`
+      # here, never committed a second time under `fuzz/`.
+      - name: Generate the seeds
+        run: uv run python fuzz/seeds.py --target "${{ matrix.target }}"
+
+      # Before and after, so a cache that has stopped round-tripping reads as
+      # `0 entries` in the log rather than as a green job. The pair is the only
+      # signal separating a corpus that is growing from one that is reset every
+      # Monday.
+      - name: Count the corpus (before)
+        run: uv run python fuzz/corpus.py count "$CORPUS" --label before
+
+      - name: Fuzz
+        run: |
+          mkdir -p "$CORPUS" fuzz/crashes
+          uv run --with 'atheris>=2.3' python "fuzz/fuzz_${{ matrix.target }}.py" \
+            -dict="fuzz/fuzz_${{ matrix.target }}.dict" \
+            -artifact_prefix="fuzz/crashes/${{ matrix.target }}-" \
+            -max_total_time=600 \
+            "$CORPUS" "$SEEDS" "fuzz/fuzz_${{ matrix.target }}_seed_corpus"
+
+      - name: Count the corpus (after)
+        if: ${{ !cancelled() }}
+        run: uv run python fuzz/corpus.py count "$CORPUS" --label after
+
+      # A crash file on disk is a finding whatever libFuzzer's exit code said:
+      # a time-boxed run can end green with an artifact an earlier execution
+      # left behind. `tests/unit/test_fuzz_corpus.py` plants one and asserts
+      # this step goes red (S-0002/D-2).
+      - name: Assert no crash artifacts
+        if: ${{ !cancelled() }}
+        run: uv run python fuzz/corpus.py crashes fuzz/crashes --target "${{ matrix.target }}"
+
+      - name: Upload the crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: fuzz-crashes-${{ matrix.target }}-${{ matrix.seed }}
+          path: fuzz/crashes/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # At job end, and on failure too: a corpus a crashing run grew is the
+      # corpus that reproduces the crash next week.
+      - name: Save the corpus
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ env.CORPUS }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}-${{ matrix.seed }}
+
+      # The red/green twin for the counting and the crash verdict, run in the
+      # lane that depends on them rather than only in the test matrix.
+      - name: Assert the batch job can fail
+        if: ${{ !cancelled() }}
+        run: uv run pytest tests/unit/test_fuzz_corpus.py -q
+
+  # The short pull-request run. Path-filtered to `src/**` and `fuzz/**` by the
+  # trigger above: those are the two trees that can change what a target does,
+  # and a docs-only pull request has nothing here to find.
+  #
+  # **Non-blocking, and deliberately so** (S-0009/D-5). It is not in
+  # `required-ci`, it carries `continue-on-error: true`, and promotion to a
+  # required check is a separate, deliberate act with a stated condition: not
+  # before a month of running non-blocking, and not while the harness is still
+  # producing findings week on week. The early weeks are when the harness is
+  # wrong, and a red required check during them is how a fuzzing setup gets
+  # deleted rather than fixed.
+  #
+  # One hash seed rather than the batch job's three: this run answers "does the
+  # change in front of me crash a target", and the seed-dependence question is
+  # the weekly lane's to answer over ten times the budget.
+  pr:
+    name: Short fuzz (${{ matrix.target }})
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # 60s of fuzzing per leg; the legs run in parallel, so the lane finishes
+    # inside the test matrix's critical path. The budget is set from the
+    # weekly run's execution counts (S-0009/D-6) and is a tenth of the batch
+    # job's on purpose — a pull-request run that costs more than the suite it
+    # rides beside is one someone turns off.
+    timeout-minutes: 15
+    continue-on-error: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      # `parse_doors` is left out until its one known open finding is fixed
+      # (see the target's module docstring): a 60s run reaches it, so the leg
+      # would be red on every pull request from day one — the outcome
+      # S-0009/D-5 exists to avoid. The weekly job keeps fuzzing it.
+      matrix:
+        target: [cli, load_project, metric_request, compile_determinism, cross_dialect]
+
+    env:
+      CORPUS: fuzz/corpus/${{ matrix.target }}
+      SEEDS: fuzz/corpus/_seeds/${{ matrix.target }}
+      PYTHONHASHSEED: "0"
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The interpreter the job fuzzes on is the one uv resolves, so the pin
+      # goes to setup-uv (the pattern ci.yml uses): a setup-python step beside
+      # it installed a 3.12 that `uv run` never selected over `.python-version`.
+      - name: Install uv (Python 3.12)
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      # Restore only, never save (S-0009/D-3). The weekly lane owns the corpus;
+      # a pull request reads it so a 60s run starts from weeks of exploration
+      # instead of from the seeds, and writes nothing back — a branch's cache
+      # entry is visible to every later run on that branch, so saving here
+      # would let a pull request decide what the corpus is.
+      - name: Restore the corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ env.CORPUS }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-${{ matrix.target }}-
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Generate the seeds
+        run: uv run python fuzz/seeds.py --target "${{ matrix.target }}"
+
+      - name: Fuzz
+        run: |
+          mkdir -p "$CORPUS" fuzz/crashes
+          uv run --with 'atheris>=2.3' python "fuzz/fuzz_${{ matrix.target }}.py" \
+            -dict="fuzz/fuzz_${{ matrix.target }}.dict" \
+            -artifact_prefix="fuzz/crashes/${{ matrix.target }}-" \
+            -max_total_time=60 \
+            "$CORPUS" "$SEEDS" "fuzz/fuzz_${{ matrix.target }}_seed_corpus"
+
+      # Same reason as in the batch job: a time-boxed run can end green with an
+      # artifact on disk, and the file is the finding whatever the exit code
+      # said. Red here colours the job, not the merge.
+      - name: Assert no crash artifacts
+        if: ${{ !cancelled() }}
+        run: uv run python fuzz/corpus.py crashes fuzz/crashes --target "${{ matrix.target }}"
+
+      # The input that reproduces it, without which a red non-blocking job is a
+      # notification nobody can act on.
+      - name: Upload the crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: fuzz-crashes-pr-${{ matrix.target }}
+          path: fuzz/crashes/
+          if-no-files-found: ignore
+          retention-days: 14
