@@ -21,6 +21,8 @@ phasing:
     scope:
       - src/bloomery/ir/nodes.py
       - src/bloomery/resolve/build.py
+      - src/bloomery/resolve/facets.py
+      - tests/unit/test_resolve/test_facets.py
       - tests/unit/test_ir/test_nodes.py
       - tests/unit/test_ir/test_fingerprint.py
       - tests/unit/test_resolve/test_build.py

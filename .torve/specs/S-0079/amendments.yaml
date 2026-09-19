@@ -62,3 +62,10 @@ amendments:
       its second halted on the count. The row and phase 1's scope now name
       all fifteen; the rule — the header line is the whole expected diff — is
       unchanged.
+
+      The same phase also reaches `src/bloomery/resolve/facets.py`: a field added
+      to `ColumnIR` owes a row in the spec differ's `_FACETS` table, which the
+      module documents as total over every comparable record's fields, and the
+      review tier stopped T-0020's rerun on exactly that (T-0022, T-0023). The
+      scope had the IR and the builder and not the table the IR's fields are
+      enumerated in.
