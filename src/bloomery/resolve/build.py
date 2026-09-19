@@ -620,6 +620,7 @@ def _column_pair(
             required=field.required,
             description=description,
             classification=field.classification,
+            determines=field.determines,
         ),
         SourceColumnIR(
             name=name,

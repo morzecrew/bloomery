@@ -661,6 +661,13 @@ class ColumnIR:
     #: the spec's vocabulary is a `Literal`: the value travels to metadata and
     #: nothing here branches on it.
     classification: str | None = None
+    #: The entity's own columns each value of this one fixes (S-0079/D-1),
+    #: carried unchanged from the field the way ``classification`` is. An
+    #: authored fact that appears in no other IR field and that no compile can
+    #: recover, so the IR stores it rather than deriving it; what follows from
+    #: it — the transitive closure, the mart-namespace mapping a rollup proof
+    #: reads — is derived at the point of use and stored nowhere.
+    determines: tuple[str, ...] = ()
 
 
 # ....................... #
@@ -1572,6 +1579,10 @@ class ProjectIR:
     :class:`SourceFieldIR` — a declaration no SELECT reads, moving every    fingerprint for version 14's reason and no other. Version 19 (S-0077/D-2) adds
     ``includes_zero_denominator`` to every :class:`Ratio`, which is the same
     shape again: a declaration, read by a rule rather than by a SELECT.
+    Version 20 (S-0079/D-2) adds ``determines`` to every :class:`ColumnIR`. A
+    default of ``()`` is not a reason to skip the bump: the encoder writes each
+    dataclass's field count and names per *instance*, so every project with an
+    entity column re-fingerprints whether or not it declares a determination.
     The bump is
     the point — every artifact's fingerprint header moves, and ``plan()``
     refuses to diff across versions rather than misreading one as the other.
@@ -1594,7 +1605,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 19
+    bloomery_ir_version: int = 20
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()
