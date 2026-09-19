@@ -320,7 +320,7 @@
     },
     "ViaStep": {
       "additionalProperties": false,
-      "description": "Flatten one declared relationship into the mart, prefixing every\nflattened column with ``prefix`` (S-0027/D-3 \u2014 prefixes mandatory,\nso an empty prefix is a parse error, not a silent no-op).\n\n``as_of`` names the **anchor**: a date or timestamp column of the mart's\nbase entity, and the instant the joined entity is read *as of* (S-0040\n\u00a75.3, D8). It is required to flatten an ``scd: type2`` entity and refused\non any other, because a historical relation joined without one matches\nevery version of each key and multiplies the base grain, while a\ncurrent-view relation has no version to choose between.\n\nDeclared, never inferred: which date history is read on is intent, and\nS-0038 closed inference. The anchor sits here rather than on the mart\nbecause it qualifies *this* join \u2014 two historical dimensions in one mart\ncan legitimately be read as of different dates.",
+      "description": "Flatten one declared relationship into the mart, prefixing every\nflattened column with ``prefix`` (S-0027/D-3 \u2014 prefixes mandatory,\nso an empty prefix is a parse error, not a silent no-op).\n\n``as_of`` names the **anchor**: a date or timestamp column of the mart's\nbase entity, and the instant the joined entity is read *as of* (S-0040\n\u00a75.3, D8). It is required to flatten an ``scd: type2`` entity and refused\non any other, because a historical relation joined without one matches\nevery version of each key and multiplies the base grain, while a\ncurrent-view relation has no version to choose between.\n\nDeclared, never inferred: which date history is read on is intent, and\nS-0038 closed inference. The anchor sits here rather than on the mart\nbecause it qualifies *this* join \u2014 two historical dimensions in one mart\ncan legitimately be read as of different dates.\n\n``role_of`` names the **dimension this prefixed column family is a role\nof** (S-0007/roles-for-any-dimension): two steps declaring ``role_of:\naddress`` say that ``billing_region`` and ``shipping_region`` are two roles\nof one dimension, which is what the prefix never carried. Optional and\nadditive \u2014 a step without one is exactly the step that compiled before\n(S-0007/D-5) \u2014 and it does not replace the prefix, which stays mandatory\nbecause it is what keeps the emitted columns distinct.\n\nA :class:`~bloomery.spec.common.MemberName` rather than a free string: it\nreaches the emitted artifacts as a dimension name, so it is guarded like\nevery other name that does.",
       "properties": {
         "as_of": {
           "anyOf": [
@@ -338,6 +338,18 @@
           "minLength": 1,
           "title": "Prefix",
           "type": "string"
+        },
+        "role_of": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role Of"
         },
         "via": {
           "title": "Via",

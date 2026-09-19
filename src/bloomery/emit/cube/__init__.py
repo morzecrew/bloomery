@@ -18,7 +18,11 @@ Deterministic choices pinned here (each golden/unit-tested):
 - Dimensions come from ``MartIR.dimensions``. A date-role bucket column
   (``ref.role`` set) is a ``time`` dimension with ``meta.granularity`` naming
   its bucket; every other column maps by logical type (string / number /
-  boolean / time) — an int dimension is never declared a string.
+  boolean / time) — an int dimension is never declared a string. A column
+  flattened under a declared ``role_of:`` additionally carries
+  ``meta.role_of``, the ``<dimension>.<member>`` the role serves
+  (S-0007/what-each-fact-buys): two roles of one dimension carry one string
+  there rather than two unrelated column names.
 - A metric served by several marts lands as a measure on exactly one:
   :func:`bloomery.emit.metricflow.measure_owners` — the same cheapest-mart
   rule the MetricFlow emitter and the planner's coverage precheck apply, so
@@ -219,6 +223,14 @@ def _classifications(mart: MartIR, ir: ProjectIR) -> dict[str, str]:
 def _dimensions(mart: MartIR, ir: ProjectIR) -> list[object]:
     types_by_column = {column.name: column.type for column in mart.columns}
     classifications = _classifications(mart, ir)
+    # The shared dimension a role-playing column serves (S-0007/what-each-fact-buys),
+    # spelled ``<dimension>.<member>``: two roles of one dimension carry the
+    # same string here, which is the whole of what the prefixes could not say.
+    shared = {
+        column.name: f"{column.role_of}.{column.source_column}"
+        for column in mart.columns
+        if column.role_of is not None
+    }
     dimensions: list[object] = []
 
     for dimension in mart.dimensions:  # sorted by column name on MartIR
@@ -231,6 +243,11 @@ def _dimensions(mart: MartIR, ir: ProjectIR) -> list[object]:
             meta["granularity"] = dimension.ref.dimension
         else:
             entry["type"] = _DIMENSION_TYPES[type(types_by_column[dimension.column])]
+
+        role_of = shared.get(dimension.column)
+
+        if role_of is not None:
+            meta["role_of"] = role_of
 
         classification = classifications.get(dimension.column)
 
