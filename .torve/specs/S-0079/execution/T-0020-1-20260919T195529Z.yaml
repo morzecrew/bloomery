@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0020
+phase: 1
+base: f8355936131e380d044f672f143d8a52f5ea9e08
+commit: 1eefee3ef8639f497e7c609b14b3321a0d2e4509
+at: '2026-09-19T19:55:29Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: OPEN
+  - id: D-11
+    grade: OPEN
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-19T19:46:44Z'
+    attempt: 3
+    claim: >-
+      the facet table is total over every ColumnIR field, so adding determines without
+      a row crashes the spec differ on the first diff that touches a determines: declaration;
+      it is filed under GRAIN because a determination is what a rollup's coarsening
+      proof stands on, and METADATA means nothing depends on it
+    evidence: >-
+      src/bloomery/resolve/facets.py:241 — the row added; src/bloomery/resolve/facets.py:100
+      declares ACCESS its own member because a grant has a consequence, the same test
+      determines fails
+    action: decided
+    proposal: >-
+      a row stating that every field added to a comparable IR record ships with its
+      _FACETS row in the same change, since the table's totality is checked but the
+      checking test is not in every scope
