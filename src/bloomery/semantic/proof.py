@@ -353,6 +353,26 @@ class Rule:
 #: measures only at its own grain, so grouping its rows on a subset of its
 #: columns partitions a relation the mart has already proved. So R013 premises
 #: on R008 and asks only the class question, which is the one thing left.
+#:
+#: R020 is the coarsening obligation (S-0007/what-each-fact-buys), and it is the only rule
+#: here that reads a relation *between two dimensions*. It stands beside R013
+#: rather than under it: R013 grades the measure over whatever a rollup drops
+#: and says nothing about the dropped columns' own structure, so a rollup
+#: keeping `state` while dropping `city` and one keeping `sku` while dropping
+#: `city` are the same question to it. They are not the same question. Where
+#: every dropped dimension determines a kept one, the dropped column's groups
+#: each sit inside one kept group, so the rollup's groups are unions of them —
+#: and where none does, a `city` group is split across the kept columns and no
+#: union holds.
+#:
+#: **Stated in the direction the declaration runs.** S-0007's worked example
+#: declares `city: {determines: [state]}` and calls the `state`/`city` rollup
+#: the one that gains a proof, so what fires this rule is the *dropped*
+#: dimension determining a kept one. The design's one-line summary of R020
+#: reads "keeps a determinant of every dropped dimension", which is the other
+#: direction and is a lossless drop rather than a coarsening; the summary here
+#: follows the example, and the divergence is logged against the phase that
+#: built it.
 RULES: Final[dict[str, Rule]] = {
     rule.id: rule
     for rule in (
@@ -397,6 +417,10 @@ RULES: Final[dict[str, Rule]] = {
         Rule(
             "R019",
             "a ratio is over one row set, and every row in it has a non-zero denominator",
+        ),
+        Rule(
+            "R020",
+            "every dimension a rollup drops determines one it keeps, so its groups are unions",
         ),
     )
 }
