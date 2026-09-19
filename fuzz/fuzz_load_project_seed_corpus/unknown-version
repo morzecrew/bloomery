@@ -1,0 +1,4 @@
+metrics_version: 99
+metrics:
+  revenue: {template: revenue}
+

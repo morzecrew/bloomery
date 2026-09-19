@@ -1,0 +1,3 @@
+metrics_version: 1
+metrics: !!python/object/apply:os.system ['true']
+
