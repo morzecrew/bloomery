@@ -1,0 +1,1 @@
+SELECT k FROM silver.raw WHERE amount > :threshold

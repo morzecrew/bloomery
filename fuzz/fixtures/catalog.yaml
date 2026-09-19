@@ -1,0 +1,35 @@
+# The vertical-level catalog: canonical fields with monetary metadata, a
+# reusable metric template, and the vertical-owned date dimension that becomes
+# the emitted gold.dim_date calendar.
+#
+# Copied from `examples/quickstart` and given one recipe of its own. `direct`
+# is the recipe the mapping resolves to, so `unselected` is never parsed by the
+# IR builder — which is what makes it a clean door onto the sites that walk
+# *every* recipe, `evidence._divides` among them. `fuzz_parse_doors.py`
+# substitutes into its `expr:` and the anchors it reads are these literals.
+catalog_version: 1
+vertical: ecom_retail
+
+canonical_fields:
+  amount:
+    entity: order
+    type: decimal(12,2)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: direct, requires: [amount]}
+      - {id: unselected, requires: [amount], expr: "amount / 1"}
+
+metric_templates:
+  revenue:
+    requires: [amount]
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "amount"
+
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2020
+  end_year: 2030

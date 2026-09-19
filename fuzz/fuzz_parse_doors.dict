@@ -1,0 +1,122 @@
+# libFuzzer dictionary for fuzz_parse_doors.py.
+#
+# The project's own vocabulary, not SQL's: a token naming a real canonical
+# field, a real transform or a real spec key reaches code a random identifier
+# never will. Kept to what the fixture set and the transform reference
+# actually spell, so it stays checkable against the tree.
+
+# ....................... #
+# What the fixture set names
+
+"amount"
+"order_id"
+"customer_id"
+"order_date"
+"ordered_day"
+"ordered_month"
+"revenue"
+"order_count"
+"orders"
+"shop__orders"
+"dim_date"
+"ecom_retail"
+"silver.scored"
+
+# ....................... #
+# Spec keys the documents carry
+
+"catalog_version"
+"spec_version"
+"mapping_version"
+"metrics_version"
+"marts_version"
+"steps_version"
+"exposures_version"
+"canonical_fields"
+"metric_templates"
+"date_dimension"
+"recipes"
+"requires"
+"additivity"
+"grain"
+"agg"
+"expr"
+"entities"
+"fields"
+"flatten"
+"measures"
+"partition_by"
+"transform"
+"canonical"
+"tax_basis"
+"assert"
+
+# ....................... #
+# Closed vocabularies
+
+"additive"
+"semi_additive"
+"non_additive"
+"decimal(12,2)"
+"currency"
+"net"
+"gross"
+"sum"
+"count"
+"count_distinct"
+"min"
+"max"
+"avg"
+
+# ....................... #
+# Transform names (bloomery.transforms.DEFAULT_REGISTRY)
+
+"abs"
+"coalesce"
+"concat"
+"convert"
+"divide"
+"enum_map"
+"json_path"
+"lower"
+"multiply"
+"nullif"
+"parse_date"
+"parse_ts"
+"regex_extract"
+"round"
+"split_part"
+"strip_prefix"
+"strip_suffix"
+"to_bool"
+"to_decimal"
+"to_int"
+"to_string"
+"to_utc"
+"trim"
+"upper"
+
+# ....................... #
+# SQL shapes that decide a parse
+
+"CASE WHEN "
+" THEN "
+" ELSE "
+" END"
+"CAST("
+" AS "
+" OVER (PARTITION BY "
+"SELECT "
+" FROM "
+" WHERE "
+"COALESCE("
+"NULL"
+"::"
+";"
+"'"
+"\""
+"("
+")"
+"/*"
+"*/"
+"--"

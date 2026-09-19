@@ -1,0 +1,1 @@
+CASE WHEN amount > 0 THEN amount ELSE NULL END

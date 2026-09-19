@@ -1,0 +1,112 @@
+# libFuzzer dictionary for fuzz_cli.py.
+#
+# Argv words, not prose: a token that is a real flag, a real choice or a real
+# node id reaches a command body, and a random string reaches argparse and
+# stops there. Kept to what `build_parser` and the fixture set actually spell,
+# so it stays checkable against the tree.
+#
+# `\x00` separates one argv word from the next (`SEPARATOR`), so a token
+# carrying it is two words and is how a flag arrives beside its value.
+
+# ....................... #
+# The separator, and a flag with its value already attached
+
+"\x00"
+"=\x00"
+
+# ....................... #
+# Commands (bloomery.cli.build_parser)
+
+"compile"
+"plan"
+"resolve"
+"check"
+"lineage"
+"timeline"
+"explain"
+"schema"
+"fingerprint"
+"import"
+
+# ....................... #
+# Flags
+
+"--format"
+"--catalog"
+"--target"
+"--dialect"
+"--node"
+"--direction"
+"--max-depth"
+"--metrics"
+"--by"
+"--where"
+"--grain"
+"--limit"
+"--policy"
+"--kind"
+"--entity"
+"--version"
+"--help"
+
+# ....................... #
+# Closed vocabularies the flags accept
+
+"table"
+"json"
+"upstream"
+"downstream"
+"both"
+"sqlmesh"
+"cube"
+"dbt"
+"metricflow"
+"duckdb"
+"snowflake"
+"bigquery"
+"postgres"
+"catalog"
+"entity_model"
+"mapping"
+"metrics"
+"marts"
+"steps"
+"exposures"
+
+# ....................... #
+# What the fixture set names
+
+"metric.revenue"
+"metric.order_count"
+"mart.orders"
+"entity.order"
+"revenue"
+"order_count"
+"orders"
+"order"
+"order_date"
+"ordered_day"
+"ordered_month"
+"ordered_year"
+"amount"
+"order_id"
+"customer_id"
+
+# ....................... #
+# Values a flag parser has to decide about
+
+"-1"
+"0"
+"9223372036854775808"
+"notanint"
+"{\"and\": []}"
+"{\"eq\": {\"dimension\": \"ordered_day\", \"value\": 1}}"
+"amount > 0"
+"day"
+"week"
+"month"
+"quarter"
+"year"
+"--"
+"="
+","
