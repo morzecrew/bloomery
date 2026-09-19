@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0011
+phase: 4
+base: 4eea65d30e7d706d0fef84c8ebf7b361be527d0b
+commit: d5c5efe38d099abe955af18f1b008b1bbd9dc0ce
+at: '2026-09-19T04:15:01Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-19T04:13:30Z'
+    claim: >-
+      the new target catches nothing beyond the expectation tuple and the tuple is
+      unchanged: the only except clause names _harness.EXPECTED, and an empty filter
+      or sort document is skipped rather than caught, so no exception outside the
+      tuple is swallowed
+    evidence: >-
+      fuzz/fuzz_metric_request.py:236-250 — the single except names _harness.EXPECTED;
+      fuzz/_harness.py is untouched
+    action: decided
+    notes: >-
+      The two parse doors refuse an empty document, so the target passes filters/sort
+      only when the input spells at least one term — skipping the call rather than
+      catching its InvalidRequest, which would have been a caught exception this row
+      governs.
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-19T04:13:30Z'
+    claim: >-
+      a 61-second run over the seeds and dictionary produced no finding, so nothing
+      is owed a checked-in test; the sabotage proof the lane owes the target was performed
+      against an injected defect and reverted, not left in the corpus
+    evidence: >-
+      `timeout 300 uv run --with 'atheris>=2.3' python fuzz/fuzz_metric_request.py
+      -dict=fuzz/fuzz_metric_request.dict -max_total_time=60 fuzz/corpus/metric_request
+      fuzz/fuzz_metric_request_seed_corpus` — "Done 49502 runs in 61 second(s)", no
+      crash artifact written
+    action: decided
+    notes: >-
+      Sabotage proof (S-0008/D-9): with measures=() substituted for measures=measures
+      in src/bloomery/planner/explain.py:432, replaying fuzz/fuzz_metric_request_seed_corpus/two-metrics-by-month
+      reports 'AssertionError: SQL with an explanation describing no measure'; explain.py
+      restored, and the same seed then replays clean. 54 of the 174 corpus inputs
+      reach a real plan, the rest refuse as UnknownMember (83) or FilterTypeMismatch
+      (19).
