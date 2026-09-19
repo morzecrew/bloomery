@@ -25,6 +25,8 @@ from bloomery.evidence import evaluate
 from bloomery.steps import EMPTY_REGISTRY
 
 if TYPE_CHECKING:
+    import atheris
+
     from bloomery.steps import StepRegistry
 
 #: The boundary claim, as a tuple. Deliberately absent, each for its own
@@ -57,6 +59,39 @@ def documents() -> dict[str, str]:
 
 def catalog_text() -> str:
     return (FIXTURES / CATALOG).read_text()
+
+
+def fuzzed_sources(fdp: atheris.FuzzedDataProvider) -> tuple[dict[str, str], str]:
+    """The fixture set with exactly one of its six documents replaced by the
+    fuzzer's bytes: the `load_project` sources, and the catalog text beside them.
+
+    The five that stay stay *valid* and stay real, so whatever the mutation says
+    is said to a project that otherwise loads and compiles to completion — which
+    is what lets a mutation reach the cross-document layer at all. The same input
+    shape `fuzz_load_project.py` defines inline for itself, and the same seed
+    layout: the slot is the buffer's trailing byte, because
+    ``ConsumeIntInRange`` reads from the back.
+
+    The slot list is derived from the directory rather than written out, so a
+    fixture renamed or added cannot leave a target replacing nothing and fuzzing
+    an *added* seventh document instead. Sorted, because that index is what every
+    checked-in seed's trailing byte names.
+    """
+    sources = documents()
+    slots = sorted([*sources, CATALOG])
+    slot = slots[fdp.ConsumeIntInRange(0, len(slots) - 1)]
+    # The raw bytes as text, not `ConsumeUnicode*`: the seed corpus is the six
+    # real documents, and a provider that re-encodes what it reads would hand
+    # the first mutation a mangled document instead of a valid one with one byte
+    # changed.
+    document = fdp.ConsumeBytes(fdp.remaining_bytes()).decode("utf-8", "replace")
+
+    if slot == CATALOG:
+        return sources, document
+
+    sources[slot] = document
+
+    return sources, catalog_text()
 
 
 def check_refusal(exc: BloomeryError) -> None:
