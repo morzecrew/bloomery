@@ -1,0 +1,175 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0008
+phase: 1
+attempt: 2
+base: edb8068bf6bddde5735cd6b935248e14d698abc9
+commit: 555f412f147f90e87969dd6dedfb75dc609cc864
+at: '2026-09-19T03:02:30Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+entries:
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-19T02:51:31Z'
+    claim: >-
+      both confirmed findings became checked-in unit tests and no corpus file is checked
+      in as a regression test; fuzz/corpus and fuzz/crashes are gitignored
+    evidence: >-
+      tests/unit/test_evidence.py:1 — test_an_expression_too_deep_for_this_stack_is_not_a_raw_recursion_error;
+      tests/unit/test_steps/test_lowering.py has the step-body twin, and .gitignore:262-263
+      ignores the working directories
+    action: decided
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-19T02:51:45Z'
+    claim: >-
+      the expectation tuple is exactly (BloomeryError,) and was never widened; both
+      RecursionError findings were closed by fixing the code, not the harness
+    evidence: >-
+      fuzz/_harness.py:39 — EXPECTED: tuple[type[BaseException], ...] = (BloomeryError,),
+      the only tuple in the file
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-19T02:51:46Z'
+    claim: >-
+      no target adds a caught exception: fuzz_parse_doors.py writes no except clause
+      at all, handing every document to the harness, so the tuple stays the single
+      place an outcome is judged, and errors.md needed no edit
+    evidence: >-
+      fuzz/fuzz_parse_doors.py:128 — the only exit from one_input is _harness.compile_or_refuse;
+      there is no except keyword anywhere in the module
+    action: decided
+  - decision: D-6
+    grade: OPEN
+    at: '2026-09-19T02:51:57Z'
+    claim: >-
+      a just lane, not a seventh pytest marker: a libFuzzer run is time-boxed rather
+      than pass-or-fail, so a marker could only have covered a replay test over the
+      corpus, and the corpus here is a gitignored build artifact rather than a checked-in
+      test input
+    evidence: >-
+      justfile:127-154 — the Fuzz section and its three recipes; .gitignore:262-263
+      ignores fuzz/corpus/ and fuzz/crashes/
+    action: decided
+  - decision: D-7
+    grade: OPEN
+    at: '2026-09-19T02:51:57Z'
+    claim: >-
+      site 1, evidence._divides: RecursionError joins the catch rather than a depth
+      limit raising a named error. The helper already answers a yes/no question about
+      an expression it did not author and returns False for every other unparseable
+      input, so a new error class would be the only path out of this function that
+      is not a boolean, for a condition that is a property of the remaining stack
+      rather than of the expression
+    evidence: >-
+      src/bloomery/evidence.py:837 — except (SqlglotError, RecursionError): return
+      False, with the measured depths in the docstring above it
+    action: decided
+  - decision: D-7
+    grade: OPEN
+    at: '2026-09-19T02:51:58Z'
+    claim: >-
+      site 2, resolve.steps._parse_body: RecursionError joins the catch rather than
+      a depth limit raising a named error. A limit would have to be chosen against
+      a stack position that varies by caller, and it would report exactly what StepError
+      already reports — that the body does not parse as SQL. Safe because the frames
+      have unwound by the time the handler runs and the only call inside the try is
+      the parse
+    evidence: >-
+      src/bloomery/resolve/steps.py:755 — except (SqlglotError, RecursionError) as
+      exc:, raising the existing StepError
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-19T02:52:08Z'
+    claim: >-
+      two further parse_one sites take the same unguarded RecursionError and are outside
+      this task's allow list, so they are reported rather than fixed, per the review
+      feedback. resolve/build.py:652 is the deeper twin of the evidence site and raises
+      first on the same input, which is why the new evidence test asks the helper
+      directly rather than going through evaluate
+    evidence: >-
+      src/bloomery/resolve/build.py:652 — parsed = parse_one(recipe.expr) with no
+      handler; src/bloomery/ir/nodes.py:428 is the second, and build.py:706, 748,
+      2156 and 2222 share the shape
+    action: decided
+    proposal: >-
+      a follow-up task scoping src/bloomery/ir/nodes.py and src/bloomery/resolve/build.py
+      to close the same asymmetry at the remaining sites, decided the same way as
+      D-7
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-19T02:52:09Z'
+    claim: >-
+      the contract licenses adding atheris to pyproject.toml but does not name uv.lock,
+      and a dependency cannot be added without regenerating it: uv re-locks on any
+      non-frozen invocation, and uv sync --frozen refuses a lock that disagrees with
+      pyproject, which is what CI and the justfile's own _uv_sync run
+    evidence: >-
+      uv.lock:209 — { name = "atheris", marker = "sys_platform == 'linux'", specifier
+      = ">=2.3" }, matching the entry added at pyproject.toml's dev group
+    action: decided
+    proposal: >-
+      uv.lock belongs in the allow list of any task that adds or bumps a dependency;
+      the two files are one edit
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-19T02:53:09Z'
+    claim: >-
+      the projection the finishing check demands writes an AGENTS.md into every governed
+      directory the task creates, and pages/docs/contributing/ is one of them; the
+      allow list names pages/docs/contributing/fuzzing.md but not its sibling, so
+      the generated file lands outside scope. fuzz/AGENTS.md is covered by fuzz/**
+      and the root AGENTS.md is named, so this is the only one
+    evidence: >-
+      pages/docs/contributing/AGENTS.md:1 — written by `uv run torve spec project`,
+      which reported "114 governed directories, 3 written, 0 removed"
+    action: decided
+    proposal: >-
+      a task that creates a new governed directory should carry that directory's AGENTS.md
+      in its allow list, or the allow list should name the directory rather than the
+      single page
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-19T03:01:46Z'
+    attempt: 2
+    claim: >-
+      a 45-second run turned up a third finding — a RecursionError from SqlExpr.ast
+      at emit, reached through a step body — whose fix is in src/bloomery/ir/nodes.py,
+      outside the allow list and deferred by the review. No test is checked in for
+      it and no corpus file is relied on to hold it either: the crash artifact was
+      deleted, fuzz/crashes is gitignored, and the finding is recorded in this log
+      and in the target's own docstring, which is what D-4 asks instead of a corpus
+      entry
+    evidence: >-
+      fuzz/fuzz_parse_doors.py:36-47 — the open-finding paragraph naming src/bloomery/ir/nodes.py:428
+      and why it is deferred
+    action: decided
+    proposal: >-
+      the follow-up task scoping src/bloomery/ir/nodes.py and src/bloomery/resolve/build.py
+      should carry tests/unit/test_ir/** so the checked-in test D-4 owes can land
+      with the fix
