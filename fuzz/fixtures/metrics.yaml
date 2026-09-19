@@ -1,0 +1,11 @@
+# The project's metrics: one instantiated from the catalog template, one
+# fully inline. Every metric declares grain and additivity.
+metrics_version: 1
+metrics:
+  revenue:
+    template: revenue
+  order_count:
+    grain: order
+    additivity: additive
+    agg: count
+    expr: "order_id"

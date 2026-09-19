@@ -276,7 +276,7 @@ jobs:
       # now runs once, in the scheduled `chaos` job below.
       - name: Run tests
         run: |
-          uv run pytest -m "not engine and not e2e and not chaos and not perf" \
+          uv run pytest -m "not engine and not e2e and not chaos and not perf and not surrogate" \
             --refusal-census \
             --cov=src \
             --cov-report= \
@@ -590,7 +590,7 @@ jobs:
         run: uv sync --all-groups
 
       - name: Run the default test tiers
-        run: uv run pytest -m "not engine and not e2e and not chaos and not perf" --refusal-census
+        run: uv run pytest -m "not engine and not e2e and not chaos and not perf and not surrogate" --refusal-census
 
   # Tiers 5–6 (engine matrix via testcontainers, target e2e). Runs on the
   # nightly schedule, on explicit force_full runs (workflow_dispatch, release),

@@ -1,0 +1,1 @@
+amount::DECIMAL(12,2)

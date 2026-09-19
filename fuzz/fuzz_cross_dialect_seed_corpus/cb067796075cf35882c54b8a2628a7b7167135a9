@@ -1,0 +1,10 @@
+# The project's metrics: one instantiated from the catalog template, one
+# fully inline. Every metric declares grain and additivity.
+metrics_version: 1
+metrics:
+  revenuly inline. Every metric declares grain and additivity.
+metrics_version: 1
+metrics:
+  revenue:
+    template: revenue
+  

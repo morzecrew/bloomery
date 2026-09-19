@@ -49,6 +49,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
 from bloomery.ir import Additivity
+from bloomery.semantic.closure import determination_closure
 from bloomery.semantic.proof import (
     Obligation,
     Proof,
@@ -59,6 +60,8 @@ from bloomery.semantic.proof import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from bloomery.ir import MartIR, MetricIR, ProjectIR
 
 # ----------------------- #
@@ -245,6 +248,84 @@ def _grouping_refusal(
         remediation=(
             "a rollup is read instead of the detail table and is coarser than it — drop "
             "at least one dimension, or read the mart itself"
+        ),
+    )
+
+
+# ....................... #
+
+
+def _coarsening(
+    mart: MartIR, kept: tuple[str, ...], determines: Mapping[str, tuple[str, ...]]
+) -> Proof | None:
+    """R020 — the dropped dimensions' own structure, where a declaration
+    supplies it, or ``None`` where none does (S-0007/what-each-fact-buys).
+
+    **Proves more, never refuses** (S-0007/D-7). The strict reading — a rollup
+    keeping no determinant of what it drops is refused — is a new refusal
+    against every rollup that compiles today, and the only thing it would catch
+    is a project that declared nothing, which is every project until this
+    vocabulary is used. So a rollup with no determination reaching it is
+    answered exactly as it was before R020 existed, and one that coarsens
+    carries a premise the other does not.
+
+    The determination runs from the *dropped* column to a kept one, which is
+    the direction the declaration runs in: `city: {determines: [state]}` makes
+    a rollup keeping `state` and dropping `city` a coarsening, because every
+    row of a `city` group carries one `state` and so sits inside one kept
+    group. Keeping `sku` instead splits that group across the kept columns and
+    earns nothing here.
+
+    ``determines`` is keyed by the mart's own dimension names, because that is
+    what this question is about; carrying the entity declarations onto the IR
+    so a compile stage can build it belongs to the phase that gives a rollup a
+    spec key, not to this one.
+    """
+
+    dropped = sorted({dimension.ref.qualified for dimension in mart.dimensions} - set(kept))
+
+    if not dropped:
+        # `_grouping_refusal` has already refused a rollup that drops nothing,
+        # so this is the caller that skipped it — and a coarsening of nothing
+        # is a premise resting on no fact, which never closes (S-0005/D-1).
+        return None
+
+    closed = determination_closure(determines)
+    witnesses: list[tuple[str, str]] = []
+
+    for name in dropped:
+        keeper = next((kept_name for kept_name in kept if kept_name in closed.get(name, ())), None)
+
+        if keeper is None:
+            return None
+
+        witnesses.append((name, keeper))
+
+    return Proof(
+        rule="R020",
+        conclusion=SemanticJudgement(
+            "Coarsening",
+            (("mart", mart.name), ("keep", ", ".join(kept)), ("drop", ", ".join(dropped))),
+        ),
+        facts=tuple(
+            SemanticFact(
+                # One source per pair rather than per determinant: a source has
+                # one fact in a proof, and one column determining two dropped
+                # ones would otherwise keep whichever statement sorted lower
+                # and silently drop the other.
+                source=f"determines:{mart.name}.{name}->{keeper}",
+                # Declared where the author wrote `name -> keeper`; derived
+                # where the closure supplied it through a chain the author
+                # never wrote as one line. The grade the fact projects to
+                # (LOCKED or ASSUMED) is the evidence's, not the rule's.
+                provenance=(
+                    Provenance.DECLARED
+                    if keeper in (determines or {}).get(name, ())
+                    else Provenance.DERIVED
+                ),
+                statement=f"{name} determines {keeper}",
+            )
+            for name, keeper in witnesses
         ),
     )
 
@@ -610,9 +691,17 @@ def prove_mart_rollup(
     mart: MartIR,
     keep: tuple[str, ...],
     project: ProjectIR,
+    determines: Mapping[str, tuple[str, ...]] | None = None,
 ) -> Proof | Refutation:
     """Whether a rollup of ``mart`` keeping ``keep`` may carry every measure
     ``mart`` carries (S-0065/the-obligation, S-0065/D-5 `LOCKED`).
+
+    ``determines`` is what the dropped dimensions declare about the kept ones
+    (S-0007/determination), keyed by the mart's dimension names. Where every
+    dropped dimension determines a kept one the answer carries R020 beside the
+    class question, and where it does not — or where nothing is declared, which
+    is every project today — the answer is the one this function gave before
+    R020 existed (S-0007/D-7).
 
     One answer for one declaration, refusing on the first measure that fails
     rather than collecting the failures. Each class refusal names a different
@@ -685,6 +774,11 @@ def prove_mart_rollup(
             return answer
 
         premises.append(answer)
+
+    coarsening = _coarsening(mart, kept, determines or {})
+
+    if coarsening is not None:
+        premises.append(coarsening)
 
     return Proof(
         rule="R013",

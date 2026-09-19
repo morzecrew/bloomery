@@ -963,6 +963,16 @@ def _divides(expr: str | None) -> bool:
     — so the narrower catch let a third-party exception out of
     :func:`evaluate`, whose whole contract is that a spec-level problem comes
     back as a value (``logs/T-0048.md``).
+
+    ``RecursionError`` beside it, for the same contract and a different reason.
+    The expression arrives as ``SqlText``, so :func:`bloomery.spec.common` has
+    already parsed it once — but SQLGlot recurses on nesting depth, and how
+    much nesting it accepts depends on the stack position it is called from
+    rather than on the expression. Measured at a recursion limit of 1000: the
+    validator runs at depth 8 and accepts 51 levels; this call runs at depth 11
+    under ``evaluate`` and deeper still under any caller with frames of its
+    own, where 51 levels raise. A ``SqlText`` value is a proof about one stack
+    position and this is another, so the door has to hold on its own.
     """
 
     if expr is None:
@@ -970,7 +980,7 @@ def _divides(expr: str | None) -> bool:
 
     try:
         parsed = parse_one(expr)
-    except SqlglotError:
+    except (SqlglotError, RecursionError):
         return False
 
     return any(True for _ in parsed.find_all(exp.Div))

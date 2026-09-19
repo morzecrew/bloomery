@@ -344,6 +344,7 @@ def _flatten_via(
             prefix=step.prefix,
             on=tuple((f"{from_prefix}{from_col}", to_col) for from_col, to_col in rel.via),
             as_of=step.as_of,
+            role_of=step.role_of,
         )
     )
     violations: list[GuardrailError] = []
@@ -365,6 +366,10 @@ def _flatten_via(
             type=column.type,
             source_entity=rel.to_entity,
             source_column=column.name,
+            # The declared role rides on every column the step flattens
+            # (S-0007/roles-for-any-dimension): the family is what plays the
+            # role, and the member is the source column it keeps.
+            role_of=step.role_of,
         )
 
     state.prefixes.setdefault(rel.to_entity, step.prefix)

@@ -565,3 +565,72 @@ def test_the_refusal_list_is_complete() -> None:
     declared = set(re.findall(r'reason="([a-z_]+)"', source))
 
     assert declared == {reason for reason, _ in _EVERY_REFUSAL}
+
+
+# ....................... #
+# The coarsening question — R020 (S-0007/what-each-fact-buys)
+
+
+#: What the mart's own dimensions declare about each other: a day fixes the
+#: month it falls in. Keyed by the mart's dimension names, which is what the
+#: question is about — carrying the entity declarations onto the IR belongs to
+#: the phase that gives a rollup a spec key.
+DETERMINES = {"ordered_day": ("ordered_month",)}
+
+
+def test_a_rollup_that_coarsens_carries_the_determination_proof() -> None:
+    """The gap S-0007 opens with: a rollup dropping `ordered_day` while keeping
+    `ordered_month` groups rows that the dropped column already grouped, so its
+    groups are unions of the parent's. R013 grades the measure and cannot say
+    that; R020 is the premise that does.
+    """
+
+    answer = prove_mart_rollup(
+        items("revenue"),
+        ("customer_segment", "ordered_month", "region"),
+        PROJECT,
+        DETERMINES,
+    )
+
+    assert isinstance(answer, Proof)
+    assert answer.closed
+    coarsening = next(premise for premise in answer.premises if premise.rule == "R020")
+    assert coarsening.facts[0].provenance is Provenance.DECLARED
+    assert coarsening.facts[0].statement == "ordered_day determines ordered_month"
+
+
+def test_a_rollup_that_merely_drops_proves_exactly_what_it_proved_before() -> None:
+    """S-0007/D-7, decided permissive: R020 proves more where a determination
+    is present and refuses nothing where it is not. `region` determines nothing
+    the rollup keeps, so this answer is byte-identical to the one the same
+    question got before the rule existed — which is the whole claim that no
+    project's verdict changes.
+    """
+
+    keep = ("customer_segment", "ordered_month")
+
+    declared = prove_mart_rollup(items("revenue"), keep, PROJECT, DETERMINES)
+    silent = prove_mart_rollup(items("revenue"), keep, PROJECT)
+
+    assert isinstance(declared, Proof)
+    assert isinstance(silent, Proof)
+    assert declared.serialize() == silent.serialize()
+    assert "R020" not in {premise.rule for premise in declared.premises}
+
+
+def test_the_determination_is_read_in_the_direction_it_is_declared() -> None:
+    """`city: {determines: [state]}` makes the `state`/`city` rollup the one
+    that coarsens — the *dropped* column determines the kept one. Declared the
+    other way round it says nothing about the groups this rollup makes, and a
+    rule reading it symmetrically would prove both.
+    """
+
+    answer = prove_mart_rollup(
+        items("revenue"),
+        ("customer_segment", "ordered_month", "region"),
+        PROJECT,
+        {"ordered_month": ("ordered_day",)},
+    )
+
+    assert isinstance(answer, Proof)
+    assert "R020" not in {premise.rule for premise in answer.premises}
