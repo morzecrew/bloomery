@@ -19,7 +19,7 @@ summary: |
   OSS-Fuzz base-image tags ship Python 3.11.13, `pyproject.toml` requires `>=3.12,<3.15`,
   and atheris 3.1.0 ships no cp311 wheel and no source distribution — so the container path
   needs a hand-maintained CPython build from day one. The corpus lives in `actions/cache`,
-  seeded from `examples/**` and `tests/golden/**` so its floor tracks the examples rather
+  seeded from `examples/**` and `tests/fixtures/**` so its floor tracks the examples rather
   than drifting from them. Three jobs: a nightly batch matrixed over `PYTHONHASHSEED`, a
   weekly replay job that verifies rather than explores, and a short non-blocking PR job.
   ClusterFuzzLite is the demand-gated upgrade, priced here and not taken now.
@@ -116,7 +116,7 @@ design:
       bound bites, D-3 says what replaces it.
 
       Seeds are built from the tree rather than committed twice: a script copies
-      `examples/**` and `tests/golden/**` YAML into each target's seed directory, so the
+      `examples/**` and `tests/fixtures/**` YAML into each target's seed directory, so the
       corpus floor tracks the examples instead of drifting from them.
   - key: the-nightly-batch
     md: |
@@ -144,7 +144,7 @@ design:
       at full speed and can afford subprocesses. It exits non-zero with a diff on any
       divergence. It is also the one job here worth keeping if everything else in this
       document were deleted, which is why D-2 puts it in P1. It needs no corpus to start: it
-      can replay `examples/` and `tests/golden/` on day one and pick up the fuzz corpus when
+      can replay `examples/` and `tests/fixtures/` on day one and pick up the fuzz corpus when
       it exists.
   - key: the-pr-job
     md: |

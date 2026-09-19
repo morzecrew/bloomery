@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/golden/identity_resolution/`
 
-### S-0079/D-3 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
+### S-0079/D-3 — `ASSUMED` (Determinations reach the IR and the rollup lowering) — implementation: none
 
 The fourteen fingerprint-bearing golden fixture directories are regenerated with `uv run pytest tests/golden --snapshot-update` and reviewed like source. The whole of the expected diff is the `-- fingerprint: blm1:…` header line; a SQL body that moves, or a diff in a directory that carries no fingerprint, is a defect and not a snapshot to accept
 

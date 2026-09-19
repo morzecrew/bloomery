@@ -443,7 +443,7 @@ Follows from row 2, and stated separately because it is the thing an executor wi
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/semantic/additivity.py` `src/bloomery/spec/quality.py` `tests/fixtures/semantic_corpus/008-ratio-rollup/**` `tests/fixtures/semantic_corpus/009-null-denominator/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0079/D-1 — `LOCKED` (Determinations reach the IR and the rollup lowering)
+### S-0079/D-1 — `LOCKED` (Determinations reach the IR and the rollup lowering) — implementation: none
 
 A determination is a **stored** fact. `ColumnIR` gains `determines: tuple[str, ...]`, filled by `_column_ir` from the entity model's `Field.determines` and carried unchanged, the way `classification` is. It is authored, it appears in no other IR field, and no compile can recover it without re-reading the spec
 
@@ -451,7 +451,7 @@ A determination is a **stored** fact. `ColumnIR` gains `determines: tuple[str, .
 - Consequence: S-0017/D-9 keeps the grain model out of the IR because a grain is computed from `EntityIR.key`, which the IR holds; that reasoning does not reach a determination and may not be cited to keep one out. The IR stores what an author wrote and derives what follows from it, which is the line D-4 stands on the other side of
 - Check: `uv run pytest tests/unit/test_resolve/test_build.py -q` (shadow; runs as `decision:S-0079/D-1`, no log entry owed)
 
-### S-0079/D-2 — `LOCKED` (Determinations reach the IR and the rollup lowering)
+### S-0079/D-2 — `LOCKED` (Determinations reach the IR and the rollup lowering) — implementation: none
 
 `bloomery_ir_version` moves 19 → 20 with the field, and `ProjectIR`'s docstring gains the sentence saying why. The default of `()` is not a reason to skip it: the canonical encoder writes each dataclass's field count and names per instance, so every project with an entity column re-fingerprints whether or not it declares anything
 
@@ -459,14 +459,14 @@ A determination is a **stored** fact. `ColumnIR` gains `determines: tuple[str, .
 - Consequence: Every project's fingerprint moves and `plan()` refuses to diff a version 19 IR against a version 20 one, which is the refusal that makes the change loud. The version is declared once, on the dataclass — `test_the_compiler_emits_the_declared_ir_version` is what stops it being bumped in one of two places
 - Check: `uv run pytest tests/unit/test_ir/test_nodes.py tests/unit/test_determinism_guard.py -q` (shadow; runs as `decision:S-0079/D-2`, no log entry owed)
 
-### S-0079/D-9 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
+### S-0079/D-9 — `ASSUMED` (Determinations reach the IR and the rollup lowering) — implementation: none
 
 `determines` is appended to `ColumnIR` with a default of `()`, and the two other construction sites — `_shadow_column` in `src/bloomery/guardrails/conflict.py` and the step-output loop in `src/bloomery/resolve/steps.py` — are left untouched
 
 - Paths: `src/bloomery/ir/nodes.py`
 - Consequence: A merge shadow and a step output carry no determination, and that is the answer rather than an omission: a shadow is a second projection of a column that already carries the declaration, and a step output has no entity-model field to read one from. Neither file is in either phase's scope, and neither needs to be
 
-### S-0079/D-10 — `OPEN` (Determinations reach the IR and the rollup lowering)
+### S-0079/D-10 — `OPEN` (Determinations reach the IR and the rollup lowering) — implementation: none
 
 Whether the mart-namespace determination is also worth carrying onto `MartColumnIR` for the spec differ's impact report. This document stores it only on `ColumnIR` and derives the rest; the impact report S-0007 names has not been designed, and the shape it wants is not knowable yet. The executor adds nothing for it here and logs the decision if building proves otherwise
 
