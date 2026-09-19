@@ -300,7 +300,7 @@ tests: |
     prefixes relates `billing_city` to `billing_state` and to nothing of the shipping
     family; a column matching two families contributes nothing. In
     `tests/unit/test_marts/test_rollup.py`.
-  - **Golden, phase 1:** every artifact in the fourteen fingerprint-bearing fixture
+  - **Golden, phase 1:** every artifact in the fifteen fingerprint-bearing fixture
     directories is regenerated with `uv run pytest tests/golden --snapshot-update` and
     reviewed like source. The whole of the expected diff is the fingerprint header line;
     a SQL body that moves is a defect, not a snapshot to accept.
