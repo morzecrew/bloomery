@@ -4,7 +4,7 @@ title: >-
   Validating a dialect port against an engine we cannot run
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []

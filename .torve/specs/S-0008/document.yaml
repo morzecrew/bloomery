@@ -3,7 +3,7 @@ id: S-0008
 title: Fuzzing the compile boundary
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []

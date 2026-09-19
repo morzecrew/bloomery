@@ -3,7 +3,7 @@ id: S-0004
 title: 'Observability: logging and a warnings channel'
 kind: design
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []
