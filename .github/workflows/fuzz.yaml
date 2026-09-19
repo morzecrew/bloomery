@@ -1,0 +1,79 @@
+name: Fuzzing
+
+# The fuzz lane (S-0009). It runs weekly rather than nightly: the jobs here are
+# exploratory, and a lane that reports on Monday is one someone reads.
+#
+# **The replay job is the whole of the first phase** (S-0009/D-2) and lands
+# before any fuzzing job. It is the cross-process determinism claim — same
+# specs in, byte-identical artifacts out, across processes and hash seeds
+# (S-0020) — checked at corpus scale rather than over the single fixture
+# `tests/unit/test_determinism_guard.py` covers. It needs no corpus to start:
+# the seeds are the example projects and the golden tier's spec fixtures
+# (S-0009/D-7), so this job has something to replay on day one and keeps
+# working even if every fuzzing job here is later dropped. No phase slip may
+# reorder it behind the fuzzing jobs.
+#
+# Plain `actions/setup-python` when the fuzzing jobs arrive, never
+# ClusterFuzzLite (S-0009/D-1): no Dockerfile, no OSS-Fuzz base image, no
+# hand-built interpreter. The corpus those jobs accumulate will live in
+# `actions/cache`, keyed per target (S-0009/D-3); replay reads `fuzz/corpus/`
+# when it is there and ignores it when it is not, so nothing here waits on it.
+
+on:
+  schedule:
+    # Mondays, 04:00 UTC — after the nightly CI lane, clear of it.
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "fuzz/**"
+      - ".github/workflows/fuzz.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    name: Cross-process determinism replay
+    runs-on: ubuntu-latest
+    # 66 projects x 3 targets x 3 dialects, compiled three times over: 594
+    # compiles per run, measured at 1m24s on a developer machine. The ceiling
+    # is here so a lane nobody watches cannot run until the six-hour job cap
+    # stops it, and it has an order of magnitude of headroom for the corpus to
+    # grow into.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      # The script is the deliverable and the assertion: it exits non-zero on
+      # any differing byte, on a differing artifact order, and on an empty
+      # corpus — the last because comparing nothing to nothing is the one
+      # outcome indistinguishable from a determinism claim that holds.
+      - name: Replay the corpus across hash seeds and compile orders
+        run: uv run python fuzz/replay.py
+
+      # The script's own red/green pair (S-0002/D-2): a check never observed to
+      # fail is indistinguishable from one that never fires, and this lane runs
+      # weekly, where a silently-vacuous pass has a week to go unnoticed.
+      - name: Assert the replay can fail
+        run: uv run pytest tests/unit/test_fuzz_replay.py -q
