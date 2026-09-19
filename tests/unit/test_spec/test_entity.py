@@ -251,3 +251,76 @@ def test_one_via_pair_is_enough() -> None:
         "  - {name: r, from: e, to: e, via: {k: k}, cardinality: many_to_one}\n"
     )
     assert model.relationships[0].via == {"k": "k"}
+
+
+# ....................... #
+# `determines:` — the determination relation (S-0007/determination)
+
+
+DETERMINES = """
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string}
+      city: {type: string, determines: [state]}
+      state: {type: string, determines: [country]}
+      country: {type: string}
+      postcode: {type: string, determines: [state, delivery_zone]}
+      delivery_zone: {type: string}
+"""
+
+
+def test_determines_parses_as_a_lattice_rather_than_a_list() -> None:
+    """S-0007/D-4: a column may determine several others independently, and a
+    `postcode` fixing both a `state` and a `delivery_zone` is the ordinary case
+    — the one an ordered `levels:` spelling cannot hold at all.
+
+    Declared and never inferred (S-0007/D-1): `city` and `state` sit beside
+    each other with the same type, and the compiler reads only what is written.
+    """
+    fields = parse(DETERMINES).entities["order"].fields
+
+    assert fields["city"].determines == ("state",)
+    assert fields["postcode"].determines == ("state", "delivery_zone")
+    # Absent is empty, not None: every consumer iterates it.
+    assert fields["country"].determines == ()
+
+
+def test_determines_naming_a_field_the_entity_does_not_declare_is_refused() -> None:
+    """A dangling name determines nothing, and every consumer would drop it in
+    silence — so parse says so where the document can still be named."""
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "spec_version: 1\nentities:\n  e:\n    grain: g\n    key: [k]\n"
+            "    fields:\n      k: {type: string, determines: [provice]}\n"
+            "      province: {type: string}\n"
+        )
+    assert "k -> provice" in str(excinfo.value)
+
+
+def test_a_determination_cycle_is_refused_with_the_path_that_closes_it() -> None:
+    """A cycle makes the compiler's transitive closure say each field in it
+    determines every other, which is one column written twice. The path rather
+    than a boolean: an author has written one of these edges and needs the
+    others to find the mistake."""
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "spec_version: 1\nentities:\n  e:\n    grain: g\n    key: [k]\n"
+            "    fields:\n      k: {type: string}\n"
+            "      city: {type: string, determines: [state]}\n"
+            "      state: {type: string, determines: [city]}\n"
+        )
+    assert "city -> state -> city" in str(excinfo.value)
+
+
+def test_a_field_determining_itself_is_the_same_refusal() -> None:
+    """The one-edge cycle, which a check comparing *pairs* of fields misses."""
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "spec_version: 1\nentities:\n  e:\n    grain: g\n    key: [k]\n"
+            "    fields:\n      k: {type: string, determines: [k]}\n"
+        )
+    assert "k -> k" in str(excinfo.value)

@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/character-rules-on-a-non-textual-column-lower-to-refused-sql
+kind: operator
+ref: 'bloomery #149, CodeAnt review thread on src/bloomery/evidence.py:762, 2026-09-19'
+title: A normalize or charset rule on a non-textual column lowers to SQL the engines refuse
+at: '2026-09-19T04:43:33Z'
+summary: |
+  `normalize` lowers to `NORMALIZE(col, form) <> col` and `charset` to a
+  `LENGTH(TRANSLATE(col, members, ''))` comparison, both over the bare column
+  with no cast (`quality/predicates.py`), and nothing at the spec layer
+  restricts either rule to a textual column. So a `normalize` or `charset`
+  rule declared on an `int`, `bool`, `date`, `timestamp` or `decimal` column
+  compiles without complaint to SQL that Postgres (`normalize(integer)` does
+  not exist), Trino and DuckDB 1.x (no implicit cast to VARCHAR) all refuse at
+  execution: a broken artifact, not a silent predicate.
+
+  S-0004's unstrengthened-rule advisory treats the same declaration as a rule
+  that cannot fire, which is true of the predicate's semantics and not of what
+  the engine does with it. The fix is upstream of the advisory: either the
+  spec layer refuses the two character rules on a non-textual column, or the
+  lowering casts the column to text first. Once either lands, the advisory's
+  non-textual branch for these two rules is unreachable and can go.

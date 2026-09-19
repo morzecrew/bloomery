@@ -1,6 +1,6 @@
 # Test suite
 
-Six tiers, fastest first (S-0026). All tiers exercise one shared fixture corpus under
+Six tiers, fastest first (S-0026), plus the surrogate rung between 4 and 5 (S-0012/D-2). All tiers exercise one shared fixture corpus under
 `tests/fixtures/`, loaded only through the public `load_project`/`load_catalog` API.
 
 | Tier | Directory | Marker | In `just test` | Needs Docker | What it proves |
@@ -9,8 +9,15 @@ Six tiers, fastest first (S-0026). All tiers exercise one shared fixture corpus 
 | 2 Golden | `golden/` | `golden` | ✅ | — | checked-in artifacts per (fixture × target × dialect), byte-compared |
 | 3 Property | `property/` | `property` | ✅ | — | Hypothesis invariants over generated valid projects |
 | 4 Execution | `execution/` | `execution` | ✅ | — | compiled SQL runs on in-process DuckDB; `Decimal` assertions; fan-out regression |
+| 4s Surrogate | `engines/` | `surrogate(<name>)` | opt-in | ✅ | tier-4 assertions against something *engine-shaped* — an emulator, a Spark session, a Postgres shim |
 | 5 Engine matrix | `engines/` | `engine(<name>)` | opt-in | ✅ | tier-4 assertions against real engines via testcontainers |
 | 6 Target e2e | `e2e/` | `e2e` | opt-in | ✅ | artifacts are valid *input to the target* (sqlmesh replan is a no-op, `dbt parse`, cube `/meta`) |
+
+A surrogate lane is evidence, never the oracle (S-0012/D-1): only `engine(<name>)` means
+Docker plus the real engine, and only the engine's own compiler settles a dialect. A green
+`surrogate` lane may not be quoted as engine conformance, in a CI log or in prose. No
+surrogate lane exists yet — whoever writes the first one also adds `not surrogate` to the
+`just test` selector, which excludes `engine` and `e2e` but does not yet know this marker.
 
 `chaos` marks the mutation meta-test (`chaos/`, S-0033/tests-rfc-0009-amendment): it deforms the
 quality lowering — inverts a comparison, drops a stage, swaps a disposition —
@@ -30,6 +37,7 @@ in CI).
 just test                          # tiers 1–4 (opt-in markers excluded)
 just test-all                      # everything except chaos and perf (Docker required)
 just test tests/unit               # one tier / path
+uv run pytest -m surrogate         # rung 4 only (engine-shaped backends)
 uv run pytest -m 'engine'          # tier 5 only
 uv run pytest -m e2e               # tier 6 only
 uv run pytest tests/chaos -m chaos # the mutation meta-test (S-0033/tests-rfc-0009-amendment)

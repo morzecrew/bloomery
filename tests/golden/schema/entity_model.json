@@ -391,6 +391,14 @@
           "default": null,
           "title": "Classification"
         },
+        "determines": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Determines",
+          "type": "array"
+        },
         "renamed_from": {
           "anyOf": [
             {

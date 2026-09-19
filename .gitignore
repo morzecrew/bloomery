@@ -253,3 +253,11 @@ coverage-data/
 *.duckdb.wal
 
 .repowise/
+
+# The fuzz lane's working directories (S-0008). The corpus is an accumulating
+# build artifact, not a test input — unreviewed, unnamed and pruned — and a
+# crash file is a lead, not a deliverable: what a confirmed finding leaves
+# behind is a test under `tests/` (S-0008/D-4). The seeds and the dictionary
+# beside them stay committed; they are inputs a person wrote.
+fuzz/corpus/
+fuzz/crashes/

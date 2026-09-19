@@ -1,0 +1,1 @@
+CAST(amount AS DECIMAL(12, 2))

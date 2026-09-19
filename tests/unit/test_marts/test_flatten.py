@@ -1212,3 +1212,52 @@ def test_every_anchor_the_flattener_accepts_is_a_column_the_emitter_can_own() ->
                 checked += 1
 
     assert checked, "no as-of join in the corpus — this property would pass vacuously"
+
+
+def test_role_of_rides_from_the_step_onto_every_column_and_its_join() -> None:
+    # S-0007/what-each-fact-buys: two prefixed families declared roles of one
+    # dimension. The prefix keeps the columns distinct; role_of is what the
+    # prefix never carried — what the two have in common.
+    lowering = lower_marts(
+        _mart_set(
+            """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_}
+      - {via: order_of_customer, prefix: billing_, role_of: party}
+      - {via: order_of_customer, prefix: shipping_, role_of: party}
+      - {date: order_date, role: ordered_at}
+    measures: [revenue]
+"""
+        ),
+        _draft(),
+    )
+    assert lowering.violations == ()
+    (mart,) = lowering.marts
+
+    roles = {
+        column.name: (column.role_of, column.source_column)
+        for column in mart.columns
+        if column.role_of is not None
+    }
+    assert roles == {
+        "billing_customer_id": ("party", "customer_id"),
+        "billing_region": ("party", "region"),
+        "shipping_customer_id": ("party", "customer_id"),
+        "shipping_region": ("party", "region"),
+    }
+    # The date-role buckets and the undeclared family are untouched (S-0007/D-5).
+    assert all(
+        column.role_of is None
+        for column in mart.columns
+        if column.name.startswith(("order_", "ordered_"))
+    )
+    assert [(join.prefix, join.role_of) for join in mart.joins] == [
+        ("order_", None),
+        ("billing_", "party"),
+        ("shipping_", "party"),
+    ]

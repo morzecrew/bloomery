@@ -1,0 +1,112 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0010
+phase: 3
+base: 7e0e07e84886f7ca31e1ebd720ae59de55a01c97
+commit: bc22ab44363082139b707ed44e5c9cecd076b3ac
+at: '2026-09-19T03:59:18Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-19T03:57:34Z'
+    claim: >-
+      The harness gained one fixture helper and nothing else: the expectation tuple
+      is untouched, and both new targets consume it unwidened. The determinism target's
+      third leg re-loads the same bytes unguarded on purpose, so a refusal on a second
+      reading of documents that already loaded is reported as the determinism finding
+      it is rather than caught as an ordinary verdict.
+    evidence: >-
+      fuzz/_harness.py:41 — EXPECTED is still (BloomeryError,); the added fuzzed_sources
+      at :64 catches nothing and the two new targets import the tuple as it stands
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-19T03:57:34Z'
+    claim: >-
+      No caught exception was added to either new target. Every except in both names
+      _harness.EXPECTED, the cross-dialect target adds an assertion rather than a
+      catch for a refusal with no named reason, and no error-reference change is implied
+      by this work.
+    evidence: >-
+      fuzz/fuzz_cross_dialect.py:101 — the only except clause in the target names
+      _harness.EXPECTED; fuzz/fuzz_compile_determinism.py:130 re-loads with no except
+      at all
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-19T03:57:34Z'
+    claim: >-
+      No confirmed finding came out of this attempt, so nothing is owed to tests/
+      and nothing is checked in as a corpus entry standing in for a test. Each new
+      seed corpus is the six valid fixture documents with their slot byte, copied
+      from the spec-layer target's seeds; no crash input is checked in.
+    evidence: >-
+      `ls fuzz/fuzz_cross_dialect_seed_corpus fuzz/fuzz_compile_determinism_seed_corpus`
+      — catalog, entity_model, exposures, mapping_orders, marts, metrics in each,
+      the six valid documents and no crash file
+    action: decided
+  - decision: D-9
+    grade: ASSUMED
+    at: '2026-09-19T03:57:34Z'
+    claim: >-
+      Both sabotage proofs were performed in this attempt and both fire, but neither
+      could be a re-narrowed guard: no line in the current tree whose deletion either
+      oracle catches was found. Removing every AST copy on the emit path (SqlExpr.ast,
+      capture_group's transform, the ports' entry copies) leaves all four emit targets
+      byte-identical across compiles on all three dialects, and the fixture set reaches
+      no column quality rule, so physical_type is never called during a compile of
+      it. Both documented cases are therefore injected defects, recorded as such in
+      the targets' docstrings: a fingerprint made identity-dependent in compile.py
+      for determinism, a raise in trino's render for cross-dialect, the latter standing
+      in for the bare ValueError in duckdb's _nfc_normalize that the fixture set cannot
+      reach.
+    evidence: >-
+      `uv run --with 'atheris>=2.3' python fuzz/fuzz_compile_determinism.py fuzz/fuzz_compile_determinism_seed_corpus/marts`
+      with hex(id(project)) appended to compile.py's fingerprint — AssertionError:
+      a freshly loaded Project compiled differently, four differing checksums; the
+      same replay of fuzz_cross_dialect.py with a raise in trino.py:113 reports ValueError
+      from the trino leg with duckdb already compiled
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-19T03:57:44Z'
+    claim: >-
+      The fuzz fixture set cannot express a column quality rule, which is why the
+      cross-dialect oracle's one real known-catchable defect is unreachable. A mapping-level
+      rule pulls in the implicit coercible rule's quarantine disposition, which needs
+      quarantine: on the entity, which in turn needs the ingestion metadata contract
+      in the mapping — three documents changing together, where one execution replaces
+      one. The consequence is wider than the sabotage case: the whole quality, quarantine
+      and audit surface is unreachable from every target in the lane, and physical_type
+      is never called at all during a compile of these fixtures.
+    evidence: >-
+      src/bloomery/guardrails/quality.py:269 — an entity with any quarantine disposition
+      is refused without quarantine:, and the implicit coercible rule gives every
+      mapping-level rule one; src/bloomery/dialects/base.py:481 is the physical_type
+      no compile of the fixtures reaches
+    action: decided
+    proposal: >-
+      A row deciding whether the fixture set carries the quality surface — quarantine:
+      on the order entity plus _ingested_at, _load_id and _source_row_id in the mapping
+      — or whether that enrichment belongs to a follow-up. Either way the lane should
+      say so, because the sabotage obligation for a dialect-specific escape cannot
+      be met with a re-narrowed guard until it lands.

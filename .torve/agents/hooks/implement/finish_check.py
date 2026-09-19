@@ -210,6 +210,58 @@ def owed_entries(root: Path, task_id: str, touched: list[str]) -> list[str]:
     return [f"the log owes an entry — {row}" for row in rows] + [howto]
 
 
+def drifted_files(root: Path) -> list[str]:
+    """The projected files the corpus check says have drifted, worktree-relative,
+    or nothing when the check could not be asked."""
+
+    try:
+        run = subprocess.run(
+            ["uv", "run", "torve", "spec", "project", "--check", "--format", "json"],
+            capture_output=True,
+            text=True,
+            cwd=root,
+        )
+    except OSError:
+        return []
+
+    try:
+        return [str(rel) for rel in json.loads(run.stdout)["drifted"]]
+    except (ValueError, KeyError, TypeError):  # an unparseable answer is no answer
+        return []
+
+
+def drift_owed(contract: Path, drifted: list[str]) -> list[str]:
+    """The drift this attempt can be asked to fix: the projected files inside
+    the contract's scope, and no others.
+
+    Drift is a fact about the base as often as about the attempt — seven
+    acceptances landed on bloomery without the projection being re-run, and
+    every attempt cut from that base was told to project thirty directories
+    it could not write (`operator/finish-hook-convicts-base-drift`). The
+    scope is what the attempt may write, so it is also the extent of what
+    this check may owe it; drift outside it is the base's, and the gate that
+    reads the projection stays the judge of that.
+    """
+
+    if not drifted:
+        return []
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import scope_guard  # the sibling hook's reading of the contract's globs
+
+    allow = scope_guard.allow_patterns(contract)
+    deny = scope_guard.deny_patterns(contract)
+    owed = [rel for rel in drifted if scope_guard.is_allowed(rel, allow, deny)]
+
+    if not owed:
+        return []
+
+    return [
+        "the spec projection has drifted inside this contract's scope — run "
+        "`uv run torve spec project` and commit what it writes: " + ", ".join(owed)
+    ]
+
+
 def question() -> list[str]:
     """What the attempt still owes, as of this stop, or nothing if asked
     and clean. None when the check itself could not run — an inquiry that
@@ -228,19 +280,7 @@ def question() -> list[str]:
     problems: list[str] = failures(root, acceptance_commands(contracts[0]))
 
     problems += owed_entries(root, task_id, touched_paths(root))
-
-    drift = subprocess.run(
-        ["uv", "run", "torve", "spec", "project", "--check"],
-        capture_output=True,
-        text=True,
-        cwd=root,
-    )
-
-    if drift.returncode == 3:
-        problems.append(
-            "the spec projection has drifted — run `uv run torve spec project` "
-            "and commit what it writes"
-        )
+    problems += drift_owed(contracts[0], drifted_files(root))
 
     return problems
 

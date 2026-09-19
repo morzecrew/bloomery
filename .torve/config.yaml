@@ -58,7 +58,15 @@ tiers:
     profile: claude-equipped
     model: claude-opus-5
     provider: anthropic
-  reviewer: {harness: fake}
+  # The review tier, as close to shadow as the configuration allows: it runs
+  # on every gate-green attempt and records its findings; only a `blocker`
+  # stops a promotion (`blocks_at` below), a grade the reviewer has not once
+  # used on torve's own work. Data for the arms, not a gate — yet.
+  reviewer:
+    harness: claude-subscription
+    profile: review
+    model: claude-opus-5
+    provider: anthropic
 
 broker:
   adapter: local
@@ -69,3 +77,7 @@ providers:
   default: [anthropic]
   repositories: {}
   never_send: []
+
+review:
+  "on": [task_gated]         # judge every attempt whose gates went green (quoted: YAML reads a bare on as a boolean)
+  blocks_at: blocker         # a `major` is recorded and promotes; only a blocker stops
