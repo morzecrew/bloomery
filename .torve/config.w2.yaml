@@ -84,3 +84,15 @@ review:
 
 # The second worker's slot: its own auth and cache volumes (S-0004/D-2).
 worker_slot: 1
+
+# The review-thread leg (S-0084, S-0086): a served pass answers what landed and
+# turns a reviewer's unresolved threads — and, with `record`, the tier's own
+# non-blocking findings on the branch — into one revision round on the
+# document's branch, landed by the lane like any phase. Never merges, never
+# resolves a person's thread. Off by default; on here because the six findings
+# the tier recorded on S-0009 reached #155 for a person to sweep by hand.
+threads:
+  enabled: true
+  bots: [coderabbitai, codeant-ai]
+  rounds_per_pass: 1
+  sources: [forge, record]
