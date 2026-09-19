@@ -124,6 +124,36 @@ quality strict="false":
     just _uv_cmd "Secrets" {{ strict }} pre-commit run gitleaks --all-files
 
 # ----------------------- #
+# Fuzz
+#
+# A `just` lane rather than a seventh pytest marker (S-0008/D-6). A libFuzzer
+# target is not a pytest test and a run is time-boxed rather than pass-or-fail,
+# so a marker could only have covered a replay test over the corpus — and the
+# corpus is a build artifact here, not a checked-in test input. What a finding
+# leaves behind is a test under `tests/`, never a file under `fuzz/corpus/`
+# (S-0008/D-4). No acceptance command and no CI job runs any of this.
+
+# Run one fuzz target against its seeds and dictionary (`just fuzz parse_doors 300`)
+fuzz target="parse_doors" seconds="60":
+    {{ _uv_sync }}
+
+    mkdir -p fuzz/corpus/{{ target }} fuzz/crashes
+    uv run python fuzz/fuzz_{{ target }}.py \
+        -dict=fuzz/fuzz_{{ target }}.dict \
+        -artifact_prefix=fuzz/crashes/{{ target }}- \
+        -max_total_time={{ seconds }} \
+        fuzz/corpus/{{ target }} fuzz/fuzz_{{ target }}_seed_corpus
+
+# Replay one input through its target — the first thing to do with a crash file
+fuzz-repro target input:
+    uv run python fuzz/fuzz_{{ target }}.py {{ input }}
+
+# Shrink a crash file to the smallest input that still reproduces it
+fuzz-min target input:
+    uv run python fuzz/fuzz_{{ target }}.py -minimize_crash=1 -runs=200000 \
+        -exact_artifact_path=fuzz/crashes/{{ target }}-minimized {{ input }}
+
+# ----------------------- #
 # Docs
 
 # Render every D2 diagram to light and dark SVGs.

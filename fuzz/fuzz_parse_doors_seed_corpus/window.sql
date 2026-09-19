@@ -1,0 +1,1 @@
+SUM(amount) OVER (PARTITION BY customer_id ORDER BY order_date)

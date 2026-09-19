@@ -1,0 +1,1 @@
+amount; DROP TABLE orders

@@ -57,6 +57,12 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    # The fuzz lane's engine (S-0008). Dev-group and lane-gated: nothing under
+    # `src/` or `tests/` imports it, `just test` never loads it, and a
+    # contributor whose platform has no wheel loses the lane and nothing else.
+    # It ships manylinux wheels for cp312–cp314, which is this project's whole
+    # `requires-python` window.
+    "atheris>=2.3; sys_platform == 'linux'",
     # The range the emitted dbt project is claimed to work across (S-0025
     # D22), not merely what the e2e tier happens to resolve. The floor is
     # 1.10.8 because that is where generic-test `arguments` nesting stops
@@ -497,7 +503,10 @@ ignore_notebooks = true
 # a hole the next helper falls through.
 # `.torve/agents/hooks/` are the engine's hooks, imported as siblings inside a
 # sandbox; not a package, never shipped.
-extend_exclude = ["tools/spikes", ".torve"]
+# `fuzz/` is the same exception again: a target imports `atheris` (dev-only) and
+# its sibling harness by bare name, because libFuzzer runs the module as a
+# script. Nothing under `src/` imports it and no CI job runs it.
+extend_exclude = ["tools/spikes", ".torve", "fuzz"]
 
 # `examples/` is documentation that runs. The two container-backed examples
 # drive the warehouse they build — `duckdb` to seed and read it back — and that
@@ -528,7 +537,13 @@ line-length = 100
 # `ruff check .` (or an editor running one) would otherwise walk the suite and
 # report findings CI never sees. Lint and type tooling targets src only — the
 # house convention; the trade is that test code carries no lint floor.
-extend-exclude = ["src/bloomery/_version.py", "tests"]
+#
+# `fuzz` joins it on the same terms and for a sharper reason: the rules that
+# make `src/bloomery` a pure function are the rules a fuzz harness must break
+# to exist. It reads its fixtures off disk (`pathlib`), asserts on the oracle
+# (`S101`) and prints a measurement table (`T20`) — each one a deliberate
+# property of a driver, none of them a property of the compiler it drives.
+extend-exclude = ["src/bloomery/_version.py", "tests", "fuzz"]
 # Honour the exclusions even when a path is passed explicitly. Without this,
 # `ruff check tests/foo.py` — which is what pre-commit and editor-on-save
 # integrations do — lints an excluded file anyway, so the exclusion would hold

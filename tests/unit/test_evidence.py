@@ -27,7 +27,7 @@ import pytest
 from support.compiling import FIXTURES, fixture_sources, load_fixture
 from support.steps import registry_for
 
-from bloomery.evidence import _conversions
+from bloomery.evidence import _conversions, _divides
 
 from bloomery import (
     Catalog,
@@ -304,6 +304,28 @@ def test_a_programming_error_still_raises() -> None:
     with pytest.raises(AttributeError):
         # pyright: ignore[reportArgumentType] — passing the wrong type is the test
         evaluate(project, catalog=catalog, steps="not a registry")  # type: ignore[arg-type]
+
+
+def test_an_expression_too_deep_for_this_stack_is_not_a_raw_recursion_error() -> None:
+    """The advisory door holds on its own, at whatever stack position it is
+    called from (S-0008/D-7).
+
+    ``SqlText`` parses these expressions once at load and that is not a proof
+    about this call: SQLGlot recurses on nesting depth, so how much nesting it
+    accepts is a function of the remaining stack. The validator runs at depth 8
+    of a 1000 limit and ``_divides`` at 11 under ``evaluate``, deeper again
+    under a caller with frames of its own — measured by
+    ``fuzz/measure_parse_depth.py``. A ``RecursionError`` here crossed
+    ``evaluate``, whose whole contract is that a spec-level problem comes back
+    as a value (``logs/T-0048.md`` for the sibling case at this door).
+
+    Asked of the helper rather than through ``evaluate``, because the deeper
+    unguarded site in ``src/bloomery/resolve/build.py`` raises first on the
+    same input and is a finding of its own, outside this task's scope.
+    """
+    deep = "(" * 400 + "line_total / quantity" + ")" * 400
+    assert _divides(deep) is False
+    assert _divides("line_total / quantity") is True
 
 
 def test_invariant_violated_propagates_rather_than_being_reported(

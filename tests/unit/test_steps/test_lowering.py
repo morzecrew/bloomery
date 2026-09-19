@@ -647,6 +647,21 @@ steps:
         build_project_ir(project, steps=registry)
 
 
+def test_a_body_too_deep_to_parse_is_a_step_error_not_a_recursion_error() -> None:
+    """The same door, the other way a parse fails to return (S-0008/D-7).
+
+    SQLGlot recurses on nesting depth, so a deeply nested body exhausts the
+    stack instead of raising any SQLGlot class, and a handler naming only
+    ``SqlglotError`` let the ``RecursionError`` cross the compile boundary. A
+    registry body is assembled in Python and never passes ``SqlText``, so this
+    is the only door it can be guarded at — the sibling macro door in
+    ``resolve/build.py`` already catches both.
+    """
+    body = SQL_BODY.replace("canonical_id,", f"{'(' * 400}canonical_id{')' * 400},", 1)
+    with pytest.raises(StepError, match="does not parse as SQL"):
+        build(sql_body=body, kind="sql_model", entrypoint=None)
+
+
 def _with_produced(column: str) -> dict[str, object]:
     return {
         "customer": {

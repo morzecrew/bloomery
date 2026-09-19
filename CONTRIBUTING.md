@@ -304,6 +304,12 @@ tests/
   support/      # shared helpers (Hypothesis strategies, seeding, extraction)
 ```
 
+Beside the tiers, not among them, is the **fuzz lane** in `fuzz/` — libFuzzer targets run
+by `just fuzz <target> <seconds>`, never by `just test` and never by CI. A run is
+time-boxed rather than pass-or-fail, so it is not a marker; what a confirmed finding
+leaves behind is a test in one of the tiers above. See
+[the fuzzing guide](pages/docs/contributing/fuzzing.md).
+
 Mirror the `src` structure in `tests/unit` when possible:
 
 ```text
