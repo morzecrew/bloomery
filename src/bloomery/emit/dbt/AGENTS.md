@@ -161,6 +161,13 @@ A key appearing in more than one source is refused by a generated **blocking** a
 
 - Paths: `src/bloomery/emit/dbt/__init__.py` `tests/e2e/test_dbt_parse.py` `tests/unit/test_emit/test_quality_artifacts.py`
 
+### S-0043/D-5 — `LOCKED` (The dbt singular-test surface)
+
+**The model reference goes through `_reference_map`, never string formatting.** It is what makes a singular test a DAG participant rather than a query that happens to name a table, and it is already built for exactly this shape. Consequence: a singular test is ordered against its model by dbt, which is what makes "blocking" mean anything at all under D2.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/steps.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0043/D-6 — `OPEN` (The dbt singular-test surface)
 
 **The test-file naming scheme.** A singular test's name is its filename in a namespace shared with generic tests. Audit names are unique per project and `[a-z0-9_]+`-constrained, so the raw name may suffice; a `bloomery_` prefix would match the macro's convention at the cost of length. Whoever builds this decides and logs it.
@@ -194,11 +201,39 @@ Replay is `macros/replay_<entity>.sql`, run by `dbt run-operation`. Not ergonomi
 - Paths: `src/bloomery/emit/dbt/__init__.py` `tests/e2e/test_dbt_quality.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0060/D-5 — `LOCKED` (dbt as a complete quality target)
+
+The dbt replay artifact keeps `ArtifactKind.REPLAY` despite living under `macros/`. The kind means "a statement the caller runs, not a relation the framework maintains", and a caller routing the artifact stream must be able to tell those apart without parsing a path.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/quality_mart.py` `src/bloomery/emit/lower/reconcile.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `tests/e2e/test_dbt_parse.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0060/D-7 — `LOCKED` (dbt as a complete quality target)
+
+The quality mart's dbt refusal is **deleted**, not narrowed, once D1 and D6 land: no surface it reads is then missing. Narrowing its predicate is the right change only if this RFC does not ship — the two are alternatives, not a sequence, and pursuing both would leave dead code behind.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/quality_mart.py` `src/bloomery/emit/lower/reconcile.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `tests/e2e/test_dbt_parse.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0060/D-8 — `ASSUMED` (dbt as a complete quality target)
 
 dbt's `RunContext` is `invocation_id` and `run_started_at`, carried through `exp.var` exactly as `@execution_ds` already is. This gives dbt a `run_id` SQLMesh does not have; the asymmetry is reported, not hidden.
 
 - Paths: `src/bloomery/emit/dbt/__init__.py`
+
+### S-0060/D-9 — `LOCKED` (dbt as a complete quality target)
+
+`python_model` steps stay refused (S-0034/D-52), untouched by this RFC. Leaving one refusal standing is what keeps "dbt refuses this" a specific statement rather than a historical one.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/quality_mart.py` `src/bloomery/emit/lower/reconcile.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `tests/e2e/test_dbt_parse.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0060/D-11 — `LOCKED` (dbt as a complete quality target)
+
+The reject model names `incremental_strategy='delete+insert'`. Left to the adapter it is per-adapter and project-overridable, and `append` makes `unique_key` inert — every re-delivery becomes a new row, silently, because the `LEFT JOIN` still computes the right values and nothing reads them back. dbt-duckdb's default *is* `delete+insert` (measured), which is why this looked like a free choice and is not. The value is named here rather than delegated: `delete+insert` materializes the SELECT before deleting, so the join against `{{ this }}` reads the incumbent row, and it exists on every adapter — `merge` would be narrower with nothing left to buy once D1 moved the preservation out of the merge clause.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/quality_mart.py` `src/bloomery/emit/lower/reconcile.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `tests/e2e/test_dbt_parse.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0060/D-14 — `LOCKED` (dbt as a complete quality target)
 
@@ -207,11 +242,53 @@ The replay macro wraps its three statements in an explicit `BEGIN`/`COMMIT`. `ru
 - Paths: `src/bloomery/emit/dbt/__init__.py` `tests/e2e/test_dbt_quality.py` `tests/unit/test_emit/test_quality_artifacts.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0061/D-1 — `LOCKED` (The SQLMesh project file)
+
+bloomery emits `config.yaml` with `model_defaults` and **never** a `gateways:` block. The dbt precedent is not an analogy but the same rule: `dbt_project.yml` is emitted, `profiles.yml` is not, because a connection carries hosts and credentials and the compiler reads no environment. M2 measures that SQLMesh accepts the split.
+
+- Paths: `examples/targets/run.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/ir/nodes.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0061/D-3 — `LOCKED` (The SQLMesh project file)
+
+`start` is **derived**, never a new spec key. The catalog's date dimension already states the project's temporal extent; a second declaration of one fact is two declarations that will disagree.
+
+- Paths: `examples/targets/run.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/ir/nodes.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-1 — `LOCKED` (Ownership, classification and grants)
+
+The three annotations change no SELECT. They reach metadata slots only, and an existing golden's SQL is byte-identical with them absent — asserted, not assumed.
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/spec/entity.py` `src/bloomery/spec/quality.py` `tests/unit/test_tenant_guard.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-3 — `LOCKED` (Ownership, classification and grants)
+
+`classification` is a **closed** vocabulary. An open string is a tag that cannot be routed, and the routing — the `redact` reconciliation and Cube's `public: false` — is the whole reason this is not a `meta` passthrough.
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/spec/entity.py` `src/bloomery/spec/quality.py` `tests/unit/test_tenant_guard.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-4 — `LOCKED` (Ownership, classification and grants)
+
+**Superseded by rows 9, 10 and 11.** `pii`/`secret` on a mapped field whose path is not redacted is a refusal **when the entity quarantines**, and silent otherwise. Unsatisfiable as written: a mapped field's path cannot be redacted — `_check_redaction` refuses that already — so both branches close and the classification has no legal spelling, which is the gap §2 opened this RFC to fill (see `logs/T-0050.md`, and `logs/T-0051.md` for the replacement).
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/spec/entity.py` `src/bloomery/spec/quality.py` `tests/unit/test_tenant_guard.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0062/D-12 — `ASSUMED` (Ownership, classification and grants)
 
 A rollup declares its own `grants:` and does not inherit its parent mart's — D2's rule, applied to the one authored node that had no audience of its own. A rollup declaring none is the advisory of row 11 rather than a hole.
 
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/spec/marts.py`
+
+### S-0063/D-1 — `LOCKED` (Exposures and downstream consumers)
+
+Exposures are **declared**, never discovered. Discovery needs a network and credentials; S-0020 forbids both, and a compiler that reads a BI tool is a different program.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0063/D-2 — `LOCKED` (Exposures and downstream consumers)
 
@@ -225,6 +302,13 @@ An exposure naming an undeclared metric or mart is refused. An exposure pointing
 Cube and SQLMesh emit nothing for an exposure, and this is **not** a refusal. Neither framework has the concept, so there is nothing to degrade; refusing a Cube compile because the project declares a dashboard would turn an annotation into a target restriction.
 
 - Paths: `src/bloomery/emit/dbt/__init__.py` `tests/unit/test_emit/test_sqlmesh.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0064/D-1 — `LOCKED` (Declared source freshness)
+
+bloomery **declares** freshness and never measures it. The threshold is emitted; the framework runs the query. This is the same line drawn everywhere else — no execution, no clock, no environment.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/quality/reject.py` `src/bloomery/spec/catalog.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0064/D-3 — `ASSUMED` (Declared source freshness)

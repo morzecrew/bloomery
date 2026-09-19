@@ -405,6 +405,13 @@ A mart whose **`base`** is `scd: type2` is refused on the same account. There is
 - Paths: `src/bloomery/errors.py` `src/bloomery/guardrails/arithmetic.py` `tests/unit/test_guardrails/test_arithmetic.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0047/D-1 — `LOCKED` (The unresolved-work report)
+
+**The report is derived; no spec surface changes.** §3 measured that a `canonical:`-linked field with no mapping is a legal, complete spec whose metric is reported unreachable — including when the field is `required:`. "Undecided" is therefore already expressible, and a marker would be a second spelling of it. Consequence: this RFC touches no document kind, no `spec_version`, and no parser.
+
+- Paths: `src/bloomery/cli/render.py` `src/bloomery/evidence.py` `src/bloomery/resolve/reach.py` `src/bloomery/resolve/recipes.py` `src/bloomery/resolve/resolution.py` `src/bloomery/spec/catalog.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0047/D-2 — `LOCKED` (The unresolved-work report)
 
 **`options` is enumerated in catalog order and never sorted, ranked or scored.** Enumerating what the catalog declares is a projection; ordering is where a preference would hide. `Recipe`'s docstring makes catalog order *authored* ("ordered by reliability"), so re-sorting — alphabetically included — destroys information rather than normalizing it. Consequence: this is a deliberate exception to the sort-every-collection habit, and it needs the §6 test with a non-alphabetical catalog or the exception is untested.
@@ -466,11 +473,25 @@ A mart whose **`base`** is `scd: type2` is refused on the same account. There is
 - Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/resolution.py` `src/bloomery/spec/common.py` `src/bloomery/spec/mapping.py` `tests/property/test_schema_agreement.py` `tests/unit/test_resolve/test_resolution.py` `tests/unit/test_spec/test_mapping.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0049/D-2 — `LOCKED` (Mapping identity)
+
+**`(source, target)` is refused as the identity**, against S-0041/D-19's key shape looking like a candidate. Demonstrated non-unique: two documents may declare the same pair and the loader accepts them. Consequence: D19's quality-mart key is left alone — it is an accounting key for a per-entity mart, not an identity, and this decision does not reopen it.
+
+- Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/resolution.py` `src/bloomery/spec/mapping.py` `src/bloomery/spec/project.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0049/D-6 — `LOCKED` (Mapping identity)
 
 **S-0047/D-9's omission is not lifted here.** D9 gave two reasons and this RFC removes one; the other — what a worklist entry means when N documents could each close a gap — is a decision about the report's promise. Consequence: `_unresolved` keeps its `continue`, and the change is a comment saying what is now true. Answering both at once would decide S-0047's contract inside a document about nouns.
 
 - Paths: `src/bloomery/evidence.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0049/D-9 — `LOCKED` (Mapping identity)
+
+**`document` is `SkipJsonSchema` — absent from the schema `bloomery schema` exports.** That schema's audience is a spec author and D3 says this field is not theirs to write; a required `document` there would have an editor demand the one key the loader refuses, the exported contract contradicting the compiler on the surface whose whole job is to agree with it. Consequence: the model and the exported schema deliberately disagree about one field, recorded by `test_document_is_in_the_model_and_not_the_schema` where the other measured divergences live. *Added by execution 2026-08-30 — see logs/T-0008.md (D036, attempt 1).*
+
+- Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/resolution.py` `src/bloomery/spec/mapping.py` `src/bloomery/spec/project.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0050/D-5 — `LOCKED` (Metrics over time: derived metrics, offsets, cumulative windows, metric filters)
@@ -506,6 +527,13 @@ A mart whose **`base`** is `scd: type2` is refused on the same account. There is
 **A ratio is stored as its operands, not as a materialized quotient.** `SUM(num)/SUM(den)` and `AVG(ratio)` differ, the second is what a numeric-looking column invites, and the difference is a plausible wrong number. This is also S-0055's precondition — a derived metric spanning two branches cannot be reconstructed after the operands are gone — so reversing it later strands that document.
 
 - Paths: `src/bloomery/emit/lower/rollups.py` `src/bloomery/errors.py` `src/bloomery/guardrails/additivity.py` `src/bloomery/guardrails/metrics.py` `src/bloomery/ir/nodes.py` `src/bloomery/quality/mart.py` `tests/fixtures/semantic_corpus/002-average-of-averages/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/002-average-of-averages/problem.md` `tests/fixtures/semantic_corpus/007-distinct-users-fanout/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/007-distinct-users-fanout/problem.md` `tests/fixtures/semantic_corpus/008-ratio-rollup/bloomery/declared/metrics.yaml` `tests/fixtures/semantic_corpus/008-ratio-rollup/bloomery/naive/metrics.yaml` `tests/fixtures/semantic_corpus/008-ratio-rollup/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/008-ratio-rollup/problem.md` `tests/fixtures/semantic_corpus/012-rollup-recounts-identities/problem.md` `tests/unit/test_emit/test_rollups.py` `tests/unit/test_guardrails/test_additivity.py` `tests/unit/test_guardrails/test_metrics.py` `tests/unit/test_steps/test_step_canonicals.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0053/D-8 — `LOCKED` (Measure semantic types and additivity algebra)
+
+**A site branching on additivity tests the property it means, never the member it happened to observe.** Fifteen sites across the emitters, the planner and the guardrails read `NON_ADDITIVE`, and twelve of them meant something else — nine "never emits a measure", three "a ratio specifically" — so minting `RATIO` narrowed twelve branches at once and no test in the tree could see it. `bloomery.ir.COMPUTED` is that property under its own name, and is already complete for all six members. Locked because it is what the `RESOLVABLE` canary's promise rests on: minting `DistinctCount` or `Snapshot` is an enum edit and a lowering, not a second sweep of fifteen judgement calls (see `logs/T-0023.md` (`logs/T-0023.md`), D146).
+
+- Paths: `src/bloomery/errors.py` `src/bloomery/ir/nodes.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0057/D-1 — `LOCKED` (`bloomery check` and imported semantic provenance)
@@ -582,6 +610,20 @@ An unprovable rollup is **refused**, never warned about. A rollup is read instea
 **Whether `currency_in:` extends to `RecipeFieldMapping` and `MacroFieldMapping`.** This row assumed a recipe's chain can hold a conversion, and it cannot: a `Recipe` is `{id, requires, expr}` — a SQL expression over aliases, with no transform chain — and a macro's body is opaque SQL. Neither can carry a `convert` step, so neither can hold a conversion whose input would need declaring, and neither reaches the code that would ask. Answered "no" for both, and "yes" for `KeyField`, which this row did not think to ask about (see `logs/T-0025.md` (`logs/T-0025.md`), D158).
 
 - Paths: `src/bloomery/evidence.py` `tests/unit/test_evidence.py`
+
+### S-0070/D-1 — `LOCKED` (Consumer-declared evidence strictness)
+
+A fact's grade is derived from how the compiler obtained it and can never be written in a spec. A declared grade is an unchecked claim about a claim.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/errors.py` `src/bloomery/semantic/proof.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0070/D-2 — `LOCKED` (Consumer-declared evidence strictness)
+
+This sits above S-0005's floor and never below it. No annotation here makes a project compile that would otherwise be refused.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/errors.py` `src/bloomery/semantic/proof.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0070/D-4 — `LOCKED` (Consumer-declared evidence strictness)
 

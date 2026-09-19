@@ -394,6 +394,27 @@ The changelog section is cut **before** the tag. `hatch-vcs` derives the version
 
 - Paths: `tests/unit/test_cli.py`
 
+### S-0062/D-1 — `LOCKED` (Ownership, classification and grants)
+
+The three annotations change no SELECT. They reach metadata slots only, and an existing golden's SQL is byte-identical with them absent — asserted, not assumed.
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/spec/entity.py` `src/bloomery/spec/quality.py` `tests/unit/test_tenant_guard.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-3 — `LOCKED` (Ownership, classification and grants)
+
+`classification` is a **closed** vocabulary. An open string is a tag that cannot be routed, and the routing — the `redact` reconciliation and Cube's `public: false` — is the whole reason this is not a `meta` passthrough.
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/spec/entity.py` `src/bloomery/spec/quality.py` `tests/unit/test_tenant_guard.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-4 — `LOCKED` (Ownership, classification and grants)
+
+**Superseded by rows 9, 10 and 11.** `pii`/`secret` on a mapped field whose path is not redacted is a refusal **when the entity quarantines**, and silent otherwise. Unsatisfiable as written: a mapped field's path cannot be redacted — `_check_redaction` refuses that already — so both branches close and the classification has no legal spelling, which is the gap §2 opened this RFC to fill (see `logs/T-0050.md`, and `logs/T-0051.md` for the replacement).
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/spec/entity.py` `src/bloomery/spec/quality.py` `tests/unit/test_tenant_guard.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0062/D-9 — `LOCKED` (Ownership, classification and grants)
 
 **Classification composes with `grants`, not with `redact`.** §2 paired it with redaction because "`redact:` is the nearest thing" — true when this was drafted, false once phase 4 shipped the one annotation with a mechanism behind it. `redact:` governs what a reject row keeps; `classification:` governs a column that is published; the two stay orthogonal (see `logs/T-0051.md`).

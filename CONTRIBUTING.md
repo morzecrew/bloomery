@@ -40,7 +40,8 @@ row; `torve decisions paths "src/bloomery/emit/**"` says what governs a director
 
 This corpus replaced the RFC corpus on 2026-09-18. Every RFC, decision and section is mapped
 in `.torve/archive/identifiers.yaml`, and `torve spec show` given an old RFC citation answers it; the old
-citation. The execution logs under `logs/` keep their history with citations rewritten.
+citation. The execution logs that lived under `logs/` are in history, their citations rewritten
+before they were deleted.
 
 ## Development Setup
 

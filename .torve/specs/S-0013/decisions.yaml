@@ -15,10 +15,10 @@ decisions:
     rationale: >-
       Row D1 of `rfcs/0047-snowflake-dialect.md`, carried at the grade that document
       gives it. The reader-dependence this removes was removed once already at real
-      cost — the retirement `rfcs/RETIRED.md` records as 0028 at `558b31c` — and it
-      is not this port's decision to revisit: a port that "usefully" picked `LTZ`
-      would reintroduce a shipped defect on one engine only, where the other three
-      look fine
+      cost — the retirement `RETIRED.md` (the retired register, since deleted) records
+      as 0028 at `558b31c` — and it is not this port's decision to revisit: a port
+      that "usefully" picked `LTZ` would reintroduce a shipped defect on one engine
+      only, where the other three look fine
   - id: D-2
     grade: LOCKED
     text: >-

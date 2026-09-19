@@ -16,14 +16,18 @@ decisions:
       - tests/unit/test_resolve/test_resolution.py
       - tests/unit/test_spec/test_mapping.py
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **`(source, target)` is refused
-      as the identity**, against S-0041/D-19's key shape looking like a candidate.
-      Demonstrated non-unique: two documents may declare the same pair and the loader
-      accepts them. Consequence: D19's quality-mart key is left alone — it is an accounting
-      key for a per-entity mart, not an identity, and this decision does not reopen
-      it.
+      **`(source, target)` is refused as the identity**, against S-0041/D-19's key
+      shape looking like a candidate. Demonstrated non-unique: two documents may declare
+      the same pair and the loader accepts them. Consequence: D19's quality-mart key
+      is left alone — it is an accounting key for a per-entity mart, not an identity,
+      and this decision does not reopen it.
+    paths:
+      - src/bloomery/evidence.py
+      - src/bloomery/resolve/resolution.py
+      - src/bloomery/spec/mapping.py
+      - src/bloomery/spec/project.py
   - id: D-3
     grade: LOCKED
     text: >-
@@ -87,17 +91,21 @@ decisions:
       Consequence: a caller reaching the shape check directly gets an identity too.
       *Added by execution 2026-08-30 — see logs/T-0008.md (D035, attempt 1).*
   - id: D-9
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **`document` is `SkipJsonSchema`
-      — absent from the schema `bloomery schema` exports.** That schema's audience
-      is a spec author and D3 says this field is not theirs to write; a required `document`
-      there would have an editor demand the one key the loader refuses, the exported
-      contract contradicting the compiler on the surface whose whole job is to agree
-      with it. Consequence: the model and the exported schema deliberately disagree
-      about one field, recorded by `test_document_is_in_the_model_and_not_the_schema`
+      **`document` is `SkipJsonSchema` — absent from the schema `bloomery schema`
+      exports.** That schema's audience is a spec author and D3 says this field is
+      not theirs to write; a required `document` there would have an editor demand
+      the one key the loader refuses, the exported contract contradicting the compiler
+      on the surface whose whole job is to agree with it. Consequence: the model and
+      the exported schema deliberately disagree about one field, recorded by `test_document_is_in_the_model_and_not_the_schema`
       where the other measured divergences live. *Added by execution 2026-08-30 —
       see logs/T-0008.md (D036, attempt 1).*
+    paths:
+      - src/bloomery/evidence.py
+      - src/bloomery/resolve/resolution.py
+      - src/bloomery/spec/mapping.py
+      - src/bloomery/spec/project.py
   - id: D-10
     grade: ASSUMED
     text: >-

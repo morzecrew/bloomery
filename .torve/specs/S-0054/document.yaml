@@ -165,8 +165,8 @@ sections:
         the rollup-proof half the condition is stated in terms of, and deleting it would leave
         0058 arguing from a premise no longer in the tree. It is retired with the last of its
         dependants.
-        Execution's findings and the rows it proposes are in [`logs/T-0021.md`](logs/T-0021.md)
-        and [`logs/T-0022.md`](logs/T-0022.md); no prose below has been amended to agree with
+        Execution's findings and the rows it proposes are in `logs/T-0021.md` (`logs/T-0021.md`, in history)
+        and `logs/T-0022.md` (`logs/T-0022.md`, in history); no prose below has been amended to agree with
         what was built — §5 and §11 keep their text and carry pointers to what replaced them. Fourth in the
         semantic-correctness sequence; depends on S-0017,
         S-0053 and

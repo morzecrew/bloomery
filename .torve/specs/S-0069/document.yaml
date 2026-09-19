@@ -174,7 +174,7 @@ sections:
         walk's `TimelineChange` rather than a new edge kind in the IR, the additivity facet ships
         plain rather than waiting for P3's provenance wording, and D6 is answered by a totality
         test over the IR models. Execution's findings and the rows it proposes are in
-        [`logs/T-0045.md`](logs/T-0045.md); nothing below has been amended to agree with what
+        `logs/T-0045.md` (`logs/T-0045.md`, in history); nothing below has been amended to agree with what
         was built. **P3 — the exposure sinks and S-0005's provenance vocabulary — is
         unscheduled.** Depends on S-0067 for identity,
         and on having two spec sets to compare. S-0068 was where those were to come from; it

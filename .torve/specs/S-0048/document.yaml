@@ -413,7 +413,7 @@ risks: |-
     to `None`, so the flag can only be `True` if the caller asked for a bound.
   - **A new edge label, or a new shape of an existing one, silently outside the table.** The
     §6 completeness test is the mitigation and it fails closed. This is the same hole
-    S-0046's conformance battery had per-branch (see [`logs/T-0002.md`](logs/T-0002.md)
+    S-0046's conformance battery had per-branch (see `logs/T-0002.md` (`logs/T-0002.md`, in history)
     D005): a guard keyed by one dimension misses a second — and it recurred twice while this
     RFC was being written. A label-keyed reading of the corpus listed one of `step_input`'s
     three source shapes, and the same reading missed `step:<ref@version>` entirely, because

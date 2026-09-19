@@ -258,8 +258,8 @@ sections:
         sequence in the sense `INDEX.md` describes: S-0069 is still in progress and
         argues in this document's vocabulary — its rows 9 and 13 say the `supersedes` edge *is*
         `TimelineChange` and that the command surface is this one. Execution's findings and the
-        rows it proposed are in [`logs/T-0043.md`](logs/T-0043.md),
-        [`logs/T-0045.md`](logs/T-0045.md) and [`logs/T-0046.md`](logs/T-0046.md); rows 14
+        rows it proposed are in `logs/T-0043.md` (`logs/T-0043.md`, in history),
+        `logs/T-0045.md` (`logs/T-0045.md`, in history) and `logs/T-0046.md` (`logs/T-0046.md`, in history); rows 14
         and 9's neighbours were appended from them, and nothing below has been amended to agree
         with what was built. Depends on S-0067 P1 for identity;
         assumes S-0073's answer to where history comes from (that document is retired at

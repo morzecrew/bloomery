@@ -61,7 +61,7 @@ current_state: |
     warning block.
 
   **Two things are not done, and both are named by the log of that landing,
-  [T-0064](logs/T-0064.md).**
+  T-0064 (`logs/T-0064.md`, in history).**
 
   - **The acceptance ran on one target.** The design asked for it on both, "since the
     two frameworks version differently and a design that works on one is half a
@@ -259,10 +259,10 @@ sections:
 
       | What | Where | Landed |
       |---|---|---|
-      | The measurement that made the phase writable | `tools/spikes/` and [T-0057](logs/T-0057.md) | `8e6303c7`, pull request #121, 2026-09-15 |
-      | P1 — the route, the refusal swap, the acceptance | [T-0064](logs/T-0064.md) | `ad5891d7`, pull request #128, 2026-09-17 |
+      | The measurement that made the phase writable | `tools/spikes/` and T-0057 (`logs/T-0057.md`, in history) | `8e6303c7`, pull request #121, 2026-09-15 |
+      | P1 — the route, the refusal swap, the acceptance | T-0064 (`logs/T-0064.md`, in history) | `ad5891d7`, pull request #128, 2026-09-17 |
 
-      **What P1's log proposes and the table has not accepted.** [T-0064](logs/T-0064.md)
+      **What P1's log proposes and the table has not accepted.** T-0064 (`logs/T-0064.md`, in history)
       carries eight divergence entries, five of them proposing rows: the re-delivery's
       identity and reserved load, the two narrow refusals, the zoneless ingestion
       instant, the current-version scope on both generated audits, and the resolution

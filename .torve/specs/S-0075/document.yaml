@@ -306,7 +306,7 @@ sections:
         S-0057 — where P2 used to live.
       - **Origin:** Executing S-0057/phasing (P-2) halted at the plan gate with five load-bearing questions
         the document does not settle; the entries and their evidence are in
-        [`logs/T-0053.md`](logs/T-0053.md).
+        `logs/T-0053.md` (`logs/T-0053.md`, in history).
   - key: decision-notes
     md: >-
       _(Decision rows from here on are this document's D-1…; see `decisions.yaml`.)_

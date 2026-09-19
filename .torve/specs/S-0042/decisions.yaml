@@ -1,12 +1,13 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) The three S-0018/out-of-scope
-      ratchets land before the `v0.1.0` tag, not after. Their stated trigger was the
-      release; deferring them past it converts a deliberate deferral into an oversight,
-      and a promise nothing enforces is what the release exists to stop.
+      The three S-0018/out-of-scope ratchets land before the `v0.1.0` tag, not after.
+      Their stated trigger was the release; deferring them past it converts a deliberate
+      deferral into an oversight, and a promise nothing enforces is what the release
+      exists to stop.
+    paths: [pages/docs/reference/stability.md]
   - id: D-2
     grade: LOCKED
     text: >-
@@ -22,12 +23,13 @@ decisions:
       The per-package floors generalize the existing `guardrails/ = 100%` rather than
       replacing it. That floor already encodes S-0026/D-9 and is not up for renegotiation.
   - id: D-4
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) The perf gate is an **absolute
-      ceiling with headroom** against S-0031's budgets, never a drift comparison against
-      a stored baseline. Runner variance makes percentage drift on millisecond measurements
-      flaky, and a flaky gate is one people learn to re-run.
+      The perf gate is an **absolute ceiling with headroom** against S-0031's budgets,
+      never a drift comparison against a stored baseline. Runner variance makes percentage
+      drift on millisecond measurements flaky, and a flaky gate is one people learn
+      to re-run.
+    paths: [pages/docs/reference/stability.md]
   - id: D-5
     grade: OPEN
     text: >-
@@ -35,12 +37,13 @@ decisions:
       one notch below — above it fails on day one, far below it ratchets nothing.
       The executor measures and logs the numbers.
   - id: D-6
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) `rfcs/RETIRED.md` is three
-      columns — number, title, retiring SHA — and **never a summary**. A fourth column
-      would reintroduce the drifting second account the retirement policy exists to
-      prevent; three columns describe no behaviour and so cannot drift.
+      `RETIRED.md` (the retired register, since deleted) is three columns — number,
+      title, retiring SHA — and **never a summary**. A fourth column would reintroduce
+      the drifting second account the retirement policy exists to prevent; three columns
+      describe no behaviour and so cannot drift.
+    paths: [pages/docs/reference/stability.md]
   - id: D-7
     grade: ASSUMED
     text: >-

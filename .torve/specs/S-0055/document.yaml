@@ -171,12 +171,12 @@ sections:
     md: |-
       - **Status:** 🚧 In progress — §13a's P1 and P2 have both landed. P1: two or more
         additive branches, shared dimensions by provenance, no filters
-        ([`logs/T-0026.md`](logs/T-0026.md)). P2: a filter and the row policy placed on every
+        (`logs/T-0026.md` (`logs/T-0026.md`, in history)). P2: a filter and the row policy placed on every
         branch or the request refused, `order_by`/`limit` on the composed statement, and a ratio
         or `derived:` metric whose components live on different branches computed above the join
-        ([`logs/T-0027.md`](logs/T-0027.md)). The held-back classes (§8, D8) are decided per
+        (`logs/T-0027.md` (`logs/T-0027.md`, in history)). The held-back classes (§8, D8) are decided per
         class — all three stay out of branch planning, directly and as components (T-0027 D183;
-        `DistinctCount`'s lowering is [`logs/T-0028.md`](logs/T-0028.md)) — and nothing further
+        `DistinctCount`'s lowering is `logs/T-0028.md` (`logs/T-0028.md`, in history)) — and nothing further
         is scheduled. Depends on S-0054, complete.
       - **Scope:** Answer requests containing measures from different origin grains by
         independently aggregating each safe branch to a common result grain and joining only

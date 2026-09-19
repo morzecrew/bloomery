@@ -16,16 +16,18 @@ decisions:
   - id: D-2
     grade: ASSUMED
     text: >-
-      The RFC corpus under `rfcs/` is the design authority for work not yet landed;
-      a landed or rejected RFC is retired — deleted — in the change that completes
-      it, with a row in `rfcs/RETIRED.md` naming a commit the document is readable
-      at, and a retiring RFC takes no new rows
-    paths: [rfcs/**, tools/check_rfc_corpus.py]
+      The RFC corpus under the `rfcs` directory (since retired) is the design authority
+      for work not yet landed; a landed or rejected RFC is retired — deleted — in
+      the change that completes it, with a row in `RETIRED.md` (the retired register,
+      since deleted) naming a commit the document is readable at, and a retiring RFC
+      takes no new rows
+    paths: [tools/check_rfc_corpus.py]
     consequence: >-
       A change that completes a design is refused by `check_rfc_corpus.py` when its
       number is neither live nor retired or its commit does not hold the document;
       thirty-six retirements and two corrections to the gate itself are the history
       behind the rule
+    superseded_by: S-0078/D-7
   - id: D-3
     grade: ASSUMED
     text: >-
@@ -37,6 +39,7 @@ decisions:
       The decisions-reported gate never measured a landing here; this row is the corpus
       layer that turns its no-task skip into something that can fire, in the vocabulary
       the repository's own `log_check.py` already checks
+    superseded_by: S-0078/D-7
   - id: D-4
     grade: ASSUMED
     text: >-

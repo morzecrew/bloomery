@@ -8,19 +8,25 @@ decisions:
       S-0020's boundary, which every document in this corpus is written on top of.
     paths: [src/bloomery/resolve/timeline.py]
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) No `--as-of` on any command.
-      The flag would oblige bloomery to know what a history is — which store, which
-      instant-to-version mapping, what to do when it is ambiguous — and none of those
-      is a question about compiling. `--steps` is the same question already answered
-      this way (S-0034/purity-the-registry-is-a-compile-input).
+      No `--as-of` on any command. The flag would oblige bloomery to know what a history
+      is — which store, which instant-to-version mapping, what to do when it is ambiguous
+      — and none of those is a question about compiling. `--steps` is the same question
+      already answered this way (S-0034/purity-the-registry-is-a-compile-input).
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/cli/io.py
+      - src/bloomery/spec/project.py
   - id: D-3
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) S-0068 is rejected, not deferred.
-      An unscheduled design still shapes the documents that cite it, and two already
-      cite this one.
+      S-0068 is rejected, not deferred. An unscheduled design still shapes the documents
+      that cite it, and two already cite this one.
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/cli/io.py
+      - src/bloomery/spec/project.py
   - id: D-4
     grade: ASSUMED
     text: >-

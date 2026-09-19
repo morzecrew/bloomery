@@ -249,6 +249,13 @@ The collision audit reads the **union output, before dedupe**, and groups by **e
 - Paths: `src/bloomery/emit/lower/silver.py` `tests/execution/test_merged_cleaning.py` `tests/unit/test_emit/test_quality_artifacts.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0041/D-16 — `LOCKED` (Deterministic union merge)
+
+**S-0033/D-10 is not reopened here.** That decision chose one reject table per entity *on the ground that per-mapping tables make replay N-way*, and a merged entity is N-way by construction. `reject_id` itself survives — it is already a digest of `(source_relation, row identity)`, so the pair was designed for exactly this — but replay re-runs *the* current mapping, and branching it per source is the thing D10 refused. N-way replay gets its own RFC, argued against D10 directly, rather than being decided inside a feature branch.
+
+- Paths: `src/bloomery/emit/lower/silver.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0041/D-18 — `LOCKED` (Deterministic union merge)
 
 **`_source` joins `RESERVED_MEMBER_NAMES`.** Every other generated column is reserved — `_quality_flags`, `_quality_ok`, `_load_id`, `_ingested_at`, `_source_row_id`, `has_quality_flags` — and a generated column that is not is one an author can collide with. Reserved unconditionally, not only on merged entities: a name that is legal until a second mapping arrives is a trap laid for the change that adds one.
@@ -267,6 +274,13 @@ The collision audit reads the **union output, before dedupe**, and groups by **e
 **Answers D25 (`OPEN`) — option (a), and D25's blast-radius figure was wrong by an order of magnitude.** The lowered expression moves to a new column-grained `SourceColumnIR` on `SourceIR`; `ColumnIR` keeps the schema (§5.7). D25 said "37 `.columns` read sites" and estimated the cost from that; measured, **exactly 8 sites read a `ColumnIR` lowering field, in 3 files** — `plan/diff.py` (`renamed_from` ×4, `recipe_id`, `expr.sql`) and `emit/lower/silver.py` (`expr.ast()` ×2). Four of those eight are `renamed_from`, which D25 mis-assigned to the lowering half and which is declared on the EntityModel `Field`, so it does not move at all. The 37 was a count of `.columns` readers, and `.columns` readers are overwhelmingly *schema* readers — they survive untouched, which is the whole point of the split. **Real cost: two constructors where there was one, and four call sites.** The golden churn stands regardless — the IR shape moves and D17 bumps the version.
 
 - Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/guardrails/conflict.py` `src/bloomery/guardrails/operands.py` `src/bloomery/guardrails/stage.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/build.py` `src/bloomery/resolve/facets.py` `src/bloomery/resolve/steps.py` `src/bloomery/resolve/timeline.py` `tests/bench/test_hydration.py` `tests/support/ir_factory.py` `tests/support/plan_ir.py` `tests/unit/test_emit/test_cube.py` `tests/unit/test_emit/test_dbt.py` `tests/unit/test_emit/test_sqlmesh.py` `tests/unit/test_guardrails/test_conflict.py` `tests/unit/test_resolve/test_build.py` `tests/unit/test_resolve/test_facets.py` `tests/unit/test_unresolved.py`
+
+### S-0041/D-31 — `LOCKED` (Deterministic union merge)
+
+**P2 is demand-gated: the design lands now, the code waits for a named consumer.** S-0040/D-6 applies this test to its own P2 and this document did not, which left §12 reading as a queue rather than a boundary. The asymmetry has no justification — P1's refusals are honest, tested, and route to the shipped workaround, so nothing is broken while P2 is unbuilt, and P2a's cost falls on S-0033's rule catalogue, which every entity reads, merged or not. What is **not** deferred is the design: D29's couplings were measured against this tree while P1's context was live, and that context is the asset that decays — the prose does not. So D32–D35 are settled here and §12's P2a–P2c are specified; implementation begins when a project needs quality rules on a merged entity, and not before. Consequence: the two refusal messages stop saying "until P2 restores it". A promise in an error message is one a user plans around, and this decision makes P2 a phase rather than a date.
+
+- Paths: `src/bloomery/emit/lower/silver.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0041/D-32 — `LOCKED` (Deterministic union merge)
 
@@ -287,6 +301,13 @@ The collision audit reads the **union output, before dedupe**, and groups by **e
 **`_source` joins the dedupe sort key, immediately ahead of `_source_row_id` (P2b).** `dedupe_sort_columns` ends in the row identity, and its totality argument is "no two rows can compare equal *given the D21 metadata contract*" — an identity unique per **source relation**. On a merged entity two rows from different sources sharing an entity key therefore compare equal and the survivor is undefined. That shape is what D5's collision audit refuses, but an audit runs *after* the model materialises, so the window is real and the totality argument would be leaning on a blocking check in a different artifact. Adding `_source` restores it structurally and locally, for one extra sort term on merged entities only (D34). It is the same defense-in-depth already pinned into that exact column by `NULLS LAST`, against an illegally-null identity the audit also catches. Consequence: where two rows would have compared equal, the survivor is the lexicographically-later source — arbitrary as business logic, deterministic as an artifact, and reachable only in the run the collision audit then stops.
 
 - Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/quality/dedupe.py` `tests/execution/test_merged_cleaning.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0043/D-5 — `LOCKED` (The dbt singular-test surface)
+
+**The model reference goes through `_reference_map`, never string formatting.** It is what makes a singular test a DAG participant rather than a query that happens to name a table, and it is already built for exactly this shape. Consequence: a singular test is ordered against its model by dbt, which is what makes "blocking" mean anything at all under D2.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/steps.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0043/D-10 — `LOCKED` (The dbt singular-test surface)
@@ -338,6 +359,13 @@ The collision audit reads the **union output, before dedupe**, and groups by **e
 - Paths: `src/bloomery/emit/lower/silver.py` `tests/execution/test_merged_cleaning.py` `tests/golden/test_sqlmesh_dialects.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0051/D-6 — `LOCKED` (The reject table on a merged entity)
+
+**`_sole_source` stays.** The quality mart still has no merged form (S-0041/D-19), and the accessor's raising spelling is what made this whole area fail loudly rather than silently when P2 arrived. What changes is one caller, not the mechanism.
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/quality/reject.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0053/D-2 — `LOCKED` (Measure semantic types and additivity algebra)
 
 **A ratio is stored as its operands, not as a materialized quotient.** `SUM(num)/SUM(den)` and `AVG(ratio)` differ, the second is what a numeric-looking column invites, and the difference is a plausible wrong number. This is also S-0055's precondition — a derived metric spanning two branches cannot be reconstructed after the operands are gone — so reversing it later strands that document.
@@ -350,6 +378,34 @@ The collision audit reads the **union output, before dedupe**, and groups by **e
 The reject table preserves `first_seen` / `last_evaluated_at` **in its own SELECT**, by `LEFT JOIN` to `{{ this }}` and `COALESCE`, not by dbt's `merge_exclude_columns`. Column exclusion cannot express a `COALESCE`, so it would leave a null unhealed where SQLMesh heals it — a divergence in the column retention reads — and it requires a `merge` strategy dbt-postgres does not have and dbt-duckdb has only above a DuckDB floor. Locks the reject model to one scan of itself per run, in exchange for working on every adapter.
 
 - Paths: `src/bloomery/emit/lower/silver.py` `tests/e2e/test_dbt_quality.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0060/D-5 — `LOCKED` (dbt as a complete quality target)
+
+The dbt replay artifact keeps `ArtifactKind.REPLAY` despite living under `macros/`. The kind means "a statement the caller runs, not a relation the framework maintains", and a caller routing the artifact stream must be able to tell those apart without parsing a path.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/quality_mart.py` `src/bloomery/emit/lower/reconcile.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `tests/e2e/test_dbt_parse.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0060/D-7 — `LOCKED` (dbt as a complete quality target)
+
+The quality mart's dbt refusal is **deleted**, not narrowed, once D1 and D6 land: no surface it reads is then missing. Narrowing its predicate is the right change only if this RFC does not ship — the two are alternatives, not a sequence, and pursuing both would leave dead code behind.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/quality_mart.py` `src/bloomery/emit/lower/reconcile.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `tests/e2e/test_dbt_parse.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0060/D-9 — `LOCKED` (dbt as a complete quality target)
+
+`python_model` steps stay refused (S-0034/D-52), untouched by this RFC. Leaving one refusal standing is what keeps "dbt refuses this" a specific statement rather than a historical one.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/quality_mart.py` `src/bloomery/emit/lower/reconcile.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `tests/e2e/test_dbt_parse.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0060/D-11 — `LOCKED` (dbt as a complete quality target)
+
+The reject model names `incremental_strategy='delete+insert'`. Left to the adapter it is per-adapter and project-overridable, and `append` makes `unique_key` inert — every re-delivery becomes a new row, silently, because the `LEFT JOIN` still computes the right values and nothing reads them back. dbt-duckdb's default *is* `delete+insert` (measured), which is why this looked like a free choice and is not. The value is named here rather than delegated: `delete+insert` materializes the SELECT before deleting, so the join against `{{ this }}` reads the incumbent row, and it exists on every adapter — `merge` would be narrower with nothing left to buy once D1 moved the preservation out of the merge clause.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/quality_mart.py` `src/bloomery/emit/lower/reconcile.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `tests/e2e/test_dbt_parse.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0062/D-8 — `ASSUMED` (Ownership, classification and grants)

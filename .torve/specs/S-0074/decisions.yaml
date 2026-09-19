@@ -9,18 +9,24 @@ decisions:
       questions is answerable in the caller's store and unanswerable here.
     paths: [src/bloomery/cli/render.py]
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) History is caller-assembled
-      and consumed once, in order. Inherited from S-0073/D-1; restated because this
-      is the document a reader lands on when they want the feature, and the constraint
-      has to be where they look.
+      History is caller-assembled and consumed once, in order. Inherited from S-0073/D-1;
+      restated because this is the document a reader lands on when they want the feature,
+      and the constraint has to be where they look.
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/plan/diff.py
+      - src/bloomery/resolve/lineage.py
   - id: D-3
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) The delta vocabulary is S-0069's
-      and is never restated here. Two tables describing one thing is the drift this
-      corpus has paid for before.
+      The delta vocabulary is S-0069's and is never restated here. Two tables describing
+      one thing is the drift this corpus has paid for before.
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/plan/diff.py
+      - src/bloomery/resolve/lineage.py
   - id: D-4
     grade: ASSUMED
     text: >-
@@ -68,16 +74,20 @@ decisions:
       Row 9's reasoning is unchanged and its claim was too wide. Still a convention
       and still enforced nowhere, because row 1 says bloomery does not read the labels.
   - id: D-11
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **A history entry carries
-      the `Project`, not the `ProjectIR`.** The IR does not retain the authored `id:`
-      — S-0067 substitutes it while building node ids and keeps only names, because
-      a field in the IR would move every fingerprint and break that document's D3.
-      A timeline handed only IRs cannot match by id, which makes row 5 unimplementable;
-      taking the spec side fixes it at the source, and the IR P2 needs is derivable
-      from the same pair. Locked because reversing it silently reduces identity to
-      name matching, which is the failure this feature exists to avoid.
+      **A history entry carries the `Project`, not the `ProjectIR`.** The IR does
+      not retain the authored `id:` — S-0067 substitutes it while building node ids
+      and keeps only names, because a field in the IR would move every fingerprint
+      and break that document's D3. A timeline handed only IRs cannot match by id,
+      which makes row 5 unimplementable; taking the spec side fixes it at the source,
+      and the IR P2 needs is derivable from the same pair. Locked because reversing
+      it silently reduces identity to name matching, which is the failure this feature
+      exists to avoid.
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/plan/diff.py
+      - src/bloomery/resolve/lineage.py
   - id: D-12
     grade: ASSUMED
     text: >-

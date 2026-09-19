@@ -59,12 +59,12 @@ decisions:
       — varying with a spec block is the ordinary case, and keeping the two kinds
       of variance distinct is what stops D34 from reading as licence.
   - id: D-6
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **`_sole_source` stays.**
-      The quality mart still has no merged form (S-0041/D-19), and the accessor's
-      raising spelling is what made this whole area fail loudly rather than silently
-      when P2 arrived. What changes is one caller, not the mechanism.
+      **`_sole_source` stays.** The quality mart still has no merged form (S-0041/D-19),
+      and the accessor's raising spelling is what made this whole area fail loudly
+      rather than silently when P2 arrived. What changes is one caller, not the mechanism.
+    paths: [src/bloomery/emit/lower/silver.py, src/bloomery/quality/reject.py]
   - id: D-7
     grade: ASSUMED
     text: >-

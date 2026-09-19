@@ -335,11 +335,25 @@ A builder is told its **input logical type**. `Builder` becomes `(input type, co
 
 - Paths: `src/bloomery/resolve/build.py` `src/bloomery/transforms/registry.py` `tests/support/type_conformance.py` `tests/unit/test_transforms/test_registry.py`
 
+### S-0047/D-1 — `LOCKED` (The unresolved-work report)
+
+**The report is derived; no spec surface changes.** §3 measured that a `canonical:`-linked field with no mapping is a legal, complete spec whose metric is reported unreachable — including when the field is `required:`. "Undecided" is therefore already expressible, and a marker would be a second spelling of it. Consequence: this RFC touches no document kind, no `spec_version`, and no parser.
+
+- Paths: `src/bloomery/cli/render.py` `src/bloomery/evidence.py` `src/bloomery/resolve/reach.py` `src/bloomery/resolve/recipes.py` `src/bloomery/resolve/resolution.py` `src/bloomery/spec/catalog.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0048/D-2 — `LOCKED` (Lineage)
 
 **`Graph`, `Edge`, `Lineage` and `Direction` join `bloomery.__all__`, and `Resolution` gains `graph` with no default.** A traversal returning a sub-DAG is unusable if its return type is private, and `Node`/`NodeKind` are already public — the surface is being completed. No default on the field because a `Resolution` without its graph is not a state this design wants representable. Consequence: both types are bound by `stability.md`'s SemVer rule from this point, and hand-constructed `Resolution`s in tests break loudly rather than silently carrying an empty graph.
 
 - Paths: `src/bloomery/resolve/resolution.py` `tests/unit/test_resolve/test_graph.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0048/D-3 — `LOCKED` (Lineage)
+
+**`truncated` is set iff `max_depth` cut the walk short, and `max_depth` defaults to `None`.** A partial answer that cannot say it is partial is the failure S-0039/D-5 names; defaulting to unbounded means the flag can only be `True` when the caller asked for a bound, so no default path can produce a silent partial.
+
+- Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/reach.py` `src/bloomery/resolve/resolution.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0048/D-6 — `ASSUMED` (Lineage)
@@ -355,11 +369,25 @@ A builder is told its **input logical type**. `Builder` becomes `(input type, co
 - Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/resolution.py` `src/bloomery/spec/common.py` `src/bloomery/spec/mapping.py` `tests/property/test_schema_agreement.py` `tests/unit/test_resolve/test_resolution.py` `tests/unit/test_spec/test_mapping.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0049/D-2 — `LOCKED` (Mapping identity)
+
+**`(source, target)` is refused as the identity**, against S-0041/D-19's key shape looking like a candidate. Demonstrated non-unique: two documents may declare the same pair and the loader accepts them. Consequence: D19's quality-mart key is left alone — it is an accounting key for a per-entity mart, not an identity, and this decision does not reopen it.
+
+- Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/resolution.py` `src/bloomery/spec/mapping.py` `src/bloomery/spec/project.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0049/D-7 — `OPEN` (Mapping identity)
 
 **Whether `FieldProvenance` sorts by `(entity, field, mapping)` or `(entity, mapping, field)`.** §5.4 argues the first — a field's answers stay adjacent — but the second groups a reader's attention by document, which is what they will edit. Execution decides against the corpus, and logs it: whichever reads better on `multi_source`'s four collapsed facts is the answer, and that is a thing to look at rather than reason about.
 
 - Paths: `src/bloomery/resolve/resolution.py` `tests/unit/test_resolve/test_resolution.py`
+
+### S-0049/D-9 — `LOCKED` (Mapping identity)
+
+**`document` is `SkipJsonSchema` — absent from the schema `bloomery schema` exports.** That schema's audience is a spec author and D3 says this field is not theirs to write; a required `document` there would have an editor demand the one key the loader refuses, the exported contract contradicting the compiler on the surface whose whole job is to agree with it. Consequence: the model and the exported schema deliberately disagree about one field, recorded by `test_document_is_in_the_model_and_not_the_schema` where the other measured divergences live. *Added by execution 2026-08-30 — see logs/T-0008.md (D036, attempt 1).*
+
+- Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/resolution.py` `src/bloomery/spec/mapping.py` `src/bloomery/spec/project.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0049/D-11 — `LOCKED` (Mapping identity)
 
@@ -423,6 +451,13 @@ An exposure naming an undeclared metric or mart is refused. An exposure pointing
 - Paths: `src/bloomery/resolve/build.py` `src/bloomery/semantic/denomination.py` `src/bloomery/spec/mapping.py` `tests/unit/test_resolve/test_currency_convert.py` `tests/unit/test_semantic/test_denomination.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0066/D-2 — `LOCKED` (Declared input currency for conversion)
+
+**A currency is never inferred — not from a column name, a source path, or the data.** S-0038 closed inference for this class and S-0005/D-1 refuses `INFERRED_HEURISTIC` as a way to close an obligation. Locked because a guess here is indistinguishable at the call site from a declaration, which is the property that makes the guess dangerous rather than merely imprecise.
+
+- Paths: `src/bloomery/guardrails/arithmetic.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/catalog.py` `src/bloomery/transforms/_builtins.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0066/D-3 — `LOCKED` (Declared input currency for conversion)
 
 **The column's currency is what the chain's *last* conversion produces.** The existing per-marker check refuses a correct two-hop chain (§3), and bridging through a major currency is how minor pairs convert in practice. Locked because the guarantee the check buys is a property of where the chain ends, and any rule reading an intermediate step is reading a currency the column is never in.
@@ -441,6 +476,34 @@ An exposure naming an undeclared metric or mart is refused. An exposure pointing
 Whether node identity is a write-once `id:` or a one-shot `renamed_from:` in S-0024/D-3's shape (§10). Recorded rather than assumed: the codebase already chose the second answer for fields, and a document that does not say why nodes differ is one that looks like it did not know.
 
 - Paths: `src/bloomery/resolve/timeline.py` `tests/unit/test_resolve/test_timeline.py`
+
+### S-0068/D-1 — `LOCKED` (As-of compile over spec history)
+
+Spec time and data time are separate axes. `--as-of` resolves specs and reaches no emitted SELECT; S-0003's problem is not this one.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/resolve/build.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0068/D-2 — `LOCKED` (As-of compile over spec history)
+
+An unresolvable instant is refused. Falling back to the working tree produces a confidently wrong artifact set, which is the defect this document removes.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/resolve/build.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0068/D-3 — `LOCKED` (As-of compile over spec history)
+
+Reconstruction is promised within one compiler version. Across versions the specs may resolve and the emitted bytes still differ, and pretending otherwise makes the fingerprint a lie.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/resolve/build.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0068/D-6 — `LOCKED` (As-of compile over spec history)
+
+The resolver sits on the caller's side of S-0020's boundary and the compiler entry point gains no I/O. A history feature that moved that line would trade the determinism guarantee for a convenience, and every other document in this corpus is written on top of it.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/resolve/build.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0069/D-4 — `LOCKED` (Definition supersession and change attribution)
 
@@ -463,11 +526,46 @@ The graph stays a **RESOLVE**-stage product, built from authored documents. No m
 - Paths: `src/bloomery/resolve/graph.py` `tests/unit/test_resolve/test_graph.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0072/D-3 — `LOCKED` (Marts in the lineage graph)
+
+Follows from row 2, and stated separately because it is the thing an executor will be tempted to add: **no per-column `entity_field → mart` edge**. The consequence is stated in §9 and not mitigated: a mart dimension no metric reads is not reached by a downstream walk.
+
+- Paths: `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py` `src/bloomery/resolve/graph.py` `src/bloomery/resolve/resolution.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0072/D-4 — `LOCKED` (Marts in the lineage graph)
+
+`mart` joins `NODE_ID_PREFIXES` and the entity-name reservation, with a `_MINTS` row. A rule that held for five prefixes of six would be learned as a list of exceptions, which is S-0059/D-7's argument unchanged.
+
+- Paths: `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py` `src/bloomery/resolve/graph.py` `src/bloomery/resolve/resolution.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0073/D-1 — `LOCKED` (Caller-assembled spec history)
 
 bloomery does not read spec history. The caller hands it spec text; where that text came from is outside the library and outside the CLI. Reversing this re-opens S-0020's boundary, which every document in this corpus is written on top of.
 
 - Paths: `src/bloomery/resolve/timeline.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0074/D-2 — `LOCKED` (Spec timeline)
+
+History is caller-assembled and consumed once, in order. Inherited from S-0073/D-1; restated because this is the document a reader lands on when they want the feature, and the constraint has to be where they look.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/lineage.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0074/D-3 — `LOCKED` (Spec timeline)
+
+The delta vocabulary is S-0069's and is never restated here. Two tables describing one thing is the drift this corpus has paid for before.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/lineage.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0074/D-11 — `LOCKED` (Spec timeline)
+
+**A history entry carries the `Project`, not the `ProjectIR`.** The IR does not retain the authored `id:` — S-0067 substitutes it while building node ids and keeps only names, because a field in the IR would move every fingerprint and break that document's D3. A timeline handed only IRs cannot match by id, which makes row 5 unimplementable; taking the spec side fixes it at the source, and the IR P2 needs is derivable from the same pair. Locked because reversing it silently reduces identity to name matching, which is the failure this feature exists to avoid.
+
+- Paths: `src/bloomery/cli/__init__.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/lineage.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 <!-- /torve:managed -->

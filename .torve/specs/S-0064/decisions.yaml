@@ -1,18 +1,26 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) bloomery **declares** freshness
-      and never measures it. The threshold is emitted; the framework runs the query.
-      This is the same line drawn everywhere else — no execution, no clock, no environment.
+      bloomery **declares** freshness and never measures it. The threshold is emitted;
+      the framework runs the query. This is the same line drawn everywhere else —
+      no execution, no clock, no environment.
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/quality/reject.py
+      - src/bloomery/spec/catalog.py
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **Superseded by D2c.** A
-      `freshness:` block on an entity that requires no `_ingested_at` is refused,
-      and the requirement is over **every** consumer of the relation rather than the
-      declaring one.
+      **Superseded by D2c.** A `freshness:` block on an entity that requires no `_ingested_at`
+      is refused, and the requirement is over **every** consumer of the relation rather
+      than the declaring one.
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/quality/reject.py
+      - src/bloomery/spec/catalog.py
+    superseded_by: D-10
   - id: D-3
     grade: ASSUMED
     text: >-
@@ -58,12 +66,16 @@ decisions:
       - src/bloomery/guardrails/quality.py
       - tests/unit/test_guardrails/test_quality.py
   - id: D-9
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) (Row 2B of the RFC's table.)
-      **Superseded by D2c.** One mapping declaring a threshold while another on the
-      same relation omits it is refused too, not resolved in favour of the explicit
-      one.
+      (Row 2B of the RFC's table.) **Superseded by D2c.** One mapping declaring a
+      threshold while another on the same relation omits it is refused too, not resolved
+      in favour of the explicit one.
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/quality/reject.py
+      - src/bloomery/spec/catalog.py
+    superseded_by: D-10
   - id: D-10
     grade: LOCKED
     text: >-

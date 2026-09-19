@@ -18,20 +18,28 @@ decisions:
       whose reachability report is computed from it.
     paths: [src/bloomery/resolve/graph.py, tests/unit/test_resolve/test_graph.py]
   - id: D-3
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) Follows from row 2, and stated
-      separately because it is the thing an executor will be tempted to add: **no
-      per-column `entity_field → mart` edge**. The consequence is stated in §9 and
-      not mitigated: a mart dimension no metric reads is not reached by a downstream
-      walk.
+      Follows from row 2, and stated separately because it is the thing an executor
+      will be tempted to add: **no per-column `entity_field → mart` edge**. The consequence
+      is stated in §9 and not mitigated: a mart dimension no metric reads is not reached
+      by a downstream walk.
+    paths:
+      - src/bloomery/guardrails/lineage.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/resolve/graph.py
+      - src/bloomery/resolve/resolution.py
   - id: D-4
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) `mart` joins `NODE_ID_PREFIXES`
-      and the entity-name reservation, with a `_MINTS` row. A rule that held for five
-      prefixes of six would be learned as a list of exceptions, which is S-0059/D-7's
-      argument unchanged.
+      `mart` joins `NODE_ID_PREFIXES` and the entity-name reservation, with a `_MINTS`
+      row. A rule that held for five prefixes of six would be learned as a list of
+      exceptions, which is S-0059/D-7's argument unchanged.
+    paths:
+      - src/bloomery/guardrails/lineage.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/resolve/graph.py
+      - src/bloomery/resolve/resolution.py
   - id: D-5
     grade: ASSUMED
     text: >-

@@ -49,7 +49,7 @@ motivation: |-
   rule, it is the fact a rule would read**, which is what this document adds.
 current_state: |-
   Verified against `03d3ade` by compiling deliberately wrong specs; the probes are in
-  [`logs/T-0024.md`](logs/T-0024.md).
+  `logs/T-0024.md` (`logs/T-0024.md`, in history).
 
   - **`currency:` is declarable on a canonical field and nowhere else** —
     `spec/catalog.py:65`. Neither `SimpleFieldMapping` nor an entity `Field` carries one, so
@@ -235,7 +235,7 @@ sections:
         S-0005 — the proof registry this mints into;
         S-0056 — case 004.
       - **Origin:** Executing S-0053/D-3 halted on a readiness gate; the probes that produced §3
-        are in [`logs/T-0024.md`](logs/T-0024.md) (D155).
+        are in `logs/T-0024.md` (`logs/T-0024.md`, in history) (D155).
   - key: decision-notes
     md: >-
       _(Decision rows from here on are this document's D-1…; see `decisions.yaml`.)_

@@ -173,16 +173,16 @@ decisions:
       artifact shape vary" question as D7 and belongs with the reject-table decision
       in P2 rather than scattered ahead of it.
   - id: D-16
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **S-0033/D-10 is not reopened
-      here.** That decision chose one reject table per entity *on the ground that
-      per-mapping tables make replay N-way*, and a merged entity is N-way by construction.
-      `reject_id` itself survives — it is already a digest of `(source_relation, row
-      identity)`, so the pair was designed for exactly this — but replay re-runs *the*
-      current mapping, and branching it per source is the thing D10 refused. N-way
-      replay gets its own RFC, argued against D10 directly, rather than being decided
-      inside a feature branch.
+      **S-0033/D-10 is not reopened here.** That decision chose one reject table per
+      entity *on the ground that per-mapping tables make replay N-way*, and a merged
+      entity is N-way by construction. `reject_id` itself survives — it is already
+      a digest of `(source_relation, row identity)`, so the pair was designed for
+      exactly this — but replay re-runs *the* current mapping, and branching it per
+      source is the thing D10 refused. N-way replay gets its own RFC, argued against
+      D10 directly, rather than being decided inside a feature branch.
+    paths: [src/bloomery/emit/lower/silver.py]
   - id: D-17
     grade: ASSUMED
     text: >-
@@ -417,21 +417,22 @@ decisions:
       1).*
     paths: [tests/e2e/test_dbt_parse.py, tests/unit/test_emit/test_dbt.py]
   - id: D-31
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **P2 is demand-gated: the
-      design lands now, the code waits for a named consumer.** S-0040/D-6 applies
-      this test to its own P2 and this document did not, which left §12 reading as
-      a queue rather than a boundary. The asymmetry has no justification — P1's refusals
-      are honest, tested, and route to the shipped workaround, so nothing is broken
-      while P2 is unbuilt, and P2a's cost falls on S-0033's rule catalogue, which
-      every entity reads, merged or not. What is **not** deferred is the design: D29's
-      couplings were measured against this tree while P1's context was live, and that
-      context is the asset that decays — the prose does not. So D32–D35 are settled
-      here and §12's P2a–P2c are specified; implementation begins when a project needs
-      quality rules on a merged entity, and not before. Consequence: the two refusal
-      messages stop saying "until P2 restores it". A promise in an error message is
-      one a user plans around, and this decision makes P2 a phase rather than a date.
+      **P2 is demand-gated: the design lands now, the code waits for a named consumer.**
+      S-0040/D-6 applies this test to its own P2 and this document did not, which
+      left §12 reading as a queue rather than a boundary. The asymmetry has no justification
+      — P1's refusals are honest, tested, and route to the shipped workaround, so
+      nothing is broken while P2 is unbuilt, and P2a's cost falls on S-0033's rule
+      catalogue, which every entity reads, merged or not. What is **not** deferred
+      is the design: D29's couplings were measured against this tree while P1's context
+      was live, and that context is the asset that decays — the prose does not. So
+      D32–D35 are settled here and §12's P2a–P2c are specified; implementation begins
+      when a project needs quality rules on a merged entity, and not before. Consequence:
+      the two refusal messages stop saying "until P2 restores it". A promise in an
+      error message is one a user plans around, and this decision makes P2 a phase
+      rather than a date.
+    paths: [src/bloomery/emit/lower/silver.py]
   - id: D-32
     grade: LOCKED
     text: >-

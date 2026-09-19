@@ -313,7 +313,7 @@ sections:
         Per §9 the document stays rather than being retired: deleting the shipped halves would
         leave the surviving refusals with no recorded reason, and §5.4 is still a design.
         P1's execution departures are §11 rows D12–D17; the as-of join's are recorded in
-        [`logs/T-0009.md`](logs/T-0009.md) as D036–D043, in the log's own numbering
+        `logs/T-0009.md` (`logs/T-0009.md`, in history) as D036–D043, in the log's own numbering
         rather than as §11 rows.
       - **Scope:** Two constructs that compile clean today and cannot be correct at run time,
         because both need a join against a **validity interval** and bloomery models none.

@@ -1,14 +1,14 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **Representation safety and
-      query answerability are separate obligations, proven separately.** A mart refusing
-      `shipping@Order` at `OrderItem` grain and a planner answering `shipping by customer.country`
-      are both correct simultaneously. Locked because conflating them in either direction
-      is a shipped defect: one way silently widens marts, the other way refuses answerable
-      questions forever.
+      **Representation safety and query answerability are separate obligations, proven
+      separately.** A mart refusing `shipping@Order` at `OrderItem` grain and a planner
+      answering `shipping by customer.country` are both correct simultaneously. Locked
+      because conflating them in either direction is a shipped defect: one way silently
+      widens marts, the other way refuses answerable questions forever.
+    paths: [src/bloomery/planner/**]
   - id: D-2
     grade: LOCKED
     text: >-
@@ -102,13 +102,14 @@ decisions:
       harder than the narrow join. Added by execution 2026-09-06 — see logs/T-0022.md
       (D132, attempt 1).
   - id: D-11
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **A refusal that changes
-      exception class is a parity event, even when no capability was added.** D8 settled
-      that the suite pins outcome and class rather than wording; this closes the gap
-      that leaves. Converting `UnknownMember` into a refutation reads as "just a better
-      message" and is exactly the change someone waves through under time pressure,
-      while `parity_baseline.tsv` is the only thing that would have noticed. A phase
-      that moves a class edits the baseline and names the rule in the commit. Added
-      by execution 2026-09-06 — see logs/T-0022.md (D134, attempt 1).
+      **A refusal that changes exception class is a parity event, even when no capability
+      was added.** D8 settled that the suite pins outcome and class rather than wording;
+      this closes the gap that leaves. Converting `UnknownMember` into a refutation
+      reads as "just a better message" and is exactly the change someone waves through
+      under time pressure, while `parity_baseline.tsv` is the only thing that would
+      have noticed. A phase that moves a class edits the baseline and names the rule
+      in the commit. Added by execution 2026-09-06 — see logs/T-0022.md (D134, attempt
+      1).
+    paths: [src/bloomery/planner/**]

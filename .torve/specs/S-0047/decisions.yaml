@@ -1,14 +1,20 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) **The report is derived;
-      no spec surface changes.** §3 measured that a `canonical:`-linked field with
-      no mapping is a legal, complete spec whose metric is reported unreachable —
-      including when the field is `required:`. "Undecided" is therefore already expressible,
-      and a marker would be a second spelling of it. Consequence: this RFC touches
-      no document kind, no `spec_version`, and no parser.
+      **The report is derived; no spec surface changes.** §3 measured that a `canonical:`-linked
+      field with no mapping is a legal, complete spec whose metric is reported unreachable
+      — including when the field is `required:`. "Undecided" is therefore already
+      expressible, and a marker would be a second spelling of it. Consequence: this
+      RFC touches no document kind, no `spec_version`, and no parser.
+    paths:
+      - src/bloomery/cli/render.py
+      - src/bloomery/evidence.py
+      - src/bloomery/resolve/reach.py
+      - src/bloomery/resolve/recipes.py
+      - src/bloomery/resolve/resolution.py
+      - src/bloomery/spec/catalog.py
   - id: D-2
     grade: LOCKED
     text: >-

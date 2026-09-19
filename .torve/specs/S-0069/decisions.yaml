@@ -1,23 +1,36 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) The delta is stated in spec
-      vocabulary, never as a text diff of emitted SQL. A reader who has to decide
-      which textual differences are semantic is doing the compiler's job.
+      The delta is stated in spec vocabulary, never as a text diff of emitted SQL.
+      A reader who has to decide which textual differences are semantic is doing the
+      compiler's job.
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/guardrails/lineage.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/plan/model.py
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) Superseded versions are related,
-      never overwritten. History that replaces cannot answer the question the feature
-      exists for.
+      Superseded versions are related, never overwritten. History that replaces cannot
+      answer the question the feature exists for.
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/guardrails/lineage.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/plan/model.py
   - id: D-3
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
-      (Locked in the RFC; no file in the tree cites it.) The compiler never attributes
-      a change to data. "No definition change" is the complete and correct answer
-      when the definition did not change.
+      The compiler never attributes a change to data. "No definition change" is the
+      complete and correct answer when the definition did not change.
+    paths:
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/guardrails/lineage.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/plan/model.py
   - id: D-4
     grade: LOCKED
     text: >-
