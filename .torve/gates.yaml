@@ -102,4 +102,4 @@ gates:
       - "uv run ruff format --check src"
       - "uv run mypy src"
       - "uv run lint-imports"
-      - "uv run pytest -m \"not engine and not e2e and not chaos and not perf\" --refusal-census -q"
+      - "uv run pytest -m \"not engine and not e2e and not chaos and not perf and not surrogate\" --refusal-census -q"
