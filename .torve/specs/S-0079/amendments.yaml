@@ -69,3 +69,10 @@ amendments:
       review tier stopped T-0020's rerun on exactly that (T-0022, T-0023). The
       scope had the IR and the builder and not the table the IR's fields are
       enumerated in.
+
+      Phase 2 reaches the two pinned corpus-size counters and runs the unit
+      tier: a fixture that enters the corpus owes a row in
+      `parity_baseline.tsv` and a bump to the counts in `test_parity.py` and
+      `test_resolution.py`, which their docstrings describe and the phase's
+      acceptance did not run — T-0021's tree was green at every gate and red
+      on `tests/unit` (T-0025, T-0026).

@@ -79,10 +79,14 @@ phasing:
       - tests/golden/test_dbt_postgres.py
       - tests/golden/test_sqlmesh_duckdb.py
       - CHANGELOG.md
+      - tests/unit/test_planner/test_parity.py
+      - tests/unit/test_planner/parity_baseline.tsv
+      - tests/unit/test_resolve/test_resolution.py
     acceptance:
       - >-
         uv run pytest tests/unit/test_marts/test_rollup.py tests/unit/test_fixtures.py
         tests/golden -q
+      - uv run pytest tests/unit -q -p no:randomly
       - uv run mypy src
     depends_on:
       - 1
