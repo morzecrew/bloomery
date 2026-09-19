@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0009
+phase: 2
+base: a36bee7eb73d7c3320aa931caaf51db7ccaf6fcb
+commit: 79dc3ddbd656400b4c7759affadd52d2cbab15fb
+at: '2026-09-19T03:33:18Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-19T03:32:32Z'
+    claim: >-
+      the CLI target's whole oracle is one assertion that main(argv) is not EXIT_INTERNAL;
+      no acceptable-code enumeration was added, and the sabotage run proves the assertion
+      fires
+    evidence: >-
+      fuzz/fuzz_cli.py:118 — the only assert in the target; PREFIXES at fuzz/fuzz_cli.py:65
+      supplies argv, EXIT_OK is read only by the startup fixture check at fuzz/fuzz_cli.py:135
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-19T03:32:32Z'
+    claim: >-
+      neither new target widens the expectation tuple nor catches an exception of
+      its own: both reach the boundary through _harness.compile_or_refuse or through
+      main's documented return contract, so the error taxonomy is unchanged
+    evidence: >-
+      `rg -n 'EXPECTED|except' fuzz/fuzz_cli.py fuzz/fuzz_load_project.py` — no matches;
+      fuzz/_harness.py:39 is untouched
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-19T03:32:32Z'
+    claim: >-
+      both targets ran clean, so no confirmed finding exists and none is owed a test;
+      the checked-in test each target names is the existing regression for its sabotage
+      defect, not a new one
+    evidence: >-
+      `ls fuzz/crashes` — empty after 109372 cli executions (301s) and 34199 load_project
+      executions (301s); fuzz/fuzz_cli.py:36 and fuzz/fuzz_load_project.py:41 name
+      the existing tests
+    action: decided

@@ -1,0 +1,12 @@
+# The project's mÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿetrics: one instantiated from the catalog template, one
+# fully inline. Every metric declares grain and additivity.
+etrics_version: 1
+metrics:
+  revenue:
+    t]mplate: revenue
+  order_count:
+    grain: order
+    additivity: additive
+    agg: count
+    expr: "order_id"
+

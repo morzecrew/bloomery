@@ -10,10 +10,12 @@ the document-level ``reconcile:`` list (S-0033/spec-schema).
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import Field as PydanticField
+from pydantic import model_validator
 
 from bloomery.spec.common import (
     CardinalityName,
@@ -76,6 +78,56 @@ class Field(SpecModel):
     #: one that is. It is also never a place to put a secret *value*: this names
     #: a column, it never carries one.
     classification: ClassificationName | None = None
+    #: The fields of this entity each value of this one fixes — `city:
+    #: {determines: [state]}` (S-0007/determination). Declared on the
+    #: **determinant**, closed transitively by the compiler
+    #: (:func:`~bloomery.semantic.closure.determination_closure`), refused on a
+    #: cycle and refused when it names a field the entity does not declare.
+    #:
+    #: A set rather than an ordered list of levels (S-0007/D-4): a column may
+    #: determine several others independently, and a `postcode` determining
+    #: both `state` and `delivery_zone` is the ordinary case.
+    #:
+    #: **A declaration bloomery does not verify** (S-0007/D-1). One `GROUP BY`
+    #: would answer it exactly and the compiler never reads a row, so this has
+    #: precisely the standing of a declared `many_to_one`: a wrong one buys a
+    #: wrong rollup with a proof attached.
+    determines: tuple[MemberName, ...] = ()
+
+
+# ....................... #
+
+
+def _determination_cycle(fields: Mapping[str, Field]) -> tuple[str, ...] | None:
+    """The first cycle in ``determines:``, as the path that closes it.
+
+    The path rather than a boolean: an author meeting this has written one edge
+    of it and needs the other three to find their mistake.
+    """
+
+    walked: set[str] = set()
+
+    def walk(name: str, path: tuple[str, ...]) -> tuple[str, ...] | None:
+        if name in path:
+            return (*path[path.index(name) :], name)
+        if name in walked:
+            return None
+
+        walked.add(name)
+
+        for target in fields[name].determines:
+            found = walk(target, (*path, name))
+            if found is not None:
+                return found
+
+        return None
+
+    for name in fields:
+        closed = walk(name, ())
+        if closed is not None:
+            return closed
+
+    return None
 
 
 # ....................... #
@@ -113,6 +165,52 @@ class Entity(SpecModel):
     #: annotations above, this one is **applied** — by the framework, on the
     #: engine — so being wrong changes who can read data.
     grants: Grants | None = None
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _determination_is_declared_and_acyclic(self) -> Self:
+        """``determines:`` names this entity's own fields, and never itself
+        (S-0007/determination).
+
+        Both halves are shape questions parse can settle (S-0019/D-4). A
+        dangling name determines nothing and would be dropped in silence by
+        every consumer; a cycle makes the compiler's transitive closure say
+        that each field in it determines every other, which is one column
+        written several times rather than a hierarchy.
+
+        Here rather than in the closure that reads it: the closure runs over
+        the IR, long after the document that carries the mistake is gone, and
+        a refusal that cannot name ``entities.order.fields.city`` sends the
+        author looking for it.
+        """
+
+        dangling = sorted(
+            f"{name} -> {target}"
+            for name, field in self.fields.items()
+            for target in field.determines
+            if target not in self.fields
+        )
+
+        if dangling:
+            msg = (
+                f"determines: names fields this entity does not declare: {'; '.join(dangling)} "
+                "— a determination is between two columns of one entity (S-0007/D-3), so the "
+                "determined field is declared beside the determinant or the name is a typo"
+            )
+            raise ValueError(msg)
+
+        cycle = _determination_cycle(self.fields)
+
+        if cycle is not None:
+            msg = (
+                f"determines: closes a cycle: {' -> '.join(cycle)} — each value of a "
+                "determinant fixes one value of what it determines, so a cycle says these "
+                "columns are one column; declare the determination in one direction only"
+            )
+            raise ValueError(msg)
+
+        return self
 
 
 # ....................... #

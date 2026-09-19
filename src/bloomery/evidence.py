@@ -33,6 +33,7 @@ see :class:`SpecEvidence`.
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -55,6 +56,8 @@ from bloomery.resolve import FieldProvenance, Resolution, Stage, StageProgress, 
 # (S-0035/D-10). Named here because the comment travels with whatever import
 # sorts after it, and this one no longer does.
 from bloomery.spec import Catalog, Project
+from bloomery.spec.mapping import mapping_doc
+from bloomery.spec.quality import CharsetRule, FieldQualityRule, NormalizeRule
 from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 from bloomery.transforms import CONVERT_TRANSFORM
 
@@ -107,6 +110,11 @@ class AdvisoryCode(StrEnum):
     #: bloomery has no opinion about the audience and the warehouse's own
     #: grants stand, which is unknown rather than wrong.
     UNDECLARED_AUDIENCE = "undeclared_audience"
+    #: A column carrying field ``quality:`` rules where not one of them can
+    #: reject a value the column's declared logical type admits (S-0004/D-16).
+    #: The rules compile and never fire, which is what a quality rule aimed at
+    #: the wrong column looks like when the wrong column happens to exist.
+    UNSTRENGTHENED_RULE = "unstrengthened_rule"
 
 
 # ....................... #
@@ -663,14 +671,18 @@ def _from_ir(
                 1 for mart in ir.marts for join in mart.joins if join.as_of is not None
             ),
         ),
-        advisories=_advisories(catalog, ir),
+        advisories=_advisories(catalog, ir, project),
     )
 
 
 # ....................... #
 
 
-def _advisories(catalog: Catalog | None, ir: ProjectIR | None = None) -> tuple[Advisory, ...]:
+def _advisories(
+    catalog: Catalog | None,
+    ir: ProjectIR | None = None,
+    project: Project | None = None,
+) -> tuple[Advisory, ...]:
     """Every compile-time advisory, as a pure function of what the pipeline
     already holds (S-0004 (§5.1)).
 
@@ -687,12 +699,146 @@ def _advisories(catalog: Catalog | None, ir: ProjectIR | None = None) -> tuple[A
     said it would: `undeclared_audience` is about the IR rather than the
     catalog. ``ir`` is optional because the partial widths below reach here
     before one exists — a project refused at parse has no IR and still has a
-    catalog to advise about.
+    catalog to advise about. It widened again for `unstrengthened_rule`, which
+    is about the authored documents themselves and so is the one of the three
+    that is computable at every width, including the narrowest.
     """
 
     return _sorted_advisories(
-        (*_inexact_divisions(catalog), *_undeclared_audiences(ir)),
+        (
+            *_inexact_divisions(catalog),
+            *_undeclared_audiences(ir),
+            *_unstrengthened_rules(project),
+        ),
     )
+
+
+# ....................... #
+
+#: The two members of the closed logical-type grammar
+#: (:data:`~bloomery.spec.common.TYPE_STRING_PATTERN`) whose values can carry
+#: arbitrary characters. Every value of the other five — ``int``, ``bool``,
+#: ``date``, ``timestamp``, ``decimal(p, s)`` — renders as ASCII.
+_TEXTUAL_TYPES = frozenset({"string", "variant"})
+
+#: One ``U+`` codepoint out of a :data:`~bloomery.spec.quality.CodepointItem`,
+#: which is either a single codepoint or a two-codepoint range.
+_CODEPOINT = re.compile(r"U\+([0-9A-F]{4,6})")
+
+
+def _strengthens(rule: FieldQualityRule, column_type: str) -> bool:
+    """Whether ``rule`` can reject a value its column's declared logical type
+    admits — which is what "strengthens" means here (S-0004/D-16).
+
+    The term was not vocabulary this codebase had, and the definition chosen
+    fixes what the advisory beside it may say. It is deliberately the *narrow*
+    reading: provable from the declared type alone, with nothing assumed about
+    the data. S-0004/D-7 is why — an advisory that fires on a correct spec is a
+    defect, so a rule is treated as strengthening unless it demonstrably cannot
+    reject anything.
+
+    Against the twelve :class:`~bloomery.spec.quality.QualityRule` subclasses,
+    only the two rules that compare *characters* are ever provably vacuous, and
+    only on a non-textual column:
+
+    - ``normalize`` lowers to ``NORMALIZE(col, form) <> col``, and ASCII is
+      invariant under all four normal forms, so it is never true.
+    - ``charset`` with ``forbid:`` lowers to a ``TRANSLATE`` of the forbidden
+      members, and a set living entirely above ``U+007F`` is disjoint from the
+      values. ``allow:`` is not in the same position: an allow-list missing the
+      digits rejects every row of an ``int`` column, which is a firing rule.
+
+    ``length``, ``pattern``, ``range`` and ``in_set`` are excluded even where
+    the type looks wrong for them, because their *argument* decides: ``length:
+    {max: 5}`` on an ``int`` postcode rejects six-digit values, and advising
+    there would be the D-7 defect. ``not_null``, ``unique``, ``coercible`` and
+    ``in_enum`` can reject a value of any type at all.
+    """
+
+    if column_type in _TEXTUAL_TYPES:
+        return True
+
+    if isinstance(rule, NormalizeRule):
+        return False
+
+    if isinstance(rule, CharsetRule) and rule.forbid is not None:
+        return any(
+            int(codepoint, 16) < 0x80
+            for item in rule.forbid
+            for codepoint in _CODEPOINT.findall(item)
+        )
+
+    return True
+
+
+# ....................... #
+
+
+def _unstrengthened_rules(project: Project | None) -> tuple[Advisory, ...]:
+    """A column whose every ``quality:`` rule is one that cannot fire on it
+    (S-0004/D-16).
+
+    The bar S-0004/D-7 sets is met: the rules are legal, every artifact is
+    byte-for-byte what the spec asked for — and the author wrote checks that
+    will report nothing forever. (Whether the artifact then *runs* is the
+    lowering's question, not this one's: the two character rules lower over
+    the bare column with no cast, which the engines refuse on an ``int``
+    rather than evaluate — filed as the source
+    ``character-rules-on-a-non-textual-column-lower-to-refused-sql``. The
+    advisory is right either way: the check never reports a row.) The usual cause
+    is a column name aimed one field off and landing on one that exists, which
+    nothing refuses because nothing is wrong with it.
+
+    Read off the authored documents rather than the IR, so it is computed at
+    every partial width — a project refused at its first stage still has the
+    mapping and the entity model this needs.
+    """
+
+    if project is None:
+        return ()
+
+    entities = project.entity_model.entities
+    found: list[Advisory] = []
+
+    for mapping in project.mappings:
+        entity = entities.get(mapping.target)
+
+        if entity is None:
+            # A mapping naming no entity is the resolve stage's refusal to
+            # make, and advising about its columns would report a finding
+            # about a project that is about to be refused for a better reason.
+            continue
+
+        for column, field_mapping in mapping.fields.items():
+            rules = field_mapping.quality
+            field = entity.fields.get(column)
+
+            if not rules or field is None:
+                continue
+
+            if any(_strengthens(rule, field.type) for rule in rules):
+                continue
+
+            found.append(
+                Advisory(
+                    code=AdvisoryCode.UNSTRENGTHENED_RULE,
+                    message=(
+                        f"column {column!r} carries {len(rules)} quality rule(s) and none of "
+                        f"them can reject a value its declared type {field.type!r} admits — "
+                        "normalize compares a value against its own Unicode normal form, and a "
+                        "charset: forbid: set living entirely above U+007F names characters "
+                        "these values cannot contain, so both are always satisfied here. This "
+                        "is legal and the artifacts are correct: the rules lower to real "
+                        "predicates that will report nothing forever. Fix, if the rules were "
+                        "meant for a different column: a misspelled column name that happens "
+                        "to exist is not refused, so check the field name against the one you "
+                        "meant to check"
+                    ),
+                    source_path=f"{mapping_doc(mapping)}: fields.{column}.quality",
+                )
+            )
+
+    return tuple(found)
 
 
 # ....................... #
@@ -817,6 +963,16 @@ def _divides(expr: str | None) -> bool:
     — so the narrower catch let a third-party exception out of
     :func:`evaluate`, whose whole contract is that a spec-level problem comes
     back as a value (``logs/T-0048.md``).
+
+    ``RecursionError`` beside it, for the same contract and a different reason.
+    The expression arrives as ``SqlText``, so :func:`bloomery.spec.common` has
+    already parsed it once — but SQLGlot recurses on nesting depth, and how
+    much nesting it accepts depends on the stack position it is called from
+    rather than on the expression. Measured at a recursion limit of 1000: the
+    validator runs at depth 8 and accepts 51 levels; this call runs at depth 11
+    under ``evaluate`` and deeper still under any caller with frames of its
+    own, where 51 levels raise. A ``SqlText`` value is a proof about one stack
+    position and this is another, so the door has to hold on its own.
     """
 
     if expr is None:
@@ -824,7 +980,7 @@ def _divides(expr: str | None) -> bool:
 
     try:
         parsed = parse_one(expr)
-    except SqlglotError:
+    except (SqlglotError, RecursionError):
         return False
 
     return any(True for _ in parsed.find_all(exp.Div))
@@ -931,7 +1087,11 @@ def _partial(
     resolution = progress.resolution
 
     if resolution is None:
-        return SpecEvidence(stage_reached=stage, refusals=refusals, advisories=_advisories(catalog))
+        return SpecEvidence(
+            stage_reached=stage,
+            refusals=refusals,
+            advisories=_advisories(catalog, None, project),
+        )
 
     if progress.ir is not None:
         return _from_ir(stage, project, catalog, progress.ir, resolution, refusals)
@@ -944,7 +1104,7 @@ def _partial(
         refusals=refusals,
         unresolved=_unresolved(project, catalog, resolution),
         provenance=resolution.provenance,
-        advisories=_advisories(catalog),
+        advisories=_advisories(catalog, None, project),
     )
 
 

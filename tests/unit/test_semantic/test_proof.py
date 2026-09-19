@@ -718,3 +718,40 @@ def test_a_grade_is_never_taken_as_input() -> None:
             statement="declared additive",
             grade=EvidenceGrade.LOCKED,
         )
+
+
+# ....................... #
+# R021 — two roles of one dimension (S-0007/what-each-fact-buys)
+
+
+def test_two_roles_of_one_dimension_are_comparable() -> None:
+    from bloomery.semantic.proof import prove_comparable
+
+    roles = {
+        "billing_region": ("address", "region"),
+        "shipping_region": ("address", "region"),
+    }
+    judgement = prove_comparable("billing_region", "shipping_region", roles)
+    assert isinstance(judgement, Proof)
+    assert judgement.rule == "R021"
+    # Declared on both sides — the warrant is the pair of declarations, which
+    # is the whole of what two bare prefixes could not say.
+    assert {fact.provenance for fact in judgement.facts} == {Provenance.DECLARED}
+    assert len(judgement.facts) == 2
+
+
+def test_one_dimension_is_not_enough_without_the_same_member() -> None:
+    from bloomery.semantic.proof import prove_comparable
+
+    roles = {
+        "billing_region": ("address", "region"),
+        "shipping_city": ("address", "city"),
+        "order_total": ("money", "amount"),
+    }
+    same_dimension = prove_comparable("billing_region", "shipping_city", roles)
+    assert isinstance(same_dimension, Refutation)
+    assert same_dimension.reason == "unrelated_dimensions"
+
+    undeclared = prove_comparable("billing_region", "nowhere", roles)
+    assert isinstance(undeclared, Refutation)
+    assert "plays no declared role" in undeclared.obligations[0].found

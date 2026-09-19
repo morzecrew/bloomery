@@ -1,0 +1,1 @@
+amount /* not a division */ + 1
