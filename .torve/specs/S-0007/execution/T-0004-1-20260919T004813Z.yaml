@@ -1,0 +1,133 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0004
+phase: 1
+base: 7343f67ee16fb6051c50081c4cc72e6b60f1e85c
+commit: 9dc2c0b81ed985a29129e4ee70e634a37a54c1ca
+at: '2026-09-19T00:48:13Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: OPEN
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-19T00:46:54Z'
+    claim: >-
+      determines: is read only as declared: the parse refuses shape, the closure is
+      a fixpoint over the authored mapping, and no code path reads a row or guesses
+      from a name
+    evidence: >-
+      src/bloomery/spec/entity.py:95 — the field is a tuple of authored names; src/bloomery/semantic/closure.py:408
+      takes its mapping as an argument and consults nothing else
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-19T00:46:54Z'
+    claim: >-
+      R020 lands with its consumer in the same change: the rule is registered and
+      cited from the rollup proof, so no fact reaches the spec models without a rule
+      reaching RULES
+    evidence: >-
+      src/bloomery/semantic/proof.py:422 — R020 in the registry; src/bloomery/semantic/rollup.py:305
+      is the citation that reads determines:
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-19T00:46:54Z'
+    claim: >-
+      the column-to-column determination got its own fact and its own closure; no
+      entity, grain, key or lineage node is minted for a dimension level, and the
+      entity-keyed dependency machinery is untouched
+    evidence: >-
+      src/bloomery/semantic/closure.py:408 — determination_closure is a separate function
+      over column names, feeding no FunctionalDependency and no DependencyBasis
+    action: decided
+  - decision: D-6
+    grade: OPEN
+    at: '2026-09-19T00:47:12Z'
+    claim: >-
+      determines: lives on the entity model's Field, not on the catalog's CanonicalField:
+      the layer contract forbids the semantic package from importing spec models at
+      all, so the placement decides nothing for the closure, while the refusals it
+      does decide — a name the entity does not declare, a cycle among the entity's
+      own fields — are answerable only where the sibling fields are in hand, which
+      the catalog's per-field node never is
+    evidence: >-
+      pyproject.toml:437-442 — the forbidden contract 'The grain model reads IR, never
+      dialects or specs'; src/bloomery/spec/entity.py:172 is the validator that reads
+      the sibling fields
+    action: decided
+    notes: >-
+      A determination is now stated once per entity that maps the columns rather than
+      once per catalog field. The catalog placement is not foreclosed: a vertical
+      wanting one statement shared across projects can gain it later without moving
+      this one.
+  - decision: D-7
+    grade: OPEN
+    at: '2026-09-19T00:47:12Z'
+    claim: >-
+      R020 proves more when a determinant is present and requires nothing: built against
+      the shipped rollup vocabulary, the strict reading would refuse every rollup
+      in the tree, since no project declares determines: at all and the strict rule
+      cannot tell an undeclared hierarchy from an absent one
+    evidence: >-
+      src/bloomery/semantic/rollup.py:258 — _coarsening returns None rather than a
+      Refutation where no determinant is kept, so a rollup with nothing declared gets
+      the answer it got before the rule existed
+    action: decided
+    notes: >-
+      Asked again once a project declares determines: across a real hierarchy; the
+      strict reading becomes askable only when the absence of a declaration means
+      something.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-19T00:47:22Z'
+    claim: >-
+      R020 fires in the direction the declaration runs — every dropped dimension determines
+      a kept one — which is the opposite of the phase intent's one-line summary; the
+      design's own worked example and consumer table settle it, since city: {determines:
+      [state]} is what must make the state/city rollup the one that gains a proof
+    evidence: >-
+      `uv run torve spec show S-0007/what-each-fact-buys` — the table's R020 row reads
+      'keeps a determinant of every dropped dimension' while the motivation calls
+      keeping state and dropping city the coarsening; the two are opposite directions
+      of one edge
+    action: decided
+    proposal: >-
+      restate R020 in S-0007 as 'every dimension a rollup drops determines one it
+      keeps, so its groups are unions of the parent's' — the lossless-drop case the
+      current wording describes is a second, different fact and would be a separate
+      rule
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-09-19T00:47:22Z'
+    claim: >-
+      a new spec field necessarily moves the entity_model JSON schema golden, which
+      this scope does not name, so the golden tier is left red by a change whose acceptance
+      commands are green
+    evidence: >-
+      `uv run pytest 'tests/golden/test_spec_schemas.py::test_spec_schema_golden[entity_model]'
+      -q` — 1 failed, the diff being the added 'determines' property
+    action: halted
+    proposal: >-
+      add tests/golden/schema/entity_model.json to this phase's scope (or to any phase
+      that adds a spec key) and regenerate it with --snapshot-update; leaving it out
+      makes every spec-surface phase land a red golden tier

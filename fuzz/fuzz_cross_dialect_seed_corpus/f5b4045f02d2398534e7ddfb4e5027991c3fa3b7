@@ -1,0 +1,7 @@
+# The project's mÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿetrics: one instanevenue
+  order_count:
+    grain: order
+    additivity: additive
+    agg: count
+    expr: "order_id"
+

@@ -64,6 +64,9 @@ nav = [
         "reference/api.md",
         "reference/stability.md",
     ] },
+    { "Contributing" = [
+        "contributing/fuzzing.md",
+    ] },
 ]
 
 # ....................... #

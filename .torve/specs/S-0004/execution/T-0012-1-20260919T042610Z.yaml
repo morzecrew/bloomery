@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0012
+phase: 1
+base: edb8068bf6bddde5735cd6b935248e14d698abc9
+commit: 280a1b26a640753375db85e36a799300dc2765d2
+at: '2026-09-19T04:26:10Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: LOCKED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: OPEN
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: D-14
+    grade: ASSUMED
+  - id: D-15
+    grade: ASSUMED
+  - id: D-16
+    grade: OPEN
+entries:
+  - decision: D-16
+    grade: OPEN
+    class: spec-gap
+    at: '2026-09-19T04:24:54Z'
+    claim: >-
+      "strengthens" is settled as: a rule strengthens its column when it can reject
+      a value the column's declared logical type admits, provable from the type alone.
+      Against the twelve QualityRule subclasses and the closed type grammar only normalize
+      (always) and charset: forbid: whose codepoints all sit above U+007F are ever
+      provably vacuous, and only on a non-textual column; length/pattern/range/in_set
+      are excluded because their argument decides and advising there would fire on
+      a correct spec, which D-7 forbids
+    evidence: >-
+      src/bloomery/evidence.py:718-757 — _strengthens states the definition and the
+      exclusions; src/bloomery/spec/common.py:72-74 is the closed type grammar it
+      reads against
+    action: decided
+    proposal: >-
+      OPEN -> ASSUMED: a quality rule strengthens its column when it can reject a
+      value the column's declared logical type admits; the advisory fires only where
+      that is provable from the declared type alone, never from a rule's argument

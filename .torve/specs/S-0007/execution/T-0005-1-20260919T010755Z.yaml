@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0005
+phase: 2
+base: 5d524b317ea27a9cb93c839ed0b6674b13949005
+commit: 006cfa08db50df7d0752d7948336cf5cdccbb8e5
+at: '2026-09-19T01:07:55Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: OPEN
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-19T01:06:54Z'
+    claim: >-
+      no golden could show role_of from a fixture: goldens compile tests/fixtures/**,
+      which this scope does not allow, so the Cube and MetricFlow goldens for the
+      general role compile an inline project defined under tests/golden instead
+    evidence: >-
+      tests/golden/roles_of_one_dimension.py:14 — the inline documents; tests/golden/roles_of_one_dimension/cube/model/cubes/orders.yml:17
+      is the emitted meta.role_of
+    action: decided
+    proposal: >-
+      a phase judged on golden artifacts for a new authored key needs tests/fixtures/**
+      in its scope
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-19T01:07:20Z'
+    claim: >-
+      close-out under the fully qualified id: R021 is added with a consumer, so no
+      fact lands unread — role_of reaches the Cube dimension meta and the MetricFlow
+      foreign entity role, and prove_comparable reads the declared pair
+    evidence: >-
+      src/bloomery/semantic/proof.py:439 — the R021 registry row; src/bloomery/emit/cube/__init__.py:250
+      and src/bloomery/emit/metricflow/__init__.py:332 are what the fact buys in an
+      artifact
+    action: decided

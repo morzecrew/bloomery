@@ -33,6 +33,7 @@ from bloomery.semantic import (
     grain_of,
     qualify_as_of,
 )
+from bloomery.semantic.closure import determination_closure
 from support.grain_model import (
     ADDRESS,
     CUSTOMER,
@@ -738,3 +739,41 @@ def test_a_single_hop_is_not_wrapped_in_a_composition() -> None:
     assert proof.rule == BASIS_RULES[single.derivations[0].steps[0].basis.value]
     assert proof.rule != "R005"
 
+
+
+# ....................... #
+# Determination — the column-to-column closure (S-0007/determination)
+
+
+def test_a_determination_closes_transitively() -> None:
+    """Declared on the determinant, closed by the compiler: an author writes
+    `city -> state` and `state -> country`, and nobody writes the third edge."""
+    closed = determination_closure({"city": ("state",), "state": ("country",)})
+
+    assert closed["city"] == frozenset({"state", "country"})
+    assert closed["state"] == frozenset({"country"})
+
+
+def test_a_determinant_fixes_several_columns_independently() -> None:
+    """S-0007/D-4: a lattice, not a list. A `postcode` determining both a
+    `state` and a `delivery_zone` is the ordinary case, and an ordered-levels
+    spelling is exactly the shape that cannot hold it."""
+    closed = determination_closure(
+        {"postcode": ("state", "delivery_zone"), "state": ("country",)}
+    )
+
+    assert closed["postcode"] == frozenset({"state", "delivery_zone", "country"})
+    # Keyed by the determinants that were declared: a column determining
+    # nothing has nothing to say, and a consumer asks with a default.
+    assert "delivery_zone" not in closed
+
+
+def test_a_cyclic_declaration_terminates_rather_than_recursing() -> None:
+    """The spec layer refuses a cycle where the document that holds it can
+    still be named, so this is never reached from a parsed project — and a
+    caller building its own mapping is owed termination rather than a second
+    refusal with nothing to cite. The fixpoint is what supplies it."""
+    closed = determination_closure({"a": ("b",), "b": ("a",)})
+
+    assert closed["a"] == frozenset({"a", "b"})
+    assert closed["b"] == frozenset({"a", "b"})
