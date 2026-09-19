@@ -5,8 +5,8 @@ three is that the job can go red. A weekly lane that fuzzes an empty corpus,
 restores nothing from the cache and reports no crash it cannot see is
 indistinguishable from a lane that is working — for a week at a time.
 
-So: the generator copies the examples and the golden tier's documents
-(S-0009/D-7) and fails rather than writing an empty seed set; the counter
+So: the generator copies the examples and the fixtures behind the golden
+tier (S-0009/D-7) and fails rather than writing an empty seed set; the counter
 reads `0 entries` out of a cache that did not round-trip; and the crash check
 goes red on a planted artifact and green on a clean tree (S-0002/D-2).
 """
@@ -47,14 +47,29 @@ def batch_job() -> dict:
 # The seeds (S-0009/D-7)
 
 
-def test_the_seeds_come_from_the_examples_and_the_goldens(tmp_path: Path) -> None:
+def test_the_seeds_come_from_the_examples_and_the_fixtures(tmp_path: Path) -> None:
+    """The golden tier's inputs, not its outputs: every `*.yaml` under
+    `tests/golden/` is a generated gateway config, and a seed made of one
+    mutates nothing a target reads."""
     result = run(SEEDS, "--dest", str(tmp_path), "--target", "cli")
     assert result.returncode == 0, result.stderr
 
     written = sorted(path.name for path in (tmp_path / "cli").iterdir())
     assert any(name.startswith("examples-") for name in written)
-    assert any(name.startswith("tests-golden-") for name in written)
+    assert any(name.startswith("tests-fixtures-") for name in written)
+    assert not any(name.startswith("tests-golden-") for name in written)
     assert all(name.endswith(".yaml") for name in written)
+
+
+def test_a_seed_carries_the_trailing_slot_byte(tmp_path: Path) -> None:
+    """The harness reads the slot off the buffer's last byte; a bare copy
+    of a document would hand its own last byte to that choice."""
+    from fuzz.seeds import SLOT_BYTE, seed_name, seed_sources
+
+    run(SEEDS, "--dest", str(tmp_path), "--target", "cli")
+    source = seed_sources()[0]
+
+    assert (tmp_path / "cli" / seed_name(source)).read_bytes() == source.read_bytes() + SLOT_BYTE
 
 
 def test_every_target_gets_a_seed_directory(tmp_path: Path) -> None:

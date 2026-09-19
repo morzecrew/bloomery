@@ -56,6 +56,9 @@ def test_the_pull_request_run_is_filtered_to_src_and_fuzz(workflow: dict) -> Non
 
     assert "src/**" in paths
     assert "fuzz/**" in paths
+    # The seed sources too: a changed example or fixture is a changed seed.
+    assert "examples/**" in paths
+    assert "tests/fixtures/**" in paths
     assert ".github/workflows/fuzz.yaml" in paths
 
 
@@ -127,7 +130,12 @@ def test_every_target_rides_the_short_run(pr_job: dict) -> None:
     """A target written and never added here is one no pull request fuzzes."""
     from fuzz.seeds import targets
 
-    assert sorted(pr_job["strategy"]["matrix"]["target"]) == targets()
+    # `parse_doors` is left out while its known open finding stands (the
+    # target's module docstring): a 60s run reaches it, and a leg red on
+    # every pull request from day one is what S-0009/D-5 exists to avoid.
+    assert sorted(pr_job["strategy"]["matrix"]["target"]) == [
+        t for t in targets() if t != "parse_doors"
+    ]
     assert "seed" not in pr_job["strategy"]["matrix"], "one seed; D-6's matrix is weekly"
 
 
@@ -159,9 +167,28 @@ def test_the_short_run_is_plain_atheris_on_setup_python(pr_job: dict) -> None:
     Dockerfile, no OSS-Fuzz base image, no ClusterFuzzLite."""
     steps = pr_job["steps"]
 
-    assert any(step.get("uses", "").startswith("actions/setup-python@") for step in steps)
+    # The interpreter is pinned where uv resolves it.
+    uv = next(step for step in steps if step.get("uses", "").startswith("astral-sh/setup-uv@"))
+    assert uv["with"]["python-version"] == "3.12"
+    assert not any(step.get("uses", "").startswith("actions/setup-python@") for step in steps)
     assert not any("clusterfuzzlite" in step.get("uses", "").lower() for step in steps)
     assert "--with 'atheris>=2.3'" in next(s for s in steps if s.get("name") == "Fuzz")["run"]
+
+
+def test_the_replay_job_reads_every_corpus_the_batch_grew(workflow: dict) -> None:
+    """Without the restores the replay compared only the checked-out
+    documents, and the determinism claim never reached what the fuzzer found."""
+    from fuzz.seeds import targets
+
+    steps = workflow["jobs"]["replay"]["steps"]
+    restored = sorted(
+        step["with"]["path"].removeprefix("fuzz/corpus/")
+        for step in steps
+        if step.get("uses", "").startswith("actions/cache/restore@")
+    )
+
+    assert restored == targets()
+    assert not any(step.get("uses", "").startswith("actions/cache/save@") for step in steps)
 
 
 def test_the_replay_job_still_leads(workflow: dict) -> None:

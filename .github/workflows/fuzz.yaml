@@ -29,6 +29,8 @@ on:
     paths:
       - "src/**"
       - "fuzz/**"
+      - "examples/**"
+      - "tests/fixtures/**"
       - ".github/workflows/fuzz.yaml"
 
 # Superseded pull-request runs are cancelled: a second push makes the first
@@ -78,6 +80,58 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --all-groups
+
+      # The corpora the batch job grew, one restore per target because a cache
+      # entry is one path under one key: without them this job replayed only
+      # the checked-out documents, and the determinism claim never reached
+      # what the fuzzer found. Restore only; the batch job owns the saves.
+      - name: Restore the cli corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: fuzz/corpus/cli
+          key: fuzz-corpus-cli-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-cli-
+
+      - name: Restore the compile_determinism corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: fuzz/corpus/compile_determinism
+          key: fuzz-corpus-compile_determinism-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-compile_determinism-
+
+      - name: Restore the cross_dialect corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: fuzz/corpus/cross_dialect
+          key: fuzz-corpus-cross_dialect-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-cross_dialect-
+
+      - name: Restore the load_project corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: fuzz/corpus/load_project
+          key: fuzz-corpus-load_project-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-load_project-
+
+      - name: Restore the metric_request corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: fuzz/corpus/metric_request
+          key: fuzz-corpus-metric_request-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-metric_request-
+
+      - name: Restore the parse_doors corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: fuzz/corpus/parse_doors
+          key: fuzz-corpus-parse_doors-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-parse_doors-
 
       # The script is the deliverable and the assertion: it exits non-zero on
       # any differing byte, on a differing artifact order, and on an empty
