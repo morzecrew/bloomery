@@ -328,6 +328,21 @@ def _merge_sources(**overrides: str) -> dict[str, str]:
     return sources
 
 
+def test_a_declared_determination_is_carried_onto_the_column() -> None:
+    """S-0079/D-1: a determination is stored, not derived — ``_column_pair``
+    carries the entity model's declaration onto the ``ColumnIR`` unchanged, the
+    way ``classification`` is, and a field declaring none carries ``()``."""
+    model = _MERGE_ENTITY_MODEL.replace(
+        "      kind: {type: string}\n",
+        "      kind: {type: string, determines: [note]}\n",
+    )
+    ir = build_project_ir(load_project(_merge_sources(entity_model=model)))
+    (entity,) = ir.entities
+    determines = {c.name: c.determines for c in entity.columns}
+    assert determines["kind"] == ("note",)
+    assert determines["note"] == ()
+
+
 def test_two_mappings_build_one_entity_ordered_lexicographically() -> None:
     """S-0041/D-1, S-0041/D-3: the refusal this replaces kept a promise nothing else
     was scheduled to keep."""
