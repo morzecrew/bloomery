@@ -34,6 +34,7 @@ phasing:
       - tests/golden/path_conflict_merged/**
       - tests/golden/quality_precedence/**
       - tests/golden/role_playing_dates/**
+      - tests/golden/roles_of_one_dimension/**
       - tests/golden/rollup_mart/**
       - tests/golden/scd2_customers/**
       - tests/golden/semi_additive_inventory/**
