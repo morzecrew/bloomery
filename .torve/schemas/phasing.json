@@ -934,6 +934,14 @@
   "additionalProperties": false,
   "description": "phasing.yaml of a specification directory (S-0057).",
   "properties": {
+    "after": {
+      "description": "The documents whose landed tree this one's work builds on, as document ids\n\u2014 never phases (S-0085/D-1, S-0085/D-5); `depends_on` keeps its one meaning,\ndecision inheritance, and says nothing about trees.",
+      "items": {
+        "type": "string"
+      },
+      "title": "After",
+      "type": "array"
+    },
     "contract_example": {
       "anyOf": [
         {

@@ -568,4 +568,18 @@ The delta vocabulary is S-0069's and is never restated here. Two tables describi
 - Paths: `src/bloomery/cli/__init__.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/lineage.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0079/D-1 — `LOCKED` (Determinations reach the IR and the rollup lowering)
+
+A determination is a **stored** fact. `ColumnIR` gains `determines: tuple[str, ...]`, filled by `_column_ir` from the entity model's `Field.determines` and carried unchanged, the way `classification` is. It is authored, it appears in no other IR field, and no compile can recover it without re-reading the spec
+
+- Paths: `src/bloomery/ir/nodes.py` `src/bloomery/resolve/build.py`
+- Consequence: S-0017/D-9 keeps the grain model out of the IR because a grain is computed from `EntityIR.key`, which the IR holds; that reasoning does not reach a determination and may not be cited to keep one out. The IR stores what an author wrote and derives what follows from it, which is the line D-4 stands on the other side of
+- Check: `uv run pytest tests/unit/test_resolve/test_build.py -q` (shadow; runs as `decision:S-0079/D-1`, no log entry owed)
+
+## Invariants holding over `src/bloomery/resolve/`
+
+- **S-0079/I-1**: The IR version is declared once, on the dataclass, and every project's fingerprint is stable across processes and `PYTHONHASHSEED` values
+  - Paths: `src/bloomery/ir/nodes.py` `src/bloomery/resolve/build.py`
+  - Check: `uv run pytest tests/unit/test_ir tests/unit/test_determinism_guard.py -q`
+
 <!-- /torve:managed -->

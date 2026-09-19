@@ -3,7 +3,7 @@ id: S-0009
 title: Continuous fuzzing in CI
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []

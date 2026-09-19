@@ -151,4 +151,46 @@ Cube-to-cube `joins` stay out of this RFC. They reintroduce the query-time joins
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/marts/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0079/D-4 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
+
+The mart-namespace mapping R020 consumes is **derived at the call and stored nowhere**: `lower_rollups` builds `dict[str, tuple[str, ...]]` keyed by `ref.qualified` and passes it as the fourth argument. No field is added to `MartIR`, `MartDimensionIR` or `MartColumnIR`, and the second phase moves no fingerprint
+
+- Paths: `src/bloomery/marts/rollup.py`
+- Consequence: A `dict` could not reach an IR node in any case — `_canon_bytes` raises on one — so storing it would mean a second IR node for a fact two collections already hold, which is a statement that can disagree with the proof. Departing means a second version bump and a second golden regeneration in the phase that was to move nothing
+- Check: `uv run pytest tests/unit/test_marts/test_rollup.py -q` (shadow; runs as `decision:S-0079/D-4`, no log entry owed)
+
+### S-0079/D-5 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
+
+The derivation matches a column to its **join family**, never to `source_entity` alone: a column belongs to the family `(prefix, entity)` when `source_entity == entity` and `name == prefix + source_column`, with the base entity taking the empty prefix. A column matching two families contributes no edge
+
+- Paths: `src/bloomery/marts/rollup.py`
+- Consequence: One entity flattened under two prefixes relates `billing_city` to `billing_state` and to nothing of the shipping family; matching on `source_entity` and `source_column` alone would relate them across families and prove a coarsening that does not hold. The ambiguous case fails by proving less, which is the only direction R020 may fail in
+
+### S-0079/D-6 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
+
+The derivation translates **only the direct declarations**. The transitive step stays inside R020, where `determination_closure` already runs over whatever mapping it is handed
+
+- Paths: `src/bloomery/marts/rollup.py`
+- Consequence: `_coarsening` grades a witness `DECLARED` when the keeper is in the input mapping and `DERIVED` when the closure supplied it. Closing before the call makes every witness read `DECLARED` and the provenance R020 reports stops meaning anything
+
+### S-0079/D-7 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
+
+R020 stays permissive. A rollup with nothing declared reaching it is answered exactly as it was before R020 existed, so no project that compiles today stops compiling and no existing golden's SQL changes in the second phase
+
+- Paths: `src/bloomery/marts/rollup.py`
+- Consequence: The wiring is unobservable in every existing fixture, which is why the new fixture is the only end-to-end evidence and why it is not optional. Departing — making a determinant of every dropped dimension required — is a new refusal against every project in the corpus, and it is S-0007/D-7's to reopen, not this document's
+
+### S-0079/D-11 — `OPEN` (Determinations reach the IR and the rollup lowering)
+
+Where `_determinations` lives. It is stated here as a private helper in `src/bloomery/marts/rollup.py`, beside its only caller; it could as well be a function on the IR that `lower_rollups` imports, if a second consumer appears while the phase is being built. The executor decides against the shape of both and logs it
+
+- Paths: `src/bloomery/marts/rollup.py`
+- Consequence: Either placement satisfies D-4, since neither stores anything. Moving it out of the lowering module is what would make a second caller cheap, and a second caller is what would make the move necessary
+
+## Invariants holding over `src/bloomery/marts/`
+
+- **S-0079/I-2**: No IR node carries a mapping; the canonical encoder writes `None`, `bool`, `Enum`, `int`, `str`, `Decimal`, tuples and frozen dataclasses, and raises on anything else
+  - Paths: `src/bloomery/ir/nodes.py` `src/bloomery/marts/rollup.py`
+  - Check: `uv run pytest tests/unit/test_ir/test_fingerprint.py -q`
+
 <!-- /torve:managed -->
