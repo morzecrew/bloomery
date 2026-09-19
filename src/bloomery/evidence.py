@@ -778,9 +778,14 @@ def _unstrengthened_rules(project: Project | None) -> tuple[Advisory, ...]:
     """A column whose every ``quality:`` rule is one that cannot fire on it
     (S-0004/D-16).
 
-    The bar S-0004/D-7 sets is met: the rules are legal, they lower to correct
-    predicates, every artifact is byte-for-byte what the spec asked for — and
-    the author wrote checks that will report nothing forever. The usual cause
+    The bar S-0004/D-7 sets is met: the rules are legal, every artifact is
+    byte-for-byte what the spec asked for — and the author wrote checks that
+    will report nothing forever. (Whether the artifact then *runs* is the
+    lowering's question, not this one's: the two character rules lower over
+    the bare column with no cast, which the engines refuse on an ``int``
+    rather than evaluate — filed as the source
+    ``character-rules-on-a-non-textual-column-lower-to-refused-sql``. The
+    advisory is right either way: the check never reports a row.) The usual cause
     is a column name aimed one field off and landing on one that exists, which
     nothing refuses because nothing is wrong with it.
 
