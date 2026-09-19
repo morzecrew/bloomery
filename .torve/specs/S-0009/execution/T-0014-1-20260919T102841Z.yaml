@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0014
+phase: 2
+base: c8a21b9692dfc417deabac4693c36abd1e06e2cd
+commit: a682c75eefaaa2163d9276435783addbe0250d9c
+at: '2026-09-19T10:28:41Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-19T10:22:40Z'
+    claim: >-
+      the batch job runs plain Atheris under actions/setup-python with uv --with 'atheris>=2.3';
+      no Dockerfile, no OSS-Fuzz base image, no hand-built interpreter
+    evidence: >-
+      .github/workflows/fuzz.yaml:118-147 — setup-python and the uv-layered atheris
+      invocation; tests/unit/test_fuzz_corpus.py:171 asserts no ClusterFuzzLite action
+      and no fuzz/Dockerfile
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-19T10:22:40Z'
+    claim: >-
+      the replay job stays first: batch is added after it in the same file, needs
+      nothing from it, and no phase was reordered
+    evidence: >-
+      .github/workflows/fuzz.yaml:36-80 — the replay job, unchanged and first; the
+      batch job begins at :90
+    action: decided
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-19T10:23:07Z'
+    claim: >-
+      correcting the line range of the previous D-1 entry: the atheris invocation
+      is not inside .github/workflows/fuzz.yaml:118-147, which covers the setup-python
+      step alone
+    evidence: >-
+      .github/workflows/fuzz.yaml:171 — the uv-layered  run line; the setup-python
+      step is at :127
+    action: decided
