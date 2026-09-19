@@ -9,6 +9,7 @@ module reads a log to find out what the compiler noticed.
 from __future__ import annotations
 
 import dataclasses
+from dataclasses import replace
 
 import pytest
 
@@ -21,7 +22,15 @@ from bloomery import (
     evaluate,
     load_catalog,
 )
-from bloomery.evidence import _advisories, _divides, _sorted_advisories  # pyright: ignore[reportPrivateUsage]
+from bloomery.evidence import (  # pyright: ignore[reportPrivateUsage]
+    _advisories,
+    _divides,
+    _sorted_advisories,
+    _unstrengthened_rules,
+)
+from bloomery.spec import Project
+from bloomery.spec.entity import Entity, EntityModel, Field
+from bloomery.spec.mapping import KeyField, Mapping, SimpleFieldMapping
 from support.compiling import load_fixture
 
 pytestmark = pytest.mark.unit
@@ -412,3 +421,185 @@ def test_every_code_has_a_value_that_is_not_its_name() -> None:
     for code in AdvisoryCode:
         assert code.value == code.value.lower()
         assert " " not in code.value
+
+
+# ....................... #
+# The unstrengthened-rule producer (S-0004/D-16)
+#
+# "Strengthens" was not vocabulary this codebase had, and D16 left the
+# definition to implementation: a rule strengthens a column when it can reject
+# a value the column's declared logical type admits. The tests below pin both
+# halves — that the provably vacuous combinations are reported, and that a rule
+# whose *argument* decides is not, because an advisory on a correct spec is the
+# defect D7 names.
+
+
+def _project(field_type: str, rules: list[dict[str, object]]) -> Project:
+    """One entity, one mapping, one column carrying ``rules``.
+
+    Built from the models rather than a fixture: no shipped fixture declares a
+    rule that cannot fire, and one that did would be a corpus asserting the
+    mistake this advisory exists to find.
+    """
+    entity = Entity(
+        grain="one row per thing",
+        key=("thing_id",),
+        fields={
+            "thing_id": Field(type="int"),
+            "subject": Field(type=field_type),
+        },
+    )
+    mapping = Mapping(
+        document="mappings/things.yaml",
+        mapping_version=1,
+        source="src__things",
+        target="thing",
+        key={"thing_id": KeyField.model_validate({"from": "$.id"})},
+        fields={
+            "subject": SimpleFieldMapping.model_validate({"from": "$.subject", "quality": rules})
+        },
+    )
+
+    return Project(
+        entity_model=EntityModel(spec_version=1, entities={"thing": entity}),
+        mappings=(mapping,),
+    )
+
+
+_NORMALIZE: dict[str, object] = {"rule": "normalize", "form": "nfc", "on_fail": "flag"}
+
+
+@pytest.mark.parametrize("field_type", ["int", "bool", "date", "timestamp", "decimal(12, 2)"])
+def test_a_normalize_rule_on_a_non_textual_column_is_flagged(field_type: str) -> None:
+    """`NORMALIZE(col, NFC) <> col` over values that render as ASCII, and ASCII
+    is invariant under all four normal forms — so the predicate is never true.
+
+    Every non-textual member of the closed type grammar, because the claim is
+    about the grammar rather than about `int`.
+    """
+    (advisory,) = _unstrengthened_rules(_project(field_type, [_NORMALIZE]))
+
+    assert advisory.code is AdvisoryCode.UNSTRENGTHENED_RULE
+    assert advisory.source_path == (
+        "mapping[src__things->thing]: fields.subject.quality"
+    )
+
+
+@pytest.mark.parametrize("field_type", ["string", "variant"])
+def test_a_normalize_rule_on_a_textual_column_says_nothing(field_type: str) -> None:
+    """The half that keeps the channel worth reading: on a column that can
+    carry arbitrary characters, this is exactly the rule D86 was built for."""
+    assert _unstrengthened_rules(_project(field_type, [_NORMALIZE])) == ()
+
+
+def test_one_rule_that_can_fire_silences_the_column() -> None:
+    """The advisory is about the *column*, not about each rule on it. A
+    `not_null` beside the vacuous one means the author is checking something,
+    and reporting the column would be telling them their checks do nothing."""
+    not_null: dict[str, object] = {"rule": "not_null", "on_fail": "flag"}
+
+    assert _unstrengthened_rules(_project("int", [_NORMALIZE, not_null])) == ()
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        # The argument decides, not the type: `max: 5` on an int postcode
+        # rejects six-digit values, so advising here would fire on a correct
+        # spec — the D7 defect.
+        {"rule": "length", "max": 5, "on_fail": "flag"},
+        {"rule": "pattern", "regex": "^[0-9]+$", "on_fail": "flag"},
+        {"rule": "range", "min": 0, "on_fail": "flag"},
+        {"rule": "in_set", "values": [1, 2], "on_fail": "flag"},
+        # These reject a value of any type at all.
+        {"rule": "unique", "on_fail": "flag"},
+        {"rule": "coercible", "on_fail": "flag"},
+        {"rule": "in_enum", "on_fail": "flag"},
+    ],
+)
+def test_a_rule_whose_argument_decides_is_never_flagged(rule: dict[str, object]) -> None:
+    assert _unstrengthened_rules(_project("int", [rule])) == ()
+
+
+def test_a_charset_forbid_set_entirely_above_ascii_is_flagged() -> None:
+    """`TRANSLATE` of a set disjoint from the values by construction: nothing a
+    non-textual column renders is in the Cyrillic or fullwidth blocks."""
+    rule: dict[str, object] = {
+        "rule": "charset",
+        "on_fail": "flag",
+        "forbid": ["U+0400-U+04FF", "U+FF01-U+FF5E"],
+    }
+
+    (advisory,) = _unstrengthened_rules(_project("int", [rule]))
+
+    assert advisory.code is AdvisoryCode.UNSTRENGTHENED_RULE
+
+
+def test_a_charset_forbid_set_reaching_into_ascii_is_not() -> None:
+    """One ASCII member is enough: `U+0009` is a tab, which a `variant`-fed
+    int column cannot hold but the rule can still be read as asking about."""
+    rule: dict[str, object] = {
+        "rule": "charset",
+        "on_fail": "flag",
+        "forbid": ["U+0009", "U+0400-U+04FF"],
+    }
+
+    assert _unstrengthened_rules(_project("int", [rule])) == ()
+
+
+def test_a_charset_allow_set_is_never_flagged() -> None:
+    """`allow:` is not `forbid:` turned around: an allow-list without the
+    digits rejects every row of an int column, which is a firing rule."""
+    rule: dict[str, object] = {
+        "rule": "charset",
+        "on_fail": "flag",
+        "allow": ["U+0041-U+005A"],
+    }
+
+    assert _unstrengthened_rules(_project("int", [rule])) == ()
+
+
+def test_the_unstrengthened_message_says_what_why_and_the_way_out() -> None:
+    """§5.1's contract, and §5.2's bar stated in the message rather than
+    left for the reader to infer."""
+    (advisory,) = _unstrengthened_rules(_project("int", [_NORMALIZE]))
+
+    assert "none of them can reject" in advisory.message  # what
+    assert "always satisfied here" in advisory.message  # why
+    assert "Fix," in advisory.message  # the way out
+    assert "legal and the artifacts are correct" in advisory.message
+
+
+def test_a_column_with_no_rules_reports_nothing() -> None:
+    """Silence is not a finding. The advisory is about rules that cannot fire,
+    never about a column nobody wrote a rule for."""
+    assert _unstrengthened_rules(_project("int", [])) == ()
+
+
+def test_no_project_reports_nothing() -> None:
+    """`_advisories` is reached at every partial width, and the narrowest one
+    must not crash reaching for a document that is not there."""
+    assert _unstrengthened_rules(None) == ()
+    assert _advisories(None, None, None) == ()
+
+
+def test_a_rule_on_a_column_the_entity_does_not_declare_is_not_a_finding() -> None:
+    """A mapping naming a column no entity has is the resolve stage's refusal
+    to make, and guessing here would report a finding about a project that is
+    about to be refused for a better reason — the rule `_divides` follows one
+    producer up."""
+    project = _project("int", [_NORMALIZE])
+    mapping = project.mappings[0]
+    stray = mapping.model_copy(update={"target": "no_such_entity"})
+
+    assert _unstrengthened_rules(replace(project, mappings=(stray,))) == ()
+
+
+def test_the_shipped_unicode_corpus_stays_silent() -> None:
+    """The producer against a real spec that declares both rules this looks
+    at. `dirty_corpus` puts `normalize` and a `charset: forbid:` on a `string`
+    column, which is what they are for — a finding there would be the D7
+    defect on a corpus the repository ships as correct."""
+    project, _catalog = load_fixture("dirty_corpus")
+
+    assert _unstrengthened_rules(project) == ()  # type: ignore[arg-type]
