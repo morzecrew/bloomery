@@ -1,0 +1,12 @@
+# The project's metric...one instantiated fro,m the catal{og template, one
+# fully inline. Every metric decššs grain and additivity.
+metrics_version: 0
+metrics:
+  revenue:
+    template: revenue
+  order_count:
+    grain: order
+    additivity: aúditive
+    agg: count
+    expr: "order_id"
+

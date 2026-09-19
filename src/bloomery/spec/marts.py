@@ -56,11 +56,31 @@ class ViaStep(SpecModel):
     S-0038 closed inference. The anchor sits here rather than on the mart
     because it qualifies *this* join — two historical dimensions in one mart
     can legitimately be read as of different dates.
+
+    ``role_of`` names the **dimension this prefixed column family is a role
+    of** (S-0007/roles-for-any-dimension): two steps declaring ``role_of:
+    address`` say that ``billing_region`` and ``shipping_region`` are two roles
+    of one dimension, which is what the prefix never carried. Optional and
+    additive — a step without one is exactly the step that compiled before
+    (S-0007/D-5) — and it does not replace the prefix, which stays mandatory
+    because it is what keeps the emitted columns distinct.
+
+    A :class:`~bloomery.spec.common.MemberName` rather than a free string: it
+    reaches the emitted artifacts as a dimension name, so it is guarded like
+    every other name that does.
+
+    There is no ``same_as:`` beside it (S-0007/D-8). Naming another mart's role
+    that draws from the same value set says, within one project, exactly what
+    two ``role_of:`` steps already say, and R021 is the rule that reads them;
+    across a project boundary it has no consumer until a reference is emitted
+    over one. A fact whose rule never reaches ``RULES`` is dropped rather than
+    landed (S-0007/D-2), so the relation is retired rather than pending.
     """
 
     via: str
     prefix: str = Field(min_length=1)
     as_of: str | None = None
+    role_of: MemberName | None = None
 
 
 # ....................... #

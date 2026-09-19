@@ -1,0 +1,79 @@
+# libFuzzer dictionary for fuzz_metric_request.py.
+#
+# Request words, not spec prose: the input is five NUL-separated fields
+# (metrics, dimensions, filters, sort, policy value) and what a mutation needs
+# is a name the IR carries, an operator spelling the filter grammar knows, and
+# the punctuation that puts one beside the other. Kept to what
+# `bloomery.planner.request`/`parse` and the fixture set actually spell, so it
+# stays checkable against the tree.
+
+# ....................... #
+# The field separator, and the punctuation inside a field
+
+"\x00"
+","
+":"
+"|"
+"\x00\x00"
+
+# ....................... #
+# What the fixture set names — the same pool the mask draws from
+
+"revenue"
+"order_count"
+"ordered_day"
+"ordered_week"
+"ordered_month"
+"ordered_quarter"
+"ordered_year"
+"order_date"
+"order_id"
+"customer_id"
+"amount"
+
+# ....................... #
+# Filter operator spellings (bloomery.planner.parse, Mongo-flavoured)
+
+"$eq"
+"$neq"
+"$gt"
+"$gte"
+"$lt"
+"$lte"
+"$in"
+"$nin"
+"$null"
+"$like"
+"$ilike"
+
+# ....................... #
+# A whole filter term, so one mutation arrives with its operator attached
+
+"ordered_month:$gte:2024-01-01"
+"amount:$gt:0"
+"customer_id:$in:1|2|3"
+"order_id:$null:true"
+"amount:$like:%a%"
+
+# ....................... #
+# Sort directions and a whole sort term
+
+"asc"
+"desc"
+"revenue:desc"
+"ordered_month:asc"
+
+# ....................... #
+# Values a literal parser has to decide about
+
+"0"
+"-1"
+"2024-01-01"
+"2024-01-01T00:00:00"
+"1e400"
+"nan"
+"9223372036854775808"
+"%"
+"\\"
+"'"
+"{{"

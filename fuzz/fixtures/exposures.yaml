@@ -1,0 +1,12 @@
+# The sixth document. Nothing is built for an exposure, but it is a document
+# kind `load_project` accepts, and the fuzz lane holds one of each so that a
+# mutation of any kind lands against five valid siblings.
+exposures_version: 1
+exposures:
+  weekly_revenue_review:
+    kind: dashboard
+    owner: analytics@example.com
+    url: https://bi.example.com/dash/1
+    depends_on:
+      metrics: [revenue, order_count]
+      marts: [orders]

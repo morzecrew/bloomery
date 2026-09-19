@@ -1099,13 +1099,24 @@ class RelationshipIR:
 @dataclass(frozen=True, slots=True)
 class MartColumnIR:
     """One flattened wide-schema column, traced to exactly one source entity
-    column; ``ref`` is set for role/date-derived columns."""
+    column; ``ref`` is set for role/date-derived columns.
+
+    ``role_of`` is the dimension this column's prefixed family is a role of
+    (S-0007/roles-for-any-dimension), or ``None`` for a column that plays no
+    declared role. It is deliberately *not* folded into ``ref``: a
+    :class:`DimensionRef` with a role means a date bucket everywhere it is
+    read, and a general role expands into no buckets (S-0007/D-5). Two columns
+    are roles of one dimension when they agree on ``role_of`` **and**
+    ``source_column`` — ``billing_region`` and ``shipping_city`` share a
+    dimension and are still two different members of it.
+    """
 
     name: str
     type: LogicalType
     source_entity: str
     source_column: str
     ref: DimensionRef | None = None
+    role_of: str | None = None
 
 
 # ....................... #
@@ -1138,6 +1149,13 @@ class MartJoinIR:
     same two names on every target by construction
     (:data:`~bloomery.ir.VALID_FROM` / :data:`~bloomery.ir.VALID_TO`), so a
     per-entity copy would be a constant wearing a field.
+
+    ``role_of`` is the dimension this join's column family plays a role of
+    (S-0007/roles-for-any-dimension), carried here as well as on each
+    :class:`MartColumnIR` because the two are read at different grains: a
+    consumer asking about one column has the column, and one asking about the
+    join has only the prefix — and a prefix that is itself a prefix of another
+    cannot say which family a column belongs to.
     """
 
     relationship: str
@@ -1145,6 +1163,7 @@ class MartJoinIR:
     prefix: str
     on: tuple[tuple[str, str], ...]
     as_of: str | None = None
+    role_of: str | None = None
 
 
 # ....................... #

@@ -10,7 +10,8 @@ from pathlib import Path
 import pytest
 from pytest_snapshot.plugin import Snapshot
 
-from bloomery import Target
+from bloomery import Target, compile_project, load_project
+from golden.roles_of_one_dimension import DOCUMENTS
 from support.compiling import assert_no_orphans, compile_fixture
 
 pytestmark = pytest.mark.golden
@@ -66,3 +67,20 @@ def test_cube_golden(snapshot: Snapshot, fixture_name: str) -> None:
     for artifact in artifacts:
         snapshot.assert_match(artifact.content, artifact.path)
     assert_no_orphans(snapshot.snapshot_dir, EXPECTED_PATHS[fixture_name])
+
+
+def test_role_of_golden(snapshot: Snapshot) -> None:
+    """Two roles of one dimension, as a Cube consumer sees them.
+
+    The emitter is the visible half of S-0007's general role: both dimensions
+    carry the same ``meta.role_of``, which is what a consumer reads to know
+    that ``billing_region`` and ``shipping_region`` may be filtered, joined or
+    asserted against each other.
+    """
+    artifacts = compile_project(load_project(DOCUMENTS), target=Target.CUBE, dialect="duckdb")
+    paths = ["model/cubes/orders.yml", "model/views/orders_view.yml"]
+    assert [a.path for a in artifacts] == paths
+    snapshot.snapshot_dir = GOLDEN / "roles_of_one_dimension" / "cube"
+    for artifact in artifacts:
+        snapshot.assert_match(artifact.content, artifact.path)
+    assert_no_orphans(snapshot.snapshot_dir, paths)

@@ -547,3 +547,25 @@ def test_marts_without_a_date_dimension_refuse_through_the_target() -> None:
 
 def test_the_target_is_registered_under_its_name() -> None:
     assert get_emitter("metricflow").name == "metricflow"
+
+
+def test_role_of_rides_on_the_foreign_entity_role() -> None:
+    # S-0007/what-each-fact-buys: MSI has no free-form metadata on a dimension,
+    # so the shared dimension travels on the foreign entity's `role`. Names
+    # stay distinct because MSI's entity reference ignores the role.
+    ir = _fixture_ir("ecom_basic")
+    mart = next(m for m in ir.marts)
+    join = mart.joins[0]
+    patched = replace(
+        mart,
+        joins=(
+            replace(join, prefix="billing_", role_of="address"),
+            replace(join, prefix="shipping_", role_of="address"),
+        ),
+    )
+    manifest = emit_manifest(replace(ir, marts=(patched,)), naming=DefaultNaming())
+    model = _model(manifest, "order_items")
+    foreign = {e.name: e.role for e in model.entities if e.type is EntityType.FOREIGN}
+    # The first join takes the bare entity name and the second is disambiguated
+    # by its prefix; the shared role is what says they are one dimension.
+    assert foreign == {"order": "address", "shipping_order": "address"}
