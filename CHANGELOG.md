@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`determines:` — say that a column fixes another's value, and a rollup that
+  coarsens along it proves more.** An entity field may now declare what it
+  determines:
+
+  ```yaml
+  fields:
+    city: {type: string, determines: [state]}
+    state: {type: string}
+  ```
+
+  Every row of a city sits in one state, so a rollup of a mart that keeps
+  `billing_state` and drops `billing_city` groups whole cities together rather
+  than splitting them — a coarsening, which the rollup obligation now carries
+  as a premise beside the additivity question.
+
+  Two things worth knowing before you declare one:
+
+    - **It refuses nothing.** A rollup that declares no determination is
+      answered exactly as it was before, so no project that compiles today
+      stops compiling and no emitted SQL changes. What a declaration buys is a
+      stronger proof, not a new error.
+    - **A determination belongs to a column family, not to an entity.** One
+      entity flattened under `billing_` and `shipping_` relates
+      `billing_city` to `billing_state` and to nothing of the shipping family.
+      A mart column that cannot be placed in exactly one family contributes
+      nothing, because a coarsening may only ever fail by proving less.
+
+  `determines:` names this entity's own fields and may not close a cycle —
+  each value of a determinant fixes one value of what it determines, so a
+  cycle says the two columns are one.
+
+  The declaration is stored on the IR, so **every project's fingerprint
+  moves**: `bloomery_ir_version` is 20, and `plan()` refuses to diff a version
+  19 IR against a version 20 one. Recompile both sides before you diff them.
+
 - **A historical entity can quarantine, and a recovered row gets back in.**
   `scd: type2` with `quarantine:` was refused outright, because replay's merge
   named the entity's own columns and a type 2 relation carries a validity

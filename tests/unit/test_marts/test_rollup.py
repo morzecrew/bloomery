@@ -23,6 +23,8 @@ from support.compiling import load_fixture
 from bloomery import build_project_ir, load_project
 from bloomery.errors import GuardrailError, SpecParseError, UnprovableRollup
 from bloomery.marts import lower_rollups
+from bloomery.marts.rollup import _determinations
+from bloomery.semantic import prove_mart_rollup
 
 pytestmark = pytest.mark.unit
 
@@ -309,6 +311,48 @@ def test_a_provable_rollup_compiles_and_lands_on_the_ir() -> None:
 
     assert [rollup.name for rollup in ir.rollups] == ["order_items_monthly"]
     assert [mart.name for mart in ir.marts] == ["order_items"]
+
+
+def test_the_obligation_is_asked_with_the_marts_own_determinations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """What the lowering hands R020, observed rather than inferred (S-0079/D-4).
+
+    The compiled artifact carries no proof — R020 proves more and refuses
+    nothing (S-0079/D-7) — so the golden would pass with the argument missing.
+    What is asserted is the mapping itself: keyed by the mart's own dimension
+    names, and matched to a join family rather than to the source entity
+    (S-0079/D-5), so `billing_city` determines `billing_state` and nothing of
+    the shipping family. Only the direct declarations are translated
+    (S-0079/D-6); the closure stays inside R020, where a witness the author
+    did not write as one line still reads `DERIVED`.
+    """
+
+    project, catalog = load_fixture("coarsening_rollup")
+    draft = build_project_ir(project, catalog)
+    seen: list[object] = []
+
+    def _record(mart: object, keep: object, ir: object, determines: object = None) -> object:
+        seen.append(determines)
+        return prove_mart_rollup(mart, keep, ir, determines)
+
+    monkeypatch.setattr("bloomery.marts.rollup.prove_mart_rollup", _record)
+    assert project.marts is not None
+    lowering = lower_rollups(project.marts, draft)
+
+    assert [rollup.name for rollup in lowering.rollups] == ["revenue_by_state_monthly"]
+    assert seen == [{"billing_city": ("billing_state",), "shipping_city": ("shipping_state",)}]
+
+
+def test_a_mart_over_entities_declaring_nothing_determines_nothing() -> None:
+    """D7's permissiveness from the lowering side: a project with no
+    declaration hands R020 an empty mapping, and the answer is the one
+    `prove_mart_rollup` gave before R020 existed."""
+
+    project, catalog = load_fixture("rollup_mart")
+    draft = build_project_ir(project, catalog)
+
+    assert _determinations(draft.marts[0], draft) == {}
 
 
 def test_a_rollup_of_a_mart_that_did_not_lower_is_skipped_in_silence() -> None:

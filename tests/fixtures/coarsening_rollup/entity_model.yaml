@@ -1,0 +1,34 @@
+# The only fixture declaring `determines:` (S-0079/D-8): every address sits in
+# one state, so a rollup that keeps the state column and drops the city one
+# groups whole cities together — the coarsening premise R020 carries. The
+# address is flattened under two prefixes, so the mapping the lowering derives
+# has a join family to get wrong (S-0079/D-5).
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      amount: {type: "decimal(12,4)"}
+      order_date: {type: date}
+      bill_to_id: {type: string}
+      ship_to_id: {type: string}
+  address:
+    grain: one row per address
+    key: [address_id]
+    fields:
+      address_id: {type: string, required: true}
+      city: {type: string, determines: [state]}
+      state: {type: string}
+relationships:
+  - name: order_of_billing_address
+    from: order
+    to: address
+    via: {bill_to_id: address_id}
+    cardinality: many_to_one
+  - name: order_of_shipping_address
+    from: order
+    to: address
+    via: {ship_to_id: address_id}
+    cardinality: many_to_one

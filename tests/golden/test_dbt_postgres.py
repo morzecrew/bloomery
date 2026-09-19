@@ -20,6 +20,20 @@ pytestmark = pytest.mark.golden
 GOLDEN = Path(__file__).resolve().parent
 
 EXPECTED_PATHS = {
+    # S-0079/D-8: the fixture whose entity declares `determines:`, compiled on
+    # all three targets. What it shows here is D7's permissiveness — the
+    # rollup's model is the ordinary aggregate `rollup_mart` emits, because a
+    # coarsening proves more and refuses nothing.
+    "coarsening_rollup": [
+        "dbt_project.yml",
+        "macros/generate_schema_name.sql",
+        "models/gold/dim_date.sql",
+        "models/gold/mart_orders.sql",
+        "models/gold/mart_revenue_by_state_monthly.sql",
+        "models/silver/address.sql",
+        "models/silver/order.sql",
+        "models/sources.yml",
+    ],
     # S-0063/tests: `models/exposures.yml` is here and nowhere else in this
     # table, which is the assertion that matters — a project declaring no
     # consumer emits no exposures file, and every other fixture's golden is

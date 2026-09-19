@@ -17,6 +17,18 @@ pytestmark = pytest.mark.golden
 GOLDEN = Path(__file__).resolve().parent
 
 EXPECTED_PATHS = {
+    # S-0079/D-8: one entity column declaring `determines:`, flattened under
+    # two prefixes and rolled up onto the determined one. Registered on all
+    # three targets, and the SQL is the assertion that nothing about a
+    # coarsening reaches the artifact — the premise is discharged at compile.
+    "coarsening_rollup": [
+        "config.yaml",
+        "models/gold/dim_date.sql",
+        "models/gold/mart_orders.sql",
+        "models/gold/mart_revenue_by_state_monthly.sql",
+        "models/silver/address.sql",
+        "models/silver/order.sql",
+    ],
     # S-0034/emission-and-the-dag, S-0034/D-16: one generated wrapper per declared output, so a
     # two-output step is two `.py` models. The extension is the point of this
     # entry — S-0025/D-2's "artifacts are file-shaped text" is what lets a

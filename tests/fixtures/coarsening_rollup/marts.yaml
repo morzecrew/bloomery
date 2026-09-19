@@ -1,0 +1,20 @@
+# The rollup keeps `billing_state` and drops `billing_city`, which the entity's
+# `determines:` makes a coarsening rather than a loss of grain (S-0079/D-8).
+# It refuses nothing either way — R020 is a premise a declaration strengthens,
+# not a new error (S-0079/D-7).
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {via: order_of_billing_address, prefix: billing_}
+      - {via: order_of_shipping_address, prefix: shipping_}
+      - {date: order_date, role: ordered}
+    measures: [revenue]
+
+rollups:
+  revenue_by_state_monthly:
+    of: orders
+    keep: [billing_state, ordered_month]
+    measures: [revenue]

@@ -241,6 +241,20 @@ def test_coverage_check_loads_clean() -> None:
     assert (check.relationship, check.min, check.on_fail) == ("order_of_customer", 1, "flag")
 
 
+def test_coarsening_rollup_loads_clean() -> None:
+    """The only fixture declaring `determines:` (S-0079/D-8): one address
+    column determining another, flattened under two prefixes so the mapping
+    R020 is handed has a join family to get wrong."""
+    project = load_fixture_project("coarsening_rollup")
+    assert set(project.entity_model.entities) == {"order", "address"}
+    assert project.entity_model.entities["address"].fields["city"].determines == ("state",)
+    assert project.marts is not None
+    assert project.marts.rollups["revenue_by_state_monthly"].keep == (
+        "billing_state",
+        "ordered_month",
+    )
+
+
 def test_the_orphan_guard_catches_a_golden_nothing_emits(tmp_path: Path) -> None:
     """The guard the golden corpus leans on, tested rather than trusted.
 

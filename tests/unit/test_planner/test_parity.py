@@ -308,15 +308,16 @@ def test_the_corpus_is_the_size_it_claims_to_be() -> None:
     generator reads fixtures: one that stops carrying marts shrinks the corpus
     silently, and the suite keeps passing on what is left.
 
-    It grew by 186 when `scd2_replay` landed (S-0003/P-1). Those rows were
-    **appended** to the baseline rather than regenerated into it: a fixture
-    that does not exist at the merge base has no merge-base outcome to
-    contradict, and regenerating the whole file would have erased the sixteen
-    conversions below, which are the only thing it is kept for."""
+    It grew by 186 when `scd2_replay` landed (S-0003/P-1), and by 20 when
+    `coarsening_rollup` did (S-0079/D-8). Those rows were **appended** to the
+    baseline rather than regenerated into it: a fixture that does not exist at
+    the merge base has no merge-base outcome to contradict, and regenerating
+    the whole file would have erased the sixteen conversions below, which are
+    the only thing it is kept for."""
     outcomes = _outcomes()
 
     assert len(outcomes) == len(_baseline())
-    assert len(outcomes) == 1193
+    assert len(outcomes) == 1213
 
 
 #: What S-0055/phasing (P-2) licenses, as moves rather than as a list of keys: the rule
