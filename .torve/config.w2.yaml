@@ -104,4 +104,4 @@ threads:
 # repository's `required_signatures` rule holds every document pull request
 # for a person with admin rights.
 vcs:
-  signing_key: /home/misery7100/.ssh/id_github.pub
+  signing_key: /home/misery7100/.ssh/id_github
