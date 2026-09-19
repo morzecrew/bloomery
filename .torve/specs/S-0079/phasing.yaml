@@ -62,7 +62,10 @@ phasing:
       an author can reach R020, and until it exists the rule is proved against declarations
       a test handed it. The changelog entry for both halves is written here, once,
       because they are one feature to a reader and land on one branch under one pull
-      request.
+      request. The wiring itself is observed, not inferred: a unit test captures the
+      fourth argument `lower_rollups` hands `prove_mart_rollup` for a project with
+      a declared determination, since the compiled artifact carries no proof and a
+      golden alone would pass with the argument missing.
     scope:
       - src/bloomery/marts/rollup.py
       - tests/unit/test_marts/test_rollup.py
