@@ -69,3 +69,6 @@ providers:
   default: [anthropic]
   repositories: {}
   never_send: []
+
+# The second worker's slot: its own auth and cache volumes (S-0004/D-2).
+worker_slot: 1

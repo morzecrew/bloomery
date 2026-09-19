@@ -1,0 +1,192 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0007
+phase: 1
+base: 7343f67ee16fb6051c50081c4cc72e6b60f1e85c
+commit: a7529534939ed26427bb982fdc87b89721d1640d
+at: '2026-09-19T00:40:33Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: OPEN
+  - id: D-9
+    grade: OPEN
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-19T00:25:35Z'
+    claim: >-
+      rung 4 now carries a surrogate marker distinct from engine; the table's ninth
+      entry is registered and engine(name) still means Docker plus the real engine
+    evidence: >-
+      pyproject.toml:223 — surrogate(name) registered as its own marker, beside engine(name)
+      at pyproject.toml:222
+    action: decided
+    proposal: none — D-2 is satisfied as written
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-19T00:25:35Z'
+    claim: >-
+      the change to pyproject.toml is a pytest marker registration only; no driver,
+      SDK or Spark session is added to any dependency group and nothing under src/
+      is touched
+    evidence: >-
+      pyproject.toml:223 — the only added line in the file, inside tool.pytest.ini_options
+      markers
+    action: decided
+    proposal: none — D-4 is satisfied as written
+  - decision: D-9
+    grade: OPEN
+    at: '2026-09-19T00:25:35Z'
+    claim: >-
+      surrogate is a new marker rather than a parameter on engine: a selector whose
+      meaning turns on an argument cannot be excluded by name, and -m 'not surrogate'
+      is what keeps a CI log honest about what ran
+    evidence: >-
+      pyproject.toml:223 — the reason is recorded in the table entry itself, as D-9
+      requires; tests/unit/test_tier_ladder_guard.py:63 pins that it stays there
+    action: decided
+    proposal: >-
+      D-9 is settled: surrogate is its own marker, not a parameter on engine; the
+      row can close citing this entry
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-19T00:26:52Z'
+    attempt: 2
+    claim: >-
+      the change to pyproject.toml is a pytest marker registration only; no engine
+      driver, cloud SDK or Spark session is added to any dependency group and nothing
+      under src/ is touched
+    evidence: >-
+      pyproject.toml:223 — the only added line in the file, inside tool.pytest.ini_options
+      markers
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-19T00:27:25Z'
+    attempt: 2
+    claim: >-
+      rung 4 carries a surrogate marker distinct from engine; the marker table's ninth
+      entry is registered and engine(name) still means Docker plus the real engine
+    evidence: >-
+      pyproject.toml:223 — surrogate(name) registered as its own marker, beside engine(name)
+      at pyproject.toml:222
+    action: decided
+  - decision: D-9
+    grade: OPEN
+    at: '2026-09-19T00:27:31Z'
+    attempt: 2
+    claim: >-
+      surrogate is a new marker rather than a parameter on engine: a selector whose
+      meaning turns on an argument cannot be excluded by name, and -m 'not surrogate'
+      is what keeps a CI log honest about what ran
+    evidence: >-
+      pyproject.toml:223 — the spelling and its reason are recorded in the table entry
+      itself; tests/unit/test_tier_ladder_guard.py:63 pins that the reason stays there
+    action: decided
+    proposal: >-
+      D-9 is settled: surrogate is its own marker, not a parameter on engine; the
+      row can close citing this entry
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-19T00:28:01Z'
+    attempt: 2
+    claim: >-
+      the change to pyproject.toml is a pytest marker registration only; no engine
+      driver, cloud SDK or Spark session is added to any dependency group and nothing
+      under src/ is touched
+    evidence: >-
+      pyproject.toml:223 — the only added line in the file, inside tool.pytest.ini_options
+      markers
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-19T00:28:01Z'
+    attempt: 2
+    claim: >-
+      rung 4 carries a surrogate marker distinct from engine; the marker table's ninth
+      entry is registered and engine(name) still means Docker plus the real engine
+    evidence: >-
+      pyproject.toml:223 — surrogate(name) registered as its own marker, beside engine(name)
+      at pyproject.toml:222
+    action: decided
+  - decision: D-9
+    grade: OPEN
+    at: '2026-09-19T00:28:01Z'
+    attempt: 2
+    claim: >-
+      surrogate is a new marker rather than a parameter on engine: a selector whose
+      meaning turns on an argument cannot be excluded by name, and -m 'not surrogate'
+      is what keeps a CI log honest about what ran
+    evidence: >-
+      pyproject.toml:223 — the spelling and its reason are recorded in the table entry
+      itself; tests/unit/test_tier_ladder_guard.py:63 pins that the reason stays there
+    action: decided
+    proposal: >-
+      D-9 is settled: surrogate is its own marker, not a parameter on engine; the
+      row can close citing this entry
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-19T00:40:00Z'
+    attempt: 3
+    claim: >-
+      compliant: rung 4 gains its own surrogate marker in the table, distinct from
+      engine, which keeps meaning Docker plus the real engine
+    evidence: >-
+      pyproject.toml:222-229 — the surrogate(name) entry and the engine(name) entry
+      beside it
+    action: decided
+  - decision: D-9
+    grade: OPEN
+    at: '2026-09-19T00:40:00Z'
+    attempt: 3
+    claim: >-
+      decided the new-marker spelling over a parameter on engine: the claim a lane
+      makes is its name in a CI log, and engine("redshift") over a Postgres shim reads
+      as Redshift passing; reason recorded in the table beside the entry
+    evidence: >-
+      pyproject.toml:222-227 — the comment recording the form and why
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-19T00:40:00Z'
+    attempt: 3
+    claim: >-
+      compliant: nothing enters the install path; the change is a marker string, a
+      README row and a guard test, with no driver, SDK or dependency group touched
+    evidence: >-
+      pyproject.toml:228 — the added entry is a marker string inside tool.pytest.ini_options.markers
+    action: decided
+  - decision: D-7
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-19T00:40:08Z'
+    attempt: 3
+    claim: >-
+      rung 4 is per port, but the just test selector excludes engine, e2e, chaos and
+      perf only — a surrogate-marked lane would run on every pull request; justfile
+      is outside this contract's scope, so the obligation is recorded in tests/README.md
+      for whoever writes the first lane
+    evidence: >-
+      justfile:66 — uv run pytest -m "not engine and not e2e and not chaos and not
+      perf"
+    action: departed
+    proposal: >-
+      ASSUMED — the first surrogate lane adds 'not surrogate' to the just test and
+      just coverage selectors
+    notes: >-
+      no lane carries the marker yet, so the selector gap is inert today
