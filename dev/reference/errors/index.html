@@ -2715,6 +2715,10 @@ improves between releases.</p>
 <td>A mart or rollup publishes a <code>pii</code>/<code>secret</code> column and no <code>grants:</code> block says who may read it — on the relation, on the source entity, or on either. bloomery has no opinion about the audience, so whatever the warehouse already grants stands. Declare grants on both and the guardrail refuses a widening instead</td>
 </tr>
 <tr>
+<td><code>unstrengthened_rule</code></td>
+<td>A column carries field <code>quality:</code> rules and not one of them can reject a value the column's declared logical type admits — a <code>normalize</code> rule, or a <code>charset: forbid:</code> set living entirely above <code>U+007F</code>, on a column typed <code>int</code>, <code>bool</code>, <code>date</code>, <code>timestamp</code> or <code>decimal</code>. Both compare characters, and every value of those types is ASCII already, so the rules lower to real predicates that report nothing forever. Usually a column name aimed one field off that landed on one which happens to exist</td>
+</tr>
+<tr>
 <td><code>inexact_division</code></td>
 <td>A catalog recipe's <code>expr:</code> divides. The <code>divide</code> <em>transform</em> is marked so PostgreSQL and Trino keep it in exact decimal arithmetic, but a recipe's expression is parsed SQL carrying no marker — so the division happens in binary floating point and is narrowed back to the declared decimal, on every engine rather than only on DuckDB. Where the division must be exact, use a <code>divide</code>/<code>multiply</code> transform chain instead</td>
 </tr>
