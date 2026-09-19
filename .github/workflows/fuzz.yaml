@@ -13,11 +13,12 @@ name: Fuzzing
 # working even if every fuzzing job here is later dropped. No phase slip may
 # reorder it behind the fuzzing jobs.
 #
-# Plain `actions/setup-python` when the fuzzing jobs arrive, never
-# ClusterFuzzLite (S-0009/D-1): no Dockerfile, no OSS-Fuzz base image, no
-# hand-built interpreter. The corpus those jobs accumulate will live in
-# `actions/cache`, keyed per target (S-0009/D-3); replay reads `fuzz/corpus/`
-# when it is there and ignores it when it is not, so nothing here waits on it.
+# The `batch` job below is the fuzzing half: plain Atheris on
+# `actions/setup-python`, never ClusterFuzzLite (S-0009/D-1) — no Dockerfile,
+# no OSS-Fuzz base image, no hand-built interpreter. The corpus it accumulates
+# lives in `actions/cache`, keyed per target (S-0009/D-3); replay reads
+# `fuzz/corpus/` when it is there and ignores it when it is not, so nothing in
+# the first phase waits on it.
 
 on:
   schedule:
@@ -77,3 +78,134 @@ jobs:
       # weekly, where a silently-vacuous pass has a week to go unnoticed.
       - name: Assert the replay can fail
         run: uv run pytest tests/unit/test_fuzz_replay.py -q
+
+  # The scheduled batch job. Plain Atheris on `actions/setup-python`
+  # (S-0009/D-1): no Dockerfile, no OSS-Fuzz base image, no hand-built
+  # interpreter. It runs after `replay` in the file and needs nothing from it —
+  # D-2 is about phase order, and the replay job above is the first phase.
+  #
+  # Three hash seeds (S-0009/D-6), `fail-fast: false`: a hash-seed-dependent
+  # finding is exactly what the other legs are for, so one red leg must not
+  # cancel the two that would have told you whether the seed is the variable.
+  # `random` is the third because 0 and 1 are both values someone could have
+  # special-cased by accident.
+  batch:
+    name: Batch fuzz (${{ matrix.target }}, PYTHONHASHSEED=${{ matrix.seed }})
+    # A weekly exploration lane, not a gate: it runs on the schedule and on
+    # demand, never on a pull request, where it would spend an hour finding
+    # what last Monday already found.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # 600s of fuzzing per leg, plus install and corpus round-trip. Well clear
+    # of the six-hour job cap with the legs running in parallel, and inside a
+    # public repository's free minutes (S-0009/D-6). The per-entry budget gets
+    # set from the first weeks' execution counts, which the run log carries.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [parse_doors, cli, load_project, metric_request, compile_determinism, cross_dialect]
+        seed: ["0", "1", "random"]
+
+    env:
+      CORPUS: fuzz/corpus/${{ matrix.target }}
+      SEEDS: fuzz/corpus/_seeds/${{ matrix.target }}
+      PYTHONHASHSEED: ${{ matrix.seed }}
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      # Keyed per target and *not* per seed (S-0009/D-3): the three legs of one
+      # target explore one corpus, so what leg 0 finds is what leg `random`
+      # starts from next week. The run id makes each save a new key — a cache
+      # entry is immutable, so a fixed key would freeze the corpus at whatever
+      # the first run wrote — and the prefix restore-key is what makes the next
+      # run inherit the newest one.
+      - name: Restore the corpus
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ env.CORPUS }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}-${{ matrix.seed }}
+          restore-keys: |
+            fuzz-corpus-${{ matrix.target }}-
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      # D-7: the seeds are generated from `examples/**` and `tests/golden/**`
+      # here, never committed a second time under `fuzz/`.
+      - name: Generate the seeds
+        run: uv run python fuzz/seeds.py --target "${{ matrix.target }}"
+
+      # Before and after, so a cache that has stopped round-tripping reads as
+      # `0 entries` in the log rather than as a green job. The pair is the only
+      # signal separating a corpus that is growing from one that is reset every
+      # Monday.
+      - name: Count the corpus (before)
+        run: uv run python fuzz/corpus.py count "$CORPUS" --label before
+
+      - name: Fuzz
+        run: |
+          mkdir -p "$CORPUS" fuzz/crashes
+          uv run --with 'atheris>=2.3' python "fuzz/fuzz_${{ matrix.target }}.py" \
+            -dict="fuzz/fuzz_${{ matrix.target }}.dict" \
+            -artifact_prefix="fuzz/crashes/${{ matrix.target }}-" \
+            -max_total_time=600 \
+            "$CORPUS" "$SEEDS" "fuzz/fuzz_${{ matrix.target }}_seed_corpus"
+
+      - name: Count the corpus (after)
+        if: ${{ !cancelled() }}
+        run: uv run python fuzz/corpus.py count "$CORPUS" --label after
+
+      # A crash file on disk is a finding whatever libFuzzer's exit code said:
+      # a time-boxed run can end green with an artifact an earlier execution
+      # left behind. `tests/unit/test_fuzz_corpus.py` plants one and asserts
+      # this step goes red (S-0002/D-2).
+      - name: Assert no crash artifacts
+        if: ${{ !cancelled() }}
+        run: uv run python fuzz/corpus.py crashes fuzz/crashes --target "${{ matrix.target }}"
+
+      - name: Upload the crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: fuzz-crashes-${{ matrix.target }}-${{ matrix.seed }}
+          path: fuzz/crashes/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # At job end, and on failure too: a corpus a crashing run grew is the
+      # corpus that reproduces the crash next week.
+      - name: Save the corpus
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ env.CORPUS }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}-${{ matrix.seed }}
+
+      # The red/green twin for the counting and the crash verdict, run in the
+      # lane that depends on them rather than only in the test matrix.
+      - name: Assert the batch job can fail
+        if: ${{ !cancelled() }}
+        run: uv run pytest tests/unit/test_fuzz_corpus.py -q
