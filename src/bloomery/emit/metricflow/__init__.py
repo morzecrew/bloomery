@@ -18,7 +18,9 @@ Deterministic choices pinned here (S-0030 R1; each is golden/unit-tested):
 - The from-side of each single-column ``MartIR.joins[].on`` pair becomes a
   FOREIGN entity named after the joined entity (prefix-qualified on a name
   collision); a composite ``on`` emits no entity — an entity carries one
-  ``expr``. Join key columns never double as categorical dimensions.
+  ``expr``. Join key columns never double as categorical dimensions. A
+  declared ``role_of:`` rides on that entity's ``role`` (S-0007/what-each-fact-buys):
+  two foreign entities sharing one role are two roles of one dimension.
 - Only the day-grain bucket column of a date role is a TIME dimension
   (``<role>_day``, granularity DAY). The coarser bucket columns
   (week/month/quarter/year) are deliberately not emitted: MetricFlow derives
@@ -322,7 +324,12 @@ def _entities(
                 type=EntityType.FOREIGN,
                 expr=join.on[0][0],
                 description=None,
-                role=None,
+                # The declared `role_of:` (S-0007/what-each-fact-buys) lands in
+                # MetricFlow's own role-playing slot: two foreign entities
+                # carrying one role are two roles of that dimension. The
+                # *names* stay distinct because `reference` ignores the role,
+                # so one name twice is a duplicate element to MSI's validator.
+                role=join.role_of,
                 config=None,
             )
         )

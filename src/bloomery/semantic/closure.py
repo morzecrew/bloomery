@@ -54,6 +54,8 @@ from bloomery.semantic.proof import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from bloomery.ir import EntityIR, ProjectIR, RelationshipIR
 
 # ----------------------- #
@@ -62,6 +64,7 @@ __all__ = [
     "can_roll_up",
     "closure",
     "dependencies",
+    "determination_closure",
     "prove_rollup",
 ]
 
@@ -397,6 +400,44 @@ def closure(grain: GrainRef, deps: DependencySet) -> tuple[Determined, ...]:
                 changed = True
 
     return tuple(Determined(ref, reached[ref]) for ref in sorted(reached))
+
+
+# ....................... #
+
+
+def determination_closure(declared: Mapping[str, tuple[str, ...]]) -> dict[str, frozenset[str]]:
+    """Everything each declared determinant determines, transitively
+    (S-0007/determination).
+
+    Column to column, and deliberately *not* the machinery above it: a
+    dimension is not an entity (S-0007/D-3), so `city -> state` has no grain,
+    no key and no node in the lineage graph, and the entity-keyed
+    :func:`closure` has nowhere to put it. The two closures share this module
+    and nothing else.
+
+    A lattice rather than a chain (S-0007/D-4) — a column determining both
+    `state` and `delivery_zone` is the ordinary case — and nothing here reads
+    a row: what comes in is what an author declared (S-0007/D-1).
+
+    A fixpoint rather than a walk, so a cyclic mapping terminates instead of
+    recursing forever. The spec layer refuses a cycle where the document that
+    holds it can still be named, and this is called by consumers that build
+    their mapping from elsewhere, so it owes them termination rather than a
+    second refusal in a place with nothing to cite.
+    """
+
+    reached = {name: set(targets) for name, targets in declared.items()}
+
+    changed = True
+    while changed:
+        changed = False
+        for name, targets in reached.items():
+            grown = targets | {far for near in targets for far in reached.get(near, ())}
+            if grown != targets:
+                reached[name] = grown
+                changed = True
+
+    return {name: frozenset(targets) for name, targets in reached.items()}
 
 
 # ....................... #

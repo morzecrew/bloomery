@@ -26,7 +26,10 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Final
+from typing import TYPE_CHECKING, Final
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 # ----------------------- #
 
@@ -43,6 +46,7 @@ __all__ = [
     "Rule",
     "SemanticFact",
     "SemanticJudgement",
+    "prove_comparable",
 ]
 
 
@@ -353,6 +357,35 @@ class Rule:
 #: measures only at its own grain, so grouping its rows on a subset of its
 #: columns partitions a relation the mart has already proved. So R013 premises
 #: on R008 and asks only the class question, which is the one thing left.
+#:
+#: R020 is the coarsening obligation (S-0007/what-each-fact-buys), and it is the only rule
+#: here that reads a relation *between two dimensions*. It stands beside R013
+#: rather than under it: R013 grades the measure over whatever a rollup drops
+#: and says nothing about the dropped columns' own structure, so a rollup
+#: keeping `state` while dropping `city` and one keeping `sku` while dropping
+#: `city` are the same question to it. They are not the same question. Where
+#: every dropped dimension determines a kept one, the dropped column's groups
+#: each sit inside one kept group, so the rollup's groups are unions of them —
+#: and where none does, a `city` group is split across the kept columns and no
+#: union holds.
+#:
+#: **Stated in the direction the declaration runs.** S-0007's worked example
+#: declares `city: {determines: [state]}` and calls the `state`/`city` rollup
+#: the one that gains a proof, so what fires this rule is the *dropped*
+#: dimension determining a kept one. The design's one-line summary of R020
+#: reads "keeps a determinant of every dropped dimension", which is the other
+#: direction and is a lossless drop rather than a coarsening; the summary here
+#: follows the example, and the divergence is logged against the phase that
+#: built it.
+#:
+#: R021 is the role obligation (S-0007/what-each-fact-buys). Two prefixed
+#: column families that a project declares `role_of:` the same dimension draw
+#: from one value set, so a filter, a join predicate or an assertion across
+#: `billing_region` and `shipping_region` has a warrant where a prefix alone
+#: left two strings. It reads a *declaration* and nothing else — two columns
+#: that happen to be named alike, or to hold string values of the same width,
+#: earn nothing here, which is the whole difference between this rule and the
+#: name-matching nobody wants.
 RULES: Final[dict[str, Rule]] = {
     rule.id: rule
     for rule in (
@@ -397,6 +430,14 @@ RULES: Final[dict[str, Rule]] = {
         Rule(
             "R019",
             "a ratio is over one row set, and every row in it has a non-zero denominator",
+        ),
+        Rule(
+            "R020",
+            "every dimension a rollup drops determines one it keeps, so its groups are unions",
+        ),
+        Rule(
+            "R021",
+            "two columns declared roles of one dimension draw from one value set and compare",
         ),
     )
 }
@@ -693,6 +734,76 @@ class Refutation:
             lines.append(f"  fix:      {self.remediation}")
 
         return "\n".join(lines)
+
+
+# ----------------------- #
+# Comparing two roles of one dimension (S-0007/what-each-fact-buys)
+
+
+def prove_comparable(
+    left: str, right: str, roles: Mapping[str, tuple[str, str]]
+) -> Proof | Refutation:
+    """R021 — whether two mart columns may be compared to each other.
+
+    ``roles`` maps a column to the ``(dimension, member)`` pair it plays a
+    role of: ``billing_region -> ("address", "region")``. A column with no
+    declared role is absent from it, which is the ordinary case and the reason
+    the answer is a refutation rather than a raise — nothing is wrong with a
+    project that declares no roles, it has simply not said the thing this rule
+    reads.
+
+    Comparable means *the same member of the same dimension*. Two roles of one
+    dimension that keep different members — ``billing_region`` against
+    ``shipping_city`` — share a value set no more than two unrelated columns
+    do, so the pair is what this checks and the dimension alone is not.
+
+    Kept free of the IR node types, like every other function in this module:
+    a caller with a :class:`~bloomery.ir.MartIR` builds the mapping from its
+    columns' ``role_of`` and ``source_column``, and a caller without one can
+    still ask the question.
+    """
+
+    judgement = SemanticJudgement("Comparable", (("left", left), ("right", right)))
+    pair, other = roles.get(left), roles.get(right)
+
+    if pair is None or pair != other:
+        # Both sides are described, never only the side that failed: which of
+        # the two is undeclared is the whole of what a reader needs next.
+        found = "; ".join(
+            f"{column} is a role of {role[0]}.{role[1]}"
+            if role is not None
+            else f"{column} plays no declared role"
+            for column, role in ((left, pair), (right, other))
+        )
+        return Refutation(
+            reason="unrelated_dimensions",
+            judgement=judgement,
+            obligations=(
+                Obligation(
+                    required=f"{left} and {right} are roles of one dimension",
+                    found=found,
+                ),
+            ),
+            remediation=(
+                "declare role_of: on both flatten steps, naming the dimension the two "
+                "prefixed column families are roles of"
+            ),
+        )
+
+    dimension, member = pair
+
+    return Proof(
+        rule="R021",
+        conclusion=judgement,
+        facts=tuple(
+            SemanticFact(
+                source=f"role_of:{column}->{dimension}.{member}",
+                provenance=Provenance.DECLARED,
+                statement=f"{column} is a role of {dimension}.{member}",
+            )
+            for column in (left, right)
+        ),
+    )
 
 
 # ----------------------- #

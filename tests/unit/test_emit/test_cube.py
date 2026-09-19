@@ -828,3 +828,46 @@ def test_a_declared_freshness_threshold_reaches_nothing_here() -> None:
 
     assert artifacts, "the fixture stopped compiling for Cube"
     assert not [a.path for a in artifacts if "freshness" in a.content]
+
+
+def _with_roles(mart: MartIR) -> MartIR:
+    """``mart`` plus two prefixed families declared roles of one dimension."""
+    roles = tuple(
+        MartColumnIR(
+            name=f"{prefix}_region",
+            type=StringType(),
+            source_entity="address",
+            source_column="region",
+            role_of="address",
+        )
+        for prefix in ("billing", "shipping")
+    )
+    return dataclasses.replace(
+        mart,
+        columns=mart.columns + roles,
+        dimensions=mart.dimensions
+        + tuple(
+            MartDimensionIR(ref=DimensionRef(dimension=c.name), column=c.name) for c in roles
+        ),
+    )
+
+
+def test_role_of_emits_one_shared_dimension_across_two_column_families() -> None:
+    # S-0007/what-each-fact-buys: the emitters are the visible half. Two roles
+    # of one dimension carry one `meta.role_of` string where two bare prefixes
+    # said nothing to relate them.
+    project = _project((_metric("revenue"),), ("revenue",))
+    project = dataclasses.replace(project, marts=(_with_roles(project.marts[0]),))
+    dimensions = {
+        cast("str", d["name"]): d
+        for d in cast(
+            "list[dict[str, object]]",
+            _cube_yaml(CubeEmitter().emit(project, _ctx()), "orders")["dimensions"],
+        )
+    }
+    assert dimensions["billing_region"]["meta"] == {"role_of": "address.region"}
+    assert dimensions["shipping_region"]["meta"] == dimensions["billing_region"]["meta"]
+    assert dimensions["billing_region"]["type"] == "string"  # a role, not a bucket
+    # The date path is untouched beside it (S-0007/D-5).
+    assert dimensions["ordered_day"]["meta"] == {"granularity": "day"}
+    assert "meta" not in dimensions["order_id"]
