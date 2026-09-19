@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0015
+phase: 3
+base: 63284791bfb392f5eced9861066631f9107e8a58
+commit: 8ed012ced0d263f186257bc8b471c7aaa101f560
+at: '2026-09-19T10:46:50Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-19T10:34:41Z'
+    claim: >-
+      the pull-request job runs plain Atheris on actions/setup-python, like the weekly
+      lane: no Dockerfile, no OSS-Fuzz base image, no hand-built interpreter
+    evidence: >-
+      .github/workflows/fuzz.yaml:274 — setup-python 3.12; the Fuzz step at :306 installs
+      atheris with uv, and fuzz/Dockerfile does not exist
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-19T10:34:41Z'
+    claim: >-
+      the replay job stays first in the file; the new pull-request job is appended
+      after the batch job and nothing was reordered
+    evidence: >-
+      .github/workflows/fuzz.yaml:50 — replay is the first job, pr is the last at
+      :241
+    action: decided
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-09-19T10:34:41Z'
+    claim: >-
+      the pull-request job restores the per-target corpus cache and never saves it:
+      a branch cache entry is readable by every later run on that branch, so a saving
+      pull request would decide what the corpus is
+    evidence: >-
+      .github/workflows/fuzz.yaml:292 — cache/restore with the per-target restore-key
+      and no matching cache/save step in the job
+    action: decided
+  - decision: D-5
+    grade: OPEN
+    at: '2026-09-19T10:34:41Z'
+    claim: >-
+      not promoted: the job carries continue-on-error and appears in no required check,
+      and the stated promotion condition is recorded beside it rather than acted on
+    evidence: >-
+      .github/workflows/fuzz.yaml:251 — continue-on-error: true; tests/unit/test_fuzz_workflows.py:96
+      asserts no fuzz job is in ci.yml's required-ci
+    action: decided
+  - decision: D-6
+    grade: OPEN
+    at: '2026-09-19T10:34:41Z'
+    claim: >-
+      the pull-request budget is 60s of fuzzing per target on one hash seed, a tenth
+      of the weekly 600s; the seed matrix stays weekly
+    evidence: >-
+      .github/workflows/fuzz.yaml:311 — -max_total_time=60 against the batch job's
+      600 at :187
+    action: decided
