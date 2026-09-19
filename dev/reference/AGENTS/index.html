@@ -1653,6 +1653,39 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#s-0042d-1-locked-v010-release-readiness" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0042/D-1 — <code>LOCKED</code> (v0.1.0 release readiness)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#s-0042d-4-locked-v010-release-readiness" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0042/D-4 — <code>LOCKED</code> (v0.1.0 release readiness)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#s-0042d-6-locked-v010-release-readiness" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0042/D-6 — <code>LOCKED</code> (v0.1.0 release readiness)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1705,6 +1738,24 @@
 <p>A <code>_source</code> system column carries provenance. It is load-bearing rather than diagnostic: the collision audit reports which sources collided, and without it the report is unactionable on a multi-source entity.</p>
 <ul>
 <li>Paths: <code>pages/docs/reference/stability.md</code> <code>src/bloomery/emit/lower/silver.py</code> <code>src/bloomery/ir/nodes.py</code> <code>src/bloomery/spec/common.py</code> <code>tests/unit/test_emit/test_sqlmesh.py</code> <code>tests/unit/test_steps/test_lowering.py</code></li>
+</ul>
+<h3 id="s-0042d-1-locked-v010-release-readiness">S-0042/D-1 — <code>LOCKED</code> (v0.1.0 release readiness)<a class="headerlink" href="#s-0042d-1-locked-v010-release-readiness" title="Permanent link">&para;</a></h3>
+<p>The three S-0018/out-of-scope ratchets land before the <code>v0.1.0</code> tag, not after. Their stated trigger was the release; deferring them past it converts a deliberate deferral into an oversight, and a promise nothing enforces is what the release exists to stop.</p>
+<ul>
+<li>Paths: <code>pages/docs/reference/stability.md</code></li>
+<li>Touching these paths owes a divergence entry: <code>torve log owed &lt;task&gt; --touched &lt;files&gt;</code> before you finish</li>
+</ul>
+<h3 id="s-0042d-4-locked-v010-release-readiness">S-0042/D-4 — <code>LOCKED</code> (v0.1.0 release readiness)<a class="headerlink" href="#s-0042d-4-locked-v010-release-readiness" title="Permanent link">&para;</a></h3>
+<p>The perf gate is an <strong>absolute ceiling with headroom</strong> against S-0031's budgets, never a drift comparison against a stored baseline. Runner variance makes percentage drift on millisecond measurements flaky, and a flaky gate is one people learn to re-run.</p>
+<ul>
+<li>Paths: <code>pages/docs/reference/stability.md</code></li>
+<li>Touching these paths owes a divergence entry: <code>torve log owed &lt;task&gt; --touched &lt;files&gt;</code> before you finish</li>
+</ul>
+<h3 id="s-0042d-6-locked-v010-release-readiness">S-0042/D-6 — <code>LOCKED</code> (v0.1.0 release readiness)<a class="headerlink" href="#s-0042d-6-locked-v010-release-readiness" title="Permanent link">&para;</a></h3>
+<p><code>RETIRED.md</code> (the retired register, since deleted) is three columns — number, title, retiring SHA — and <strong>never a summary</strong>. A fourth column would reintroduce the drifting second account the retirement policy exists to prevent; three columns describe no behaviour and so cannot drift.</p>
+<ul>
+<li>Paths: <code>pages/docs/reference/stability.md</code></li>
+<li>Touching these paths owes a divergence entry: <code>torve log owed &lt;task&gt; --touched &lt;files&gt;</code> before you finish</li>
 </ul>
 <!-- /torve:managed -->
 

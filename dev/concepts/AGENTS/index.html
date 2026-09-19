@@ -1632,6 +1632,50 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#s-0058d-1-locked-soundness-positioning-and-the-claims-the-docs-may-make" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0058/D-1 — <code>LOCKED</code> (Soundness positioning and the claims the docs may make)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#s-0058d-2-locked-soundness-positioning-and-the-claims-the-docs-may-make" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0058/D-2 — <code>LOCKED</code> (Soundness positioning and the claims the docs may make)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#s-0058d-3-locked-soundness-positioning-and-the-claims-the-docs-may-make" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0058/D-3 — <code>LOCKED</code> (Soundness positioning and the claims the docs may make)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#s-0058d-4-locked-soundness-positioning-and-the-claims-the-docs-may-make" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0058/D-4 — <code>LOCKED</code> (Soundness positioning and the claims the docs may make)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#s-0075d-1-locked-mechanical-imports-and-per-relationship-provenance" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1682,6 +1726,30 @@
 <p>Additivity: <code>non_additive</code> metrics are never materialized as stored numbers (components only); <code>semi_additive</code> metrics aggregate only over dimensions other than their <code>over:</code> dimension. Enforced at IR build <strong>and</strong> re-refused by emitters (S-0025) — defense in depth.</p>
 <ul>
 <li>Paths: <code>pages/docs/concepts/guardrails.md</code> <code>src/bloomery/guardrails/additivity.py</code> <code>src/bloomery/planner/coverage.py</code> <code>tests/fixtures/semantic_corpus/002-average-of-averages/expected/semantic_outcome.json</code> <code>tests/fixtures/semantic_corpus/002-average-of-averages/problem.md</code> <code>tests/fixtures/semantic_corpus/005-semi-additive-balance/problem.md</code> <code>tests/unit/test_guardrails/test_additivity.py</code></li>
+</ul>
+<h3 id="s-0058d-1-locked-soundness-positioning-and-the-claims-the-docs-may-make">S-0058/D-1 — <code>LOCKED</code> (Soundness positioning and the claims the docs may make)<a class="headerlink" href="#s-0058d-1-locked-soundness-positioning-and-the-claims-the-docs-may-make" title="Permanent link">&para;</a></h3>
+<p><strong>The claim is preservation of declared semantics, never truth.</strong> bloomery proves that what it emits and accepts preserves what it was told, under documented rules — not that the telling was right. Locked because every weaker phrasing of this ("correct analytics", "guaranteed correct metrics") is unfalsifiable and would be quoted back at the project the first time a wrong number came from a wrong declaration.</p>
+<ul>
+<li>Paths: <code>pages/docs/concepts/guardrails.md</code> <code>pages/docs/concepts/what-bloomery-proves.md</code></li>
+<li>Touching these paths owes a divergence entry: <code>torve log owed &lt;task&gt; --touched &lt;files&gt;</code> before you finish</li>
+</ul>
+<h3 id="s-0058d-2-locked-soundness-positioning-and-the-claims-the-docs-may-make">S-0058/D-2 — <code>LOCKED</code> (Soundness positioning and the claims the docs may make)<a class="headerlink" href="#s-0058d-2-locked-soundness-positioning-and-the-claims-the-docs-may-make" title="Permanent link">&para;</a></h3>
+<p><strong>The planner claim is not published before the capability exists.</strong> §2's sentence is false today. A roadmap sentence in a README is read as a description of the current release, and a documentation claim that outruns the code is the one defect a reader cannot check against the code.</p>
+<ul>
+<li>Paths: <code>pages/docs/concepts/guardrails.md</code> <code>pages/docs/concepts/what-bloomery-proves.md</code></li>
+<li>Touching these paths owes a divergence entry: <code>torve log owed &lt;task&gt; --touched &lt;files&gt;</code> before you finish</li>
+</ul>
+<h3 id="s-0058d-3-locked-soundness-positioning-and-the-claims-the-docs-may-make">S-0058/D-3 — <code>LOCKED</code> (Soundness positioning and the claims the docs may make)<a class="headerlink" href="#s-0058d-3-locked-soundness-positioning-and-the-claims-the-docs-may-make" title="Permanent link">&para;</a></h3>
+<p><strong>Representation safety and query answerability are documented as distinct guarantees.</strong> They look contradictory when a reader meets a refused mart and an accepted query over the same measure, and the distinction is S-0054/D-1 stated for humans. Omitting it makes the refusal look arbitrary, which is how a correct refusal gets worked around.</p>
+<ul>
+<li>Paths: <code>pages/docs/concepts/guardrails.md</code> <code>pages/docs/concepts/what-bloomery-proves.md</code></li>
+<li>Touching these paths owes a divergence entry: <code>torve log owed &lt;task&gt; --touched &lt;files&gt;</code> before you finish</li>
+</ul>
+<h3 id="s-0058d-4-locked-soundness-positioning-and-the-claims-the-docs-may-make">S-0058/D-4 — <code>LOCKED</code> (Soundness positioning and the claims the docs may make)<a class="headerlink" href="#s-0058d-4-locked-soundness-positioning-and-the-claims-the-docs-may-make" title="Permanent link">&para;</a></h3>
+<p><strong>Every README correctness statement answers §8's four questions or is rewritten.</strong> It is the gate that keeps the rest of this document from being a style preference: any sentence that cannot say what is proven, from what, when, and what is excluded, is a claim nobody can check.</p>
+<ul>
+<li>Paths: <code>pages/docs/concepts/guardrails.md</code> <code>pages/docs/concepts/what-bloomery-proves.md</code></li>
+<li>Touching these paths owes a divergence entry: <code>torve log owed &lt;task&gt; --touched &lt;files&gt;</code> before you finish</li>
 </ul>
 <h3 id="s-0075d-1-locked-mechanical-imports-and-per-relationship-provenance">S-0075/D-1 — <code>LOCKED</code> (Mechanical imports and per-relationship provenance)<a class="headerlink" href="#s-0075d-1-locked-mechanical-imports-and-per-relationship-provenance" title="Permanent link">&para;</a></h3>
 <p><strong>Provenance attaches to the relationship, not to the basis kind.</strong> <code>BASIS_PROVENANCE</code> is keyed by <code>DependencyBasis</code> value, so today every <code>many_to_one</code> in a project shares one provenance and an imported edge cannot be told from an authored one — which is why <code>IMPORTED_VERIFIED</code> has no producer and S-0070's refusal has no project that can trip it. Locked because it is the whole of what makes the grade mean anything at the point a consumer asks; reversing it makes every other row here decoration. <code>FunctionalDependency.via</code> already carries the key such a lookup needs. Proposed by execution — see <code>logs/T-0053.md</code> (<code>logs/T-0053.md</code>) (D2, attempt 1).</p>
