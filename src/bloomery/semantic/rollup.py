@@ -314,7 +314,15 @@ def _coarsening(
                 # ones would otherwise keep whichever statement sorted lower
                 # and silently drop the other.
                 source=f"determines:{mart.name}.{name}->{keeper}",
-                provenance=Provenance.DECLARED,
+                # Declared where the author wrote `name -> keeper`; derived
+                # where the closure supplied it through a chain the author
+                # never wrote as one line. The grade the fact projects to
+                # (LOCKED or ASSUMED) is the evidence's, not the rule's.
+                provenance=(
+                    Provenance.DECLARED
+                    if keeper in (determines or {}).get(name, ())
+                    else Provenance.DERIVED
+                ),
                 statement=f"{name} determines {keeper}",
             )
             for name, keeper in witnesses
