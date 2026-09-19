@@ -253,3 +253,12 @@ coverage-data/
 *.duckdb.wal
 
 .repowise/
+
+# The fuzz lane's working directories (S-0008). The corpus a run accumulates is
+# a build artifact, not a test input: it is unreviewed, unnamed, machine-grown
+# and pruned, and a finding that lives only there regresses silently — which is
+# why every confirmed finding becomes a test under `tests/` instead. The seed
+# corpus and the dictionary beside it *are* committed; they are hand-written
+# and reviewed.
+fuzz/corpus/
+fuzz/crashes/

@@ -21,6 +21,7 @@ The claims worth testing here are not "it returns a dataclass". They are:
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -289,6 +290,56 @@ def test_refusals_are_sorted_by_source_path() -> None:
     evidence = _evaluate("fanout_trap")
     keys = [(r.source_path or "", type(r).__name__, str(r)) for r in evidence.refusals]
     assert keys == sorted(keys)
+
+
+def test_a_recipe_the_stack_cannot_reparse_is_not_a_recursion_error() -> None:
+    """The advisory walk re-parses an ``expr:`` the spec layer already parsed,
+    and SQLGlot recurses per nesting level — so what ``_parses_as_sql`` proved
+    is that the expression parses *at the stack position the validator ran
+    from*, three frames shallower than this one. A caller deep in its own stack
+    moves both, and the band between them is authored input that loads and then
+    raises ``RecursionError`` out of a function whose contract is that a
+    spec-level problem comes back as a value (S-0008/D-7).
+
+    The remaining stack is shortened rather than the nesting deepened, because
+    a nesting depth that reproduces this on one machine is a different number
+    on the next: what makes the escape real is the caller's depth, not the
+    expression's.
+    """
+
+    catalog = Catalog.model_validate(
+        {
+            "catalog_version": 1,
+            "vertical": "v",
+            "canonical_fields": {
+                "unit_price": {
+                    "entity": "order_item",
+                    "type": "decimal(12,4)",
+                    "recipes": [
+                        {
+                            "id": "from_total",
+                            "requires": ["line_total", "quantity"],
+                            "expr": "(" * 20 + "line_total / quantity" + ")" * 20,
+                        }
+                    ],
+                }
+            },
+        }
+    )
+    project = load_project(fixture_sources("minimal"))
+
+    depth = 0
+    frame: object = sys._getframe()  # noqa: SLF001 — the depth is the measurement
+    while frame is not None:
+        depth += 1
+        frame = frame.f_back  # type: ignore[attr-defined]
+
+    limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(depth + 150)
+    try:
+        evaluate(project, catalog=catalog)
+    finally:
+        sys.setrecursionlimit(limit)
 
 
 def test_a_programming_error_still_raises() -> None:

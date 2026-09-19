@@ -647,6 +647,45 @@ steps:
         build_project_ir(project, steps=registry)
 
 
+def test_a_body_too_deep_to_parse_is_a_step_error_not_a_recursion_error() -> None:
+    """The same door, and the other class that walks past a
+    ``SqlglotError``-only handler: SQLGlot's parser recurses per nesting level,
+    so a few dozen nested parentheses exhaust the stack rather than raising
+    anything SQLGlot owns.
+
+    A registry body never passes the spec layer's ``_parses_as_sql`` — it is
+    assembled in Python rather than authored — so this handler is its only
+    door, and a ``RecursionError`` leaving it crossed the compile boundary as a
+    non-``BloomeryError`` (S-0008/D-7).
+    """
+    project = load_project(
+        {
+            "entity_model": ENTITY_MODEL,
+            "steps": """
+steps_version: 1
+steps:
+  - use: s@1
+    outputs: {out: silver.a}
+""",
+        }
+    )
+    body = manifest(
+        ref="s",
+        version=1,
+        kind="sql_model",
+        entrypoint=None,
+        inputs={},
+        parameters={},
+        outputs={
+            "out": {"grain": "g", "key": ["k"], "produces": {"k": {"type": "string"}}},
+        },
+    )
+    deep = "SELECT " + "(" * 400 + "1" + ")" * 400 + " AS k"
+    registry = StepRegistry({("s", 1): body}, sql_bodies={("s", 1): deep})
+    with pytest.raises(StepError, match="does not parse as SQL"):
+        build_project_ir(project, steps=registry)
+
+
 def _with_produced(column: str) -> dict[str, object]:
     return {
         "customer": {

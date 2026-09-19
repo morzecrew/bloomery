@@ -304,6 +304,19 @@ tests/
   support/      # shared helpers (Hypothesis strategies, seeding, extraction)
 ```
 
+Beside the six tiers, and not one of them, is the fuzz lane (S-0008):
+
+```text
+fuzz/           # coverage-guided targets over load_project / compile_project
+```
+
+It is not a pytest marker — a libFuzzer target runs until a time budget expires
+rather than passing or failing — so no test tier and no acceptance command runs
+it. A person runs one: `just fuzz parse_doors 300`. Its oracle is that only a
+`BloomeryError` may cross the compile boundary, and every confirmed finding
+becomes an ordinary test under `tests/` rather than a corpus entry. See
+[pages/docs/contributing/fuzzing.md](pages/docs/contributing/fuzzing.md).
+
 Mirror the `src` structure in `tests/unit` when possible:
 
 ```text

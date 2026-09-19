@@ -817,6 +817,19 @@ def _divides(expr: str | None) -> bool:
     — so the narrower catch let a third-party exception out of
     :func:`evaluate`, whose whole contract is that a spec-level problem comes
     back as a value (``logs/T-0048.md``).
+
+    ``RecursionError`` beside it, and for the same contract rather than a
+    different one. The expression arrives having passed ``_parses_as_sql``,
+    which reads as a proof that it parses — but SQLGlot recurses per nesting
+    level, so what that validator proved is that the expression parses *at the
+    stack position the validator ran from*. This re-parse runs three frames
+    deeper (measured across the fixture corpus: the validator at depth 7, here
+    at depth 10), and three frames is half a nesting level, so there is a band
+    of authored expressions accepted at load and unparseable here. A depth
+    limit raising a named error would not close it — the survivable depth moves
+    with the caller's own stack, 51 levels from a shallow frame and 35 from 300
+    down — and an unparseable expression is deliberately not an advisory here,
+    so there is no refusal to name (S-0008/D-7, reproduced).
     """
 
     if expr is None:
@@ -824,7 +837,7 @@ def _divides(expr: str | None) -> bool:
 
     try:
         parsed = parse_one(expr)
-    except SqlglotError:
+    except (SqlglotError, RecursionError):
         return False
 
     return any(True for _ in parsed.find_all(exp.Div))

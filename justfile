@@ -124,6 +124,44 @@ quality strict="false":
     just _uv_cmd "Secrets" {{ strict }} pre-commit run gitleaks --all-files
 
 # ----------------------- #
+# Fuzzing (S-0008) — a lane a person runs, not a tier CI runs.
+#
+# Not a seventh pytest marker (S-0008/D-6): a libFuzzer target is a process
+# that runs until a time budget expires, and the one thing a marker could hold
+# is a replay test over a corpus this repository deliberately does not store.
+# So the corpus is a build artifact, gitignored, and a finding leaves the lane
+# as an ordinary unit test rather than as a corpus entry.
+
+_fuzz_dir := join(_pwd, "fuzz")
+
+# Run one fuzz target for a time budget. `just fuzz parse_doors 300`
+fuzz target="parse_doors" seconds="60":
+    {{ _uv_sync }}
+
+    mkdir -p {{ _fuzz_dir }}/corpus/{{ target }} {{ _fuzz_dir }}/crashes
+
+    # The accumulated corpus first: libFuzzer writes new inputs into the first
+    # directory it is given and reads the rest. Seeds and dictionary are
+    # committed; the corpus is not.
+    uv run python {{ _fuzz_dir }}/fuzz_{{ target }}.py \
+        -max_total_time={{ seconds }} \
+        -dict={{ _fuzz_dir }}/fuzz_{{ target }}.dict \
+        -artifact_prefix={{ _fuzz_dir }}/crashes/ \
+        {{ _fuzz_dir }}/corpus/{{ target }} \
+        {{ _fuzz_dir }}/fuzz_{{ target }}_seed_corpus
+
+# Replay one input against a target — the first thing to run on a crash file
+fuzz-repro target input:
+    uv run python {{ _fuzz_dir }}/fuzz_{{ target }}.py {{ input }}
+
+# Shrink a crashing input to the smallest one that still crashes
+fuzz-min target input:
+    uv run python {{ _fuzz_dir }}/fuzz_{{ target }}.py \
+        -minimize_crash=1 -runs=100000 \
+        -artifact_prefix={{ _fuzz_dir }}/crashes/ \
+        {{ input }}
+
+# ----------------------- #
 # Docs
 
 # Render every D2 diagram to light and dark SVGs.

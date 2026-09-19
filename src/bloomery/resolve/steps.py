@@ -742,7 +742,18 @@ def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[Bloo
     # `SqlglotError`, so an unterminated string (`SELECT 'abc`) bypassed a
     # `ParseError`-only handler and crossed the compile boundary as a
     # non-`BloomeryError` — which S-0019 forbids.
-    except SqlglotError as exc:
+    #
+    # `RecursionError` beside it, for the reason `spec.common` gives at the
+    # authored door: SQLGlot's parser recurses per nesting level, so a few
+    # dozen nested parentheses exhaust the stack instead of raising. A registry
+    # body reaches this parse without passing `_parses_as_sql` at all — it is
+    # assembled in Python, never authored — so this handler is the only door
+    # it has, and a narrow one left `RecursionError` crossing the compile
+    # boundary (S-0008/D-7, reproduced). Caught rather than bounded by a depth
+    # limit: the depth SQLGlot survives is a function of the stack left by the
+    # caller, measured here at 51 nested levels from a shallow frame and 35
+    # from 300 frames down, so no fixed limit is both correct and total.
+    except (SqlglotError, RecursionError) as exc:
         msg = (
             f"step {wiring.use!r} has a body that does not parse as SQL: {exc}. Bloomery "
             "parses Tier 1 and Tier 2 bodies at compile (S-0034/emission-and-the-dag), so this is a "
