@@ -88,11 +88,13 @@ decisions:
   - id: D-7
     grade: ASSUMED
     text: >-
-      Fuzz seeds are generated from `examples/**` and `tests/golden/**` at build time
-      rather than committed a second time under `fuzz/`
-    paths: [examples/**, tests/golden/**]
+      Fuzz seeds are generated from `examples/**` and `tests/fixtures/**` — the examples
+      and the spec fixtures behind the golden tier — at build time rather than committed
+      a second time under `fuzz/`
+    paths: [examples/**, tests/fixtures/**]
     consequence: >-
       The corpus floor tracks the examples instead of drifting from them, so a new
       example is a new seed without anyone copying it
     rationale: >-
       Depart if generation proves slower than the run it seeds
+    fingerprint: 624d932148915dee/35e999ccc3b36d89
