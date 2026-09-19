@@ -1719,6 +1719,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#replay-the-corpus-for-determinism" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Replay the corpus for determinism
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-a-crash-means-here" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1828,6 +1839,17 @@
       On this page
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#replay-the-corpus-for-determinism" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Replay the corpus for determinism
+      </span>
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#what-a-crash-means-here" class="md-nav__link">
@@ -1957,8 +1979,40 @@
 
 <h1 id="fuzzing">Fuzzing<a class="headerlink" href="#fuzzing" title="Permanent link">&para;</a></h1>
 <p>The fuzz lane runs one target against a corpus of mutated spec documents and reports any
-exception that is not a <code>BloomeryError</code>. It is a contributor tool: no CI job runs it, no
-acceptance command depends on it, and a target is time-boxed rather than pass-or-fail.</p>
+exception that is not a <code>BloomeryError</code>. It is a contributor tool: no acceptance command
+depends on it, and a target is time-boxed rather than pass-or-fail. CI runs it in
+<code>.github/workflows/fuzz.yaml</code> twice over: a weekly batch (ten minutes per target and hash
+seed, plus the determinism replay below, which is not a fuzzer) and a non-blocking
+sixty-second <code>Short fuzz (&lt;target&gt;)</code> check on pull requests that touch <code>src/</code> or <code>fuzz/</code>.
+A red short check colours the job, never the merge.</p>
+<h2 id="replay-the-corpus-for-determinism">Replay the corpus for determinism<a class="headerlink" href="#replay-the-corpus-for-determinism" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="gp">$ </span>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>fuzz/replay.py
+</code></pre></div>
+<p><code>fuzz/replay.py</code> compiles every corpus entry in two separate processes under different
+<code>PYTHONHASHSEED</code> values, to all three targets across all three dialects, and diffs the
+artifacts byte for byte. It then compiles the corpus a third time in the opposite order
+and asserts that each entry's artifact list is unchanged, so artifact ordering cannot
+depend on what was compiled before it. Compilation is a pure function of the specs —
+same specs in, byte-identical artifacts out, across processes and hash seeds — and this
+is that claim at corpus scale; <code>tests/unit/test_determinism_guard.py</code> is the one-fixture
+version of it.</p>
+<p>A refusal is an outcome like any other here: a refusal message that varies across hash
+seeds is the same defect as an artifact that does.</p>
+<p>The corpus needs no fuzzing to exist. By default it is every project under <code>examples/</code>
+and every spec fixture under <code>tests/fixtures/</code> — the inputs behind the golden tier — so
+the seeds track the examples instead of being copied under <code>fuzz/</code>. Whatever a fuzzing
+job later leaves in <code>fuzz/corpus/</code> is picked up as well, each blob spliced into the valid
+fixture set the way the targets splice their own input.</p>
+<div class="highlight"><pre><span></span><code><span class="gp">$ </span>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>fuzz/replay.py<span class="w"> </span>--list
+<span class="gp">$ </span>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>fuzz/replay.py<span class="w"> </span>--root<span class="w"> </span>tests/fixtures/minimal
+<span class="gp">$ </span>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>fuzz/replay.py<span class="w"> </span>--seed<span class="w"> </span><span class="m">0</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">42</span>
+</code></pre></div>
+<p>The script exits non-zero on any differing byte, on a differing artifact order, and on an
+empty corpus — the last because comparing nothing to nothing is the one outcome
+indistinguishable from a determinism claim that holds. <code>tests/unit/test_fuzz_replay.py</code>
+asserts both colours, driving a deliberately broken compile through the
+<code>BLOOMERY_REPLAY_SABOTAGE</code> knob: a check that has never been observed to fail is
+indistinguishable from one that never fires.</p>
 <h2 id="what-a-crash-means-here">What a crash means here<a class="headerlink" href="#what-a-crash-means-here" title="Permanent link">&para;</a></h2>
 <p>bloomery compiles specs to text. It executes nothing, reads no filesystem outside the CLI
 and opens no network connection, so a finding is an <strong>availability problem in someone's
@@ -1986,7 +2040,8 @@ the input that caused it to <code>fuzz/crashes/&lt;target&gt;-&lt;hash&gt;</code
 <p><code>parse_doors</code> currently has one <strong>known open finding</strong> — a <code>RecursionError</code> from
 <code>SqlExpr.ast</code> in <code>src/bloomery/ir/nodes.py</code>, reached through a step body at emit — so a
 run stops on it within a minute or so. Read a trace against the target's module docstring
-before treating it as new; that one is waiting on a follow-up task.</p>
+before treating it as new; that one is waiting on a follow-up task, and until it lands the
+pull-request check leaves <code>parse_doors</code> out (the weekly batch keeps fuzzing it).</p>
 <h2 id="read-a-crash">Read a crash<a class="headerlink" href="#read-a-crash" title="Permanent link">&para;</a></h2>
 <p>Replay it:</p>
 <div class="highlight"><pre><span></span><code><span class="gp">$ </span>just<span class="w"> </span>fuzz-repro<span class="w"> </span>parse_doors<span class="w"> </span>fuzz/crashes/parse_doors-a1b2c3
