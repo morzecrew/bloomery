@@ -68,6 +68,13 @@ class ViaStep(SpecModel):
     A :class:`~bloomery.spec.common.MemberName` rather than a free string: it
     reaches the emitted artifacts as a dimension name, so it is guarded like
     every other name that does.
+
+    There is no ``same_as:`` beside it (S-0007/D-8). Naming another mart's role
+    that draws from the same value set says, within one project, exactly what
+    two ``role_of:`` steps already say, and R021 is the rule that reads them;
+    across a project boundary it has no consumer until a reference is emitted
+    over one. A fact whose rule never reaches ``RULES`` is dropped rather than
+    landed (S-0007/D-2), so the relation is retired rather than pending.
     """
 
     via: str
