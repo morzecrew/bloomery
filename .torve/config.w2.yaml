@@ -96,3 +96,12 @@ threads:
   bots: [coderabbitai, codeant-ai]
   rounds_per_pass: 1
   sources: [forge, record]
+
+# The runner signs the commits it writes — the candidate at `ready`, the
+# landing, the checkpoints — with the host's SSH key (S-0010/signing). The key
+# never enters a sandbox; the signature attests that torve produced the commit
+# under its task. Without it every engine commit is unsigned and this
+# repository's `required_signatures` rule holds every document pull request
+# for a person with admin rights.
+vcs:
+  signing_key: /home/misery7100/.ssh/id_github.pub
