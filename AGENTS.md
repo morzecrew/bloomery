@@ -236,6 +236,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `tests/golden/quality_precedence/` — 1 decision(s)
 - `tests/golden/refusals/` — 4 decision(s)
 - `tests/golden/role_playing_dates/` — 1 decision(s)
+- `tests/golden/roles_of_one_dimension/` — 1 decision(s)
 - `tests/golden/rollup_mart/` — 1 decision(s)
 - `tests/golden/scd2_customers/` — 1 decision(s)
 - `tests/golden/schema/` — 24 decision(s)

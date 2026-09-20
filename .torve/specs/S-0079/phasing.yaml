@@ -6,7 +6,7 @@ phasing:
       Add `determines: tuple[str, ...] = ()` to `ColumnIR` and fill it in `_column_ir`
       from the entity model's `Field.determines`, carried unchanged the way `classification`
       is; move `bloomery_ir_version` 19 → 20 with the paragraph in `ProjectIR`'s docstring
-      that says why; regenerate the fourteen fingerprint-bearing golden fixture directories
+      that says why; regenerate the fifteen fingerprint-bearing golden fixture directories
       with `uv run pytest tests/golden --snapshot-update` and review the diff as source
       — the whole of it is the `-- fingerprint: blm1:…` header line, and a SQL body
       that moves or a diff in a directory carrying no fingerprint is a defect. **No
@@ -21,6 +21,8 @@ phasing:
     scope:
       - src/bloomery/ir/nodes.py
       - src/bloomery/resolve/build.py
+      - src/bloomery/resolve/facets.py
+      - tests/unit/test_resolve/test_facets.py
       - tests/unit/test_ir/test_nodes.py
       - tests/unit/test_ir/test_fingerprint.py
       - tests/unit/test_resolve/test_build.py
@@ -34,6 +36,7 @@ phasing:
       - tests/golden/path_conflict_merged/**
       - tests/golden/quality_precedence/**
       - tests/golden/role_playing_dates/**
+      - tests/golden/roles_of_one_dimension/**
       - tests/golden/rollup_mart/**
       - tests/golden/scd2_customers/**
       - tests/golden/semi_additive_inventory/**
@@ -76,10 +79,14 @@ phasing:
       - tests/golden/test_dbt_postgres.py
       - tests/golden/test_sqlmesh_duckdb.py
       - CHANGELOG.md
+      - tests/unit/test_planner/test_parity.py
+      - tests/unit/test_planner/parity_baseline.tsv
+      - tests/unit/test_resolve/test_resolution.py
     acceptance:
       - >-
         uv run pytest tests/unit/test_marts/test_rollup.py tests/unit/test_fixtures.py
         tests/golden -q
+      - uv run pytest tests/unit -q -p no:randomly
       - uv run mypy src
     depends_on:
       - 1

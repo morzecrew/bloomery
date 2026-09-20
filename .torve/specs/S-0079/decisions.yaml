@@ -48,11 +48,11 @@ decisions:
   - id: D-3
     grade: ASSUMED
     text: >-
-      The fourteen fingerprint-bearing golden fixture directories are regenerated
-      with `uv run pytest tests/golden --snapshot-update` and reviewed like source.
-      The whole of the expected diff is the `-- fingerprint: blm1:…` header line;
-      a SQL body that moves, or a diff in a directory that carries no fingerprint,
-      is a defect and not a snapshot to accept
+      The fifteen fingerprint-bearing golden fixture directories are regenerated with
+      `uv run pytest tests/golden --snapshot-update` and reviewed like source. The
+      whole of the expected diff is the `-- fingerprint: blm1:…` header line; a SQL
+      body that moves, or a diff in a directory that carries no fingerprint, is a
+      defect and not a snapshot to accept
     paths:
       - tests/golden/ecom_basic/**
       - tests/golden/identity_resolution/**
@@ -64,6 +64,7 @@ decisions:
       - tests/golden/path_conflict_merged/**
       - tests/golden/quality_precedence/**
       - tests/golden/role_playing_dates/**
+      - tests/golden/roles_of_one_dimension/**
       - tests/golden/rollup_mart/**
       - tests/golden/scd2_customers/**
       - tests/golden/semi_additive_inventory/**
@@ -78,6 +79,7 @@ decisions:
       may move, and the shape of the line that may move in them, is what makes the
       review a check rather than a scroll
     cites: [S-0020/D-3, S-0026/D-4]
+    fingerprint: 57b1b1df6f2b2caa/281e6728f9236115
   - id: D-4
     grade: ASSUMED
     text: >-
