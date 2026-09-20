@@ -1,6 +1,6 @@
-<!-- torve:managed tests/golden/identity_resolution — rendered from the corpus; do not edit by hand -->
+<!-- torve:managed tests/golden/roles_of_one_dimension — rendered from the corpus; do not edit by hand -->
 
-## Decisions governing `tests/golden/identity_resolution/`
+## Decisions governing `tests/golden/roles_of_one_dimension/`
 
 ### S-0079/D-3 — `ASSUMED` (Determinations reach the IR and the rollup lowering) — implementation: none
 

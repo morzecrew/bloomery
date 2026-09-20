@@ -104,7 +104,7 @@ current_state: |
   `ProjectIR.bloomery_ir_version` is `19` in `src/bloomery/ir/nodes.py`, is part of the
   hashed stream (S-0020/D-3), and its docstring records versions 5, 7, 13, 14, 18 and 19 as
   additions of exactly this shape: a declaration no SELECT reads, bumping the version so
-  that `plan()` refuses to diff across a change it cannot see. Fourteen golden fixture
+  that `plan()` refuses to diff across a change it cannot see. Fifteen golden fixture
   directories carry `-- fingerprint: blm1:…` headers; `tests/golden/refusals`,
   `tests/golden/multi_mart_refusal`, `tests/golden/period_over_period` and
   `tests/golden/schema` carry none.
@@ -240,7 +240,7 @@ design:
       version *and* on the fingerprint for some project, and `plan()` would diff across a
       shape change it could not see. The bump is what makes `PlanError` fire instead.
 
-      Fourteen fixture directories move and the expected diff is one line each — the
+      Fifteen fixture directories move and the expected diff is one line each — the
       `-- fingerprint: blm1:…` header. `tests/golden/refusals`,
       `tests/golden/multi_mart_refusal`, `tests/golden/period_over_period` and
       `tests/golden/schema` carry no fingerprint and must not move; a diff there is a
@@ -300,7 +300,7 @@ tests: |
     prefixes relates `billing_city` to `billing_state` and to nothing of the shipping
     family; a column matching two families contributes nothing. In
     `tests/unit/test_marts/test_rollup.py`.
-  - **Golden, phase 1:** every artifact in the fourteen fingerprint-bearing fixture
+  - **Golden, phase 1:** every artifact in the fifteen fingerprint-bearing fixture
     directories is regenerated with `uv run pytest tests/golden --snapshot-update` and
     reviewed like source. The whole of the expected diff is the fingerprint header line;
     a SQL body that moves is a defect, not a snapshot to accept.
