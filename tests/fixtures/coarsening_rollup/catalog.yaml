@@ -1,0 +1,10 @@
+# The date dimension a mart carrying measures needs on every target
+# (S-0030 R1 rule 4); nothing about a determination is catalog business.
+catalog_version: 1
+vertical: ecom_retail
+
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2020
+  end_year: 2030

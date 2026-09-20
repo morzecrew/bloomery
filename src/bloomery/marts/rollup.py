@@ -154,6 +154,90 @@ def _dropped_declaration(
 # ....................... #
 
 
+def _determinations(mart: MartIR, project: ProjectIR) -> dict[str, tuple[str, ...]]:
+    """What the entities' ``determines:`` declarations say in *this mart's*
+    namespace, keyed by dimension name, for R020 (S-0079/D-4).
+
+    Derived at the call and stored nowhere: a mapping could not reach an IR
+    node in any case (``_canon_bytes`` raises on a ``dict``), so carrying it
+    would mean a second statement of a fact ``EntityIR.columns`` and
+    ``MartIR.columns`` already hold between them — one that can disagree.
+
+    A column is matched to its **join family**, never to its source entity
+    alone (S-0079/D-5): it belongs to ``(prefix, entity)`` when its source
+    entity is ``entity`` and its name is ``prefix + source_column``, the base
+    entity taking the empty prefix. One entity flattened under two prefixes
+    relates ``billing_city`` to ``billing_state`` and to nothing of the
+    shipping family; matching on the source column alone would relate them
+    across families and prove a coarsening that does not hold. What enforces
+    that is the keeper lookup below, which spells the determined column with
+    the *matched* family's prefix.
+
+    The ``len(matched) != 1`` guard is not that enforcement and only its
+    ``== 0`` half fires — an emitted column with no family behind it, a date
+    bucket for instance. Two families cannot match one column: the column's
+    own ``source_column`` fixes the prefix to one string, so a second match
+    needs a second join carrying that prefix for that entity, and such a mart
+    never lowers — every column the second join flattens collides with the
+    first's, and :func:`~bloomery.marts.flatten.lower_marts` returns
+    violations rather than a :class:`~bloomery.ir.MartIR`. It stays as the
+    belt on a total function: a column matching two families contributes no
+    edge, and the ambiguous case fails by proving less, which is the only
+    direction R020 may fail in.
+
+    Only the **direct** declarations are translated (S-0079/D-6). The
+    transitive step stays inside R020, whose ``determination_closure`` runs
+    over whatever mapping it is handed: closing it here would make every
+    witness read ``DECLARED`` and the provenance R020 reports stop meaning
+    anything.
+    """
+
+    declared = {
+        (entity.name, column.name): column.determines
+        for entity in project.entities
+        for column in entity.columns
+        if column.determines
+    }
+
+    if not declared:
+        return {}
+
+    families = ((mart.base, ""), *((join.entity, join.prefix) for join in mart.joins))
+    dimension_of = {dimension.column: dimension.ref.qualified for dimension in mart.dimensions}
+    traced = {(column.source_entity, column.source_column, column.name) for column in mart.columns}
+    edges: dict[str, tuple[str, ...]] = {}
+
+    for column in mart.columns:
+        targets = declared.get((column.source_entity, column.source_column), ())
+        source = dimension_of.get(column.name)
+        matched = [
+            prefix
+            for entity, prefix in families
+            if entity == column.source_entity and column.name == prefix + column.source_column
+        ]
+
+        if not targets or source is None or len(matched) != 1:
+            continue
+
+        # The determined column of the *same* family: same source entity, the
+        # declared column, and the family's prefix on the name — so a base
+        # column that happens to be spelled like a prefixed one earns nothing.
+        keepers = tuple(
+            qualified
+            for target in targets
+            if (column.source_entity, target, matched[0] + target) in traced
+            and (qualified := dimension_of.get(matched[0] + target)) is not None
+        )
+
+        if keepers:
+            edges[source] = keepers
+
+    return edges
+
+
+# ....................... #
+
+
 def lower_rollups(mart_set: MartSet | None, draft: ProjectIR) -> RollupLowering:
     """Resolve every declared rollup against the parent it names (S-0065/phasing (P-2)).
 
@@ -201,7 +285,7 @@ def lower_rollups(mart_set: MartSet | None, draft: ProjectIR) -> RollupLowering:
         # provable rollup — and R013 is asked about what the rollup carries
         # (§5.2), not about what the parent does.
         carried = replace(parent, measures=tuple(sorted(rollup.measures)))
-        answer = prove_mart_rollup(carried, rollup.keep, draft)
+        answer = prove_mart_rollup(carried, rollup.keep, draft, _determinations(parent, draft))
 
         if isinstance(answer, Refutation):
             violations.append(_refused(name, answer, path))

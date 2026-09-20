@@ -1,0 +1,10 @@
+mapping_version: 1
+source: src__orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  amount: {from: "$.amount"}
+  order_date: {from: "$.od", transform: [{parse_date: ISO8601}]}
+  bill_to_id: {from: "$.bill", transform: [to_string]}
+  ship_to_id: {from: "$.ship", transform: [to_string]}

@@ -1,0 +1,8 @@
+mapping_version: 1
+source: src__addresses
+target: address
+key:
+  address_id: {from: "$.id", transform: [to_string]}
+fields:
+  city: {from: "$.city"}
+  state: {from: "$.state"}

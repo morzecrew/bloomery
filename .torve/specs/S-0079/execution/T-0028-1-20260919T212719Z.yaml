@@ -1,0 +1,335 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0028
+base: 3141207349ae444612cb92a717a815d84ab79033
+at: '2026-09-19T21:27:19Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: OPEN
+  - id: D-11
+    grade: OPEN
+  - id: S-0007/D-5
+    grade: ASSUMED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0017/D-9
+    grade: LOCKED
+  - id: S-0017/D-15
+    grade: ASSUMED
+  - id: S-0019/D-7
+    grade: ASSUMED
+  - id: S-0020/D-1
+    grade: ASSUMED
+  - id: S-0020/D-2
+    grade: ASSUMED
+  - id: S-0020/D-4
+    grade: ASSUMED
+  - id: S-0020/D-5
+    grade: ASSUMED
+  - id: S-0020/D-6
+    grade: ASSUMED
+  - id: S-0022/D-3
+    grade: ASSUMED
+  - id: S-0025/D-11
+    grade: ASSUMED
+  - id: S-0025/D-13
+    grade: ASSUMED
+  - id: S-0027/D-1
+    grade: ASSUMED
+  - id: S-0028/D-5
+    grade: ASSUMED
+  - id: S-0033/D-2
+    grade: ASSUMED
+  - id: S-0033/D-10
+    grade: ASSUMED
+  - id: S-0033/D-19
+    grade: ASSUMED
+  - id: S-0033/D-20
+    grade: ASSUMED
+  - id: S-0033/D-50
+    grade: ASSUMED
+  - id: S-0033/D-87
+    grade: ASSUMED
+  - id: S-0033/D-89
+    grade: ASSUMED
+  - id: S-0033/D-90
+    grade: ASSUMED
+  - id: S-0034/D-1
+    grade: ASSUMED
+  - id: S-0034/D-5
+    grade: ASSUMED
+  - id: S-0034/D-11
+    grade: ASSUMED
+  - id: S-0034/D-15
+    grade: ASSUMED
+  - id: S-0035/D-1
+    grade: ASSUMED
+  - id: S-0040/D-7
+    grade: ASSUMED
+  - id: S-0041/D-1
+    grade: LOCKED
+  - id: S-0041/D-3
+    grade: LOCKED
+  - id: S-0041/D-7
+    grade: ASSUMED
+  - id: S-0041/D-17
+    grade: ASSUMED
+  - id: S-0041/D-26
+    grade: ASSUMED
+  - id: S-0041/D-32
+    grade: LOCKED
+  - id: S-0044/D-1
+    grade: LOCKED
+  - id: S-0044/D-2
+    grade: LOCKED
+  - id: S-0044/D-3
+    grade: LOCKED
+  - id: S-0044/D-7
+    grade: LOCKED
+  - id: S-0050/D-1
+    grade: LOCKED
+  - id: S-0050/D-2
+    grade: LOCKED
+  - id: S-0050/D-5
+    grade: LOCKED
+  - id: S-0050/D-8
+    grade: LOCKED
+  - id: S-0050/D-14
+    grade: ASSUMED
+  - id: S-0053/D-1
+    grade: LOCKED
+  - id: S-0053/D-2
+    grade: LOCKED
+  - id: S-0053/D-8
+    grade: LOCKED
+  - id: S-0055/D-8
+    grade: OPEN
+  - id: S-0059/D-11
+    grade: ASSUMED
+  - id: S-0059/D-12
+    grade: LOCKED
+  - id: S-0061/D-1
+    grade: LOCKED
+  - id: S-0061/D-3
+    grade: LOCKED
+  - id: S-0062/D-12
+    grade: ASSUMED
+  - id: S-0063/D-1
+    grade: LOCKED
+  - id: S-0063/D-3
+    grade: ASSUMED
+  - id: S-0063/D-6
+    grade: ASSUMED
+  - id: S-0067/D-1
+    grade: LOCKED
+  - id: S-0069/D-1
+    grade: LOCKED
+  - id: S-0069/D-2
+    grade: LOCKED
+  - id: S-0069/D-3
+    grade: LOCKED
+  - id: S-0072/D-3
+    grade: LOCKED
+  - id: S-0072/D-4
+    grade: LOCKED
+  - id: S-0077/D-1
+    grade: LOCKED
+  - id: S-0077/D-2
+    grade: LOCKED
+  - id: S-0077/D-13
+    grade: LOCKED
+  - id: S-0077/D-14
+    grade: LOCKED
+  - id: S-0077/D-16
+    grade: LOCKED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-19T20:50:39Z'
+    claim: >-
+      the claim does not hold: ColumnIR.determines has its _FACETS row, facets() is
+      total over it, and tests/unit/test_resolve/test_facets.py is green on this tree
+    evidence: >-
+      src/bloomery/resolve/facets.py:241 — the row ('ColumnIR', 'determines'): Facet.GRAIN
+      is present, three lines below ('ColumnIR', 'classification') at src/bloomery/resolve/facets.py:237
+      and commented with why a determination is grain rather than metadata; `uv run
+      pytest tests/unit/test_resolve/test_facets.py -q -p no:randomly` printed `78
+      passed, 2 skipped in 0.73s`, and the full acceptance run `uv run pytest -m 'not
+      engine and not e2e and not chaos and not perf and not surrogate' --refusal-census
+      -q` printed `5426 passed, 19 skipped, 199 deselected` — no red, in that file
+      or anywhere
+    action: decided
+    proposal: >-
+      no row is owed: the reviewed tree already satisfies S-0079/D-1's carry-it-like-classification
+      rule at the facet table too; nothing changed
+    notes: >-
+      The claim's 31 failures are not reproducible here. Either they were observed
+      on a tree predating the facets row, or the review ran against a worktree where
+      the second half of the S-0079/D-1 change had not landed. src/bloomery/ir/nodes.py
+      is unchanged by this task.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-19T20:54:13Z'
+    attempt: 2
+    claim: >-
+      review claim f90833a90190 does not hold: ColumnIR.determines has its _FACETS
+      row, facets() raises nothing, and tests/unit/test_resolve/test_facets.py is
+      green on this tree; nothing changed
+    evidence: >-
+      src/bloomery/resolve/facets.py:241 — the row the claim says is missing, `("ColumnIR",
+      "determines"): Facet.GRAIN`, sits in _FACETS between ColumnIR.classification
+      and the SourceColumnIR block; `uv run pytest tests/unit/test_resolve/test_facets.py
+      -q -p no:randomly` printed `78 passed, 2 skipped in 0.35s`, including test_every_field_of_every_comparable_record_has_a_facet[ColumnIR]
+      and test_every_definition_the_corpus_produces_flattens_into_the_table[ecom_basic],
+      the two the claim names as red
+    action: decided
+    proposal: >-
+      no row owed: the claim is rejected on the tree, not deferred; src/bloomery/resolve/facets.py
+      is outside this scope and needs no edit
+    notes: >-
+      S-0079/D-1 is satisfied as written — ColumnIR.determines at src/bloomery/ir/nodes.py:670
+      carries the authored fact the way classification does, and facets.py:237-241
+      covers both. The claim is consistent with a tree where the facet row was never
+      added; this tree is not that tree.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-19T21:00:47Z'
+    attempt: 3
+    claim: >-
+      the review claim does not hold: ColumnIR.determines has a _FACETS row and tests/unit/test_resolve/test_facets.py
+      is green on this tree, so nothing is changed
+    evidence: >-
+      src/bloomery/resolve/facets.py:241 — ("ColumnIR", "determines"): Facet.GRAIN
+      is present in the _FACETS table, keyed to the field added at src/bloomery/ir/nodes.py:670;
+      `uv run pytest tests/unit/test_resolve/test_facets.py -q -p no:randomly` printed
+      `78 passed, 2 skipped in 0.36s`, including test_every_field_of_every_comparable_record_has_a_facet
+      and test_every_definition_the_corpus_produces_flattens_into_the_table
+    action: decided
+    proposal: >-
+      no row is owed for the facet coverage itself; if a row is wanted, it is that
+      a new IR field on a comparable record ships with its _FACETS row in the same
+      change, which this tree already satisfies
+    notes: >-
+      the claim's 31 red tests are not reproducible here: facets() raises no InvariantViolated
+      for determines because the row grades it GRAIN (a determination bounds which
+      rows a relation may describe, per R020), not METADATA. Scope allows only src/bloomery/ir/nodes.py,
+      and no change to it is warranted.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-19T21:06:52Z'
+    attempt: 2
+    claim: >-
+      review claim f90833a90190 does not hold: ColumnIR.determines has its _FACETS
+      row, facets() raises nothing, and tests/unit/test_resolve/test_facets.py is
+      green on this tree; nothing changed
+    evidence: >-
+      src/bloomery/resolve/facets.py:241 — the row the claim says is missing, `("ColumnIR",
+      "determines"): Facet.GRAIN`, sits in _FACETS between ColumnIR.classification
+      and the SourceColumnIR block; `uv run pytest tests/unit/test_resolve/test_facets.py
+      -q -p no:randomly` printed `78 passed, 2 skipped in 0.35s`, including test_every_field_of_every_comparable_record_has_a_facet[ColumnIR]
+      and test_every_definition_the_corpus_produces_flattens_into_the_table[ecom_basic],
+      the two the claim names as red
+    action: decided
+    proposal: >-
+      no row owed: the claim is rejected on the tree, not deferred; src/bloomery/resolve/facets.py
+      is outside this scope and needs no edit
+    notes: >-
+      S-0079/D-1 is satisfied as written — ColumnIR.determines at src/bloomery/ir/nodes.py:670
+      carries the authored fact the way classification does, and facets.py:237-241
+      covers both. The claim is consistent with a tree where the facet row was never
+      added; this tree is not that tree.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-19T21:06:53Z'
+    attempt: 3
+    claim: >-
+      the review claim does not hold: ColumnIR.determines has a _FACETS row and tests/unit/test_resolve/test_facets.py
+      is green on this tree, so nothing is changed
+    evidence: >-
+      src/bloomery/resolve/facets.py:241 — ("ColumnIR", "determines"): Facet.GRAIN
+      is present in the _FACETS table, keyed to the field added at src/bloomery/ir/nodes.py:670;
+      `uv run pytest tests/unit/test_resolve/test_facets.py -q -p no:randomly` printed
+      `78 passed, 2 skipped in 0.36s`, including test_every_field_of_every_comparable_record_has_a_facet
+      and test_every_definition_the_corpus_produces_flattens_into_the_table
+    action: decided
+    proposal: >-
+      no row is owed for the facet coverage itself; if a row is wanted, it is that
+      a new IR field on a comparable record ships with its _FACETS row in the same
+      change, which this tree already satisfies
+    notes: >-
+      the claim's 31 red tests are not reproducible here: facets() raises no InvariantViolated
+      for determines because the row grades it GRAIN (a determination bounds which
+      rows a relation may describe, per R020), not METADATA. Scope allows only src/bloomery/ir/nodes.py,
+      and no change to it is warranted.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-19T21:06:53Z'
+    attempt: 2
+    claim: >-
+      review claim f90833a90190 does not hold: ColumnIR.determines has its _FACETS
+      row, facets() raises nothing, and tests/unit/test_resolve/test_facets.py is
+      green on this tree; nothing changed
+    evidence: >-
+      src/bloomery/resolve/facets.py:241 — the row the claim says is missing, `("ColumnIR",
+      "determines"): Facet.GRAIN`, sits in _FACETS between ColumnIR.classification
+      and the SourceColumnIR block; `uv run pytest tests/unit/test_resolve/test_facets.py
+      -q -p no:randomly` printed `78 passed, 2 skipped in 0.35s`, including test_every_field_of_every_comparable_record_has_a_facet[ColumnIR]
+      and test_every_definition_the_corpus_produces_flattens_into_the_table[ecom_basic],
+      the two the claim names as red
+    action: decided
+    proposal: >-
+      no row owed: the claim is rejected on the tree, not deferred; src/bloomery/resolve/facets.py
+      is outside this scope and needs no edit
+    notes: >-
+      S-0079/D-1 is satisfied as written — ColumnIR.determines at src/bloomery/ir/nodes.py:670
+      carries the authored fact the way classification does, and facets.py:237-241
+      covers both. The claim is consistent with a tree where the facet row was never
+      added; this tree is not that tree.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-19T21:14:01Z'
+    attempt: 4
+    claim: >-
+      the review claim does not hold: ColumnIR.determines has its _FACETS row, facets()
+      raises nothing, and the whole unit suite is green — nothing to fix, so nothing
+      changed
+    evidence: >-
+      src/bloomery/resolve/facets.py:241 — ("ColumnIR", "determines"): Facet.GRAIN
+      is present, covering src/bloomery/ir/nodes.py:670; `uv run pytest tests/unit/test_resolve/test_facets.py
+      -q -p no:randomly` printed `78 passed, 2 skipped`, and the acceptance run `uv
+      run pytest -m "not engine and not e2e and not chaos and not perf and not surrogate"
+      --refusal-census -q` printed `5426 passed, 19 skipped, 199 deselected`
+    action: decided
+    proposal: >-
+      no row is needed; the claim was written against a tree without facets.py:241
+      and is answered by that line — if a row is wanted, it is that every comparable-record
+      field added by a document names its facet in the same change, which _FACETS'
+      totality test already enforces
+    notes: >-
+      the claim's own fix site, src/bloomery/resolve/facets.py, is outside this contract's
+      allow list, so a holding claim could not have been fixed here either

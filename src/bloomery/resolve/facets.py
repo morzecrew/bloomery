@@ -235,6 +235,10 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("ColumnIR", "description"): Facet.METADATA,
     ("ColumnIR", "renamed_from"): Facet.METADATA,
     ("ColumnIR", "classification"): Facet.METADATA,
+    #: A determination is what a rollup's coarsening proof stands on (R020), so
+    #: it says which rows a relation may describe — grain, not metadata, whose
+    #: defining property is that nothing depends on it.
+    ("ColumnIR", "determines"): Facet.GRAIN,
     # An entity field: the lowering half, one per source (S-0041/D-26).
     ("SourceColumnIR", "expr"): Facet.BODY,
     ("SourceColumnIR", "recipe_id"): Facet.BODY,

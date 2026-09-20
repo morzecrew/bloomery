@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0021
+phase: 2
+base: af6565933b8dab5ab5537e207c4b7df0ae395b3a
+commit: fd61eacab1ed27747379fc495258880e3b465b15
+at: '2026-09-19T20:36:16Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: OPEN
+  - id: D-11
+    grade: OPEN
+entries:
+  - decision: D-11
+    grade: OPEN
+    at: '2026-09-19T20:28:39Z'
+    attempt: 3
+    claim: >-
+      _determinations stays a private helper in the lowering module: no second consumer
+      appeared while the phase was built, and lower_rollups is its only caller
+    evidence: >-
+      src/bloomery/marts/rollup.py:157 — the helper, defined beside the single call
+      at src/bloomery/marts/rollup.py:277
+    action: decided
+  - decision: D-10
+    grade: OPEN
+    at: '2026-09-19T20:28:39Z'
+    attempt: 3
+    claim: >-
+      nothing is carried onto MartColumnIR for the unbuilt spec differ: the mart-namespace
+      determination stayed derived at the call, so no field and no version bump in
+      this phase
+    evidence: >-
+      src/bloomery/ir/nodes.py:1121-1126 — MartColumnIR's fields, unchanged by this
+      phase
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-19T20:29:54Z'
+    attempt: 3
+    claim: >-
+      torve spec project also rewrites the repository-root AGENTS.md index when a
+      task adds a governed directory, and the root file is outside this contract's
+      allow list; the two in-scope projections are kept and the root's two index lines
+      were reverted, leaving the root index stale until a task whose scope names it
+      re-projects
+    evidence: >-
+      `uv run torve spec project` — prints WROTE for AGENTS.md as well as the two
+      in-scope files: "130 governed directories, 3 written, 0 removed"
+    action: decided
+    proposal: >-
+      a scope that adds a governed directory should name AGENTS.md, or torve spec
+      project should write only the paths a contract allows

@@ -1,0 +1,123 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0029
+base: 3141207349ae444612cb92a717a815d84ab79033
+commit: bebc5df9e5a9618ee5420520d06b08bc00ab88b9
+at: '2026-09-19T21:24:10Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: OPEN
+  - id: D-11
+    grade: OPEN
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0065/D-1
+    grade: LOCKED
+  - id: S-0065/D-2
+    grade: LOCKED
+  - id: S-0065/D-5
+    grade: LOCKED
+  - id: S-0065/D-7
+    grade: LOCKED
+  - id: S-0065/D-8
+    grade: LOCKED
+  - id: S-0065/D-14
+    grade: LOCKED
+entries:
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-09-19T21:12:40Z'
+    claim: >-
+      compliant: the change is docstring prose only; no engine driver, cloud SDK or
+      Spark session enters src/bloomery
+    evidence: >-
+      src/bloomery/marts/rollup.py:166-188 — the whole diff is this docstring paragraph;
+      the module's imports at lines 25-31 are unchanged
+    action: decided
+  - decision: S-0065/D-1
+    grade: LOCKED
+    at: '2026-09-19T21:12:40Z'
+    claim: >-
+      compliant: no second rollup feature is built; the review threads asked about
+      an existing helper's docstring and no code was added
+    evidence: >-
+      src/bloomery/marts/rollup.py:157-243 — _determinations is the only helper touched
+      and its body is unchanged
+    action: decided
+  - decision: S-0065/D-2
+    grade: LOCKED
+    at: '2026-09-19T21:12:40Z'
+    claim: >-
+      compliant: no vocabulary is invented here; the added prose cites the flatten
+      stage and R020, both already built
+    evidence: >-
+      src/bloomery/marts/rollup.py:176-188 — the added prose names lower_marts and
+      R020 and adds no rule
+    action: decided
+  - decision: S-0065/D-5
+    grade: LOCKED
+    at: '2026-09-19T21:12:40Z'
+    claim: >-
+      compliant, and the three review threads (T-0025, T-0026, T-0027) state one claim
+      that holds: the len(matched) > 1 half of the ambiguity guard is unreachable,
+      because for a fixed mart column name == prefix + source_column fixes prefix
+      to one string, so two families match only when a second join carries the same
+      prefix for the same entity — and such a mart never lowers, every column the
+      second join flattens colliding with the first's and lower_marts returning violations
+      instead of a MartIR. The guard stays, since S-0079/D-5 states it and it is the
+      belt on a total function; the docstring was what overstated, crediting the guard
+      with the cross-family protection the keeper lookup actually provides, and it
+      now says which half fires and why the other cannot. The refusal path is untouched:
+      an unprovable rollup is still refused rather than warned about
+    evidence: >-
+      src/bloomery/marts/flatten.py:353-362 — the collision leaf every column of a
+      duplicate (entity, prefix) join earns; src/bloomery/marts/flatten.py:791-792
+      returns None for any mart with violations, so no such MartIR reaches _determinations;
+      src/bloomery/marts/rollup.py:225-229 is the keeper lookup that enforces the
+      family match, and :105 still returns UnprovableRollup
+    action: decided
+  - decision: S-0065/D-7
+    grade: LOCKED
+    at: '2026-09-19T21:12:40Z'
+    claim: >-
+      compliant: no cube-to-cube join is introduced; the change emits nothing
+    evidence: >-
+      src/bloomery/marts/rollup.py:166-188 — prose only, no emitted artifact moves
+    action: decided
+  - decision: S-0065/D-8
+    grade: LOCKED
+    at: '2026-09-19T21:12:40Z'
+    claim: >-
+      compliant: no plan transformation merging aggregate branches is added
+    evidence: >-
+      src/bloomery/marts/rollup.py:166-188 — prose only; lower_rollups still lowers
+      each declared rollup on its own
+    action: decided
+  - decision: S-0065/D-14
+    grade: LOCKED
+    at: '2026-09-19T21:12:40Z'
+    claim: >-
+      compliant: a rollup still lands in ProjectIR.rollups and never in ProjectIR.marts,
+      so it is neither a measure owner nor a covering mart
+    evidence: >-
+      src/bloomery/marts/rollup.py:303-307 — RollupLowering still carries RollupIR
+      only; no mart collection is written
+    action: decided

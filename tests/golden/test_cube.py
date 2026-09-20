@@ -19,6 +19,14 @@ pytestmark = pytest.mark.golden
 GOLDEN = Path(__file__).resolve().parent
 
 EXPECTED_PATHS = {
+    # S-0079/D-8: the only fixture declaring `determines:`, and the only
+    # end-to-end evidence that an author can reach R020 — the wiring is
+    # unobservable in every other one. Cube is asked nothing about it: R020 is
+    # a compile-time premise, so this path list is a mart's ordinary two.
+    "coarsening_rollup": [
+        "model/cubes/orders.yml",
+        "model/views/orders_view.yml",
+    ],
     "ecom_basic": [
         "model/cubes/order_items.yml",
         "model/views/order_items_view.yml",
