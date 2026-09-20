@@ -4,7 +4,7 @@ title: >-
   Determinations reach the IR and the rollup lowering
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0007, S-0020, S-0065]
 informed_by: [S-0017, S-0026, S-0027]
 supersedes: []
