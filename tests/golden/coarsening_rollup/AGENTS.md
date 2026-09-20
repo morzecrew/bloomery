@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/golden/coarsening_rollup/`
 
-### S-0079/D-8 — `ASSUMED` (Determinations reach the IR and the rollup lowering) — implementation: none
+### S-0079/D-8 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
 
 The end-to-end proof is one **new** golden fixture, `coarsening_rollup`, registered in the three golden drivers' `EXPECTED_PATHS` tables — not an extension of `rollup_mart`
 

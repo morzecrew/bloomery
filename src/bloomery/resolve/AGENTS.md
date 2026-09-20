@@ -568,7 +568,7 @@ The delta vocabulary is S-0069's and is never restated here. Two tables describi
 - Paths: `src/bloomery/cli/__init__.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/lineage.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0079/D-1 — `LOCKED` (Determinations reach the IR and the rollup lowering) — implementation: none
+### S-0079/D-1 — `LOCKED` (Determinations reach the IR and the rollup lowering)
 
 A determination is a **stored** fact. `ColumnIR` gains `determines: tuple[str, ...]`, filled by `_column_ir` from the entity model's `Field.determines` and carried unchanged, the way `classification` is. It is authored, it appears in no other IR field, and no compile can recover it without re-reading the spec
 

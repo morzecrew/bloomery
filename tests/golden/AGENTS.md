@@ -72,7 +72,7 @@ A key appearing in more than one source is refused by a generated **blocking** a
 - Paths: `src/bloomery/emit/lower/silver.py` `tests/execution/test_merged_cleaning.py` `tests/golden/test_sqlmesh_dialects.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0079/D-8 — `ASSUMED` (Determinations reach the IR and the rollup lowering) — implementation: none
+### S-0079/D-8 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
 
 The end-to-end proof is one **new** golden fixture, `coarsening_rollup`, registered in the three golden drivers' `EXPECTED_PATHS` tables — not an extension of `rollup_mart`
 
