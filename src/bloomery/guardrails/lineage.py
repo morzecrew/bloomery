@@ -82,8 +82,14 @@ def _alias_collisions(draft: ProjectIR) -> list[GuardrailError]:
 
     An imported node's id carries a project component built from the alias —
     ``metric.platform.gross_revenue`` — so the alias is a segment of the id
-    namespace exactly as a kind prefix is, and an entity named ``platform``
-    with a field ``gross_revenue`` mints ``platform.gross_revenue`` inside it.
+    namespace exactly as a kind prefix is, and an entity named ``platform`` is
+    a second owner of that segment.
+
+    No field of such an entity ever *equals* an imported id: the imported one
+    carries three segments and ``<entity>.<field>`` carries two. The message
+    says so, on the ``source`` precedent above — a refusal describing a
+    collision the author can check and find absent is worse than no message —
+    and the alias is reserved anyway, for the reason ``source`` is.
 
     Over the aliases this compile actually **bound**, because an alias the
     caller did not supply has no imported node behind it and is refused as an
@@ -102,8 +108,8 @@ def _alias_collisions(draft: ProjectIR) -> list[GuardrailError]:
             f"entity {entity.name!r} collides with the lineage node-id namespace of the "
             f"upstream imported under that alias: an imported node is spelled "
             f"'<kind>.{entity.name}.<name>' and an entity field is spelled "
-            f"'<entity>.<field>', so this entity's field {field!r} mints "
-            f"'{entity.name}.{field}' inside the upstream's namespace (S-0002/D-6). Fix: "
+            f"'<entity>.<field>', so this entity's field {field!r} never equals an imported "
+            f"id — the alias is a segment of that namespace all the same (S-0002/D-6). Fix: "
             f"rename the entity, or import that upstream under another alias"
         )
         errors.append(ReservedEntityName(msg, source_path=_source_path(entity)))
