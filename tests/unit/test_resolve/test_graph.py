@@ -848,3 +848,132 @@ def test_a_step_output_link_reaches_the_canonical_field_by_id() -> None:
     }
 
     assert linked == {"canonical.cnl_ref"}
+
+
+# ....................... #
+# Imported nodes — S-0002 (§5.4), S-0002/D-6
+
+
+#: A downstream: a mart measuring an imported metric, an exposure reading an
+#: imported mart, and one metric of its own so the local spelling is pinned by
+#: the same graph that pins the imported one.
+IMPORTING = {
+    "imports": """
+imports_version: 1
+imports:
+  platform:
+    entities: [order_item]
+    marts: [order_items]
+    metrics: [gross_revenue]
+""",
+    "entity_model": """
+spec_version: 1
+entities:
+  review:
+    grain: one row per review
+    key: [review_id]
+    fields:
+      review_id: {type: string, required: true}
+      rating: {type: int, canonical: quantity}
+""",
+    "mapping": """
+mapping_version: 1
+source: raw__reviews
+target: review
+key:
+  review_id: {from: "$.id", transform: [to_string]}
+fields:
+  rating: {from: "$.rating"}
+""",
+    "metrics": """
+metrics_version: 1
+metrics:
+  review_count:
+    grain: review
+    additivity: additive
+    agg: count
+    expr: "review_id"
+""",
+    "marts": """
+marts_version: 1
+marts:
+  revenue_by_item:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {date: order_date, role: ordered}
+    measures: [gross_revenue]
+""",
+    "exposures": """
+exposures_version: 1
+exposures:
+  weekly_review:
+    kind: dashboard
+    owner: analytics@example.com
+    depends_on:
+      marts: [order_items]
+      metrics: [gross_revenue, review_count]
+""",
+}
+
+
+def _importing_graph():
+    project = load_project(dict(IMPORTING))
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    return build_graph(project, catalog, effective_metrics(project, catalog))
+
+
+def test_an_imported_node_id_carries_the_project_component() -> None:
+    """`<kind>.<alias>.<name>`, so two projects' graphs compose without two
+    nodes rendering as one string (S-0002 (§5.4))."""
+
+    names = {node.name for node in _importing_graph().nodes}
+
+    assert "metric.platform.gross_revenue" in names
+    assert "mart.platform.order_items" in names
+
+
+def test_a_local_id_keeps_its_spelling() -> None:
+    """The project component is on the imported node and nowhere else
+    (S-0002/D-6): `bloomery lineage --node metric.review_count` is a documented
+    invocation, and re-spelling every id to make room for a new kind of node is
+    the change the namespace guard already refused to make once.
+    """
+
+    names = {node.name for node in _importing_graph().nodes}
+
+    assert "metric.review_count" in names
+    assert "mart.revenue_by_item" in names
+    assert not any(name.startswith("metric.platform.review") for name in names)
+
+
+def test_a_reference_to_an_imported_name_draws_its_edge_to_the_imported_node() -> None:
+    """A measure and an exposure dependency both resolve across the boundary,
+    so the imported node is reachable rather than merely present."""
+
+    edges = {(edge.src.name, edge.dst.name): edge.label for edge in _importing_graph().edges}
+
+    assert edges["metric.platform.gross_revenue", "mart.revenue_by_item"] == "measure"
+    assert edges["mart.platform.order_items", "exposure.weekly_review"] == "depends_on"
+    assert edges["metric.platform.gross_revenue", "exposure.weekly_review"] == "depends_on"
+    # The local dependency of the same exposure, unmoved.
+    assert edges["metric.review_count", "exposure.weekly_review"] == "depends_on"
+
+
+def test_an_imported_name_this_project_also_declares_is_the_local_node() -> None:
+    """Until the import guard refuses the collision, a reference means the
+    local node: that is the document its author is holding. The guard's job is
+    to refuse the ambiguity, not this graph's to arbitrate it."""
+
+    documents = dict(IMPORTING)
+    documents["imports"] = (
+        "imports_version: 1\nimports:\n  platform:\n    metrics: [review_count]\n"
+    )
+    project = load_project(documents)
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    graph = build_graph(project, catalog, effective_metrics(project, catalog))
+
+    names = {node.name for node in graph.nodes}
+
+    assert "metric.review_count" in names
+    assert "metric.platform.review_count" not in names

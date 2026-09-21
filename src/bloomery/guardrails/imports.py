@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING
 from bloomery.errors import ImportCollision, UnexportedImport, UnknownUpstream
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Iterable, Mapping
 
     from bloomery.errors import GuardrailError
     from bloomery.ir.nodes import ProjectIR
@@ -54,6 +54,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "check_imports",
+    "declared_locally",
 ]
 
 #: Import kind → the singular a refusal names one by. Written out rather than
@@ -84,14 +85,19 @@ def _listed(candidates: frozenset[str]) -> str:
 # ....................... #
 
 
-def _declared_locally(project: Project, draft: ProjectIR) -> dict[str, frozenset[str]]:
+def declared_locally(project: Project, entities: Iterable[str]) -> dict[str, frozenset[str]]:
     """Every name this project declares, by kind — the collision side.
 
-    Two sources on purpose; the module docstring argues which and why.
+    Two sources on purpose; the module docstring argues which and why. The
+    entity names are passed rather than read off a draft, because the other
+    caller is :func:`~bloomery.resolve.build._bind_imports`, which needs them
+    while the draft is still being built — and the two agreeing about what a
+    local name is, is what keeps a bound import from being refused as a
+    collision with itself (S-0002/D-2).
     """
 
     return {
-        "entities": frozenset(entity.name for entity in draft.entities),
+        "entities": frozenset(entities),
         "marts": (
             frozenset(project.marts.marts) | frozenset(project.marts.rollups)
             if project.marts is not None
@@ -170,7 +176,7 @@ def check_imports(
         return []
 
     errors: list[GuardrailError] = _claimed_twice(project.imports.imports)
-    local = _declared_locally(project, draft)
+    local = declared_locally(project, (entity.name for entity in draft.entities))
 
     for alias, read in sorted(project.imports.imports.items()):
         source_path = f"imports: imports.{alias}"

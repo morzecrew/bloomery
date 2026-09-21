@@ -79,7 +79,7 @@ def test_the_declared_ir_version_is_the_current_one() -> None:
     # `ProjectIR.exposures`, `SourceIR.freshness`, the `owner` on each of
     # `EntityIR`/`MartIR`/`MetricIR`, `RollupIR.grants`, `ProjectIR.exports`,
     # `SourceFieldIR.zone_in`, `Ratio.includes_zero_denominator` and
-    # `ColumnIR.determines` each change
+    # `ColumnIR.determines` and `ProjectIR.upstream` each change
     # the IR
     # shape; S-0020/D-3 makes the version
     # part of the fingerprint, so each bump is deliberate and loud. The M12/M13
@@ -94,7 +94,7 @@ def test_the_declared_ir_version_is_the_current_one() -> None:
     # fingerprint does not move at all — two compilers of different shape then
     # agree on the fingerprint as well as the version. Named for what it pins
     # rather than for a number, because the number is what changes.
-    assert ProjectIR().bloomery_ir_version == 20
+    assert ProjectIR().bloomery_ir_version == 21
 
 
 def test_the_compiler_emits_the_declared_ir_version() -> None:
@@ -214,7 +214,7 @@ def test_reconcile_tolerance_is_a_decimal() -> None:
 # Field order — S-0035/D-1
 
 
-def test_exports_is_the_last_field() -> None:
+def test_the_newest_field_is_appended() -> None:
     """Every field on `ProjectIR` has a default, so one inserted mid-list does
     not raise for a caller who bound positionally — it silently rebinds.
 
@@ -222,11 +222,13 @@ def test_exports_is_the_last_field() -> None:
     `SpecEvidence` (``tests/unit/test_advisories.py``). It was not stated here,
     and `exports` first landed between `exposures` and `date_dimension`, which
     is how the next field will land too unless something says otherwise.
+    `upstream` is the newest, and it landed after `exports`.
     """
 
     names = [field.name for field in dataclasses.fields(ProjectIR)]
 
-    assert names[-1] == "exports"
+    assert names[-1] == "upstream"
+    assert names[-2] == "exports"
 
 
 def test_positional_construction_still_binds_what_it_did() -> None:

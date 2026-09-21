@@ -373,7 +373,78 @@ def _step_edges(project: Project, ids: dict[str, dict[str, str]]) -> list[Edge]:
 # ....................... #
 
 
-def _mart_edges(project: Project, ids: dict[str, dict[str, str]]) -> list[Edge]:
+def _imported_names(project: Project) -> dict[str, dict[str, str]]:
+    """Imported name to the alias that supplies it, per kind (S-0002/D-2).
+
+    Read from the **imports document**, never from the upstream IR: this graph
+    is built before the guardrail stage and answers on a project a compile
+    would refuse, which is when `bloomery lineage` is worth the most. A name
+    the upstream does not export draws its edge here and is refused two stages
+    later with ``UnexportedImport`` — the reasoning the mart leg of an
+    exposure's `depends_on` already runs on.
+
+    A name this project declares locally is **not** here. Such a name is a
+    collision the import guard refuses (§5.4); until it does, a reference to
+    it means the local node, because that is the document its author is
+    holding.
+    """
+
+    if project.imports is None:
+        return {kind: {} for kind in ("entities", "marts", "metrics")}
+
+    local = {
+        "entities": frozenset(project.entity_model.entities),
+        "marts": (
+            frozenset(project.marts.marts) | frozenset(project.marts.rollups)
+            if project.marts is not None
+            else frozenset[str]()
+        ),
+        "metrics": (
+            frozenset(project.metric_set.metrics)
+            if project.metric_set is not None
+            else frozenset[str]()
+        ),
+    }
+
+    return {
+        kind: {
+            name: alias
+            for alias, read in sorted(project.imports.imports.items())
+            for name in sorted(getattr(read, kind))
+            if name not in local[kind]
+        }
+        for kind in ("entities", "marts", "metrics")
+    }
+
+
+# ....................... #
+
+
+def _reference(name: str, ids: dict[str, str], imported: dict[str, str]) -> str:
+    """How a reference to ``name`` is spelled in a node id.
+
+    Local names keep their spelling — every published citation stays valid,
+    which is what S-0002/D-6 keeps and the reason the project component is on
+    the imported node rather than on every node. An imported one carries the
+    alias: ``metric.platform.gross_revenue``, so two projects' graphs compose
+    without collision.
+
+    ``ids`` is the adopted-id map for the kind, empty for a mart: a mart
+    carries no ``id:`` of its own (S-0072/out-of-scope), so its spec spelling
+    is its id.
+    """
+
+    alias = imported.get(name)
+
+    return f"{alias}.{name}" if alias is not None else key(name, ids)
+
+
+# ....................... #
+
+
+def _mart_edges(
+    project: Project, ids: dict[str, dict[str, str]], imported: dict[str, dict[str, str]]
+) -> list[Edge]:
     """Wire the gold layer from the **authored** marts document (S-0072/D-2).
 
     Everything here is read off `marts:` — a mart's declared `measures:`, and a
@@ -406,10 +477,18 @@ def _mart_edges(project: Project, ids: dict[str, dict[str, str]]) -> list[Edge]:
         # `id:` — S-0072/out-of-scope leaves that to 0062's own surface — so the mart
         # side is the spec's spelling.
         edges.extend(
-            Edge(src=metric_node(key(measure, ids["metric"])), dst=dst, label="measure")
+            Edge(
+                src=metric_node(_reference(measure, ids["metric"], imported["metrics"])),
+                dst=dst,
+                label="measure",
+            )
             for measure in sorted(mart.measures)
         )
 
+    # The rollup leg reads no import map, and deliberately: `MartSet` refuses a
+    # rollup whose `of:` is not a mart of the same document (S-0065/D-10), so a
+    # rollup of an imported mart cannot be spelled and a branch for it would be
+    # one no test could reach.
     edges.extend(
         Edge(src=mart_node(rollup.of), dst=mart_node(name), label="rollup")
         for name, rollup in sorted(project.marts.rollups.items())
@@ -504,9 +583,10 @@ def build_graph(
     and marts feed the exposures that declare them (S-0063/the-graph).
     """
     ids = node_keys(project, catalog)
+    imported = _imported_names(project)
     edges: list[Edge] = []
     edges.extend(_step_edges(project, ids))
-    edges.extend(_mart_edges(project, ids))
+    edges.extend(_mart_edges(project, ids, imported))
 
     for mapping in project.mappings:
         entity = project.entity_model.entities[mapping.target]
@@ -532,7 +612,7 @@ def build_graph(
         # (S-0067/node-id-construction).
         edges.extend(
             Edge(
-                src=metric_node(key(metric, ids["metric"])),
+                src=metric_node(_reference(metric, ids["metric"], imported["metrics"])),
                 dst=exposure_node(name),
                 label="depends_on",
             )
@@ -546,7 +626,11 @@ def build_graph(
         # document the author is holding in exactly the window where
         # `bloomery lineage` answers and a compile does not.
         edges.extend(
-            Edge(src=mart_node(mart), dst=exposure_node(name), label="depends_on")
+            Edge(
+                src=mart_node(_reference(mart, {}, imported["marts"])),
+                dst=exposure_node(name),
+                label="depends_on",
+            )
             for name, exposure in sorted(project.exposures.exposures.items())
             for mart in sorted(exposure.depends_on.marts)
         )
@@ -594,6 +678,13 @@ def build_graph(
     # second source for the same node would be a line no test could reach.
     if project.marts is not None:
         nodes.update(mart_node(name) for name in project.marts.marts)
+
+    # Every imported mart and metric, whether or not this project references
+    # one (S-0002/D-2). An import is a declared dependency, so the node exists
+    # for the same reason a measure-less mart's does — and an imported name
+    # nothing reads is the upstream's dead code, visible only from here.
+    nodes.update(mart_node(f"{alias}.{name}") for name, alias in imported["marts"].items())
+    nodes.update(metric_node(f"{alias}.{name}") for name, alias in imported["metrics"].items())
 
     # An exposure that depends on nothing this project declares, for the same
     # reason a third time. Its mart leg now draws an edge (S-0072/the-edges), so

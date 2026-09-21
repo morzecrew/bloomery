@@ -12,7 +12,7 @@ hand in tests.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from enum import StrEnum
 from functools import lru_cache
@@ -26,6 +26,8 @@ from bloomery.typing import LogicalType
 # ----------------------- #
 
 __all__ = [
+    "UpstreamIR",
+    "with_imported",
     "StepParameterIR",
     "step_sort_key",
     "StepOutputIR",
@@ -1542,6 +1544,96 @@ def step_sort_key(step: StepIR) -> tuple[str, int]:
 
 
 @dataclass(frozen=True, slots=True)
+class UpstreamIR:
+    """One upstream project as this compile bound it (S-0002 (§5.1), S-0002/D-2).
+
+    The upstream's **identity** is ``fingerprint``: a project carries no name
+    of its own, so ``alias`` is the downstream's local spelling and says
+    nothing about who the upstream is. The fingerprint is the value every
+    upstream artifact header already carries, and it is what the next phase
+    composes the downstream fingerprint from — which is why the identity has
+    to reach the IR here rather than there.
+
+    The three collections are the **nodes** that crossed, not names: a mart
+    naming an imported entity as its base flattens over the entity itself, and
+    a name with nothing behind it would leave the flattener to invent the
+    columns. They are deliberately beside ``ProjectIR.entities`` rather than
+    in it — an imported relation is built by the upstream, so a downstream
+    that listed it among its own would emit a second build of somebody else's
+    table. :func:`with_imported` is the view for the readers that resolve a
+    reference; the collections themselves stay the local project's.
+
+    What is here is what this compile **bound**: a name the upstream does not
+    export, one a local declaration already claims, and one two upstreams both
+    supply each bind nothing and are refused by
+    :func:`~bloomery.guardrails.imports.check_imports` a stage later.
+
+    Quality surfaces are stripped on the way over (S-0002/D-5): an upstream
+    entity's rules, dedupe and quarantine describe how the upstream cleaned
+    it, its reject table and quality mart are relations in the upstream's
+    warehouse, and the downstream reads the entity.
+    """
+
+    alias: str
+    fingerprint: str
+    entities: tuple[EntityIR, ...] = ()
+    marts: tuple[MartIR, ...] = ()
+    metrics: tuple[MetricIR, ...] = ()
+
+
+# ....................... #
+
+
+def with_imported(draft: ProjectIR) -> ProjectIR:
+    """The draft as a *resolver* must see it: local nodes plus imported ones.
+
+    One view, built here rather than per reader, so that a mart flattener, a
+    rollup obligation and a grain guard resolve an imported name through the
+    same lookup a local one goes through — nothing downstream of here learns a
+    second way to resolve a name (S-0002/D-2).
+
+    Never the draft itself, and that is the whole point of the split: what the
+    emitters walk is ``ProjectIR.entities``/``.marts``/``.metrics``, which stay
+    this project's own. An imported relation already exists, built upstream
+    under the naming policy both projects share (S-0002/D-7); a downstream
+    that emitted a model for it would write the upstream's table from the
+    upstream's bronze and, the quality surface having stayed behind
+    (S-0002/D-5), would hard-code a verdict it never evaluated.
+
+    A project with no imports gets itself back, identity-equal, so the
+    single-project compile keeps its shape.
+    """
+
+    if not draft.upstream:
+        return draft
+
+    return replace(
+        draft,
+        entities=tuple(
+            sorted(
+                (*draft.entities, *(e for up in draft.upstream for e in up.entities)),
+                key=lambda entity: entity.name,
+            )
+        ),
+        marts=tuple(
+            sorted(
+                (*draft.marts, *(m for up in draft.upstream for m in up.marts)),
+                key=lambda mart: mart.name,
+            )
+        ),
+        metrics=tuple(
+            sorted(
+                (*draft.metrics, *(m for up in draft.upstream for m in up.metrics)),
+                key=lambda metric: metric.name,
+            )
+        ),
+    )
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
 class ProjectIR:
     """The compile pipeline's product: all collections sorted by name
     (S-0020/ir-shape). ``bloomery_ir_version`` is fingerprint-covered, so an IR
@@ -1583,6 +1675,10 @@ class ProjectIR:
     default of ``()`` is not a reason to skip the bump: the encoder writes each
     dataclass's field count and names per *instance*, so every project with an
     entity column re-fingerprints whether or not it declares a determination.
+    Version 21 (S-0002/D-2) adds ``upstream`` here — the identity of each
+    project this one imports from, and the nodes it bound from them — which is
+    the same shape a third time: a default of ``()`` moves every project's
+    fingerprint, because the shape is covered and not merely the values.
     The bump is
     the point — every artifact's fingerprint header moves, and ``plan()``
     refuses to diff across versions rather than misreading one as the other.
@@ -1605,7 +1701,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 20
+    bloomery_ir_version: int = 21
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()
@@ -1627,13 +1723,17 @@ class ProjectIR:
     #: ``None`` where no exports document was authored, which is the only
     #: spelling of "exports nothing" — the document refuses to be empty.
     #:
-    #: **Last, and it stays last.** Every field here has a default, so one
-    #: inserted mid-list does not raise for a caller who bound positionally —
-    #: it silently rebinds, and a `DateDimensionIR` lands in `exports` while
-    #: `date_dimension` comes back `None`. Appending is what keeps the addition
-    #: additive (S-0035/D-1), and `test_exports_is_the_last_field` is what
-    #: keeps the next one honest.
+    #: **A new field is appended, never inserted.** Every field here has a
+    #: default, so one inserted mid-list does not raise for a caller who bound
+    #: positionally — it silently rebinds, and a `DateDimensionIR` lands in
+    #: `exports` while `date_dimension` comes back `None`. Appending is what
+    #: keeps the addition additive (S-0035/D-1), and
+    #: `test_the_newest_field_is_appended` is what keeps the next one honest.
     exports: ExportsIR | None = None
+    #: Each project this one imports from, sorted by alias (S-0002/D-2), with
+    #: the nodes it bound from them. Empty for a project with no imports
+    #: document, which is every project that compiled before composition.
+    upstream: tuple[UpstreamIR, ...] = ()
 
 
 # ....................... #

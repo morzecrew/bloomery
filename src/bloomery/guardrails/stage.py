@@ -38,6 +38,7 @@ from bloomery.guardrails.metrics import check_metrics
 from bloomery.guardrails.operands import collect_derivations
 from bloomery.guardrails.quality import check_quality
 from bloomery.guardrails.zone import check_zones
+from bloomery.ir.nodes import with_imported
 from bloomery.marts import lower_marts, lower_rollups
 
 if TYPE_CHECKING:
@@ -144,6 +145,13 @@ def check_guardrails(
     identity.
     """
     derivations = collect_derivations(project, catalog)
+    # The resolver's view of the draft (S-0002/D-2): the same nodes plus the
+    # ones this compile imported, for the three checks that resolve a name a
+    # mart or a rollup wrote. Every other guard below takes the draft itself,
+    # because what it judges is what this project declared — an imported node
+    # was judged where it was authored, and refusing it again would send an
+    # author to a document in another project.
+    composed = with_imported(draft)
     violations = check_arithmetic(derivations, draft.metrics, catalog)
     violations.extend(check_grain(derivations, draft, project, catalog))
     violations.extend(check_additivity(draft))
@@ -174,12 +182,12 @@ def check_guardrails(
     violations.extend(check_evidence(project, draft))
     # Mart-level checks (S-0023/D-10): the flattener re-runs here as a pure
     # sibling stage; its leaves batch into the same aggregate as the rest.
-    violations.extend(lower_marts(project.marts, draft).violations)
+    violations.extend(lower_marts(project.marts, composed).violations)
     # Rollup-level checks (S-0065/D-5, `LOCKED`): the same sibling-stage shape,
     # asked against the draft's already-resolved marts. An unprovable rollup is
     # refused rather than warned about — it is read instead of the detail table,
     # so a wrong one answers quickly and plausibly.
-    violations.extend(lower_rollups(project.marts, draft).violations)
+    violations.extend(lower_rollups(project.marts, composed).violations)
     # Data-quality leaves (S-0033/guardrails-vs-quality-the-boundary): the model-is-wrong half of this
     # RFC, batched into the same aggregate as everything else.
     violations.extend(check_quality(draft, project))

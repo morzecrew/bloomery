@@ -54,6 +54,7 @@ from bloomery.errors import (
     guaranteed,
 )
 from bloomery.guardrails import check_guardrails
+from bloomery.guardrails.imports import declared_locally
 from bloomery.ir import (
     VALIDITY_COLUMNS,
     Additivity,
@@ -91,8 +92,10 @@ from bloomery.ir import (
     canon,
     extraction,
     partition_specs,
+    project_fingerprint,
     quality_sort_key,
 )
+from bloomery.ir.nodes import UpstreamIR, with_imported
 from bloomery.marts import lower_marts, lower_rollups
 from bloomery.quality import (
     attach_quality_mart,
@@ -277,7 +280,7 @@ def pipeline(
     _LOG.info("typecheck: %d mapping document(s)", len(project.mappings))
 
     yield Stage.LOWER, StageProgress(resolution=resolution)
-    draft = _lower_draft(project, catalog, reg, steps, resolution)
+    draft = _lower_draft(project, catalog, reg, steps, resolution, upstream)
     _LOG.info("lower: %d entities, %d marts", len(draft.entities), len(draft.marts))
 
     yield Stage.GUARDRAILS, StageProgress(resolution=resolution, ir=draft)
@@ -2306,6 +2309,91 @@ def _build_exports(project: Project) -> ExportsIR | None:
 # ....................... #
 
 
+def _bind_imports(
+    project: Project,
+    upstream: AbcMapping[str, ProjectIR],
+    entities: tuple[EntityIR, ...],
+) -> tuple[UpstreamIR, ...]:
+    """Bind each imported name to the upstream node it names (S-0002/D-2).
+
+    The node itself crosses, not a reference to one, so a mart naming an
+    imported entity as its base resolves through the same lookup a local one
+    does — :func:`~bloomery.ir.nodes.with_imported` is that lookup's one view,
+    and what it is deliberately not is ``ProjectIR.entities``: an imported
+    relation is the upstream's to build.
+
+    **Four ways a declared name binds nothing, and each has its own refusal a
+    stage later** — so this function never raises and never reports. The alias
+    was not supplied (``UnknownUpstream``); the upstream does not export the
+    name (``UnexportedImport``); a local declaration already claims it
+    (``ImportCollision``); two upstreams both supply it (``ImportCollision``
+    again). Binding such a name anyway would put two nodes of one name in the
+    resolver's view and let whichever lookup ran first decide, which is the
+    ambiguity §5.4 refuses.
+
+    **The quality surface is stripped on the way over** (S-0002/D-5). An
+    upstream entity's rules, dedupe and quarantine describe how the upstream
+    cleaned it — its reject table and its quality mart are relations in the
+    upstream's warehouse, not this project's to rebuild — so what crosses is
+    the entity, never the surface. Stripping here rather than at each reader
+    is what makes the rule hold for readers nobody has written yet.
+    """
+
+    if project.imports is None:
+        return ()
+
+    local = declared_locally(project, (entity.name for entity in entities))
+    supplied = {
+        alias: (read, upstream[alias])
+        for alias, read in sorted(project.imports.imports.items())
+        if alias in upstream
+    }
+    # A name two upstreams both supply binds from neither: §5.4's ambiguity
+    # with no local claimant, and the one case whose fix this function cannot
+    # guess at, since each upstream's file is correct on its own.
+    contested = {
+        kind: {
+            name
+            for name in {n for read, _ir in supplied.values() for n in getattr(read, kind)}
+            if sum(name in getattr(read, kind) for read, _ir in supplied.values()) > 1
+        }
+        for kind in ("entities", "marts", "metrics")
+    }
+    bound: list[UpstreamIR] = []
+
+    for alias, (read, source) in supplied.items():
+        binds = {
+            kind: frozenset(getattr(read, kind))
+            & frozenset(getattr(source.exports, kind) if source.exports else ())
+            - local[kind]
+            - contested[kind]
+            for kind in ("entities", "marts", "metrics")
+        }
+        bound.append(
+            UpstreamIR(
+                alias=alias,
+                fingerprint=project_fingerprint(source),
+                # `replace` rather than a constructor: an entity's shape is the
+                # silver model's, and listing its fields here would be a second
+                # declaration of it that a new field silently falls out of.
+                entities=tuple(
+                    replace(entity, quality=(), dedupe=None, quarantine=None, audits=())
+                    for entity in source.entities
+                    if entity.name in binds["entities"]
+                ),
+                marts=tuple(mart for mart in source.marts if mart.name in binds["marts"]),
+                metrics=tuple(
+                    metric for metric in source.metrics if metric.name in binds["metrics"]
+                ),
+            )
+        )
+
+    return tuple(bound)
+
+
+# ....................... #
+
+
 def _build_exposures(project: Project) -> tuple[ExposureIR, ...]:
     """Lower the exposures document, sorted by name (S-0063/the-document).
 
@@ -2430,6 +2518,7 @@ def _lower_draft(
     reg: Registry,
     steps: StepRegistry,
     resolution: Resolution,
+    upstream: AbcMapping[str, ProjectIR] = MappingProxyType({}),
 ) -> ProjectIR:
     """Spec plus resolution to the draft IR the guardrail stage judges.
 
@@ -2443,17 +2532,18 @@ def _lower_draft(
     ``test_the_compiler_emits_the_declared_ir_version`` pins that it is.
     """
     steps_ir = lower_steps(project, steps)
+    # Mapped entities plus one per step output: §5.8 makes a step output an
+    # entity so marts, metrics and downstream mappings can reference it like
+    # any other. Sorted together, because the IR's ordering rule is about the
+    # collection, not about how a member got there.
+    entities = tuple(
+        sorted(
+            (*_build_entities(project, catalog, reg, steps), *step_entities(steps_ir, project)),
+            key=lambda entity: entity.name,
+        )
+    )
     draft = ProjectIR(
-        # Mapped entities plus one per step output: §5.8 makes a step output an
-        # entity so marts, metrics and downstream mappings can reference it
-        # like any other. Sorted together, because the IR's ordering rule is
-        # about the collection, not about how a member got there.
-        entities=tuple(
-            sorted(
-                (*_build_entities(project, catalog, reg, steps), *step_entities(steps_ir, project)),
-                key=lambda entity: entity.name,
-            )
-        ),
+        entities=entities,
         metrics=_build_metrics(project, catalog, resolution.reachable_metrics),
         unreachable=resolution.unreachable_metrics,
         relationships=_build_relationships(project),
@@ -2470,17 +2560,24 @@ def _lower_draft(
         # step outputs are relations both of them must be able to see
         # (S-0034/emission-and-the-dag).
         steps=steps_ir,
+        # What this compile bound from across every boundary it declared
+        # (S-0002/D-2). Before the flattener, because a mart may name an
+        # imported entity as its base and `with_imported` is where it finds
+        # one.
+        upstream=_bind_imports(project, upstream, entities),
     )
     # Mart flattening (S-0027/D-6): pure, total — violations are re-derived
     # and raised by the guardrail stage below; only clean marts attach here.
-    flattened = replace(draft, marts=lower_marts(project.marts, draft).marts)
+    flattened = replace(draft, marts=lower_marts(project.marts, with_imported(draft)).marts)
 
     # Rollups lower *against* the flattened draft (S-0065/the-obligation): a rollup
     # names a mart, and R013's premise is the mart contract, so the parent has
     # to be a resolved `MartIR` before the obligation can be asked at all. They
     # attach to their own collection, which is what makes row 14 true by
     # construction rather than by a filter in `measure_owners`.
-    return replace(flattened, rollups=lower_rollups(project.marts, flattened).rollups)
+    return replace(
+        flattened, rollups=lower_rollups(project.marts, with_imported(flattened)).rollups
+    )
 
 
 # ....................... #

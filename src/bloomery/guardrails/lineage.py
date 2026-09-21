@@ -77,6 +77,43 @@ def _source_path(entity: EntityIR) -> str:
 # ....................... #
 
 
+def _alias_collisions(draft: ProjectIR) -> list[GuardrailError]:
+    """Refuse a local entity named after an upstream alias (S-0002/D-6).
+
+    An imported node's id carries a project component built from the alias —
+    ``metric.platform.gross_revenue`` — so the alias is a segment of the id
+    namespace exactly as a kind prefix is, and an entity named ``platform``
+    with a field ``gross_revenue`` mints ``platform.gross_revenue`` inside it.
+
+    Over the aliases this compile actually **bound**, because an alias the
+    caller did not supply has no imported node behind it and is refused as an
+    ``UnknownUpstream`` anyway; a namespace refusal beside that one would name
+    a fix that is not the fix.
+    """
+
+    errors: list[GuardrailError] = []
+    aliases = {upstream.alias for upstream in draft.upstream}
+
+    for entity in draft.entities:
+        if entity.name not in aliases:
+            continue
+        field = entity.columns[0].name if entity.columns else "<field>"
+        msg = (
+            f"entity {entity.name!r} collides with the lineage node-id namespace of the "
+            f"upstream imported under that alias: an imported node is spelled "
+            f"'<kind>.{entity.name}.<name>' and an entity field is spelled "
+            f"'<entity>.<field>', so this entity's field {field!r} mints "
+            f"'{entity.name}.{field}' inside the upstream's namespace (S-0002/D-6). Fix: "
+            f"rename the entity, or import that upstream under another alias"
+        )
+        errors.append(ReservedEntityName(msg, source_path=_source_path(entity)))
+
+    return errors
+
+
+# ....................... #
+
+
 def check_lineage_names(draft: ProjectIR) -> list[GuardrailError]:
     """Refuse an entity named after one of the node-id prefixes.
 
@@ -90,8 +127,14 @@ def check_lineage_names(draft: ProjectIR) -> list[GuardrailError]:
     when a metric of the matching name also exists would make a spec's
     validity depend on a metric someone adds later, in another file — an
     author would meet the reservation at the worst possible moment.
+
+    **An upstream alias is reserved on the same terms** (S-0002 (§5.4),
+    S-0002/D-6), for the whole document's aliases rather than per field, which
+    is ``source``'s reasoning one input over: the rule worth remembering is
+    "an entity is never named after an upstream", and one that held only where
+    a field name happened to match would be learned as a coincidence.
     """
-    errors: list[GuardrailError] = []
+    errors: list[GuardrailError] = _alias_collisions(draft)
 
     for entity in draft.entities:
         if entity.name not in NODE_ID_PREFIXES:
