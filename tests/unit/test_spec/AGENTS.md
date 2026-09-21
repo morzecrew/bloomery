@@ -2,6 +2,14 @@
 
 ## Decisions governing `tests/unit/test_spec/`
 
+### S-0002/D-1 — `LOCKED` (Multi-project composition) — implementation: partial
+
+The boundary is an explicit export list, never "everything public by default": an entity, a mart or a metric may be named on it, grouped by kind, and a name absent from it is not exported however public it looks from inside the project
+
+- Paths: `src/bloomery/spec/exports.py` `src/bloomery/guardrails/exports.py` `tests/unit/test_spec/test_exports.py` `tests/unit/test_guardrails/test_exports.py`
+- Consequence: A project that exports its whole spec has no boundary, and its first refactor breaks every consumer; an export naming something the project does not declare is refused with `DanglingExport`, so the list is an assertion rather than a claim
+- Check: `uv run pytest tests/unit/test_spec/test_exports.py tests/unit/test_guardrails/test_exports.py -q` (shadow; runs as `decision:S-0002/D-1`, no log entry owed)
+
 ### S-0019/D-4 — `ASSUMED` (Spec layer and error model)
 
 Parse validates shape and grammar only; reference existence (entities, transforms, canonical fields) is deferred to resolve/typecheck. Consequence: a shape-valid spec with dangling references parses fine — callers must run `resolve` to trust it.

@@ -79,4 +79,10 @@ The end-to-end proof is one **new** golden fixture, `coarsening_rollup`, registe
 - Paths: `tests/fixtures/coarsening_rollup/**` `tests/golden/coarsening_rollup/**` `tests/golden/test_cube.py` `tests/golden/test_dbt_postgres.py` `tests/golden/test_sqlmesh_duckdb.py`
 - Consequence: `rollup_mart` keeps answering the measure question alone, so a future diff in either fixture says which question moved. It also keeps the two phases' golden directories disjoint — the first phase's regeneration and the second phase's new artifacts are never the same file
 
+## Invariants holding over `tests/golden/`
+
+- **S-0002/I-1**: A project carrying neither an exports nor an imports document compiles byte-identically to what it compiled before composition existed; the golden corpus is that test, and only a deliberate IR version bump may move a fingerprint in it
+  - Paths: `tests/golden/**` `src/bloomery/emit/**`
+  - Check: `uv run pytest tests/golden -q`
+
 <!-- /torve:managed -->

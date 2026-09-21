@@ -62,6 +62,13 @@ No handler, ever: the library's only logging configuration act is attaching a `N
 - Consequence: A library that installs a handler fights its embedder, and reversing this reaches every caller in the process; the level stays at `NOTSET` deliberately, which is the only way a caller's own `setLevel` on the `bloomery` logger can work from outside
 - Check: `uv run pytest tests/unit/test_logging_posture.py -q` (shadow; runs as `decision:S-0004/D-1`, no log entry owed)
 
+### S-0005/D-4 — `ASSUMED` (Semantic proof IR and closed-world checking) — implementation: partial
+
+Capability grows monotonically — the safe queries of one release are a subset of the next — except where a prior rule is found unsound, in which case correctness wins and the narrowing is a breaking change carrying an explicit note rather than a quiet withdrawal
+
+- Paths: `src/bloomery/semantic/proof.py` `tests/fixtures/semantic_corpus/**` `CHANGELOG.md`
+- Consequence: A new rule ships with positive and adversarial tests showing the boundary it admits, so a reader can see what was widened; a project that compiled last release and refuses in this one is either a documented soundness fix or a defect, and the note is what tells them apart
+
 ### S-0008/D-6 — `OPEN` (Fuzzing the compile boundary)
 
 Whether the lane is a seventh pytest marker or a `just` lane outside pytest
@@ -75,6 +82,13 @@ Coverage over the fuzz corpus is measured by a locally-runnable lane rather than
 
 - Paths: `justfile`
 - Consequence: The only signal separating "found nothing because the code is correct" from "found nothing because it never reached the code" runs when someone remembers, not on a schedule
+
+### S-0010/D-3 — `OPEN` (Generating from the spec schema) — implementation: none
+
+Whether the generator is `hypothesis-jsonschema`'s `from_schema()` or a hand-written strategy over the subset of JSON Schema bloomery emits is decided by execution, with the tiebreak being the fraction of generated documents that reach the resolver — never the dependency's release date
+
+- Paths: `tests/property/**` `tests/support/**` `pyproject.toml`
+- Consequence: Adopting the dependency adds a `dev`-group entry to `pyproject.toml` carrying the same explanatory comment style `jsonschema` already has; declining it puts a maintained strategy in this repository instead. Either way the measured fraction is logged, so the choice is re-decidable on evidence rather than re-argued.
 
 ### S-0012/D-2 — `LOCKED` (Validating a dialect port against an engine we cannot run)
 
@@ -139,42 +153,43 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `fuzz/` — 7 decision(s)
 - `pages/` — 1 decision(s)
 - `pages/docs/` — 1 decision(s)
-- `pages/docs/concepts/` — 6 decision(s)
+- `pages/docs/concepts/` — 7 decision(s)
 - `pages/docs/contributing/` — 0 decision(s)
 - `pages/docs/how-to/` — 5 decision(s)
 - `pages/docs/reference/` — 6 decision(s)
-- `src/bloomery/` — 96 decision(s)
-- `src/bloomery/cli/` — 40 decision(s)
+- `src/bloomery/` — 100 decision(s)
+- `src/bloomery/cli/` — 44 decision(s)
 - `src/bloomery/dialects/` — 34 decision(s)
-- `src/bloomery/emit/` — 12 decision(s)
+- `src/bloomery/emit/` — 13 decision(s)
 - `src/bloomery/emit/cube/` — 18 decision(s)
-- `src/bloomery/emit/dbt/` — 49 decision(s)
-- `src/bloomery/emit/lower/` — 65 decision(s)
+- `src/bloomery/emit/dbt/` — 50 decision(s)
+- `src/bloomery/emit/lower/` — 71 decision(s)
 - `src/bloomery/emit/metricflow/` — 17 decision(s)
-- `src/bloomery/emit/sqlmesh/` — 21 decision(s)
-- `src/bloomery/guardrails/` — 72 decision(s)
-- `src/bloomery/ir/` — 72 decision(s)
+- `src/bloomery/emit/sqlmesh/` — 23 decision(s)
+- `src/bloomery/guardrails/` — 77 decision(s)
+- `src/bloomery/ir/` — 73 decision(s)
 - `src/bloomery/marts/` — 28 decision(s)
 - `src/bloomery/plan/` — 28 decision(s)
-- `src/bloomery/planner/` — 49 decision(s)
+- `src/bloomery/planner/` — 53 decision(s)
 - `src/bloomery/quality/` — 34 decision(s)
-- `src/bloomery/resolve/` — 88 decision(s)
+- `src/bloomery/resolve/` — 92 decision(s)
 - `src/bloomery/runtime/` — 15 decision(s)
-- `src/bloomery/semantic/` — 55 decision(s)
-- `src/bloomery/spec/` — 98 decision(s)
+- `src/bloomery/semantic/` — 63 decision(s)
+- `src/bloomery/spec/` — 102 decision(s)
 - `src/bloomery/steps/` — 12 decision(s)
 - `src/bloomery/transforms/` — 29 decision(s)
 - `src/bloomery/typing/` — 5 decision(s)
 - `tests/` — 2 decision(s)
 - `tests/bench/` — 2 decision(s)
-- `tests/e2e/` — 27 decision(s)
+- `tests/e2e/` — 28 decision(s)
 - `tests/engines/` — 20 decision(s)
 - `tests/equivalence/` — 1 decision(s)
-- `tests/execution/` — 45 decision(s)
+- `tests/execution/` — 46 decision(s)
 - `tests/fixtures/` — 2 decision(s)
 - `tests/fixtures/coarsening_rollup/` — 1 decision(s)
 - `tests/fixtures/coverage_check/` — 1 decision(s)
 - `tests/fixtures/cross_mart_branches/` — 1 decision(s)
+- `tests/fixtures/cross_project/` — 0 decision(s)
 - `tests/fixtures/currency_convert/` — 1 decision(s)
 - `tests/fixtures/currency_convert_per_row/` — 2 decision(s)
 - `tests/fixtures/currency_convert_refusal/` — 1 decision(s)
@@ -197,7 +212,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `tests/fixtures/scd2_as_of/` — 1 decision(s)
 - `tests/fixtures/scd2_mart_refusal/` — 2 decision(s)
 - `tests/fixtures/scd2_replay/` — 1 decision(s)
-- `tests/fixtures/semantic_corpus/` — 3 decision(s)
+- `tests/fixtures/semantic_corpus/` — 4 decision(s)
 - `tests/fixtures/semantic_corpus/001-order-shipping-fanout/` — 2 decision(s)
 - `tests/fixtures/semantic_corpus/001-order-shipping-fanout/data/` — 1 decision(s)
 - `tests/fixtures/semantic_corpus/001-order-shipping-fanout/expected/` — 2 decision(s)
@@ -244,23 +259,24 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `tests/golden/schema/` — 24 decision(s)
 - `tests/golden/semi_additive_inventory/` — 1 decision(s)
 - `tests/golden/step_resolution/` — 1 decision(s)
-- `tests/property/` — 18 decision(s)
-- `tests/support/` — 22 decision(s)
-- `tests/unit/` — 69 decision(s)
+- `tests/property/` — 24 decision(s)
+- `tests/support/` — 24 decision(s)
+- `tests/unit/` — 70 decision(s)
 - `tests/unit/test_dialects/` — 9 decision(s)
 - `tests/unit/test_emit/` — 45 decision(s)
-- `tests/unit/test_guardrails/` — 45 decision(s)
-- `tests/unit/test_ir/` — 6 decision(s)
+- `tests/unit/test_guardrails/` — 47 decision(s)
+- `tests/unit/test_ir/` — 7 decision(s)
 - `tests/unit/test_marts/` — 7 decision(s)
 - `tests/unit/test_plan/` — 12 decision(s)
 - `tests/unit/test_planner/` — 27 decision(s)
 - `tests/unit/test_quality/` — 17 decision(s)
-- `tests/unit/test_resolve/` — 43 decision(s)
+- `tests/unit/test_resolve/` — 44 decision(s)
 - `tests/unit/test_runtime/` — 6 decision(s)
-- `tests/unit/test_semantic/` — 13 decision(s)
-- `tests/unit/test_spec/` — 30 decision(s)
+- `tests/unit/test_semantic/` — 14 decision(s)
+- `tests/unit/test_spec/` — 31 decision(s)
 - `tests/unit/test_steps/` — 25 decision(s)
 - `tests/unit/test_transforms/` — 8 decision(s)
 - `tests/unit/test_typing/` — 1 decision(s)
+- `tools/spikes/` — 2 decision(s)
 
 <!-- /torve:managed -->

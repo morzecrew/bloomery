@@ -2,6 +2,50 @@
 
 ## Decisions governing `tests/property/`
 
+### S-0010/D-1 — `LOCKED` (Generating from the spec schema) — implementation: none
+
+Schema-directed generation lands in the property tier under `tests/property/`, never as a fuzz target: it produces valid input by construction, which is the property tier's territory by the seam the corpus already states
+
+- Paths: `tests/property/**`
+- Consequence: The check runs in the default test tiers on every pull request and shrinks a failing spec to structure a person can read, at the cost of coverage-guided feedback; a contract that proposes a fuzz target for this work is proposing to reopen the seam, which halts under this grade
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0010/D-2 — `LOCKED` (Generating from the spec schema) — implementation: none
+
+The generated-document strategy and its assertions extend `tests/property/test_schema_agreement.py`, never a sibling module asserting drift of its own
+
+- Paths: `tests/property/test_schema_agreement.py`
+- Consequence: The existing corpus strategy stays beside the generated one in the same module, because a corpus of real documentation examples asserts something a generator does not — that the spelling the docs teach is accepted; shared generator helpers may live elsewhere under `tests/`, but nothing that asserts agreement may
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0010/D-3 — `OPEN` (Generating from the spec schema) — implementation: none
+
+Whether the generator is `hypothesis-jsonschema`'s `from_schema()` or a hand-written strategy over the subset of JSON Schema bloomery emits is decided by execution, with the tiebreak being the fraction of generated documents that reach the resolver — never the dependency's release date
+
+- Paths: `tests/property/**` `tests/support/**` `pyproject.toml`
+- Consequence: Adopting the dependency adds a `dev`-group entry to `pyproject.toml` carrying the same explanatory comment style `jsonschema` already has; declining it puts a maintained strategy in this repository instead. Either way the measured fraction is logged, so the choice is re-decidable on evidence rather than re-argued.
+
+### S-0010/D-4 — `ASSUMED` (Generating from the spec schema) — implementation: none
+
+Only one direction of agreement is asserted — what the parser refuses, the schema should refuse too, for the mutation classes JSON Schema can express — and a document the schema accepts and the parser refuses is a named divergence, not a failure
+
+- Paths: `tests/property/test_schema_agreement.py`
+- Consequence: The float `tolerance` and the free-string metric `agg` stay asserted as expected divergences at the bottom of that module, so closing one turns the suite red and forces the note to be removed rather than left lying; a new divergence is named in the same place rather than fixed under this document
+
+### S-0010/D-5 — `OPEN` (Generating from the spec schema) — implementation: none
+
+What would move this work to a fuzz target after all is stated by execution, the candidate signal being guardrail branches reached materially faster under coverage feedback than under generation
+
+- Paths: `tests/property/**`
+- Consequence: The row is discharged with whatever was measured — including "no evidence either way" — rather than left implicitly open, so D-1's seam is reopened on a number instead of on an impression
+
+### S-0010/D-6 — `ASSUMED` (Generating from the spec schema) — implementation: none
+
+Cross-document consistency is produced by generating a pool of names the documents then draw from, rather than generating each document independently and hoping its references resolve
+
+- Paths: `tests/property/**` `tests/support/**`
+- Consequence: The generator is stateful across a project's documents, so the reach fraction for a set is not the fraction for a single kind and the two are reported separately; a pool that constrains the generated space more than it buys is a departure to log against this row, not a bug
+
 ### S-0019/D-4 — `ASSUMED` (Spec layer and error model)
 
 Parse validates shape and grammar only; reference existence (entities, transforms, canonical fields) is deferred to resolve/typecheck. Consequence: a shape-valid spec with dangling references parses fine — callers must run `resolve` to trust it.

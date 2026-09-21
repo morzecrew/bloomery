@@ -2,6 +2,52 @@
 
 ## Decisions governing `src/bloomery/emit/lower/`
 
+### S-0003/D-1 — `LOCKED` (Replay on a historical entity) — implementation: partial
+
+bloomery computes no framework's SCD bookkeeping: no snapshot identity, no validity interval and no strategy hash is written or guessed anywhere on the replay path
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/sqlmesh/__init__.py`
+- Consequence: dbt's `dbt_scd_id` is a hash over its own unique key and check columns, computed in its own macros; a guess that is wrong produces duplicate versions rather than an error, and a guess that is right makes this compiler an implementation of another framework's internals — which is the coupling the lowering layer exists to prevent
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0003/D-2 — `LOCKED` (Replay on a historical entity) — implementation: partial
+
+A recovered row reaches the entity through whatever produces the entity's versions, so the framework does the versioning it owns; nothing on the replay path writes to a `scd: type2` entity relation
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/resolve/build.py`
+- Consequence: Writing past the framework is exactly what the shipped defect did, and it reported success — the admitted version carried a NULL interval and no snapshot identity, so the row was present, queryable and invisible to every as-of join
+- Check: `uv run pytest tests/unit/test_emit/test_quality_artifacts.py -q -k replay_on_a_historical_entity` (shadow; runs as `decision:S-0003/D-2`, no log entry owed)
+
+### S-0003/D-4 — `ASSUMED` (Replay on a historical entity) — implementation: partial
+
+Replay for `scd: type1` entities does not change: its relation is one bloomery's own SELECT defines, so the merge naming every column is correct there
+
+- Paths: `src/bloomery/emit/lower/silver.py`
+- Consequence: A shared rewrite would put the branch nobody needs in the path everybody takes; every type 1 fixture already exercises the merge
+- Check: `uv run pytest tests/unit/test_emit/test_quality_artifacts.py -q -k replay_on_a_type_one_entity` (shadow; runs as `decision:S-0003/D-4`, no log entry owed)
+
+### S-0003/D-7 — `ASSUMED` (Replay on a historical entity) — implementation: partial
+
+The route is a write back to bronze: replay re-delivers the recovered row to the bronze relation it came from, as a new delivery, and the ordinary pipeline admits it — no new relation, no change to the entity's SELECT
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/resolve/build.py` `pages/docs/concepts/data-quality.md`
+- Consequence: The versioning, the audits and the conservation law hold by construction, because the row arrives through the path every other row arrives through; the cost is that bloomery now emits a statement that writes into the caller's landing zone
+
+### S-0003/D-8 — `LOCKED` (Replay on a historical entity) — implementation: partial
+
+A recovered version's validity interval is whatever the framework assigns, and bloomery neither chooses nor supplies it
+
+- Paths: `src/bloomery/emit/lower/silver.py`
+- Consequence: Measured on both targets: dbt stamps its own wall clock on every version, and SQLMesh stamps an epoch start for an initial load and the run's execution time thereafter. Neither offers a caller-supplied value and the two disagree about the same first load, so choosing would mean computing a framework's bookkeeping
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0003/D-10 — `ASSUMED` (Replay on a historical entity) — implementation: partial
+
+A correction arriving by this route adds a version and closes the previous one; it does not rewrite history
+
+- Paths: `src/bloomery/emit/lower/silver.py` `tools/spikes/rfc0060_dbt.py`
+- Consequence: Measured on both targets by changing an existing row's value in bronze and re-running: each closes the standing version, opens a new one and retains the old. Routing through the framework means taking the framework's answer, so the question is answered by the route rather than chosen
+
 ### S-0019/D-7 — `ASSUMED` (Spec layer and error model)
 
 `materialization` is explicit-with-derived-default (settles original open question #4); the resolved value is IR-recorded and diffable.

@@ -2,6 +2,29 @@
 
 ## Decisions governing `src/bloomery/`
 
+### S-0002/D-2 — `LOCKED` (Multi-project composition) — implementation: partial
+
+What crosses is the upstream's compiled IR, passed to the compile as an argument — not its spec documents, and not a path bloomery opens; the upstream is keyed by a local alias the downstream chooses, because a project has no identity of its own
+
+- Paths: `src/bloomery/compile.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/imports.py` `src/bloomery/guardrails/imports.py`
+- Consequence: Mappings, steps and quality surfaces stay outside the boundary, because re-resolving upstream documents downstream would put all three inside it; and an alias the compile was not given is refused with `UnknownUpstream` rather than resolving to nothing
+- Check: `uv run pytest tests/unit/test_spec/test_imports.py tests/unit/test_guardrails/test_imports.py -q` (shadow; runs as `decision:S-0002/D-2`, no log entry owed)
+
+### S-0002/D-7 — `ASSUMED` (Multi-project composition) — implementation: partial
+
+Two composing projects must share a naming policy; whether a mismatch is a refusal depends on the upstream IR recording the policy it was compiled under
+
+- Paths: `src/bloomery/naming.py` `src/bloomery/emit/base.py`
+- Consequence: Without a shared policy the downstream names relations the upstream never created, and the failure surfaces in the warehouse rather than in the compile — which is the worst place for it
+
+### S-0002/D-8 — `LOCKED` (Multi-project composition) — implementation: partial
+
+No registry, no packaging, no network: how the upstream artifact reaches the compile is the caller's problem — a path, a checkout, a CI artifact — and bloomery reads what it is handed
+
+- Paths: `src/bloomery/compile.py` `src/bloomery/spec/imports.py`
+- Consequence: The upstream is a value the caller assembles, exactly as a step registry is, so composition adds no I/O to a compile that performs none; the cost is that a surface with no value to pass — the CLI today — cannot compile an importing project at all
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0004/D-1 — `LOCKED` (Observability: logging and a warnings channel)
 
 No handler, ever: the library's only logging configuration act is attaching a `NullHandler` to the `bloomery` logger at package import, and it never adds, removes or configures a handler, a format or a level on a logger it does not own
@@ -103,6 +126,14 @@ What makes a quality rule "unstrengthened" — the vocabulary the second advisor
 
 - Paths: `src/bloomery/evidence.py`
 - Consequence: The advisory cannot be built before the term means something checkable, and the definition chosen fixes both what the code reports and what its documentation row can say; getting it wrong produces an advisory that fires on correct specs, which D-7 forbids
+
+### S-0005/D-3 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+
+Guardrails are expressed as obligations before any is deleted, and the mart compiler keeps its aggregate error mechanism throughout while internally consuming shared semantic facts
+
+- Paths: `src/bloomery/guardrails/**` `src/bloomery/errors.py` `src/bloomery/semantic/closure.py` `src/bloomery/semantic/additivity.py`
+- Consequence: A guardrail deleted in favour of a proof rule that turns out narrower is a silently accepted unsafe project; the parity assertions between a proof and the boolean answer it expresses are what make the two comparable, and they can only be written while both exist
+- Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_the_proof_agrees_with_the_answer_it_expresses -q` (shadow; runs as `decision:S-0005/D-3`, no log entry owed)
 
 ### S-0008/D-7 — `OPEN` (Fuzzing the compile boundary)
 

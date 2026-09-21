@@ -2,6 +2,36 @@
 
 ## Decisions governing `src/bloomery/resolve/`
 
+### S-0002/D-2 — `LOCKED` (Multi-project composition) — implementation: partial
+
+What crosses is the upstream's compiled IR, passed to the compile as an argument — not its spec documents, and not a path bloomery opens; the upstream is keyed by a local alias the downstream chooses, because a project has no identity of its own
+
+- Paths: `src/bloomery/compile.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/imports.py` `src/bloomery/guardrails/imports.py`
+- Consequence: Mappings, steps and quality surfaces stay outside the boundary, because re-resolving upstream documents downstream would put all three inside it; and an alias the compile was not given is refused with `UnknownUpstream` rather than resolving to nothing
+- Check: `uv run pytest tests/unit/test_spec/test_imports.py tests/unit/test_guardrails/test_imports.py -q` (shadow; runs as `decision:S-0002/D-2`, no log entry owed)
+
+### S-0002/D-6 — `ASSUMED` (Multi-project composition) — implementation: partial
+
+Lineage node ids gain a project component for imported nodes only; a local node keeps its `<kind>.<name>` spelling
+
+- Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/lineage.py` `src/bloomery/guardrails/lineage.py` `tests/unit/test_resolve/test_lineage.py` `tests/unit/test_guardrails/test_lineage.py`
+- Consequence: Every existing id and every published citation stays valid — a node name is public surface and `bloomery lineage --node metric.gross_revenue` is a documented invocation — while two projects' graphs can be composed without collision
+
+### S-0003/D-2 — `LOCKED` (Replay on a historical entity) — implementation: partial
+
+A recovered row reaches the entity through whatever produces the entity's versions, so the framework does the versioning it owns; nothing on the replay path writes to a `scd: type2` entity relation
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/resolve/build.py`
+- Consequence: Writing past the framework is exactly what the shipped defect did, and it reported success — the admitted version carried a NULL interval and no snapshot identity, so the row was present, queryable and invisible to every as-of join
+- Check: `uv run pytest tests/unit/test_emit/test_quality_artifacts.py -q -k replay_on_a_historical_entity` (shadow; runs as `decision:S-0003/D-2`, no log entry owed)
+
+### S-0003/D-7 — `ASSUMED` (Replay on a historical entity) — implementation: partial
+
+The route is a write back to bronze: replay re-delivers the recovered row to the bronze relation it came from, as a new delivery, and the ordinary pipeline admits it — no new relation, no change to the entity's SELECT
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/resolve/build.py` `pages/docs/concepts/data-quality.md`
+- Consequence: The versioning, the audits and the conservation law hold by construction, because the row arrives through the path every other row arrives through; the cost is that bloomery now emits a statement that writes into the caller's landing zone
+
 ### S-0004/D-2 — `LOCKED` (Observability: logging and a warnings channel)
 
 A log record never carries nondeterminism of bloomery's making — no timestamp, id or counter the compiler invented — and is built only from values the pipeline already holds: stage names, counts, fingerprints and source paths

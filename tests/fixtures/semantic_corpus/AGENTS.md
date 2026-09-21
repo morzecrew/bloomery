@@ -2,6 +2,13 @@
 
 ## Decisions governing `tests/fixtures/semantic_corpus/`
 
+### S-0005/D-4 — `ASSUMED` (Semantic proof IR and closed-world checking) — implementation: partial
+
+Capability grows monotonically — the safe queries of one release are a subset of the next — except where a prior rule is found unsound, in which case correctness wins and the narrowing is a breaking change carrying an explicit note rather than a quiet withdrawal
+
+- Paths: `src/bloomery/semantic/proof.py` `tests/fixtures/semantic_corpus/**` `CHANGELOG.md`
+- Consequence: A new rule ships with positive and adversarial tests showing the boundary it admits, so a reader can see what was widened; a project that compiled last release and refuses in this one is either a documented soundness fix or a defect, and the note is what tells them apart
+
 ### S-0006/D-8 — `ASSUMED` (Evidence-based semantic capability matrix)
 
 Cube's pre-aggregation matching is a row this matrix owes, and by D-4 it is a case the semantic corpus must carry before the row can be measured

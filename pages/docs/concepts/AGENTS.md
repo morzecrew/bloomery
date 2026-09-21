@@ -2,6 +2,13 @@
 
 ## Decisions governing `pages/docs/concepts/`
 
+### S-0003/D-7 — `ASSUMED` (Replay on a historical entity) — implementation: partial
+
+The route is a write back to bronze: replay re-delivers the recovered row to the bronze relation it came from, as a new delivery, and the ordinary pipeline admits it — no new relation, no change to the entity's SELECT
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/resolve/build.py` `pages/docs/concepts/data-quality.md`
+- Consequence: The versioning, the audits and the conservation law hold by construction, because the row arrives through the path every other row arrives through; the cost is that bloomery now emits a statement that writes into the caller's landing zone
+
 ### S-0023/D-6 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
 Additivity: `non_additive` metrics are never materialized as stored numbers (components only); `semi_additive` metrics aggregate only over dimensions other than their `over:` dimension. Enforced at IR build **and** re-refused by emitters (S-0025) — defense in depth.

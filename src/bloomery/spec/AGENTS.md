@@ -2,6 +2,38 @@
 
 ## Decisions governing `src/bloomery/spec/`
 
+### S-0002/D-1 — `LOCKED` (Multi-project composition) — implementation: partial
+
+The boundary is an explicit export list, never "everything public by default": an entity, a mart or a metric may be named on it, grouped by kind, and a name absent from it is not exported however public it looks from inside the project
+
+- Paths: `src/bloomery/spec/exports.py` `src/bloomery/guardrails/exports.py` `tests/unit/test_spec/test_exports.py` `tests/unit/test_guardrails/test_exports.py`
+- Consequence: A project that exports its whole spec has no boundary, and its first refactor breaks every consumer; an export naming something the project does not declare is refused with `DanglingExport`, so the list is an assertion rather than a claim
+- Check: `uv run pytest tests/unit/test_spec/test_exports.py tests/unit/test_guardrails/test_exports.py -q` (shadow; runs as `decision:S-0002/D-1`, no log entry owed)
+
+### S-0002/D-2 — `LOCKED` (Multi-project composition) — implementation: partial
+
+What crosses is the upstream's compiled IR, passed to the compile as an argument — not its spec documents, and not a path bloomery opens; the upstream is keyed by a local alias the downstream chooses, because a project has no identity of its own
+
+- Paths: `src/bloomery/compile.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/imports.py` `src/bloomery/guardrails/imports.py`
+- Consequence: Mappings, steps and quality surfaces stay outside the boundary, because re-resolving upstream documents downstream would put all three inside it; and an alias the compile was not given is refused with `UnknownUpstream` rather than resolving to nothing
+- Check: `uv run pytest tests/unit/test_spec/test_imports.py tests/unit/test_guardrails/test_imports.py -q` (shadow; runs as `decision:S-0002/D-2`, no log entry owed)
+
+### S-0002/D-5 — `LOCKED` (Multi-project composition) — implementation: partial
+
+Quality surfaces do not cross: an upstream entity's reject table, replay and quality mart stay upstream, and the downstream reads the entity
+
+- Paths: `src/bloomery/spec/exports.py` `src/bloomery/spec/imports.py`
+- Consequence: A downstream project cannot depend on how an upstream entity was cleaned, so the upstream is free to change its quality surface without breaking a consumer; the rule is enforced by the documents' shape, which has no key for it
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0002/D-8 — `LOCKED` (Multi-project composition) — implementation: partial
+
+No registry, no packaging, no network: how the upstream artifact reaches the compile is the caller's problem — a path, a checkout, a CI artifact — and bloomery reads what it is handed
+
+- Paths: `src/bloomery/compile.py` `src/bloomery/spec/imports.py`
+- Consequence: The upstream is a value the caller assembles, exactly as a step registry is, so composition adds no I/O to a compile that performs none; the cost is that a surface with no value to pass — the CLI today — cannot compile an importing project at all
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0004/D-2 — `LOCKED` (Observability: logging and a warnings channel)
 
 A log record never carries nondeterminism of bloomery's making — no timestamp, id or counter the compiler invented — and is built only from values the pipeline already holds: stage names, counts, fingerprints and source paths

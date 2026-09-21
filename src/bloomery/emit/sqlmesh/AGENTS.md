@@ -2,6 +2,21 @@
 
 ## Decisions governing `src/bloomery/emit/sqlmesh/`
 
+### S-0003/D-1 — `LOCKED` (Replay on a historical entity) — implementation: partial
+
+bloomery computes no framework's SCD bookkeeping: no snapshot identity, no validity interval and no strategy hash is written or guessed anywhere on the replay path
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/sqlmesh/__init__.py`
+- Consequence: dbt's `dbt_scd_id` is a hash over its own unique key and check columns, computed in its own macros; a guess that is wrong produces duplicate versions rather than an error, and a guess that is right makes this compiler an implementation of another framework's internals — which is the coupling the lowering layer exists to prevent
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0003/D-9 — `ASSUMED` (Replay on a historical entity) — implementation: partial
+
+The two targets fail the old merge differently: on dbt it lands silently with a NULL interval, and on SQLMesh it does not land at all — the entity is a view over a physical snapshot table and the write is refused outright by the engine
+
+- Paths: `src/bloomery/emit/sqlmesh/__init__.py` `tools/spikes/rfc0060_sqlmesh.py`
+- Consequence: Nothing about the refusal changes — the pair was refused either way, for a reason that holds on both — but a claim that both targets fail silently is not true, and a reader's sense of how urgent this is should follow the loud failure rather than the quiet one
+
 ### S-0023/D-7 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
 Path conflict does not raise (`PathConflict` is not an error class): the compiler emits the derived column, a `<name>__direct` shadow, and a `RECONCILE` `AuditIR`. The forbidden thing is the silent choice; both paths are valid, so the refusal targets the silence, not the spec.

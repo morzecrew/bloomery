@@ -2,6 +2,14 @@
 
 ## Decisions governing `tests/execution/`
 
+### S-0003/D-3 — `LOCKED` (Replay on a historical entity) — implementation: partial
+
+The acceptance for this design is an as-of join finding the recovered row, never a row being present in the entity relation
+
+- Paths: `tests/e2e/test_dbt_parse.py` `tests/execution/test_replay_to_bronze.py`
+- Consequence: Present-and-invisible is the exact failure this design exists to remove, and a row-count assertion cannot tell the two apart — it passes against the defect
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0020/D-5 — `ASSUMED` (Intermediate representation and determinism contract)
 
 Floats are banned in IR and emission; `Decimal`/int only.

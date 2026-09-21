@@ -2,6 +2,14 @@
 
 ## Decisions governing `tests/unit/test_ir/`
 
+### S-0002/D-3 — `LOCKED` (Multi-project composition) — implementation: partial
+
+The downstream fingerprint includes the upstream fingerprint whole, never only the exports the downstream touched
+
+- Paths: `src/bloomery/ir/fingerprint.py` `tests/unit/test_ir/test_fingerprint.py`
+- Consequence: An upstream change that touches nothing the downstream reads still moves the downstream fingerprint, and artifact headers change on projects nothing about which changed; the docs have to meet that head on rather than the rule being softened
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0020/D-3 — `ASSUMED` (Intermediate representation and determinism contract)
 
 `project_fingerprint` = `"blm1:" + sha256(canonical bytes)`; includes `bloomery_ir_version`; stable within a bloomery version, explicitly not across versions.

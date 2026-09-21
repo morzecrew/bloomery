@@ -18,6 +18,14 @@ The advisory vocabulary is a closed enum with no free-text constructor, and ever
 - Consequence: Adding an advisory is a reviewed change that lands its documentation row with it; a documented code no path can construct fails the census, which is what blocks the deprecated-spelling advisory until a spelling is actually deprecated
 - Check: `uv run pytest tests/unit/test_docs_floor.py -q` (shadow; runs as `decision:S-0004/D-10`, no log entry owed)
 
+### S-0005/D-6 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+
+Proof serialization is deterministic: canonical premise order, stable rule identifiers, no memory addresses, no timestamps, no dependence on traversal order, and premises and facts sorted on construction rather than trusted in arrival order
+
+- Paths: `src/bloomery/semantic/proof.py` `src/bloomery/planner/semantic_plan.py` `src/bloomery/cli/render.py` `tests/unit/test_determinism_guard.py`
+- Consequence: Equivalent authored ordering produces equivalent proof serialization, so a golden or a continuous-integration assertion over a derivation is a statement about the design rather than about the order a dictionary happened to iterate in
+- Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_premise_order_is_canonical_not_construction_order tests/unit/test_semantic/test_proof.py::test_serialization_carries_nothing_that_varies_between_processes -q` (shadow; runs as `decision:S-0005/D-6`, no log entry owed)
+
 ### S-0006/D-4 — `ASSUMED` (Evidence-based semantic capability matrix)
 
 Rows are the cases of the semantic bug corpus under `tests/fixtures/semantic_corpus/`, not a separately invented taxonomy; a row the matrix needs and the corpus does not carry is a missing corpus case first
