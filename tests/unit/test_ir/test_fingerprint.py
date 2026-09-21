@@ -25,6 +25,7 @@ from bloomery.ir import (
     quality_sort_key,
 )
 from bloomery.ir.fingerprint import _canon_bytes
+from bloomery.ir.nodes import UpstreamIR
 from support.ir_factory import build_project_ir
 
 pytestmark = pytest.mark.unit
@@ -236,3 +237,43 @@ def test_sql_expr_and_dimension_ref_reachable() -> None:
     a = _canon_bytes(_Node((SqlExpr("a + b"), DimensionRef("date", "ordered"))))
     b = _canon_bytes(_Node((SqlExpr("a + b"), DimensionRef("date", "shipped"))))
     assert a != b
+
+
+def _importing(fingerprint: str, *, alias: str = "platform") -> ProjectIR:
+    """A downstream project importing one entity from one upstream."""
+    base = build_project_ir()
+    return dataclasses.replace(
+        base,
+        upstream=(UpstreamIR(alias=alias, fingerprint=fingerprint, entities=base.entities),),
+    )
+
+
+def test_upstream_fingerprint_reaches_the_downstream() -> None:
+    # S-0002/D-3: the upstream identity crosses whole, so an upstream change that
+    # touches nothing the downstream reads still moves the downstream fingerprint.
+    a = _importing("blm1:" + "a" * 64)
+    b = _importing("blm1:" + "b" * 64)
+    assert a.upstream[0].entities == b.upstream[0].entities
+    assert project_fingerprint(a) != project_fingerprint(b)
+
+
+def test_importing_differs_from_not_importing() -> None:
+    assert project_fingerprint(_importing("blm1:" + "a" * 64)) != project_fingerprint(
+        build_project_ir()
+    )
+
+
+def test_unmoved_upstream_identical_bytes() -> None:
+    # The upstream's documents may be reformatted at will: nothing reaches here but
+    # its IR, so an upstream whose IR did not move leaves the downstream byte-identical.
+    a = _importing("blm1:" + "a" * 64)
+    b = _importing("blm1:" + "a" * 64)
+    assert _canon_bytes(a) == _canon_bytes(b)
+    assert project_fingerprint(a) == project_fingerprint(b)
+
+
+def test_local_alias_reaches_the_downstream() -> None:
+    # The alias is the downstream's own spelling, and a rename is a change to it.
+    a = _importing("blm1:" + "a" * 64, alias="platform")
+    b = _importing("blm1:" + "a" * 64, alias="core")
+    assert project_fingerprint(a) != project_fingerprint(b)

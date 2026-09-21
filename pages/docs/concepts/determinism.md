@@ -50,6 +50,30 @@ What it is **not**:
   simply never looked up again. Version mismatch is a cache miss by construction, never
   an error and never a migration: on a miss, rebuild from specs.
 
+### Composition: the upstream fingerprint crosses whole
+
+A project that imports from another compiles against the upstream's **compiled IR**,
+and the identity of that IR — the upstream's own fingerprint — is part of the
+downstream's `ProjectIR`. So it is part of the downstream's hash, whole, never only
+the exports the downstream happened to read.
+
+The consequence is deliberate and is the point of the rule: **an upstream change that
+touches nothing the downstream reads still moves the downstream fingerprint.** Add a
+metric to the upstream that nobody imports, and every downstream artifact header
+changes on the next compile, on projects nothing about which changed.
+
+The alternative — hashing only the bound exports — is worse in the direction that
+matters. It would need the compiler to decide which upstream changes can be ignored,
+and a wrong decision there is a cache that serves stale semantics silently, which is
+exactly the failure "byte-identical artifacts" exists to make impossible. A spurious
+cache miss rebuilds from specs and costs a compile; a missed change is wrong output.
+Same trade as everywhere else on this page: loud over silent.
+
+Two properties survive composition, and are what the tests assert: the downstream
+moves whenever the upstream moves, and it is byte-identical whenever neither does.
+Reformatting the upstream's spec documents does not move its IR, so it does not move
+its fingerprint, so the downstream is undisturbed.
+
 ## The rules
 
 Stated once, applied package-wide:
