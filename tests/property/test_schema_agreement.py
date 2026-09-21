@@ -698,6 +698,134 @@ def test_independently_drawn_documents_never_get_past_the_resolver() -> None:
 
 
 # ....................... #
+# Agreement over the generated space (S-0010/D-4) — the other half of what the
+# corpus strategy measures, over documents no author wrote.
+#
+# Same one direction: what the parser refuses, the schema should refuse too.
+# The converse stays unasserted here for the same reason it is unasserted above,
+# and for a sharper one: a *schema-valid* generated document the parser refuses
+# is precisely the named-divergence case D-4 describes, and generation is how
+# two of the notes at the bottom of this module were found (`seeds:`, an entity
+# name no author can spell). Those are recorded, not failed on.
+#
+# So the mutation is what has to cause the refusal, which is why the base
+# document must both validate and parse before it is mutated. Without that
+# filter the property would read a pre-existing divergence as a mutation the
+# schema missed, and go red on something already written down.
+
+
+def _mutated(document: dict[str, Any], mutation: str, seed: int) -> dict[str, Any] | None:
+    """``document`` under one mutation class, or ``None`` where it cannot apply.
+
+    The same three classes the corpus strategy uses — an invented key, a
+    mapping where a scalar belongs, a value outside a closed set — so the two
+    halves of the measurement differ in the documents and nothing else.
+    """
+    if mutation == "unknown-key":
+        key = f"not_a_key_{seed}"
+        return None if key in document else {**document, key: "x"}
+
+    paths = [path for path in _scalar_paths(document) if isinstance(_at(document, path), str)]
+    value: object = {"unexpected": "mapping"}
+    if mutation == "out-of-enum":
+        paths = [path for path in paths if str(path[-1]) in _CLOSED_KEYS]
+        value = "not_a_member_of_this_set"
+    if not paths:
+        return None
+    mutated = _replaced(document, paths[seed % len(paths)], value)
+    assert isinstance(mutated, dict)
+    return mutated
+
+
+_MUTATIONS = st.sampled_from(("unknown-key", "string-to-mapping", "out-of-enum"))
+_SEEDS = st.integers(min_value=0, max_value=2**16)
+
+#: The corpus properties above lean on ``filter_too_much`` to stop them passing
+#: by discarding everything. This phase cannot: three filters stack here — the
+#: base must validate, then parse, then the mutation must be one the class can
+#: apply and the parser refuses — so the health check fires on the ordinary
+#: case and would read as drift found. It is suppressed, and the guard it
+#: provided is replaced by the census below, which counts what each class
+#: actually got to assert and has floors under all three.
+_MUTATED = settings(
+    max_examples=60,
+    deadline=None,
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much],
+)
+
+
+@given(document=_ENTITY_MODELS, mutation=_MUTATIONS, seed=_SEEDS)
+@_MUTATED
+def test_a_mutated_generated_document_is_refused_by_both(
+    document: dict[str, Any], mutation: str, seed: int
+) -> None:
+    """The drift measurement over generated documents (S-0010/D-4).
+
+    A corpus mutation starts from one of forty shapes a person wrote; this
+    starts from anywhere in the space the export admits, which is where a
+    machine author writing against the schema actually lands. A class of
+    disagreement that only ever appears in a shape no fixture happens to have
+    is invisible to the corpus half and visible here.
+    """
+    assume(_validates(SpecKind.ENTITY_MODEL, document))
+    assume(_parses(SpecKind.ENTITY_MODEL, document))
+    mutated = _mutated(document, mutation, seed)
+    assume(mutated is not None)
+    assume(not _parses(SpecKind.ENTITY_MODEL, mutated))
+    assert not _validates(SpecKind.ENTITY_MODEL, mutated), (mutation, mutated)
+
+
+def test_the_measured_drift_over_mutated_generated_documents() -> None:
+    """Which classes the property above actually got to assert, as a number.
+
+    Every arm of that property is an ``assume``, so it would pass just as
+    quietly over a strategy that had stopped producing parseable documents, or
+    over draws where only the class the two validators are *guaranteed* to
+    agree on (an invented key against ``additionalProperties: false``) ever
+    applied. ``derandomize`` fixes the sample, so a collapse moves these counts
+    rather than the flake rate.
+
+    Measured over 300 draws at the time of writing: 119 bases both valid and
+    parseable, and of their mutations 79 refused by the parser as
+    ``unknown-key``, 23 as ``string-to-mapping`` and 9 as ``out-of-enum``,
+    with zero the schema then accepted. The floors are loose — the point is to
+    catch a class going silent, not to pin a figure that moves whenever the
+    generator or a refusal changes.
+    """
+    refused: Counter[str] = Counter()
+
+    @given(document=_ENTITY_MODELS, mutation=_MUTATIONS, seed=_SEEDS)
+    @settings(
+        max_examples=300,
+        deadline=None,
+        derandomize=True,
+        database=None,
+        suppress_health_check=[HealthCheck.too_slow],
+    )
+    def sample(document: dict[str, Any], mutation: str, seed: int) -> None:
+        if not (
+            _validates(SpecKind.ENTITY_MODEL, document)
+            and _parses(SpecKind.ENTITY_MODEL, document)
+        ):
+            return
+        refused["base"] += 1
+        mutated = _mutated(document, mutation, seed)
+        if mutated is None or _parses(SpecKind.ENTITY_MODEL, mutated):
+            return
+        refused[mutation] += 1
+        if _validates(SpecKind.ENTITY_MODEL, mutated):
+            refused[f"{mutation}-accepted-by-the-schema"] += 1
+
+    sample()
+    census = ", ".join(f"{name}={count}" for name, count in sorted(refused.items()))
+
+    assert refused["base"] >= 30, census
+    for mutation in ("unknown-key", "string-to-mapping", "out-of-enum"):
+        assert refused[mutation] >= 1, census
+        assert refused[f"{mutation}-accepted-by-the-schema"] == 0, census
+
+
+# ....................... #
 # Recorded divergences (D10): where the two validators genuinely disagree.
 
 
