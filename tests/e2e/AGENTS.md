@@ -2,6 +2,14 @@
 
 ## Decisions governing `tests/e2e/`
 
+### S-0003/D-3 — `LOCKED` (Replay on a historical entity) — implementation: partial
+
+The acceptance for this design is an as-of join finding the recovered row, never a row being present in the entity relation
+
+- Paths: `tests/e2e/test_dbt_parse.py` `tests/execution/test_replay_to_bronze.py`
+- Consequence: Present-and-invisible is the exact failure this design exists to remove, and a row-count assertion cannot tell the two apart — it passes against the defect
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0025/D-18 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
 
 *(2026-08-11)* **The dbt target defines the generic test it declares; the emitted project depends on no package.** D16's dbt half had to name *some* vehicle for `min`/`max`/`regex`/`reconcile`, and the only one dbt offers is `dbt_utils.expression_is_true` — which D16 itself noted "is a package, not core" without following the consequence. The consequence is that bloomery emitted a project **declaring a test it did not define**: `dbt compile` stops at ``'dbt_utils' is undefined. … install package dependencies with "dbt deps"``, for every project carrying one of those four clauses. Two fixes were available — emit a `packages.yml` pinning `dbt-labs/dbt_utils`, or define the test — and the second wins on the thing this compiler is for: artifacts are a pure function of the specs (S-0020), and a `packages.yml` makes the output complete only after a *network fetch* the compiler is forbidden from performing and the consumer may not be able to perform at all. So `macros/bloomery_expression_is_true.sql` is emitted, iff `schema.yml` declares the test. Three things follow. **It is `ArtifactKind.AUDIT`, not `CONFIG`** — it is the custom audit *body* for this target, the exact counterpart of the `audits/<name>.sql` file SQLMesh gets for the same kinds and from the same `audit_predicate`, which makes D16's "one function, two forms" symmetry structural rather than incidental. **The body is `dbt_utils`' `default__test_expression_is_true` minus the `column_name` branch bloomery never takes**, so the replaced semantics are preserved exactly — including that a NULL expression *passes*, `NOT NULL` being NULL and selecting no row, which is S-0033/D-19's Kleene discipline arrived at from dbt's side. **The emission condition reads the emitted schema rather than re-deriving the entity filter**, so the project can neither declare the test without the macro nor carry it unused, and a test pins both directions.

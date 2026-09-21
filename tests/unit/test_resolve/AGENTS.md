@@ -2,6 +2,13 @@
 
 ## Decisions governing `tests/unit/test_resolve/`
 
+### S-0002/D-6 — `ASSUMED` (Multi-project composition) — implementation: partial
+
+Lineage node ids gain a project component for imported nodes only; a local node keeps its `<kind>.<name>` spelling
+
+- Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/lineage.py` `src/bloomery/guardrails/lineage.py` `tests/unit/test_resolve/test_lineage.py` `tests/unit/test_guardrails/test_lineage.py`
+- Consequence: Every existing id and every published citation stays valid — a node name is public surface and `bloomery lineage --node metric.gross_revenue` is a documented invocation — while two projects' graphs can be composed without collision
+
 ### S-0019/D-6 — `ASSUMED` (Spec layer and error model)
 
 Parse-stage errors are batched per document (all failures reported at once).

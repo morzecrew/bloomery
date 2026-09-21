@@ -2,6 +2,45 @@
 
 ## Decisions governing `src/bloomery/guardrails/`
 
+### S-0002/D-1 — `LOCKED` (Multi-project composition) — implementation: partial
+
+The boundary is an explicit export list, never "everything public by default": an entity, a mart or a metric may be named on it, grouped by kind, and a name absent from it is not exported however public it looks from inside the project
+
+- Paths: `src/bloomery/spec/exports.py` `src/bloomery/guardrails/exports.py` `tests/unit/test_spec/test_exports.py` `tests/unit/test_guardrails/test_exports.py`
+- Consequence: A project that exports its whole spec has no boundary, and its first refactor breaks every consumer; an export naming something the project does not declare is refused with `DanglingExport`, so the list is an assertion rather than a claim
+- Check: `uv run pytest tests/unit/test_spec/test_exports.py tests/unit/test_guardrails/test_exports.py -q` (shadow; runs as `decision:S-0002/D-1`, no log entry owed)
+
+### S-0002/D-2 — `LOCKED` (Multi-project composition) — implementation: partial
+
+What crosses is the upstream's compiled IR, passed to the compile as an argument — not its spec documents, and not a path bloomery opens; the upstream is keyed by a local alias the downstream chooses, because a project has no identity of its own
+
+- Paths: `src/bloomery/compile.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/imports.py` `src/bloomery/guardrails/imports.py`
+- Consequence: Mappings, steps and quality surfaces stay outside the boundary, because re-resolving upstream documents downstream would put all three inside it; and an alias the compile was not given is refused with `UnknownUpstream` rather than resolving to nothing
+- Check: `uv run pytest tests/unit/test_spec/test_imports.py tests/unit/test_guardrails/test_imports.py -q` (shadow; runs as `decision:S-0002/D-2`, no log entry owed)
+
+### S-0002/D-4 — `LOCKED` (Multi-project composition) — implementation: partial
+
+Import cycles are refused, not resolved
+
+- Paths: `src/bloomery/guardrails/imports.py`
+- Consequence: Two projects importing each other never compile, and no order is invented for them; what a cycle needs is an author's decision about which project owns the shared concept
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0002/D-6 — `ASSUMED` (Multi-project composition) — implementation: partial
+
+Lineage node ids gain a project component for imported nodes only; a local node keeps its `<kind>.<name>` spelling
+
+- Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/lineage.py` `src/bloomery/guardrails/lineage.py` `tests/unit/test_resolve/test_lineage.py` `tests/unit/test_guardrails/test_lineage.py`
+- Consequence: Every existing id and every published citation stays valid — a node name is public surface and `bloomery lineage --node metric.gross_revenue` is a documented invocation — while two projects' graphs can be composed without collision
+
+### S-0005/D-3 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+
+Guardrails are expressed as obligations before any is deleted, and the mart compiler keeps its aggregate error mechanism throughout while internally consuming shared semantic facts
+
+- Paths: `src/bloomery/guardrails/**` `src/bloomery/errors.py` `src/bloomery/semantic/closure.py` `src/bloomery/semantic/additivity.py`
+- Consequence: A guardrail deleted in favour of a proof rule that turns out narrower is a silently accepted unsafe project; the parity assertions between a proof and the boolean answer it expresses are what make the two comparable, and they can only be written while both exist
+- Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_the_proof_agrees_with_the_answer_it_expresses -q` (shadow; runs as `decision:S-0005/D-3`, no log entry owed)
+
 ### S-0019/D-3 — `ASSUMED` (Spec layer and error model)
 
 Every raisable failure derives from `BloomeryError` and carries `source_path`; all error classes are declared in `bloomery/errors.py` so `except BloomeryError` needs one import. Pydantic/yaml exceptions never escape.

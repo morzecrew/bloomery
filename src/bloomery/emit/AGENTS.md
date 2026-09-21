@@ -2,6 +2,13 @@
 
 ## Decisions governing `src/bloomery/emit/`
 
+### S-0002/D-7 — `ASSUMED` (Multi-project composition) — implementation: partial
+
+Two composing projects must share a naming policy; whether a mismatch is a refusal depends on the upstream IR recording the policy it was compiled under
+
+- Paths: `src/bloomery/naming.py` `src/bloomery/emit/base.py`
+- Consequence: Without a shared policy the downstream names relations the upstream never created, and the failure surfaces in the warehouse rather than in the compile — which is the worst place for it
+
 ### S-0020/D-5 — `ASSUMED` (Intermediate representation and determinism contract)
 
 Floats are banned in IR and emission; `Decimal`/int only.
@@ -75,5 +82,11 @@ Multi-output emission resolved — **supersedes the draft §10 entry and its exe
 
 - Paths: `src/bloomery/emit/base.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/steps.py` `tests/unit/test_emit/test_dbt.py` `tests/unit/test_steps/test_dbt_and_cube_emission.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+## Invariants holding over `src/bloomery/emit/`
+
+- **S-0002/I-1**: A project carrying neither an exports nor an imports document compiles byte-identically to what it compiled before composition existed; the golden corpus is that test, and only a deliberate IR version bump may move a fingerprint in it
+  - Paths: `tests/golden/**` `src/bloomery/emit/**`
+  - Check: `uv run pytest tests/golden -q`
 
 <!-- /torve:managed -->

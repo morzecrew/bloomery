@@ -2,7 +2,7 @@
 id: S-0002
 title: Multi-project composition
 kind: design
-status: draft
+status: accepted
 implementation: partial
 depends_on: []
 informed_by: [S-0001]

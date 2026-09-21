@@ -26,6 +26,37 @@ Modules obtain their stage logger by the documented name literally — `bloomery
 - Consequence: The two idioms ship different stable sets, and `__name__` would make the documented names a strict subset of the real ones; tuning works either way through the hierarchy, so what differs is only which names are the promise
 - Check: `uv run pytest tests/unit/test_logging_posture.py -q` (shadow; runs as `decision:S-0004/D-13`, no log entry owed)
 
+### S-0005/D-1 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+
+Unknown is not safe: a proof obligation is closed only by a `Declared`, `Derived` or narrowly specified `ImportedVerified` fact. `InferredHeuristic` and `Unknown` may inform a diagnostic and never an acceptance, and the line is drawn in one place — `Provenance.closes` — rather than at each call site
+
+- Paths: `src/bloomery/semantic/proof.py` `src/bloomery/semantic/closure.py` `src/bloomery/semantic/additivity.py` `src/bloomery/semantic/denomination.py` `src/bloomery/planner/semantic_plan.py` `src/bloomery/cli/render.py`
+- Consequence: A rule that closes on a guess accepts an unsafe project silently, and a second copy of the closure test that drifted would not look like a safety change in review; the reading surface inherits the same line, because a renderer that presents an unclosed proof as evidence makes the same claim the checker refused to
+- Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_only_declared_derived_and_imported_close_an_obligation tests/unit/test_semantic/test_proof.py::test_one_heuristic_leaf_makes_the_whole_proof_unclosed tests/unit/test_semantic/test_proof.py::test_a_proof_resting_on_nothing_is_not_closed -q` (shadow; runs as `decision:S-0005/D-1`, no log entry owed)
+
+### S-0005/D-6 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+
+Proof serialization is deterministic: canonical premise order, stable rule identifiers, no memory addresses, no timestamps, no dependence on traversal order, and premises and facts sorted on construction rather than trusted in arrival order
+
+- Paths: `src/bloomery/semantic/proof.py` `src/bloomery/planner/semantic_plan.py` `src/bloomery/cli/render.py` `tests/unit/test_determinism_guard.py`
+- Consequence: Equivalent authored ordering produces equivalent proof serialization, so a golden or a continuous-integration assertion over a derivation is a statement about the design rather than about the order a dictionary happened to iterate in
+- Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_premise_order_is_canonical_not_construction_order tests/unit/test_semantic/test_proof.py::test_serialization_carries_nothing_that_varies_between_processes -q` (shadow; runs as `decision:S-0005/D-6`, no log entry owed)
+
+### S-0005/D-7 — `OPEN` (Semantic proof IR and closed-world checking) — implementation: partial
+
+Whether a proof is retained after acceptance or discarded once the obligation closes. The explain surface needs one; a compile may not, and holding every proof for a large project is an unmeasured cost. Decide it — a return value, a lazily rebuilt artifact, or retention behind a flag — and log the decision with whatever measurement prompted it
+
+- Paths: `src/bloomery/semantic/proof.py` `src/bloomery/semantic/closure.py` `src/bloomery/planner/semantic_plan.py`
+- Consequence: The answer decides whether a proof is a return value or an artifact, which is the difference between a compile that pays nothing for proofs nobody asked for and one that carries every derivation it built
+
+### S-0005/D-9 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+
+No plan transformation may merge two aggregate branches before aggregation without proving that the merge preserves every measure's grain
+
+- Paths: `src/bloomery/planner/semantic_plan.py` `src/bloomery/planner/compose.py`
+- Consequence: A merge without the proof is silent double counting, which this sequence refuses rather than approximates; the obligation owed with it is a property test that constructs such a partition and asserts the merge is refused
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0020/D-5 — `ASSUMED` (Intermediate representation and determinism contract)
 
 Floats are banned in IR and emission; `Decimal`/int only.
@@ -316,5 +347,11 @@ Rendering: one `where_constraints` entry per `Clause`; `AnyOf` **always** parent
 **What replaces `_plannable`.** Its four conditions exist to decline; once nothing declines they are either deleted or turned into a dispatch to the node stating each shape. The second cannot silently regrow into a list of exclusions, which the enumerating version of that guard already did twice — but it is a bigger change, and the choice belongs to whoever sees both shapes against the code.
 
 - Paths: `src/bloomery/planner/semantic_plan.py`
+
+## Invariants holding over `src/bloomery/planner/`
+
+- **S-0005/I-1**: The same specs produce byte-identical proof and semantic-plan serializations across processes and hash seeds
+  - Paths: `src/bloomery/semantic/proof.py` `src/bloomery/planner/semantic_plan.py`
+  - Check: `uv run pytest tests/unit/test_determinism_guard.py -q`
 
 <!-- /torve:managed -->

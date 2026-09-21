@@ -2,6 +2,14 @@
 
 ## Decisions governing `tests/unit/test_semantic/`
 
+### S-0005/D-5 — `ASSUMED` (Semantic proof IR and closed-world checking) — implementation: partial
+
+Rules are named, individually documented and independently testable, registered once in a module constant, and a rule identifier is never minted at a call site
+
+- Paths: `src/bloomery/semantic/proof.py` `tests/unit/test_semantic/**` `src/bloomery/cli/render.py`
+- Consequence: The alternative — one monolithic checker returning a tree — passes the same tests and cannot answer which rule admitted a given acceptance, which the bug corpus requires of every case it pins; a registry a test asserts against also means a removed identifier fails rather than disappearing
+- Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_every_rule_is_documented_and_uniquely_identified tests/unit/test_semantic/test_proof.py::test_a_rule_id_is_never_minted_at_a_call_site -q` (shadow; runs as `decision:S-0005/D-5`, no log entry owed)
+
 ### S-0030/D-9 — `ASSUMED` (MetricFlow backend: manifest emitter and planner adapter)
 
 `RowPolicy` stays a value object, applied as an additional where-constraint always prepended to user filters. The row-policy-survives-every-path AST test survives verbatim and stays merge-blocking, now explicitly covering ratio/semi-additive/cumulative requests (multiple subqueries — the predicate must appear in every scan). V4 verifies MetricFlow pushes constraints into inner scans; if not, that is a security defect and the escape hatch is per-tenant filtered node relations (a change to D3's emitter, not the approach).
