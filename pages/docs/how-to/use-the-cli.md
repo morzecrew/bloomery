@@ -246,14 +246,43 @@ guess cannot close a proof at all — and the grade records where the fact came 
 whether it is right. What it tells you is which of your semantics somebody has actually
 decided.
 
-Nothing is enforced by this. The grades are shown so you can see how much of a project is
-declared before there is any way to require it — a finance mart and an exploration mart
-want different answers, and neither can act on the number until it exists.
+The grades themselves enforce nothing here. A consumer that wants to rest on declared
+premises only says so with
+[`requires_evidence: locked`](../concepts/what-bloomery-proves.md#requiring-the-stronger-kind)
+on the mart or the exposure; `explain` reports, and a finance mart and an exploration mart
+want different answers.
 
-**Not every request has an evidence section yet.** A derived metric is planned by a route
-that builds no semantic plan, so `explain` prints the SQL and the provenance record and
-stops. That is the absence of a plan to read, not a plan that rests on nothing — the
-section is omitted rather than printed empty, so the two cannot be confused.
+After the evidence comes the **derivation**: not the facts, but the argument over them.
+Each line is one proof's conclusion and the rule that admitted it, premises printed above
+the conclusion they support:
+
+```text
+Derivation (3 proof(s))
+
+  UniqueAtGrain(keys=total)  [R010: a branch's rows are unique at the result grain by its own aggregate]
+
+  ServedAtGrain(grain=order_item, mart=order_items)  [R008: a measure embedded in a mart originates at that mart's grain]
+
+  ServedAtGrain(grain=order, mart=orders)  [R008: a measure embedded in a mart originates at that mart's grain]
+```
+
+Three proofs for two measures: each mart's own authorization to serve a measure at its
+grain, and the join's — which is the one that makes this request safe rather than a
+fan-out, and the one a guardrail's silence could never have shown you. Read together with
+the evidence above, that is the whole answer: *why* it was accepted, and *what* the answer
+rests on.
+
+Rule ids (`R008`, `R010`) are a public contract: append-only, never reused and never
+repointed, so a CI check may assert that a request is still admitted by the rule it was
+admitted by. A rule that is split or subsumed keeps its entry and names its successors,
+so a citation written last year still resolves.
+
+**Every request the planner answers carries both sections.** Four shapes used not to — a
+metric computed from others, a semi-additive measure, a cumulative one, and two metrics
+restricted differently — and they now come through rules of their own, so a derived
+metric's `R014` sits over the aggregate its inputs were computed from. A plan that
+genuinely derives nothing says so in words rather than as an empty heading:
+`(no facts — this plan carries no proof)` and `(no proof — this plan derives nothing)`.
 
 **`explain` prints; it never runs anything.** There is no `bloomery run`, no connection
 string, and no profile — not as an omission but as a decision. Execution belongs to
@@ -374,7 +403,14 @@ the function already returned.
 ```bash
 bloomery resolve specs/ --format json | jq '.unreachable[] | {name, missing, via}'
 bloomery resolve specs/ --format json | jq '.refusals[] | {type, source_path}'
+bloomery explain specs/ --metrics gross_revenue --format json | jq '.derivation[].rule'
 ```
+
+`explain --format json` carries `derivation` as a top-level key — each proof as a document
+with its `rule`, `conclusion`, `premises` and `facts`. It is beside the plan rather than
+only under the nodes that carry it, because a branch's proof is not at the top level of a
+composed plan at all, and a run asserting on the reasoning should not have to walk a plan
+to find it.
 
 Three conversions are worth knowing. A `Decimal` becomes a string (never a float — see
 [determinism](../concepts/determinism.md)). A logical type becomes the string a spec
