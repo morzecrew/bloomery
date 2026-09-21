@@ -1727,6 +1727,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#s-0003d-7-assumed-replay-on-a-historical-entity-implementation-partial" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0003/D-7 — <code>ASSUMED</code> (Replay on a historical entity) — implementation: partial
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#s-0023d-6-assumed-guardrails-refusing-plausible-but-wrong-arithmetic" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1828,6 +1839,12 @@
 <!-- torve:managed pages/docs/concepts — rendered from the corpus; do not edit by hand -->
 
 <h2 id="decisions-governing-pagesdocsconcepts">Decisions governing <code>pages/docs/concepts/</code><a class="headerlink" href="#decisions-governing-pagesdocsconcepts" title="Permanent link">&para;</a></h2>
+<h3 id="s-0003d-7-assumed-replay-on-a-historical-entity-implementation-partial">S-0003/D-7 — <code>ASSUMED</code> (Replay on a historical entity) — implementation: partial<a class="headerlink" href="#s-0003d-7-assumed-replay-on-a-historical-entity-implementation-partial" title="Permanent link">&para;</a></h3>
+<p>The route is a write back to bronze: replay re-delivers the recovered row to the bronze relation it came from, as a new delivery, and the ordinary pipeline admits it — no new relation, no change to the entity's SELECT</p>
+<ul>
+<li>Paths: <code>src/bloomery/emit/lower/silver.py</code> <code>src/bloomery/resolve/build.py</code> <code>pages/docs/concepts/data-quality.md</code></li>
+<li>Consequence: The versioning, the audits and the conservation law hold by construction, because the row arrives through the path every other row arrives through; the cost is that bloomery now emits a statement that writes into the caller's landing zone</li>
+</ul>
 <h3 id="s-0023d-6-assumed-guardrails-refusing-plausible-but-wrong-arithmetic">S-0023/D-6 — <code>ASSUMED</code> (Guardrails: refusing plausible-but-wrong arithmetic)<a class="headerlink" href="#s-0023d-6-assumed-guardrails-refusing-plausible-but-wrong-arithmetic" title="Permanent link">&para;</a></h3>
 <p>Additivity: <code>non_additive</code> metrics are never materialized as stored numbers (components only); <code>semi_additive</code> metrics aggregate only over dimensions other than their <code>over:</code> dimension. Enforced at IR build <strong>and</strong> re-refused by emitters (S-0025) — defense in depth.</p>
 <ul>
