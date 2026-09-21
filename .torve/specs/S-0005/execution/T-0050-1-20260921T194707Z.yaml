@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0050
+base: 5c35e4cb31dc06cae468bbd91dd7c31fe682b435
+at: '2026-09-21T19:47:07Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: OPEN
+  - id: D-9
+    grade: LOCKED
+  - id: S-0006/D-5
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-21T19:34:15Z'
+    claim: >-
+      review claim that use-the-cli.md stops at the evidence section does not hold:
+      the page already documents the Derivation section after Evidence, including
+      its rendered sample, the rule-id contract and the empty case, so the documented
+      shape matches the surface
+    evidence: >-
+      pages/docs/how-to/use-the-cli.md:255-285 — 'After the evidence comes the **derivation**'
+      with the 'Derivation (3 proof(s))' block quoting R010 and R008, matching src/bloomery/cli/render.py:208
+      output
+    action: decided
+    proposal: >-
+      close the thread as already addressed; line 222 is no longer the last section
+      described, and no change to the page is owed
+    notes: >-
+      verified against the live surface: uv run bloomery explain tests/fixtures/cross_mart_branches
+      --metrics line_discount,shipping_count ends with the Derivation block the page
+      documents
