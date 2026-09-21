@@ -1722,9 +1722,11 @@ class DbtEmitter:
         content ending in exactly one newline (S-0020/determinism-rules-package-wide rule 5)."""
         refuse_python_models(ir, "dbt")
         references = _reference_map(ir, ctx)
-        # The lookup view (S-0002/D-2): a mart may name an imported entity as
-        # its base, or a rollup an imported mart as its parent. What is built
-        # stays `ir`'s own — an imported relation is the upstream's to build.
+        # The lookup view (S-0002/D-2): a mart base is the only construct that
+        # can name an imported node — a rollup's parent must be a mart this
+        # document declares (S-0065/D-10), so a rollup over an imported mart is
+        # refused before emit sees it. What is built stays `ir`'s own — an
+        # imported relation is the upstream's to build.
         composed = with_imported(ir)
         artifacts: list[EmittedArtifact] = list(_step_artifacts(ir, ctx, references))
         artifacts.extend(_step_test_artifacts(ir, ctx, references))
