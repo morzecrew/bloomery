@@ -747,9 +747,14 @@ def test_the_conservation_audit_passes_when_a_version_predates_a_diverted_row(
     _insert(database, (("crm__customers", later),))
 
     result = _run(tmp_path, "build")
+    nodes = {node.node.name: node.status for node in getattr(result.result, "results", ())}
     assert result.success, [
         node.message for node in getattr(result.result, "results", ()) if node.status != "success"
     ]
+    # A green build is not the claim on its own: a project emitting no
+    # conservation audit builds just as green. The audit has to have run, and
+    # `pass` is dbt's word for a test whose query returned no rows.
+    assert nodes.get("customer_conservation") == "pass", nodes
 
 
 #: The one mapped field neither of the two deliveries above is about.
