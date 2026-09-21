@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0055
+base: 97078f7316c57267902dcd119d730623ee1f9477
+at: '2026-09-21T18:31:49Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: OPEN
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: ASSUMED
+  - id: S-0019/D-4
+    grade: ASSUMED
+  - id: S-0019/D-8
+    grade: ASSUMED
+  - id: S-0034/D-51
+    grade: ASSUMED
+  - id: S-0037/D-2
+    grade: ASSUMED
+  - id: S-0037/D-10
+    grade: ASSUMED
+  - id: S-0049/D-1
+    grade: LOCKED
+  - id: S-0049/D-3
+    grade: LOCKED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-21T18:18:52Z'
+    claim: >-
+      the review thread does not hold against this tree: tests/support/schema_strategies.py
+      is present in the checkout, the import at tests/property/test_schema_agreement.py:46
+      resolves, and the module collects all 320 tests it names — no change is owed
+      and none was made
+    evidence: >-
+      tests/support/schema_strategies.py:49 — def from_spec_schema is the symbol the
+      import names, in a 157-line module present in this worktree; `uv run pytest
+      tests/property/test_schema_agreement.py -q --collect-only` printed `320 tests
+      collected in 0.93s`, and the full acceptance run printed `5431 passed, 19 skipped,
+      199 deselected`
+    action: decided
+    proposal: >-
+      no row needed; the thread is resolved as not-reproducing. If the reviewer saw
+      an untracked helper, it was staged before this tree was cut — the mtime discriminator
+      the thread relies on (16:58 vs 16:31) does not reproduce: every file under tests/support/
+      including schema_strategies.py carries the same checkout mtime, and .torve/context/touched.json,
+      which the thread quotes, does not exist in this tree
+    notes: >-
+      The thread's own evidence is consistent with the file being present and tracked:
+      moving the module away and observing a collection error proves the import depends
+      on it, not that it is unstaged. The other cited artefact, .torve/context/scope.md,
+      enumerates no tests/support/*.py modules in this task's pack at all — its only
+      tests/support mentions are the quoted thread itself and two decision path globs.
