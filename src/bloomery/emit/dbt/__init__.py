@@ -1427,12 +1427,12 @@ def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | No
 def _entity_model(entity: EntityIR, relation: str) -> str:
     """The model an entity's rows are in.
 
-    An SCD2 entity's live in the snapshot, which is the only thing dbt builds
-    for it — so a reference to the *entity* has to resolve there. Referencing
-    ``relation`` would name a model this target never emits, and dbt would
-    refuse the project. One answer for both a local entity and an imported
-    one: an upstream compiled on this target built the same snapshot, and a
-    second rule here is how the two spellings come to disagree.
+    An SCD2 entity's rows live in the snapshot, which is the only thing dbt
+    builds for it — so a reference to the *entity* has to resolve there.
+    Referencing ``relation`` would name a model this target never emits, and
+    dbt would refuse the project. One answer for both a local entity and an
+    imported one: an upstream compiled on this target built the same snapshot,
+    and a second rule here is how the two spellings come to disagree.
     """
 
     return f"{entity.name}_snapshot" if entity.scd is SCDKind.TYPE2 else relation
