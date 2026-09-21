@@ -14,7 +14,7 @@ from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
 
 from bloomery.emit.lower.predicates import as_of_conditions
-from bloomery.errors import guaranteed
+from bloomery.errors import EmitError, guaranteed
 from bloomery.ir import (
     VALID_FROM,
     VALID_TO,
@@ -23,6 +23,7 @@ from bloomery.ir import (
     MartColumnIR,
     MartIR,
     MartJoinIR,
+    MetricIR,
     ProjectIR,
 )
 from bloomery.marts import HAS_QUALITY_FLAGS
@@ -249,3 +250,35 @@ def measure_owners(ir: ProjectIR) -> dict[str, MartIR]:
                 owners[name] = mart
 
     return owners
+
+
+# ....................... #
+
+
+def measure_metrics(ir: ProjectIR) -> dict[str, MetricIR]:
+    """Metric name → the metric behind it, refusing a measure with nothing
+    behind it (S-0002/D-1).
+
+    Local closure belongs to the guardrail stage — a measure naming no
+    declared metric is refused there. An *imported* mart's measures name the
+    upstream's metrics, and the export list carries every name by hand, so a
+    mart may cross without them: the name then arrives with no aggregation,
+    expression or additivity behind it, and the two targets that read a mart
+    as a mart have nothing to describe the measure with. One refusal for both,
+    because it is one missing definition and neither target can invent it."""
+    metrics = {metric.name: metric for metric in ir.metrics}
+
+    for mart in ir.marts:  # sorted by name on ProjectIR
+        for name in mart.measures:  # sorted on MartIR
+            if name not in metrics:
+                msg = (
+                    f"mart {mart.name!r} serves measure {name!r}, which no metric in this "
+                    f"compile defines — an imported mart's measures name the upstream's "
+                    f"metrics, and a metric crosses only by being named (S-0002/D-1). "
+                    f"Fix: name {name!r} under metrics: in this project's imports for the "
+                    f"upstream that supplies {mart.name!r}, and on that upstream's "
+                    f"exports: metrics: if it is not there either"
+                )
+                raise EmitError(msg)
+
+    return metrics

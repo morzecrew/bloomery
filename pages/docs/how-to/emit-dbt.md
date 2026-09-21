@@ -278,6 +278,39 @@ same dialect port as the SQLMesh target — only the envelope (Jinja config head
 text matches byte for byte. That equality is the point: it demonstrates the emitters
 share one lowering, so a semantics bug cannot exist in only one target's SQL.
 
+## Composing across projects
+
+A project that imports from an upstream names the upstream's relations the way dbt
+names another project's models — `{{ ref('platform', 'order_item') }}`, where
+`platform` is the alias the import document gave the upstream. Nothing else changes:
+a local model keeps the one-argument `ref()` beside it, and the SELECT is lowered
+exactly as it would be if the entity were yours.
+
+The reference resolves only if dbt knows the project, so the compile emits a
+`dependencies.yml` alongside it:
+
+```yaml title="dependencies.yml"
+projects:
+  - name: platform
+```
+
+A project that imports nothing gets no such file — an empty `projects:` list is not the
+same thing as no dependency.
+
+Two obligations come with this, neither of which bloomery can check for you:
+
+- **dbt's own name for the upstream project must equal the alias.** A bloomery project
+  carries no identity of its own, so the alias you chose in `imports:` is the only name
+  the two sides share, and `dependencies.yml` says it out loud.
+- **Both projects must be compiled under the same naming policy.** The downstream refers
+  to *models*, but the mart it builds is read by Cube and MetricFlow at a relation the
+  policy names — and the upstream built that relation under its own policy. Compile the
+  two under different policies and the mismatch surfaces in the warehouse rather than in
+  the compile.
+
+No model is emitted for an imported relation: the upstream builds it, and the artifacts
+you deploy stay the ones your own project owns.
+
 ## Notes
 
 - The scaffold assumes a profile named `bloomery`; wire your own `profiles.yml`.

@@ -77,6 +77,7 @@ from bloomery.emit.base import (
 )
 from bloomery.emit.lower import (
     mart_column_type,
+    measure_metrics,
     measure_owners,
     metric_filter_sql,
     rollup_measures,
@@ -90,6 +91,7 @@ from bloomery.ir import (
     MetricIR,
     ProjectIR,
 )
+from bloomery.ir.nodes import with_imported
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -315,7 +317,7 @@ def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
 
 
 def _measures(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[object]:
-    metrics_by_name = {metric.name: metric for metric in ir.metrics}
+    metrics_by_name = measure_metrics(ir)
     owned = [name for name in mart.measures if owners[name] is mart]  # sorted on MartIR
 
     # A mart's `measures:` is "metrics this mart serves" (spec reference), not
@@ -654,6 +656,11 @@ class CubeEmitter:
         content ending in exactly one newline (S-0020/determinism-rules-package-wide rule 5). A
         project without marts emits nothing — Cube has no silver surface."""
 
+        # An imported mart is read as a mart (S-0002/D-2): this target builds
+        # nothing, so describing a relation the upstream maintains is the whole
+        # of what it does for a local one too — the relation is named under the
+        # policy both projects share (S-0002/D-7).
+        ir = with_imported(ir)
         _refuse_grants(ir)
         _refuse_time_shaped(ir)
         owners = measure_owners(ir)
