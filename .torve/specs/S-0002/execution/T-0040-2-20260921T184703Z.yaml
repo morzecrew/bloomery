@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0040
+phase: 5
+attempt: 2
+base: 45c5c419b1e7a6d4200dd24d4cceb15d1dbbc8b2
+commit: f4a16c8d62ed56e096662c0ec946aa7e996a03b2
+at: '2026-09-21T18:47:03Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-21T18:26:31Z'
+    claim: >-
+      every single-project golden moved, fingerprint-only: bloomery_ir_version 21
+      and the new upstream/exports fields entered the fingerprint stream in an earlier
+      phase without the corpus being regenerated, so the acceptance suite started
+      red; regenerated the 203 affected goldens after confirming no non-fingerprint
+      byte changed
+    evidence: >-
+      `diff -r /tmp/golden_before tests/golden | grep '^[<>]' | grep -v 'blm1:'` —
+      no output over 203 differing files; src/bloomery/ir/fingerprint.py:95 states
+      the fingerprint is stable only within a bloomery version
+    action: decided
+    proposal: >-
+      phase that bumps bloomery_ir_version regenerates tests/golden in the same task;
+      the row is missing and the omission cost this phase a red acceptance suite
+  - decision: D-7
+    grade: ASSUMED
+    at: '2026-09-21T18:26:43Z'
+    claim: >-
+      the shared-naming-policy constraint cannot be refused today: an upstream ProjectIR
+      records nothing about the policy it was compiled under, so a downstream compiled
+      under a different policy names relations the upstream never built and nothing
+      sees it; documented on the port and in the emitter how-tos instead of refused
+    evidence: >-
+      src/bloomery/naming.py:28-41 — the NamingPolicy docstring states the constraint
+      and why no refusal is possible; src/bloomery/ir/nodes.py:1639-1704 carries no
+      policy field for an upstream to record
+    action: decided
+    proposal: >-
+      ASSUMED — record the compiling project's naming policy identity on ExportsIR
+      so a mismatch is refused at bind time rather than surfacing in the warehouse
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-21T18:38:59Z'
+    attempt: 2
+    claim: >-
+      an upstream may export a mart without the metrics its measures name (S-0002/D-1
+      permits it), and no row says what Cube and MetricFlow do with a measure that
+      has no metric behind it; they crashed with a raw KeyError, so this attempt makes
+      it one shared refusal naming the mart, the measure and the two lists that fix
+      it, rather than dropping the measure from the model silently
+    evidence: >-
+      src/bloomery/emit/lower/marts.py:258-283 — the shared lookup and its refusal;
+      src/bloomery/emit/cube/__init__.py:320 and src/bloomery/emit/metricflow/__init__.py:826
+      are its two callers, replacing the dicts that raised KeyError
+    action: decided
+    proposal: >-
+      a row on S-0002 settling import closure: either the guardrail stage refuses
+      an imported mart whose measures name metrics that did not cross (out of this
+      task's scope, and the reviewer's own reading), or the semantic targets refuse
+      at emit as they do now
