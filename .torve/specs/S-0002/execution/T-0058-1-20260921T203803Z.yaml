@@ -1,0 +1,268 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0058
+base: aaafb5c8a7eb7e12cc76f6551805e600845736ca
+commit: b68b61b67bed4ff087c41e478797daa7d7d7fdd8
+at: '2026-09-21T20:38:03Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+  - id: S-0005/D-3
+    grade: LOCKED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0059/D-6
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0063/D-1
+    grade: LOCKED
+  - id: S-0067/D-1
+    grade: LOCKED
+  - id: S-0069/D-1
+    grade: LOCKED
+  - id: S-0069/D-2
+    grade: LOCKED
+  - id: S-0069/D-3
+    grade: LOCKED
+  - id: S-0072/D-3
+    grade: LOCKED
+  - id: S-0072/D-4
+    grade: LOCKED
+entries:
+  - decision: D-6
+    grade: ASSUMED
+    class: spec-gap
+    at: '2026-09-21T18:40:49Z'
+    claim: >-
+      the review claim holds: the alias refusal said the entity field minted an id
+      'inside the upstream's namespace', but an imported id is '<kind>.<alias>.<name>'
+      and the minted id is '<alias>.<field>', so it sits in no upstream namespace
+      and the author can check and find no such id; the message now states only that
+      the alias is a reserved segment, which is the 'source' precedent one input over
+    evidence: >-
+      src/bloomery/guardrails/lineage.py:107-114 — the message names no concrete minted
+      id and claims no meeting; pages/docs/reference/errors.md:111 already phrases
+      the reservation as 'the alias is a segment of the same namespace'
+    action: decided
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-09-21T18:40:49Z'
+    claim: >-
+      compliant: no driver, SDK or session enters src/bloomery; the change is refusal-message
+      prose
+    evidence: >-
+      src/bloomery/guardrails/lineage.py:19-28 — imports unchanged, bloomery.errors
+      and bloomery.ir only
+    action: decided
+  - decision: S-0059/D-6
+    grade: LOCKED
+    at: '2026-09-21T18:40:49Z'
+    claim: >-
+      compliant: the collision is still refused and no id is re-spelled; the bare
+      '<entity>.<field>' spelling is untouched
+    evidence: >-
+      src/bloomery/guardrails/lineage.py:115 — ReservedEntityName is still raised,
+      and the minting sites are not in this diff
+    action: decided
+  - decision: S-0063/D-1
+    grade: LOCKED
+    at: '2026-09-21T18:40:49Z'
+    claim: >-
+      compliant: nothing is discovered; the guard reads the draft IR's declared entities
+      and bound aliases only
+    evidence: >-
+      src/bloomery/guardrails/lineage.py:101-104 — aliases come from draft.upstream,
+      entities from draft.entities
+    action: decided
+  - decision: S-0067/D-1
+    grade: LOCKED
+    at: '2026-09-21T18:40:49Z'
+    claim: >-
+      compliant: identity stays declared; the test is exact name equality, not similarity
+    evidence: >-
+      src/bloomery/guardrails/lineage.py:104 — 'entity.name not in aliases', an exact
+      membership test
+    action: decided
+  - decision: S-0069/D-1
+    grade: LOCKED
+    at: '2026-09-21T18:40:49Z'
+    claim: >-
+      compliant: no text diff of emitted SQL is introduced; the change is one refusal
+      message's wording
+    evidence: >-
+      src/bloomery/guardrails/lineage.py:107-114 — the only changed statement
+    action: decided
+  - decision: S-0069/D-2
+    grade: LOCKED
+    at: '2026-09-21T18:40:49Z'
+    claim: >-
+      compliant: no version relation or history is touched by this guard
+    evidence: >-
+      src/bloomery/guardrails/lineage.py:100-117 — the function builds errors and
+      returns them, holding no state
+    action: decided
+  - decision: S-0069/D-3
+    grade: LOCKED
+    at: '2026-09-21T18:40:49Z'
+    claim: >-
+      compliant: no change is attributed to data; the refusal cites only names the
+      spec declares
+    evidence: >-
+      src/bloomery/guardrails/lineage.py:106 — the field named is entity.columns[0].name,
+      a declared column
+    action: decided
+  - decision: S-0072/D-3
+    grade: LOCKED
+    at: '2026-09-21T18:40:49Z'
+    claim: >-
+      compliant: no per-column entity_field to mart edge is added; this guard mints
+      no edges at all
+    evidence: >-
+      src/bloomery/guardrails/lineage.py:115-117 — the function's only output is a
+      list of GuardrailError
+    action: decided
+  - decision: S-0072/D-4
+    grade: LOCKED
+    at: '2026-09-21T18:40:49Z'
+    claim: >-
+      compliant: the prefix reservation and its _MINTS table, mart included, are unchanged
+    evidence: >-
+      src/bloomery/guardrails/lineage.py:50-57 — the _MINTS table still carries all
+      six prefixes
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: drift
+    at: '2026-09-21T18:44:30Z'
+    claim: >-
+      the acceptance suite is red on this tree for a reason this scope cannot reach:
+      every golden snapshot's stored project fingerprint is stale — 37 golden tests
+      differ in the fingerprint header line and nothing else, because ProjectIR gained
+      composition fields (exports, upstream) and tests/golden/** was never regenerated.
+      Reverting this task's message edit and rerunning one of them reproduces the
+      same failure, so it predates this attempt; the snapshots are outside scope.allow,
+      so nothing was changed
+    evidence: >-
+      tests/golden/ecom_basic/dbt/postgres/dbt_project.yml:2 — stores blm1:9af922d2…,
+      while the compile now produces blm1:2b6372ca…; src/bloomery/ir/nodes.py:1548
+      is the upstream record the walk now includes, and src/bloomery/ir/fingerprint.py:9-14
+      is the type-driven walk that makes every field move it
+    action: decided
+    proposal: >-
+      a follow-up task scoped to tests/golden/** regenerating the snapshots with --snapshot-update,
+      or this contract's acceptance narrowed off the golden tier until that lands
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: drift
+    at: '2026-09-21T18:54:48Z'
+    attempt: 2
+    claim: >-
+      the review claim was already answered in attempt 1 and the message now claims
+      no collision; acceptance stays red for a cause no file in scope.allow can reach
+      — 37 golden snapshots differ only in their stored project fingerprint, and tests/golden/**
+      is outside this scope, so nothing was changed this attempt
+    evidence: >-
+      tests/golden/minimal/sqlmesh/duckdb/config.yaml:2 — stores blm1:0d0c2280…, while
+      the compile now produces blm1:5240bbd0…, the whole of that test's diff; src/bloomery/guardrails/lineage.py:33
+      is reached only from src/bloomery/guardrails/stage.py:159, a refusal path no
+      emitted artifact passes through
+    action: halted
+    proposal: >-
+      a task scoped to tests/golden/** regenerating the snapshots with --snapshot-update,
+      or this contract's acceptance narrowed off the golden tier until that lands
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: drift
+    at: '2026-09-21T19:08:04Z'
+    attempt: 3
+    claim: >-
+      the review claim is already answered in this tree — the alias refusal names
+      no meeting of two ids, only the segment the alias occupies — and acceptance
+      stays red for a cause no file in scope.allow can reach: 37 golden snapshots
+      differ from the compile in their stored project fingerprint and in nothing else,
+      because ProjectIR gained the composition fields the type-driven fingerprint
+      walk includes and tests/golden/** was never regenerated; that tree is outside
+      this scope, so nothing was changed
+    evidence: >-
+      tests/golden/minimal/sqlmesh/duckdb/config.yaml:2 — stores blm1:0d0c2280…, while
+      the compile produces blm1:5240bbd0…, the whole of that test's diff; src/bloomery/ir/fingerprint.py:9-14
+      is the walk that makes every ProjectIR field move it, and src/bloomery/guardrails/lineage.py:123
+      is reached only from src/bloomery/guardrails/stage.py:159, a refusal path no
+      emitted artifact passes through
+    action: halted
+    proposal: >-
+      a task scoped to tests/golden/** regenerating the snapshots with --snapshot-update,
+      or this contract's acceptance narrowed off the golden tier until that lands
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: drift
+    at: '2026-09-21T19:11:30Z'
+    attempt: 3
+    claim: >-
+      the 37 golden failures are independent of everything this scope can change,
+      proven rather than argued: with check_lineage_names stubbed to 'return []' —
+      the guard disabled outright — the same golden test fails with the same stored-versus-produced
+      fingerprint and no other difference, and the file was restored byte-for-byte
+      afterwards
+    evidence: >-
+      `uv run pytest 'tests/golden/test_sqlmesh_duckdb.py::test_sqlmesh_duckdb_golden[minimal]'
+      -q` with the guard stubbed — '1 failed', diff 'int: blm1:0d0c2280…' versus 'blm1:5240bbd0…';
+      identical to the run with the guard intact
+    action: halted
+    proposal: >-
+      a task scoped to tests/golden/** regenerating the snapshots with --snapshot-update,
+      or this contract's acceptance narrowed off the golden tier until that lands
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: drift
+    at: '2026-09-21T19:11:36Z'
+    attempt: 2
+    claim: >-
+      the review claim was already answered in attempt 1 and the message now claims
+      no collision; acceptance stays red for a cause no file in scope.allow can reach
+      — 37 golden snapshots differ only in their stored project fingerprint, and tests/golden/**
+      is outside this scope, so nothing was changed this attempt
+    evidence: >-
+      tests/golden/minimal/sqlmesh/duckdb/config.yaml:2 — stores blm1:0d0c2280…, while
+      the compile now produces blm1:5240bbd0…, the whole of that test's diff; src/bloomery/guardrails/lineage.py:33
+      is reached only from src/bloomery/guardrails/stage.py:159, a refusal path no
+      emitted artifact passes through
+    action: halted
+    proposal: >-
+      a task scoped to tests/golden/** regenerating the snapshots with --snapshot-update,
+      or this contract's acceptance narrowed off the golden tier until that lands
+  - decision: D-6
+    grade: ASSUMED
+    at: '2026-09-21T20:22:55Z'
+    attempt: 4
+    claim: >-
+      review claim holds: the alias refusal asserted a collision that cannot occur;
+      an imported id is '<kind>.<alias>.<name>' (three segments) and an entity field
+      is '<entity>.<field>' (two), so no field of an alias-named entity ever equals
+      an imported id. Message and docstring now state that and keep the reservation
+      on the 'source' precedent; the reservation itself is unchanged
+    evidence: >-
+      src/bloomery/guardrails/lineage.py:105-113 — the refusal now reads 'never equals
+      an imported id — the alias is a segment of that namespace all the same'; src/bloomery/guardrails/lineage.py:55
+      is the 'source' precedent it follows
+    action: decided
