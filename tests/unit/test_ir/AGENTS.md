@@ -32,7 +32,7 @@ Three-valued logic: each rule defines a violation predicate and fires only when 
 
 - Paths: `src/bloomery/__init__.py` `src/bloomery/evidence.py` `src/bloomery/ir/nodes.py` `tests/unit/test_advisories.py` `tests/unit/test_ir/test_nodes.py` `tests/unit/test_package.py` `tests/unit/test_signature_closure.py`
 
-### S-0079/D-2 — `LOCKED` (Determinations reach the IR and the rollup lowering) — implementation: none
+### S-0079/D-2 — `LOCKED` (Determinations reach the IR and the rollup lowering)
 
 `bloomery_ir_version` moves 19 → 20 with the field, and `ProjectIR`'s docstring gains the sentence saying why. The default of `()` is not a reason to skip it: the canonical encoder writes each dataclass's field count and names per instance, so every project with an entity column re-fingerprints whether or not it declares anything
 
