@@ -73,6 +73,7 @@ from bloomery.cli.io import CliIoError, read_spec_directory, write_files
 from bloomery.cli import io, render
 from bloomery.cli.render import (
     render_check,
+    render_derivation,
     render_evidence,
     render_evidence_grades,
     render_plan,
@@ -92,6 +93,18 @@ def as_json_value(value: object) -> object:
     against a second conversion written to agree with it.
     """
     return json.loads(json.dumps(value, cls=SpecEncoder, sort_keys=True))
+
+
+def as_explain_json(query: QueryPlan) -> object:
+    """What ``bloomery explain --format json`` writes for ``query``.
+
+    The plan's own fields, plus the derivation beside them (S-0005): the
+    proofs are the plan's, so a test comparing against this still compares
+    against the Python call rather than against a hand-written expectation.
+    """
+    return as_json_value(query) | {
+        "derivation": [as_json_value(proof.document()) for proof in query.semantic.proofs]
+    }
 
 
 if TYPE_CHECKING:
@@ -238,7 +251,7 @@ def test_explain_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]
         "--format",
         "json",
     )
-    assert payload == as_json_value(expected)
+    assert payload == as_explain_json(expected)
 
 
 FANOUT = str(FIXTURES / "fanout_trap")
@@ -594,7 +607,7 @@ def test_policy_reaches_the_plan(capsys: pytest.CaptureFixture[str]) -> None:
         "--format",
         "json",
     )
-    assert payload == as_json_value(expected)
+    assert payload == as_explain_json(expected)
     assert isinstance(payload, dict)
     assert payload["explanation"]["policy_applied"] is True  # type: ignore[index, call-overload]
 
@@ -1903,6 +1916,75 @@ def test_a_plan_resting_on_no_proof_says_so_rather_than_tallying_nothing() -> No
 
     assert plan.proofs == ()
     assert render_evidence_grades(plan) == "Evidence\n  (no facts — this plan carries no proof)"
+
+
+# ....................... #
+# S-0005 — the derivation beside the evidence
+
+
+def test_explain_prints_the_derivation_beside_the_evidence(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The step and the rule that admitted it, which is the one thing a
+    closed-world checker can say that a guardrail cannot."""
+
+    code, out, err = run(
+        capsys, "explain", ECOM, "--metrics", "gross_revenue", "--by", "ordered_month"
+    )
+
+    assert code == EXIT_OK, err
+    assert out.index("Evidence (") < out.index("Derivation (")
+    assert "Derivation (1 proof(s))" in out
+    assert "ServedAtGrain(grain=order_item, mart=order_items)  [R008:" in out
+
+
+def test_the_derivation_walks_every_proof_in_a_composed_plan(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A branch's authorization is inside the plan, not at its top level, so a
+    renderer stopping at the top nodes prints one step and looks right on
+    every single-mart fixture."""
+
+    directory = str(FIXTURES / "cross_mart_branches")
+    code, out, err = run(capsys, "explain", directory, "--metrics", "line_discount,shipping_count")
+
+    assert code == EXIT_OK, err
+    assert "Derivation (3 proof(s))" in out
+    assert out.count("[R008:") == 2
+    assert "[R010:" in out
+
+
+def test_explain_json_carries_the_derivation_the_text_renders(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The machine-readable half, against stable rule identifiers: a
+    continuous-integration run asserts on the reasoning rather than on the SQL,
+    without walking the plan to find a branch's proof."""
+
+    payload = _json(
+        capsys,
+        "explain",
+        str(FIXTURES / "cross_mart_branches"),
+        "--metrics",
+        "line_discount,shipping_count",
+        "--format",
+        "json",
+    )
+
+    assert isinstance(payload, dict)
+    derivation = payload["derivation"]
+
+    assert isinstance(derivation, list)
+    assert [step["rule"] for step in derivation] == ["R010", "R008", "R008"]
+
+
+def test_a_plan_resting_on_no_proof_derives_nothing_rather_than_heading_nothing() -> None:
+    """The empty case, for the reason the tally's is decided: a heading over
+    no steps reads as a plan whose argument was lost."""
+
+    plan = SemanticPlan((Scan(relation="order_items", grain="order_item"),))
+
+    assert render_derivation(plan) == "Derivation\n  (no proof — this plan derives nothing)"
 
 
 def _fact(source: str, provenance: Provenance = Provenance.DECLARED) -> SemanticFact:

@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0052
+base: 5c35e4cb31dc06cae468bbd91dd7c31fe682b435
+at: '2026-09-21T20:17:28Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: OPEN
+  - id: D-9
+    grade: LOCKED
+  - id: S-0006/D-5
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-21T20:05:58Z'
+    claim: >-
+      the thread's substance holds — no test asserts the derivation block against
+      the command — but its stated evidence is wrong and its remedy is unreachable
+      here: the page is read by the suite, the two blocks match the command byte for
+      byte today, and the pin it asks for lives in a test file this scope does not
+      name, so the page is left unchanged
+    evidence: >-
+      .torve/tasks/T-0052/contract.yaml:32-35 — scope.allow names only the page and
+      the task directory, so tests/unit/test_docs_snippets.py cannot be touched; tests/unit/test_docs_floor.py:361-366
+      rglobs every page in pages/docs including this one, which refutes 'nothing in
+      the suite reads this page'; `uv run bloomery explain tests/fixtures/cross_mart_branches
+      --metrics line_discount,shipping_count` reproduces the Evidence and Derivation
+      blocks at pages/docs/how-to/use-the-cli.md:242-266 byte for byte
+    action: decided
+    proposal: >-
+      a follow-up task whose scope names tests/unit/test_docs_snippets.py, pinning
+      the derivation block against a real run the way test_the_timeline_commands_shape_is_what_the_command_prints
+      pins the timeline sample; adding title= to the fence alone pins nothing without
+      that test

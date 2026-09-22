@@ -45,6 +45,7 @@ library module can import any of this.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import difflib
 import json
 import sys
@@ -629,26 +630,47 @@ def _explain(arguments: argparse.Namespace) -> int:
     planner = MetricFlowPlanner(LruManifestHydrator(naming), naming=naming)
     query = planner.plan(ir, request, dialect=arguments.dialect, policy=policy)
 
+    # Read once, into a name both branches and both sections use. The evidence
+    # section reads ``query.semantic`` and never ``query.explanation``: the
+    # explanation is a planner value carrying no fact and no proof, and putting
+    # them there would move a surface every golden pins. S-0054/D-7 put the
+    # semantic plan *beside* `sql`, `columns` and `explanation` for that reason,
+    # and S-0070/phasing (P-1) renders from where it was put (logs/T-0031.md).
+    #
+    # ``semantic`` is present on every `QueryPlan` since S-0071/D-1, so there is
+    # no absence to branch on. It was optional while four request shapes had no
+    # plan, and the branch that printed nothing for them was the only thing
+    # standing between a reader and a heading over no facts.
+    #
+    # One binding rather than a read per use because the allowlist guarding the
+    # plan's readers counts *reads*, not files, so that a second reader has to
+    # be argued the way the first was (tests/unit/test_semantic/test_plan.py).
+    # There is still one reader here and it still generates nothing: the two
+    # sections below are appended after the SQL and the explanation, and the
+    # derivation is the same value rendered a second way.
+    semantic = query.semantic
+
     if arguments.format == "json":
-        _emit(query, as_json=True)
+        # The derivation beside the plan rather than only buried under the
+        # nodes that carry it: a continuous-integration run asserting on the
+        # reasoning should not have to walk a plan to find it, and a branch's
+        # proof is not at the top level at all. The fields are copied shallowly
+        # so the encoder converts each exactly as it did before — nothing about
+        # the answer moves, which is what keeps this a reading change.
+        _emit(
+            {field.name: getattr(query, field.name) for field in dataclasses.fields(query)}
+            | {"derivation": [proof.document() for proof in semantic.proofs]},
+            as_json=True,
+        )
     else:
-        # The evidence section reads ``query.semantic`` and never
-        # ``query.explanation``: the explanation is a planner value carrying no
-        # fact and no proof, and putting them there would move a surface every
-        # golden pins. S-0054/D-7 put the semantic plan *beside* `sql`,
-        # `columns` and `explanation` for that reason, and S-0070/phasing (P-1) renders
-        # from where it was put (logs/T-0031.md).
-        #
-        # ``semantic`` is present on every `QueryPlan` since S-0071/D-1, so
-        # there is no absence to branch on. It was optional while four request
-        # shapes had no plan, and the branch that printed nothing for them was
-        # the only thing standing between a reader and a heading over no facts.
         rendered = (
             query.sql
             + "\n\n"
             + query.explanation.render()
             + "\n\n"
-            + render.render_evidence_grades(query.semantic)
+            + render.render_evidence_grades(semantic)
+            + "\n\n"
+            + render.render_derivation(semantic)
         )
 
         _emit(rendered, as_json=False)
