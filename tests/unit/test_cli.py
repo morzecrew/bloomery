@@ -421,6 +421,15 @@ def test_a_missing_directory_exits_two(capsys: pytest.CaptureFixture[str]) -> No
     assert "not a directory" in err
 
 
+def test_a_path_the_os_refuses_to_stat_exits_two(capsys: pytest.CaptureFixture[str]) -> None:
+    """Found by the `cli` fuzz target: a 109-byte segment of non-UTF-8 bytes
+    made `is_dir` raise ENAMETOOLONG out of the command body, which is an
+    internal error to the CLI. It is a usage error like any other non-directory."""
+    code, _out, err = run(capsys, "resolve", "x" * 300)
+    assert code == EXIT_USAGE
+    assert "not a directory" in err
+
+
 def test_a_directory_with_no_specs_exits_two(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
