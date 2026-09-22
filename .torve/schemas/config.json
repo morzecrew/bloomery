@@ -842,6 +842,18 @@
           "description": "How many revision rounds one served pass may mint (S-0084/D-16). Bounds the leg per\npass; the night's own budget bounds it across the night.",
           "title": "Rounds Per Pass",
           "type": "integer"
+        },
+        "sources": {
+          "description": "Where the leg's findings come from (S-0086/D-6): the pull request's own threads,\nthe stream's task-gated review records, or both. Defaults to the forge alone, so a\nconfiguration that turned the leg on before the records were a source changes\nnothing. `record` is refused at load under any landing but a document's pull\nrequest (see the refusal on `RunnerConfig`).",
+          "items": {
+            "enum": [
+              "forge",
+              "record"
+            ],
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "array"
         }
       },
       "title": "ThreadsConfig",

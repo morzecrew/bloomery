@@ -58,7 +58,8 @@ def test_the_corpus_replays_identically(corpus: Path) -> None:
 
 def test_a_hash_seed_dependent_compile_is_caught(corpus: Path) -> None:
     result = run_replay(
-        "--root", str(corpus), env={"BLOOMERY_REPLAY_SABOTAGE": "seed"}
+        "--root", str(corpus), "--corpus", str(corpus / "absent"),
+        env={"BLOOMERY_REPLAY_SABOTAGE": "seed"},
     )
     assert result.returncode == 1
     assert "PYTHONHASHSEED 0 vs 1" in result.stdout
@@ -67,7 +68,8 @@ def test_a_hash_seed_dependent_compile_is_caught(corpus: Path) -> None:
 
 def test_an_order_dependent_artifact_list_is_caught(corpus: Path) -> None:
     result = run_replay(
-        "--root", str(corpus), env={"BLOOMERY_REPLAY_SABOTAGE": "order"}
+        "--root", str(corpus), "--corpus", str(corpus / "absent"),
+        env={"BLOOMERY_REPLAY_SABOTAGE": "order"},
     )
     assert result.returncode == 1
     assert "compile order:" in result.stdout
@@ -84,7 +86,7 @@ def test_an_empty_corpus_is_a_failure(tmp_path: Path) -> None:
 def test_a_single_seed_is_a_failure(corpus: Path) -> None:
     """One `--seed` leaves nothing to compare across hash seeds, and the run
     used to print that it had compared them anyway."""
-    result = run_replay("--root", str(corpus), "--seed", "3")
+    result = run_replay("--root", str(corpus), "--corpus", str(corpus / "absent"), "--seed", "3")
     assert result.returncode == 1
     assert "at least two --seed" in result.stderr
 
