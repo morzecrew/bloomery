@@ -713,6 +713,54 @@ def test_the_as_of_join_finds_a_row_recovered_through_bronze(tmp_path: pathlib.P
     assert _segments(database) == {"o1": "smb", "o2": "startup"}
 
 
+def test_the_conservation_audit_passes_when_a_version_predates_a_diverted_row(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The defect in its live form: a blocking audit stopping a correct build.
+
+    ``c2`` is delivered with a segment the rule admits and dbt versions it.
+    A later delivery of the same customer carries one the rule refuses, so it is
+    diverted — and the snapshot keeps the earlier version open, because a
+    framework closes a version when a new one arrives and reads no ending into
+    a key its source query stopped producing. The counting form then read that
+    one source row as surviving and as diverted at once and failed the build,
+    before any replay ran, on data nothing is wrong with.
+
+    Run here rather than only in tier 4 because the retained-and-still-open
+    version is dbt's doing, not the harness's: the thing under test is the
+    audit against what the framework actually leaves behind.
+    """
+    database = tmp_path / "warehouse.duckdb"
+    _write_replay_project(tmp_path, database, wide=False)
+    _seed_sources(database, "scd2_replay")
+    _insert(
+        database,
+        (("crm__customers", _row({"customer_id": "c2", "segment": "ent", **_SIGNED_UP})),),
+    )
+    assert _run(tmp_path, "build").success
+
+    # The same source row, re-delivered with a segment the rule refuses. It
+    # wins the entity's `dedupe:`, so it is the survivor the audit counts.
+    later = _row({"customer_id": "c2", "segment": "startup", **_SIGNED_UP})
+    later["_ingested_at"] = datetime.datetime(2024, 6, 1)
+    later["_load_id"] = "load-2"
+    _insert(database, (("crm__customers", later),))
+
+    result = _run(tmp_path, "build")
+    nodes = {node.node.name: node.status for node in getattr(result.result, "results", ())}
+    assert result.success, [
+        node.message for node in getattr(result.result, "results", ()) if node.status != "success"
+    ]
+    # A green build is not the claim on its own: a project emitting no
+    # conservation audit builds just as green. The audit has to have run, and
+    # `pass` is dbt's word for a test whose query returned no rows.
+    assert nodes.get("customer_conservation") == "pass", nodes
+
+
+#: The one mapped field neither of the two deliveries above is about.
+_SIGNED_UP = {"signed_up_at": "2023-05-02T00:00:00"}
+
+
 def _row(values: dict[str, str]) -> dict[str, object]:
     """One bronze delivery: the mapped columns plus the ingestion metadata the
     contract requires (S-0033/D-21). The row identity is stable per row

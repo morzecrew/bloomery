@@ -1,0 +1,144 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0048
+base: ea6586b066863ae26769b0afaf80297d50d597f1
+commit: 0268cdbcf82203c8afcd3cc408f2d4e6e2719710
+at: '2026-09-21T17:49:36Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: S-0025/D-18
+    grade: ASSUMED
+  - id: S-0025/D-20
+    grade: ASSUMED
+  - id: S-0026/D-22
+    grade: ASSUMED
+  - id: S-0033/D-21
+    grade: ASSUMED
+  - id: S-0034/D-52
+    grade: ASSUMED
+  - id: S-0040/D-7
+    grade: ASSUMED
+  - id: S-0041/D-5
+    grade: LOCKED
+  - id: S-0041/D-30
+    grade: ASSUMED
+  - id: S-0043/D-2
+    grade: LOCKED
+  - id: S-0043/D-3
+    grade: LOCKED
+  - id: S-0043/D-4
+    grade: ASSUMED
+  - id: S-0060/D-2
+    grade: LOCKED
+  - id: S-0060/D-5
+    grade: LOCKED
+  - id: S-0060/D-7
+    grade: LOCKED
+  - id: S-0060/D-9
+    grade: LOCKED
+  - id: S-0060/D-11
+    grade: LOCKED
+entries:
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-21T17:34:53Z'
+    claim: >-
+      the review claim holds for the conservation test: a green dbt build was its
+      only assertion, so the test stayed green with no audit emitted at all; the fix
+      asserts the audit node ran and passed, which is still not a row-count or presence
+      claim about the entity relation
+    evidence: >-
+      tests/e2e/test_dbt_parse.py:757 — the added assertion reads the audit node's
+      dbt status; tests/e2e/test_dbt_parse.py:673-713, the as-of join acceptance,
+      is unchanged
+    action: decided
+  - decision: S-0041/D-5
+    grade: LOCKED
+    at: '2026-09-21T17:34:53Z'
+    claim: >-
+      the merged-key collision audit and its build behaviour are untouched by this
+      change
+    evidence: >-
+      tests/e2e/test_dbt_parse.py:436-460 — the collision tests are unchanged; the
+      only edit is at tests/e2e/test_dbt_parse.py:749-757
+    action: decided
+  - decision: S-0043/D-2
+    grade: LOCKED
+    at: '2026-09-21T17:34:53Z'
+    claim: >-
+      the dbt build-conditional blocking property is untouched; the added assertion
+      reads a node status from a dbt build, which is the invocation the row names
+    evidence: >-
+      tests/e2e/test_dbt_parse.py:462-480 — the dbt run test is unchanged; tests/e2e/test_dbt_parse.py:749
+      runs build
+    action: decided
+  - decision: S-0043/D-3
+    grade: LOCKED
+    at: '2026-09-21T17:34:53Z'
+    claim: >-
+      the on_fail to severity mapping and its two-sentence contract are untouched
+    evidence: >-
+      tests/e2e/test_dbt_parse.py:481-504 — the warn-error promotion test is unchanged
+    action: decided
+  - decision: S-0060/D-2
+    grade: LOCKED
+    at: '2026-09-21T17:34:53Z'
+    claim: >-
+      the two pre-rendered SELECTs behind is_incremental() are untouched; the seeding
+      that reads the first-run arm is unchanged
+    evidence: >-
+      tests/e2e/test_dbt_parse.py:186-190 — the is_incremental branch handling in
+      _seed_sources is unchanged
+    action: decided
+  - decision: S-0060/D-5
+    grade: LOCKED
+    at: '2026-09-21T17:34:53Z'
+    claim: >-
+      the replay artifact's kind and its macros/ placement are untouched
+    evidence: >-
+      tests/e2e/test_dbt_parse.py:706 — the replay macro is still invoked through
+      run-operation, unchanged
+    action: decided
+  - decision: S-0060/D-7
+    grade: LOCKED
+    at: '2026-09-21T17:34:53Z'
+    claim: >-
+      the quality mart's dbt refusal stays deleted; the quality-carrying fixtures
+      remain in the tier's fixture list
+    evidence: >-
+      tests/e2e/test_dbt_parse.py:74-82 — multi_source_quality and scd2_replay are
+      still enumerated
+    action: decided
+  - decision: S-0060/D-9
+    grade: LOCKED
+    at: '2026-09-21T17:34:53Z'
+    claim: >-
+      python_model steps stay refused; nothing in this change enrols one
+    evidence: >-
+      tests/e2e/test_dbt_parse.py:62-83 — the fixture list is unchanged and carries
+      no python_model fixture
+    action: decided
+  - decision: S-0060/D-11
+    grade: LOCKED
+    at: '2026-09-21T17:34:53Z'
+    claim: >-
+      the reject model's delete+insert strategy is untouched by this change
+    evidence: >-
+      tests/e2e/test_dbt_parse.py:749-757 — the only edited lines, in the conservation
+      test, which asserts node status and nothing about materialization
+    action: decided
