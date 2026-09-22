@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0032
+phase: 1
+base: ddcfdf6377e74060416ef32fc45fa2a6d06b7bca
+commit: 7ae3e50441c064baa19c81d91496fe4de0e00535
+at: '2026-09-21T15:57:41Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-21T15:50:04Z'
+    claim: >-
+      the restated conservation audit reads valid_to and writes no SCD bookkeeping:
+      no snapshot identity, no validity interval, no strategy hash is computed anywhere
+    evidence: >-
+      src/bloomery/emit/lower/silver.py:1922-1928 — the EXISTS reads _entity.valid_to
+      IS NULL, the column the framework's own config names; src/bloomery/emit/lower/silver.py:1863
+      is the only place VALID_TO is produced and it is a read predicate
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-21T15:50:04Z'
+    claim: >-
+      nothing on the replay path changed; the fix is confined to the conservation
+      audit body, so replay still routes a recovered row back to bronze and writes
+      to no scd: type2 entity relation
+    evidence: >-
+      `uv run pytest tests/unit/test_emit/test_quality_artifacts.py -q -k replay_on_a_historical_entity`
+      — 1 passed, the INSERT INTO bronze.crm__customers form is unchanged
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-21T15:50:04Z'
+    claim: >-
+      both test files gain conservation-audit coverage only; the as-of join stays
+      the acceptance for the design and no row-presence assertion replaces it
+    evidence: >-
+      tests/e2e/test_dbt_parse.py:716 — a new test asserting dbt build succeeds over
+      a retained version; tests/e2e/test_dbt_parse.py:673 test_the_as_of_join_finds_a_row_recovered_through_bronze
+      is untouched and still passes
+    action: decided
+  - decision: D-8
+    grade: LOCKED
+    at: '2026-09-21T15:50:04Z'
+    claim: >-
+      the audit consumes the interval the framework assigned and never chooses or
+      supplies one; valid_to appears only inside a predicate over the audited relation
+    evidence: >-
+      src/bloomery/emit/lower/silver.py:1994 — the type 2 branch passes _current_version's
+      read predicate into the audit; nothing assigns valid_from or valid_to
+    action: decided
