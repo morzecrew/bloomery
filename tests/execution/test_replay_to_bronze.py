@@ -38,7 +38,7 @@ import duckdb
 import pytest
 
 from support.compiling import extract_select, fixture_sources, load_fixture
-from support.execution import replay_statements
+from support.execution import audit_body, replay_statements
 
 from bloomery import Target, compile_project, load_project
 from bloomery.emit import EmittedArtifact
@@ -285,6 +285,89 @@ def test_one_entity_key_can_have_at_most_one_candidate(
     assert warehouse.execute(
         "SELECT _source_row_id FROM silver.customer__reject WHERE _source_row_id IN ('a', 'b')"
     ).fetchall() == [("b",)]
+
+
+#: One version of ``c2``, admitted by a delivery that predates the bad one and
+#: never closed — the framework closes a version when a *new* one arrives, and
+#: a key whose bronze row is now diverted produces no new one. ``BY NAME`` so
+#: the seed says which column it means.
+_PREDATING_VERSION = (
+    "INSERT INTO silver.customer BY NAME "
+    "(SELECT 'c2' AS customer_id, 'ent' AS segment, NULL::TIMESTAMP AS signed_up_at, "
+    "TIMESTAMP '2023-12-01' AS _ingested_at, 'load-0' AS _load_id, "
+    "'r2' AS _source_row_id, [] AS _quality_flags, TRUE AS _quality_ok, "
+    "TIMESTAMP '2023-12-01' AS valid_from, CAST(NULL AS TIMESTAMP) AS valid_to)"
+)
+
+
+def _version_the_entity(
+    conn: duckdb.DuckDBPyConnection, artifacts: tuple[EmittedArtifact, ...]
+) -> None:
+    """Rebuild ``silver.customer`` with the validity columns the framework owns.
+
+    The harness stands in for the snapshotting the way the e2e tier's seed
+    does: every row this run admits is an open version. bloomery writes none of
+    this (S-0003/D-8) and the audits under test read it.
+    """
+    select = extract_select(_artifact(artifacts, "models/silver/customer.sql"))
+    conn.execute(
+        "CREATE OR REPLACE TABLE silver.customer AS SELECT *, "
+        "_ingested_at AS valid_from, CAST(NULL AS TIMESTAMP) AS valid_to "
+        f"FROM ({select})"
+    )
+
+
+def _conservation(
+    conn: duckdb.DuckDBPyConnection, artifacts: tuple[EmittedArtifact, ...]
+) -> list[tuple[object, ...]]:
+    """The rows the conservation audit reports — it passes on none."""
+    artifact = next(a for a in artifacts if a.path == "audits/customer_conservation.sql")
+    return [tuple(row) for row in conn.execute(audit_body(artifact, "silver.customer")).fetchall()]
+
+
+def test_the_conservation_audit_passes_over_a_version_that_predates_a_diverted_row(
+    warehouse: duckdb.DuckDBPyConnection,
+) -> None:
+    """The audit is written for a relation holding one row per key, and this
+    route makes the other kind reachable.
+
+    ``c2`` was admitted by an earlier delivery and is quarantined by this one.
+    Its version is retained and still current — nothing closes a version whose
+    key simply stopped being produced — and its ``_source_row_id`` is still the
+    identity of this run's survivor, because a re-delivery keeps the original
+    (S-0033/D-21). The counting form then read that one source row as surviving
+    *and* as diverted: ``entity_rows + diverted_rows`` came to 4 against 3
+    survivors, and the audit is blocking, so the build stopped before any
+    replay ran, on correct data.
+
+    The law a retaining relation satisfies is the disjunction — every surviving
+    bronze row is the current version of its identity or it is diverted — which
+    admits the overlap the sum could not.
+    """
+    narrow = _compiled()
+    _version_the_entity(warehouse, narrow)
+    warehouse.execute(_PREDATING_VERSION)
+
+    assert _conservation(warehouse, narrow) == []
+
+
+def test_the_conservation_audit_still_reports_a_row_that_reached_neither_side(
+    warehouse: duckdb.DuckDBPyConnection,
+) -> None:
+    """The restatement's other half: a law that cannot fail is not a law.
+
+    ``c1`` is admitted, so it is neither diverted nor excused — dropping its
+    version is exactly the silent row loss the audit exists to catch, and the
+    reported row is the survivor that reached neither side.
+    """
+    narrow = _compiled()
+    _version_the_entity(warehouse, narrow)
+    warehouse.execute(_PREDATING_VERSION)
+    warehouse.execute("DELETE FROM silver.customer WHERE _source_row_id = 'r1'")
+
+    reported = _conservation(warehouse, narrow)
+    assert len(reported) == 1
+    assert "c1" in reported[0]
 
 
 def test_a_reject_is_not_resolved_by_a_version_that_predates_it(

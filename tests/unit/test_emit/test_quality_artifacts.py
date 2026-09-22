@@ -418,6 +418,49 @@ def test_a_type_one_entity_audits_every_row_it_has() -> None:
     for path in ("audits/inventory_level_ingestion_metadata.sql",):
         assert "valid_to" not in _artifact(path)
 
+    # The conservation law there is the sum, unchanged: a row is the whole of
+    # its key's history, so "present" and "current" are the same population and
+    # a validity filter would read a column the relation does not have.
+    audit = _artifact("audits/inventory_level_conservation.sql")
+    assert "entity_rows + diverted_rows <> surviving_rows" in audit
+    assert "valid_to" not in audit
+
+
+def test_the_conservation_law_on_a_retaining_relation_is_a_predicate_not_a_sum() -> None:
+    """The counting form is written for a relation holding one row per key.
+
+    A `scd: type2` relation holds one row per *version* and keeps the ones that
+    predate the run — nothing closes a version whose key simply stopped being
+    produced. A source row admitted earlier and quarantined now is then counted
+    in `entity_rows` *and* in `diverted_rows`, the sum exceeds `surviving_rows`,
+    and the audit is blocking: the build stops before any replay runs, on
+    correct data. Executed in `tests/execution/test_replay_to_bronze.py`.
+
+    Restated as the predicate a retaining relation satisfies — every surviving
+    bronze row is the current version of its identity, or it is diverted — so
+    the overlap the sum could not express is admitted by the disjunction.
+    """
+    audit = next(
+        a.content
+        for a in compile_fixture("scd2_replay", dialect="duckdb")
+        if a.path == "audits/customer_conservation.sql"
+    )
+    assert "entity_rows" not in audit
+    assert "surviving_rows" not in audit
+    # One row per survivor, reported as itself: the violating row is the bronze
+    # row that reached neither side, which is the failure being looked for.
+    assert "FROM _survivors\nWHERE" in audit
+    assert (
+        "FROM @this_model AS _entity\n      WHERE\n"
+        "        _entity._source_row_id = _survivors._source_row_id "
+        "AND _entity.valid_to IS NULL"
+    ) in audit
+    assert "NOT EXISTS(" in audit
+    # The other leg is the pipeline's own routing predicate, complemented —
+    # not a second opinion about which rows the entity keeps.
+    assert "NOT COALESCE(" in audit
+    assert "_survivors.segment IN ('smb', 'ent')" in audit
+
 
 def test_replay_on_a_historical_entity_writes_to_bronze_instead_of_merging() -> None:
     """S-0003/D-2: the entity's relation belongs to the framework on

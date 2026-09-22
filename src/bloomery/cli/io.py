@@ -95,7 +95,12 @@ def read_text(path: str) -> str:
     """One file's text, or :class:`CliIoError` naming it."""
     target = Path(path)
 
-    if not target.is_file():
+    try:
+        is_file = target.is_file()
+    except OSError:  # a path the OS refuses to stat is no file (see read_spec_directory)
+        is_file = False
+
+    if not is_file:
         msg = f"{path}: not a file"
         raise CliIoError(msg)
 
@@ -122,7 +127,15 @@ def read_spec_directory(
     """
     directory = Path(path)
 
-    if not directory.is_dir():
+    # `is_dir` raises rather than answering when the OS refuses to look at
+    # the path at all — ENAMETOOLONG on a 109-byte segment was the fuzz
+    # target's finding — and a path that cannot be looked at is no directory.
+    try:
+        is_dir = directory.is_dir()
+    except OSError:
+        is_dir = False
+
+    if not is_dir:
         msg = f"{path}: not a directory"
         raise CliIoError(msg)
 

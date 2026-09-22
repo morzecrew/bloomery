@@ -1820,15 +1820,15 @@ def conservation_audit(entity: EntityIR) -> bool:
 # ....................... #
 
 
-def _current_version(entity: EntityIR) -> Expression | None:
+def _current_version(entity: EntityIR, *, table: str | None = None) -> Expression | None:
     """``valid_to IS NULL`` on a historical entity, and nothing otherwise.
 
-    The generated audits count **rows** of the entity relation, and on
+    The generated audits read **rows** of the entity relation, and on
     ``scd: type2`` a row is a *version*: the framework keeps every one of them
     and closes the interval of the previous. So a source row that changes twice
     is two rows sharing one ``_source_row_id``, which the D21 duplicate-identity
     audit reports as a violation, and two rows counted against one surviving
-    bronze row, which the conservation audit reports as a loss. Both are
+    bronze row, which the conservation audit reported as a loss. Both are
     blocking, and both are wrong — the correct data is the audit's own subject.
 
     Reproduced on dbt before this existed: an ordinary second delivery changing
@@ -1836,22 +1836,102 @@ def _current_version(entity: EntityIR) -> Expression | None:
     `customer_conservation` on the next build, with a snapshot holding exactly
     the two versions it should.
 
-    Scoping to the current version restores what each audit means. One row per
-    key is current at any time, so "the identity is unique per source row" and
-    "every surviving bronze row is in the entity or diverted" are both claims
-    about that population and about no other.
+    Scoping to the current version restores what the D21 audit means: one row
+    per key is current at any time, so "the identity is unique per source row"
+    is a claim about that population and about no other.
+
+    It is **not** on its own enough for the conservation law, which counts a
+    population rather than filtering one — see
+    :func:`_retaining_conservation_select`, whose predicate this is a term of.
 
     This is older than the replay route that met it: an entity may declare
     ``dedupe:`` without ``quarantine:``, which requires the metadata contract
     and generates both audits, and ``scd: type2`` with ``dedupe:`` has always
     compiled. S-0003/P-1 only makes a second version the *expected* outcome
     rather than an eventual one.
+
+    ``table`` qualifies the column for a caller whose body reads two relations
+    at once — unqualified in a whole-query audit over the model alone, and
+    ``_entity.valid_to`` inside the conservation audit's correlated subquery,
+    where an unqualified name would be resolved against the outer survivor row
+    by whichever engine happens to grow a column of that name.
     """
 
     if entity.scd is not SCDKind.TYPE2:
         return None
 
-    return exp.Is(this=exp.column(VALID_TO), expression=exp.null())
+    return exp.Is(this=exp.column(VALID_TO, table=table), expression=exp.null())
+
+
+# ....................... #
+
+
+def _retaining_conservation_select(
+    entity: EntityIR, ctx: EmitContext, *, relation: str, current: Expression
+) -> exp.Select:
+    """The conservation law over a relation that **retains** its old rows.
+
+    The counting form below is written for a relation holding one row per key.
+    A ``scd: type2`` relation holds one row per *version*, keeps the versions
+    that predate this run, and closes none of them for a key whose bronze row
+    is now diverted — the entity's SELECT simply stops producing that key, and
+    a framework does not read an absence as an ending. So a source row admitted
+    on an earlier run and quarantined on this one is counted on both sides at
+    once: once in ``entity_rows``, because its retained version is still
+    current and its identity is still among this run's survivors, and once in
+    ``diverted_rows``. The sum then exceeds ``surviving_rows`` and the audit —
+    which is blocking — stops the build before any replay runs, on correct
+    data. Reachable through S-0003's own route: the re-delivery keeps the
+    original ``_source_row_id`` (S-0033/D-21), which is what puts one identity
+    on both sides of the split across two runs.
+
+    Scoping to the current version is what the D21 audit needs and not what
+    this one does: the defect is the *arithmetic*, not the population. So the
+    law is restated as the predicate a retaining relation actually satisfies,
+    row by row rather than in aggregate::
+
+        every surviving bronze row is the current version of its identity,
+        or it is diverted
+
+    which is the same claim on a type 1 relation — where "current version of
+    its identity" degenerates to "present" — and is the one that stays true
+    when the entity carries history the run did not produce. A row that is
+    both is no longer a contradiction, because a disjunction admits the
+    overlap the sum could not.
+
+    Violating rows are the survivors themselves, which is what an audit
+    reports: the failure it exists to catch is a bronze row that reached
+    neither side, and now the report names it.
+    """
+    kept = _route_predicate(entity, _SURVIVORS_CTE, quarantined=False)
+
+    if kept is None:  # pragma: no cover — a quarantine block implies rules
+        kept = exp.true()
+
+    # The identity match, term for term with the `IN` the counting form scopes
+    # by: `_source_row_id` alone, or the `(_source, _source_row_id)` pair once
+    # the entity is merged and the identity is unique only within a source.
+    matched = [
+        exp.EQ(this=version, expression=survivor)
+        for version, survivor in zip(
+            _replay_identity(entity, table=_ENTITY_ALIAS),
+            _replay_identity(entity, table=_SURVIVORS_CTE),
+            strict=True,
+        )
+    ]
+    versioned = exp.Exists(
+        this=exp.Select()
+        .select(exp.Literal.number(1))
+        .from_(_this_model(_ENTITY_ALIAS, relation))
+        .where(conjunction([*matched, current]))
+    )
+    return (
+        exp.Select()
+        .with_(_SURVIVORS_CTE, as_=_extract_select(entity, ctx))
+        .select(exp.Star())
+        .from_(_SURVIVORS_CTE)
+        .where(conjunction([kept, exp.Not(this=versioned)]))
+    )
 
 
 # ....................... #
@@ -1903,7 +1983,19 @@ def conservation_audit_select(
 
     Blocking, like the D21 metadata audit: silent row loss is the failure this
     whole package exists to make impossible.
+
+    **Counting is the type 1 form.** A relation that retains its old rows
+    satisfies the law without satisfying this sum — see
+    :func:`_retaining_conservation_select`, which restates it as a predicate
+    over each surviving row. The type 1 form is left exactly as it was: there a
+    row is the whole of its key's history, and a validity filter would read a
+    column the relation does not have.
     """
+    current = _current_version(entity, table=_ENTITY_ALIAS)
+
+    if current is not None:
+        return _retaining_conservation_select(entity, ctx, relation=relation, current=current)
+
     # The audited entity is addressed through THIS_MODEL, never through the
     # naming policy: an audit must follow the model into whatever physical
     # table the framework's virtual layer put it in.
@@ -1935,12 +2027,11 @@ def conservation_audit_select(
         .from_(_SURVIVORS_CTE)
         .subquery(),
     )
-    current = _current_version(entity)
     entity_rows = exp.Subquery(
         this=exp.Select()
         .select(exp.Count(this=exp.Star()))
         .from_(_this_model(_ENTITY_ALIAS, relation))
-        .where(in_scope if current is None else conjunction([in_scope, current]))
+        .where(in_scope)
     )
     counted = (
         exp.Select()
