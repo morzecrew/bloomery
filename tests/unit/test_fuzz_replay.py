@@ -91,10 +91,13 @@ def test_a_single_seed_is_a_failure(corpus: Path) -> None:
     assert "at least two --seed" in result.stderr
 
 
-def test_the_day_one_corpus_needs_no_fuzzing_to_exist() -> None:
+def test_the_day_one_corpus_needs_no_fuzzing_to_exist(tmp_path: Path) -> None:
     """S-0009/D-7: the seeds are the examples and the golden tier's spec
-    fixtures, so the lane has a corpus before any fuzzing job has run."""
-    result = run_replay("--list")
+    fixtures, so the lane has a corpus before any fuzzing job has run. The
+    fuzz corpus is pointed at an absent path for the same reason as the tests
+    above: in CI the batch job's blobs are restored first, and they are not
+    the day-one corpus this asserts on."""
+    result = run_replay("--list", "--corpus", str(tmp_path / "absent"))
     assert result.returncode == 0, result.stderr
     listed = [line.split("\t", 1)[1] for line in result.stdout.splitlines()]
     assert "examples/quickstart" in listed
