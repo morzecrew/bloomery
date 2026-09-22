@@ -2278,13 +2278,37 @@ measures are yours, and the reasoning that makes joining two grains safe is bloo
 guess cannot close a proof at all — and the grade records where the fact came from, not
 whether it is right. What it tells you is which of your semantics somebody has actually
 decided.</p>
-<p>Nothing is enforced by this. The grades are shown so you can see how much of a project is
-declared before there is any way to require it — a finance mart and an exploration mart
-want different answers, and neither can act on the number until it exists.</p>
-<p><strong>Not every request has an evidence section yet.</strong> A derived metric is planned by a route
-that builds no semantic plan, so <code>explain</code> prints the SQL and the provenance record and
-stops. That is the absence of a plan to read, not a plan that rests on nothing — the
-section is omitted rather than printed empty, so the two cannot be confused.</p>
+<p>The grades themselves enforce nothing here. A consumer that wants to rest on declared
+premises only says so with
+<a href="../../concepts/what-bloomery-proves/#requiring-the-stronger-kind"><code>requires_evidence: locked</code></a>
+on the mart or the exposure; <code>explain</code> reports, and a finance mart and an exploration mart
+want different answers.</p>
+<p>After the evidence comes the <strong>derivation</strong>: not the facts, but the argument over them.
+Each line is one proof's conclusion and the rule that admitted it, premises printed above
+the conclusion they support:</p>
+<div class="highlight"><pre><span></span><code>Derivation (3 proof(s))
+
+  UniqueAtGrain(keys=total)  [R010: a branch's rows are unique at the result grain by its own aggregate]
+
+  ServedAtGrain(grain=order_item, mart=order_items)  [R008: a measure embedded in a mart originates at that mart's grain]
+
+  ServedAtGrain(grain=order, mart=orders)  [R008: a measure embedded in a mart originates at that mart's grain]
+</code></pre></div>
+<p>Three proofs for two measures: each mart's own authorization to serve a measure at its
+grain, and the join's — which is the one that makes this request safe rather than a
+fan-out, and the one a guardrail's silence could never have shown you. Read together with
+the evidence above, that is the whole answer: <em>why</em> it was accepted, and <em>what</em> the answer
+rests on.</p>
+<p>Rule ids (<code>R008</code>, <code>R010</code>) are a public contract: append-only, never reused and never
+repointed, so a CI check may assert that a request is still admitted by the rule it was
+admitted by. A rule that is split or subsumed keeps its entry and names its successors,
+so a citation written last year still resolves.</p>
+<p><strong>Every request the planner answers carries both sections.</strong> Four shapes used not to — a
+metric computed from others, a semi-additive measure, a cumulative one, and two metrics
+restricted differently — and they now come through rules of their own, so a derived
+metric's <code>R014</code> sits over the aggregate its inputs were computed from. A plan that
+genuinely derives nothing says so in words rather than as an empty heading:
+<code>(no facts — this plan carries no proof)</code> and <code>(no proof — this plan derives nothing)</code>.</p>
 <p><strong><code>explain</code> prints; it never runs anything.</strong> There is no <code>bloomery run</code>, no connection
 string, and no profile — not as an omission but as a decision. Execution belongs to
 whatever already owns your warehouse credentials.</p>
@@ -2393,7 +2417,13 @@ table prints neither, because a script should not have to drop into Python for a
 the function already returned.</p>
 <div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>resolve<span class="w"> </span>specs/<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'.unreachable[] | {name, missing, via}'</span>
 bloomery<span class="w"> </span>resolve<span class="w"> </span>specs/<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'.refusals[] | {type, source_path}'</span>
+bloomery<span class="w"> </span>explain<span class="w"> </span>specs/<span class="w"> </span>--metrics<span class="w"> </span>gross_revenue<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'.derivation[].rule'</span>
 </code></pre></div>
+<p><code>explain --format json</code> carries <code>derivation</code> as a top-level key — each proof as a document
+with its <code>rule</code>, <code>conclusion</code>, <code>premises</code> and <code>facts</code>. It is beside the plan rather than
+only under the nodes that carry it, because a branch's proof is not at the top level of a
+composed plan at all, and a run asserting on the reasoning should not have to walk a plan
+to find it.</p>
 <p>Three conversions are worth knowing. A <code>Decimal</code> becomes a string (never a float — see
 <a href="../../concepts/determinism/">determinism</a>). A logical type becomes the string a spec
 writes it as, <code>decimal(12, 4)</code>. And a refusal — which is an exception, not a dataclass —

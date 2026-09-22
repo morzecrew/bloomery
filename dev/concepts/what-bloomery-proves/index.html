@@ -816,6 +816,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-guardrail-that-stayed-silent-and-a-proof-that-closed" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A guardrail that stayed silent, and a proof that closed
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="A guardrail that stayed silent, and a proof that closed">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-provenances-that-may-never-close-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The provenances that may never close one
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#targets-are-not-the-proof" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1893,6 +1921,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-guardrail-that-stayed-silent-and-a-proof-that-closed" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A guardrail that stayed silent, and a proof that closed
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="A guardrail that stayed silent, and a proof that closed">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-provenances-that-may-never-close-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The provenances that may never close one
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#targets-are-not-the-proof" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2110,6 +2166,63 @@ made about the whole system.</p>
 <p>What it does not claim is that the SQL is generated from the plan. bloomery decides what
 to compute and states it; the query is still produced alongside. The derivation is
 evidence about the answer, not the machinery that produces it.</p>
+<h2 id="a-guardrail-that-stayed-silent-and-a-proof-that-closed">A guardrail that stayed silent, and a proof that closed<a class="headerlink" href="#a-guardrail-that-stayed-silent-and-a-proof-that-closed" title="Permanent link">&para;</a></h2>
+<p>Both run, and they are not two spellings of one check.</p>
+<p>A <a href="../guardrails/">guardrail</a> asks <em>did anything I know how to look for go wrong?</em>, and its
+green answer is the absence of a complaint. Nothing in that silence separates "this was
+checked and holds" from "no rule here looked at it at all", because silence carries no
+detail — which is why a guardrail can only ever tell you what bloomery did not find.</p>
+<p>A proof asks <em>which named rule admits this, resting on which facts?</em>, and its answer is an
+object: the rule that closed the obligation, the premises under it, and a provenance on
+every leaf. <code>bloomery explain</code> prints it, so the distinction is one a reader meets rather
+than one the architecture keeps to itself.</p>
+<p>Guardrails keep their own aggregate refusal throughout — one error carrying every
+violation found, not the first — while consuming the same semantic facts the proofs rest
+on. One store of facts, two ways of reading it, so the answer and the argument for it
+cannot drift apart quietly.</p>
+<h3 id="the-provenances-that-may-never-close-one">The provenances that may never close one<a class="headerlink" href="#the-provenances-that-may-never-close-one" title="Permanent link">&para;</a></h3>
+<p>A proof is only as strong as the weakest fact any of its leaves admitted, so whether a
+fact can close an obligation is decided by where the fact came from:</p>
+<table>
+<thead>
+<tr>
+<th>Provenance</th>
+<th>Closes an obligation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>declared</code> — authored in a spec</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>derived</code> — mechanically implied by declared facts</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>imported_verified</code> — read from an external artifact under an exact documented rule</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>inferred_heuristic</code> — a guess, however good</td>
+<td><strong>never</strong></td>
+</tr>
+<tr>
+<td><code>unknown</code> — no fact at all</td>
+<td><strong>never</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The last two are carried rather than discarded, and the reason is the refusal: one that
+found a heuristic match can say what it found instead of only what it lacked. They may
+inform a diagnostic; they may not close an acceptance, so a project resting on one does
+not compile.</p>
+<p>The line runs through one place — <code>Provenance.closes</code> in
+<code>src/bloomery/semantic/proof.py</code> — rather than through each rule that needs it, because a
+second copy of the line that drifted would not look like a safety change in review.</p>
+<p>It is not the line the grades below draw. <code>derived</code> closes an obligation and grades
+<code>ASSUMED</code>: closure is about soundness, the grade about authorship, and a project resting
+entirely on derived facts is sound and entirely undeclared.</p>
 <h2 id="targets-are-not-the-proof">Targets are not the proof<a class="headerlink" href="#targets-are-not-the-proof" title="Permanent link">&para;</a></h2>
 <div class="admonition quote">
 <p class="admonition-title">The target boundary</p>
