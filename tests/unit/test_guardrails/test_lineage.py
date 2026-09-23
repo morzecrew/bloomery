@@ -230,8 +230,9 @@ def _compile_importing(name: str, *, supplied: bool = True) -> None:
 
 def test_an_entity_named_after_a_bound_upstream_alias_is_refused() -> None:
     """An imported node is spelled `<kind>.<alias>.<name>`, so the alias is a
-    segment of the id namespace exactly as a kind prefix is — and an entity
-    named after it mints its fields inside the upstream's."""
+    segment of the id namespace exactly as a kind prefix is — reserved on
+    that ground alone, since a three-segment imported id and a two-segment
+    entity field are never the same string."""
 
     with pytest.raises(GuardrailError) as caught:
         _compile_importing("platform")
