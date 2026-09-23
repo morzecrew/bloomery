@@ -200,6 +200,13 @@ def check_imports(
             kind: frozenset(getattr(source.exports, kind) if source.exports else ())
             for kind in _KINDS
         }
+        # What the upstream's IR actually carries under each name. An export
+        # list is checked against the authored documents where it is written
+        # (D1), while what crosses is the IR (D2) — so a name can be exported
+        # and still bind nothing here: an entity declared and never mapped, a
+        # metric no mart reaches. Bound to nothing it would surface a stage
+        # later as an invariant violation in the emitters (PR #172 review).
+        carried = {kind: frozenset(node.name for node in getattr(source, kind)) for kind in _KINDS}
 
         for kind, singular in _KINDS.items():
             for name in sorted(getattr(read, kind)):
@@ -210,6 +217,18 @@ def check_imports(
                             f"export it. An export list is explicit so that what is not on "
                             f"it is unavailable (S-0002/D-1). Fix: correct the name, or "
                             f"export it upstream. Exported {kind}: {_listed(exported[kind])}",
+                            source_path=source_path,
+                        )
+                    )
+                elif name not in carried[kind]:
+                    errors.append(
+                        UnexportedImport(
+                            f"imports {singular} {name!r} from {alias!r}, which exports it and "
+                            f"whose compiled IR carries no {singular} by that name — an export "
+                            f"list is checked against the authored documents (S-0002/D-1) and "
+                            f"what crosses is the IR (S-0002/D-2), so the upstream declared it and "
+                            f"never built it. Fix: map it upstream, or drop the import. Carried "
+                            f"{kind}: {_listed(carried[kind])}",
                             source_path=source_path,
                         )
                     )

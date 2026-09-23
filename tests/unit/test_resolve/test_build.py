@@ -11,7 +11,8 @@ from bloomery.errors import (
     MissingReference,
     ResolutionError,
     TypeCheckError,
-)
+    MetricFilterInvalid,
+    SecretPublished,)
 from bloomery.ir import (
     ExportsIR,
     ExposureKind,
@@ -1687,3 +1688,75 @@ def test_an_imported_entity_arrives_without_its_quality_surface() -> None:
     assert imported.quality == ()
     assert imported.dedupe is None
     assert imported.quarantine is None
+
+
+# ....................... #
+# S-0002/D-9: a local declaration that names an imported node is judged with it
+
+
+def test_a_local_mart_publishing_an_imported_secret_column_is_refused() -> None:
+    """The mart was authored here; only its base entity crossed. Read from the
+    draft alone the classification guard never saw the imported column's
+    `secret`, so a downstream could publish what the upstream withheld
+    (PR #172 review; S-0002/D-9)."""
+    upstream_sources = dict(fixture_sources("ecom_basic"))
+    upstream_sources["entity_model"] = upstream_sources["entity_model"].replace(
+        "classification: pii", "classification: secret", 1
+    )
+    # The upstream keeps the secret to itself: its own mart stops flattening
+    # the order's columns, so it compiles and the column crosses unpublished.
+    upstream_sources["marts"] = upstream_sources["marts"].replace(
+        "      - {via: item_of_order, prefix: order_}\n", "", 1
+    )
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    upstream = build_project_ir(load_project(upstream_sources), catalog=catalog)
+    documents = {
+        **IMPORTING,
+        "imports": "imports_version: 1\nimports:\n  platform:\n    entities: [order]\n",
+        "marts": (
+            "marts_version: 1\nmarts:\n  customers_seen:\n    grain: order\n    base: order\n"
+            "    measures: []\n"
+        ),
+    }
+
+    with pytest.raises(GuardrailError) as caught:
+        build_project_ir(load_project(documents), catalog=catalog, upstream={"platform": upstream})
+
+    assert any(isinstance(leaf, SecretPublished) for leaf in caught.value.collected), (
+        caught.value.collected
+    )
+
+
+def test_a_filter_on_an_imported_metric_is_checked_against_the_local_mart() -> None:
+    """`check_metrics` reads the marts that list a metric; an imported metric
+    listed by a local mart was invisible to it (PR #172 review; S-0002/D-9)."""
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    upstream_sources = dict(fixture_sources("ecom_basic"))
+    upstream_sources["metrics"] = upstream_sources["metrics"] + (
+        "  emea_revenue:\n    grain: order_item\n    additivity: additive\n    agg: sum\n"
+        '    expr: "unit_price * quantity"\n'
+        "    filter: [{dimension: region, op: eq, values: [emea]}]\n"
+    )
+    upstream_sources["exports"] = (
+        "exports_version: 1\nexports:\n  entities: [order_item]\n  metrics: [emea_revenue]\n"
+    )
+    upstream = build_project_ir(load_project(upstream_sources), catalog=catalog)
+    documents = {
+        **IMPORTING,
+        "imports": (
+            "imports_version: 1\nimports:\n  platform:\n    entities: [order_item]\n"
+            "    metrics: [emea_revenue]\n"
+        ),
+        "marts": (
+            "marts_version: 1\nmarts:\n  revenue_by_item:\n    grain: order_item\n"
+            "    base: order_item\n    flatten:\n      - {date: order_date, role: ordered}\n"
+            "    measures: [emea_revenue]\n"
+        ),
+    }
+
+    with pytest.raises(GuardrailError) as caught:
+        build_project_ir(load_project(documents), catalog=catalog, upstream={"platform": upstream})
+
+    assert any(isinstance(leaf, MetricFilterInvalid) for leaf in caught.value.collected), (
+        caught.value.collected
+    )

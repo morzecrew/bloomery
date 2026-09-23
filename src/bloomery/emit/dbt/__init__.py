@@ -1197,6 +1197,27 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
         if rollup.grants is not None
     )
 
+    # An exported model is `access: public` (S-0002/D-1): a two-argument
+    # `ref()` from another dbt project resolves only against a public model,
+    # and dbt's default is `protected`. Merged into the entry a model already
+    # has, or an entry of its own — the exported surface is what the boundary
+    # publishes, not what happened to carry audits. A snapshot takes no
+    # `access`, so an exported SCD2 entity's snapshot is left as it is; dbt
+    # cannot reference one across projects either way (PR #172 review).
+    if ir.exports is not None:
+        public: set[str] = set()
+        for entity in ir.entities:
+            if entity.name in ir.exports.entities and entity.scd is not SCDKind.TYPE2:
+                public.add(ctx.naming.relation(entity.name, Layer.SILVER)[1])
+        for mart in ir.marts:
+            if mart.name in ir.exports.marts:
+                public.add(ctx.naming.relation(mart.name, Layer.GOLD)[1])
+        for entry in models:
+            if isinstance(entry, dict) and entry.get("name") in public:
+                entry["access"] = "public"
+                public.discard(entry["name"])
+        models.extend({"name": name, "access": "public"} for name in sorted(public))
+
     if not models and not snapshots:
         return None
 
@@ -1366,13 +1387,24 @@ def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | No
         return None
 
     serving: dict[str, list[str]] = {}
+    # A mart's relation as `depends_on` spells it: the local `ref()`, or the
+    # two-argument one for a mart another project built (S-0002/D-2, D-9).
+    references: dict[str, str] = {}
 
     for mart in ir.marts:
         _namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+        references[mart.name] = f"ref('{relation}')"
         for measure in mart.measures:
-            serving.setdefault(measure, []).append(relation)
+            serving.setdefault(measure, []).append(references[mart.name])
 
-    declared = {mart.name for mart in ir.marts}
+    for up in ir.upstream:  # sorted by alias on ProjectIR
+        for mart in up.marts:
+            _namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+            references[mart.name] = f"ref('{up.alias}', '{relation}')"
+            for measure in mart.measures:
+                serving.setdefault(measure, []).append(references[mart.name])
+
+    declared = set(references)
     documents: list[dict[str, object]] = []
 
     for exposure in ir.exposures:  # sorted by name on ProjectIR
@@ -1382,14 +1414,13 @@ def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | No
         # refusal stopped working, and dropping it silently would emit an
         # exposure short one `ref()` with nothing to say so.
         relations = {
-            ctx.naming.relation(
+            references[
                 guaranteed(
                     (name for name in declared if name == mart),
                     expected=f"mart {mart!r}, named by exposure {exposure.name!r}",
                     by="the dangling-exposure guardrail (S-0063/D-2)",
-                ),
-                Layer.GOLD,
-            )[1]
+                )
+            ]
             for mart in exposure.marts
         }
         # A metric, unlike a mart, may legitimately be served by no mart at
@@ -1411,7 +1442,7 @@ def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | No
         if exposure.metrics:
             document["meta"] = {"bloomery_metrics": list(exposure.metrics)}
 
-        document["depends_on"] = [f"ref('{relation}')" for relation in sorted(relations)]
+        document["depends_on"] = sorted(relations)
         documents.append(document)
 
     return EmittedArtifact.create(

@@ -233,7 +233,8 @@ def test_a_mart_owner_reaches_all_three_targets() -> None:
         for a in compile_project(loaded, target="dbt", dialect="duckdb", catalog=catalog)
     }
     entries = yaml.safe_load(dbt["models/schema.yml"])["models"]
-    assert {"name": "mart_order_items", "meta": {"owner": declared}} in entries
+    # `access: public` rides the same entry: `ecom_basic` exports the mart (S-0002/D-1).
+    assert {"name": "mart_order_items", "meta": {"owner": declared}, "access": "public"} in entries
 
     cube = {
         a.path: a.content

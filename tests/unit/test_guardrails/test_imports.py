@@ -13,7 +13,9 @@ import pytest
 
 from bloomery import build_project_ir, load_catalog, load_project
 from bloomery.errors import GuardrailError, ImportCollision, UnexportedImport, UnknownUpstream
-from bloomery.ir import ProjectIR
+from dataclasses import replace
+
+from bloomery.ir import ExportsIR, ProjectIR
 from support.compiling import FIXTURES, fixture_sources
 
 pytestmark = pytest.mark.unit
@@ -334,3 +336,21 @@ def test_every_surface_that_compiles_can_supply_an_upstream() -> None:
         SpecVersion(label="b", project=project, catalog=_catalog(), upstream=upstream),
     )
     assert timeline(versions, "metric:gross_revenue") is not None
+
+
+def test_an_export_the_upstream_ir_does_not_carry_is_refused() -> None:
+    """An export list is checked against the authored documents (D-1) while
+    what crosses is the IR (D-2), so an upstream can export a name it declared
+    and never built. Bound to nothing, the import surfaced a stage later as an
+    invariant violation in the emitters (PR #172 review); it is refused here."""
+    upstream = replace(_upstream(), exports=ExportsIR(entities=("order", "ghost")))
+    documents = fixture_sources(DOWNSTREAM)
+    documents["imports"] = "imports_version: 1\nimports:\n  platform:\n    entities: [ghost]\n"
+
+    with pytest.raises(GuardrailError) as caught:
+        build_project_ir(load_project(documents), catalog=_catalog(), upstream={"platform": upstream})
+
+    (leaf,) = caught.value.collected
+    assert isinstance(leaf, UnexportedImport)
+    assert "carries no entity" in str(leaf)
+    assert "'ghost'" in str(leaf)

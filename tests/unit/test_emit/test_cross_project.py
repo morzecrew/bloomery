@@ -242,3 +242,64 @@ def test_the_sql_targets_compile_the_same_shape(target: Target) -> None:
     and the metrics behind its measures are nothing it needed."""
 
     assert "models/silver/shipment.sql" in [artifact.path for artifact in _without_metrics(target)]
+
+
+# ....................... #
+# The published side (S-0002/D-1): what dbt has to say for a two-argument `ref()` to resolve
+
+
+def test_dbt_publishes_the_exported_models() -> None:
+    """dbt's default access is `protected`, and a cross-project `ref()` resolves
+    only against a public model — so an export list that stayed a bloomery
+    fact would publish nothing dbt can read (PR #172 review). Exported marts
+    and non-SCD2 entities carry `access: public`; the rest of the schema
+    document is what it was."""
+    artifacts = compile_project(
+        load_project(fixture_sources(UPSTREAM)),
+        target=Target.DBT,
+        dialect="duckdb",
+        catalog=_catalog(),
+    )
+    schema = yaml.safe_load(_artifact(artifacts, "models/schema.yml").content)
+    public = {entry["name"] for entry in schema["models"] if entry.get("access") == "public"}
+
+    # `mart_` is the gold prefix of the naming policy both projects share (D-7).
+    assert public == {"order", "order_item", "mart_order_items"}
+    assert all(entry.get("access") in (None, "public") for entry in schema["models"])
+
+
+# ....................... #
+# S-0002/D-9: a local declaration that names an imported node is judged with it
+
+
+EXPOSED = {
+    **DOWNSTREAM,
+    "exposures": f"""
+exposures_version: 1
+exposures:
+  revenue_board:
+    kind: dashboard
+    owner: analytics@example.com
+    depends_on:
+      metrics: [gross_revenue]
+      marts: [order_items]
+""",
+}
+
+
+def test_an_exposure_may_name_an_imported_mart_and_metric() -> None:
+    """The exposure was authored here and reads a relation another project
+    built; dbt spells that dependency as the two-argument `ref()` (D-9)."""
+    artifacts = compile_project(
+        load_project(EXPOSED),
+        target=Target.DBT,
+        dialect="duckdb",
+        catalog=_catalog(),
+        upstream={ALIAS: _upstream()},
+    )
+    (exposure,) = yaml.safe_load(_artifact(artifacts, "models/exposures.yml").content)["exposures"]
+
+    assert exposure["name"] == "revenue_board"
+    # The local mart `lines` serves `gross_revenue`, so the metric leg adds it;
+    # the imported mart is the two-argument reference.
+    assert exposure["depends_on"] == ["ref('mart_lines')", f"ref('{ALIAS}', 'mart_order_items')"]

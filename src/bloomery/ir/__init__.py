@@ -70,9 +70,11 @@ from bloomery.ir.nodes import (
     TransformStepIR,
     Unit,
     UnreachableMetric,
+    UpstreamIR,
     carries_quality_flags,
     quality_sort_key,
     step_sort_key,
+    with_imported,
 )
 
 # ----------------------- #
@@ -128,6 +130,8 @@ __all__ = [
     "OnFail",
     "PartitionSpec",
     "ProjectIR",
+    "UpstreamIR",
+    "with_imported",
     "QualityRuleIR",
     "QuarantineIR",
     "Ratio",

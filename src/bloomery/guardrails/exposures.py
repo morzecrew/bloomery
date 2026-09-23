@@ -94,6 +94,15 @@ def check_exposure_targets(project: Project) -> list[GuardrailError]:
     )
     marts = frozenset(project.marts.marts) if project.marts is not None else frozenset[str]()
     rollups = frozenset(project.marts.rollups) if project.marts is not None else frozenset[str]()
+    # An exposure may name what this project imported (S-0002/D-9): the
+    # dashboard reads the upstream's relation, and the dbt emitter spells that
+    # dependency as the two-argument `ref()`. Read from the imports document,
+    # as every other name here is read from its document; a name the upstream
+    # does not export is the import guard's refusal, not this one's.
+    if project.imports is not None:
+        for read in project.imports.imports.values():
+            metrics |= frozenset(read.metrics)
+            marts |= frozenset(read.marts)
 
     errors: list[GuardrailError] = []
 

@@ -146,21 +146,27 @@ def check_guardrails(
     """
     derivations = collect_derivations(project, catalog)
     # The resolver's view of the draft (S-0002/D-2): the same nodes plus the
-    # ones this compile imported, for the three checks that resolve a name a
-    # mart or a rollup wrote. Every other guard below takes the draft itself,
-    # because what it judges is what this project declared — an imported node
-    # was judged where it was authored, and refusing it again would send an
-    # author to a document in another project.
+    # ones this compile imported. A guard that judges a *local* declaration
+    # reads it whenever that declaration can name an imported node (S-0002/D-9)
+    # — the mart, the publication and the exposure were authored here and only
+    # their inputs crossed. A guard that judges the nodes themselves takes the
+    # draft: an imported node was judged where it was authored, and refusing
+    # it again would send an author to a document in another project.
     composed = with_imported(draft)
     violations = check_arithmetic(derivations, draft.metrics, catalog)
     violations.extend(check_grain(derivations, draft, project, catalog))
     violations.extend(check_additivity(draft))
-    violations.extend(check_metrics(draft))
+    # A local mart may list an imported metric among its measures, and a
+    # filter on that metric is checked against the marts that list it.
+    violations.extend(check_metrics(replace(draft, metrics=composed.metrics)))
     violations.extend(check_lineage_names(draft))
     # Classification against grants (S-0062/D-9 S-0062/D-11): a published relation
     # carrying a `secret` column, or one granted wider than the entity the
-    # column came from. Reads the draft alone — both sides are in the IR.
-    violations.extend(check_classification(draft))
+    # column came from. The columns and grants an imported entity carries are
+    # in the composed view; the publications judged stay this project's own.
+    violations.extend(
+        check_classification(replace(composed, marts=draft.marts, rollups=draft.rollups))
+    )
     # Exposure references (S-0063/D-2, `LOCKED`), asked of the authored
     # documents rather than the draft — see the module docstring for why the
     # draft is the wrong side of the flattener to ask.

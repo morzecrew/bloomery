@@ -13,6 +13,8 @@ from support.compiling import load_fixture
 
 from bloomery import build_project_ir
 from bloomery.ir import (
+    UpstreamIR,
+    with_imported,
     DateDimensionIR,
     DedupeIR,
     DimensionRef,
@@ -259,3 +261,14 @@ def test_positional_construction_still_binds_what_it_did() -> None:
 
     assert ir.date_dimension == dimension
     assert ir.exports is None
+
+
+def test_the_facade_names_the_upstream_types() -> None:
+    """S-0002/A-1: a consumer reading ``ProjectIR.upstream`` can name its type
+    from the package's public module, and the builder beside it."""
+    import bloomery.ir
+
+    assert bloomery.ir.UpstreamIR is UpstreamIR
+    assert bloomery.ir.with_imported is with_imported
+    assert "UpstreamIR" in bloomery.ir.__all__
+    assert "with_imported" in bloomery.ir.__all__

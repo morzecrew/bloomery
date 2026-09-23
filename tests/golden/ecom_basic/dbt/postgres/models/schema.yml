@@ -9,6 +9,7 @@ models:
   - name: customer_id
     meta:
       classification: pii
+  access: public
 - name: order_item
   columns:
   - name: line_no
@@ -17,6 +18,8 @@ models:
   - name: order_date
     data_tests:
     - not_null
+  access: public
 - name: mart_order_items
   meta:
     owner: analytics@example.com
+  access: public

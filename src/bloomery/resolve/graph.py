@@ -406,12 +406,25 @@ def _imported_names(project: Project) -> dict[str, dict[str, str]]:
         ),
     }
 
+    # A name two aliases both supply is not here either: it binds from neither
+    # upstream (`_bind_imports`) and the import guard refuses it as claimed
+    # twice, so drawing it under whichever alias sorted last would show one
+    # supplier for an ambiguity the compile refuses (PR #172 review).
+    supplied = {
+        kind: [
+            name
+            for _alias, read in sorted(project.imports.imports.items())
+            for name in getattr(read, kind)
+        ]
+        for kind in ("entities", "marts", "metrics")
+    }
+
     return {
         kind: {
             name: alias
             for alias, read in sorted(project.imports.imports.items())
             for name in sorted(getattr(read, kind))
-            if name not in local[kind]
+            if name not in local[kind] and supplied[kind].count(name) == 1
         }
         for kind in ("entities", "marts", "metrics")
     }

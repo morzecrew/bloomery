@@ -977,3 +977,35 @@ def test_an_imported_name_this_project_also_declares_is_the_local_node() -> None
 
     assert "metric.review_count" in names
     assert "metric.platform.review_count" not in names
+
+
+def test_a_name_two_upstreams_supply_resolves_through_neither() -> None:
+    """The compile refuses a name two aliases both supply as claimed twice, and
+    the graph, built before that guard, used to draw it under whichever alias
+    sorted last (PR #172 review). It draws no cross-project node for it now:
+    an ambiguity has no supplier to show."""
+    project = load_project(
+        {
+            "imports": (
+                "imports_version: 1\nimports:\n"
+                "  platform:\n    entities: [order_item]\n"
+                "  vendor:\n    entities: [order_item]\n"
+            ),
+            "entity_model": (
+                "spec_version: 1\nentities:\n  review:\n    grain: one row per review\n"
+                "    key: [review_id]\n    fields:\n      review_id: {type: string, required: true}\n"
+            ),
+            "mapping": (
+                "mapping_version: 1\nsource: raw__reviews\ntarget: review\nkey:\n"
+                "  review_id: {from: \"$.id\", transform: [to_string]}\nfields: {}\n"
+            ),
+            "marts": (
+                "marts_version: 1\nmarts:\n  lines:\n    grain: order_item\n    base: order_item\n"
+                "    measures: []\n"
+            ),
+        }
+    )
+    graph = build_graph(project, None, effective_metrics(project, None))
+    names = {node.name for node in graph.nodes}
+
+    assert not any(name.endswith(".order_item") for name in names), sorted(names)
