@@ -1,0 +1,100 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0036
+phase: 2
+base: 97078f7316c57267902dcd119d730623ee1f9477
+commit: 565b24e523c19b39e52bc97676ed9fe0f4607bd0
+at: '2026-09-21T18:13:47Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: OPEN
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-21T18:04:46Z'
+    claim: >-
+      phase 2 stayed in the property tier: the project generator and its assertions
+      are Hypothesis strategies under tests/property and tests/support, with no fuzz
+      target added
+    evidence: >-
+      tests/property/test_schema_agreement.py:618 — the set reach measurement runs
+      under @given/@settings in the property tier; no target was added under fuzz/
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-21T18:04:46Z'
+    claim: >-
+      every new assertion extends test_schema_agreement.py; the only other file touched
+      is the strategy helper, which asserts nothing
+    evidence: >-
+      tests/support/schema_strategies.py:77 — project_documents is a strategy factory
+      with no assert in the module; all four new properties and the new divergence
+      live in test_schema_agreement.py
+    action: decided
+  - decision: D-3
+    grade: OPEN
+    at: '2026-09-21T18:04:46Z'
+    claim: >-
+      hand-written strategy kept over hypothesis-jsonschema; pyproject.toml untouched.
+      Over 300 drawn projects: 278 schema-valid, 100 past the parser, 80 past the
+      resolver, 59 compiled. A generic from_schema() cannot draw a mapping target
+      from the names the entity model declared, which is what buys those 80. Execution
+      also found a phase-1 gap: anyOf used as a constraint beside a sibling type/properties
+      (Imports, Exports) built from a branch with no type and drew None, making every
+      generated imports document schema-invalid; fixed by folding the branch into
+      the node
+    evidence: >-
+      tests/property/test_schema_agreement.py:672 — the disjoint-pool arm, which is
+      what schema-directed generation without name harvesting amounts to, reaches
+      past resolve 0 times in 200 draws against the pooled arm's 68; the anyOf fix
+      is schema_strategies.py:156
+    action: decided
+  - decision: D-5
+    grade: OPEN
+    at: '2026-09-21T18:04:46Z'
+    claim: >-
+      no evidence either way for moving to a fuzz target: generation now reaches the
+      guardrail stage 21 times and compiles 59 of 300 draws, so guardrail branches
+      are reached without coverage feedback, and nothing measured here compares that
+      rate against a coverage-guided run
+    evidence: >-
+      tests/property/test_schema_agreement.py:618 — the census asserts guardrails
+      >= 5 and compiled >= 10 with measured 21 and 59; there is no coverage-guided
+      arm to compare against
+    action: decided
+  - decision: D-6
+    grade: ASSUMED
+    at: '2026-09-21T18:04:46Z'
+    claim: >-
+      the pool buys more than it constrains, so no departure: a constant pool is not
+      enough and the generator is now stateful as the row says. Pool width measured:
+      1 name reaches past parse 92/192 and compiles 55, 3 names 62/181 and 32, 8 names
+      45/168 and 29 — narrowing buys reach by making the space degenerate, so three
+      is kept
+    evidence: >-
+      tests/support/schema_strategies.py:124 — _declared_names harvests the entity
+      and field names the drawn entity model actually declared, and project_documents
+      draws every other document of the project from that pool
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-21T18:04:46Z'
+    claim: >-
+      one new divergence named rather than fixed: the export declares seeds:, which
+      the parser refuses permanently by name, so the schema accepts a key that can
+      never parse
+    evidence: >-
+      tests/property/test_schema_agreement.py:927 — the schema validates a document
+      with seeds: and the parser refuses it; the generator omits the key so the budget
+      is not spent on a recorded divergence
+    action: decided
