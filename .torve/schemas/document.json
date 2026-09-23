@@ -152,6 +152,45 @@
       "title": "Change",
       "type": "object"
     },
+    "Commit": {
+      "additionalProperties": false,
+      "description": "What a document's landing means to a release (S-0087/D-1): the\nConventional Commits type, an optional scope, and whether it breaks. No\ndiff says this, so the header declares it.",
+      "properties": {
+        "breaking": {
+          "default": false,
+          "description": "Whether the landing breaks what stood before.",
+          "title": "Breaking",
+          "type": "boolean"
+        },
+        "scope": {
+          "default": "",
+          "description": "The scope the title carries, a noun; empty for a change with none.",
+          "title": "Scope",
+          "type": "string"
+        },
+        "type": {
+          "description": "The Conventional Commits type the landing's pull request is titled with.",
+          "enum": [
+            "feat",
+            "fix",
+            "refactor",
+            "perf",
+            "docs",
+            "test",
+            "build",
+            "ci",
+            "chore"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "Commit",
+      "type": "object"
+    },
     "Decision": {
       "additionalProperties": false,
       "description": "One decision row, whole (S-0056/D-2): grade, text and paths \u2014 the three\nfields a contract copies at mint \u2014 with its consequence, rationale,\ncitations, check and the stamp the tool last wrote on it.",
@@ -941,6 +980,18 @@
       },
       "title": "Alternatives",
       "type": "array"
+    },
+    "change": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Commit"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "What the landing means to a release (S-0087/D-1); optional, and a document\nwithout one lands untyped."
     },
     "current_state": {
       "default": "",

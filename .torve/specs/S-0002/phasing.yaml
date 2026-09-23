@@ -25,6 +25,7 @@ phasing:
       - src/bloomery/guardrails/lineage.py
       - src/bloomery/guardrails/grain.py
       - src/bloomery/guardrails/stage.py
+      - src/bloomery/ir/__init__.py
       - src/bloomery/ir/nodes.py
       - src/bloomery/errors.py
       - pages/docs/reference/errors.md

@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-21T21:59:34Z'
+    md: |-
+      Phase 3 gives `ProjectIR` its `upstream` field, typed `UpstreamIR`, and
+      the `with_imported` builder beside it, and `bloomery.ir` re-exports every
+      other public node while its own `__init__.py` sat outside the phase's
+      scope: T-0053 found the two names unreachable from the package's public
+      module and T-0068, the round the leg minted for it, halted three times on
+      the same scope. Phase 3 reaches the facade; nothing else in the phase
+      changes.
+      Phase 3 reaches the ir facade that re-exports its nodes
+  - id: A-2
+    at: '2026-09-23T11:55:34Z'
+    title: Guards that judge a local declaration read the composed view
+    md: |-
+      Phase 3 ran three guards over the composed view and every other one over
+      the draft, on the reasoning that an imported node was judged where it was
+      authored. The reviewer's three outside-diff comments on #172 name the
+      declarations that reasoning misses: a local mart listing an imported
+      metric skips `check_metrics`, a local published mart flattening an
+      imported entity's `secret` column skips classification, and an exposure
+      cannot name an imported mart or metric. D-9 says those guards read the
+      composed view with local marts and rollups as the publication targets;
+      it is an author's row, `ASSUMED` until the owner grades it, and the code
+      change it asks for is a hand landing on this document's branch.
