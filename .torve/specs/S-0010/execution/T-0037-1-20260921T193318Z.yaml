@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0037
+phase: 3
+base: 73657847c2c7da9ca426d05f021d4eddd5186188
+commit: 4b283f97bf9c8da591fe713d388ff50139e2166d
+at: '2026-09-21T19:33:18Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: OPEN
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-21T19:24:42Z'
+    claim: >-
+      the generated-space agreement half landed in the property tier, not a fuzz target:
+      a Hypothesis property over generated entity models plus a derandomized census,
+      both in the default test tiers
+    evidence: >-
+      tests/property/test_schema_agreement.py:745 — the property is @given/@settings
+      under tests/property/, no fuzz target added
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-21T19:24:42Z'
+    claim: >-
+      the generated mutation strategy and its assertions extend test_schema_agreement.py
+      itself; no sibling module asserts drift, and the corpus strategy above it is
+      untouched
+    evidence: >-
+      tests/property/test_schema_agreement.py:700-830 — new section in the same module;
+      the corpus tests at :195-253 are unchanged
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-21T19:24:42Z'
+    claim: >-
+      only the parser-refuses-implies-schema-refuses direction is asserted over generated
+      documents; the converse is left to the named divergences, and the float tolerance
+      and free-string agg notes stay asserted so closing either goes red
+    evidence: >-
+      tests/property/test_schema_agreement.py:818 — the single assertion, guarded
+      by assume(not _parses(...)); the divergence tests at :814 and :860 are unchanged
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-21T19:25:12Z'
+    claim: >-
+      the module's stated anti-vacuity mechanism (Hypothesis refusing a run that filters
+      too much) cannot hold for this phase: three filters stack — base validates,
+      base parses, mutation refused by the parser — so filter_too_much fires on the
+      ordinary case and reads as drift found; it is suppressed and replaced by a derandomized
+      census with per-class floors
+    evidence: >-
+      tests/property/test_schema_agreement.py:750-754 — the suppression, with the
+      replacement census at :778 asserting refused[mutation] >= 1 for all three classes
+    action: decided
+    proposal: >-
+      ASSUMED — a generated-space agreement property may suppress filter_too_much
+      iff a derandomized census asserts a floor per mutation class
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-21T19:25:12Z'
+    claim: >-
+      correcting the line cited in this attempt's earlier D-1 entry: the property's
+      decorators are at :757-758, not :745
+    evidence: >-
+      tests/property/test_schema_agreement.py:757-759 — @given/@_MUTATED on test_a_mutated_generated_document_is_refused_by_both
+    action: decided
+    proposal: >-
+      none — correction of an earlier entry in this attempt
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-21T19:25:12Z'
+    claim: >-
+      correcting the lines cited in this attempt's earlier D-4 entry: the one-directional
+      assertion is at :775, and the tolerance and agg divergence tests at :832 and
+      :878
+    evidence: >-
+      tests/property/test_schema_agreement.py:775 — the sole assertion, after assume(not
+      _parses(...)) at :774; the divergence tests are at :832 and :878, unchanged
+    action: decided
+    proposal: >-
+      none — correction of an earlier entry in this attempt

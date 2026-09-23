@@ -1,0 +1,481 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0035
+phase: 1
+base: ddcfdf6377e74060416ef32fc45fa2a6d06b7bca
+commit: 8ef41a2f287daf417baa2c57b15e6cc6bbe5e137
+at: '2026-09-21T17:28:09Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: OPEN
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-21T16:43:53Z'
+    claim: >-
+      schema-directed generation landed in the property tier and nowhere else; no
+      fuzz target was added or proposed
+    evidence: >-
+      tests/property/test_schema_agreement.py:269-480 — the generated-document strategy,
+      the totality property, the reach measurement and the sabotage pair all sit under
+      tests/property/; fuzz/ is untouched
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-21T16:43:53Z'
+    claim: >-
+      every assertion about schema/parser agreement stays in test_schema_agreement.py;
+      the only new sibling is a generator helper that asserts nothing
+    evidence: >-
+      tests/support/schema_strategies.py:1-136 — a pure strategy module with no assert
+      and no import of bloomery; the assertions it feeds are at tests/property/test_schema_agreement.py:352-480
+    action: decided
+  - decision: D-3
+    grade: OPEN
+    at: '2026-09-21T16:44:28Z'
+    claim: >-
+      the generator is the hand-written strategy, not hypothesis-jsonschema from_schema:
+      measured head to head on the same exported entity_model schema over the same
+      400 examples, hand-written reached the resolver 111/400 (27.8%) against from_schema
+      37/400 (9.2%), in 4.1s against 66.5s. The dependency was installed, measured
+      and removed again, so pyproject.toml and uv.lock carry no dev-group entry. The
+      lever is the string alphabet: from_schema draws mapping keys from arbitrary
+      text, so two draws never collide and every key entry names a field the entity
+      does not declare
+    evidence: >-
+      tests/support/schema_strategies.py:43 — IDENTIFIER_POOL, eight names deliberately
+      too few to avoid collisions; the reach it buys is asserted at tests/property/test_schema_agreement.py:370
+    action: decided
+    notes: >-
+      Derandomised census over 200 schema-valid documents: parse 116, resolve 18,
+      guardrails 14, compiled 52 - 84/200 (42%) past the parser. The floors asserted
+      are an eighth past parse and one guardrail refusal, loose on purpose: the test
+      catches a collapse, not drift in the exact figure.
+  - decision: D-5
+    grade: OPEN
+    at: '2026-09-21T16:44:28Z'
+    claim: >-
+      no evidence either way for a fuzz target, and D-1 seam stays shut on a number:
+      generation reaches a guardrail branch on 14 of 200 schema-valid documents (7%)
+      while 116 of 200 (58%) die at the parser, so 7% is the baseline a coverage-guided
+      target would have to beat materially. Nothing measured here says what coverage
+      feedback would do to that figure, and measuring it needs the fuzz target D-1
+      forbids building to find out, so the row is discharged with the baseline recorded
+      and the seam unreopened
+    evidence: >-
+      tests/property/test_schema_agreement.py:409-413 — the guardrail-fraction floor
+      and the comment recording why it is small
+    action: decided
+    notes: >-
+      The candidate signal D-5 names is guardrail branches reached materially faster
+      under coverage feedback. 7% is what generation gets; nothing compares it.
+  - decision: D-6
+    grade: ASSUMED
+    at: '2026-09-21T16:44:36Z'
+    claim: >-
+      cross-document pooling is untouched, as the contract scopes this phase: the
+      entity model is the one kind with no cross-document references, so nothing here
+      generates a set. The intra-document form of the same technique is what the strategy
+      already runs on - names are drawn from a fixed eight-name pool rather than from
+      text, and that is the whole of the 3x reach gap over from_schema - so the row's
+      premise is confirmed one scope down before the set-level version is built. The
+      reach figure recorded here is a single kind's and is not the figure for a set,
+      which the row already says are reported separately
+    evidence: >-
+      tests/support/schema_strategies.py:131-136 — _keys draws mapping keys from the
+      pool, per document; nothing in the module carries state across documents
+    action: decided
+    proposal: >-
+      keep ASSUMED; the set-level pool is unbuilt and unmeasured, and the intra-document
+      result is evidence for it rather than about it
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-21T16:54:58Z'
+    attempt: 2
+    claim: >-
+      the generator helper moved from tests/support/schema_strategies.py into test_schema_agreement.py
+      itself; every agreement assertion still lives in this module and nowhere else,
+      and the helper asserts nothing
+    evidence: >-
+      tests/property/test_schema_agreement.py:280-406 — the hand-written strategy
+      inline, feeding the assertions at 479-620; tests/support/ carries no generator
+      module
+    action: decided
+    notes: >-
+      Attempt 1's D-2 entry cites tests/support/schema_strategies.py:1-136, which
+      no longer exists: the file was never tracked, so the change did not land runnable
+      and the module failed at collection on a clean checkout. D-2 permits helpers
+      elsewhere under tests/ but does not require them, so the helper sits beside
+      its only caller.
+  - decision: D-3
+    grade: OPEN
+    at: '2026-09-21T16:54:58Z'
+    attempt: 2
+    claim: >-
+      D-3's outcome is unchanged - the generator stays the hand-written strategy over
+      the exported subset, not hypothesis-jsonschema, and pyproject.toml gains no
+      dev-group entry; only its location changed, from tests/support/ to the test
+      module
+    evidence: >-
+      tests/property/test_schema_agreement.py:299 — IDENTIFIER_POOL, the eight-name
+      alphabet the measured 3x reach gap comes from; the reach floors are asserted
+      at 496-540
+    action: decided
+    notes: >-
+      The measured figures from attempt 1 stand: the strategy and its pool are unchanged,
+      only moved.
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-21T16:54:58Z'
+    attempt: 2
+    claim: >-
+      schema-directed generation is still in the property tier and nowhere else; no
+      fuzz target added, and the move did not put anything outside tests/property/
+    evidence: >-
+      tests/property/test_schema_agreement.py:268-620 — strategy, totality property,
+      reach measurement and sabotage pair; fuzz/ untouched
+    action: decided
+    notes: >-
+      The move brought the last generator code under tests/property/ as well.
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-21T17:00:09Z'
+    attempt: 3
+    claim: >-
+      the generator helper is back at tests/support/schema_strategies.py, where attempt
+      1 put it and where attempt 1's own log entries cite it; every schema/parser
+      agreement assertion stays in test_schema_agreement.py, and the helper asserts
+      nothing and imports no bloomery
+    evidence: >-
+      tests/support/schema_strategies.py:1-144 — a pure strategy module with no assert
+      and no bloomery import; its only caller is tests/property/test_schema_agreement.py:46,
+      and the assertions it feeds are at tests/property/test_schema_agreement.py:355-495
+    action: decided
+    proposal: >-
+      none; D-2 permits a non-asserting helper elsewhere under tests/ and that is
+      where this one sits
+    notes: >-
+      Attempt 2 inlined the helper into the test module and deleted the file. That
+      left three attempt-1 entries citing a path that no longer existed, and decisions-reported
+      went red on exactly that; the log is append-only, so the file has to exist for
+      those citations to resolve. Restoring it also answers the review finding, which
+      was that the file never landed rather than that its location was wrong. The
+      module is rewritten, not recovered: attempt 1's copy was untracked and is gone,
+      so line numbers inside it are close to but not identical with attempt 1's citations.
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-21T17:00:09Z'
+    attempt: 3
+    claim: >-
+      schema-directed generation stays in the property tier; no fuzz target was added,
+      and the helper that moved out of the test module went to tests/support/, not
+      to fuzz/
+    evidence: >-
+      tests/property/test_schema_agreement.py:268-495 — the strategy binding, the
+      totality property, the reach measurement and the sabotage pair; fuzz/ is untouched
+    action: decided
+    proposal: none; the seam stays where D-1 puts it
+    notes: >-
+      Only the helper's location changed this attempt; the tier did not.
+  - decision: D-3
+    grade: OPEN
+    at: '2026-09-21T17:00:09Z'
+    attempt: 3
+    claim: >-
+      D-3's outcome is unchanged from attempt 1: the generator is the hand-written
+      strategy over the exported subset, not hypothesis-jsonschema, and pyproject.toml
+      gains no dev-group entry. The measured head-to-head that decided it stands -
+      hand-written reached the resolver 111/400 against from_schema 37/400 on the
+      same exported entity_model schema - and the lever is still the identifier pool
+    evidence: >-
+      tests/support/schema_strategies.py:43 — IDENTIFIER_POOL, eight names deliberately
+      too few to avoid collisions; the reach it buys is asserted at tests/property/test_schema_agreement.py:414-424
+    action: decided
+    proposal: >-
+      close D-3 on the hand-written strategy; the dependency was measured and declined
+    notes: >-
+      Nothing was re-measured this attempt: the strategy is the same code in a different
+      file. Attempt 1's derandomised census over 200 schema-valid documents - parse
+      116, resolve 18, guardrails 14, compiled 52 - is what the asserted floors are
+      loose around.
+  - decision: D-6
+    grade: ASSUMED
+    at: '2026-09-21T17:00:09Z'
+    attempt: 3
+    claim: >-
+      cross-document pooling stays unbuilt, as this phase scopes it: the entity model
+      is the one kind with no cross-document references, and the module carries no
+      state between documents - the pool is drawn per document
+    evidence: >-
+      tests/support/schema_strategies.py:139-144 — _keys draws mapping keys from the
+      per-document pool; no module-level state crosses a draw
+    action: decided
+    proposal: >-
+      keep ASSUMED; the set-level pool is unbuilt and unmeasured, and the intra-document
+      reach is evidence for it rather than about it
+    notes: >-
+      The intra-document form of the pool is what the 3x reach gap over from_schema
+      comes from, which is the row's premise confirmed one scope down rather than
+      at set level.
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-21T17:00:54Z'
+    attempt: 2
+    claim: >-
+      the generator helper moved from tests/support/schema_strategies.py into test_schema_agreement.py
+      itself; every agreement assertion still lives in this module and nowhere else,
+      and the helper asserts nothing
+    evidence: >-
+      tests/property/test_schema_agreement.py:280-406 — the hand-written strategy
+      inline, feeding the assertions at 479-620; tests/support/ carries no generator
+      module
+    action: decided
+    notes: >-
+      Attempt 1's D-2 entry cites tests/support/schema_strategies.py:1-136, which
+      no longer exists: the file was never tracked, so the change did not land runnable
+      and the module failed at collection on a clean checkout. D-2 permits helpers
+      elsewhere under tests/ but does not require them, so the helper sits beside
+      its only caller.
+  - decision: D-3
+    grade: OPEN
+    at: '2026-09-21T17:00:54Z'
+    attempt: 2
+    claim: >-
+      D-3's outcome is unchanged - the generator stays the hand-written strategy over
+      the exported subset, not hypothesis-jsonschema, and pyproject.toml gains no
+      dev-group entry; only its location changed, from tests/support/ to the test
+      module
+    evidence: >-
+      tests/property/test_schema_agreement.py:299 — IDENTIFIER_POOL, the eight-name
+      alphabet the measured 3x reach gap comes from; the reach floors are asserted
+      at 496-540
+    action: decided
+    notes: >-
+      The measured figures from attempt 1 stand: the strategy and its pool are unchanged,
+      only moved.
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-21T17:00:54Z'
+    attempt: 2
+    claim: >-
+      schema-directed generation is still in the property tier and nowhere else; no
+      fuzz target added, and the move did not put anything outside tests/property/
+    evidence: >-
+      tests/property/test_schema_agreement.py:268-620 — strategy, totality property,
+      reach measurement and sabotage pair; fuzz/ untouched
+    action: decided
+    notes: >-
+      The move brought the last generator code under tests/property/ as well.
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-21T17:04:52Z'
+    attempt: 3
+    claim: >-
+      the generator helper is back at tests/support/schema_strategies.py, where attempt
+      1 put it and where attempt 1's own log entries cite it; every schema/parser
+      agreement assertion stays in test_schema_agreement.py, and the helper asserts
+      nothing and imports no bloomery
+    evidence: >-
+      tests/support/schema_strategies.py:1-144 — a pure strategy module with no assert
+      and no bloomery import; its only caller is tests/property/test_schema_agreement.py:46,
+      and the assertions it feeds are at tests/property/test_schema_agreement.py:355-495
+    action: decided
+    proposal: >-
+      none; D-2 permits a non-asserting helper elsewhere under tests/ and that is
+      where this one sits
+    notes: >-
+      Attempt 2 inlined the helper into the test module and deleted the file. That
+      left three attempt-1 entries citing a path that no longer existed, and decisions-reported
+      went red on exactly that; the log is append-only, so the file has to exist for
+      those citations to resolve. Restoring it also answers the review finding, which
+      was that the file never landed rather than that its location was wrong. The
+      module is rewritten, not recovered: attempt 1's copy was untracked and is gone,
+      so line numbers inside it are close to but not identical with attempt 1's citations.
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-21T17:04:52Z'
+    attempt: 3
+    claim: >-
+      schema-directed generation stays in the property tier; no fuzz target was added,
+      and the helper that moved out of the test module went to tests/support/, not
+      to fuzz/
+    evidence: >-
+      tests/property/test_schema_agreement.py:268-495 — the strategy binding, the
+      totality property, the reach measurement and the sabotage pair; fuzz/ is untouched
+    action: decided
+    proposal: none; the seam stays where D-1 puts it
+    notes: >-
+      Only the helper's location changed this attempt; the tier did not.
+  - decision: D-3
+    grade: OPEN
+    at: '2026-09-21T17:04:52Z'
+    attempt: 3
+    claim: >-
+      D-3's outcome is unchanged from attempt 1: the generator is the hand-written
+      strategy over the exported subset, not hypothesis-jsonschema, and pyproject.toml
+      gains no dev-group entry. The measured head-to-head that decided it stands -
+      hand-written reached the resolver 111/400 against from_schema 37/400 on the
+      same exported entity_model schema - and the lever is still the identifier pool
+    evidence: >-
+      tests/support/schema_strategies.py:43 — IDENTIFIER_POOL, eight names deliberately
+      too few to avoid collisions; the reach it buys is asserted at tests/property/test_schema_agreement.py:414-424
+    action: decided
+    proposal: >-
+      close D-3 on the hand-written strategy; the dependency was measured and declined
+    notes: >-
+      Nothing was re-measured this attempt: the strategy is the same code in a different
+      file. Attempt 1's derandomised census over 200 schema-valid documents - parse
+      116, resolve 18, guardrails 14, compiled 52 - is what the asserted floors are
+      loose around.
+  - decision: D-6
+    grade: ASSUMED
+    at: '2026-09-21T17:04:52Z'
+    attempt: 3
+    claim: >-
+      cross-document pooling stays unbuilt, as this phase scopes it: the entity model
+      is the one kind with no cross-document references, and the module carries no
+      state between documents - the pool is drawn per document
+    evidence: >-
+      tests/support/schema_strategies.py:139-144 — _keys draws mapping keys from the
+      per-document pool; no module-level state crosses a draw
+    action: decided
+    proposal: >-
+      keep ASSUMED; the set-level pool is unbuilt and unmeasured, and the intra-document
+      reach is evidence for it rather than about it
+    notes: >-
+      The intra-document form of the pool is what the 3x reach gap over from_schema
+      comes from, which is the row's premise confirmed one scope down rather than
+      at set level.
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-21T17:04:52Z'
+    attempt: 2
+    claim: >-
+      the generator helper moved from tests/support/schema_strategies.py into test_schema_agreement.py
+      itself; every agreement assertion still lives in this module and nowhere else,
+      and the helper asserts nothing
+    evidence: >-
+      tests/property/test_schema_agreement.py:280-406 — the hand-written strategy
+      inline, feeding the assertions at 479-620; tests/support/ carries no generator
+      module
+    action: decided
+    notes: >-
+      Attempt 1's D-2 entry cites tests/support/schema_strategies.py:1-136, which
+      no longer exists: the file was never tracked, so the change did not land runnable
+      and the module failed at collection on a clean checkout. D-2 permits helpers
+      elsewhere under tests/ but does not require them, so the helper sits beside
+      its only caller.
+  - decision: D-3
+    grade: OPEN
+    at: '2026-09-21T17:04:52Z'
+    attempt: 2
+    claim: >-
+      D-3's outcome is unchanged - the generator stays the hand-written strategy over
+      the exported subset, not hypothesis-jsonschema, and pyproject.toml gains no
+      dev-group entry; only its location changed, from tests/support/ to the test
+      module
+    evidence: >-
+      tests/property/test_schema_agreement.py:299 — IDENTIFIER_POOL, the eight-name
+      alphabet the measured 3x reach gap comes from; the reach floors are asserted
+      at 496-540
+    action: decided
+    notes: >-
+      The measured figures from attempt 1 stand: the strategy and its pool are unchanged,
+      only moved.
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-21T17:04:52Z'
+    attempt: 2
+    claim: >-
+      schema-directed generation is still in the property tier and nowhere else; no
+      fuzz target added, and the move did not put anything outside tests/property/
+    evidence: >-
+      tests/property/test_schema_agreement.py:268-620 — strategy, totality property,
+      reach measurement and sabotage pair; fuzz/ untouched
+    action: decided
+    notes: >-
+      The move brought the last generator code under tests/property/ as well.
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-21T17:21:45Z'
+    attempt: 4
+    claim: >-
+      schema-directed generation landed in the property tier, not as a fuzz target
+    evidence: >-
+      tests/property/test_schema_agreement.py:353 — the generated-document property
+      is a hypothesis test in tests/property/; nothing was added under fuzz/
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-21T17:21:45Z'
+    attempt: 4
+    claim: >-
+      the generated strategy and its assertions extend this module; no sibling module
+      asserts agreement
+    evidence: >-
+      tests/property/test_schema_agreement.py:280 — the strategy and all five new
+      tests live beside the corpus strategy; tests/support/schema_strategies.py holds
+      the generator helper only, which asserts nothing
+    action: decided
+  - decision: D-3
+    grade: OPEN
+    at: '2026-09-21T17:21:45Z'
+    attempt: 4
+    claim: >-
+      hand-written strategy over the exported subset, not hypothesis-jsonschema: 77/200
+      generated entity models reach past the parser, 46 compile, because the strategy
+      draws every identifier-shaped string from one shared name pool — a generic generator
+      has no way to make key entries and field names agree. No dev-group entry added
+      to pyproject.toml.
+    evidence: >-
+      tests/support/schema_strategies.py:39 — the shared NAMES pool the reach fraction
+      depends on; tests/property/test_schema_agreement.py:411 asserts the measured
+      floor
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-21T17:21:45Z'
+    attempt: 4
+    claim: >-
+      generation found one new divergence: entities carries patternProperties with
+      no additionalProperties: false, so an entity named '' or 'Orders' validates
+      and its value may be null; named at the bottom of the module rather than fixed
+    evidence: >-
+      tests/property/test_schema_agreement.py:720 — the divergence, asserted in both
+      directions beside the existing tolerance and agg notes
+    action: decided
+  - decision: D-5
+    grade: OPEN
+    at: '2026-09-21T17:21:45Z'
+    attempt: 4
+    claim: >-
+      discharged with no evidence either way: 14/200 generated documents are refused
+      by a guardrail rather than the parser, which is the baseline a coverage-guided
+      run would have to beat materially, but nothing measured here compares the two,
+      so D-1's seam stays shut
+    evidence: >-
+      tests/property/test_schema_agreement.py:417 — the guardrail-reach floor and
+      the measured baseline behind it
+    action: decided
+  - decision: D-6
+    grade: ASSUMED
+    at: '2026-09-21T17:21:45Z'
+    attempt: 4
+    claim: >-
+      no name pool across documents this phase: the entity model is the one kind with
+      no cross-document references, so its documents are generated independently and
+      the pooled-name problem is untouched
+    evidence: >-
+      tests/support/schema_strategies.py:49 — from_spec_schema takes one schema and
+      returns one document strategy; nothing is stateful across documents
+    action: decided

@@ -91,6 +91,51 @@ What it does not claim is that the SQL is generated from the plan. bloomery deci
 to compute and states it; the query is still produced alongside. The derivation is
 evidence about the answer, not the machinery that produces it.
 
+## A guardrail that stayed silent, and a proof that closed
+
+Both run, and they are not two spellings of one check.
+
+A [guardrail](guardrails.md) asks *did anything I know how to look for go wrong?*, and its
+green answer is the absence of a complaint. Nothing in that silence separates "this was
+checked and holds" from "no rule here looked at it at all", because silence carries no
+detail — which is why a guardrail can only ever tell you what bloomery did not find.
+
+A proof asks *which named rule admits this, resting on which facts?*, and its answer is an
+object: the rule that closed the obligation, the premises under it, and a provenance on
+every leaf. `bloomery explain` prints it, so the distinction is one a reader meets rather
+than one the architecture keeps to itself.
+
+Guardrails keep their own aggregate refusal throughout — one error carrying every
+violation found, not the first — while consuming the same semantic facts the proofs rest
+on. One store of facts, two ways of reading it, so the answer and the argument for it
+cannot drift apart quietly.
+
+### The provenances that may never close one
+
+A proof is only as strong as the weakest fact any of its leaves admitted, so whether a
+fact can close an obligation is decided by where the fact came from:
+
+| Provenance | Closes an obligation |
+| --- | --- |
+| `declared` — authored in a spec | yes |
+| `derived` — mechanically implied by declared facts | yes |
+| `imported_verified` — read from an external artifact under an exact documented rule | yes |
+| `inferred_heuristic` — a guess, however good | **never** |
+| `unknown` — no fact at all | **never** |
+
+The last two are carried rather than discarded, and the reason is the refusal: one that
+found a heuristic match can say what it found instead of only what it lacked. They may
+inform a diagnostic; they may not close an acceptance, so a project resting on one does
+not compile.
+
+The line runs through one place — `Provenance.closes` in
+`src/bloomery/semantic/proof.py` — rather than through each rule that needs it, because a
+second copy of the line that drifted would not look like a safety change in review.
+
+It is not the line the grades below draw. `derived` closes an obligation and grades
+`ASSUMED`: closure is about soundness, the grade about authorship, and a project resting
+entirely on derived facts is sound and entirely undeclared.
+
 ## Targets are not the proof
 
 !!! quote "The target boundary"

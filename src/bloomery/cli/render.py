@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "render_check",
+    "render_derivation",
     "render_evidence",
     "render_evidence_grades",
     "render_lineage",
@@ -172,6 +173,43 @@ def render_evidence_grades(plan: SemanticPlan) -> str:
                 fact.statement, width=WRAP, initial_indent=" " * 10, subsequent_indent=" " * 10
             )
         )
+
+    return "\n".join(lines)
+
+
+# ....................... #
+
+
+def render_derivation(plan: SemanticPlan) -> str:
+    """The reasoning a plan rests on, beside the evidence it rests on.
+
+    The one thing a closed-world checker can say that a guardrail cannot is
+    *why* it accepted, and until this the command printed the facts and the
+    answer with the argument between them left out. Each proof renders through
+    :meth:`~bloomery.semantic.Proof.render` — deepest premise first, each step
+    naming the rule that admitted it — rather than through a second walk here:
+    a renderer that re-derived the order could agree with the proof without
+    resting on it (S-0005/D-2), and the canonical order is the proof's own
+    (S-0005/D-6).
+
+    Proofs come in :attr:`~bloomery.SemanticPlan.proofs` order, which reaches
+    into a composed plan's branches, so a cross-mart request shows the branch
+    authorizations and not only the join's.
+
+    The empty case says so, for the reason :func:`render_evidence_grades`
+    does: a heading over nothing reads as a plan whose argument was lost.
+    """
+
+    proofs = plan.proofs
+
+    if not proofs:
+        return "Derivation\n  (no proof — this plan derives nothing)"
+
+    lines = [f"Derivation ({len(proofs)} proof(s))"]
+
+    for proof in proofs:
+        lines.append("")
+        lines.extend(proof.render(indent=2).split("\n"))
 
     return "\n".join(lines)
 

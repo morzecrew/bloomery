@@ -58,7 +58,8 @@ def test_the_corpus_replays_identically(corpus: Path) -> None:
 
 def test_a_hash_seed_dependent_compile_is_caught(corpus: Path) -> None:
     result = run_replay(
-        "--root", str(corpus), env={"BLOOMERY_REPLAY_SABOTAGE": "seed"}
+        "--root", str(corpus), "--corpus", str(corpus / "absent"),
+        env={"BLOOMERY_REPLAY_SABOTAGE": "seed"},
     )
     assert result.returncode == 1
     assert "PYTHONHASHSEED 0 vs 1" in result.stdout
@@ -67,7 +68,8 @@ def test_a_hash_seed_dependent_compile_is_caught(corpus: Path) -> None:
 
 def test_an_order_dependent_artifact_list_is_caught(corpus: Path) -> None:
     result = run_replay(
-        "--root", str(corpus), env={"BLOOMERY_REPLAY_SABOTAGE": "order"}
+        "--root", str(corpus), "--corpus", str(corpus / "absent"),
+        env={"BLOOMERY_REPLAY_SABOTAGE": "order"},
     )
     assert result.returncode == 1
     assert "compile order:" in result.stdout
@@ -84,15 +86,18 @@ def test_an_empty_corpus_is_a_failure(tmp_path: Path) -> None:
 def test_a_single_seed_is_a_failure(corpus: Path) -> None:
     """One `--seed` leaves nothing to compare across hash seeds, and the run
     used to print that it had compared them anyway."""
-    result = run_replay("--root", str(corpus), "--seed", "3")
+    result = run_replay("--root", str(corpus), "--corpus", str(corpus / "absent"), "--seed", "3")
     assert result.returncode == 1
     assert "at least two --seed" in result.stderr
 
 
-def test_the_day_one_corpus_needs_no_fuzzing_to_exist() -> None:
+def test_the_day_one_corpus_needs_no_fuzzing_to_exist(tmp_path: Path) -> None:
     """S-0009/D-7: the seeds are the examples and the golden tier's spec
-    fixtures, so the lane has a corpus before any fuzzing job has run."""
-    result = run_replay("--list")
+    fixtures, so the lane has a corpus before any fuzzing job has run. The
+    fuzz corpus is pointed at an absent path for the same reason as the tests
+    above: in CI the batch job's blobs are restored first, and they are not
+    the day-one corpus this asserts on."""
+    result = run_replay("--list", "--corpus", str(tmp_path / "absent"))
     assert result.returncode == 0, result.stderr
     listed = [line.split("\t", 1)[1] for line in result.stdout.splitlines()]
     assert "examples/quickstart" in listed

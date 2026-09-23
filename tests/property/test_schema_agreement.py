@@ -26,6 +26,7 @@ are exercised against every document shape rather than one hand-picked pair.
 
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -36,10 +37,13 @@ from hypothesis import strategies as st
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
-from bloomery import SpecKind, all_spec_schemas, load_catalog, load_project
+import bloomery.guardrails.quality as quality_guardrails
+from bloomery import SpecKind, Target, all_spec_schemas, compile_project, load_catalog, load_project
+from bloomery.resolve import Stage, pipeline
 from bloomery.schema import VERSION_KEYS
 from bloomery.spec import Mapping
-from bloomery.errors import SpecParseError
+from bloomery.errors import BloomeryError, SpecParseError
+from support.schema_strategies import from_spec_schema, project_documents
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -259,6 +263,566 @@ def test_an_out_of_enum_value_is_refused_by_both(
 _CLOSED_KEYS = frozenset(
     {"scd", "cardinality", "materialization", "on_fail", "rule", "additivity", "unit"}
 )
+
+
+# ....................... #
+# Schema-directed generation (S-0010): documents built *from* the export rather
+# than mutated from the corpus, and totality asserted over them.
+#
+# The corpus strategy above asks whether the spelling the docs teach is
+# accepted. This asks the complementary question no corpus can: over the whole
+# space the schema admits, does bloomery ever fail in a way an author cannot
+# act on? A machine author writing against the export lands anywhere in that
+# space, and the refusal it gets back is the only thing it has to work with —
+# so an unaddressed failure is a proposal loop with nowhere to go, and a
+# `KeyError` is worse than any refusal.
+
+_ENTITY_MODELS = from_spec_schema(all_spec_schemas()[SpecKind.ENTITY_MODEL])
+
+#: Generation runs a YAML round-trip, a parse, four analysis stages and an
+#: emit per example, so the count is what the tier can afford — not a claim
+#: that 60 is exhaustive. ``derandomize`` is left off here: totality is a
+#: property, and a property wants a different sample every run.
+_GENERATED = settings(
+    max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow]
+)
+
+
+def _addressed(error: BloomeryError) -> bool:
+    """Whether ``error`` points at somewhere in the authored document.
+
+    A batched stage raises one aggregate whose own ``source_path`` is ``None``
+    and whose every leaf carries one (S-0019/D-6), so the address lives on
+    ``collected`` when there is a ``collected`` — reading only the top would
+    call every batched refusal unaddressed and every internal invariant
+    addressed, which is backwards on both counts.
+    """
+    if error.collected:
+        return all(leaf.source_path for leaf in error.collected)
+    return bool(error.source_path)
+
+
+def _outcome(documents: dict[str, dict[str, Any]]) -> tuple[str, BloomeryError | None]:
+    """How far ``documents`` — a whole project, document name → document — got,
+    and what refused it.
+
+    ``pipeline`` yields the stage *about to* run, so the last stage seen when a
+    refusal surfaces is the stage that refused — which is what makes "a
+    guardrail refused this, not the parser" a measurement rather than an
+    inference from an exception type. A refusal after ``COMPLETE`` came from
+    emission, which the pipeline does not cover and which is where a widened
+    guardrail surfaces.
+    """
+    try:
+        project = load_project({name: yaml.safe_dump(doc) for name, doc in documents.items()})
+    except BloomeryError as error:
+        return "parse", error
+
+    stage = Stage.RESOLVE
+    try:
+        for reached, _progress in pipeline(project):
+            stage = reached
+        compile_project(project, target=Target.SQLMESH, dialect="duckdb")
+    except BloomeryError as error:
+        return ("emit" if stage is Stage.COMPLETE else stage.value), error
+    return "compiled", None
+
+
+def _total(documents: dict[str, dict[str, Any]]) -> str:
+    """The totality property itself, as one callable: the outcome, or a failure.
+
+    Named rather than inlined so the sabotage case below can run the *same*
+    property against a widened guardrail and watch it go red. A property that
+    has never been observed to fail is indistinguishable from one that never
+    fires (S-0002/D-2).
+
+    One callable for both phases: a single document is the one-entry project,
+    so the generated-project property below and the generated-entity-model
+    property above assert the same thing over different draws, and the
+    sabotage case guards both.
+
+    Anything that is not a :class:`BloomeryError` propagates out of ``_outcome``
+    untouched — that is the "and nothing else" half, and it needs no assertion
+    to be a red.
+    """
+    stage, error = _outcome(documents)
+    if error is not None:
+        assert _addressed(error), (
+            f"{stage}: {type(error).__name__} carries no source_path — "
+            f"{str(error)[:160]}"
+        )
+    return stage
+
+
+@given(document=_ENTITY_MODELS)
+@_GENERATED
+def test_a_generated_entity_model_compiles_or_refuses_somewhere_addressable(
+    document: dict[str, Any],
+) -> None:
+    """Totality over the generated space (S-0010): every schema-valid entity
+    model either compiles or refuses with a ``BloomeryError`` an author can
+    locate. No third outcome — not a bare ``KeyError``, not a
+    ``StopIteration`` out of a lowering loop, and not a refusal that names no
+    place in the document.
+
+    The entity model is the one kind with no cross-document references to
+    satisfy, which is why it is the kind this phase settles the generator on
+    (S-0010/D-6 is untouched here).
+    """
+    assume(_validates(SpecKind.ENTITY_MODEL, document))
+    _total({"entity_model": document})
+
+
+def test_the_measured_reach_of_the_generated_documents() -> None:
+    """D-3's tiebreak and D-5's candidate signal, as a number that cannot rot.
+
+    ``derandomize`` fixes the sample, so these are a *measurement* rather than
+    a coin flip: the same 200 documents every run, and a change to the strategy
+    or to what bloomery refuses moves the count rather than the flake rate.
+
+    The floors are loose — an eighth reaching the resolver and one guardrail
+    refusal — because the point is to catch a collapse (a strategy that stops
+    producing parseable documents, which would make the property above pass by
+    testing the parser and nothing behind it), not to pin the exact figure.
+    """
+    reached: Counter[str] = Counter()
+
+    @given(document=_ENTITY_MODELS)
+    @settings(
+        max_examples=200,
+        deadline=None,
+        derandomize=True,
+        database=None,
+        suppress_health_check=[HealthCheck.too_slow],
+    )
+    def sample(document: dict[str, Any]) -> None:
+        if not _validates(SpecKind.ENTITY_MODEL, document):
+            reached["schema-invalid"] += 1
+            return
+        reached["schema-valid"] += 1
+        reached[_total({"entity_model": document})] += 1
+
+    sample()
+
+    valid = reached["schema-valid"]
+    past_parse = valid - reached["parse"]
+    guardrails = reached[Stage.GUARDRAILS.value]
+    census = ", ".join(f"{name}={count}" for name, count in sorted(reached.items()))
+
+    assert valid >= 150, census
+    # The fraction that reaches the resolver — the figure D-3 is decided on.
+    # Measured 77/200 at the time of writing, which is what carried the
+    # hand-written strategy over `hypothesis-jsonschema`: the pooled names in
+    # `support.schema_strategies` are why references resolve at all.
+    assert past_parse >= valid // 8, census
+    # The fraction a guardrail refuses rather than the parser — D-5's baseline,
+    # measured 14/200. Generation still spends most of its budget in front of
+    # the guardrails, and closing that gap materially faster under coverage
+    # feedback is the one signal that would reopen D-1's seam; nothing measured
+    # here says whether it would.
+    assert guardrails >= 1, census
+    assert reached["compiled"] >= 1, census
+
+
+def _widened_coverage_guardrail(*_args: object, **_kwargs: object) -> list[object]:
+    """The sabotage: the coverage guardrail, refusing nothing."""
+    return []
+
+
+#: A document the coverage guardrail refuses, and whose refusal the downstream
+#: lookup depends on — ``customer`` is declared and unmapped, so nothing
+#: downstream can find a relation to count against. Written out rather than
+#: generated: a sabotage case has to be the *same* document every run.
+_UNGUARDED_COVERAGE: dict[str, Any] = {
+    "spec_version": 1,
+    "entities": {
+        "order": {
+            "grain": "one row per order",
+            "key": ["order_id"],
+            "fields": {
+                "order_id": {"type": "string", "required": True},
+                "customer_id": {"type": "string"},
+            },
+        },
+        "customer": {
+            "grain": "one row per customer",
+            "key": ["customer_id"],
+            "fields": {"customer_id": {"type": "string", "required": True}},
+        },
+    },
+    "relationships": [
+        {
+            "name": "order_customer",
+            "from": "order",
+            "to": "customer",
+            "cardinality": "many_to_one",
+            "via": {"customer_id": "customer_id"},
+        }
+    ],
+    "coverage": [
+        {"name": "orders_have_customers", "relationship": "order_customer", "on_fail": "flag"}
+    ],
+}
+
+
+def test_the_coverage_guardrail_refuses_this_document_addressably() -> None:
+    """The clean twin of the sabotage below (S-0002/D-2).
+
+    A gate that cannot pass is as broken as one that cannot fail, so the
+    armed guardrail is asserted green on the same document: it refuses at the
+    guardrail stage, and the refusal names ``coverage[0].relationship``.
+    """
+    assert _validates(SpecKind.ENTITY_MODEL, _UNGUARDED_COVERAGE)
+    assert _total({"entity_model": _UNGUARDED_COVERAGE}) == Stage.GUARDRAILS.value
+
+
+def test_widening_the_coverage_guardrail_turns_totality_red(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sabotage case (S-0002/D-2): the property, observed failing.
+
+    ``_check_coverage`` exists because the lookups behind it are total *only*
+    while it refuses (S-0033/D-91). Widen it to refuse nothing and the same
+    document still fails — but as an ``InvariantViolated`` carrying no
+    ``source_path``, which is a refusal an author cannot act on and is exactly
+    what :func:`_total` is there to catch.
+
+    So this asserts the assertion: without it, a ``_total`` that checked
+    nothing would look identical to one that holds.
+    """
+    monkeypatch.setattr(quality_guardrails, "_check_coverage", _widened_coverage_guardrail)
+
+    with pytest.raises(AssertionError, match="carries no source_path"):
+        _total({"entity_model": _UNGUARDED_COVERAGE})
+
+
+# ....................... #
+# Whole projects, from one drawn pool (S-0010/D-6).
+#
+# The phase above generates the one kind that references nothing outside
+# itself. A project is the other eight kinds together, and every one of them
+# points at the entity model: a mapping names its target entity, a mart names
+# its base, a metric names its grain. Generated independently those names miss
+# and the document dies at the first cross-reference, so the pipeline behind
+# resolve is never exercised at all — which is the failure D-6 names.
+#
+# So the pool is *drawn* rather than shared: `project_documents` generates the
+# entity model, harvests the names it declared, and every other document in
+# the same draw spells references out of that. The measurement below is
+# reported separately from the single-kind one above, because a set's reach is
+# not a document's reach — a project multiplies each document's chance of
+# being refused, so the set number is the lower of the two by construction and
+# folding them together would hide both.
+
+#: The eight kinds ``load_project`` dispatches on — every spec kind but the
+#: catalog, which is not part of a project (S-0019/D-8) and is loaded by its
+#: own function. Derived from the enum rather than listed, so a ninth project
+#: kind arrives in the generator with the kind rather than when someone
+#: remembers this line.
+_PROJECT_SCHEMAS = {
+    kind.value: schema
+    for kind, schema in all_spec_schemas().items()
+    if kind is not SpecKind.CATALOG
+}
+
+#: Top-level keys the export declares and the parser refuses outright, omitted
+#: from every generated document. Not a concession to the parser's grammar —
+#: the refusals the generator exists to reach are grammar refusals — but a
+#: key that can *never* parse spends the budget on a divergence already
+#: recorded by name. See
+#: :func:`test_the_schema_accepts_a_seeds_block_the_parser_refuses`.
+_REFUSED_OUTRIGHT = frozenset({"seeds"})
+
+_PROJECTS = project_documents(_PROJECT_SCHEMAS, omit=_REFUSED_OUTRIGHT)
+
+
+def _drawn(kind: str, names: tuple[str, ...]) -> st.SearchStrategy[dict[str, Any]]:
+    """One document of ``kind`` over the pool ``names``, shaped like a draw
+    from :data:`_PROJECTS` so the two are comparable."""
+    return from_spec_schema(_PROJECT_SCHEMAS[kind], names).map(
+        lambda document: {
+            key: value for key, value in document.items() if key not in _REFUSED_OUTRIGHT
+        }
+    )
+
+
+def _project_validates(documents: dict[str, dict[str, Any]]) -> bool:
+    """Whether every document in the draw validates against its own schema."""
+    return all(_validates(SpecKind(name), document) for name, document in documents.items())
+
+
+def test_the_generator_covers_every_kind_a_project_can_contain() -> None:
+    """The generated space is the whole of ``load_project``'s dispatch.
+
+    A kind missing from :data:`_PROJECT_SCHEMAS` would make every property
+    below pass over a smaller space while reading as though it covered
+    projects — the way a generator quietly stops covering something.
+    """
+    assert set(_PROJECT_SCHEMAS) == {kind.value for kind in SpecKind} - {SpecKind.CATALOG.value}
+    assert len(_PROJECT_SCHEMAS) == 8
+
+
+@given(documents=_PROJECTS)
+@_GENERATED
+def test_a_generated_project_compiles_or_refuses_somewhere_addressable(
+    documents: dict[str, dict[str, Any]],
+) -> None:
+    """Totality over generated *projects* — the same property as the
+    single-kind one above, over draws that carry cross-document references.
+
+    This is the phase that reaches the guardrails, so it is the one where an
+    unaddressable refusal is most likely: a lookup downstream of a
+    cross-document reference is total only while something refuses the
+    dangling case, and a generated project is how that gets tried.
+    """
+    assume(_project_validates(documents))
+    _total(documents)
+
+
+def _census(
+    documents: st.SearchStrategy[dict[str, dict[str, Any]]], examples: int
+) -> Counter[str]:
+    """How far a fixed sample of ``documents`` got, counted by outcome.
+
+    ``derandomize`` fixes the sample, so a count is a measurement: a change to
+    the strategy or to what bloomery refuses moves it, rather than moving the
+    flake rate.
+    """
+    reached: Counter[str] = Counter()
+
+    @given(documents=documents)
+    @settings(
+        max_examples=examples,
+        deadline=None,
+        derandomize=True,
+        database=None,
+        suppress_health_check=[HealthCheck.too_slow],
+    )
+    def sample(documents: dict[str, dict[str, Any]]) -> None:
+        if not _project_validates(documents):
+            reached["schema-invalid"] += 1
+            return
+        reached["schema-valid"] += 1
+        reached[f"kinds-{len(documents)}"] += 1
+        reached[_total(documents)] += 1
+
+    sample()
+    return reached
+
+
+def _past(reached: Counter[str], *stages: str) -> int:
+    """Draws that got past every stage in ``stages``, schema-valid ones only."""
+    return reached["schema-valid"] - sum(reached[stage] for stage in stages)
+
+
+def test_the_measured_reach_of_the_generated_projects() -> None:
+    """The set's reach fraction, reported separately from the single-kind one
+    (D-6), and D-3's tiebreak measured over the harder space.
+
+    Measured at the time of writing, over 300 drawn projects: 278 schema-valid,
+    100 past the parser, 80 past the resolver, 59 compiling end to end, 21
+    refused by a guardrail and 20 by the resolver; 141 of the draws carried
+    more than one document. Against the single-kind figures above — 150 valid
+    of 200, 77 past the parser, 14 at a guardrail — a project draw reaches the
+    parser about as often and the *resolver* far more often, which is the phase
+    doing what it is for: the resolver and the guardrails are where a
+    cross-document reference is finally read.
+
+    The floors are loose on purpose: the point is to catch a collapse — a
+    generator that stops producing parseable projects, which would leave the
+    property above passing on the parser alone — not to pin a figure that
+    moves whenever a refusal is added.
+    """
+    reached = _census(_PROJECTS, 300)
+    census = ", ".join(f"{name}={count}" for name, count in sorted(reached.items()))
+
+    assert reached["schema-valid"] >= 200, census
+    # Projects of more than one document: without these the measurement would
+    # be the single-kind one under another name.
+    assert sum(reached[f"kinds-{count}"] for count in range(2, 9)) >= 40, census
+    assert _past(reached, "parse") >= reached["schema-valid"] // 8, census
+    # Past the resolver is what the drawn pool buys, and the guardrail stage is
+    # what D-5 watches: a coverage-guided fuzzer that reached these branches
+    # materially faster than this does is the one signal that would reopen
+    # D-1's seam. Nothing measured here says whether one would.
+    assert _past(reached, "parse", "resolve") >= 20, census
+    assert reached[Stage.GUARDRAILS.value] >= 5, census
+    assert reached["compiled"] >= 10, census
+
+
+#: The generation D-6 rejects, kept as the comparison that makes the rejection
+#: a measurement: each document drawn from a pool of its own, which is what
+#: "generating each document independently and hoping its references resolve"
+#: is in code.
+_DISJOINT_PROJECTS = st.fixed_dictionaries(
+    {
+        "entity_model": _drawn("entity_model", ("a", "b", "c")),
+        "mapping": _drawn("mapping", ("x", "y", "z")),
+    }
+)
+
+#: The same pair through the drawn pool, so the two arms differ in the pool
+#: and nothing else.
+_POOLED_PAIRS = project_documents(
+    {kind: _PROJECT_SCHEMAS[kind] for kind in ("entity_model", "mapping")},
+    omit=_REFUSED_OUTRIGHT,
+)
+
+
+def test_independently_drawn_documents_never_get_past_the_resolver() -> None:
+    """The twin that makes the pool a mechanism rather than a story
+    (S-0002/D-2, S-0010/D-6).
+
+    Same generator, same kinds, same sample size — only the pool differs. Over
+    200 draws the independent arm got past ``resolve`` **zero** times (124
+    schema-valid, 58 refused at parse and 66 at resolve, those refusals
+    reading ``mapping targets unknown entity``); the pooled arm got past it 68
+    times and compiled 55. So this is the pool observed working, and it goes
+    red if the harvesting in ``project_documents`` stops happening.
+
+    A pool shared as a constant rather than drawn is not enough to hold this,
+    which is why the harvesting is there: measured over entity model + mapping
+    + marts, a constant three-name pool reached past ``resolve`` 4 times in 195
+    valid draws — better than the 0 in 222 of independent pools, and by
+    coincidence rather than by construction.
+    """
+    disjoint = _census(_DISJOINT_PROJECTS, 200)
+    pooled = _census(_POOLED_PAIRS, 200)
+
+    assert _past(disjoint, "parse", "resolve") == 0, (
+        ", ".join(f"{name}={count}" for name, count in sorted(disjoint.items()))
+    )
+    assert _past(pooled, "parse", "resolve") >= 10, (
+        ", ".join(f"{name}={count}" for name, count in sorted(pooled.items()))
+    )
+
+
+# ....................... #
+# Agreement over the generated space (S-0010/D-4) — the other half of what the
+# corpus strategy measures, over documents no author wrote.
+#
+# Same one direction: what the parser refuses, the schema should refuse too.
+# The converse stays unasserted here for the same reason it is unasserted above,
+# and for a sharper one: a *schema-valid* generated document the parser refuses
+# is precisely the named-divergence case D-4 describes, and generation is how
+# two of the notes at the bottom of this module were found (`seeds:`, an entity
+# name no author can spell). Those are recorded, not failed on.
+#
+# So the mutation is what has to cause the refusal, which is why the base
+# document must both validate and parse before it is mutated. Without that
+# filter the property would read a pre-existing divergence as a mutation the
+# schema missed, and go red on something already written down.
+
+
+def _mutated(document: dict[str, Any], mutation: str, seed: int) -> dict[str, Any] | None:
+    """``document`` under one mutation class, or ``None`` where it cannot apply.
+
+    The same three classes the corpus strategy uses — an invented key, a
+    mapping where a scalar belongs, a value outside a closed set — so the two
+    halves of the measurement differ in the documents and nothing else.
+    """
+    if mutation == "unknown-key":
+        key = f"not_a_key_{seed}"
+        return None if key in document else {**document, key: "x"}
+
+    paths = [path for path in _scalar_paths(document) if isinstance(_at(document, path), str)]
+    value: object = {"unexpected": "mapping"}
+    if mutation == "out-of-enum":
+        paths = [path for path in paths if str(path[-1]) in _CLOSED_KEYS]
+        value = "not_a_member_of_this_set"
+    if not paths:
+        return None
+    mutated = _replaced(document, paths[seed % len(paths)], value)
+    assert isinstance(mutated, dict)
+    return mutated
+
+
+_MUTATIONS = st.sampled_from(("unknown-key", "string-to-mapping", "out-of-enum"))
+_SEEDS = st.integers(min_value=0, max_value=2**16)
+
+#: The corpus properties above lean on ``filter_too_much`` to stop them passing
+#: by discarding everything. This phase cannot: three filters stack here — the
+#: base must validate, then parse, then the mutation must be one the class can
+#: apply and the parser refuses — so the health check fires on the ordinary
+#: case and would read as drift found. It is suppressed, and the guard it
+#: provided is replaced by the census below, which counts what each class
+#: actually got to assert and has floors under all three.
+_MUTATED = settings(
+    max_examples=60,
+    deadline=None,
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much],
+)
+
+
+@given(document=_ENTITY_MODELS, mutation=_MUTATIONS, seed=_SEEDS)
+@_MUTATED
+def test_a_mutated_generated_document_is_refused_by_both(
+    document: dict[str, Any], mutation: str, seed: int
+) -> None:
+    """The drift measurement over generated documents (S-0010/D-4).
+
+    A corpus mutation starts from one of forty shapes a person wrote; this
+    starts from anywhere in the space the export admits, which is where a
+    machine author writing against the schema actually lands. A class of
+    disagreement that only ever appears in a shape no fixture happens to have
+    is invisible to the corpus half and visible here.
+    """
+    assume(_validates(SpecKind.ENTITY_MODEL, document))
+    assume(_parses(SpecKind.ENTITY_MODEL, document))
+    mutated = _mutated(document, mutation, seed)
+    assume(mutated is not None)
+    assume(not _parses(SpecKind.ENTITY_MODEL, mutated))
+    assert not _validates(SpecKind.ENTITY_MODEL, mutated), (mutation, mutated)
+
+
+def test_the_measured_drift_over_mutated_generated_documents() -> None:
+    """Which classes the property above actually got to assert, as a number.
+
+    Every arm of that property is an ``assume``, so it would pass just as
+    quietly over a strategy that had stopped producing parseable documents, or
+    over draws where only the class the two validators are *guaranteed* to
+    agree on (an invented key against ``additionalProperties: false``) ever
+    applied. ``derandomize`` fixes the sample, so a collapse moves these counts
+    rather than the flake rate.
+
+    Measured over 300 draws at the time of writing: 119 bases both valid and
+    parseable, and of their mutations 79 refused by the parser as
+    ``unknown-key``, 23 as ``string-to-mapping`` and 9 as ``out-of-enum``,
+    with zero the schema then accepted. The floors are loose — the point is to
+    catch a class going silent, not to pin a figure that moves whenever the
+    generator or a refusal changes.
+    """
+    refused: Counter[str] = Counter()
+
+    @given(document=_ENTITY_MODELS, mutation=_MUTATIONS, seed=_SEEDS)
+    @settings(
+        max_examples=300,
+        deadline=None,
+        derandomize=True,
+        database=None,
+        suppress_health_check=[HealthCheck.too_slow],
+    )
+    def sample(document: dict[str, Any], mutation: str, seed: int) -> None:
+        if not (
+            _validates(SpecKind.ENTITY_MODEL, document)
+            and _parses(SpecKind.ENTITY_MODEL, document)
+        ):
+            return
+        refused["base"] += 1
+        mutated = _mutated(document, mutation, seed)
+        if mutated is None or _parses(SpecKind.ENTITY_MODEL, mutated):
+            return
+        refused[mutation] += 1
+        if _validates(SpecKind.ENTITY_MODEL, mutated):
+            refused[f"{mutation}-accepted-by-the-schema"] += 1
+
+    sample()
+    census = ", ".join(f"{name}={count}" for name, count in sorted(refused.items()))
+
+    assert refused["base"] >= 30, census
+    for mutation in ("unknown-key", "string-to-mapping", "out-of-enum"):
+        assert refused[mutation] >= 1, census
+        assert refused[f"{mutation}-accepted-by-the-schema"] == 0, census
 
 
 # ....................... #
@@ -486,3 +1050,48 @@ def test_an_invented_transform_is_refused_by_the_schema() -> None:
     }
     assert not _validates(SpecKind.MAPPING, document)
     assert _parses(SpecKind.MAPPING, document)
+
+
+def test_the_schema_accepts_a_seeds_block_the_parser_refuses() -> None:
+    """The divergence generated projects spend the most budget on (D4).
+
+    ``seeds:`` is refused permanently and by name (S-0062/D-7), yet the export
+    still declares the property — so the schema accepts a key that can never
+    parse, whatever its value. Left in the generated space it was the single
+    largest drain on reach: 35 of 107 parse refusals over a sample of
+    multi-document projects, all of them this one message.
+
+    The safe direction for a pre-filter is the looser one, so this is recorded
+    rather than fixed here — closing it is a change to the export
+    (S-0037/D-2's territory), and it would turn this red and take the note
+    with it. :data:`_REFUSED_OUTRIGHT` is why the generator does not write the
+    key.
+    """
+    document = {
+        "spec_version": 1,
+        "entities": {
+            "e": {"grain": "g", "key": ["k"], "fields": {"k": {"type": "string", "required": True}}}
+        },
+        "seeds": None,
+    }
+    assert _validates(SpecKind.ENTITY_MODEL, document)
+    assert not _parses(SpecKind.ENTITY_MODEL, document)
+
+
+def test_the_schema_accepts_an_entity_name_no_author_can_spell() -> None:
+    """The divergence generation found, named here rather than fixed (D4).
+
+    ``entities`` carries ``patternProperties`` for ``^[a-z][a-z0-9_]*$`` and no
+    ``additionalProperties: false``, which in JSON Schema means the pattern
+    constrains *matching* keys and says nothing at all about the rest. So an
+    entity named ``""`` — or ``"Orders"``, or anything else — validates, and
+    its value is unconstrained too: ``null`` passes.
+
+    Closing it would be a change to the *export* (S-0037/D-2's territory), not
+    to this module. Recorded, so that closing it turns the suite red and forces
+    the note out rather than leaving it to be rediscovered.
+    """
+    for name in ("", "Orders"):
+        document = {"spec_version": 1, "entities": {name: None}}
+        assert _validates(SpecKind.ENTITY_MODEL, document), name
+        assert not _parses(SpecKind.ENTITY_MODEL, document), name
