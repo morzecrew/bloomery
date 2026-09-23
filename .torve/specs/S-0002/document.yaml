@@ -37,7 +37,14 @@ motivation: |
   what the inputs are** once one project reads another. That is the whole design, and the
   reason a dictionary lookup is not the answer.
 current_state: |
-  Measured against the working tree on 2026-09-18.
+  Measured against `main` at c11040d0 (#172, 2026-09-23). Every phase has landed;
+  `implementation` stays `partial` because D-10 — the producer's dbt project name on
+  the exports document — is an author's row with no phase behind it yet: the dbt
+  target's two-argument `ref()` and `dependencies.yml` still name the local alias, and
+  resolve only where the upstream's dbt project happens to be named so. D-9's guards
+  are landed.
+
+  Before that, as measured on 2026-09-18:
 
   - **The upstream half exists.** `src/bloomery/spec/exports.py` carries `Exports` and
     `ExportSet`; `src/bloomery/guardrails/exports.py` refuses a name the project does not
