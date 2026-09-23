@@ -34,6 +34,13 @@ No registry, no packaging, no network: how the upstream artifact reaches the com
 - Consequence: The upstream is a value the caller assembles, exactly as a step registry is, so composition adds no I/O to a compile that performs none; the cost is that a surface with no value to pass — the CLI today — cannot compile an importing project at all
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0002/D-10 — `ASSUMED` (Multi-project composition) — implementation: partial
+
+An upstream's dbt project name is part of what it exports: `exports.yaml` carries an optional `name`, `ExportsIR` carries it across, and the downstream's dbt target spells the two-argument `ref()` and the `dependencies.yml` entry with that name while the downstream's own `dbt_project.yml` is named after its own export name when it has one. The local alias stays what keys the compile input and the IR resolution (D-2); dbt is the one target whose cross-project reference needs the producer's own name, so the name lives on the producer's side of the boundary and nowhere else.
+
+- Paths: `src/bloomery/spec/exports.py` `src/bloomery/ir/nodes.py` `src/bloomery/emit/dbt/__init__.py` `tests/unit/test_emit/test_cross_project.py`
+- Consequence: A downstream compiled against an upstream that exports no name keeps emitting `ref('<alias>', ...)` and a `dependencies.yml` naming the alias — resolvable only when the upstream's dbt project happens to be named so — and the refusal for that case is a documented gap until the row is graded. An exported SCD2 entity is a snapshot on dbt, which no project can reference across the boundary; the export is legal and the dbt target has nothing public to give for it.
+
 ### S-0004/D-2 — `LOCKED` (Observability: logging and a warnings channel)
 
 A log record never carries nondeterminism of bloomery's making — no timestamp, id or counter the compiler invented — and is built only from values the pipeline already holds: stage names, counts, fingerprints and source paths

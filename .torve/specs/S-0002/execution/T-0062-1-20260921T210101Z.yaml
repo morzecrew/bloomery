@@ -1,0 +1,229 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0062
+base: f5acd540acc601d8a1ebaf97d9275d706079b1d2
+commit: e601605d4c7ac78f54c7bb9a310fb0ab18f7ecf4
+at: '2026-09-21T21:01:01Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0025/D-3
+    grade: ASSUMED
+  - id: S-0027/D-4
+    grade: ASSUMED
+  - id: S-0034/D-52
+    grade: ASSUMED
+  - id: S-0050/D-4
+    grade: ASSUMED
+  - id: S-0062/D-1
+    grade: LOCKED
+  - id: S-0062/D-3
+    grade: LOCKED
+  - id: S-0062/D-4
+    grade: LOCKED
+  - id: S-0062/D-5
+    grade: LOCKED
+  - id: S-0062/D-12
+    grade: ASSUMED
+  - id: S-0065/D-1
+    grade: LOCKED
+  - id: S-0065/D-2
+    grade: LOCKED
+  - id: S-0065/D-7
+    grade: LOCKED
+  - id: S-0065/D-8
+    grade: LOCKED
+  - id: S-0065/D-14
+    grade: LOCKED
+  - id: S-0077/D-1
+    grade: LOCKED
+  - id: S-0077/D-13
+    grade: LOCKED
+  - id: S-0077/D-14
+    grade: LOCKED
+  - id: S-0077/D-16
+    grade: LOCKED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-21T20:48:44Z'
+    claim: >-
+      claim 1 (the unhandled KeyError on an imported mart whose measures name metrics
+      that did not cross) does not hold: the tree already refuses that shape with
+      an EmitError naming the mart, the measure and both lists that fix it, on the
+      shared lookup both Cube and MetricFlow read measures through
+    evidence: >-
+      src/bloomery/emit/lower/marts.py:258-282 — measure_metrics() raises EmitError
+      for a measure with no metric behind it; cube reads it at src/bloomery/emit/cube/__init__.py:320
+      and metricflow at src/bloomery/emit/metricflow/__init__.py:826, so neither reaches
+      a raw dict lookup; tests/unit/test_emit/test_cross_project.py:224 locks it for
+      both targets
+    action: decided
+    proposal: >-
+      no row needed; the claim describes a state of the tree that a prior attempt
+      already closed
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-21T20:48:44Z'
+    claim: >-
+      the scope names src/bloomery/emit/cube/__init__.py without tests/unit/test_emit/test_cross_project.py,
+      where the cross-boundary Cube cases live, so the grants fix lands with no test
+      of its own
+    evidence: >-
+      tests/unit/test_emit/test_cross_project.py:173 — the Cube cross-boundary case,
+      outside this contract's allow list (.torve/tasks/T-0062/contract.yaml:60-63
+      names only the emitter and the task directory); the fix was verified by hand
+      instead, and tests/unit/test_ownership.py:706 still covers the single-project
+      refusal
+    action: decided
+    proposal: >-
+      a scope naming this emitter should name tests/unit/test_emit/test_cross_project.py
+      and tests/unit/test_ownership.py, so a boundary refusal change ships with the
+      case that pins it
+  - decision: S-0062/D-5
+    grade: LOCKED
+    at: '2026-09-21T20:49:03Z'
+    claim: >-
+      grants stay refused for Cube; the refusal is narrowed to this project's own
+      nodes, because an upstream's grant is applied by the upstream's own SQLMesh
+      or dbt compile while those two targets emit no model for an imported relation,
+      so the fix the message names was unreachable for a downstream author
+    evidence: >-
+      src/bloomery/emit/cube/__init__.py:666 — _refuse_grants(ir) now runs before
+      the composition on line 671; no local declaration escapes it, and tests/unit/test_ownership.py:706
+      still passes for entity and mart
+    action: decided
+  - decision: S-0062/D-1
+    grade: LOCKED
+    at: '2026-09-21T20:49:03Z'
+    claim: >-
+      no SELECT changes: this diff moves two refusal calls and renames a local binding,
+      and touches no measure or dimension SQL
+    evidence: >-
+      src/bloomery/emit/cube/__init__.py:666-683 — the whole diff; the suite printed
+      5456 passed, 19 skipped with every Cube golden included
+    action: decided
+  - decision: S-0062/D-3
+    grade: LOCKED
+    at: '2026-09-21T20:49:03Z'
+    claim: >-
+      the classification vocabulary is untouched: _UNSERVED and the dimension routing
+      are not in this diff
+    evidence: >-
+      src/bloomery/emit/cube/__init__.py:666-683 — the diff is confined to CubeEmitter.emit
+    action: decided
+  - decision: S-0062/D-4
+    grade: LOCKED
+    at: '2026-09-21T20:49:03Z'
+    claim: the superseded pii/secret refusal is untouched
+    evidence: >-
+      src/bloomery/emit/cube/__init__.py:666-683 — the diff is confined to CubeEmitter.emit
+    action: decided
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-09-21T20:49:03Z'
+    claim: >-
+      no driver, SDK or session enters the package: the diff adds no import
+    evidence: >-
+      src/bloomery/emit/cube/__init__.py:666-683 — no import statement in the diff;
+      lint-imports printed 6 kept, 0 broken
+    action: decided
+  - decision: S-0065/D-1
+    grade: LOCKED
+    at: '2026-09-21T20:49:03Z'
+    claim: >-
+      rollups and pre_aggregations stay one feature; nothing here builds a second
+    evidence: >-
+      src/bloomery/emit/cube/__init__.py:666-683 — _pre_aggregations is untouched
+      and still the only rollup surface
+    action: decided
+  - decision: S-0065/D-2
+    grade: LOCKED
+    at: '2026-09-21T20:49:03Z'
+    claim: >-
+      no rollup safety question is decided here; the diff moves refusal calls only
+    evidence: >-
+      src/bloomery/emit/cube/__init__.py:666-683 — the diff is confined to CubeEmitter.emit
+    action: decided
+  - decision: S-0065/D-7
+    grade: LOCKED
+    at: '2026-09-21T20:49:03Z'
+    claim: >-
+      no cube-to-cube joins are introduced; the view still names one join_path, its
+      own cube
+    evidence: >-
+      src/bloomery/emit/cube/__init__.py:546-560 — _view_artifact is untouched
+    action: decided
+  - decision: S-0065/D-8
+    grade: LOCKED
+    at: '2026-09-21T20:49:03Z'
+    claim: >-
+      no plan transformation merges aggregate branches here; this emitter runs no
+      optimization pass
+    evidence: >-
+      src/bloomery/emit/cube/__init__.py:666-683 — the diff is confined to CubeEmitter.emit
+    action: decided
+  - decision: S-0065/D-14
+    grade: LOCKED
+    at: '2026-09-21T20:49:03Z'
+    claim: >-
+      a rollup is still never a cube and never a measure owner: the emit loop walks
+      marts alone, and the composition adds no rollup because with_imported composes
+      entities, marts and metrics only
+    evidence: >-
+      src/bloomery/ir/nodes.py:1610-1630 — with_imported replaces entities, marts
+      and metrics and leaves rollups as the draft's own; src/bloomery/emit/cube/__init__.py:682
+      walks composed.marts
+    action: decided
+  - decision: S-0077/D-1
+    grade: LOCKED
+    at: '2026-09-21T20:49:03Z'
+    claim: >-
+      no ratio reading is chosen here; the positivity rule lives in the semantic layer
+      and is not in this diff
+    evidence: >-
+      src/bloomery/emit/cube/__init__.py:666-683 — the diff is confined to CubeEmitter.emit
+    action: decided
+  - decision: S-0077/D-13
+    grade: LOCKED
+    at: '2026-09-21T20:49:03Z'
+    claim: >-
+      repair still discharges nothing: no quality handling is touched
+    evidence: >-
+      src/bloomery/emit/cube/__init__.py:666-683 — the diff is confined to CubeEmitter.emit
+    action: decided
+  - decision: S-0077/D-14
+    grade: LOCKED
+    at: '2026-09-21T20:49:03Z'
+    claim: the superseded count discharge is untouched
+    evidence: >-
+      src/bloomery/emit/cube/__init__.py:666-683 — the diff is confined to CubeEmitter.emit
+    action: decided
+  - decision: S-0077/D-16
+    grade: LOCKED
+    at: '2026-09-21T20:49:03Z'
+    claim: >-
+      the count and count_distinct discharges are untouched
+    evidence: >-
+      src/bloomery/emit/cube/__init__.py:666-683 — the diff is confined to CubeEmitter.emit
+    action: decided

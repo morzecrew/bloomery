@@ -11,7 +11,8 @@ from bloomery.errors import (
     MissingReference,
     ResolutionError,
     TypeCheckError,
-)
+    MetricFilterInvalid,
+    SecretPublished,)
 from bloomery.ir import (
     ExportsIR,
     ExposureKind,
@@ -1569,3 +1570,193 @@ def test_no_exports_document_lowers_to_none() -> None:
     """
 
     assert build_project_ir(load_project(fixture_sources("minimal"))).exports is None
+
+
+# ....................... #
+# Imports — S-0002 (§5.2), S-0002/D-2, S-0002/D-5
+
+
+#: The downstream: one local entity of its own, and a mart built on an entity
+#: it does not declare. Inline rather than a fixture directory, because a
+#: project carrying an imports document cannot be compiled without an upstream
+#: passed alongside it and must stay invisible to the corpus sweeps.
+IMPORTING = {
+    "imports": """
+imports_version: 1
+imports:
+  platform:
+    entities: [order_item]
+    metrics: [gross_revenue]
+""",
+    "entity_model": """
+spec_version: 1
+entities:
+  review:
+    grain: one row per review
+    key: [review_id]
+    fields:
+      review_id: {type: string, required: true}
+""",
+    "mapping": """
+mapping_version: 1
+source: raw__reviews
+target: review
+key:
+  review_id: {from: "$.id", transform: [to_string]}
+fields: {}
+""",
+    "marts": """
+marts_version: 1
+marts:
+  revenue_by_item:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {date: order_date, role: ordered}
+    measures: [gross_revenue]
+""",
+}
+
+
+def _upstream_ir():
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    return build_project_ir(load_project(fixture_sources("ecom_basic")), catalog=catalog)
+
+
+def _importing():
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    return build_project_ir(
+        load_project(dict(IMPORTING)), catalog=catalog, upstream={"platform": _upstream_ir()}
+    )
+
+
+def test_a_mart_may_be_built_on_an_imported_entity() -> None:
+    """The phase's whole point: `order_item` is declared in another project,
+    and before this the reference was refused as though it should have been
+    local. The flattened columns are the upstream entity's, which is what
+    makes this a resolution rather than a name that parsed."""
+
+    (mart,) = _importing().marts
+
+    assert mart.name == "revenue_by_item"
+    assert {"unit_price", "quantity", "order_date"} <= {column.name for column in mart.columns}
+
+
+def test_an_imported_node_stays_off_the_local_collections() -> None:
+    """`ProjectIR.entities` is what this project emits, and an imported entity
+    is a relation the upstream already built (S-0002/D-5). Merged in, the
+    downstream would re-emit the upstream's models — silver, gold and quality
+    surface — under its own names.
+    """
+
+    ir = _importing()
+
+    assert [entity.name for entity in ir.entities] == ["review"]
+    assert [mart.name for mart in ir.marts] == ["revenue_by_item"]
+    assert ir.metrics == ()
+
+
+def test_the_upstream_identity_reaches_the_ir() -> None:
+    """The alias, the upstream's fingerprint and the nodes that actually
+    crossed. The next phase composes the downstream fingerprint from this, so
+    the identity has to be on the IR rather than recomputed from an input the
+    artifact does not carry (S-0002/D-3).
+    """
+
+    (upstream,) = _importing().upstream
+
+    assert upstream.alias == "platform"
+    assert upstream.fingerprint == project_fingerprint(_upstream_ir())
+    assert [entity.name for entity in upstream.entities] == ["order_item"]
+    assert [metric.name for metric in upstream.metrics] == ["gross_revenue"]
+    # Bound to what this project imports, not to everything exported: the
+    # upstream also exports `order` and `order_count`.
+    assert upstream.marts == ()
+
+
+def test_an_imported_entity_arrives_without_its_quality_surface() -> None:
+    """A reject table is the upstream's, and its audits run where the relation
+    is built (S-0002/D-5). `order_item` carries a `not_null` audit upstream,
+    so this is a stripping that has something to strip.
+    """
+
+    (order_item,) = (entity for entity in _upstream_ir().entities if entity.name == "order_item")
+    (imported,) = _importing().upstream[0].entities
+
+    assert order_item.audits  # the upstream's own, still there
+    assert imported.audits == ()
+    assert imported.quality == ()
+    assert imported.dedupe is None
+    assert imported.quarantine is None
+
+
+# ....................... #
+# S-0002/D-9: a local declaration that names an imported node is judged with it
+
+
+def test_a_local_mart_publishing_an_imported_secret_column_is_refused() -> None:
+    """The mart was authored here; only its base entity crossed. Read from the
+    draft alone the classification guard never saw the imported column's
+    `secret`, so a downstream could publish what the upstream withheld
+    (PR #172 review; S-0002/D-9)."""
+    upstream_sources = dict(fixture_sources("ecom_basic"))
+    upstream_sources["entity_model"] = upstream_sources["entity_model"].replace(
+        "classification: pii", "classification: secret", 1
+    )
+    # The upstream keeps the secret to itself: its own mart stops flattening
+    # the order's columns, so it compiles and the column crosses unpublished.
+    upstream_sources["marts"] = upstream_sources["marts"].replace(
+        "      - {via: item_of_order, prefix: order_}\n", "", 1
+    )
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    upstream = build_project_ir(load_project(upstream_sources), catalog=catalog)
+    documents = {
+        **IMPORTING,
+        "imports": "imports_version: 1\nimports:\n  platform:\n    entities: [order]\n",
+        "marts": (
+            "marts_version: 1\nmarts:\n  customers_seen:\n    grain: order\n    base: order\n"
+            "    measures: []\n"
+        ),
+    }
+
+    with pytest.raises(GuardrailError) as caught:
+        build_project_ir(load_project(documents), catalog=catalog, upstream={"platform": upstream})
+
+    assert any(isinstance(leaf, SecretPublished) for leaf in caught.value.collected), (
+        caught.value.collected
+    )
+
+
+def test_a_filter_on_an_imported_metric_is_checked_against_the_local_mart() -> None:
+    """`check_metrics` reads the marts that list a metric; an imported metric
+    listed by a local mart was invisible to it (PR #172 review; S-0002/D-9)."""
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    upstream_sources = dict(fixture_sources("ecom_basic"))
+    upstream_sources["metrics"] = upstream_sources["metrics"] + (
+        "  emea_revenue:\n    grain: order_item\n    additivity: additive\n    agg: sum\n"
+        '    expr: "unit_price * quantity"\n'
+        "    filter: [{dimension: region, op: eq, values: [emea]}]\n"
+    )
+    upstream_sources["exports"] = (
+        "exports_version: 1\nexports:\n  entities: [order_item]\n  metrics: [emea_revenue]\n"
+    )
+    upstream = build_project_ir(load_project(upstream_sources), catalog=catalog)
+    documents = {
+        **IMPORTING,
+        "imports": (
+            "imports_version: 1\nimports:\n  platform:\n    entities: [order_item]\n"
+            "    metrics: [emea_revenue]\n"
+        ),
+        "marts": (
+            "marts_version: 1\nmarts:\n  revenue_by_item:\n    grain: order_item\n"
+            "    base: order_item\n    flatten:\n      - {date: order_date, role: ordered}\n"
+            "    measures: [emea_revenue]\n"
+        ),
+    }
+
+    with pytest.raises(GuardrailError) as caught:
+        build_project_ir(load_project(documents), catalog=catalog, upstream={"platform": upstream})
+
+    assert any(isinstance(leaf, MetricFilterInvalid) for leaf in caught.value.collected), (
+        caught.value.collected
+    )

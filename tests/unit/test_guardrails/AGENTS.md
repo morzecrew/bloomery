@@ -17,6 +17,13 @@ Lineage node ids gain a project component for imported nodes only; a local node 
 - Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/lineage.py` `src/bloomery/guardrails/lineage.py` `tests/unit/test_resolve/test_lineage.py` `tests/unit/test_guardrails/test_lineage.py`
 - Consequence: Every existing id and every published citation stays valid — a node name is public surface and `bloomery lineage --node metric.gross_revenue` is a documented invocation — while two projects' graphs can be composed without collision
 
+### S-0002/D-9 — `ASSUMED` (Multi-project composition) — implementation: partial
+
+A guard that judges a local declaration reads the composed view — this project's nodes plus the ones it imported — whenever that declaration can name an imported node, with local marts and rollups as the only publication targets: `check_metrics` over a local mart listing an imported metric, `check_classification` over a local published mart that flattens an imported entity's columns and grants, and the exposure guard over an exposure naming an imported mart or metric. Reading the draft alone there is not "judged where it was authored" — the mart, the publication and the exposure were authored here, and only their inputs crossed.
+
+- Paths: `src/bloomery/guardrails/stage.py` `src/bloomery/guardrails/metrics.py` `src/bloomery/guardrails/classification.py` `src/bloomery/guardrails/exposures.py` `tests/unit/test_guardrails/**`
+- Consequence: A `secret` column an imported entity carries cannot reach a local published mart unrefused, a filter on a missing dimension of an imported metric is refused at the guardrail rather than at `mart_column_type` in both emitters, and an exposure may name what the project imported. Imported nodes are still not re-judged on their own account; what widens is the input the local judgement reads.
+
 ### S-0019/D-10 — `ASSUMED` (Spec layer and error model)
 
 (Amended for `_bloomery-metricflow-pivot.md`) `metric_time` is a reserved dimension/field name, rejected at spec validation with a clear message (S-0030 R4). The `Metric` model reserves optional `cumulative:` (window / grain_to_date) and derived-expression forms lowered per S-0030's mapping table; both are additive spec surface, parse-validated only.

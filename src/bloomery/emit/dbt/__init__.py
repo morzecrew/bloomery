@@ -183,6 +183,7 @@ from bloomery.ir import (
     StepKind,
     StepOutputIR,
 )
+from bloomery.ir.nodes import with_imported
 from bloomery.quality import RunContext, is_quality_mart
 from bloomery.typing import IntType
 
@@ -1196,6 +1197,27 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
         if rollup.grants is not None
     )
 
+    # An exported model is `access: public` (S-0002/D-1): a two-argument
+    # `ref()` from another dbt project resolves only against a public model,
+    # and dbt's default is `protected`. Merged into the entry a model already
+    # has, or an entry of its own — the exported surface is what the boundary
+    # publishes, not what happened to carry audits. A snapshot takes no
+    # `access`, so an exported SCD2 entity's snapshot is left as it is; dbt
+    # cannot reference one across projects either way (PR #172 review).
+    if ir.exports is not None:
+        public: set[str] = set()
+        for entity in ir.entities:
+            if entity.name in ir.exports.entities and entity.scd is not SCDKind.TYPE2:
+                public.add(ctx.naming.relation(entity.name, Layer.SILVER)[1])
+        for mart in ir.marts:
+            if mart.name in ir.exports.marts:
+                public.add(ctx.naming.relation(mart.name, Layer.GOLD)[1])
+        for entry in models:
+            if isinstance(entry, dict) and entry.get("name") in public:
+                entry["access"] = "public"
+                public.discard(entry["name"])
+        models.extend({"name": name, "access": "public"} for name in sorted(public))
+
     if not models and not snapshots:
         return None
 
@@ -1365,13 +1387,24 @@ def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | No
         return None
 
     serving: dict[str, list[str]] = {}
+    # A mart's relation as `depends_on` spells it: the local `ref()`, or the
+    # two-argument one for a mart another project built (S-0002/D-2, D-9).
+    references: dict[str, str] = {}
 
     for mart in ir.marts:
         _namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+        references[mart.name] = f"ref('{relation}')"
         for measure in mart.measures:
-            serving.setdefault(measure, []).append(relation)
+            serving.setdefault(measure, []).append(references[mart.name])
 
-    declared = {mart.name for mart in ir.marts}
+    for up in ir.upstream:  # sorted by alias on ProjectIR
+        for mart in up.marts:
+            _namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+            references[mart.name] = f"ref('{up.alias}', '{relation}')"
+            for measure in mart.measures:
+                serving.setdefault(measure, []).append(references[mart.name])
+
+    declared = set(references)
     documents: list[dict[str, object]] = []
 
     for exposure in ir.exposures:  # sorted by name on ProjectIR
@@ -1381,14 +1414,13 @@ def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | No
         # refusal stopped working, and dropping it silently would emit an
         # exposure short one `ref()` with nothing to say so.
         relations = {
-            ctx.naming.relation(
+            references[
                 guaranteed(
                     (name for name in declared if name == mart),
                     expected=f"mart {mart!r}, named by exposure {exposure.name!r}",
                     by="the dangling-exposure guardrail (S-0063/D-2)",
-                ),
-                Layer.GOLD,
-            )[1]
+                )
+            ]
             for mart in exposure.marts
         }
         # A metric, unlike a mart, may legitimately be served by no mart at
@@ -1410,7 +1442,7 @@ def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | No
         if exposure.metrics:
             document["meta"] = {"bloomery_metrics": list(exposure.metrics)}
 
-        document["depends_on"] = [f"ref('{relation}')" for relation in sorted(relations)]
+        document["depends_on"] = sorted(relations)
         documents.append(document)
 
     return EmittedArtifact.create(
@@ -1418,6 +1450,23 @@ def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | No
         content=_header(ctx) + _yaml({"version": 2, "exposures": documents}),
         kind=ArtifactKind.CONFIG,
     )
+
+
+# ....................... #
+
+
+def _entity_model(entity: EntityIR, relation: str) -> str:
+    """The model an entity's rows are in.
+
+    An SCD2 entity's rows live in the snapshot, which is the only thing dbt
+    builds for it — so a reference to the *entity* has to resolve there.
+    Referencing ``relation`` would name a model this target never emits, and
+    dbt would refuse the project. One answer for both a local entity and an
+    imported one: an upstream compiled on this target built the same snapshot,
+    and a second rule here is how the two spellings come to disagree.
+    """
+
+    return f"{entity.name}_snapshot" if entity.scd is SCDKind.TYPE2 else relation
 
 
 # ....................... #
@@ -1451,12 +1500,7 @@ def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[tuple[str, str], str
 
     for entity in ir.entities:
         namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
-        # An SCD2 entity's rows live in the snapshot, which is the only thing
-        # dbt builds for it — so a downstream reference to the *entity* has to
-        # resolve there. Referencing `relation` would name a model this target
-        # never emits, and dbt would refuse the project.
-        model = f"{entity.name}_snapshot" if entity.scd is SCDKind.TYPE2 else relation
-        add(namespace, relation, f"{{{{ ref('{model}') }}}}")
+        add(namespace, relation, f"{{{{ ref('{_entity_model(entity, relation)}') }}}}")
 
     for step in ir.steps:
         if step.kind is not StepKind.SQL_MODEL:
@@ -1493,7 +1537,46 @@ def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[tuple[str, str], str
         namespace, _relation = ctx.naming.relation(ir.date_dimension.name, Layer.GOLD)
         add(namespace, ir.date_dimension.name, f"{{{{ ref('{ir.date_dimension.name}') }}}}")
 
+    # An imported node's relation is the upstream's, named under the policy
+    # both projects share (S-0002/D-7), and dbt's way of naming a relation
+    # another project builds is the two-argument `ref()` (S-0002/D-2) — a
+    # project component on the call rather than a second kind of reference.
+    # `_dependencies_artifact` declares the projects these name; without it
+    # dbt cannot resolve one. A local name colliding with an imported one is
+    # refused at compile, so no entry here overwrites one above.
+    for up in ir.upstream:  # sorted by alias on ProjectIR
+        for entity in up.entities:
+            namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
+            model = _entity_model(entity, relation)
+            add(namespace, relation, f"{{{{ ref('{up.alias}', '{model}') }}}}")
+        for mart in up.marts:
+            namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+            add(namespace, relation, f"{{{{ ref('{up.alias}', '{relation}') }}}}")
+
     return references
+
+
+# ....................... #
+
+
+def _dependencies_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
+    """``dependencies.yml`` — the projects a cross-project ``ref()`` names
+    (S-0002/D-2), or ``None`` where this project imports nothing.
+
+    The alias is the project name, because a bloomery project carries no
+    identity of its own: what the downstream calls the upstream is the only
+    name either side has to agree on, and dbt's own name for the upstream
+    project has to be made to match it.
+    """
+
+    if not ir.upstream:
+        return None
+
+    return EmittedArtifact.create(
+        path="dependencies.yml",
+        content=_header(ctx) + _yaml({"projects": [{"name": up.alias} for up in ir.upstream]}),
+        kind=ArtifactKind.CONFIG,
+    )
 
 
 # ....................... #
@@ -1670,6 +1753,12 @@ class DbtEmitter:
         content ending in exactly one newline (S-0020/determinism-rules-package-wide rule 5)."""
         refuse_python_models(ir, "dbt")
         references = _reference_map(ir, ctx)
+        # The lookup view (S-0002/D-2): a mart base is the only construct that
+        # can name an imported node — a rollup's parent must be a mart this
+        # document declares (S-0065/D-10), so a rollup over an imported mart is
+        # refused before emit sees it. What is built stays `ir`'s own — an
+        # imported relation is the upstream's to build.
+        composed = with_imported(ir)
         artifacts: list[EmittedArtifact] = list(_step_artifacts(ir, ctx, references))
         artifacts.extend(_step_test_artifacts(ir, ctx, references))
 
@@ -1703,8 +1792,10 @@ class DbtEmitter:
         for check in ir.reconcile:
             artifacts.extend(_reconcile_artifacts(check, ir, ctx, references))
 
-        artifacts.extend(_mart_artifact(mart, ir, ctx, references) for mart in ir.marts)
-        artifacts.extend(_rollup_artifact(rollup, ir, ctx, references) for rollup in ir.rollups)
+        artifacts.extend(_mart_artifact(mart, composed, ctx, references) for mart in ir.marts)
+        artifacts.extend(
+            _rollup_artifact(rollup, composed, ctx, references) for rollup in ir.rollups
+        )
 
         for mart in ir.marts:
             artifacts.extend(_mart_test_artifacts(mart, ctx, references))
@@ -1716,7 +1807,12 @@ class DbtEmitter:
 
         schema = _schema_artifact(ir, ctx)
 
-        for optional in (schema, _sources_artifact(ir, ctx), _exposures_artifact(ir, ctx)):
+        for optional in (
+            schema,
+            _sources_artifact(ir, ctx),
+            _exposures_artifact(ir, ctx),
+            _dependencies_artifact(ir, ctx),
+        ):
             if optional is not None:
                 artifacts.append(optional)
 

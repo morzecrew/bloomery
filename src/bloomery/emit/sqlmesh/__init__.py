@@ -107,6 +107,7 @@ from bloomery.ir import (
     RollupIR,
     SCDKind,
 )
+from bloomery.ir.nodes import with_imported
 from bloomery.quality import RunContext, is_quality_mart
 from bloomery.typing import DateType, LogicalType, TimestampType
 
@@ -1158,8 +1159,14 @@ class SQLMeshEmitter:
             artifacts.extend(_reconcile_artifacts(check, ir, ctx))
 
         artifacts.extend(_coverage_artifacts(ir, ctx))
-        artifacts.extend(_mart_artifact(mart, ir, ctx) for mart in ir.marts)
-        artifacts.extend(_rollup_artifact(rollup, ir, ctx) for rollup in ir.rollups)
+        # The lookup view (S-0002/D-2): a mart may name an imported entity as
+        # its base, or a rollup an imported mart as its parent. What is built
+        # stays `ir`'s own, and an imported relation is named directly — this
+        # target has no cross-project reference, which is what makes the shared
+        # naming policy a constraint rather than a preference (S-0002/D-7).
+        composed = with_imported(ir)
+        artifacts.extend(_mart_artifact(mart, composed, ctx) for mart in ir.marts)
+        artifacts.extend(_rollup_artifact(rollup, composed, ctx) for rollup in ir.rollups)
 
         for mart in ir.marts:
             artifacts.extend(_mart_assert_artifacts(mart, ctx))

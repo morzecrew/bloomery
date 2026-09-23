@@ -143,6 +143,61 @@ decisions:
       Carried from row D8 of the source design record. "How do I get the upstream
       artifact" is a real question with a tempting answer, and the non-goal is what
       keeps this design from growing into a different project
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      A guard that judges a local declaration reads the composed view — this project's
+      nodes plus the ones it imported — whenever that declaration can name an imported
+      node, with local marts and rollups as the only publication targets: `check_metrics`
+      over a local mart listing an imported metric, `check_classification` over a local
+      published mart that flattens an imported entity's columns and grants, and the
+      exposure guard over an exposure naming an imported mart or metric. Reading the
+      draft alone there is not "judged where it was authored" — the mart, the
+      publication and the exposure were authored here, and only their inputs crossed.
+    paths:
+      - src/bloomery/guardrails/stage.py
+      - src/bloomery/guardrails/metrics.py
+      - src/bloomery/guardrails/classification.py
+      - src/bloomery/guardrails/exposures.py
+      - tests/unit/test_guardrails/**
+    consequence: >-
+      A `secret` column an imported entity carries cannot reach a local published mart
+      unrefused, a filter on a missing dimension of an imported metric is refused at the
+      guardrail rather than at `mart_column_type` in both emitters, and an exposure may
+      name what the project imported. Imported nodes are still not re-judged on their
+      own account; what widens is the input the local judgement reads.
+    rationale: >-
+      Raised on #172 by the reviewer against the tree phase 3 built, where every guard
+      but three read the draft on the reasoning that an imported node was judged upstream.
+      That holds for the node and not for the local declaration that reads it.
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      An upstream's dbt project name is part of what it exports: `exports.yaml` carries an
+      optional `name`, `ExportsIR` carries it across, and the downstream's dbt target spells
+      the two-argument `ref()` and the `dependencies.yml` entry with that name while the
+      downstream's own `dbt_project.yml` is named after its own export name when it has
+      one. The local alias stays what keys the compile input and the IR resolution
+      (D-2); dbt is the one target whose cross-project reference needs the producer's own
+      name, so the name lives on the producer's side of the boundary and nowhere else.
+    paths:
+      - src/bloomery/spec/exports.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/emit/dbt/__init__.py
+      - tests/unit/test_emit/test_cross_project.py
+    consequence: >-
+      A downstream compiled against an upstream that exports no name keeps emitting
+      `ref('<alias>', ...)` and a `dependencies.yml` naming the alias — resolvable only when
+      the upstream's dbt project happens to be named so — and the refusal for that case is
+      a documented gap until the row is graded. An exported SCD2 entity is a snapshot on
+      dbt, which no project can reference across the boundary; the export is legal and the
+      dbt target has nothing public to give for it.
+    rationale: >-
+      Raised on #172 by the reviewer: `_project_artifact` names every project `bloomery`
+      while `dependencies.yml` and the two-argument `ref()` name the alias, so dbt cannot
+      resolve the dependency the emitted files declare. A name is identity, which D-2 says a
+      bloomery project does not have — and a dbt project does.
+
 invariants:
   - id: I-1
     statement: >-

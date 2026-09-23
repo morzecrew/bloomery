@@ -16,7 +16,14 @@ import pytest
 from bloomery import build_project_ir, load_project
 from bloomery.errors import GuardrailError, ReservedEntityName
 from bloomery.guardrails.lineage import _MINTS
-from bloomery.ir import NODE_ID_PREFIXES
+from bloomery.ir import (
+    NODE_ID_PREFIXES,
+    Additivity,
+    ExportsIR,
+    MetricIR,
+    ProjectIR,
+    SqlExpr,
+)
 from bloomery.resolve import graph
 from bloomery.steps import StepManifest, StepRegistry
 
@@ -180,6 +187,82 @@ def test_a_step_output_s_refusal_points_at_the_wiring_that_named_it() -> None:
 
 def test_a_step_output_bound_elsewhere_compiles() -> None:
     _compile_step("silver.thing")
+
+
+# ....................... #
+# The upstream alias — S-0002 (§5.4), S-0002/D-6
+
+
+#: The smallest upstream that can be imported from: one metric, exported. An
+#: alias is only reserved once something is actually bound under it, so the
+#: export list is what makes this fixture do any work.
+UPSTREAM = ProjectIR(
+    metrics=(
+        MetricIR(
+            name="gross_revenue",
+            grain="thing",
+            additivity=Additivity.ADDITIVE,
+            agg="sum",
+            expr=SqlExpr("revenue"),
+            ratio=None,
+            semi_additive=None,
+        ),
+    ),
+    exports=ExportsIR(metrics=("gross_revenue",)),
+)
+
+_IMPORTS = """
+imports_version: 1
+imports:
+  platform:
+    metrics: [gross_revenue]
+"""
+
+
+def _compile_importing(name: str, *, supplied: bool = True) -> None:
+    build_project_ir(
+        load_project(
+            {"entity_model": _entity_model(name), "mapping": _mapping(name), "imports": _IMPORTS}
+        ),
+        upstream={"platform": UPSTREAM} if supplied else {},
+    )
+
+
+def test_an_entity_named_after_a_bound_upstream_alias_is_refused() -> None:
+    """An imported node is spelled `<kind>.<alias>.<name>`, so the alias is a
+    segment of the id namespace exactly as a kind prefix is — reserved on
+    that ground alone, since a three-segment imported id and a two-segment
+    entity field are never the same string."""
+
+    with pytest.raises(GuardrailError) as caught:
+        _compile_importing("platform")
+
+    leaf = caught.value.collected[0]
+    assert isinstance(leaf, ReservedEntityName)
+    assert leaf.source_path == "entity_model: entities.platform"
+    message = str(caught.value)
+    assert "'<kind>.platform.<name>'" in message
+    assert "'revenue'" in message  # a real field of the offending entity
+    assert "import that upstream under another alias" in message
+
+
+def test_an_entity_named_after_no_alias_still_compiles() -> None:
+    """The reservation is the aliases this compile bound, not a naming policy
+    — an importing project is not a project that has run out of names."""
+
+    _compile_importing("thing")
+
+
+def test_an_alias_with_no_upstream_behind_it_reserves_nothing() -> None:
+    """`UnknownUpstream` is the whole refusal when the caller supplied nothing
+    under the alias: there is no imported node to collide with, and a
+    namespace refusal beside it would name a fix that is not the fix.
+    """
+
+    with pytest.raises(GuardrailError) as caught:
+        _compile_importing("platform", supplied=False)
+
+    assert not any(isinstance(leaf, ReservedEntityName) for leaf in caught.value.collected)
 
 
 def test_the_source_refusal_does_not_claim_a_collision_it_cannot_show() -> None:

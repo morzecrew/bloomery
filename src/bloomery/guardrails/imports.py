@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING
 from bloomery.errors import ImportCollision, UnexportedImport, UnknownUpstream
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Iterable, Mapping
 
     from bloomery.errors import GuardrailError
     from bloomery.ir.nodes import ProjectIR
@@ -54,6 +54,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "check_imports",
+    "declared_locally",
 ]
 
 #: Import kind → the singular a refusal names one by. Written out rather than
@@ -84,14 +85,19 @@ def _listed(candidates: frozenset[str]) -> str:
 # ....................... #
 
 
-def _declared_locally(project: Project, draft: ProjectIR) -> dict[str, frozenset[str]]:
+def declared_locally(project: Project, entities: Iterable[str]) -> dict[str, frozenset[str]]:
     """Every name this project declares, by kind — the collision side.
 
-    Two sources on purpose; the module docstring argues which and why.
+    Two sources on purpose; the module docstring argues which and why. The
+    entity names are passed rather than read off a draft, because the other
+    caller is :func:`~bloomery.resolve.build._bind_imports`, which needs them
+    while the draft is still being built — and the two agreeing about what a
+    local name is, is what keeps a bound import from being refused as a
+    collision with itself (S-0002/D-2).
     """
 
     return {
-        "entities": frozenset(entity.name for entity in draft.entities),
+        "entities": frozenset(entities),
         "marts": (
             frozenset(project.marts.marts) | frozenset(project.marts.rollups)
             if project.marts is not None
@@ -170,7 +176,7 @@ def check_imports(
         return []
 
     errors: list[GuardrailError] = _claimed_twice(project.imports.imports)
-    local = _declared_locally(project, draft)
+    local = declared_locally(project, (entity.name for entity in draft.entities))
 
     for alias, read in sorted(project.imports.imports.items()):
         source_path = f"imports: imports.{alias}"
@@ -194,6 +200,13 @@ def check_imports(
             kind: frozenset(getattr(source.exports, kind) if source.exports else ())
             for kind in _KINDS
         }
+        # What the upstream's IR actually carries under each name. An export
+        # list is checked against the authored documents where it is written
+        # (D1), while what crosses is the IR (D2) — so a name can be exported
+        # and still bind nothing here: an entity declared and never mapped, a
+        # metric no mart reaches. Bound to nothing it would surface a stage
+        # later as an invariant violation in the emitters (PR #172 review).
+        carried = {kind: frozenset(node.name for node in getattr(source, kind)) for kind in _KINDS}
 
         for kind, singular in _KINDS.items():
             for name in sorted(getattr(read, kind)):
@@ -204,6 +217,18 @@ def check_imports(
                             f"export it. An export list is explicit so that what is not on "
                             f"it is unavailable (S-0002/D-1). Fix: correct the name, or "
                             f"export it upstream. Exported {kind}: {_listed(exported[kind])}",
+                            source_path=source_path,
+                        )
+                    )
+                elif name not in carried[kind]:
+                    errors.append(
+                        UnexportedImport(
+                            f"imports {singular} {name!r} from {alias!r}, which exports it and "
+                            f"whose compiled IR carries no {singular} by that name — an export "
+                            f"list is checked against the authored documents (S-0002/D-1) and "
+                            f"what crosses is the IR (S-0002/D-2), so the upstream declared it and "
+                            f"never built it. Fix: map it upstream, or drop the import. Carried "
+                            f"{kind}: {_listed(carried[kind])}",
                             source_path=source_path,
                         )
                     )

@@ -13,11 +13,15 @@ from bloomery.guardrails.operands import Derivation
 from bloomery.ir import (
     Additivity,
     Cardinality,
+    EntityIR,
+    Materialization,
     MetricIR,
     ProjectIR,
     RelationshipIR,
+    SCDKind,
     SqlExpr,
 )
+from bloomery.ir.nodes import UpstreamIR
 
 pytestmark = pytest.mark.unit
 
@@ -189,3 +193,72 @@ def test_metric_whose_grain_names_no_entity_reports_the_span() -> None:
     assert "names none of them" in message
     assert "'order' (one row per order)" in message
     assert "'order_item' (one row per line on an order)" in message
+
+
+# ....................... #
+# Across the boundary — S-0002 (§5.4), S-0002/D-2
+
+
+#: `order` as it arrives from an upstream: the same entity the local project
+#: declares above, minus the declaration. The downstream that imports it names
+#: it in a `grain:` and never sees the document it was written in.
+IMPORTED_ORDER = EntityIR(
+    name="order",
+    grain="one row per order",
+    key=("order_id",),
+    scd=SCDKind.TYPE1,
+    materialization=Materialization.FULL,
+    partition_by=(),
+    columns=(),
+    sources=(),
+)
+
+#: The same project with `order` deleted from its entity model — the shape a
+#: downstream importing it actually has.
+IMPORTING = load_project(
+    {
+        "entity_model": """\
+spec_version: 1
+entities:
+  order_item:
+    grain: one row per line on an order
+    key: [order_id, line_no]
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+"""
+    }
+)
+
+
+def _check_imported(metric: MetricIR) -> list[Exception]:
+    draft = ProjectIR(
+        metrics=(metric,),
+        relationships=DRAFT.relationships,
+        upstream=(UpstreamIR(alias="platform", fingerprint="blm1:0", entities=(IMPORTED_ORDER,)),),
+    )
+    return list(check_grain((), draft, IMPORTING, CATALOG))
+
+
+def test_an_imported_entity_supplies_a_grain_across_the_boundary() -> None:
+    """The fan-out rule applies unchanged when the coarser entity is imported
+    (S-0002 (§5.4)): the anchor grain is read off the upstream's IR, so the
+    refusal is the one a single project would have got."""
+
+    (violation,) = _check_imported(_metric("order", "price + ship", "price", "ship"))
+
+    assert isinstance(violation, GrainMismatch)
+    message = str(violation)
+    assert "one row per order" in message  # the imported grain, read across
+    assert "one row per line on an order" in message
+    assert "names none of them" not in message
+
+
+def test_a_grain_no_project_declares_is_still_unknown() -> None:
+    """The half that is not new. An imported entity is a grain this project can
+    read, and a name neither side declares is still a name resolving to
+    nothing — `_grains` widening the map must not make every string a grain."""
+
+    (violation,) = _check_imported(_metric("warehouse", "price + ship", "price", "ship"))
+
+    assert "names none of them" in str(violation)

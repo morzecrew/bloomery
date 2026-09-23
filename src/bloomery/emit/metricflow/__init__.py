@@ -125,9 +125,15 @@ from metricflow_semantic_interfaces.type_enums.period_agg import PeriodAggregati
 from metricflow_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 
 from bloomery.emit.base import ArtifactKind, EmittedArtifact
-from bloomery.emit.lower import mart_column_type, measure_owners, metric_filter_sql
+from bloomery.emit.lower import (
+    mart_column_type,
+    measure_metrics,
+    measure_owners,
+    metric_filter_sql,
+)
 from bloomery.errors import EmitError, UnsupportedByTarget, guaranteed
 from bloomery.ir import COMPUTED, Additivity, Layer, SemiAdditiveRule
+from bloomery.ir.nodes import with_imported
 
 if TYPE_CHECKING:
     from bloomery.emit.base import EmitContext
@@ -802,6 +808,11 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
     for ``metric_time``; declare one in the catalog.
     """
 
+    # An imported mart is read as a mart (S-0002/D-2): this target builds
+    # nothing, so an upstream's mart describes as its own does, against the
+    # relation the shared naming policy names (S-0002/D-7).
+    ir = with_imported(ir)
+
     if ir.marts and ir.date_dimension is None:
         msg = (
             f"project has {len(ir.marts)} mart(s) but the catalog declares no "
@@ -812,7 +823,7 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
         raise EmitError(msg)
 
     owners = measure_owners(ir)
-    metrics_by_name = {metric.name: metric for metric in ir.metrics}
+    metrics_by_name = measure_metrics(ir)
     descriptions = {
         (entity.name, column.name): column.description
         for entity in ir.entities
@@ -914,7 +925,9 @@ class MetricFlowEmitter:
         on every sibling artifact of the same run.
         """
 
-        if not ir.marts:
+        # Imported marts count: `emit_manifest` describes them, so a project
+        # whose only marts are imported has a semantic layer to write.
+        if not (ir.marts or any(up.marts for up in ir.upstream)):
             return ()
 
         content = manifest_json(emit_manifest(ir, naming=ctx.naming), indent=2)

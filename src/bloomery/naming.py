@@ -27,7 +27,18 @@ __all__ = [
 
 class NamingPolicy(Protocol):
     """Maps a logical entity (or mart) name and layer to a physical
-    ``(namespace, relation)`` pair (S-0025/D-1)."""
+    ``(namespace, relation)`` pair (S-0025/D-1).
+
+    **Two composing projects must be compiled under the same policy**
+    (S-0002/D-7). An imported relation is built by the upstream and named by
+    the downstream — SQLMesh names it directly, dbt refs it across projects —
+    so a downstream compiled under a different policy names relations the
+    upstream never created. Nothing refuses that today: the policy is a
+    compile argument and the upstream IR records nothing about the one it was
+    compiled under, so a mismatch surfaces in the warehouse rather than in the
+    compile. Recording it on the IR is what would turn the constraint into a
+    refusal.
+    """
 
     def relation(self, entity: str, layer: Layer) -> tuple[str, str]: ...
 

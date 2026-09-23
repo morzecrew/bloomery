@@ -77,6 +77,7 @@ from bloomery.emit.base import (
 )
 from bloomery.emit.lower import (
     mart_column_type,
+    measure_metrics,
     measure_owners,
     metric_filter_sql,
     rollup_measures,
@@ -90,6 +91,7 @@ from bloomery.ir import (
     MetricIR,
     ProjectIR,
 )
+from bloomery.ir.nodes import with_imported
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -315,7 +317,7 @@ def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
 
 
 def _measures(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[object]:
-    metrics_by_name = {metric.name: metric for metric in ir.metrics}
+    metrics_by_name = measure_metrics(ir)
     owned = [name for name in mart.measures if owners[name] is mart]  # sorted on MartIR
 
     # A mart's `measures:` is "metrics this mart serves" (spec reference), not
@@ -654,13 +656,31 @@ class CubeEmitter:
         content ending in exactly one newline (S-0020/determinism-rules-package-wide rule 5). A
         project without marts emits nothing — Cube has no silver surface."""
 
+        # Grants are refused over *this* project, before the composition
+        # (PR review of S-0002): a grant an upstream declared is applied by
+        # the upstream's own SQLMesh or dbt compile, and the fix this refusal
+        # names is one a downstream cannot carry out — neither SQL target
+        # emits a model for an imported relation, so neither can restrict one.
+        # Refusing there left a downstream author a message about a node they
+        # neither own nor can edit, with no remedy on any target.
         _refuse_grants(ir)
-        _refuse_time_shaped(ir)
-        owners = measure_owners(ir)
+        # An imported mart is read as a mart (S-0002/D-2): this target builds
+        # nothing, so describing a relation the upstream maintains is the whole
+        # of what it does for a local one too — the relation is named under the
+        # policy both projects share (S-0002/D-7).
+        composed = with_imported(ir)
+        # Over the composition, unlike the refusal above, and for the reason
+        # that refusal is project-wide: an imported derived or cumulative
+        # metric has no Cube shape either, and a mart need not name it
+        # (S-0050/D-4), so narrowing this to the local project would drop it
+        # from the artifact in silence rather than say so. The remedy is the
+        # downstream's own — its imports: list is what brought the metric in.
+        _refuse_time_shaped(composed)
+        owners = measure_owners(composed)
         artifacts: list[EmittedArtifact] = []
 
-        for mart in ir.marts:  # sorted by name on ProjectIR
-            artifacts.append(_cube_artifact(mart, ir, owners, ctx))
+        for mart in composed.marts:  # sorted by name on ProjectIR
+            artifacts.append(_cube_artifact(mart, composed, owners, ctx))
             artifacts.append(_view_artifact(mart, ctx))
 
         return tuple(sorted(artifacts, key=lambda a: a.path))

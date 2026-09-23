@@ -146,6 +146,25 @@ marker, and inventing one would silently degrade history. Composite keys work he
   `audits/<entity>_<column>_<kind>.sql` artifact selecting the violating rows from
   `@this_model`, referenced by name in the `MODEL` block.
 
+## Composing across projects
+
+SQLMesh has no cross-project reference, so a relation imported from an upstream is
+named directly — a mart built on an imported `order_item` selects `FROM
+silver.order_item`, the same text it would carry if the entity were local. There is no
+manifest of upstream projects to emit, and no model is emitted for the imported
+relation: the upstream builds it.
+
+That directness is what makes the shared naming policy a constraint rather than a
+preference. `silver.order_item` is what `DefaultNaming` calls the entity; compile the
+upstream under a different policy — a tenant prefix, say — and it built
+`acme_silver.order_item`, which the downstream's SQL never names. The compile cannot
+see the mismatch, because the policy is an argument to *this* compile and the upstream
+IR records nothing about the one it was compiled under. Compile both sides with the
+same policy, and deploy the upstream's models before the downstream's.
+
+The [dbt target](emit-dbt.md) is the other half of this: it has a cross-project
+`ref()`, and emits the `dependencies.yml` that makes one resolvable.
+
 ## Notes
 
 - Artifacts are regeneration-only: edit specs and recompile, never the SQL — the header

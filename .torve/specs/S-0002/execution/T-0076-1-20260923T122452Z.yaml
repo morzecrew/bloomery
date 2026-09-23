@@ -1,0 +1,146 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0076
+base: e86817a646396c434b7b477b407b8f5756471b21
+at: '2026-09-23T12:24:52Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+  - id: S-0003/D-2
+    grade: LOCKED
+  - id: S-0003/D-7
+    grade: ASSUMED
+  - id: S-0004/D-2
+    grade: LOCKED
+  - id: S-0004/D-4
+    grade: ASSUMED
+  - id: S-0004/D-13
+    grade: ASSUMED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0019/D-6
+    grade: ASSUMED
+  - id: S-0019/D-7
+    grade: ASSUMED
+  - id: S-0020/D-2
+    grade: ASSUMED
+  - id: S-0020/D-4
+    grade: ASSUMED
+  - id: S-0023/D-2
+    grade: ASSUMED
+  - id: S-0023/D-4
+    grade: ASSUMED
+  - id: S-0023/D-7
+    grade: ASSUMED
+  - id: S-0023/D-9
+    grade: ASSUMED
+  - id: S-0023/D-10
+    grade: ASSUMED
+  - id: S-0025/D-13
+    grade: ASSUMED
+  - id: S-0027/D-6
+    grade: ASSUMED
+  - id: S-0033/D-6
+    grade: ASSUMED
+  - id: S-0033/D-10
+    grade: ASSUMED
+  - id: S-0033/D-21
+    grade: ASSUMED
+  - id: S-0033/D-23
+    grade: ASSUMED
+  - id: S-0033/D-87
+    grade: ASSUMED
+  - id: S-0033/D-95
+    grade: ASSUMED
+  - id: S-0034/D-50
+    grade: ASSUMED
+  - id: S-0034/D-51
+    grade: ASSUMED
+  - id: S-0034/D-54
+    grade: ASSUMED
+  - id: S-0039/D-3
+    grade: ASSUMED
+  - id: S-0039/D-5
+    grade: ASSUMED
+  - id: S-0040/D-4
+    grade: LOCKED
+  - id: S-0041/D-1
+    grade: LOCKED
+  - id: S-0041/D-4
+    grade: LOCKED
+  - id: S-0041/D-12
+    grade: LOCKED
+  - id: S-0041/D-23
+    grade: ASSUMED
+  - id: S-0041/D-26
+    grade: ASSUMED
+  - id: S-0041/D-32
+    grade: LOCKED
+  - id: S-0041/D-33
+    grade: LOCKED
+  - id: S-0041/D-36
+    grade: ASSUMED
+  - id: S-0046/D-1
+    grade: ASSUMED
+  - id: S-0050/D-1
+    grade: LOCKED
+  - id: S-0066/D-1
+    grade: LOCKED
+  - id: S-0066/D-2
+    grade: LOCKED
+  - id: S-0066/D-3
+    grade: LOCKED
+  - id: S-0066/D-6
+    grade: ASSUMED
+  - id: S-0068/D-1
+    grade: LOCKED
+  - id: S-0068/D-2
+    grade: LOCKED
+  - id: S-0068/D-3
+    grade: LOCKED
+  - id: S-0068/D-6
+    grade: LOCKED
+  - id: S-0079/D-1
+    grade: LOCKED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-23T12:09:06Z'
+    claim: >-
+      rejected: an imported mart whose base entity is not imported does not crash
+      the compile. _bind_imports returns UpstreamIR rows into draft.upstream, never
+      draft.marts, so the sqlmesh emitter (which builds _mart_artifact only over ir.marts)
+      never looks the missing base up; the four targets all compile the described
+      spec. The claim's stated mechanism does not exist in this tree.
+    evidence: >-
+      src/bloomery/resolve/build.py:2567 — _bind_imports feeds the upstream= field,
+      and src/bloomery/emit/sqlmesh/__init__.py:1168 iterates ir.marts (local only)
+      while passing with_imported(ir) purely as the base-lookup view; compiling a
+      downstream importing marts:[order_items], metrics:[gross_revenue, order_count]
+      from ecom_basic with no entities imported printed 'DOWN marts: []', 'DOWN upstream
+      marts: [order_items]' and then 'sqlmesh OK 3 / dbt OK 6 / cube OK 2 / metricflow
+      OK 1' with no InvariantViolated
+    action: decided
+    proposal: >-
+      no change: the reported crash is not reachable in this tree; the guaranteed()
+      lookup at emit/sqlmesh/__init__.py:507 is only reached for local marts, whose
+      unresolvable base is already refused by the mart-base guardrail (GuardrailError:
+      "mart base names entity 'order_item', which no mapping lowers")
+    notes: >-
+      Second route checked too: a local mart naming an unimported base is refused
+      at the guardrail stage, not at emit.

@@ -6,6 +6,12 @@ float formatting and key-ordering bugs. Floats are rejected with ``TypeError``
 (S-0020/D-5); enums encode by value; ``Decimal`` by ``str()``. The stream is
 stable across processes, machines, and ``PYTHONHASHSEED`` values, proven by
 the subprocess determinism guard (S-0020/determinism-tests-the-enforcement).
+
+An importing project composes through the same walk: ``ProjectIR.upstream``
+carries each upstream's fingerprint whole, so the downstream moves whenever an
+upstream does — including for an upstream change that touches nothing the
+downstream reads (S-0002/D-3). Nothing here selects the exports that were
+bound; the walker is type-driven and the identity is a field like any other.
 """
 
 from __future__ import annotations

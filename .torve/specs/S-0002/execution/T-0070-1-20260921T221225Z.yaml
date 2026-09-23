@@ -1,0 +1,140 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0070
+base: 900846dbaa7edcc8703212fa84819677c169a0ad
+at: '2026-09-21T22:12:25Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+  - id: S-0003/D-2
+    grade: LOCKED
+  - id: S-0003/D-7
+    grade: ASSUMED
+  - id: S-0004/D-2
+    grade: LOCKED
+  - id: S-0004/D-4
+    grade: ASSUMED
+  - id: S-0004/D-13
+    grade: ASSUMED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0019/D-6
+    grade: ASSUMED
+  - id: S-0019/D-7
+    grade: ASSUMED
+  - id: S-0020/D-2
+    grade: ASSUMED
+  - id: S-0020/D-4
+    grade: ASSUMED
+  - id: S-0023/D-2
+    grade: ASSUMED
+  - id: S-0023/D-4
+    grade: ASSUMED
+  - id: S-0023/D-7
+    grade: ASSUMED
+  - id: S-0023/D-9
+    grade: ASSUMED
+  - id: S-0023/D-10
+    grade: ASSUMED
+  - id: S-0025/D-13
+    grade: ASSUMED
+  - id: S-0027/D-6
+    grade: ASSUMED
+  - id: S-0033/D-6
+    grade: ASSUMED
+  - id: S-0033/D-10
+    grade: ASSUMED
+  - id: S-0033/D-21
+    grade: ASSUMED
+  - id: S-0033/D-23
+    grade: ASSUMED
+  - id: S-0033/D-87
+    grade: ASSUMED
+  - id: S-0033/D-95
+    grade: ASSUMED
+  - id: S-0034/D-50
+    grade: ASSUMED
+  - id: S-0034/D-51
+    grade: ASSUMED
+  - id: S-0034/D-54
+    grade: ASSUMED
+  - id: S-0039/D-3
+    grade: ASSUMED
+  - id: S-0039/D-5
+    grade: ASSUMED
+  - id: S-0040/D-4
+    grade: LOCKED
+  - id: S-0041/D-1
+    grade: LOCKED
+  - id: S-0041/D-4
+    grade: LOCKED
+  - id: S-0041/D-12
+    grade: LOCKED
+  - id: S-0041/D-23
+    grade: ASSUMED
+  - id: S-0041/D-26
+    grade: ASSUMED
+  - id: S-0041/D-32
+    grade: LOCKED
+  - id: S-0041/D-33
+    grade: LOCKED
+  - id: S-0041/D-36
+    grade: ASSUMED
+  - id: S-0046/D-1
+    grade: ASSUMED
+  - id: S-0050/D-1
+    grade: LOCKED
+  - id: S-0066/D-1
+    grade: LOCKED
+  - id: S-0066/D-2
+    grade: LOCKED
+  - id: S-0066/D-3
+    grade: LOCKED
+  - id: S-0066/D-6
+    grade: ASSUMED
+  - id: S-0068/D-1
+    grade: LOCKED
+  - id: S-0068/D-2
+    grade: LOCKED
+  - id: S-0068/D-3
+    grade: LOCKED
+  - id: S-0068/D-6
+    grade: LOCKED
+  - id: S-0079/D-1
+    grade: LOCKED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-21T21:58:19Z'
+    claim: >-
+      rejected: a mart built on an imported entity no longer aborts the public compile
+      on any emit target; the reported InvariantViolated (sqlmesh, dbt) and KeyError
+      (cube, metricflow) do not reproduce against this tree, so there is no intermediate
+      state left to disclose and nothing in resolve/build.py to change
+    evidence: >-
+      src/bloomery/emit/sqlmesh/__init__.py:1166-1167 — the base-entity lookup runs
+      against with_imported(ir) rather than the local collections, and the same view
+      is taken at src/bloomery/emit/dbt/__init__.py:1728, src/bloomery/emit/cube/__init__.py:671
+      and src/bloomery/emit/metricflow/__init__.py:814; compiling the review's own
+      IMPORTING fixture through compile_project(load_project(IMPORTING), target=t,
+      dialect='duckdb', catalog=ecom_basic_catalog, upstream={'platform': ecom_basic_ir})
+      printed 'sqlmesh -> OK', 'dbt -> OK', 'cube -> OK', 'metricflow -> OK'
+    action: decided
+    proposal: >-
+      no row needed: the claim described phase 4's intermediate state and phase 5
+      closed it by giving every emitter the with_imported lookup

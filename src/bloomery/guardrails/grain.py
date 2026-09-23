@@ -26,6 +26,8 @@ from bloomery.guardrails.operands import operand_meta
 from bloomery.ir import Cardinality
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from bloomery.guardrails.operands import Derivation
     from bloomery.ir import ProjectIR
     from bloomery.spec.catalog import Catalog
@@ -45,9 +47,27 @@ _INVERSE: dict[Cardinality, Cardinality] = {
 }
 
 
-def _grain_of(project: Project, entity_name: str) -> str:
-    entity = project.entity_model.entities.get(entity_name)
-    return entity.grain if entity is not None else "undeclared in this project"
+def _grains(project: Project, draft: ProjectIR) -> dict[str, str]:
+    """Every entity a grain can be read off, imported ones included.
+
+    The imported entities first and the authored model over them, so a local
+    entity's grain is still read from the document that declares it. What the
+    imports add is an entity a mart or a metric may now name across the
+    boundary (S-0002/D-2): it sits at that entity's grain, and the fan-out
+    rule applies unchanged — before this an imported grain read as "undeclared
+    in this project", which is the message for a name resolving to nothing.
+    """
+
+    return {
+        entity.name: entity.grain for upstream in draft.upstream for entity in upstream.entities
+    } | {name: entity.grain for name, entity in project.entity_model.entities.items()}
+
+
+# ....................... #
+
+
+def _grain_of(grains: Mapping[str, str], entity_name: str) -> str:
+    return grains.get(entity_name, "undeclared in this project")
 
 
 # ....................... #
@@ -88,13 +108,13 @@ def _mismatch(
     subject: str,
     reached: str,
     fix: str,
-    project: Project,
+    grains: Mapping[str, str],
     source_path: str,
 ) -> GrainMismatch:
     msg = (
         f"{subject} combines {operand!r} from entity {home!r} (grain: "
-        f"{_grain_of(project, home)}) at the grain of entity {anchor!r} (grain: "
-        f"{_grain_of(project, anchor)}), reached via {reached} with no aggregation step. "
+        f"{_grain_of(grains, home)}) at the grain of entity {anchor!r} (grain: "
+        f"{_grain_of(grains, anchor)}), reached via {reached} with no aggregation step. "
         f"Joined across grains, {operand!r} is duplicated once per {anchor!r} row and "
         f"any SUM over the result overstates it. Fix: {fix}"
     )
@@ -112,6 +132,7 @@ def check_grain(
 ) -> list[GuardrailError]:
     """Every grain violation across derivations and metric expressions."""
     violations: list[GuardrailError] = []
+    grains = _grains(project, draft)
 
     for derivation in derivations:
         tree = (
@@ -134,12 +155,12 @@ def check_grain(
                         f"add an explicit aggregation/allocation over {derivation.entity!r}, "
                         f"or declare the derivation on entity {meta.entity!r}"
                     ),
-                    project=project,
+                    grains=grains,
                     source_path=derivation.source_path,
                 )
             )
 
-    violations.extend(_check_metric_grain(draft, project, catalog))
+    violations.extend(_check_metric_grain(draft, grains, catalog))
 
     return violations
 
@@ -148,7 +169,7 @@ def check_grain(
 
 
 def _check_metric_grain(
-    draft: ProjectIR, project: Project, catalog: Catalog | None
+    draft: ProjectIR, grains: Mapping[str, str], catalog: Catalog | None
 ) -> list[GuardrailError]:
     violations: list[GuardrailError] = []
 
@@ -165,7 +186,7 @@ def _check_metric_grain(
             continue
         source_path = f"metrics: metrics.{metric.name}"
         tree = metric.expr.ast()
-        if metric.grain in project.entity_model.entities:
+        if metric.grain in grains:
             for name in sorted(homes):
                 if homes[name] == metric.grain or _fully_aggregated(tree, name):
                     continue
@@ -180,14 +201,14 @@ def _check_metric_grain(
                             f"aggregate {name!r} explicitly inside expr, or split the "
                             f"metric per entity"
                         ),
-                        project=project,
+                        grains=grains,
                         source_path=source_path,
                     )
                 )
         else:
-            grains = ", ".join(f"{e!r} ({_grain_of(project, e)})" for e in distinct)
+            spans = ", ".join(f"{e!r} ({_grain_of(grains, e)})" for e in distinct)
             msg = (
-                f"metric requires span entities with different grains — {grains} — and "
+                f"metric requires span entities with different grains — {spans} — and "
                 f"its grain ({metric.grain!r}) names none of them, so no shared grain "
                 "exists for the expression. Fix: declare grain: as one of these entities "
                 "and aggregate the others explicitly"

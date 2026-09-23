@@ -1,0 +1,116 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0038
+phase: 3
+base: ddcfdf6377e74060416ef32fc45fa2a6d06b7bca
+commit: 448e1ee8a16a78a04699a968e6c0ab678a3efcdb
+at: '2026-09-21T17:50:08Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-21T17:30:21Z'
+    attempt: 3
+    claim: >-
+      the upstream's compiled IR crosses keyed by its local alias, and the nodes that
+      cross land on a new ProjectIR.upstream rather than in the local collections,
+      so only the resolvers see a merged view
+    evidence: >-
+      src/bloomery/resolve/build.py:2312 — _bind_imports binds each alias to the upstream's
+      exported nodes; src/bloomery/ir/nodes.py:1587 with_imported is the single merged
+      view, used by mart and rollup lowering only
+    action: decided
+    proposal: no amendment needed — D-2 stands as written
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-21T17:30:21Z'
+    attempt: 3
+    claim: >-
+      the import guard's local-name side became a shared helper so the binder and
+      the guard agree on what a local name is; the refusals and the hand-in model
+      that makes a cycle unrepresentable are untouched
+    evidence: >-
+      src/bloomery/guardrails/imports.py:88 — declared_locally takes the entity names
+      its caller has, and check_imports passes the draft's
+    action: decided
+    proposal: no amendment needed — D-4 stands as written
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-21T17:30:21Z'
+    attempt: 3
+    claim: >-
+      an imported entity arrives without its quality surface: rules, dedupe, quarantine
+      and audits are dropped at the boundary, so the downstream cannot re-emit the
+      upstream's reject table or re-run its audits
+    evidence: >-
+      src/bloomery/resolve/build.py:2380 — replace(entity, quality=(), dedupe=None,
+      quarantine=None, audits=()) on every entity that crosses
+    action: decided
+    proposal: no amendment needed — D-5 stands as written
+  - decision: D-3
+    grade: LOCKED
+    class: spec-gap
+    at: '2026-09-21T17:30:21Z'
+    attempt: 3
+    claim: >-
+      the ProjectIR field this phase requires moves every project's fingerprint, importing
+      or not, so the golden tier is left red and its scope does not include the snapshots
+    evidence: >-
+      src/bloomery/ir/nodes.py:1704 — bloomery_ir_version 20 to 21 for the appended
+      upstream field; `uv run pytest tests/golden -q` reports 37 failed, 25 passed,
+      every failure a fingerprint line such as int: blm1:0d0c… against int: blm1:5240…
+    action: decided
+    proposal: >-
+      the phase that lands the composed fingerprint names tests/golden/** in its scope,
+      or the runner regenerates the snapshots: any field appended to ProjectIR moves
+      every fingerprint
+  - decision: D-6
+    grade: ASSUMED
+    at: '2026-09-21T17:30:21Z'
+    attempt: 3
+    claim: >-
+      the project component sits on the imported node id only, local ids keep their
+      spelling, and the alias is reserved against local entity names on the terms
+      a node-id prefix already is
+    evidence: >-
+      src/bloomery/resolve/graph.py:376 — _imported_names and _reference spell an
+      imported reference <kind>.<alias>.<name> while key() leaves a local one alone;
+      src/bloomery/guardrails/lineage.py:80 refuses an entity named after a bound
+      alias
+    action: decided
+    proposal: no amendment needed — D-6 stands as written
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-21T17:30:21Z'
+    attempt: 3
+    claim: >-
+      a metric naming an imported metric is left refused as an unknown reference:
+      making the reference resolve needs reachability and effective-metric construction,
+      neither of which is in this task's scope, and relaxing the reference check alone
+      turns the refusal into a KeyError traceback
+    evidence: >-
+      src/bloomery/resolve/reach.py:97 — blockage() reads by_name[name] for each required
+      metric and raises KeyError for an imported one; the module is absent from the
+      contract's allow list
+    action: decided
+    proposal: >-
+      a row deciding whether a metric may name an imported metric; today it may not,
+      and the phase that lands it needs resolve/reach.py and resolve/metrics.py in
+      scope

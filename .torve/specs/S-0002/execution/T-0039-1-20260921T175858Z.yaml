@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0039
+phase: 4
+base: 6a68903caddbc57b17b5ffa2557c540c1d4fef59
+commit: cafd728549a02d47a7e21a4343e4384975a9777c
+at: '2026-09-21T17:58:58Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+entries:
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-21T17:54:33Z'
+    claim: >-
+      the upstream fingerprint already crosses whole: ProjectIR.upstream holds UpstreamIR.fingerprint
+      and the canonical encoder is type-driven, so no selection of bound exports exists
+      to remove; the phase is the tests and the docs page
+    evidence: >-
+      src/bloomery/ir/fingerprint.py:44-70 — the walker encodes every dataclass field
+      by name, so UpstreamIR.fingerprint reaches the stream like any other field
+    action: decided

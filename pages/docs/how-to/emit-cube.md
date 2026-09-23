@@ -229,6 +229,14 @@ tables that SQLMesh (or dbt) builds and maintains.
   cheapest-mart ownership rule the planner uses, so the surfaces agree.
 - Deploy the Cube YAML together with the SQLMesh artifacts that build the gold tables
   it points at.
+- A mart imported from an upstream project gets a cube and a view like any other: this
+  target builds nothing, so describing a relation another project maintains is already
+  what it does. The relation is named by the naming policy, which both projects must be
+  compiled under — see [Emit SQLMesh artifacts](emit-sqlmesh.md#composing-across-projects).
+- Import the metrics that mart's `measures:` names, too. An export list carries every
+  name by hand, so a mart can cross without them — and a measure whose metric stayed
+  upstream has no aggregation to describe, which this target and MetricFlow both refuse
+  rather than drop from the model silently.
 - The [`targets/` example](../get-started/examples.md) does exactly that in one command:
   it compiles the semantic model, brings Cube up over the warehouse SQLMesh built, and
   asks it for the same numbers through the REST API.

@@ -32,6 +32,7 @@ emitters import; importing a stage directly works and carries no promise
 from bloomery.emit.lower.marts import (
     dim_date_select,
     mart_select,
+    measure_metrics,
     measure_owners,
 )
 from bloomery.emit.lower.predicates import (
@@ -112,6 +113,7 @@ __all__ = [
     "mart_assert_select",
     "mart_column_type",
     "mart_select",
+    "measure_metrics",
     "measure_owners",
     "metadata_audit_select",
     "metric_filter_sql",
