@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0081
+base: 0082b0f2e0183529386fcbd96599cadb8ce0e804
+commit: 2c884f06aa9af664520baea01a8fbd927d2d32c3
+at: '2026-09-23T13:07:13Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+  - id: S-0059/D-6
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+entries:
+  - decision: S-0059/D-6
+    grade: LOCKED
+    class: spec-gap
+    at: '2026-09-23T12:55:05Z'
+    claim: >-
+      the review claim holds: the test docstring asserted a namespace collision the
+      refusal it pins explicitly denies, so the docstring was reworded to the arity
+      argument the message makes; the bare '<entity>.<field>' spelling and every assertion
+      over it are untouched
+    evidence: >-
+      tests/unit/test_guardrails/test_lineage.py:231-235 — the docstring now reads
+      'a three-segment imported id and a two-segment entity field are never the same
+      string'; src/bloomery/guardrails/lineage.py:107-113 is the message it describes
+    action: decided
