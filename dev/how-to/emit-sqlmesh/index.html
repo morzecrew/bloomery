@@ -1036,6 +1036,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#composing-across-projects" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Composing across projects
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#notes" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1942,6 +1953,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#composing-across-projects" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Composing across projects
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#notes" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2160,6 +2182,21 @@ marker, and inventing one would silently degrade history. Composite keys work he
   <code>audits/&lt;entity&gt;_&lt;column&gt;_&lt;kind&gt;.sql</code> artifact selecting the violating rows from
   <code>@this_model</code>, referenced by name in the <code>MODEL</code> block.</li>
 </ul>
+<h2 id="composing-across-projects">Composing across projects<a class="headerlink" href="#composing-across-projects" title="Permanent link">&para;</a></h2>
+<p>SQLMesh has no cross-project reference, so a relation imported from an upstream is
+named directly — a mart built on an imported <code>order_item</code> selects <code>FROM
+silver.order_item</code>, the same text it would carry if the entity were local. There is no
+manifest of upstream projects to emit, and no model is emitted for the imported
+relation: the upstream builds it.</p>
+<p>That directness is what makes the shared naming policy a constraint rather than a
+preference. <code>silver.order_item</code> is what <code>DefaultNaming</code> calls the entity; compile the
+upstream under a different policy — a tenant prefix, say — and it built
+<code>acme_silver.order_item</code>, which the downstream's SQL never names. The compile cannot
+see the mismatch, because the policy is an argument to <em>this</em> compile and the upstream
+IR records nothing about the one it was compiled under. Compile both sides with the
+same policy, and deploy the upstream's models before the downstream's.</p>
+<p>The <a href="../emit-dbt/">dbt target</a> is the other half of this: it has a cross-project
+<code>ref()</code>, and emits the <code>dependencies.yml</code> that makes one resolvable.</p>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Artifacts are regeneration-only: edit specs and recompile, never the SQL — the header

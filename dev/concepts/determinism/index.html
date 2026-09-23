@@ -759,6 +759,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="The fingerprint">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#composition-the-upstream-fingerprint-crosses-whole" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Composition: the upstream fingerprint crosses whole
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1840,6 +1857,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="The fingerprint">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#composition-the-upstream-fingerprint-crosses-whole" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Composition: the upstream fingerprint crosses whole
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1980,6 +2014,25 @@ the planner's manifest hydration cache.</p>
   simply never looked up again. Version mismatch is a cache miss by construction, never
   an error and never a migration: on a miss, rebuild from specs.</li>
 </ul>
+<h3 id="composition-the-upstream-fingerprint-crosses-whole">Composition: the upstream fingerprint crosses whole<a class="headerlink" href="#composition-the-upstream-fingerprint-crosses-whole" title="Permanent link">&para;</a></h3>
+<p>A project that imports from another compiles against the upstream's <strong>compiled IR</strong>,
+and the identity of that IR — the upstream's own fingerprint — is part of the
+downstream's <code>ProjectIR</code>. So it is part of the downstream's hash, whole, never only
+the exports the downstream happened to read.</p>
+<p>The consequence is deliberate and is the point of the rule: <strong>an upstream change that
+touches nothing the downstream reads still moves the downstream fingerprint.</strong> Add a
+metric to the upstream that nobody imports, and every downstream artifact header
+changes on the next compile, on projects nothing about which changed.</p>
+<p>The alternative — hashing only the bound exports — is worse in the direction that
+matters. It would need the compiler to decide which upstream changes can be ignored,
+and a wrong decision there is a cache that serves stale semantics silently, which is
+exactly the failure "byte-identical artifacts" exists to make impossible. A spurious
+cache miss rebuilds from specs and costs a compile; a missed change is wrong output.
+Same trade as everywhere else on this page: loud over silent.</p>
+<p>Two properties survive composition, and are what the tests assert: the downstream
+moves whenever the upstream moves, and it is byte-identical whenever neither does.
+Reformatting the upstream's spec documents does not move its IR, so it does not move
+its fingerprint, so the downstream is undisturbed.</p>
 <h2 id="the-rules">The rules<a class="headerlink" href="#the-rules" title="Permanent link">&para;</a></h2>
 <p>Stated once, applied package-wide:</p>
 <ol>

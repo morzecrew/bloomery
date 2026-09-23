@@ -1118,6 +1118,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#composing-across-projects" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Composing across projects
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#notes" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1998,6 +2009,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#composing-across-projects" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Composing across projects
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#notes" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2399,6 +2421,32 @@ same dialect port as the SQLMesh target — only the envelope (Jinja config head
 <code>MODEL</code> block) differs. Diff a dbt model against its SQLMesh counterpart and the query
 text matches byte for byte. That equality is the point: it demonstrates the emitters
 share one lowering, so a semantics bug cannot exist in only one target's SQL.</p>
+<h2 id="composing-across-projects">Composing across projects<a class="headerlink" href="#composing-across-projects" title="Permanent link">&para;</a></h2>
+<p>A project that imports from an upstream names the upstream's relations the way dbt
+names another project's models — <code>{{ ref('platform', 'order_item') }}</code>, where
+<code>platform</code> is the alias the import document gave the upstream. Nothing else changes:
+a local model keeps the one-argument <code>ref()</code> beside it, and the SELECT is lowered
+exactly as it would be if the entity were yours.</p>
+<p>The reference resolves only if dbt knows the project, so the compile emits a
+<code>dependencies.yml</code> alongside it:</p>
+<div class="highlight"><span class="filename">dependencies.yml</span><pre><span></span><code><span class="nt">projects</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">platform</span>
+</code></pre></div>
+<p>A project that imports nothing gets no such file — an empty <code>projects:</code> list is not the
+same thing as no dependency.</p>
+<p>Two obligations come with this, neither of which bloomery can check for you:</p>
+<ul>
+<li><strong>dbt's own name for the upstream project must equal the alias.</strong> A bloomery project
+  carries no identity of its own, so the alias you chose in <code>imports:</code> is the only name
+  the two sides share, and <code>dependencies.yml</code> says it out loud.</li>
+<li><strong>Both projects must be compiled under the same naming policy.</strong> The downstream refers
+  to <em>models</em>, but the mart it builds is read by Cube and MetricFlow at a relation the
+  policy names — and the upstream built that relation under its own policy. Compile the
+  two under different policies and the mismatch surfaces in the warehouse rather than in
+  the compile.</li>
+</ul>
+<p>No model is emitted for an imported relation: the upstream builds it, and the artifacts
+you deploy stay the ones your own project owns.</p>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li>The scaffold assumes a profile named <code>bloomery</code>; wire your own <code>profiles.yml</code>.</li>
