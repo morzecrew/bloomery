@@ -1,0 +1,147 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0074
+base: 900846dbaa7edcc8703212fa84819677c169a0ad
+at: '2026-09-23T11:49:13Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+  - id: S-0003/D-2
+    grade: LOCKED
+  - id: S-0003/D-7
+    grade: ASSUMED
+  - id: S-0004/D-2
+    grade: LOCKED
+  - id: S-0004/D-4
+    grade: ASSUMED
+  - id: S-0004/D-13
+    grade: ASSUMED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0019/D-6
+    grade: ASSUMED
+  - id: S-0019/D-7
+    grade: ASSUMED
+  - id: S-0020/D-2
+    grade: ASSUMED
+  - id: S-0020/D-4
+    grade: ASSUMED
+  - id: S-0023/D-2
+    grade: ASSUMED
+  - id: S-0023/D-4
+    grade: ASSUMED
+  - id: S-0023/D-7
+    grade: ASSUMED
+  - id: S-0023/D-9
+    grade: ASSUMED
+  - id: S-0023/D-10
+    grade: ASSUMED
+  - id: S-0025/D-13
+    grade: ASSUMED
+  - id: S-0027/D-6
+    grade: ASSUMED
+  - id: S-0033/D-6
+    grade: ASSUMED
+  - id: S-0033/D-10
+    grade: ASSUMED
+  - id: S-0033/D-21
+    grade: ASSUMED
+  - id: S-0033/D-23
+    grade: ASSUMED
+  - id: S-0033/D-87
+    grade: ASSUMED
+  - id: S-0033/D-95
+    grade: ASSUMED
+  - id: S-0034/D-50
+    grade: ASSUMED
+  - id: S-0034/D-51
+    grade: ASSUMED
+  - id: S-0034/D-54
+    grade: ASSUMED
+  - id: S-0039/D-3
+    grade: ASSUMED
+  - id: S-0039/D-5
+    grade: ASSUMED
+  - id: S-0040/D-4
+    grade: LOCKED
+  - id: S-0041/D-1
+    grade: LOCKED
+  - id: S-0041/D-4
+    grade: LOCKED
+  - id: S-0041/D-12
+    grade: LOCKED
+  - id: S-0041/D-23
+    grade: ASSUMED
+  - id: S-0041/D-26
+    grade: ASSUMED
+  - id: S-0041/D-32
+    grade: LOCKED
+  - id: S-0041/D-33
+    grade: LOCKED
+  - id: S-0041/D-36
+    grade: ASSUMED
+  - id: S-0046/D-1
+    grade: ASSUMED
+  - id: S-0050/D-1
+    grade: LOCKED
+  - id: S-0066/D-1
+    grade: LOCKED
+  - id: S-0066/D-2
+    grade: LOCKED
+  - id: S-0066/D-3
+    grade: LOCKED
+  - id: S-0066/D-6
+    grade: ASSUMED
+  - id: S-0068/D-1
+    grade: LOCKED
+  - id: S-0068/D-2
+    grade: LOCKED
+  - id: S-0068/D-3
+    grade: LOCKED
+  - id: S-0068/D-6
+    grade: LOCKED
+  - id: S-0079/D-1
+    grade: LOCKED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-23T11:33:33Z'
+    claim: >-
+      the review claim does not hold: imported nodes do not join ProjectIR.entities/.marts,
+      no downstream model is emitted for an imported relation, and no quality verdict
+      is hard-coded for one; ProjectIR.upstream is a separate collection and with_imported
+      is a resolver-only view the emitters never walk
+    evidence: >-
+      `uv run python /tmp/probe_t0074.py` — compiling a downstream importing platform's
+      order/order_item entities and order_items mart emits exactly ['config.yaml',
+      'models/gold/dim_date.sql', 'models/silver/shipment.sql']; ProjectIR.entities
+      is ['shipment'], ProjectIR.marts is [], and the imported nodes sit under ProjectIR.upstream;
+      src/bloomery/resolve/build.py:2567 binds them to upstream= rather than entities=,
+      src/bloomery/emit/sqlmesh/__init__.py:1109 walks ir.entities and src/bloomery/emit/sqlmesh/__init__.py:1167
+      uses with_imported only to resolve mart bases; tests/unit/test_emit/test_cross_project.py:163
+      asserts this for all targets and passes
+    action: decided
+    proposal: >-
+      no change; the claim's cited coordinate src/bloomery/resolve/build.py:2597 is
+      inside the currency-conversion region, not the import binding at 2312-2391,
+      and S-0002/D-5's stripping at 2380 is correct precisely because the stripped
+      nodes are never emitted
+    notes: >-
+      Claim rejected, nothing changed in src. The behaviour it describes would require
+      imported entities to reach ProjectIR.entities; they do not, by construction
+      of _bind_imports and with_imported (src/bloomery/ir/nodes.py:1587).
