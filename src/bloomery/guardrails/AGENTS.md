@@ -40,7 +40,7 @@ A guard that judges a local declaration reads the composed view — this project
 - Paths: `src/bloomery/guardrails/stage.py` `src/bloomery/guardrails/metrics.py` `src/bloomery/guardrails/classification.py` `src/bloomery/guardrails/exposures.py` `tests/unit/test_guardrails/**`
 - Consequence: A `secret` column an imported entity carries cannot reach a local published mart unrefused, a filter on a missing dimension of an imported metric is refused at the guardrail rather than at `mart_column_type` in both emitters, and an exposure may name what the project imported. Imported nodes are still not re-judged on their own account; what widens is the input the local judgement reads.
 
-### S-0005/D-3 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-3 — `LOCKED` (Semantic proof IR and closed-world checking)
 
 Guardrails are expressed as obligations before any is deleted, and the mart compiler keeps its aggregate error mechanism throughout while internally consuming shared semantic facts
 

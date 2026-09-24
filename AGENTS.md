@@ -62,7 +62,7 @@ No handler, ever: the library's only logging configuration act is attaching a `N
 - Consequence: A library that installs a handler fights its embedder, and reversing this reaches every caller in the process; the level stays at `NOTSET` deliberately, which is the only way a caller's own `setLevel` on the `bloomery` logger can work from outside
 - Check: `uv run pytest tests/unit/test_logging_posture.py -q` (shadow; runs as `decision:S-0004/D-1`, no log entry owed)
 
-### S-0005/D-4 — `ASSUMED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-4 — `ASSUMED` (Semantic proof IR and closed-world checking)
 
 Capability grows monotonically — the safe queries of one release are a subset of the next — except where a prior rule is found unsound, in which case correctness wins and the narrowing is a breaking change carrying an explicit note rather than a quiet withdrawal
 
@@ -83,7 +83,7 @@ Coverage over the fuzz corpus is measured by a locally-runnable lane rather than
 - Paths: `justfile`
 - Consequence: The only signal separating "found nothing because the code is correct" from "found nothing because it never reached the code" runs when someone remembers, not on a schedule
 
-### S-0010/D-3 — `OPEN` (Generating from the spec schema) — implementation: none
+### S-0010/D-3 — `OPEN` (Generating from the spec schema)
 
 Whether the generator is `hypothesis-jsonschema`'s `from_schema()` or a hand-written strategy over the subset of JSON Schema bloomery emits is decided by execution, with the tiebreak being the fraction of generated documents that reach the resolver — never the dependency's release date
 

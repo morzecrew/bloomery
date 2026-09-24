@@ -2,7 +2,7 @@
 
 ## Decisions governing `pages/docs/concepts/`
 
-### S-0003/D-7 — `ASSUMED` (Replay on a historical entity) — implementation: partial
+### S-0003/D-7 — `ASSUMED` (Replay on a historical entity)
 
 The route is a write back to bronze: replay re-delivers the recovered row to the bronze relation it came from, as a new delivery, and the ordinary pipeline admits it — no new relation, no change to the entity's SELECT
 

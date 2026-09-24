@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/unit/test_semantic/`
 
-### S-0005/D-5 — `ASSUMED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-5 — `ASSUMED` (Semantic proof IR and closed-world checking)
 
 Rules are named, individually documented and independently testable, registered once in a module constant, and a rule identifier is never minted at a call site
 

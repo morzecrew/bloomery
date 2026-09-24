@@ -9,7 +9,7 @@ An upstream's dbt project name is part of what it exports: `exports.yaml` carrie
 - Paths: `src/bloomery/spec/exports.py` `src/bloomery/ir/nodes.py` `src/bloomery/emit/dbt/__init__.py` `tests/unit/test_emit/test_cross_project.py`
 - Consequence: A downstream compiled against an upstream that exports no name keeps emitting `ref('<alias>', ...)` and a `dependencies.yml` naming the alias — resolvable only when the upstream's dbt project happens to be named so — and the refusal for that case is a documented gap until the row is graded. An exported SCD2 entity is a snapshot on dbt, which no project can reference across the boundary; the export is legal and the dbt target has nothing public to give for it.
 
-### S-0003/D-1 — `LOCKED` (Replay on a historical entity) — implementation: partial
+### S-0003/D-1 — `LOCKED` (Replay on a historical entity)
 
 bloomery computes no framework's SCD bookkeeping: no snapshot identity, no validity interval and no strategy hash is written or guessed anywhere on the replay path
 

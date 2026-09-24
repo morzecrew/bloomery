@@ -3,7 +3,7 @@ id: S-0003
 title: Replay on a historical entity
 kind: design
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []

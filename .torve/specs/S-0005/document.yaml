@@ -3,7 +3,7 @@ id: S-0005
 title: Semantic proof IR and closed-world checking
 kind: design
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []

@@ -3,7 +3,7 @@ id: S-0010
 title: Generating from the spec schema
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []

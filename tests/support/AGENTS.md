@@ -2,14 +2,14 @@
 
 ## Decisions governing `tests/support/`
 
-### S-0010/D-3 — `OPEN` (Generating from the spec schema) — implementation: none
+### S-0010/D-3 — `OPEN` (Generating from the spec schema)
 
 Whether the generator is `hypothesis-jsonschema`'s `from_schema()` or a hand-written strategy over the subset of JSON Schema bloomery emits is decided by execution, with the tiebreak being the fraction of generated documents that reach the resolver — never the dependency's release date
 
 - Paths: `tests/property/**` `tests/support/**` `pyproject.toml`
 - Consequence: Adopting the dependency adds a `dev`-group entry to `pyproject.toml` carrying the same explanatory comment style `jsonschema` already has; declining it puts a maintained strategy in this repository instead. Either way the measured fraction is logged, so the choice is re-decidable on evidence rather than re-argued.
 
-### S-0010/D-6 — `ASSUMED` (Generating from the spec schema) — implementation: none
+### S-0010/D-6 — `ASSUMED` (Generating from the spec schema)
 
 Cross-document consistency is produced by generating a pool of names the documents then draw from, rather than generating each document independently and hoping its references resolve
 

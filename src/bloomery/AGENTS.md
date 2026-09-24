@@ -127,7 +127,7 @@ What makes a quality rule "unstrengthened" — the vocabulary the second advisor
 - Paths: `src/bloomery/evidence.py`
 - Consequence: The advisory cannot be built before the term means something checkable, and the definition chosen fixes both what the code reports and what its documentation row can say; getting it wrong produces an advisory that fires on correct specs, which D-7 forbids
 
-### S-0005/D-3 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-3 — `LOCKED` (Semantic proof IR and closed-world checking)
 
 Guardrails are expressed as obligations before any is deleted, and the mart compiler keeps its aggregate error mechanism throughout while internally consuming shared semantic facts
 
