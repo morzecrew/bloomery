@@ -2,6 +2,22 @@
 
 ## Decisions governing `src/bloomery/typing/`
 
+### S-0011/D-3 — `LOCKED` (Retrieval semantics) — implementation: none
+
+A vector's scalar type is a type name and its dimension an int; no float value enters the IR or any emission path, and this design takes no exemption from the float ban
+
+- Paths: `src/bloomery/typing/**` `src/bloomery/ir/**`
+- Consequence: The vector logical type carries a string and an int and nothing else, so no float literal is ever parsed, stored or rendered, and the existing determinism and no-float tests keep passing unchanged
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0011/D-4 — `LOCKED` (Retrieval semantics) — implementation: none
+
+A declared vector dimension requires a new `LogicalType` member, and a vector accepts no transform - its input domain is empty in every transform spec
+
+- Paths: `src/bloomery/typing/**` `src/bloomery/spec/**` `src/bloomery/transforms/**` `src/bloomery/dialects/**`
+- Consequence: The cost is six sites and cannot be avoided by choosing the other shape, because the union has no array member either; admitting a transform over a vector would put float arithmetic inside a lowered expression, which is exactly what the ban stops
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0019/D-6 — `ASSUMED` (Spec layer and error model)
 
 Parse-stage errors are batched per document (all failures reported at once).

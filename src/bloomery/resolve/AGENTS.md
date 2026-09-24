@@ -17,7 +17,7 @@ Lineage node ids gain a project component for imported nodes only; a local node 
 - Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/lineage.py` `src/bloomery/guardrails/lineage.py` `tests/unit/test_resolve/test_lineage.py` `tests/unit/test_guardrails/test_lineage.py`
 - Consequence: Every existing id and every published citation stays valid — a node name is public surface and `bloomery lineage --node metric.gross_revenue` is a documented invocation — while two projects' graphs can be composed without collision
 
-### S-0003/D-2 — `LOCKED` (Replay on a historical entity) — implementation: partial
+### S-0003/D-2 — `LOCKED` (Replay on a historical entity)
 
 A recovered row reaches the entity through whatever produces the entity's versions, so the framework does the versioning it owns; nothing on the replay path writes to a `scd: type2` entity relation
 
@@ -25,7 +25,7 @@ A recovered row reaches the entity through whatever produces the entity's versio
 - Consequence: Writing past the framework is exactly what the shipped defect did, and it reported success — the admitted version carried a NULL interval and no snapshot identity, so the row was present, queryable and invisible to every as-of join
 - Check: `uv run pytest tests/unit/test_emit/test_quality_artifacts.py -q -k replay_on_a_historical_entity` (shadow; runs as `decision:S-0003/D-2`, no log entry owed)
 
-### S-0003/D-7 — `ASSUMED` (Replay on a historical entity) — implementation: partial
+### S-0003/D-7 — `ASSUMED` (Replay on a historical entity)
 
 The route is a write back to bronze: replay re-delivers the recovered row to the bronze relation it came from, as a new delivery, and the ordinary pipeline admits it — no new relation, no change to the entity's SELECT
 

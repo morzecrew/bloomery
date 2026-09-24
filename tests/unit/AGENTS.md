@@ -18,7 +18,7 @@ The advisory vocabulary is a closed enum with no free-text constructor, and ever
 - Consequence: Adding an advisory is a reviewed change that lands its documentation row with it; a documented code no path can construct fails the census, which is what blocks the deprecated-spelling advisory until a spelling is actually deprecated
 - Check: `uv run pytest tests/unit/test_docs_floor.py -q` (shadow; runs as `decision:S-0004/D-10`, no log entry owed)
 
-### S-0005/D-6 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-6 — `LOCKED` (Semantic proof IR and closed-world checking)
 
 Proof serialization is deterministic: canonical premise order, stable rule identifiers, no memory addresses, no timestamps, no dependence on traversal order, and premises and facts sorted on construction rather than trusted in arrival order
 

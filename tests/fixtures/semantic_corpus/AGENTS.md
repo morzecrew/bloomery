@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/fixtures/semantic_corpus/`
 
-### S-0005/D-4 — `ASSUMED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-4 — `ASSUMED` (Semantic proof IR and closed-world checking)
 
 Capability grows monotonically — the safe queries of one release are a subset of the next — except where a prior rule is found unsound, in which case correctness wins and the narrowing is a breaking change carrying an explicit note rather than a quiet withdrawal
 

@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/execution/`
 
-### S-0003/D-3 — `LOCKED` (Replay on a historical entity) — implementation: partial
+### S-0003/D-3 — `LOCKED` (Replay on a historical entity)
 
 The acceptance for this design is an as-of join finding the recovered row, never a row being present in the entity relation
 

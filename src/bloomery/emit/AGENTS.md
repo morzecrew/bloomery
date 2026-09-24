@@ -9,6 +9,28 @@ Two composing projects must share a naming policy; whether a mismatch is a refus
 - Paths: `src/bloomery/naming.py` `src/bloomery/emit/base.py`
 - Consequence: Without a shared policy the downstream names relations the upstream never created, and the failure surfaces in the warehouse rather than in the compile — which is the worst place for it
 
+### S-0011/D-6 — `ASSUMED` (Retrieval semantics) — implementation: none
+
+The retrieval manifest is emitted by a target of its own, not alongside another target's artifacts
+
+- Paths: `src/bloomery/compile.py` `src/bloomery/emit/**`
+- Consequence: A project's retrieval contract is independent of which analytical framework it compiles for, at the cost of a target enum member that names an artifact rather than a consumer
+
+### S-0011/D-7 — `ASSUMED` (Retrieval semantics) — implementation: none
+
+The manifest inlines each profile's space fully rather than referencing it by name
+
+- Paths: `src/bloomery/emit/**`
+- Consequence: The manifest is larger and repeats a space shared by several profiles, and in exchange it is readable by a consumer that has no access to the spec tree
+
+### S-0011/D-10 — `LOCKED` (Retrieval semantics) — implementation: none
+
+A vendor-oriented vector emitter is `register_emitter`, out of tree, and stays there until it has an artifact contract someone has run; no vector-database member of the target enum
+
+- Paths: `src/bloomery/compile.py` `src/bloomery/emit/__init__.py`
+- Consequence: The capability is available to anyone who wants it without core carrying a vendor's name or its compatibility promise
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0020/D-5 — `ASSUMED` (Intermediate representation and determinism contract)
 
 Floats are banned in IR and emission; `Decimal`/int only.

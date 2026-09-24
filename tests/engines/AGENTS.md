@@ -33,6 +33,87 @@ All six rungs run the shared fixture corpus rather than a per-engine one; a port
 - Paths: `tests/fixtures/**` `tests/engines/**`
 - Consequence: A divergence presents as one fixture behaving differently across ports, which is comparable; departing means an engine surface with genuinely no shared analogue, such as `VARIANT` or `SUPER`
 
+### S-0013/D-3 — `ASSUMED` (Snowflake dialect port) — implementation: none
+
+The OSS emulator `ghcr.io/sivchari/snowflake-emulator` is the default local lane and LocalStack for Snowflake is optional
+
+- Paths: `tests/engines/**` `tests/support/**`
+- Consequence: The default lane needs no token and no licence, which is the only thing that makes it a candidate for a per-pull-request slot at all, since a lane requiring a secret cannot run on a fork pull request; departing means the OSS emulator's documented gaps — no distributed execution, no meaningful access control, no warehouse management, no guaranteed transaction isolation — reaching a fixture that matters, in which case LocalStack becomes the default and its token constraint follows it
+
+### S-0013/D-4 — `ASSUMED` (Snowflake dialect port) — implementation: none
+
+Both emulators carry the `surrogate` marker, distinct from `engine`, and neither gates a release
+
+- Paths: `tests/engines/**` `pyproject.toml`
+- Consequence: `engine("snowflake")` over an emulator is the claim made in the one place it is invisible — a test name in a CI log — so the tier table grows a rung rather than reusing one, and a green surrogate lane can never be quoted as engine conformance
+
+### S-0013/D-5 — `OPEN` (Snowflake dialect port) — implementation: none
+
+Whether the LocalStack lane is maintained at all is decided from the defects each emulator found that the other missed, after one port's worth of work, and not before
+
+- Paths: `tests/engines/**` `tests/support/**`
+- Consequence: Two emulators is two maintenance surfaces, two pinned versions and two sets of documented gaps to know; whoever runs both counts what each caught and records the count, and a decision taken before that evidence exists is the thing this row refuses
+
+### S-0014/D-3 — `LOCKED` (BigQuery dialect port) — implementation: none
+
+The emulator lane is pinned to an exact image tag and is never the authoritative lane — it is evidence, marked as a surrogate, and the real service's own compiler is the oracle
+
+- Paths: `tests/engines/test_bigquery_surrogate.py`
+- Consequence: `latest` is not a lane, because a tier whose engine version can change under it cannot tell a regression from an upgrade; and a green surrogate run may never be quoted as engine conformance, which is why the claim has to be kept out of the test's name rather than only out of its body
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0014/D-6 — `OPEN` (BigQuery dialect port) — implementation: none
+
+Whether the emulator lane runs on pull requests, and the executor decides it on measured runtime and on whether it catches anything rungs 1 through 3 miss
+
+- Paths: `tests/engines/test_bigquery_surrogate.py` `.github/workflows/ci.yml`
+- Consequence: It needs no credential, which makes it eligible where the other three ports' live lanes are not — and it is also the rung with the least authority, so a slot on every pull request buys time from every contributor for a signal that may be redundant
+
+### S-0015/D-2 — `LOCKED` (Redshift dialect port) — implementation: none
+
+A green Floci or LocalStack run proves PostgreSQL accepted the query, and the test name says so — the lane carries a surrogate marker and never claims the engine
+
+- Paths: `tests/engines/test_redshift_surrogate.py`
+- Consequence: Here the surrogate is not merely a different implementation, it is the engine bloomery already ships a port for, so a test named for the engine could be passing entirely on the PostgreSQL scaffold
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0015/D-5 — `ASSUMED` (Redshift dialect port) — implementation: none
+
+LocalStack is optional while bloomery remains a pure compiler
+
+- Paths: `tests/support/redshift.py` `tests/engines/test_redshift_surrogate.py`
+- Consequence: It emulates control-plane and Data API surfaces bloomery does not touch, so no lane is blocked on it
+
+### S-0016/D-3 — `LOCKED` (Databricks SQL dialect port) — implementation: none
+
+The Spark lane is marked `surrogate("databricks_spark")`, never as the Databricks engine — local Spark checks shared Spark semantics, and only a live warehouse checks the Databricks dialect
+
+- Paths: `tests/engines/test_databricks_surrogate.py` `pyproject.toml`
+- Consequence: A green run in that lane cannot be quoted later as Databricks conformance, because the name a CI log prints already says what was tested
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0016/D-4 — `LOCKED` (Databricks SQL dialect port) — implementation: none
+
+`DESCRIBE QUERY` is part of the authoritative lane, not an optional extra beside `EXPLAIN EXTENDED`
+
+- Paths: `tests/support/databricks.py` `tests/engines/test_databricks_live.py`
+- Consequence: The declared-versus-produced type contract is checked against the real analyzer without executing anything or scanning any data; without it, type conformance rests on the surrogate, which is precisely where Spark and Databricks SQL are documented to differ
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0016/D-6 — `ASSUMED` (Databricks SQL dialect port) — implementation: none
+
+Databricks Free Edition is sufficient to bootstrap the live lane, provided the lane stays small — serverless-only, one `2X-Small` warehouse, fair-use quotas, no SLA
+
+- Paths: `tests/engines/test_databricks_live.py` `.github/workflows/**`
+- Consequence: The port is not blocked on anyone buying a workspace, and the live lane is sized by what the edition can carry rather than by what the offline tiers happen to cover
+
+### S-0016/D-7 — `ASSUMED` (Databricks SQL dialect port) — implementation: none
+
+The Spark surrogate lane is kept only if it catches defects the offline rungs miss; it is measured over one port's work and dropped on that evidence
+
+- Paths: `tests/support/spark.py` `tests/engines/test_databricks_surrogate.py`
+- Consequence: The lane's cost is justified by what it returns rather than by the plausibility of having it, and dropping it is a recorded outcome rather than neglect
+
 ### S-0026/D-21 — `ASSUMED` (Testing strategy and fixture corpus)
 
 *(2026-08-10)* **The Trino engine tier is built, on the memory connector, and `spark` is struck from §5.2.** Trino was the engine bloomery made the most claims about and executed the least: three decisions — D83's reject-table constructions, D86's `normalize`/`charset`, D89's mart-assertion body shapes — were each verified against `trinodb/trino:483` **by hand**, through `docker exec`, because the repository carried no Trino client. A hand-verification is a claim with a date on it, not a test, and all three are now a permanent tier (`trino` + `testcontainers[trino]` in the `engines` group). The strongest assertion is the one D75 said was impossible: the `<entity>__reject` model *materializes*, and its `reject_id` is compared against the canon-bytes digest computed here in Python rather than against Trino agreeing with itself — cross-engine *agreement* being the property that identity actually needs, since a replay run on one engine must find the row another quarantined. Sabotage-verified: dropping the `LOWER` from Trino's `TO_HEX` makes the digest disagree in case alone, which the tier catches and which no rendering test could. **The connector is `memory`, diverging from §5.2's `trino+iceberg+minio (compose)` sketch**: bloomery emits SELECTs and models and never storage-format DDL, so an object store and a table format would be three more moving parts serving no assertion in this tier — recorded rather than silently simplified. **`spark` is struck from the same row.** S-0025 ships DuckDB, Postgres and Trino; there is no Spark dialect, so a Spark cell had nothing to exercise and the word promised a matrix column that could never have contained a test. It returns if and when a Spark dialect does.

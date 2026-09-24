@@ -127,7 +127,7 @@ What makes a quality rule "unstrengthened" — the vocabulary the second advisor
 - Paths: `src/bloomery/evidence.py`
 - Consequence: The advisory cannot be built before the term means something checkable, and the definition chosen fixes both what the code reports and what its documentation row can say; getting it wrong produces an advisory that fires on correct specs, which D-7 forbids
 
-### S-0005/D-3 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-3 — `LOCKED` (Semantic proof IR and closed-world checking)
 
 Guardrails are expressed as obligations before any is deleted, and the mart compiler keeps its aggregate error mechanism throughout while internally consuming shared semantic facts
 
@@ -141,6 +141,28 @@ Whether each of the two narrow-handler sites gains `RecursionError` or a depth l
 
 - Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/steps.py`
 - Consequence: A depth limit raising a named error adds a class to `src/bloomery/errors.py` and an entry to `pages/docs/reference/errors.md`; widening the catch adds neither, and the two sites may legitimately get different answers
+
+### S-0011/D-6 — `ASSUMED` (Retrieval semantics) — implementation: none
+
+The retrieval manifest is emitted by a target of its own, not alongside another target's artifacts
+
+- Paths: `src/bloomery/compile.py` `src/bloomery/emit/**`
+- Consequence: A project's retrieval contract is independent of which analytical framework it compiles for, at the cost of a target enum member that names an artifact rather than a consumer
+
+### S-0011/D-10 — `LOCKED` (Retrieval semantics) — implementation: none
+
+A vendor-oriented vector emitter is `register_emitter`, out of tree, and stays there until it has an artifact contract someone has run; no vector-database member of the target enum
+
+- Paths: `src/bloomery/compile.py` `src/bloomery/emit/__init__.py`
+- Consequence: The capability is available to anyone who wants it without core carrying a vendor's name or its compatibility promise
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0011/D-13 — `ASSUMED` (Retrieval semantics) — implementation: none
+
+Runtime-evidence intake is excluded from this design: no null-rate, freshness or other measured-input rule ships under a retrieval heading
+
+- Paths: `src/bloomery/evidence.py`
+- Consequence: The evidence module gains nothing from this design, and a future intake surface is priced and scoped as the general feature it is
 
 ### S-0012/D-4 — `LOCKED` (Validating a dialect port against an engine we cannot run)
 
