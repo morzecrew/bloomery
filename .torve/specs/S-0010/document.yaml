@@ -44,38 +44,25 @@ motivation: |
   documentation examples. Generating from the schema measures the same drift over the
   space. It is the same question with the sampling fixed.
 current_state: |
-  Verified against the working tree on 2026-09-18, and the reason this document exists
-  separately from the fuzzing document `rfcs/0071-fuzzing-the-compile-boundary.md`.
+  Measured against `main` at f0434979 (2026-09-24, after #171 and #176). All three phases have
+  landed, in #171: T-0035 on its fourth dispatch — three refusals from a reviewer whose diff did not
+  show the module the attempt created, an engine defect fixed since — then T-0036 and T-0037 on
+  their first attempts, and one round (T-0055) that found nothing to change.
 
-  - **Both dependencies are already installed, for this purpose.** The `dev` group in
-    `pyproject.toml` carries `hypothesis>=6.130` and `jsonschema>=4.23`, the latter
-    annotated *"Test-only, and only for the schema-agreement property"* with the
-    pre-filter row named in the comment.
-  - **The property tier is ten test modules** under `tests/property/`, marked `property`
-    and described in `pyproject.toml` as tier 3, "Hypothesis property test over generated
-    valid projects". `tests/README.md` describes it the same way.
-  - **Schema/parser agreement is already tested, and does not generate.**
-    `tests/property/test_schema_agreement.py` is 488 lines. It samples a fixed corpus of
-    documentation examples and mutates it three ways — an unknown top-level key, a scalar
-    replaced by a mapping, an out-of-enum value — under a deliberately small example
-    budget whose comment says the count is what the tier can afford, not a claim to
-    exhaustiveness.
-  - **The known divergences are recorded there, not tolerated.** A float `tolerance` the
-    schema accepts and the parser refuses, and an `agg` that is a closed set on a mart and
-    a bare string on a metric, each with the reason the direction is legitimate.
-  - **The schema is reachable in-process.** `all_spec_schemas()` and
-    `spec_json_schema(kind)`, with `VERSION_KEYS` published from the one table in
-    `src/bloomery/schema.py` rather than re-typed per consumer.
-  - **There are eight project kinds, not five.** `SpecKind` names nine; the catalog is
-    loaded separately, leaving eight documents `load_project` dispatches on by version
-    key. The source document's second phase says "the five project kinds", which predates
-    the exposures, exports and imports kinds now in that enum. The phasing below carries
-    the count the tree has.
-  - **`hypothesis-jsonschema` is not a dependency.** Its `from_schema()` would do this off
-    the shelf and satisfies the existing pins, but its last release was February 2024.
-  - **Nothing has landed.** `rfcs/INDEX.md` carries the source document as Draft, no task
-    file under `tasks/` and no log under `logs/` names it, and `git log` over
-    `tests/property/` shows no generation work. All three phases below remain.
+  - **The generator is `tests/support/schema_strategies.py`** (`from_spec_schema`), built on the
+    `hypothesis` and `jsonschema` the `dev` group already carried; `hypothesis-jsonschema` was
+    not adopted.
+  - **`tests/property/test_schema_agreement.py` carries the properties** beside the corpus
+    strategy it had: totality over a generated `entity_model` and over a generated project set
+    drawn from one name pool (a document either compiles or refuses at an addressable
+    `source_path`), the measured reach of each — how many generated inputs get past the parser to
+    resolution and to a guardrail — reported rather than folded together, the sabotage check that
+    widening the coverage guardrail turns totality red, the assertion that independently drawn
+    documents never get past the resolver, and the generated-space half of the drift measurement
+    in the one legitimate direction, with the float `tolerance` and the metric `agg` divergences
+    still asserted as expected so that closing one goes red. The module collects 320 tests.
+  - **`all_spec_schemas()` and `spec_json_schema(kind)`** in `src/bloomery/schema.py` are what
+    the generator reads; the eight project kinds `load_project` dispatches on are all covered.
 goals: |
   Reach the guardrails with generated specs, at a rate mutation cannot achieve. Measure
   schema/parser drift over the generated space rather than over the corpus's

@@ -36,48 +36,28 @@ motivation: |
   two, so nothing observed it. A later self-audit compared the two targets' artifact
   sets for such an entity and found them identical and identically broken.
 current_state: |
-  Measured against the tree at `9e44779d`.
+  Measured against `main` at f0434979 (2026-09-24, after #168 and #176).
 
-  **The route is built.** Pull request #128 landed at `ad5891d7` on 2026-09-17 — 31
-  files, 1910 insertions — and is the only phase this design ever wrote. In it:
+  **The route is built**, in pull request #128 at `ad5891d7` on 2026-09-17: `replay_statements`
+  in `src/bloomery/emit/lower/silver.py` re-delivers a recovered row to bronze on a historical
+  entity; `_snapshot_replay` in `src/bloomery/resolve/build.py` carries the two refusals that
+  replaced `_snapshot_quarantine`; `utc_now` is a port hook; `tests/fixtures/scd2_replay/` is the
+  quarantining historical fixture; `tests/execution/test_replay_to_bronze.py` and
+  `tests/e2e/test_dbt_parse.py` assert the route; `pages/docs/concepts/data-quality.md` carries it.
 
-  - `replay_statements` in `src/bloomery/emit/lower/silver.py` branches on the entity's
-    SCD kind: on a historical entity the first statement stops being a merge into the
-    entity and becomes one INSERT per source relation back into bronze, re-projecting
-    the reject row's stored payload through the current mapping's own expressions. The
-    second and third statements are unchanged.
-  - `_snapshot_quarantine` is gone from `src/bloomery/resolve/build.py`, deleted rather
-    than narrowed. `_snapshot_replay` stands in its place with two refusals an author
-    can act on.
-  - A new port hook, `utc_now`, in `src/bloomery/dialects/base.py` and
-    `src/bloomery/dialects/trino.py`: the value written into a relation bloomery does
-    not build is zoneless UTC, stated rather than inherited from a session.
-  - A quarantining historical fixture the tree did not have,
-    `tests/fixtures/scd2_replay/`, six files.
-  - `tests/execution/test_replay_to_bronze.py` asserts bloomery's own bookkeeping
-    across the route in DuckDB; `tests/e2e/test_dbt_parse.py` asserts the claim D-3
-    makes, with dbt versioning the row for real.
-  - `pages/docs/concepts/data-quality.md` carries the route where it carried the
-    warning block.
+  **The one phase this document carried has landed** (#168: T-0032 on its first attempt, and the
+  review round T-0048 the leg minted for a reviewer's thread). The conservation audit's entity leg
+  on a historical entity reads `_current_version` — `valid_to IS NULL`, the column the framework's
+  own configuration names, a read predicate and no SCD bookkeeping of bloomery's — so a source
+  row admitted earlier and quarantined later is no longer counted as surviving and diverted at
+  once, and the type 1 predicate is untouched. `tests/unit/test_emit/test_quality_artifacts.py`
+  and `tests/execution/test_replay_to_bronze.py` pin it; `tests/e2e/test_dbt_parse.py` asserts that
+  the audit ran and passed, not that `dbt build` succeeded.
 
-  **Two things are not done, and both are named by the log of that landing,
-  T-0064 (`logs/T-0064.md`, in history).**
-
-  - **The acceptance ran on one target.** The design asked for it on both, "since the
-    two frameworks version differently and a design that works on one is half a
-    design". Only dbt is measured end to end; the SQLMesh artifacts are asserted at the
-    unit tier and executed by nothing that versions anything. `tests/e2e/` has a SQLMesh
-    module already, and no replay test in it.
-  - **The conservation audit fails in a state this route makes reachable.** A source row
-    admitted earlier and quarantined later is counted in both legs of the law, because
-    the entity leg is scoped to this run's survivor identities while a retaining
-    relation still holds the version that predates the run. It fires at the build
-    *before* any replay runs, and it is blocking. The landing recorded it and left it
-    deliberately, because a second audit rewritten inside a review round is how a phase
-    stops being reviewable.
-
-  The source document is still marked draft in its own index, and the rows its
-  executing log proposed have not been accepted into its table.
+  **Still not done, and outside this document's phases:** the acceptance runs end to end on dbt
+  alone. `tests/e2e/` has two SQLMesh modules and no replay test among them, so the SQLMesh
+  artifacts are asserted at the unit tier and executed by nothing that versions anything. A
+  document that wants the second target measured has to phase it.
 goals: |
   - A quarantining historical entity compiles, and its replay admits a recovered row as
     a **version the framework wrote**.
