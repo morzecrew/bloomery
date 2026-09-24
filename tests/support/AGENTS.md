@@ -40,6 +40,71 @@ No engine driver, cloud SDK or Spark session enters `src/bloomery`; live harness
 - Consequence: A cloud port adds a port module and a test harness and nothing else to the install path, so the package stays a pure compiler and its dependency closure stays free of a JVM and four vendor SDKs
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0013/D-3 — `ASSUMED` (Snowflake dialect port) — implementation: none
+
+The OSS emulator `ghcr.io/sivchari/snowflake-emulator` is the default local lane and LocalStack for Snowflake is optional
+
+- Paths: `tests/engines/**` `tests/support/**`
+- Consequence: The default lane needs no token and no licence, which is the only thing that makes it a candidate for a per-pull-request slot at all, since a lane requiring a secret cannot run on a fork pull request; departing means the OSS emulator's documented gaps — no distributed execution, no meaningful access control, no warehouse management, no guaranteed transaction isolation — reaching a fixture that matters, in which case LocalStack becomes the default and its token constraint follows it
+
+### S-0013/D-5 — `OPEN` (Snowflake dialect port) — implementation: none
+
+Whether the LocalStack lane is maintained at all is decided from the defects each emulator found that the other missed, after one port's worth of work, and not before
+
+- Paths: `tests/engines/**` `tests/support/**`
+- Consequence: Two emulators is two maintenance surfaces, two pinned versions and two sets of documented gaps to know; whoever runs both counts what each caught and records the count, and a decision taken before that evidence exists is the thing this row refuses
+
+### S-0013/D-7 — `ASSUMED` (Snowflake dialect port) — implementation: none
+
+No Snowflake credential — the LocalStack auth token included — enters the repository or is reachable from an untrusted pull request, and a lane that finds none skips with a stated reason rather than failing
+
+- Paths: `tests/support/**` `.github/workflows/**`
+- Consequence: The token is read from the environment and `.env` is already gitignored, so the harness adds nothing there; the live lanes run on `main`, on releases, on a schedule and on manual dispatch behind a GitHub Environment, and a red lane on a missing variable would train people to ignore the lane
+
+### S-0014/D-5 — `ASSUMED` (BigQuery dialect port) — implementation: none
+
+A tiny dedicated BigQuery dataset exists before the dry-run lane does, so that name and type resolution actually run against something
+
+- Paths: `tests/support/bigquery.py`
+- Consequence: A dry run over a query that references nothing validates syntax and little else, which would make the lane look authoritative in a report while proving roughly what rung 3 already proves for free
+
+### S-0015/D-3 — `LOCKED` (Redshift dialect port) — implementation: none
+
+Fixtures are split into `postgres-compatible` and `redshift-native`, and the native class never runs on the surrogate
+
+- Paths: `tests/support/redshift.py`
+- Consequence: Without the split, the surrogate lane's coverage number silently includes cases it cannot speak to — which is how a partial lane comes to be read as a full one
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0015/D-5 — `ASSUMED` (Redshift dialect port) — implementation: none
+
+LocalStack is optional while bloomery remains a pure compiler
+
+- Paths: `tests/support/redshift.py` `tests/engines/test_redshift_surrogate.py`
+- Consequence: It emulates control-plane and Data API surfaces bloomery does not touch, so no lane is blocked on it
+
+### S-0016/D-4 — `LOCKED` (Databricks SQL dialect port) — implementation: none
+
+`DESCRIBE QUERY` is part of the authoritative lane, not an optional extra beside `EXPLAIN EXTENDED`
+
+- Paths: `tests/support/databricks.py` `tests/engines/test_databricks_live.py`
+- Consequence: The declared-versus-produced type contract is checked against the real analyzer without executing anything or scanning any data; without it, type conformance rests on the surrogate, which is precisely where Spark and Databricks SQL are documented to differ
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0016/D-7 — `ASSUMED` (Databricks SQL dialect port) — implementation: none
+
+The Spark surrogate lane is kept only if it catches defects the offline rungs miss; it is measured over one port's work and dropped on that evidence
+
+- Paths: `tests/support/spark.py` `tests/engines/test_databricks_surrogate.py`
+- Consequence: The lane's cost is justified by what it returns rather than by the plausibility of having it, and dropping it is a recorded outcome rather than neglect
+
+### S-0016/D-10 — `ASSUMED` (Databricks SQL dialect port) — implementation: none
+
+No cloud credential is reachable from an untrusted pull request and the default test tiers never require one: the live lane runs on `main`, on a schedule and on manual dispatch behind the `databricks-free` GitHub Environment rather than raw repository secrets, against the dedicated `workspace.bloomery_conformance` catalog and schema, with compile-only and execution jobs kept separate, and a live test skips with a stated reason when the variables are absent rather than failing
+
+- Paths: `.github/workflows/**` `.env.example` `tests/support/databricks.py`
+- Consequence: A public pull request cannot run arbitrary SQL under a maintainer's cloud identity, the cheap lane cannot accidentally scan or bill, and a contributor with no credentials sees a stated skip rather than a red suite
+
 ### S-0020/D-2 — `ASSUMED` (Intermediate representation and determinism contract)
 
 SQL is stored in the IR as canonical dialect-neutral SQLGlot text (`SqlExpr`), re-parsed at emit. Consequence: SQLGlot version changes can change fingerprints; the exact pin (D4 §5.5) makes that a deliberate event.

@@ -128,6 +128,44 @@ Whether `surrogate` is a new pytest marker or a parameter on `engine`; whoever a
 - Paths: `pyproject.toml`
 - Consequence: Either spelling satisfies D-2, and the parameter form keeps one selector for the whole matrix at the cost of a marker whose meaning depends on an argument
 
+### S-0013/D-4 — `ASSUMED` (Snowflake dialect port) — implementation: none
+
+Both emulators carry the `surrogate` marker, distinct from `engine`, and neither gates a release
+
+- Paths: `tests/engines/**` `pyproject.toml`
+- Consequence: `engine("snowflake")` over an emulator is the claim made in the one place it is invisible — a test name in a CI log — so the tier table grows a rung rather than reusing one, and a green surrogate lane can never be quoted as engine conformance
+
+### S-0016/D-2 — `LOCKED` (Databricks SQL dialect port) — implementation: none
+
+PySpark is a test-only optional dependency group, pinned reproducibly in the lockfile and never installed by `uv add bloomery`
+
+- Paths: `pyproject.toml`
+- Consequence: A user who never targets Databricks pays nothing for this port, and the dependency cannot drift into the runtime set by accident
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0016/D-3 — `LOCKED` (Databricks SQL dialect port) — implementation: none
+
+The Spark lane is marked `surrogate("databricks_spark")`, never as the Databricks engine — local Spark checks shared Spark semantics, and only a live warehouse checks the Databricks dialect
+
+- Paths: `tests/engines/test_databricks_surrogate.py` `pyproject.toml`
+- Consequence: A green run in that lane cannot be quoted later as Databricks conformance, because the name a CI log prints already says what was tested
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0016/D-5 — `LOCKED` (Databricks SQL dialect port) — implementation: none
+
+No service-principal machine-to-machine OAuth flow is documented as working on Free Edition; the stated fallback is a personal access token if that workspace offers one, otherwise local and manual with unattended CI on a normal workspace
+
+- Paths: `.github/workflows/**` `.env.example`
+- Consequence: A reader setting the lane up is never sent down a path the edition cannot support, and the setup instructions stay true as written
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0016/D-10 — `ASSUMED` (Databricks SQL dialect port) — implementation: none
+
+No cloud credential is reachable from an untrusted pull request and the default test tiers never require one: the live lane runs on `main`, on a schedule and on manual dispatch behind the `databricks-free` GitHub Environment rather than raw repository secrets, against the dedicated `workspace.bloomery_conformance` catalog and schema, with compile-only and execution jobs kept separate, and a live test skips with a stated reason when the variables are absent rather than failing
+
+- Paths: `.github/workflows/**` `.env.example` `tests/support/databricks.py`
+- Consequence: A public pull request cannot run arbitrary SQL under a maintainer's cloud identity, the cheap lane cannot accidentally scan or bill, and a contributor with no credentials sees a stated skip rather than a red suite
+
 ### S-0078/D-7 — `LOCKED` (The RFC corpus retired into documents)
 
 the `rfcs` directory (since retired), its index and register, the checker and the `rfc-corpus` gate are deleted, and `spec-valid` is the corpus gate
@@ -157,17 +195,17 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `pages/docs/contributing/` — 0 decision(s)
 - `pages/docs/how-to/` — 5 decision(s)
 - `pages/docs/reference/` — 6 decision(s)
-- `src/bloomery/` — 100 decision(s)
+- `src/bloomery/` — 103 decision(s)
 - `src/bloomery/cli/` — 44 decision(s)
-- `src/bloomery/dialects/` — 34 decision(s)
-- `src/bloomery/emit/` — 13 decision(s)
+- `src/bloomery/dialects/` — 48 decision(s)
+- `src/bloomery/emit/` — 16 decision(s)
 - `src/bloomery/emit/cube/` — 18 decision(s)
 - `src/bloomery/emit/dbt/` — 51 decision(s)
 - `src/bloomery/emit/lower/` — 71 decision(s)
 - `src/bloomery/emit/metricflow/` — 17 decision(s)
 - `src/bloomery/emit/sqlmesh/` — 23 decision(s)
-- `src/bloomery/guardrails/` — 78 decision(s)
-- `src/bloomery/ir/` — 74 decision(s)
+- `src/bloomery/guardrails/` — 81 decision(s)
+- `src/bloomery/ir/` — 75 decision(s)
 - `src/bloomery/marts/` — 28 decision(s)
 - `src/bloomery/plan/` — 28 decision(s)
 - `src/bloomery/planner/` — 53 decision(s)
@@ -175,14 +213,14 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/bloomery/resolve/` — 92 decision(s)
 - `src/bloomery/runtime/` — 15 decision(s)
 - `src/bloomery/semantic/` — 63 decision(s)
-- `src/bloomery/spec/` — 103 decision(s)
+- `src/bloomery/spec/` — 110 decision(s)
 - `src/bloomery/steps/` — 12 decision(s)
-- `src/bloomery/transforms/` — 29 decision(s)
-- `src/bloomery/typing/` — 5 decision(s)
+- `src/bloomery/transforms/` — 30 decision(s)
+- `src/bloomery/typing/` — 7 decision(s)
 - `tests/` — 2 decision(s)
 - `tests/bench/` — 2 decision(s)
 - `tests/e2e/` — 28 decision(s)
-- `tests/engines/` — 20 decision(s)
+- `tests/engines/` — 31 decision(s)
 - `tests/equivalence/` — 1 decision(s)
 - `tests/execution/` — 46 decision(s)
 - `tests/fixtures/` — 2 decision(s)
@@ -260,9 +298,9 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `tests/golden/semi_additive_inventory/` — 1 decision(s)
 - `tests/golden/step_resolution/` — 1 decision(s)
 - `tests/property/` — 24 decision(s)
-- `tests/support/` — 24 decision(s)
+- `tests/support/` — 33 decision(s)
 - `tests/unit/` — 70 decision(s)
-- `tests/unit/test_dialects/` — 9 decision(s)
+- `tests/unit/test_dialects/` — 11 decision(s)
 - `tests/unit/test_emit/` — 46 decision(s)
 - `tests/unit/test_guardrails/` — 48 decision(s)
 - `tests/unit/test_ir/` — 7 decision(s)

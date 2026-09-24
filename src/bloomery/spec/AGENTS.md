@@ -34,12 +34,13 @@ No registry, no packaging, no network: how the upstream artifact reaches the com
 - Consequence: The upstream is a value the caller assembles, exactly as a step registry is, so composition adds no I/O to a compile that performs none; the cost is that a surface with no value to pass — the CLI today — cannot compile an importing project at all
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0002/D-10 — `ASSUMED` (Multi-project composition) — implementation: partial
+### S-0002/D-10 — `LOCKED` (Multi-project composition) — implementation: partial
 
 An upstream's dbt project name is part of what it exports: `exports.yaml` carries an optional `name`, `ExportsIR` carries it across, and the downstream's dbt target spells the two-argument `ref()` and the `dependencies.yml` entry with that name while the downstream's own `dbt_project.yml` is named after its own export name when it has one. The local alias stays what keys the compile input and the IR resolution (D-2); dbt is the one target whose cross-project reference needs the producer's own name, so the name lives on the producer's side of the boundary and nowhere else.
 
 - Paths: `src/bloomery/spec/exports.py` `src/bloomery/ir/nodes.py` `src/bloomery/emit/dbt/__init__.py` `tests/unit/test_emit/test_cross_project.py`
 - Consequence: A downstream compiled against an upstream that exports no name keeps emitting `ref('<alias>', ...)` and a `dependencies.yml` naming the alias — resolvable only when the upstream's dbt project happens to be named so — and the refusal for that case is a documented gap until the row is graded. An exported SCD2 entity is a snapshot on dbt, which no project can reference across the boundary; the export is legal and the dbt target has nothing public to give for it.
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0004/D-2 — `LOCKED` (Observability: logging and a warnings channel)
 
@@ -108,6 +109,59 @@ Whether `same_as:` is needed at all. The in-project case is derivable from `role
 
 - Paths: `src/bloomery/spec/marts.py`
 - Consequence: Phase 3 exists only if this resolves that the relation is needed; resolving it the other way retires the relation and the document can complete on the first two phases
+
+### S-0011/D-1 — `LOCKED` (Retrieval semantics) — implementation: none
+
+Retrieval semantics ship as their own spec kind, loaded by a `retrieval_version` key in `_KIND_KEYS`, never as optional keys on the entity model
+
+- Paths: `src/bloomery/spec/**`
+- Consequence: A project that declares no retrieval document is untouched by the whole design, and a target that cannot serve retrieval refuses the kind wholesale rather than ignoring keys it does not understand
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0011/D-2 — `LOCKED` (Retrieval semantics) — implementation: none
+
+bloomery never computes, reads or validates an embedding value, and never resolves an encoder model identity against a provider; encoder identities are opaque strings compared for equality
+
+- Paths: `src/bloomery/spec/**` `src/bloomery/guardrails/**`
+- Consequence: A typo in a model name is caught by comparing a field's declared producer against its space's, and never by a lookup; a future change that verifies a model name against a provider is the erosion this row exists to halt
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0011/D-4 — `LOCKED` (Retrieval semantics) — implementation: none
+
+A declared vector dimension requires a new `LogicalType` member, and a vector accepts no transform - its input domain is empty in every transform spec
+
+- Paths: `src/bloomery/typing/**` `src/bloomery/spec/**` `src/bloomery/transforms/**` `src/bloomery/dialects/**`
+- Consequence: The cost is six sites and cannot be avoided by choosing the other shape, because the union has no array member either; admitting a transform over a vector would put float arithmetic inside a lowered expression, which is exactly what the ban stops
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0011/D-5 — `LOCKED` (Retrieval semantics) — implementation: none
+
+Fusion is reciprocal rank fusion only in the first version of the kind
+
+- Paths: `src/bloomery/spec/**`
+- Consequence: A profile declaring any other fusion method is refused by the grammar rather than by a guardrail, and weighted fusion reopens only with a portable normalization contract
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0011/D-9 — `ASSUMED` (Retrieval semantics) — implementation: none
+
+Six statable guardrails, not the source proposal's ten - the projection rule folds into the grain rule, the hybrid-needs-both-sides rule becomes a grammar requirement, and the searchable-is-not-filterable rule is a design rule honoured by requiring two declarations
+
+- Paths: `src/bloomery/guardrails/**` `src/bloomery/spec/**`
+- Consequence: A reader of the source proposal will look for four rules that are not here and has to be told where they went; in exchange each remaining rule has one refusal message and one test
+
+### S-0011/D-11 — `OPEN` (Retrieval semantics) — implementation: none
+
+Whether a vector field may be declared on an entity or only on a mart
+
+- Paths: `src/bloomery/spec/entity.py` `src/bloomery/spec/marts.py`
+- Consequence: Confining it to marts keeps the new type out of the mapping and transform paths entirely, which is most of the type-system cost; allowing it on entities means an embedding produced by a step can be declared where it is produced
+
+### S-0011/D-12 — `OPEN` (Retrieval semantics) — implementation: none
+
+Whether `distance` is a property of the semantic space or of the retrieval profile
+
+- Paths: `src/bloomery/spec/**`
+- Consequence: Putting it on the space is the easier position to relax later, since moving a field from the space to the profile is additive and the reverse is not
 
 ### S-0019/D-2 — `ASSUMED` (Spec layer and error model)
 

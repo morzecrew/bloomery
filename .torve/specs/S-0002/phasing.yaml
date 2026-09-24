@@ -86,3 +86,40 @@ phasing:
       - uv run mypy src
     depends_on:
       - 4
+  - phase: 6
+    title: The producer's dbt project name
+    intent: >-
+      Implement D-10. `exports.yaml` gains an optional `name` — the producer's dbt project
+      name, the one identity a bloomery project carries and only because one target needs
+      it; `Exports` and `ExportSet` parse it, `ExportsIR` carries it across, and `_bind_imports`
+      puts it on `UpstreamIR` beside the alias. The dbt target then spells the two-argument
+      `ref()` and the `dependencies.yml` entry with the upstream's name, and names the
+      project in `dbt_project.yml` after its own export name when it has one and `bloomery`
+      otherwise; an upstream that exports no name is refused at the import guard on the dbt
+      target rather than emitted as files dbt cannot resolve, and every other target is
+      untouched — SQLMesh names the relation, Cube and MetricFlow read a mart. The
+      `ecom_basic` fixture exports a name so the cross-project tests and the goldens show
+      it; the corpus pin moves for that fixture's `dbt_project.yml` and nothing else, which
+      is the assertion to keep. The alias stays what keys the compile input and the
+      resolver (D-2).
+    scope:
+      - src/bloomery/spec/exports.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/guardrails/imports.py
+      - src/bloomery/emit/dbt/__init__.py
+      - pages/docs/how-to/emit-dbt.md
+      - tests/unit/test_spec/test_exports.py
+      - tests/unit/test_ir/test_nodes.py
+      - tests/unit/test_emit/**
+      - tests/unit/test_guardrails/test_imports.py
+      - tests/fixtures/ecom_basic/exports.yaml
+      - tests/golden/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_spec/test_exports.py tests/unit/test_ir/test_nodes.py
+        tests/unit/test_emit tests/unit/test_guardrails/test_imports.py tests/golden -q
+      - uv run mypy src
+    depends_on:
+      - 5
+    character: structural
