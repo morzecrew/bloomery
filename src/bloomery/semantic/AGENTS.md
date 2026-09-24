@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/bloomery/semantic/`
 
-### S-0005/D-1 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-1 — `LOCKED` (Semantic proof IR and closed-world checking)
 
 Unknown is not safe: a proof obligation is closed only by a `Declared`, `Derived` or narrowly specified `ImportedVerified` fact. `InferredHeuristic` and `Unknown` may inform a diagnostic and never an acceptance, and the line is drawn in one place — `Provenance.closes` — rather than at each call site
 
@@ -10,7 +10,7 @@ Unknown is not safe: a proof obligation is closed only by a `Declared`, `Derived
 - Consequence: A rule that closes on a guess accepts an unsafe project silently, and a second copy of the closure test that drifted would not look like a safety change in review; the reading surface inherits the same line, because a renderer that presents an unclosed proof as evidence makes the same claim the checker refused to
 - Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_only_declared_derived_and_imported_close_an_obligation tests/unit/test_semantic/test_proof.py::test_one_heuristic_leaf_makes_the_whole_proof_unclosed tests/unit/test_semantic/test_proof.py::test_a_proof_resting_on_nothing_is_not_closed -q` (shadow; runs as `decision:S-0005/D-1`, no log entry owed)
 
-### S-0005/D-2 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-2 — `LOCKED` (Semantic proof IR and closed-world checking)
 
 The primary internal representation is a proof or a refusal, never a boolean: every entry point that answers a semantic question returns the derivation or the structured failure, and a caller reads which question failed off the judgement
 
@@ -18,7 +18,7 @@ The primary internal representation is a proof or a refusal, never a boolean: ev
 - Consequence: A boolean discards the derivation, so every consumer downstream — the explain surface, the per-case rule pinning the bug corpus needs, a refusal's smallest failed obligation — has to reconstruct it from the answer, and a surface that reconstructs can agree with the answer without resting on it
 - Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_both_halves_carry_the_same_surface -q` (shadow; runs as `decision:S-0005/D-2`, no log entry owed)
 
-### S-0005/D-3 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-3 — `LOCKED` (Semantic proof IR and closed-world checking)
 
 Guardrails are expressed as obligations before any is deleted, and the mart compiler keeps its aggregate error mechanism throughout while internally consuming shared semantic facts
 
@@ -26,14 +26,14 @@ Guardrails are expressed as obligations before any is deleted, and the mart comp
 - Consequence: A guardrail deleted in favour of a proof rule that turns out narrower is a silently accepted unsafe project; the parity assertions between a proof and the boolean answer it expresses are what make the two comparable, and they can only be written while both exist
 - Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_the_proof_agrees_with_the_answer_it_expresses -q` (shadow; runs as `decision:S-0005/D-3`, no log entry owed)
 
-### S-0005/D-4 — `ASSUMED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-4 — `ASSUMED` (Semantic proof IR and closed-world checking)
 
 Capability grows monotonically — the safe queries of one release are a subset of the next — except where a prior rule is found unsound, in which case correctness wins and the narrowing is a breaking change carrying an explicit note rather than a quiet withdrawal
 
 - Paths: `src/bloomery/semantic/proof.py` `tests/fixtures/semantic_corpus/**` `CHANGELOG.md`
 - Consequence: A new rule ships with positive and adversarial tests showing the boundary it admits, so a reader can see what was widened; a project that compiled last release and refuses in this one is either a documented soundness fix or a defect, and the note is what tells them apart
 
-### S-0005/D-5 — `ASSUMED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-5 — `ASSUMED` (Semantic proof IR and closed-world checking)
 
 Rules are named, individually documented and independently testable, registered once in a module constant, and a rule identifier is never minted at a call site
 
@@ -41,7 +41,7 @@ Rules are named, individually documented and independently testable, registered 
 - Consequence: The alternative — one monolithic checker returning a tree — passes the same tests and cannot answer which rule admitted a given acceptance, which the bug corpus requires of every case it pins; a registry a test asserts against also means a removed identifier fails rather than disappearing
 - Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_every_rule_is_documented_and_uniquely_identified tests/unit/test_semantic/test_proof.py::test_a_rule_id_is_never_minted_at_a_call_site -q` (shadow; runs as `decision:S-0005/D-5`, no log entry owed)
 
-### S-0005/D-6 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-6 — `LOCKED` (Semantic proof IR and closed-world checking)
 
 Proof serialization is deterministic: canonical premise order, stable rule identifiers, no memory addresses, no timestamps, no dependence on traversal order, and premises and facts sorted on construction rather than trusted in arrival order
 
@@ -49,14 +49,14 @@ Proof serialization is deterministic: canonical premise order, stable rule ident
 - Consequence: Equivalent authored ordering produces equivalent proof serialization, so a golden or a continuous-integration assertion over a derivation is a statement about the design rather than about the order a dictionary happened to iterate in
 - Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_premise_order_is_canonical_not_construction_order tests/unit/test_semantic/test_proof.py::test_serialization_carries_nothing_that_varies_between_processes -q` (shadow; runs as `decision:S-0005/D-6`, no log entry owed)
 
-### S-0005/D-7 — `OPEN` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-7 — `OPEN` (Semantic proof IR and closed-world checking)
 
 Whether a proof is retained after acceptance or discarded once the obligation closes. The explain surface needs one; a compile may not, and holding every proof for a large project is an unmeasured cost. Decide it — a return value, a lazily rebuilt artifact, or retention behind a flag — and log the decision with whatever measurement prompted it
 
 - Paths: `src/bloomery/semantic/proof.py` `src/bloomery/semantic/closure.py` `src/bloomery/planner/semantic_plan.py`
 - Consequence: The answer decides whether a proof is a return value or an artifact, which is the difference between a compile that pays nothing for proofs nobody asked for and one that carries every derivation it built
 
-### S-0005/D-8 — `OPEN` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-8 — `OPEN` (Semantic proof IR and closed-world checking)
 
 What happens to a rule identifier when a rule is split or subsumed. They become a public contract the moment continuous integration asserts on them, so decide the versioning discipline before the first identifier ships, since the choice is unmakeable afterwards
 

@@ -2,7 +2,7 @@
 id: S-0016
 title: Databricks SQL dialect port
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: []
 informed_by: [S-0001]

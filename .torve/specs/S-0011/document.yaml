@@ -2,7 +2,7 @@
 id: S-0011
 title: Retrieval semantics
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: []
 informed_by: [S-0001]

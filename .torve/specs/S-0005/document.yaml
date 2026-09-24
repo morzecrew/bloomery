@@ -3,7 +3,7 @@ id: S-0005
 title: Semantic proof IR and closed-world checking
 kind: design
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []
@@ -33,30 +33,32 @@ motivation: |
   because a derivation names its rule, its premises and its leaves, and a leaf that may
   not close anything is visible as such.
 current_state: |
-  Two of the three phases have landed. `src/bloomery/semantic/proof.py` is 759 lines
-  carrying the vocabulary — a five-member `Provenance` whose `closes` property is the one
-  place the safety line is drawn, `Proof`, `Refutation`, `Obligation`, `SemanticFact`,
-  `SemanticJudgement`, `EvidenceGrade`, and a `RULES` registry of nineteen entries,
-  R001 through R019, with nothing superseded. `closure.py` (794 lines) expresses the
-  rollup answer as a proof beside the boolean one it agrees with; `additivity.py` (760
-  lines) adds the second question a rollup asks, and `denomination.py` (312 lines) makes an
-  accepted currency conversion rest on R009 rather than on a label. The planner holds
-  proofs: `planner/semantic_plan.py` builds them and `planner/coverage.py` reads them, so
-  every answered request carries its derivation.
+  Measured against `main` at f0434979 (2026-09-24, after #170 and #176). All three phases have
+  landed.
 
-  What has not landed is the reading surface. `Proof.render` produces the numbered prose
-  form this design shows and `Proof.serialize` produces the canonical encoding, and neither
-  has a caller outside the semantic package's own tests: `bloomery explain` prints SQL, the
-  planner's prose explanation, and the evidence-grade tally that a later document added,
-  and no derivation at all. The prose explanation's safety notes — `additive — SUM`, and
-  the ratio note recomputed at the requested grain — are fixed strings assembled from the
-  planner's structured result, with no proof behind them, which is the shape this design
-  refuses by name.
+  **The vocabulary and the proofs** were there before this document was accepted:
+  `src/bloomery/semantic/proof.py` carries `Provenance` (whose `closes` property is the one place
+  the safety line is drawn), `Proof`, `Refutation`, `Obligation`, `SemanticFact`,
+  `SemanticJudgement`, `EvidenceGrade` and the `RULES` registry, R001 through R019;
+  `closure.py`, `additivity.py` and `denomination.py` express the rollup, additivity and
+  conversion answers as proofs; `planner/semantic_plan.py` builds them and `planner/coverage.py`
+  reads them, so every answered request carries its derivation.
 
-  Of the seven rules the design names, six are minted. Explicit unit conversion is not:
-  nothing in the spec language declares a unit, no case in the bug corpus names the rule,
-  and the phase that minted the other measure rules added no premise for it. The corpus
-  itself is twelve cases under `tests/fixtures/semantic_corpus/`, 001 through 012.
+  **The reading surface landed in #170** (T-0033 on its second attempt — the review tier caught a
+  second `query.semantic` read against the one-read guard in `tests/unit/test_semantic/test_plan.py`,
+  and the revision bound the plan once — and T-0034 on its first). `bloomery explain` renders the
+  derivation beside the evidence in the text output (`render.render_derivation`, deepest premise
+  first, each step naming its rule) and carries it as `derivation` in the JSON output, one
+  document per proof against stable rule identifiers. `pages/docs/concepts/what-bloomery-proves.md`
+  says what a closed derivation is and which provenances may never close one;
+  `pages/docs/how-to/use-the-cli.md` shows the rendered block, which reproduces the command byte
+  for byte. The two rounds the review leg minted (T-0050, T-0052) changed nothing and recorded
+  why; T-0052 left the one thing open: no test pins that block against the command, and the pin
+  belongs in `tests/unit/test_docs_snippets.py`, a file no phase of this document names.
+
+  Of the seven rules the design names, six are minted; explicit unit conversion is not, because
+  nothing in the spec language declares a unit. The corpus is twelve cases under
+  `tests/fixtures/semantic_corpus/`.
 goals: |
   Finish the reading half of the design: the derivation a plan already carries becomes
   something an author and a continuous-integration run can both read, in the numbered form

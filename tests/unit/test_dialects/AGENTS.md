@@ -2,6 +2,21 @@
 
 ## Decisions governing `tests/unit/test_dialects/`
 
+### S-0013/D-2 — `LOCKED` (Snowflake dialect port) — implementation: none
+
+Nothing is inherited from the PostgreSQL or the Trino port without being measured on Snowflake: each of the six rewrite points is re-established here from evidence
+
+- Paths: `src/bloomery/dialects/**` `tests/unit/test_dialects/**`
+- Consequence: A rewrite this port applies is a rewrite something measured on Snowflake asked for, so a copied `TO_UTF8`/`TO_HEX`/`LOWER` or a copied separator rewrite is a finding even when the tests are green; the reverse also holds, and a rewrite point Snowflake needs nothing for is answered by a capability flag or by nothing at all
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0014/D-7 — `OPEN` (BigQuery dialect port) — implementation: none
+
+The `NUMERIC` and `BIGNUMERIC` mapping for a declared `decimal(p, s)`, and which bounds a declared type may not exceed, decided against the declared-type conformance battery rather than from the documentation and recorded with the bounds
+
+- Paths: `src/bloomery/dialects/bigquery.py` `tests/unit/test_dialects/test_bigquery.py`
+- Consequence: The two types have different precision and scale bounds and different division behaviour, and bloomery forbids floats in emission paths, so this mapping decides what a declared decimal can express at all on this engine
+
 ### S-0020/D-2 — `ASSUMED` (Intermediate representation and determinism contract)
 
 SQL is stored in the IR as canonical dialect-neutral SQLGlot text (`SqlExpr`), re-parsed at emit. Consequence: SQLGlot version changes can change fingerprints; the exact pin (D4 §5.5) makes that a deliberate event.

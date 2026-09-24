@@ -33,20 +33,43 @@ Lineage node ids gain a project component for imported nodes only; a local node 
 - Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/lineage.py` `src/bloomery/guardrails/lineage.py` `tests/unit/test_resolve/test_lineage.py` `tests/unit/test_guardrails/test_lineage.py`
 - Consequence: Every existing id and every published citation stays valid — a node name is public surface and `bloomery lineage --node metric.gross_revenue` is a documented invocation — while two projects' graphs can be composed without collision
 
-### S-0002/D-9 — `ASSUMED` (Multi-project composition) — implementation: partial
+### S-0002/D-9 — `LOCKED` (Multi-project composition) — implementation: partial
 
 A guard that judges a local declaration reads the composed view — this project's nodes plus the ones it imported — whenever that declaration can name an imported node, with local marts and rollups as the only publication targets: `check_metrics` over a local mart listing an imported metric, `check_classification` over a local published mart that flattens an imported entity's columns and grants, and the exposure guard over an exposure naming an imported mart or metric. Reading the draft alone there is not "judged where it was authored" — the mart, the publication and the exposure were authored here, and only their inputs crossed.
 
 - Paths: `src/bloomery/guardrails/stage.py` `src/bloomery/guardrails/metrics.py` `src/bloomery/guardrails/classification.py` `src/bloomery/guardrails/exposures.py` `tests/unit/test_guardrails/**`
 - Consequence: A `secret` column an imported entity carries cannot reach a local published mart unrefused, a filter on a missing dimension of an imported metric is refused at the guardrail rather than at `mart_column_type` in both emitters, and an exposure may name what the project imported. Imported nodes are still not re-judged on their own account; what widens is the input the local judgement reads.
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0005/D-3 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-3 — `LOCKED` (Semantic proof IR and closed-world checking)
 
 Guardrails are expressed as obligations before any is deleted, and the mart compiler keeps its aggregate error mechanism throughout while internally consuming shared semantic facts
 
 - Paths: `src/bloomery/guardrails/**` `src/bloomery/errors.py` `src/bloomery/semantic/closure.py` `src/bloomery/semantic/additivity.py`
 - Consequence: A guardrail deleted in favour of a proof rule that turns out narrower is a silently accepted unsafe project; the parity assertions between a proof and the boolean answer it expresses are what make the two comparable, and they can only be written while both exist
 - Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_the_proof_agrees_with_the_answer_it_expresses -q` (shadow; runs as `decision:S-0005/D-3`, no log entry owed)
+
+### S-0011/D-2 — `LOCKED` (Retrieval semantics) — implementation: none
+
+bloomery never computes, reads or validates an embedding value, and never resolves an encoder model identity against a provider; encoder identities are opaque strings compared for equality
+
+- Paths: `src/bloomery/spec/**` `src/bloomery/guardrails/**`
+- Consequence: A typo in a model name is caught by comparing a field's declared producer against its space's, and never by a lookup; a future change that verifies a model name against a provider is the erosion this row exists to halt
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0011/D-8 — `ASSUMED` (Retrieval semantics) — implementation: none
+
+Retrieval grain is strict key equality against the corpus relation's key, the rule already applied to measures
+
+- Paths: `src/bloomery/guardrails/grain.py`
+- Consequence: A mart at document grain carrying chunk embeddings is refused rather than emitted, and the rule can be restated on the semantic grain vocabulary when that lands rather than waiting for it
+
+### S-0011/D-9 — `ASSUMED` (Retrieval semantics) — implementation: none
+
+Six statable guardrails, not the source proposal's ten - the projection rule folds into the grain rule, the hybrid-needs-both-sides rule becomes a grammar requirement, and the searchable-is-not-filterable rule is a design rule honoured by requiring two declarations
+
+- Paths: `src/bloomery/guardrails/**` `src/bloomery/spec/**`
+- Consequence: A reader of the source proposal will look for four rules that are not here and has to be told where they went; in exchange each remaining rule has one refusal message and one test
 
 ### S-0019/D-3 — `ASSUMED` (Spec layer and error model)
 

@@ -2,6 +2,14 @@
 
 ## Decisions governing `src/bloomery/transforms/`
 
+### S-0011/D-4 — `LOCKED` (Retrieval semantics) — implementation: none
+
+A declared vector dimension requires a new `LogicalType` member, and a vector accepts no transform - its input domain is empty in every transform spec
+
+- Paths: `src/bloomery/typing/**` `src/bloomery/spec/**` `src/bloomery/transforms/**` `src/bloomery/dialects/**`
+- Consequence: The cost is six sites and cannot be avoided by choosing the other shape, because the union has no array member either; admitting a transform over a vector would put float arithmetic inside a lowered expression, which is exactly what the ban stops
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0020/D-2 — `ASSUMED` (Intermediate representation and determinism contract)
 
 SQL is stored in the IR as canonical dialect-neutral SQLGlot text (`SqlExpr`), re-parsed at emit. Consequence: SQLGlot version changes can change fingerprints; the exact pin (D4 §5.5) makes that a deliberate event.

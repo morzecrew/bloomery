@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/bloomery/emit/sqlmesh/`
 
-### S-0003/D-1 — `LOCKED` (Replay on a historical entity) — implementation: partial
+### S-0003/D-1 — `LOCKED` (Replay on a historical entity)
 
 bloomery computes no framework's SCD bookkeeping: no snapshot identity, no validity interval and no strategy hash is written or guessed anywhere on the replay path
 
@@ -10,7 +10,7 @@ bloomery computes no framework's SCD bookkeeping: no snapshot identity, no valid
 - Consequence: dbt's `dbt_scd_id` is a hash over its own unique key and check columns, computed in its own macros; a guess that is wrong produces duplicate versions rather than an error, and a guess that is right makes this compiler an implementation of another framework's internals — which is the coupling the lowering layer exists to prevent
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0003/D-9 — `ASSUMED` (Replay on a historical entity) — implementation: partial
+### S-0003/D-9 — `ASSUMED` (Replay on a historical entity)
 
 The two targets fail the old merge differently: on dbt it lands silently with a NULL interval, and on SQLMesh it does not land at all — the entity is a view over a physical snapshot table and the write is refused outright by the engine
 

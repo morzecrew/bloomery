@@ -84,5 +84,8 @@ The end-to-end proof is one **new** golden fixture, `coarsening_rollup`, registe
 - **S-0002/I-1**: A project carrying neither an exports nor an imports document compiles byte-identically to what it compiled before composition existed; the golden corpus is that test, and only a deliberate IR version bump may move a fingerprint in it
   - Paths: `tests/golden/**` `src/bloomery/emit/**`
   - Check: `uv run pytest tests/golden -q`
+- **S-0011/I-1**: A project declaring no retrieval document compiles byte-identically with the kind present and unused
+  - Paths: `tests/golden/**`
+  - Check: `uv run pytest tests/golden -q`
 
 <!-- /torve:managed -->

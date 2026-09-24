@@ -25,3 +25,16 @@ amendments:
       composed view with local marts and rollups as the publication targets;
       it is an author's row, `ASSUMED` until the owner grades it, and the code
       change it asks for is a hand landing on this document's branch.
+  - id: A-4
+    at: '2026-09-24T03:05:01Z'
+    title: D-9 and D-10 locked; phase 6 implements D-10
+    md: |-
+      The owner graded D-9 and D-10 `LOCKED` after #172 merged with D-9's code
+      and D-10's row. Phase 6 is the phase D-10 lacked: the producer's dbt
+      project name on the exports document, carried on `ExportsIR` and
+      `UpstreamIR`, spelled by the dbt target into `dbt_project.yml`,
+      `dependencies.yml` and the two-argument `ref()`, with the import guard
+      refusing a nameless upstream on that target. It owns `tests/golden/**`
+      because the fixture that exports a name moves its `dbt_project.yml` and
+      the corpus pin with it — the lesson phase 4 taught when it moved the
+      fingerprint and left the goldens to phase 5.

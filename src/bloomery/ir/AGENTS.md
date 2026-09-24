@@ -10,12 +10,13 @@ The downstream fingerprint includes the upstream fingerprint whole, never only t
 - Consequence: An upstream change that touches nothing the downstream reads still moves the downstream fingerprint, and artifact headers change on projects nothing about which changed; the docs have to meet that head on rather than the rule being softened
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0002/D-10 — `ASSUMED` (Multi-project composition) — implementation: partial
+### S-0002/D-10 — `LOCKED` (Multi-project composition) — implementation: partial
 
 An upstream's dbt project name is part of what it exports: `exports.yaml` carries an optional `name`, `ExportsIR` carries it across, and the downstream's dbt target spells the two-argument `ref()` and the `dependencies.yml` entry with that name while the downstream's own `dbt_project.yml` is named after its own export name when it has one. The local alias stays what keys the compile input and the IR resolution (D-2); dbt is the one target whose cross-project reference needs the producer's own name, so the name lives on the producer's side of the boundary and nowhere else.
 
 - Paths: `src/bloomery/spec/exports.py` `src/bloomery/ir/nodes.py` `src/bloomery/emit/dbt/__init__.py` `tests/unit/test_emit/test_cross_project.py`
 - Consequence: A downstream compiled against an upstream that exports no name keeps emitting `ref('<alias>', ...)` and a `dependencies.yml` naming the alias — resolvable only when the upstream's dbt project happens to be named so — and the refusal for that case is a documented gap until the row is graded. An exported SCD2 entity is a snapshot on dbt, which no project can reference across the boundary; the export is legal and the dbt target has nothing public to give for it.
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0007/D-5 — `ASSUMED` (Dimension algebra)
 
@@ -23,6 +24,14 @@ An upstream's dbt project name is part of what it exports: `exports.yaml` carrie
 
 - Paths: `src/bloomery/spec/marts.py` `src/bloomery/ir/nodes.py`
 - Consequence: Existing projects with `flatten: [{date: …, role: …}]` compile unchanged and the general role is additive beside them; departing means absorbing dates into the general vocabulary, which touches every existing project
+
+### S-0011/D-3 — `LOCKED` (Retrieval semantics) — implementation: none
+
+A vector's scalar type is a type name and its dimension an int; no float value enters the IR or any emission path, and this design takes no exemption from the float ban
+
+- Paths: `src/bloomery/typing/**` `src/bloomery/ir/**`
+- Consequence: The vector logical type carries a string and an int and nothing else, so no float literal is ever parsed, stored or rendered, and the existing determinism and no-float tests keep passing unchanged
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ### S-0017/D-9 — `LOCKED` (Semantic grain model and functional dependencies)
 

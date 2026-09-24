@@ -144,7 +144,7 @@ decisions:
       artifact" is a real question with a tempting answer, and the non-goal is what
       keeps this design from growing into a different project
   - id: D-9
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       A guard that judges a local declaration reads the composed view — this project's
       nodes plus the ones it imported — whenever that declaration can name an imported
@@ -171,7 +171,7 @@ decisions:
       but three read the draft on the reasoning that an imported node was judged upstream.
       That holds for the node and not for the local declaration that reads it.
   - id: D-10
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       An upstream's dbt project name is part of what it exports: `exports.yaml` carries an
       optional `name`, `ExportsIR` carries it across, and the downstream's dbt target spells

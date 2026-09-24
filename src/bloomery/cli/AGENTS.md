@@ -9,7 +9,7 @@ CLI verbosity is a handler and not a channel: if `--verbose` lands it attaches a
 - Paths: `src/bloomery/cli/__init__.py`
 - Consequence: A logger left at `NOTSET` defers to the root's default `WARNING` and would drop the very records the handler exists to show; without the restore, a refusal or a `KeyboardInterrupt` leaves an embedder with a mutated global logger
 
-### S-0005/D-1 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-1 — `LOCKED` (Semantic proof IR and closed-world checking)
 
 Unknown is not safe: a proof obligation is closed only by a `Declared`, `Derived` or narrowly specified `ImportedVerified` fact. `InferredHeuristic` and `Unknown` may inform a diagnostic and never an acceptance, and the line is drawn in one place — `Provenance.closes` — rather than at each call site
 
@@ -17,7 +17,7 @@ Unknown is not safe: a proof obligation is closed only by a `Declared`, `Derived
 - Consequence: A rule that closes on a guess accepts an unsafe project silently, and a second copy of the closure test that drifted would not look like a safety change in review; the reading surface inherits the same line, because a renderer that presents an unclosed proof as evidence makes the same claim the checker refused to
 - Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_only_declared_derived_and_imported_close_an_obligation tests/unit/test_semantic/test_proof.py::test_one_heuristic_leaf_makes_the_whole_proof_unclosed tests/unit/test_semantic/test_proof.py::test_a_proof_resting_on_nothing_is_not_closed -q` (shadow; runs as `decision:S-0005/D-1`, no log entry owed)
 
-### S-0005/D-2 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-2 — `LOCKED` (Semantic proof IR and closed-world checking)
 
 The primary internal representation is a proof or a refusal, never a boolean: every entry point that answers a semantic question returns the derivation or the structured failure, and a caller reads which question failed off the judgement
 
@@ -25,7 +25,7 @@ The primary internal representation is a proof or a refusal, never a boolean: ev
 - Consequence: A boolean discards the derivation, so every consumer downstream — the explain surface, the per-case rule pinning the bug corpus needs, a refusal's smallest failed obligation — has to reconstruct it from the answer, and a surface that reconstructs can agree with the answer without resting on it
 - Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_both_halves_carry_the_same_surface -q` (shadow; runs as `decision:S-0005/D-2`, no log entry owed)
 
-### S-0005/D-5 — `ASSUMED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-5 — `ASSUMED` (Semantic proof IR and closed-world checking)
 
 Rules are named, individually documented and independently testable, registered once in a module constant, and a rule identifier is never minted at a call site
 
@@ -33,7 +33,7 @@ Rules are named, individually documented and independently testable, registered 
 - Consequence: The alternative — one monolithic checker returning a tree — passes the same tests and cannot answer which rule admitted a given acceptance, which the bug corpus requires of every case it pins; a registry a test asserts against also means a removed identifier fails rather than disappearing
 - Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_every_rule_is_documented_and_uniquely_identified tests/unit/test_semantic/test_proof.py::test_a_rule_id_is_never_minted_at_a_call_site -q` (shadow; runs as `decision:S-0005/D-5`, no log entry owed)
 
-### S-0005/D-6 — `LOCKED` (Semantic proof IR and closed-world checking) — implementation: partial
+### S-0005/D-6 — `LOCKED` (Semantic proof IR and closed-world checking)
 
 Proof serialization is deterministic: canonical premise order, stable rule identifiers, no memory addresses, no timestamps, no dependence on traversal order, and premises and facts sorted on construction rather than trusted in arrival order
 
