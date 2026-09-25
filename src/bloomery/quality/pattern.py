@@ -11,7 +11,8 @@ every one of which aborts the run on DuckDB (§11, D53).
 
 The flavour knowledge lives one layer up instead, in
 :data:`~bloomery.spec.quality.PortableRegex`: a closed **allowlist** scanner
-over the constructs RE2 (DuckDB, Trino) and POSIX ARE (Postgres) agree on.
+over the constructs RE2 (BigQuery, DuckDB, Trino) and POSIX ARE (Postgres)
+agree on.
 Static, stated, and refusing everything it does not name.
 
 What is left here is real, and narrow — two mechanical questions about a
@@ -53,7 +54,7 @@ __all__ = [
 #: forbids, and it is why :mod:`bloomery.dialects` offers no enumeration at
 #: all. A caller that targets an extension dialect passes it explicitly to
 #: :func:`unsupported_dialects`, alongside these.
-PATTERN_TARGET_DIALECTS: Final[tuple[str, ...]] = ("duckdb", "postgres", "trino")
+PATTERN_TARGET_DIALECTS: Final[tuple[str, ...]] = ("bigquery", "duckdb", "postgres", "trino")
 
 
 def _sqlglot_name(dialect: DialectPort) -> str:
