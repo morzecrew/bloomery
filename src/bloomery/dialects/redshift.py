@@ -176,6 +176,19 @@ class RedshiftDialect(SQLGlotDialect):
         ``GETDATE()`` under a non-UTC session would relabel the session's wall
         clock as UTC and move the instant — the S-0045 defect wearing the shape
         of the fix.
+
+        **Unresolved:** AWS documents ``CURRENT_TIMESTAMP`` as a leader-node-only
+        function, and a statement that also references a user table is rejected
+        ("Specified types or functions (one per INFO message) not supported on
+        Redshift tables"). The one caller is the replay ``INSERT INTO
+        bronze.<relation> … SELECT … FROM silver.<entity>__reject``, so that
+        statement carries both and would not run. Neither spelling is correct as
+        it stands: ``CURRENT_TIMESTAMP`` is zone-correct and unrunnable here,
+        ``GETDATE()`` runs on the compute nodes and is only UTC while the
+        session's zone is, and the functions that would read that zone back
+        (``CURRENT_SETTING``) are leader-node-only too. Choosing between them is
+        a decision this port does not carry yet, and no golden covers this
+        spelling, so nothing in the suite would report the change either way.
         """
 
         return exp.cast(
