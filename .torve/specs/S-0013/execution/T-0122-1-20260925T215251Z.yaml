@@ -1,0 +1,122 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0122
+base: 13eb7ba482e1f06e3373ae88e4ae587b6d3407d5
+commit: 30f7432278ad5a84dabd56c13e702a8216d37799
+at: '2026-09-25T21:52:51Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: ASSUMED
+  - id: S-0012/D-1
+    grade: LOCKED
+  - id: S-0012/D-2
+    grade: LOCKED
+  - id: S-0012/D-3
+    grade: LOCKED
+  - id: S-0012/D-6
+    grade: ASSUMED
+entries:
+  - decision: S-0012/D-1
+    grade: LOCKED
+    at: '2026-09-25T21:39:53Z'
+    claim: >-
+      review claim 765cd0e775b9 holds: the oracle lane passed green having submitted
+      nothing, because the corpus fixture drops every fixture whose compile raises
+      BloomeryError and the sweep asserted only that findings was empty; fixed by
+      asserting Snowflake actually answered something
+    evidence: >-
+      tests/engines/test_snowflake_live.py:88-91 — the fixture's per-fixture ; the
+      sweep at :153-173 now collects what Snowflake answered and asserts it non-empty
+    action: decided
+    notes: >-
+      The sibling surrogate lane guards the same hole with  (tests/engines/test_snowflake_surrogate.py:203).
+      The live lane now carries the same shape of guard rather than a pinned expected
+      count, because the corpus fixture's docstring is explicit that a second copy
+      of the refused set here could only drift.
+  - decision: S-0012/D-2
+    grade: LOCKED
+    at: '2026-09-25T21:39:53Z'
+    claim: >-
+      the marker split is untouched: the live lane keeps the engine marker and the
+      surrogate lane keeps the surrogate marker; only an assertion inside one test
+      body changed
+    evidence: >-
+      tests/engines/test_snowflake_live.py:47 — , unchanged by this diff
+    action: decided
+    notes: >-
+      No selection or reporting surface is touched, so nothing a CI log shows about
+      which rung ran changes.
+  - decision: S-0012/D-3
+    grade: LOCKED
+    at: '2026-09-25T21:39:53Z'
+    claim: >-
+      the authoritative compile rung is strengthened, not narrowed: the EXPLAIN sweep
+      over the shared corpus still runs and can no longer report success over an empty
+      corpus
+    evidence: >-
+      tests/engines/test_snowflake_live.py:143-173 — test_every_rendered_statement_reaches_the_binder
+      keeps the EXPLAIN sweep and gains the non-empty guard
+    action: decided
+    notes: >-
+      A rung that is present but sweeps nothing has no authoritative layer either,
+      which is what this row would otherwise have been satisfied by in name only.
+  - decision: S-0012/D-1
+    grade: LOCKED
+    at: '2026-09-25T21:40:58Z'
+    claim: >-
+      restates the preceding S-0012/D-1 entry, whose prose was truncated by shell
+      expansion in the recording call. Review claim 765cd0e775b9 holds: the oracle
+      lane passed green having submitted nothing, because the corpus fixture drops
+      every fixture whose compile raises BloomeryError (per-fixture "except BloomeryError:
+      continue") and the sweep asserted only that the findings list was empty. Fixed
+      by asserting Snowflake answered at least one statement.
+    evidence: >-
+      tests/engines/test_snowflake_live.py:88-91 — the corpus fixture swallows the
+      compile error per fixture; the sweep at :153-173 now collects the statements
+      Snowflake answered and asserts that list non-empty
+    action: decided
+    notes: >-
+      The sibling surrogate lane guards the same hole with "assert planned" at tests/engines/test_snowflake_surrogate.py:203.
+      The live lane takes the same shape of guard rather than a pinned expected count,
+      because the corpus fixture docstring is explicit that a second copy of the refused
+      set here could only drift.
+  - decision: S-0012/D-2
+    grade: LOCKED
+    at: '2026-09-25T21:40:58Z'
+    claim: >-
+      restates the preceding S-0012/D-2 entry, whose prose was truncated by shell
+      expansion. The marker split is untouched: the live lane keeps the engine marker
+      and the surrogate lane keeps the surrogate marker, so nothing about which rung
+      a CI log reports changes. Only an assertion inside one test body changed.
+    evidence: >-
+      tests/engines/test_snowflake_live.py:47 — the module-level pytestmark is still
+      pytest.mark.engine for snowflake, unchanged by this diff
+    action: decided
+    notes: No selection or reporting surface is touched.
+  - decision: S-0012/D-3
+    grade: LOCKED
+    at: '2026-09-25T21:40:58Z'
+    claim: >-
+      restates the preceding S-0012/D-3 entry for consistency with the two above.
+      The authoritative compile rung is strengthened, not narrowed: the EXPLAIN sweep
+      over the shared corpus still runs, and can no longer report success over an
+      empty corpus.
+    evidence: >-
+      tests/engines/test_snowflake_live.py:143-173 — test_every_rendered_statement_reaches_the_binder
+      keeps the EXPLAIN sweep and gains the non-empty guard
+    action: decided
+    notes: >-
+      A rung present but sweeping nothing is no authoritative layer either, which
+      is what this row would otherwise have been satisfied by in name only.
