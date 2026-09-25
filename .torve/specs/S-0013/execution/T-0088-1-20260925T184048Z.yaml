@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0088
+phase: 2
+base: 0f605b70acf4a6987d2f99a02ec103e5ad499f6c
+commit: 4e56914348515fb19c608cf508569f5341c72f40
+at: '2026-09-25T18:40:48Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: D-5
+    grade: OPEN
+    at: '2026-09-25T18:32:21Z'
+    claim: >-
+      first counted evidence toward whether the LocalStack lane is maintained: the
+      OSS emulator found zero bloomery defects over the whole corpus — every refusal
+      was the emulator's own parser or its lack of relations, none was SQL SQLGlot's
+      Snowflake parser also rejects. LocalStack was not stood up here because D-7
+      forbids its auth token entering the repository
+    evidence: >-
+      tests/engines/test_snowflake_surrogate.py:170-203 — the corpus test fails only
+      when the emulator and SQLGlot both refuse a rendering, and it is green over
+      all 128 statements
+    action: decided
+    proposal: >-
+      ASSUMED — the OSS emulator is the default local lane for rendering evidence
+      only; execution evidence for Snowflake needs the live lane (phase 3), and D-5
+      should be decided knowing the emulator currently executes nothing
+    notes: >-
+      The image is pinned to sha-a57ece0 rather than main: tags built after 2026-04-27
+      link against GLIBC_2.38 while the runtime stage is bookworm (2.36), so their
+      binary does not start at all. Recorded in tests/support/snowflake.py:18-25.
