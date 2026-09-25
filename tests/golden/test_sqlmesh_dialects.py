@@ -1,17 +1,24 @@
-"""Golden artifacts for the sqlmesh × {trino, postgres} matrix cells
+"""Golden artifacts for the sqlmesh × {postgres, snowflake, trino} matrix cells
 (S-0026/golden-workflow, M10 port validation): the same fixtures as the duckdb cell,
-rendered through the second and third dialect ports — one dialect-neutral
-AST per artifact, three legal renderings. Regenerate via
-``just snapshot-update``; an unexplained golden diff fails review."""
+rendered through the other three dialect ports — one dialect-neutral
+AST per artifact, four legal renderings. Regenerate via
+``just snapshot-update``; an unexplained golden diff fails review.
+
+The snowflake cell is the offline half of S-0013, and carries its syntax sanity
+beside it: that port has no container and no emulator at this rung, so
+``sqlglot.parse`` over the compiled corpus is what stands in — evidence that
+every rendering is syntax Snowflake's own parser accepts, and nothing about
+what its binder or its clock would do."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
+import sqlglot
 from pytest_snapshot.plugin import Snapshot
 
-from support.compiling import assert_no_orphans, compile_fixture
+from support.compiling import assert_no_orphans, compile_fixture, extract_select
 
 pytestmark = pytest.mark.golden
 
@@ -66,7 +73,7 @@ EXPECTED_PATHS = {
     ],
 }
 
-DIALECTS = ["postgres", "trino"]
+DIALECTS = ["postgres", "snowflake", "trino"]
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)
@@ -78,3 +85,31 @@ def test_sqlmesh_dialect_golden(snapshot: Snapshot, fixture_name: str, dialect: 
     for artifact in artifacts:
         snapshot.assert_match(artifact.content, artifact.path)
     assert_no_orphans(snapshot.snapshot_dir, EXPECTED_PATHS[fixture_name])
+
+
+@pytest.mark.parametrize("fixture_name", sorted(EXPECTED_PATHS))
+def test_snowflake_renderings_are_snowflake_syntax(fixture_name: str) -> None:
+    """Every statement of the snowflake cell parses as Snowflake (S-0013/tests).
+
+    ``sqlglot.parse`` rather than a hand-split on ``;`` and ``parse_one``: the
+    quality mart carries a semicolon *inside* a comment, and a splitter that
+    read it as a statement boundary would fail on the comment rather than on
+    the SQL. The parser does the splitting and raises on the same malformed
+    statement ``parse_one`` would — which is the assertion, since each
+    statement here is one ``DialectPort.render`` call.
+
+    The SQLMesh envelope is stripped first: ``MODEL (...)`` and ``AUDIT (...)``
+    are SQLMesh's grammar, not Snowflake's, and the port never rendered them.
+    A replay artifact has no envelope and is parsed whole — every statement of
+    it, which is what the first line claims.
+    """
+    for artifact in compile_fixture(fixture_name, dialect="snowflake"):
+        if not artifact.path.endswith(".sql"):
+            continue
+
+        statements = sqlglot.parse(extract_select(artifact.content), read="snowflake")
+        assert statements, f"{fixture_name}/{artifact.path}: no statement to check"
+
+        if "/replay/" in artifact.path:
+            whole = sqlglot.parse(artifact.content, read="snowflake")
+            assert len(statements) == len(whole), f"{artifact.path}: a statement was cut"

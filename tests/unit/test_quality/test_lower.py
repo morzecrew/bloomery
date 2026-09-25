@@ -359,7 +359,7 @@ def test_a_portable_pattern_is_expressible_everywhere() -> None:
 
 def test_the_checked_dialects_default_to_the_shipped_ports() -> None:
     # not "whatever this process happens to have registered" (S-0020)
-    assert PATTERN_TARGET_DIALECTS == ("duckdb", "postgres", "trino")
+    assert PATTERN_TARGET_DIALECTS == ("duckdb", "postgres", "trino", "snowflake")
 
 
 def test_registering_a_dialect_cannot_change_an_existing_projects_verdict() -> None:

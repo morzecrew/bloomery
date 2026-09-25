@@ -1,6 +1,6 @@
 # Dialects
 
-Three SQL dialects ship — `duckdb`, `postgres`, `trino` — and every emitter renders
+Four SQL dialects ship — `duckdb`, `postgres`, `trino`, `snowflake` — and every emitter renders
 through the same port, so the choice of dialect is independent of the choice of target.
 
 ## Shipped dialects
@@ -10,8 +10,9 @@ through the same port, so the choice of dialect is independent of the choice of 
 | `duckdb` | `DuckDBDialect` | The default in every example; runs in-process, so the execution test tier uses it |
 | `postgres` | `PostgresDialect` | `variant` is `JSONB`, and `TRY_CAST` has no keyword — see below |
 | `trino` | `TrinoDialect` | The federated engine; used by the lakehouse example over Iceberg |
+| `snowflake` | `SnowflakeDialect` | The first cloud port; held by offline rungs until its compile and execution lanes land — see below |
 
-Passing any other name is an `EmitError` naming the three. A fourth port is a
+Passing any other name is an `EmitError` naming the four. A fifth port is a
 `register_dialect()` call away — the port protocol is public, and the capability flags
 below exist so a new one refuses what it cannot express instead of approximating it.
 
@@ -19,19 +20,27 @@ below exist so a new one refuses what it cannot express instead of approximating
 
 The seven logical types, as each port spells them:
 
-| Logical | `duckdb` | `postgres` | `trino` |
-|---|---|---|---|
-| `string` | `VARCHAR` | `TEXT` | `VARCHAR` |
-| `int` | `BIGINT` | `BIGINT` | `BIGINT` |
-| `decimal(p,s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)` |
-| `bool` | `BOOLEAN` | `BOOLEAN` | `BOOLEAN` |
-| `date` | `DATE` | `DATE` | `DATE` |
-| `timestamp` | `TIMESTAMP` | `TIMESTAMP` | `TIMESTAMP` |
-| `variant` | `JSON` | `JSONB` | `JSON` |
+| Logical | `duckdb` | `postgres` | `trino` | `snowflake` |
+|---|---|---|---|---|
+| `string` | `VARCHAR` | `TEXT` | `VARCHAR` | `VARCHAR` |
+| `int` | `BIGINT` | `BIGINT` | `BIGINT` | `NUMBER(38, 0)` |
+| `decimal(p,s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)`, `p` at most 38 |
+| `bool` | `BOOLEAN` | `BOOLEAN` | `BOOLEAN` | `BOOLEAN` |
+| `date` | `DATE` | `DATE` | `DATE` | `DATE` |
+| `timestamp` | `TIMESTAMP` | `TIMESTAMP` | `TIMESTAMP` | `TIMESTAMP_NTZ` |
+| `variant` | `JSON` | `JSONB` | `JSON` | `VARIANT` |
 
 `variant` is the only row where the choice carries meaning. Postgres maps to `JSONB` —
 the binary, indexable, canonicalized form — rather than `JSON`, which is a text blob
 preserving key order and duplicates, properties `variant` never promises.
+
+Snowflake's column has three choices of its own. `int` is `NUMBER(38, 0)` because that is
+what the engine stores — its `BIGINT` is a documented synonym for exactly that, not a
+64-bit integer. A `decimal` past 38 digits of precision is refused at emit by name: the
+engine has no wider fixed-point type to fall back to. And `timestamp` is spelled
+`TIMESTAMP_NTZ` explicitly, never bare `TIMESTAMP`, which on Snowflake is an alias an
+account or a session may point at the session-zoned `TIMESTAMP_LTZ` — the one type the
+always-UTC zoneless `timestamp` must never become.
 
 There are no floats in the type system, and a `decimal` stays exact end to end — with one
 named exception, `divide` on DuckDB, which that engine cannot express exactly. It is
@@ -39,18 +48,22 @@ described below rather than left to be discovered.
 
 ## Where the ports spell things differently
 
-All three declare every capability, so nothing here is a feature gap. These are the
+The three original ports declare every capability. Snowflake declares all but Unicode
+normalization: the engine has no NFC function under any name, so a `normalize` rule is
+refused at emit rather than rendered as a call the engine never defined. These are the
 places one engine needs different SQL for the same meaning, and the port supplies it —
 the reason a spec compiles to different text without meaning anything different.
 
-| Construct | `duckdb` | `postgres` | `trino` |
-|---|---|---|---|
-| Zone interpretation (`to_utc`) | `x AT TIME ZONE 'Europe/Berlin' AT TIME ZONE 'UTC'` | same as DuckDB | `CAST(AT_TIMEZONE(WITH_TIMEZONE(x, 'Europe/Berlin'), 'UTC') AS TIMESTAMP)` |
-| Null-on-failure cast (the `coercible` marker) | `TRY_CAST(x AS BIGINT)` | `CASE WHEN PG_INPUT_IS_VALID(x, 'BIGINT') THEN CAST(x AS BIGINT) END` | `TRY_CAST(x AS BIGINT)` |
-| Nested read `$.payload.shipping.country` | `payload ->> '$.shipping.country'` | `JSON_EXTRACT_PATH_TEXT(CAST(payload AS JSON), 'shipping', 'country')` | `JSON_EXTRACT_SCALAR(payload, '$.shipping.country')` |
-| `normalize` rule | `NFC_NORMALIZE(x)` | `NORMALIZE(x, NFC)` | `NORMALIZE(x, NFC)` |
-| `reject_id` digest | `SHA256('v')` | `ENCODE(SHA256(CONVERT_TO('v', 'UTF8')), 'hex')` | `LOWER(TO_HEX(SHA256(TO_UTF8('v'))))` |
-| Reject `raw` payload | `JSON_OBJECT('a', a)` | `JSON_BUILD_OBJECT('a', a)` | `JSON_OBJECT('a': a)` |
+| Construct | `duckdb` | `postgres` | `trino` | `snowflake` |
+|---|---|---|---|---|
+| Zone interpretation (`to_utc`) | `x AT TIME ZONE 'Europe/Berlin' AT TIME ZONE 'UTC'` | same as DuckDB | `CAST(AT_TIMEZONE(WITH_TIMEZONE(x, 'Europe/Berlin'), 'UTC') AS TIMESTAMP)` | `CONVERT_TIMEZONE('Europe/Berlin', 'UTC', x)` |
+| Null-on-failure cast (the `coercible` marker) | `TRY_CAST(x AS BIGINT)` | `CASE WHEN PG_INPUT_IS_VALID(x, 'BIGINT') THEN CAST(x AS BIGINT) END` | `TRY_CAST(x AS BIGINT)` | `TRY_CAST(CAST(x AS VARCHAR) AS NUMBER(38, 0))` |
+| Nested read `$.payload.shipping.country` | `payload ->> '$.shipping.country'` | `JSON_EXTRACT_PATH_TEXT(CAST(payload AS JSON), 'shipping', 'country')` | `JSON_EXTRACT_SCALAR(payload, '$.shipping.country')` | `JSON_EXTRACT_PATH_TEXT(payload, 'shipping.country')` |
+| `normalize` rule | `NFC_NORMALIZE(x)` | `NORMALIZE(x, NFC)` | `NORMALIZE(x, NFC)` | refused — no NFC function |
+| `reject_id` digest | `SHA256('v')` | `ENCODE(SHA256(CONVERT_TO('v', 'UTF8')), 'hex')` | `LOWER(TO_HEX(SHA256(TO_UTF8('v'))))` | `SHA2('v', 256)` |
+| Reject `raw` payload | `JSON_OBJECT('a', a)` | `JSON_BUILD_OBJECT('a', a)` | `JSON_OBJECT('a': a)` | `OBJECT_CONSTRUCT_KEEP_NULL('a', a)` |
+| Current instant | `CURRENT_TIMESTAMP` | `CURRENT_TIMESTAMP` | `CURRENT_TIMESTAMP` | `SYSDATE()` |
+| Calendar row source (`dim_date`) | `GENERATE_SERIES(...)` | `GENERATE_SERIES(...)` | `UNNEST(SEQUENCE(...))` | `TABLE(GENERATOR(ROWCOUNT => n))` with `DATEADD` |
 
 Four of those are not stylistic. Postgres has no `TRY_CAST` keyword, and SQLGlot renders
 one as a plain `CAST` — which would turn "quarantine the uncastable row" into "abort the
@@ -59,6 +72,16 @@ regex. Trino's `sha256` takes and returns `varbinary`, so the plain spelling doe
 even plan; its `to_hex` is uppercase, and `reject_id` has to agree across engines byte
 for byte. Trino parses only the SQL-standard `JSON_OBJECT` spelling. DuckDB has no
 `NORMALIZE` at all.
+
+Snowflake adds four of its own, none stylistic either. Its `TRY_CAST` accepts a string
+source only and SQLGlot renders it as a plain `CAST` otherwise, so the port casts the
+operand to `VARCHAR` first. Its object builder drops any pair whose value is NULL, which
+would make a quarantined payload disagree with every other port's, so the reject payload
+uses the `_KEEP_NULL` variant. Its `CURRENT_TIMESTAMP` is session-zoned, so every current
+instant — including the replay's `resolved_at` stamps — is `SYSDATE()`, the engine's UTC
+instant already typed `TIMESTAMP_NTZ`. And SQLGlot spells the calendar's series as
+`ARRAY_GENERATE_RANGE(...)`, a scalar function the engine cannot select from, so the port
+renders the row generator instead, with the count read from the calendar's own bounds.
 
 ## Two divergences the ports absorb for you
 
@@ -77,6 +100,10 @@ tools follow) a space — and each engine takes a different subset:
 | `2026-01-06T12:00:00` | parses | parses | `NULL` |
 | `2026-01-06t12:00:00` | **raises** | parses | `NULL` |
 | `2026-01-06 12:00:00` | parses | parses | parses |
+
+Snowflake needs no fourth column: its port normalizes the separator the same way before
+any cast, the strictly-safe choice until the live corpus shows which raw spellings its
+`AUTO` format would have parsed on its own.
 
 No error was ever raised for the Trino column. Outside the quality system it was a silent
 NULL; inside it the generated `coercible` rule read "the projection is NULL although the
@@ -195,11 +222,16 @@ screen-precision derivations.
   ports, so each rewrite works on a copy — a port that edited in place would leave the
   next one rendering its neighbour's spelling.
 - **Reserved identifiers are quoted on every port.** An entity named `order` emits
-  `silver."order"` everywhere.
+  `silver."order"` on DuckDB, PostgreSQL and Trino, and `silver."ORDER"` on Snowflake, where
+  an unquoted name folds to uppercase and a quoted one is taken verbatim — the folded
+  spelling is the one that names the same object as the unquoted model name.
 - **Capability flags are how a fourth dialect stays honest.** A port that cannot express
   a null-on-failure cast, an array, a text digest, Unicode normalization, or a JSON
   object refuses the constructs that need them rather than emitting something close.
-  All three shipped ports declare all of them, so no project meets those refusals today;
+  Three of the four shipped ports declare all of them; Snowflake's one gap is named above.
+  No shipped example meets those refusals today;
   the test suite provokes them against a deliberately incapable port.
 - The engine test tier runs the emitted SQL against real DuckDB, PostgreSQL and Trino
-  containers, which is where claims on this page are checked.
+  containers, which is where claims on this page are checked. Snowflake has no container:
+  its claims are held by the offline rungs — unit, golden, and a parse of every rendered
+  statement by Snowflake's own grammar — until its compile and execution lanes land.
