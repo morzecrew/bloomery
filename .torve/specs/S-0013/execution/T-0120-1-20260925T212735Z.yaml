@@ -1,0 +1,116 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0120
+base: fc359ef6d42e748a434759c0b0c122e3e804f254
+commit: 85c3a457614f318f4feb107349b06f609055ea8b
+at: '2026-09-25T21:27:35Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: ASSUMED
+  - id: S-0004/D-1
+    grade: LOCKED
+  - id: S-0008/D-6
+    grade: OPEN
+  - id: S-0010/D-3
+    grade: OPEN
+  - id: S-0012/D-2
+    grade: LOCKED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0012/D-7
+    grade: ASSUMED
+  - id: S-0012/D-9
+    grade: OPEN
+  - id: S-0016/D-2
+    grade: LOCKED
+  - id: S-0016/D-3
+    grade: LOCKED
+entries:
+  - decision: S-0016/D-3
+    grade: LOCKED
+    at: '2026-09-25T21:09:10Z'
+    claim: >-
+      the Spark lane's surrogate(databricks_spark) marking is unaffected; no marker
+      or lane naming is changed
+    evidence: >-
+      pyproject.toml:236-250 — the marker table is unchanged by this diff, which ends
+      at line 232
+    action: decided
+    proposal: >-
+      a row on per-test timeout sizing for network-bound lanes: either the lane carries
+      its own @pytest.mark.timeout, or the corpus sweep is parametrized per statement
+      so each round-trip gets its own budget and a refusal names its own test — both
+      need scope beyond pyproject.toml
+    notes: >-
+      600 s keeps pytest, not the CI job, the one that reports a hang: the shortest
+      job timeout in .github/workflows/ci.yml is 15 minutes and the Snowflake lane's
+      is 30. The structurally better fix (parametrizing the sweep, which would also
+      restore per-statement reporting) is outside this contract's allow list.
+  - decision: S-0012/D-2
+    grade: LOCKED
+    at: '2026-09-25T21:10:47Z'
+    claim: >-
+      the surrogate marker is untouched: this change is the pytest per-test timeout
+      value and its comment, and surrogate remains a marker distinct from engine
+    evidence: >-
+      pyproject.toml:247 — the surrogate(name) marker entry is unchanged; the diff
+      is confined to pyproject.toml:223-232
+    action: decided
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-09-25T21:11:00Z'
+    claim: >-
+      no engine driver, cloud SDK or Spark session enters src/bloomery: no dependency
+      table is touched, and the Snowflake harness stays urllib under tests/support
+    evidence: >-
+      pyproject.toml:223-232 — the whole change; `rg -n -i "spark|snowflake" pyproject.toml`
+      matches only the new comment at 226 and the marker text at 247
+    action: decided
+  - decision: S-0016/D-2
+    grade: LOCKED
+    at: '2026-09-25T21:11:04Z'
+    claim: >-
+      PySpark's test-only posture is unaffected: no dependency group is added, removed
+      or moved; the change sits inside the pytest configuration table
+    evidence: >-
+      pyproject.toml:223-232 — the whole change, inside [tool.pytest.ini_options]
+      which starts at pyproject.toml:216
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-25T21:11:12Z'
+    claim: >-
+      the review claim holds and the fix landed: the Snowflake compile lane's corpus
+      sweep is one test issuing 140 sequential SQL API EXPLAIN round-trips under the
+      repo-wide 300 s per-test timeout with timeout_method=thread, which kills the
+      process and replaces the named refusal list with an aborted run; raised the
+      per-test timeout to 600 s, the only lever inside this contract's scope
+    evidence: >-
+      pyproject.toml:232 — timeout raised from 300 to 600; corpus size measured offline
+      as `uv run python -c "...spec_fixture_names/compile_fixture(dialect='snowflake')/replay_statements..."`
+      printing `fixtures 29 statements 140`, one explain() per statement at tests/engines/test_snowflake_live.py:154-158
+    action: decided
+    proposal: >-
+      a row on per-test timeout sizing for network-bound lanes: either the lane carries
+      its own @pytest.mark.timeout, or the corpus sweep is parametrized per statement
+      so each round-trip gets its own budget and each refusal names its own test —
+      both need scope beyond pyproject.toml
+    notes: >-
+      600 s keeps pytest, not the CI job, the one that reports a hang: the shortest
+      job timeout in .github/workflows/ci.yml is 15 minutes and the Snowflake lane's
+      is 30. The structurally better fix — parametrizing the sweep, which also restores
+      per-statement reporting and makes a single slow statement cost one test rather
+      than the run — is outside this contract's allow list.
