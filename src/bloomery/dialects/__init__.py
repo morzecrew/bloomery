@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 from bloomery.dialects.base import DIALECT_PORT_MEMBERS, DialectFeature, DialectPort, SQLGlotDialect
 from bloomery.dialects.duckdb import DuckDBDialect
 from bloomery.dialects.postgres import PostgresDialect
+from bloomery.dialects.redshift import RedshiftDialect
 from bloomery.dialects.trino import TrinoDialect
 from bloomery.errors import EmitError
 
@@ -35,6 +36,7 @@ __all__ = [
     "DialectPort",
     "DuckDBDialect",
     "PostgresDialect",
+    "RedshiftDialect",
     "SQLGlotDialect",
     "TrinoDialect",
     "get_dialect",
@@ -44,6 +46,7 @@ __all__ = [
 _defaults: dict[str, DialectPort] = {
     "duckdb": DuckDBDialect(),
     "postgres": PostgresDialect(),
+    "redshift": RedshiftDialect(),
     "trino": TrinoDialect(),
 }
 _DEFAULT_DIALECTS: Mapping[str, DialectPort] = MappingProxyType(_defaults)

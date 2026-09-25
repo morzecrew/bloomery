@@ -49,7 +49,10 @@ def test_get_dialect_returns_the_default() -> None:
 
 
 def test_unknown_dialect_lists_known_names() -> None:
-    expected = r"unknown dialect 'sqlite': known dialects are \['duckdb', 'postgres', 'trino'\]"
+    expected = (
+        r"unknown dialect 'sqlite': known dialects are "
+        r"\['duckdb', 'postgres', 'redshift', 'trino'\]"
+    )
     with pytest.raises(EmitError, match=expected):
         get_dialect("sqlite")
 
@@ -173,9 +176,14 @@ def test_base_physical_types() -> None:
 def test_every_shipped_dialect_has_arrays(dialect: DialectPort) -> None:
     # S-0033/D-9: array support is an *engine* property, recorded as a
     # DialectFeature — SQLMesh-on-DuckDB and dbt-on-DuckDB share it (the
-    # S-0025/D-1 split). All three shipped engines have a first-class array
+    # S-0025/D-1 split). These three shipped engines have a first-class array
     # type (DuckDB STRING[], Postgres TEXT[], Trino ARRAY(VARCHAR)), so none
     # takes the delimited fallback.
+    #
+    # Redshift is deliberately absent and is the reason the fallback is no
+    # longer dead code: it has no array *column* type, so S-0015/D-6 declined
+    # the capability and its goldens carry the delimited string. Adding it here
+    # would be asserting a spelling the engine rejects.
     assert dialect.supports(DialectFeature.ARRAY)
 
 
