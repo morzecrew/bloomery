@@ -53,7 +53,7 @@ different.
 |---|---|---|---|---|
 | Zone interpretation (`to_utc`) | `x AT TIME ZONE 'Europe/Berlin' AT TIME ZONE 'UTC'` | same as DuckDB | `CONVERT_TIMEZONE('Europe/Berlin', 'UTC', x)` | `CAST(AT_TIMEZONE(WITH_TIMEZONE(x, 'Europe/Berlin'), 'UTC') AS TIMESTAMP)` |
 | Null-on-failure cast (the `coercible` marker) | `TRY_CAST(x AS BIGINT)` | `CASE WHEN PG_INPUT_IS_VALID(x, 'BIGINT') THEN CAST(x AS BIGINT) END` | `TRY_CAST(x AS BIGINT)`, and `CASE WHEN CAN_JSON_PARSE(x) THEN JSON_PARSE(x) END` for `variant` | `TRY_CAST(x AS BIGINT)` |
-| Nested read `$.payload.shipping.country` | `payload ->> '$.shipping.country'` | `JSON_EXTRACT_PATH_TEXT(CAST(payload AS JSON), 'shipping', 'country')` | **refused** — no `JSON_EXTRACT` capability | `JSON_EXTRACT_SCALAR(payload, '$.shipping.country')` |
+| Nested read `$.payload.shipping.country` | `payload ->> '$.shipping.country'` | `JSON_EXTRACT_PATH_TEXT(CAST(payload AS JSON), 'shipping', 'country')` | `JSON_EXTRACT_PATH_TEXT(payload, 'shipping', 'country')` | `JSON_EXTRACT_SCALAR(payload, '$.shipping.country')` |
 | `normalize` rule | `NFC_NORMALIZE(x)` | `NORMALIZE(x, NFC)` | **refused** — no `UNICODE_NORMALIZE` capability | `NORMALIZE(x, NFC)` |
 | `reject_id` digest | `SHA256('v')` | `ENCODE(SHA256(CONVERT_TO('v', 'UTF8')), 'hex')` | `SHA2('v', 256)` | `LOWER(TO_HEX(SHA256(TO_UTF8('v'))))` |
 | Reject `raw` payload | `JSON_OBJECT('a', a)` | `JSON_BUILD_OBJECT('a', a)` | `OBJECT('a', a)` | `JSON_OBJECT('a': a)` |
@@ -74,7 +74,10 @@ reject payload; and a neutral `CAST(x AS JSON)` renders there as a **no-op**, wh
 `variant` construction is `JSON_PARSE` and its null-on-failure form has to be guarded by
 `CAN_JSON_PARSE` — `SUPER` has no `TRY_CAST`. The port inherits none of PostgreSQL's
 rewrites: each was audited against Redshift separately, and the two that survived are
-imported as named helpers.
+imported as named helpers. The nested read in that table is a bronze path, declared
+`string`, and `JSON_EXTRACT_PATH_TEXT` over a text column returns text correctly, so the
+port renders it; what the port refuses is the `json_path` transform's *variant*
+extraction, which would declare `variant` and produce a string.
 
 ## Two divergences the ports absorb for you
 
