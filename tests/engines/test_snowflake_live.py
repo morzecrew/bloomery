@@ -151,14 +151,22 @@ def test_every_rendered_statement_reaches_the_binder(
     Snowflake does not have, reported by Snowflake rather than by a surrogate.
     """
     findings = []
+    compiled: list[str] = []
     for name, path, statement in corpus:
         answer = snowflake.explain(statement)
         if answer.accepted or answer.code == OBJECT_MISSING:
+            compiled.append(f"{name}/{path}")
             continue
         findings.append(f"{name}/{path}: {answer.code} {answer.message}")
 
     listed = "\n".join(findings)
     assert not findings, f"Snowflake refused {len(findings)} statement(s):\n{listed}"
+    # The corpus is built by compiling, and `corpus` drops whatever the port
+    # refuses — so a port-wide compile regression empties it and leaves nothing
+    # for the loop above to submit. Without this the oracle reports success
+    # having asked Snowflake nothing, which is the one answer it may never give
+    # (the sibling surrogate lane guards the same hole with `assert planned`).
+    assert compiled, "no statement reached Snowflake; the corpus rendered nothing"
 
 
 # ....................... #
