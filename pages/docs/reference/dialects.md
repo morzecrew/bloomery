@@ -81,8 +81,9 @@ extraction, which would declare `variant` and produce a string.
 
 ## Two divergences the ports absorb for you
 
-Trino's engine differs from the other two in ways a spec cannot see, and both are the
-same shape: one spelling, two meanings, and no error to tell you which you got. Neither
+Both of these are engine behaviour a spec cannot see, and both are the same shape: one
+spelling, two meanings, and no error to tell you which you got. Trino is in both; DuckDB
+is in the first and Redshift shares Trino's rule in the second. Neither
 is a caveat you have to work around any more — the port closes both — but both are worth
 knowing, because each moved data on upgrade.
 
