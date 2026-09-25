@@ -1,5 +1,6 @@
-"""Snowflake surrogate harness (S-0013/D-3): the OSS emulator, reached over its
-SQL API v2 surface, with submission, polling and row canonicalization.
+"""Snowflake harness: the SQL API v2, reached over HTTP, with submission,
+polling and row canonicalization — pointed either at the OSS emulator
+(S-0013/D-3) or at a real account, which is the same protocol either way.
 
 **Why no driver.** The emulator speaks Snowflake's SQL API v2 — one POST to
 submit, one GET to poll — which is HTTP and JSON and nothing else, so the
@@ -23,6 +24,15 @@ built after 2026-04-27 do not start at all: the Dockerfile builds on
 links against 2.35 and therefore runs. An emulator that cannot start is not a
 lane, and `latest` — which the emulator's README advertises — has never been
 published.
+
+**The live account is credentials from the environment and nothing else**
+(S-0013/D-7). ``BLOOMERY_SNOWFLAKE_ACCOUNT`` names the account identifier and
+``BLOOMERY_SNOWFLAKE_TOKEN`` carries the bearer token — a programmatic access
+token by default, another type by naming it in
+``BLOOMERY_SNOWFLAKE_TOKEN_TYPE`` — so nothing reaches the repository and a
+lane that finds neither gets a sentence from :func:`credentials_missing` to
+skip with. The optional context variables (database, schema, warehouse, role)
+travel in the submission body, which is where the SQL API takes them.
 """
 
 from __future__ import annotations
@@ -40,10 +50,15 @@ from datetime import date, datetime
 from decimal import Decimal
 
 __all__ = [
+    "ACCOUNT_ENV",
     "ENDPOINT_ENV",
     "IMAGE",
+    "TOKEN_ENV",
     "Answer",
     "Emulator",
+    "SqlApi",
+    "account",
+    "credentials_missing",
     "emulator",
     "unavailable",
 ]
@@ -89,16 +104,30 @@ class Answer:
         return self.status == 200
 
 
-class Emulator:
-    """A client for one running emulator."""
+class SqlApi:
+    """A client for one SQL API v2 endpoint — an emulator, or an account.
 
-    def __init__(self, base_url: str) -> None:
+    ``headers`` carries whatever the endpoint needs to authenticate (nothing,
+    for the emulator) and ``context`` the session fields — database, schema,
+    warehouse, role — the SQL API takes in the submission body rather than in a
+    connection string.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        context: dict[str, str] | None = None,
+    ) -> None:
         self.base_url = base_url.rstrip("/")
+        self._headers = {"Content-Type": "application/json", **(headers or {})}
+        self._context = dict(context or {})
 
     # ....................... #
 
     def submit(self, statement: str, *, asynchronous: bool = False) -> Answer:
-        """Submit ``statement`` and return what the emulator made of it.
+        """Submit ``statement`` and return what the endpoint made of it.
 
         ``asynchronous`` takes the SQL API's other path: the submission is
         answered ``202`` with a handle, and the result is polled for. Real
@@ -109,17 +138,26 @@ class Emulator:
         query = "?async=true" if asynchronous else ""
         answer = self._request(
             f"{self.base_url}/api/v2/statements{query}",
-            body={"statement": statement, "timeout": int(_POLL_SECONDS)},
+            body={"statement": statement, "timeout": int(_POLL_SECONDS), **self._context},
         )
         if answer.status != 202:
             return answer
         return self._poll(answer)
 
+    def explain(self, statement: str) -> Answer:
+        """Submit ``statement`` for compilation only (S-0013/authoritative-layers).
+
+        ``EXPLAIN`` runs the engine's parser, binder and function resolution and
+        produces a plan without executing, so a lane built on it can neither
+        scan nor bill — and on Snowflake it needs no running warehouse.
+        """
+        return self.submit(f"EXPLAIN USING JSON {statement}")
+
     def rows(self, statement: str) -> tuple[tuple[object, ...], ...]:
-        """The canonicalized rows of a statement the emulator must accept."""
+        """The canonicalized rows of a statement the endpoint must accept."""
         answer = self.submit(statement)
         if not answer.accepted:
-            msg = f"the emulator refused {statement!r}: {answer.code} {answer.message}"
+            msg = f"{self.base_url} refused {statement!r}: {answer.code} {answer.message}"
             raise AssertionError(msg)
         return answer.rows
 
@@ -139,10 +177,8 @@ class Emulator:
 
     def _request(self, url: str, *, body: dict[str, object] | None = None) -> Answer:
         data = json.dumps(body).encode() if body is not None else None
-        # Plain HTTP to a local emulator: the SQL API is the whole surface.
-        request = urllib.request.Request(
-            url, data=data, headers={"Content-Type": "application/json"}
-        )
+        # The SQL API is the whole surface: one POST to submit, one GET to poll.
+        request = urllib.request.Request(url, data=data, headers=self._headers)
         try:
             with urllib.request.urlopen(request, timeout=_POLL_SECONDS) as response:
                 return _answer(response.status, json.load(response))
@@ -167,6 +203,12 @@ class Emulator:
                 msg = f"{self.base_url} did not become healthy in {seconds}s ({last})"
                 raise AssertionError(msg)
             time.sleep(0.2)
+
+
+#: The surrogate lane's name for the client (S-0013/D-3, D-4). One protocol,
+#: two names on purpose: a lane talking to an emulator says so in every line it
+#: reads, and never borrows the word a real account's lane uses.
+Emulator = SqlApi
 
 
 def _answer(status: int, payload: dict[str, object]) -> Answer:
@@ -240,6 +282,72 @@ def unavailable() -> str | None:
     except Exception as exc:  # every failure here is the same skip
         return f"no {ENDPOINT_ENV} and no Docker daemon to start {IMAGE}: {exc}"
     return None
+
+
+# ....................... #
+# The real account (S-0013/D-7): credentials from the environment, never here
+
+
+#: The account identifier, as it appears in the account URL.
+ACCOUNT_ENV = "BLOOMERY_SNOWFLAKE_ACCOUNT"
+
+#: The bearer token. Never a password, never a key file: the SQL API takes a
+#: token and this harness never learns how one was minted.
+TOKEN_ENV = "BLOOMERY_SNOWFLAKE_TOKEN"
+
+#: Which kind of token, for the header Snowflake requires beside the bearer.
+TOKEN_TYPE_ENV = "BLOOMERY_SNOWFLAKE_TOKEN_TYPE"
+_DEFAULT_TOKEN_TYPE = "PROGRAMMATIC_ACCESS_TOKEN"
+
+#: Session context, all optional: a compile-only lane needs no warehouse, and
+#: an unqualified relation resolves against whatever the account defaults to.
+_CONTEXT_ENV = {
+    "database": "BLOOMERY_SNOWFLAKE_DATABASE",
+    "schema": "BLOOMERY_SNOWFLAKE_SCHEMA",
+    "warehouse": "BLOOMERY_SNOWFLAKE_WAREHOUSE",
+    "role": "BLOOMERY_SNOWFLAKE_ROLE",
+}
+
+
+def credentials_missing() -> str | None:
+    """Why this environment cannot reach an account, or ``None`` if it can.
+
+    A sentence a skip can carry rather than a red lane: the live lanes run
+    behind a GitHub Environment and on nobody's laptop by default, and a lane
+    failing on an absent variable would train everyone to ignore it
+    (S-0013/D-7).
+    """
+    absent = [name for name in (ACCOUNT_ENV, TOKEN_ENV) if not os.environ.get(name)]
+    if absent:
+        return f"no Snowflake account reachable: {' and '.join(absent)} is not set"
+    return None
+
+
+def account() -> SqlApi:
+    """A client for the account the environment names.
+
+    No context manager and nothing to tear down, because the compile lane
+    creates nothing — that is what makes it safe to point at a real account.
+    """
+    identifier = os.environ[ACCOUNT_ENV]
+    token = os.environ[TOKEN_ENV]
+    return SqlApi(
+        f"https://{identifier}.snowflakecomputing.com",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "X-Snowflake-Authorization-Token-Type": os.environ.get(
+                TOKEN_TYPE_ENV, _DEFAULT_TOKEN_TYPE
+            ),
+            "Accept": "application/json",
+            # Snowflake's SQL API wants a caller it can name in its own logs.
+            "User-Agent": "bloomery-tests/1",
+        },
+        context={
+            field: value
+            for field, name in _CONTEXT_ENV.items()
+            if (value := os.environ.get(name, ""))
+        },
+    )
 
 
 @contextmanager
