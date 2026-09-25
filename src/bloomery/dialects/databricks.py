@@ -98,10 +98,18 @@ class DatabricksDialect(SQLGlotDialect):
     sqlglot_dialect: str = "databricks"
     #: Databricks SQL has **no** multi-statement transaction: every statement
     #: is its own atomic Delta commit and ``BEGIN`` is not a synonym for
-    #: anything. The inherited spelling is kept rather than invented, and the
-    #: dbt replay envelope that interpolates it (the only reader) is not
-    #: claimed by this port — dbt-on-Databricks is no cell of this phase's
-    #: matrix.
+    #: anything. No spelling of this attribute is right here, so the inherited
+    #: one is kept rather than invented.
+    #:
+    #: **The combination is reachable and unguarded.** Compiling for
+    #: ``dialect="databricks"``, ``target="dbt"`` emits a replay macro opening
+    #: on ``{% do run_query("BEGIN") %}`` — measured, `macros/replay_*.sql` for
+    #: the ``multi_source_quality`` fixture — and nothing refuses the pairing.
+    #: The port alone cannot fix it: the matching ``COMMIT`` is a literal in
+    #: the dbt emitter (``emit/dbt/__init__.py``), so a transaction-free
+    #: envelope is that emitter's change, not this attribute's. Until then,
+    #: dbt-on-Databricks replay is no cell of this phase's matrix and its
+    #: envelope does not run.
     begin_transaction: str = "BEGIN"
     #: Everything but :attr:`DialectFeature.UNICODE_NORMALIZE`: Databricks has
     #: no ``NORMALIZE`` and no equivalent of DuckDB's ``nfc_normalize``, so a
