@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0096
+phase: 2
+attempt: 2
+base: fdaa182268269a15597f96150c8f7a73c52377a5
+commit: ac5dac1c873470a564c18a95697f519b891c94aa
+at: '2026-09-26T01:23:57Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-26T01:04:22Z'
+    claim: >-
+      the lane carries the surrogate marker and never claims the engine: its module
+      mark is surrogate('redshift_postgres'), its name says surrogate, and its docstring
+      states that a green run means only that PostgreSQL accepted the statements
+    evidence: >-
+      tests/engines/test_redshift_surrogate.py:43 — pytestmark = pytest.mark.surrogate(SURROGATE),
+      never pytest.mark.engine; the module docstring at lines 1-21 states what the
+      rung may and may not say
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-26T01:04:22Z'
+    claim: >-
+      the native class stays excluded by construction: the sweep is parametrized on
+      surrogate_fixtures(), which returns the postgres-compatible class alone, and
+      every harness function added takes the fixture name the sweep hands it rather
+      than selecting fixtures of its own
+    evidence: >-
+      tests/engines/test_redshift_surrogate.py:66 — @pytest.mark.parametrize('fixture_name',
+      surrogate_fixtures()); tests/support/redshift.py:142 returns the compatible
+      class alone, and the lane asserts the disjointness at tests/engines/test_redshift_surrogate.py:58
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-26T01:14:02Z'
+    attempt: 2
+    claim: >-
+      the lane's per-model assertion that every built relation comes back empty was
+      itself a claim the surrogate cannot make: gold.dim_date is a GENERATE_SERIES
+      spine that reads no bronze relation and builds 4018 rows from nothing, so 10
+      of the 24 parametrized fixtures would have failed on the lane's first run with
+      Docker; the read-back now asserts the relation resolves and is selectable and
+      nothing about its contents
+    evidence: >-
+      tests/golden/role_playing_dates/sqlmesh/redshift/models/gold/dim_date.sql:15
+      — the redshift-dialect spine; tests/engines/test_postgres_execution.py:129 asserts
+      the same SELECT builds 4018 rows on postgres:16-alpine
+    action: decided

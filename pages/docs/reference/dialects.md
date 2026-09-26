@@ -1,7 +1,8 @@
 # Dialects
 
-Three SQL dialects ship — `duckdb`, `postgres`, `trino` — and every emitter renders
-through the same port, so the choice of dialect is independent of the choice of target.
+Four SQL dialects ship — `duckdb`, `postgres`, `redshift`, `trino` — and every emitter
+renders through the same port, so the choice of dialect is independent of the choice of
+target.
 
 ## Shipped dialects
 
@@ -9,9 +10,10 @@ through the same port, so the choice of dialect is independent of the choice of 
 |---|---|---|
 | `duckdb` | `DuckDBDialect` | The default in every example; runs in-process, so the execution test tier uses it |
 | `postgres` | `PostgresDialect` | `variant` is `JSONB`, and `TRY_CAST` has no keyword — see below |
+| `redshift` | `RedshiftDialect` | `variant` is `SUPER`; the first port to withhold capabilities — `json_path`, `normalize` and arrays are refused, not approximated |
 | `trino` | `TrinoDialect` | The federated engine; used by the lakehouse example over Iceberg |
 
-Passing any other name is an `EmitError` naming the three. A fourth port is a
+Passing any other name is an `EmitError` naming the four. A fifth port is a
 `register_dialect()` call away — the port protocol is public, and the capability flags
 below exist so a new one refuses what it cannot express instead of approximating it.
 
@@ -19,19 +21,21 @@ below exist so a new one refuses what it cannot express instead of approximating
 
 The seven logical types, as each port spells them:
 
-| Logical | `duckdb` | `postgres` | `trino` |
-|---|---|---|---|
-| `string` | `VARCHAR` | `TEXT` | `VARCHAR` |
-| `int` | `BIGINT` | `BIGINT` | `BIGINT` |
-| `decimal(p,s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)` |
-| `bool` | `BOOLEAN` | `BOOLEAN` | `BOOLEAN` |
-| `date` | `DATE` | `DATE` | `DATE` |
-| `timestamp` | `TIMESTAMP` | `TIMESTAMP` | `TIMESTAMP` |
-| `variant` | `JSON` | `JSONB` | `JSON` |
+| Logical | `duckdb` | `postgres` | `redshift` | `trino` |
+|---|---|---|---|---|
+| `string` | `VARCHAR` | `TEXT` | `VARCHAR(MAX)` | `VARCHAR` |
+| `int` | `BIGINT` | `BIGINT` | `BIGINT` | `BIGINT` |
+| `decimal(p,s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)` |
+| `bool` | `BOOLEAN` | `BOOLEAN` | `BOOLEAN` | `BOOLEAN` |
+| `date` | `DATE` | `DATE` | `DATE` | `DATE` |
+| `timestamp` | `TIMESTAMP` | `TIMESTAMP` | `TIMESTAMP` | `TIMESTAMP` |
+| `variant` | `JSON` | `JSONB` | `SUPER` | `JSON` |
 
 `variant` is the only row where the choice carries meaning. Postgres maps to `JSONB` —
 the binary, indexable, canonicalized form — rather than `JSON`, which is a text blob
-preserving key order and duplicates, properties `variant` never promises.
+preserving key order and duplicates, properties `variant` never promises. Redshift has no
+`JSONB` and its `SUPER` is a different data model, navigated with PartiQL rather than with
+`jsonb`'s operators, so that port refuses `json_path` instead of translating it.
 
 There are no floats in the type system, and a `decimal` stays exact end to end — with one
 named exception, `divide` on DuckDB, which that engine cannot express exactly. It is
@@ -39,18 +43,20 @@ described below rather than left to be discovered.
 
 ## Where the ports spell things differently
 
-All three declare every capability, so nothing here is a feature gap. These are the
-places one engine needs different SQL for the same meaning, and the port supplies it —
-the reason a spec compiles to different text without meaning anything different.
+DuckDB, Postgres and Trino declare every capability, so nothing in their columns is a
+feature gap; `redshift` is the first port to withhold any, and the cells it refuses are
+marked. These are the places one engine needs different SQL for the same meaning, and the
+port supplies it — the reason a spec compiles to different text without meaning anything
+different.
 
-| Construct | `duckdb` | `postgres` | `trino` |
-|---|---|---|---|
-| Zone interpretation (`to_utc`) | `x AT TIME ZONE 'Europe/Berlin' AT TIME ZONE 'UTC'` | same as DuckDB | `CAST(AT_TIMEZONE(WITH_TIMEZONE(x, 'Europe/Berlin'), 'UTC') AS TIMESTAMP)` |
-| Null-on-failure cast (the `coercible` marker) | `TRY_CAST(x AS BIGINT)` | `CASE WHEN PG_INPUT_IS_VALID(x, 'BIGINT') THEN CAST(x AS BIGINT) END` | `TRY_CAST(x AS BIGINT)` |
-| Nested read `$.payload.shipping.country` | `payload ->> '$.shipping.country'` | `JSON_EXTRACT_PATH_TEXT(CAST(payload AS JSON), 'shipping', 'country')` | `JSON_EXTRACT_SCALAR(payload, '$.shipping.country')` |
-| `normalize` rule | `NFC_NORMALIZE(x)` | `NORMALIZE(x, NFC)` | `NORMALIZE(x, NFC)` |
-| `reject_id` digest | `SHA256('v')` | `ENCODE(SHA256(CONVERT_TO('v', 'UTF8')), 'hex')` | `LOWER(TO_HEX(SHA256(TO_UTF8('v'))))` |
-| Reject `raw` payload | `JSON_OBJECT('a', a)` | `JSON_BUILD_OBJECT('a', a)` | `JSON_OBJECT('a': a)` |
+| Construct | `duckdb` | `postgres` | `redshift` | `trino` |
+|---|---|---|---|---|
+| Zone interpretation (`to_utc`) | `x AT TIME ZONE 'Europe/Berlin' AT TIME ZONE 'UTC'` | same as DuckDB | `CONVERT_TIMEZONE('Europe/Berlin', 'UTC', x)` | `CAST(AT_TIMEZONE(WITH_TIMEZONE(x, 'Europe/Berlin'), 'UTC') AS TIMESTAMP)` |
+| Null-on-failure cast (the `coercible` marker) | `TRY_CAST(x AS BIGINT)` | `CASE WHEN PG_INPUT_IS_VALID(x, 'BIGINT') THEN CAST(x AS BIGINT) END` | `TRY_CAST(x AS BIGINT)`, and `CASE WHEN CAN_JSON_PARSE(x) THEN JSON_PARSE(x) END` for `variant` | `TRY_CAST(x AS BIGINT)` |
+| Nested read `$.payload.shipping.country` | `payload ->> '$.shipping.country'` | `JSON_EXTRACT_PATH_TEXT(CAST(payload AS JSON), 'shipping', 'country')` | `JSON_EXTRACT_PATH_TEXT(payload, 'shipping', 'country')` | `JSON_EXTRACT_SCALAR(payload, '$.shipping.country')` |
+| `normalize` rule | `NFC_NORMALIZE(x)` | `NORMALIZE(x, NFC)` | **refused** — no `UNICODE_NORMALIZE` capability | `NORMALIZE(x, NFC)` |
+| `reject_id` digest | `SHA256('v')` | `ENCODE(SHA256(CONVERT_TO('v', 'UTF8')), 'hex')` | `SHA2('v', 256)` | `LOWER(TO_HEX(SHA256(TO_UTF8('v'))))` |
+| Reject `raw` payload | `JSON_OBJECT('a', a)` | `JSON_BUILD_OBJECT('a', a)` | `OBJECT('a', a)` | `JSON_OBJECT('a': a)` |
 
 Four of those are not stylistic. Postgres has no `TRY_CAST` keyword, and SQLGlot renders
 one as a plain `CAST` — which would turn "quarantine the uncastable row" into "abort the
@@ -60,10 +66,48 @@ even plan; its `to_hex` is uppercase, and `reject_id` has to agree across engine
 for byte. Trino parses only the SQL-standard `JSON_OBJECT` spelling. DuckDB has no
 `NORMALIZE` at all.
 
+Redshift's whole column is its own for the same reason: its `AT TIME ZONE` promotes a
+zoneless value through the *session* zone the way Trino's does, so the PostgreSQL chain
+does not cancel and the three-argument `CONVERT_TIMEZONE(source, target, ts)` says it in
+one call; it defines no `JSON_OBJECT`, so the `SUPER` constructor `OBJECT` carries the
+reject payload; and a neutral `CAST(x AS JSON)` renders there as a **no-op**, which is why
+`variant` construction is `JSON_PARSE` and its null-on-failure form has to be guarded by
+`CAN_JSON_PARSE` — `SUPER` has no `TRY_CAST`. The port inherits none of PostgreSQL's
+rewrites: each was audited against Redshift separately, and the two that survived are
+imported as named helpers. The nested read in that table is a bronze path, declared
+`string`, and `JSON_EXTRACT_PATH_TEXT` over a text column returns text correctly, so the
+port renders it; what the port refuses is the `json_path` transform's *variant*
+extraction, which would declare `variant` and produce a string.
+
+### Arrays, and the shape `_quality_flags` takes without them
+
+`redshift` does **not** declare `DialectFeature.ARRAY`. Redshift's `SUPER` can hold an
+array and `ARRAY()` constructs one, but no table column can be declared `VARCHAR[]`, and
+a capability flag names what the engine can express as a column — so the port withholds
+it rather than emitting a declaration Redshift rejects.
+
+That choice is visible in the emitted artifacts. `_quality_flags` and `failed_rules`
+share one physical contract with two lowerings, and this port takes the second:
+
+| | array dialects (`duckdb`, `postgres`, `trino`) | `redshift` |
+|---|---|---|
+| A flagged row | `['email_shape', 'positive_total']` | `'email_shape,positive_total'` |
+| A clean row | the empty array, never NULL | the empty string, never NULL |
+| Order | lexicographic by rule name | lexicographic by rule name |
+| `_quality_ok` | derived from the array's length | derived from the delimited string |
+
+Both shapes carry the same flag set — rule names are identifier-constrained at parse, so
+the comma needs no escaping, and the dialect-matrix tier asserts set equality across the
+two lowerings. What differs is what a consumer writes: on `redshift`, a query asking
+whether a row carries a given flag matches a delimited member rather than indexing an
+array, and the reject table's `failed_rules` carries the same delimited text. A mart's
+`has_quality_flags` is generated per shape and needs nothing from the reader.
+
 ## Two divergences the ports absorb for you
 
-Trino's engine differs from the other two in ways a spec cannot see, and both are the
-same shape: one spelling, two meanings, and no error to tell you which you got. Neither
+Both of these are engine behaviour a spec cannot see, and both are the same shape: one
+spelling, two meanings, and no error to tell you which you got. Trino is in both; DuckDB
+is in the first and Redshift shares Trino's rule in the second. Neither
 is a caveat you have to work around any more — the port closes both — but both are worth
 knowing, because each moved data on upgrade.
 
@@ -89,7 +133,8 @@ Both ports normalize the separator before the cast now, through the same functio
 every spelling parses and a value that is genuinely not a timestamp still fails as one.
 The rewrite is applied to the text rather than to the cast, so it survives the cast
 becoming a `TRY_CAST` for an entity in the quality system. PostgreSQL needs neither and
-adds neither.
+adds neither, and neither does Redshift — its datetime input takes the `T` separator the
+way PostgreSQL's does, so that port carries no rewrite here.
 
 `parse_date: ISO8601` is deliberately *not* normalized. An ISO date has no `T`, and the
 case that would need it — a full timestamp handed to a date parser — is not helped:
@@ -107,8 +152,10 @@ Two problems, one after the other, both now closed.
 
 Trino's `AT TIME ZONE` promotes a zoneless timestamp with the **session** zone before
 converting, leaving the instant unchanged — so the zone argument moved nothing but the
-display. Trino renders `with_timezone` instead, and all three ports agree that a 12:00
-value read as `Europe/Berlin` is the instant 11:00Z.
+display. Trino renders `with_timezone` instead, and every shipped port agrees that a 12:00
+value read as `Europe/Berlin` is the instant 11:00Z — Redshift shares Trino's promotion
+rule, which is why its port renders the three-argument `CONVERT_TIMEZONE` rather than the
+PostgreSQL chain.
 
 Every engine's zone interpretation then returns a zone-*aware* value, while `timestamp`
 is defined as always UTC and maps to a zoneless type. The instant was right and
@@ -151,7 +198,9 @@ admits against real DuckDB, PostgreSQL and Trino, and compares the engine's own
 column type against the transform's declared output. It asserts set equality per
 port, so a divergence that appears fails the suite and one that is repaired fails
 it too until its row is deleted. **The register is empty**: on all three engines,
-every transform now produces what it says it produces.
+every transform now produces what it says it produces. `redshift` is not probed — no
+tier runs a Redshift engine, so that port's spellings are pinned at the rendering
+level instead, and no claim on this page about it is an engine observation.
 
 Getting there closed defects on all three ports — four transforms PostgreSQL
 could not run at all, eight Trino cases where a `coalesce` or `nullif` literal
@@ -196,10 +245,24 @@ screen-precision derivations.
   next one rendering its neighbour's spelling.
 - **Reserved identifiers are quoted on every port.** An entity named `order` emits
   `silver."order"` everywhere.
-- **Capability flags are how a fourth dialect stays honest.** A port that cannot express
-  a null-on-failure cast, an array, a text digest, Unicode normalization, or a JSON
-  object refuses the constructs that need them rather than emitting something close.
-  All three shipped ports declare all of them, so no project meets those refusals today;
-  the test suite provokes them against a deliberately incapable port.
+- **Capability flags are how a port stays honest.** A port that cannot express a
+  null-on-failure cast, an array, a text digest, Unicode normalization, or a JSON object
+  refuses the constructs that need them rather than emitting something close. `duckdb`,
+  `postgres` and `trino` declare all of them; `redshift` withholds three — arrays,
+  Unicode normalization and variant extraction — so a project using `json_path` or a
+  `normalize` rule meets a refusal on that dialect and compiles on the other three, and
+  its quality flags take the delimited-string shape rather than an array column.
 - The engine test tier runs the emitted SQL against real DuckDB, PostgreSQL and Trino
   containers, which is where claims on this page are checked.
+- **The local Redshift lane checks the PostgreSQL-compatible subset; only a live cluster
+  checks the dialect.** There is no Redshift container to run locally, so the local
+  lane submits the port's SQL to a real PostgreSQL standing in for a cluster
+  (`tests/engines/test_redshift_surrogate.py`). A green run there says PostgreSQL
+  accepted these statements — no more, and the test names and its marker say so rather
+  than naming the engine. Fixtures are split into two classes for exactly this reason
+  (`tests/support/redshift.py`): `postgres-compatible`, which the local lane runs, and
+  `redshift-native` — everything reaching `SUPER`, PartiQL, a Redshift-only function or
+  Redshift's own type rules — which it never runs, because a green over one of those
+  would be a claim a PostgreSQL container cannot make. Nothing but a live cluster can
+  check the native class, and no lane runs one today — so treat every Redshift-specific
+  statement on this page as a rendering-level claim, not an engine observation.

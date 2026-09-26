@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0128
+base: ef2398a7ea413f131c7536b6cf6a5518a7218308
+at: '2026-09-25T23:09:31Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: S-0011/D-4
+    grade: LOCKED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0012/D-8
+    grade: OPEN
+  - id: S-0013/D-1
+    grade: LOCKED
+  - id: S-0013/D-2
+    grade: LOCKED
+  - id: S-0013/D-6
+    grade: OPEN
+  - id: S-0016/D-1
+    grade: LOCKED
+  - id: S-0016/D-8
+    grade: OPEN
+  - id: S-0016/D-9
+    grade: OPEN
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-25T22:52:53Z'
+    claim: >-
+      The review thread does not hold against this tree: _super_cast does distinguish
+      TRY_CAST from CAST, and a variant column under the quality system keeps its
+      NULL-on-failure semantics. exp.TryCast is matched by the exp.Cast guard on purpose,
+      and the function then branches on it to emit CASE WHEN CAN_JSON_PARSE(x) THEN
+      JSON_PARSE(x) END -- Redshift's own answer to 'would JSON_PARSE succeed', the
+      same argument pg_input_is_valid carries on the PostgreSQL port. The coercible
+      branch therefore has a failure marker and does fire; no bare JSON_PARSE is emitted
+      for a TRY_CAST. No change made.
+    evidence: >-
+      src/bloomery/dialects/redshift.py:347-357 — line 347 admits exp.Cast (TryCast
+      included), line 353 branches on isinstance(node, exp.TryCast) and lines 356-357
+      build the CAN_JSON_PARSE guard; the reviewer's own command `uv run python -c
+      "from sqlglot import parse_one; from bloomery.dialects import RedshiftDialect,
+      PostgresDialect; n=parse_one('SELECT TRY_CAST(x AS JSON) AS v'); print(RedshiftDialect().render(n));
+      print(PostgresDialect().render(n))"` prints `SELECT CASE WHEN CAN_JSON_PARSE(x)
+      THEN JSON_PARSE(x) END AS v` against postgres's `SELECT CASE WHEN PG_INPUT_IS_VALID(x,
+      'JSON') THEN CAST(x AS JSONB) END AS v`, not the claimed `SELECT JSON_PARSE(x)
+      AS v`
+    action: decided
+    proposal: >-
+      No row is owed on the substance: the behaviour the thread asks for is already
+      what the port does, and S-0015/D-4 plus the _super_cast docstring already record
+      why. Resolve the thread as stale.
+    notes: >-
+      Second half of the evidence reproduced too: a scratch copy of tests/fixtures/multi_source_quality
+      with payload: {type: variant} added to the entity and read as $.raw_payload
+      on both mappings, compiled with 'bloomery compile --target sqlmesh --dialect
+      redshift', emits 'CASE WHEN CAN_JSON_PARSE(raw_payload) THEN JSON_PARSE(raw_payload)
+      END AS payload' and the matching '... END IS NULL AND (NOT raw_payload IS NULL)
+      AS _branch_payload_coercible' -- structurally the same guarded shape the postgres
+      compile of the same copy emits with PG_INPUT_IS_VALID/CAST(... AS JSONB). The
+      claimed bare 'JSON_PARSE(raw_payload)' does not appear. Note also that the guard
+      on both ports keys off exp.TryCast only, so the two ports agree on plain casts
+      as well.

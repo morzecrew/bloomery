@@ -24,6 +24,7 @@ from bloomery.dialects.bigquery import BigQueryDialect
 from bloomery.dialects.databricks import DatabricksDialect
 from bloomery.dialects.duckdb import DuckDBDialect
 from bloomery.dialects.postgres import PostgresDialect
+from bloomery.dialects.redshift import RedshiftDialect
 from bloomery.dialects.trino import TrinoDialect
 from bloomery.errors import EmitError
 
@@ -39,6 +40,7 @@ __all__ = [
     "DialectPort",
     "DuckDBDialect",
     "PostgresDialect",
+    "RedshiftDialect",
     "SQLGlotDialect",
     "TrinoDialect",
     "get_dialect",
@@ -50,6 +52,7 @@ _defaults: dict[str, DialectPort] = {
     "databricks": DatabricksDialect(),
     "duckdb": DuckDBDialect(),
     "postgres": PostgresDialect(),
+    "redshift": RedshiftDialect(),
     "trino": TrinoDialect(),
 }
 _DEFAULT_DIALECTS: Mapping[str, DialectPort] = MappingProxyType(_defaults)
