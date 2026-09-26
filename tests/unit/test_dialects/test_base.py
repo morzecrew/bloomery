@@ -49,7 +49,10 @@ def test_get_dialect_returns_the_default() -> None:
 
 
 def test_unknown_dialect_lists_known_names() -> None:
-    expected = r"unknown dialect 'sqlite': known dialects are \['duckdb', 'postgres', 'trino'\]"
+    expected = (
+        r"unknown dialect 'sqlite': known dialects are "
+        r"\['databricks', 'duckdb', 'postgres', 'trino'\]"
+    )
     with pytest.raises(EmitError, match=expected):
         get_dialect("sqlite")
 

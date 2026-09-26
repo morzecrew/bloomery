@@ -694,6 +694,24 @@ def test_the_replay_macro_opens_the_transaction_the_dialect_spells() -> None:
     assert opens == {"duckdb": False, "postgres": False, "trino": True}
 
 
+def test_a_port_without_transactions_gets_an_envelope_that_opens_none() -> None:
+    """Databricks SQL has no multi-statement transaction: every statement is
+    its own Delta commit and `BEGIN` is rejected outright, so a macro opening
+    on it fails before any replay work. The port spells the attribute empty,
+    and the envelope then opens nothing, commits nothing, and states the
+    guarantee the engine does offer."""
+    project, catalog = load_fixture(FIXTURE)
+    artifacts = compile_project(project, target=Target.DBT, dialect="databricks", catalog=catalog)
+    content = next(a.content for a in artifacts if a.path == "macros/replay_inventory_level.sql")
+    assert 'run_query("BEGIN")' not in content
+    assert 'run_query("COMMIT")' not in content
+    assert "No transaction: each statement below commits on its own." in content
+    # The header says the same, instead of promising a unit of work the
+    # engine cannot give: an operator reading it must not expect a rollback.
+    assert "one unit of work" not in content
+    assert "commits\n-- on its own" in content or "commits on its own" in content
+
+
 def test_the_replay_macro_wraps_its_statements_in_one_transaction() -> None:
     """S-0060/D-14. ``run_query`` opens no transaction of its own, so a failure
     between the entity merge and the reject stamps would leave a row both

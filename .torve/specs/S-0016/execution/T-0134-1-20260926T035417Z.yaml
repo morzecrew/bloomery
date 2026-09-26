@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0134
+base: 1de8f0cae7f88e78242f3c0853d8709d94c18d47
+at: '2026-09-26T03:54:17Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: OPEN
+  - id: D-9
+    grade: OPEN
+  - id: D-10
+    grade: ASSUMED
+  - id: S-0079/D-3
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-26T03:38:44Z'
+    claim: >-
+      claim does not hold: the databricks port already rewrites date truncation to
+      DATE_TRUNC, the cited cell already renders DATE_TRUNC('DAY', x), no golden cell
+      anywhere renders a bare TRUNC, and the unit tests do exercise truncation over
+      every bucket
+    evidence: >-
+      tests/golden/ecom_basic/sqlmesh/databricks/models/gold/mart_order_items.sql:17
+      — the cell reads CAST(DATE_TRUNC('DAY', order_item.order_date) AS DATE) AS ordered_day,
+      not TRUNC; src/bloomery/dialects/databricks.py:358-384 is the _date_trunc rewrite
+      that produces it, applied at src/bloomery/dialects/databricks.py:172; tests/unit/test_dialects/test_databricks.py:325-346
+      asserts DATE_TRUNC per unit
+    action: decided
+    proposal: >-
+      no row needed: the rewrite the claim asks for exists (databricks.py:358) and
+      is covered by a parametrised unit test; the thread is stale against this tree
+    notes: >-
+      Also checked the other cited cells: role_playing_dates/sqlmesh/databricks/models/gold/mart_orders.sql:13
+      and :19 both render DATE_TRUNC('DAY', ...), and no mart_data_quality.sql exists
+      under ecom_basic/sqlmesh/databricks/models/gold. grep -rn '[^E_]TRUNC(' over
+      tests/golden minus DATE_TRUNC matches nothing.
