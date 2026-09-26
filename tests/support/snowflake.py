@@ -33,6 +33,12 @@ token by default, another type by naming it in
 lane that finds neither gets a sentence from :func:`credentials_missing` to
 skip with. The optional context variables (database, schema, warehouse, role)
 travel in the submission body, which is where the SQL API takes them.
+
+**Executing is a further step, gated on a further variable.** The compile lane
+submits nothing but ``EXPLAIN`` and so needs no warehouse at all;
+:func:`execution_missing` is what the lane that *runs* statements skips on, and
+:func:`scratch_database` is where everything it creates goes — a transient
+database named for the run, dropped when the run ends.
 """
 
 from __future__ import annotations
@@ -43,11 +49,12 @@ import re
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
+from uuid import uuid4
 
 __all__ = [
     "ACCOUNT_ENV",
@@ -60,6 +67,8 @@ __all__ = [
     "account",
     "credentials_missing",
     "emulator",
+    "execution_missing",
+    "scratch_database",
     "unavailable",
 ]
 
@@ -126,7 +135,13 @@ class SqlApi:
 
     # ....................... #
 
-    def submit(self, statement: str, *, asynchronous: bool = False) -> Answer:
+    def submit(
+        self,
+        statement: str,
+        *,
+        asynchronous: bool = False,
+        parameters: dict[str, str] | None = None,
+    ) -> Answer:
         """Submit ``statement`` and return what the endpoint made of it.
 
         ``asynchronous`` takes the SQL API's other path: the submission is
@@ -134,12 +149,22 @@ class SqlApi:
         Snowflake answers ``202`` on its own whenever a statement outruns the
         request timeout, so the polling loop is not optional machinery — this
         flag is how the lane gets to exercise it deliberately.
+
+        ``parameters`` carries session parameters for this submission alone —
+        ``TIMEZONE`` is the one a lane needs, because every submission gets its
+        own session and an ``ALTER SESSION`` would not survive to the next
+        statement. Asking the same question under two zones is how a zoneless
+        value is told from one that renders against the reader (S-0013/D-1).
         """
         query = "?async=true" if asynchronous else ""
-        answer = self._request(
-            f"{self.base_url}/api/v2/statements{query}",
-            body={"statement": statement, "timeout": int(_POLL_SECONDS), **self._context},
-        )
+        body: dict[str, object] = {
+            "statement": statement,
+            "timeout": int(_POLL_SECONDS),
+            **self._context,
+        }
+        if parameters:
+            body["parameters"] = parameters
+        answer = self._request(f"{self.base_url}/api/v2/statements{query}", body=body)
         if answer.status != 202:
             return answer
         return self._poll(answer)
@@ -153,13 +178,28 @@ class SqlApi:
         """
         return self.submit(f"EXPLAIN USING JSON {statement}")
 
-    def rows(self, statement: str) -> tuple[tuple[object, ...], ...]:
+    def rows(
+        self, statement: str, *, parameters: dict[str, str] | None = None
+    ) -> tuple[tuple[object, ...], ...]:
         """The canonicalized rows of a statement the endpoint must accept."""
-        answer = self.submit(statement)
+        answer = self.submit(statement, parameters=parameters)
         if not answer.accepted:
             msg = f"{self.base_url} refused {statement!r}: {answer.code} {answer.message}"
             raise AssertionError(msg)
         return answer.rows
+
+    def using(self, **context: str) -> SqlApi:
+        """The same endpoint, with the session context these fields override.
+
+        The SQL API carries database, schema, warehouse and role in the body of
+        every submission rather than in a connection, and each submission gets
+        its own session — so a ``USE DATABASE`` does not survive to the next
+        statement, and the context is the only way a lane points at something
+        it created.
+        """
+        return SqlApi(
+            self.base_url, headers=self._headers, context={**self._context, **context}
+        )
 
     # ....................... #
 
@@ -323,6 +363,23 @@ def credentials_missing() -> str | None:
     return None
 
 
+def execution_missing() -> str | None:
+    """Why this environment cannot *execute* on an account, or ``None``.
+
+    Everything :func:`credentials_missing` asks for, and a warehouse besides.
+    A statement that scans needs one; ``EXPLAIN`` does not, which is what keeps
+    the compile lane structurally unable to reach a warehouse and this one
+    honest about needing a separate job (S-0013/local-execution).
+    """
+    reason = credentials_missing()
+    if reason:
+        return reason
+    variable = _CONTEXT_ENV["warehouse"]
+    if not os.environ.get(variable):
+        return f"no Snowflake warehouse to execute on: {variable} is not set"
+    return None
+
+
 def account() -> SqlApi:
     """A client for the account the environment names.
 
@@ -348,6 +405,29 @@ def account() -> SqlApi:
             if (value := os.environ.get(name, ""))
         },
     )
+
+
+@contextmanager
+def scratch_database(client: SqlApi, schemas: Sequence[str] = ()) -> Iterator[SqlApi]:
+    """A database of this run's own, with ``schemas`` in it, dropped on the way out.
+
+    Named for the run and never for the lane: an account is shared by every job
+    pointed at it, and a relation found by a literal another run also uses is
+    the failure that presents as whichever lane the scheduler interleaved with.
+
+    ``TRANSIENT`` so nothing here carries fail-safe storage — an interrupted run
+    leaves a database nobody is billed a recovery window for, and the drop is in
+    a ``finally`` so a failing assertion still tidies up.
+    """
+    database = f"bloomery_t_{uuid4().hex[:8]}"
+    client.rows(f"CREATE TRANSIENT DATABASE {database}")
+    try:
+        bound = client.using(database=database)
+        for schema in schemas:
+            bound.rows(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+        yield bound
+    finally:
+        client.rows(f"DROP DATABASE IF EXISTS {database}")
 
 
 @contextmanager

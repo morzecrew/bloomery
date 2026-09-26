@@ -277,6 +277,12 @@ KNOWN: dict[str, dict[str, Divergence]] = {
     "duckdb": {},
     "postgres": {},
     "trino": {},
+    # Empty because nothing has been measured, not because a measurement came
+    # back clean: the Snowflake execution lane is the first rung that can run a
+    # case at all, and it needs an account (S-0013/D-6). A first live run that
+    # fills this in is the lane doing its job; a first live run that leaves it
+    # empty is the port's type map confirmed.
+    "snowflake": {},
 }
 
 
