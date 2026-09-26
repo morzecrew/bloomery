@@ -34,8 +34,28 @@ actually emits, against the port's own Redshift-only vocabulary below.
 
 from __future__ import annotations
 
+from collections.abc import Collection, Iterator
+from contextlib import contextmanager
+
+import psycopg
+import sqlglot
+from sqlglot import expressions as exp
+from support.compiling import (
+    compile_fixture,
+    extract_select,
+    load_fixture,
+    spec_fixture_names,
+)
+from support.execution import DEFAULT_SCHEMAS, relation_of
+from support.steps import registry_for
+from testcontainers.community.postgres import PostgresContainer
+
+from bloomery import ProjectIR, build_project_ir
+from bloomery.dialects import RedshiftDialect
+from bloomery.emit import ArtifactKind, EmittedArtifact
 from bloomery.errors import BloomeryError
-from support.compiling import compile_fixture, spec_fixture_names
+from bloomery.ir import SCDKind
+from bloomery.typing import LogicalType
 
 # ----------------------- #
 
@@ -129,3 +149,286 @@ def surrogate_fixtures() -> tuple[str, ...]:
     """
 
     return fixtures_by_class()[POSTGRES_COMPATIBLE]
+
+
+# ----------------------- #
+# The surrogate harness: connection, submission, canonicalization.
+
+
+#: The image the surrogate cluster is a real PostgreSQL container of — the same
+#: one the PostgreSQL engine tier runs, because the surrogate's whole claim is
+#: "PostgreSQL accepted this" (S-0015/D-2) and two versions would make it two
+#: claims. Floci manages a container of its own per emulated cluster and adds a
+#: Redshift-shaped control plane on top; nothing bloomery emits addresses that
+#: control plane, so the container is taken directly (S-0015/D-5 for the same
+#: reason on LocalStack: emulated surfaces a pure compiler never touches).
+SURROGATE_IMAGE = "postgres:16-alpine"
+
+
+@contextmanager
+def surrogate_cluster() -> Iterator[psycopg.Connection]:
+    """A connected surrogate cluster: provision, connect, speak the wire.
+
+    Autocommit, because the lane's interest is statement-by-statement
+    acceptance: inside a transaction the first refusal aborts every statement
+    after it, and a lane that reports one failure per fixture instead of one
+    per statement has lost the thing it was run for.
+    """
+
+    with PostgresContainer(SURROGATE_IMAGE, driver=None) as container:
+        connection = psycopg.connect(
+            host=container.get_container_host_ip(),
+            port=int(container.get_exposed_port(container.port)),
+            user=container.username,
+            password=container.password,
+            dbname=container.dbname,
+            autocommit=True,
+        )
+        connection.execute("SET TIME ZONE 'UTC'")
+        yield connection
+        connection.close()
+
+
+def reset_layers(conn: psycopg.Connection) -> None:
+    """Drop and recreate the three layer schemas.
+
+    Per fixture rather than per cluster: two fixtures both build
+    ``silver.customer`` from different mappings, so a sweep that kept one
+    database would be asserting whichever ran first.
+    """
+
+    for schema in DEFAULT_SCHEMAS:
+        conn.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
+        conn.execute(f"CREATE SCHEMA {schema}")
+
+
+def to_surrogate(sql: str) -> str:
+    """The port-wide divergences answered, once, for every fixture alike.
+
+    ``VARCHAR(MAX)`` is Redshift's ``string`` and PostgreSQL does not parse it;
+    unqualified ``VARCHAR`` is PostgreSQL's unbounded text, which is what the
+    Redshift type means. This is the accommodation
+    :data:`PORT_WIDE_DIVERGENCES` names, and it is applied here — in one
+    place, to everything submitted — so that a reader of a green lane can see
+    exactly how much the surrogate had to be met halfway.
+    """
+
+    return sql.replace("VARCHAR(MAX)", "VARCHAR")
+
+
+def submit(conn: psycopg.Connection, sql: str) -> None:
+    """One statement to the surrogate, through the accommodation."""
+
+    conn.execute(to_surrogate(sql))
+
+
+def quoted(relation: str) -> str:
+    """``namespace.relation`` as a statement may name it.
+
+    The relation half is quoted because ``order`` is reserved in PostgreSQL and
+    a fixture is entitled to name an entity that.
+    """
+
+    namespace, _, name = relation.partition(".")
+    return f'{namespace}."{name}"'
+
+
+def rows(conn: psycopg.Connection, relation: str) -> list[tuple[object, ...]]:
+    """Every row of ``namespace.relation``, order-normalized.
+
+    Sorted by the rendered row rather than by a key, the way the DuckDB tier's
+    snapshot is (:func:`support.execution.snapshot`): what a surrogate row
+    comparison asserts is that nothing moved, including columns no key covers.
+    """
+
+    with conn.cursor() as cursor:
+        cursor.execute(f"SELECT * FROM {quoted(relation)}")  # noqa: S608
+        return sorted((tuple(row) for row in cursor.fetchall()), key=repr)
+
+
+def _qualified(relation: str) -> str:
+    """A source relation as the emitted SQL spells it: bronze unless it says
+    otherwise. A mapping may read a ``silver.`` relation the operator supplies
+    (an SCD-2 entity, a rate table), and that one carries its own namespace."""
+
+    return relation if "." in relation else f"bronze.{relation}"
+
+
+def _project_ir(fixture_name: str) -> ProjectIR:
+    project, catalog = load_fixture(fixture_name)
+    return build_project_ir(project, catalog=catalog, steps=registry_for(fixture_name))
+
+
+def supplied_relations(fixture_name: str) -> frozenset[str]:
+    """Relations the operator supplies, which no model of this fixture builds.
+
+    An SCD-2 entity is the case that matters: its versions come from the
+    operator's snapshotting and its ``valid_from``/``valid_to`` come from the
+    framework's own SCD handling, so the model's SELECT does not carry them and
+    a harness that ran it would leave the as-of join reading a relation without
+    the columns it joins on. The DuckDB tier makes the same exclusion by hand
+    (:func:`support.execution.materialize`'s ``supplied``); here it is read off
+    the IR so a fixture that becomes type-2 does not need the lane edited.
+    """
+
+    return frozenset(
+        f"silver.{entity.name}"
+        for entity in _project_ir(fixture_name).entities
+        if entity.scd is SCDKind.TYPE2
+    )
+
+
+def relation_ddl(fixture_name: str, *, built: Collection[str]) -> tuple[str, ...]:
+    """``CREATE TABLE`` for every relation the fixture reads and no model builds.
+
+    Three kinds of relation, all derived rather than written out per fixture, so
+    that a fixture which gains a field does not leave the lane running against a
+    stale table:
+
+    * **bronze**, from the mapping's own source paths — what the port's SELECT
+      actually reads. A root a mapping reaches into (``$.order.id``) is typed
+      ``JSON``, because the port lowers that to ``JSON_EXTRACT_PATH_TEXT`` and
+      PostgreSQL's takes ``json`` where Redshift's takes text.
+    * **silver relations the operator supplies** — an SCD-2 entity, or one an
+      identity-resolution mapping reads — from the entity's declared columns,
+      plus the validity pair for a type-2.
+    * **the rate relation**, when the catalog declares one: named columns, no
+      rows, enough for the conversion join to resolve.
+
+    Types come from the port's own :meth:`physical_type` for the column each
+    path feeds. Bronze is raw text in life and the DuckDB tier seeds it that
+    way, but a lane over *empty* relations has no values to coerce and still has
+    the port's arithmetic to satisfy — ``total / qty`` over two ``TEXT`` columns
+    is refused by PostgreSQL before it ever looks at a row.
+    """
+
+    ir = _project_ir(fixture_name)
+    columns: dict[str, dict[str, str]] = {}
+
+    for entity in ir.entities:
+        declared_types = {column.name: _physical(column.type) for column in entity.columns}
+        for source in entity.sources:
+            relation = _qualified(source.relation)
+            if relation in built:
+                continue
+            if not source.fields:
+                # Nothing maps into this relation — it is read whole, the way an
+                # identity-resolution mapping reads the resolved entity.
+                columns.setdefault(relation, {}).update(declared_types)
+                continue
+            for field in source.fields:
+                root, _, rest = field.source_path.removeprefix("$.").partition(".")
+                _declare(
+                    columns.setdefault(relation, {}),
+                    root.strip('"'),
+                    "JSON" if rest else declared_types.get(field.target_field, "VARCHAR"),
+                )
+            for path in source.unmapped:
+                root, _, rest = path.removeprefix("$.").partition(".")
+                _declare(columns.setdefault(relation, {}), root.strip('"'), "VARCHAR")
+
+    for relation in sorted(supplied_relations(fixture_name) - frozenset(columns)):
+        entity = next(e for e in ir.entities if f"silver.{e.name}" == relation)
+        columns[relation] = {column.name: _physical(column.type) for column in entity.columns}
+
+    for relation in supplied_relations(fixture_name):
+        columns[relation].update({"valid_from": "TIMESTAMP", "valid_to": "TIMESTAMP"})
+
+    if ir.fx_rates is not None and _rate_relation(ir.fx_rates.relation) not in built:
+        rates = ir.fx_rates
+        columns[_rate_relation(rates.relation)] = {
+            rates.from_currency: "VARCHAR",
+            rates.to_currency: "VARCHAR",
+            rates.rate: "DECIMAL(18, 6)",
+            rates.valid_from: "DATE",
+            rates.valid_to: "DATE",
+        }
+
+    return tuple(
+        f"CREATE TABLE {relation} ("
+        + ", ".join(f'"{name}" {declared}' for name, declared in sorted(names.items()))
+        + ")"
+        for relation, names in sorted(columns.items())
+    )
+
+
+def _rate_relation(relation: str) -> str:
+    """The rate relation as the port addresses it: silver unless it says
+    otherwise. It is a declared relation rather than a mapped source
+    (S-0040/phase-2-currency-as-a-declared-relation), and the conversion join
+    reads it beside the entity it converts."""
+
+    return relation if "." in relation else f"silver.{relation}"
+
+
+def _physical(logical: LogicalType) -> str:
+    """The port's own physical type, through the surrogate's accommodation."""
+
+    return to_surrogate(RedshiftDialect().physical_type(logical))
+
+
+def _declare(declared: dict[str, str], name: str, physical: str) -> None:
+    """Record one bronze column's type, JSON winning every disagreement.
+
+    A root two mappings read differently — one reaching into it, one reading it
+    whole — is a ``json`` column either way; anything else that disagrees keeps
+    the first reading, which is enough for relations that hold no rows.
+    """
+
+    if declared.get(name) == "JSON":
+        return
+    if physical == "JSON" or name not in declared:
+        declared[name] = physical
+
+
+def model_statements(
+    artifacts: tuple[EmittedArtifact, ...],
+) -> tuple[tuple[str, str], ...]:
+    """``(relation, CREATE TABLE … AS <select>)`` per model, in build order.
+
+    The order is read off what each SELECT reads, not off the layer names: a
+    silver entity may read a sibling silver relation, so "silver before gold"
+    is not enough. Python models are skipped — their bodies are platform code
+    no lane on this rung runs.
+    """
+
+    models = {
+        ".".join(relation_of(artifact)): extract_select(artifact.content)
+        for artifact in artifacts
+        if artifact.kind is ArtifactKind.MODEL and artifact.path.endswith(".sql")
+    }
+
+    pending = {
+        relation: _reads(select, frozenset(models) - {relation})
+        for relation, select in models.items()
+    }
+    ordered: list[tuple[str, str]] = []
+    built: set[str] = set()
+    while pending:
+        ready = sorted(name for name, reads in pending.items() if reads <= built)
+        if not ready:  # pragma: no cover — a cycle would be a compiler bug
+            msg = f"cyclic model dependencies among {sorted(pending)}"
+            raise AssertionError(msg)
+        for name in ready:
+            namespace, _, relation = name.partition(".")
+            ordered.append(
+                (name, f'CREATE TABLE {namespace}."{relation}" AS {models[name]}')
+            )
+            built.add(name)
+            del pending[name]
+
+    return tuple(ordered)
+
+
+def _reads(select: str, known: frozenset[str]) -> frozenset[str]:
+    """Which of ``known`` one SELECT reads, off the parsed tree."""
+
+    tree = sqlglot.parse_one(select, dialect="redshift")
+    return frozenset(
+        {
+            f"{table.args['db'].name}.{table.this.name}"
+            for table in tree.find_all(exp.Table)
+            if table.args.get("db") is not None and isinstance(table.this, exp.Identifier)
+        }
+        & known
+    )
