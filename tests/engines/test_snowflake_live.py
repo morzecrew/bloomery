@@ -7,11 +7,19 @@ statement it accepts is a statement Snowflake compiles — a claim no emulator c
 make. Marked ``engine("snowflake")`` for exactly that reason, where the
 emulator lane is marked ``surrogate`` (S-0013/D-4).
 
-**Compile-only, and structurally so.** Every submission is an ``EXPLAIN``,
-which produces a plan without executing: nothing is scanned, nothing is created
-and no warehouse is needed, so this lane cannot bill for query time. Execution
-against a real account is phase 4's separate job, which is what keeps the
-default cloud lane unable to reach a warehouse at all.
+**Two lanes live here, and only one of them compiles.** Every submission of the
+compile sweeps below is an ``EXPLAIN``, which produces a plan without
+executing: nothing is scanned, nothing is created and no warehouse is needed,
+so those sweeps cannot bill for query time. The execution corpus at the foot of
+the file is the other lane — it creates a transient database and scans it — and
+what holds it back is :func:`support.snowflake.execution_missing`, which skips
+it unless ``BLOOMERY_SNOWFLAKE_WAREHOUSE`` is set.
+
+That is a variable, not a structure. S-0013/authoritative-layers asks for two
+*jobs* so the default cloud lane cannot accidentally scan or bill, and the
+repository has one: ``snowflake-compile`` runs this file whole and reaches the
+execution corpus the moment that variable is set in its step. Splitting the job
+is owed and is not in this file's gift.
 
 **What each sweep actually establishes**, because the two are not the same rung:
 
@@ -280,11 +288,12 @@ def test_the_surrogates_gaps_are_the_surrogates_and_not_the_ports(snowflake: Sql
 # tiny seeded tables and compare *values* — and types, against the same
 # register the three shipped ports answer to.
 #
-# A separate job from the compile lane and gated on a separate variable: a
-# statement that scans needs a warehouse, an `EXPLAIN` does not, and keeping
-# the two apart is what stops the default cloud lane being able to bill.
-# Everything created lives in a transient database named for the run and is
-# dropped with it.
+# Gated on a variable of its own — `BLOOMERY_SNOWFLAKE_WAREHOUSE`, which a
+# statement that scans needs and an `EXPLAIN` does not — and owed the separate
+# job S-0013/authoritative-layers asks for, which `snowflake-compile` is not:
+# it runs this file whole, so today the skip is all that stops the default
+# cloud lane billing. Everything created lives in a transient database named
+# for the run and is dropped with it.
 
 
 @pytest.fixture(scope="module")
