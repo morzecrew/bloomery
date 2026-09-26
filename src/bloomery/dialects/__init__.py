@@ -23,8 +23,8 @@ from bloomery.dialects.base import DIALECT_PORT_MEMBERS, DialectFeature, Dialect
 from bloomery.dialects.databricks import DatabricksDialect
 from bloomery.dialects.duckdb import DuckDBDialect
 from bloomery.dialects.postgres import PostgresDialect
-from bloomery.dialects.snowflake import SnowflakeDialect
 from bloomery.dialects.redshift import RedshiftDialect
+from bloomery.dialects.snowflake import SnowflakeDialect
 from bloomery.dialects.trino import TrinoDialect
 from bloomery.errors import EmitError
 
