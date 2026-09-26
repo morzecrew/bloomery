@@ -1,0 +1,104 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0092
+phase: 2
+attempt: 2
+base: a6766c3ef0b8cde19cc34a3967c91ddcc9ecd254
+commit: b99639ff219152af835edcdb67157c467fdc7755
+at: '2026-09-26T02:44:34Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-26T02:24:50Z'
+    claim: >-
+      the live harness speaks the BigQuery REST API over stdlib urllib rather than
+      google-cloud-bigquery: this task's scope cannot carry a driver, because adding
+      a dependency group to pyproject.toml would relock uv.lock, which the allow list
+      does not name
+    evidence: >-
+      tests/support/bigquery.py:1-20 — the harness's rationale; S-0014's design sketches
+      a QueryJobConfig dry run, and a dry run is one POST to jobs.query plus one GET
+      for the table list
+    action: decided
+    proposal: >-
+      a row stating that the BigQuery harness uses the REST API over stdlib rather
+      than a vendor SDK — or, if the SDK is wanted, a scope that names uv.lock so
+      the driver group can be locked
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-09-26T02:24:50Z'
+    claim: >-
+      the dedicated dataset is one flat dataset provisioned out of band: bloomery's
+      two-part names are flattened to namespace__relation inside it, the lane dry-runs
+      only the artifacts whose relations are present, and an empty dataset fails rather
+      than skipping
+    evidence: >-
+      tests/support/bigquery.py:115-160 — the table listing and the name rewrite;
+      tests/engines/test_bigquery_live.py:66 is the guard that refuses a vacuously
+      green lane over an empty dataset
+    action: decided
+    proposal: none — the row covers it
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-26T02:24:50Z'
+    claim: >-
+      CI authenticates by Workload Identity Federation with the runner's OIDC token,
+      exchanged for a 900s access token; no service-account key, no pull_request trigger,
+      behind the bigquery Environment, and the dry-run job is the only BigQuery job
+      that exists
+    evidence: >-
+      .github/workflows/ci.yml:606-616 — the auth step and its token_format; the job's
+      trigger excludes pull_request at line 586
+    action: decided
+    proposal: none — the row covers it
+  - decision: S-0012/D-2
+    grade: LOCKED
+    at: '2026-09-26T02:24:57Z'
+    claim: >-
+      the live lane carries engine("bigquery"), and the marker's description is widened
+      to cover a hosted engine reached with credentials rather than Docker; no new
+      marker is minted and surrogate stays distinct, so a green surrogate run still
+      cannot report as the engine matrix does
+    evidence: >-
+      pyproject.toml:242-248 — the widened engine(name) entry and the comment stating
+      why one selector covers both rungs; tests/engines/test_bigquery_live.py:29 carries
+      the marker
+    action: decided
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-09-26T02:37:44Z'
+    attempt: 2
+    claim: >-
+      the dry-run harness submitted SQLMesh's @this_model unexpanded and silently
+      failed to requalify two relation spellings, so the authoritative rung would
+      have reported harness faults as port failures: the lane now binds the macro
+      to the relation the audited model's envelope declares, and qualify refuses an
+      unexpanded macro and a rewrite that matches nothing
+    evidence: >-
+      tests/support/bigquery.py:164 — the macro guard; tests/support/bigquery.py:190-197
+      bound the rewrite after `silver.inventory_level` was found rewriting the prefix
+      of `silver.inventory_level__reject`, and tests/engines/test_bigquery_live.py:96-128
+      reads the audit-to-model binding from the emitted envelopes
+    action: decided
+    notes: >-
+      Found while revising the reviewed attempt. A credential-free test over the whole
+      corpus now asserts every statement the lane would submit is bound, qualified
+      and parses on the BigQuery dialect, so the harness is checked where the dry
+      runs skip.
