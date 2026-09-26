@@ -79,6 +79,30 @@ imported as named helpers. The nested read in that table is a bronze path, decla
 port renders it; what the port refuses is the `json_path` transform's *variant*
 extraction, which would declare `variant` and produce a string.
 
+### Arrays, and the shape `_quality_flags` takes without them
+
+`redshift` does **not** declare `DialectFeature.ARRAY`. Redshift's `SUPER` can hold an
+array and `ARRAY()` constructs one, but no table column can be declared `VARCHAR[]`, and
+a capability flag names what the engine can express as a column — so the port withholds
+it rather than emitting a declaration Redshift rejects.
+
+That choice is visible in the emitted artifacts. `_quality_flags` and `failed_rules`
+share one physical contract with two lowerings, and this port takes the second:
+
+| | array dialects (`duckdb`, `postgres`, `trino`) | `redshift` |
+|---|---|---|
+| A flagged row | `['email_shape', 'positive_total']` | `'email_shape,positive_total'` |
+| A clean row | the empty array, never NULL | the empty string, never NULL |
+| Order | lexicographic by rule name | lexicographic by rule name |
+| `_quality_ok` | derived from the array's length | derived from the delimited string |
+
+Both shapes carry the same flag set — rule names are identifier-constrained at parse, so
+the comma needs no escaping, and the dialect-matrix tier asserts set equality across the
+two lowerings. What differs is what a consumer writes: on `redshift`, a query asking
+whether a row carries a given flag matches a delimited member rather than indexing an
+array, and the reject table's `failed_rules` carries the same delimited text. A mart's
+`has_quality_flags` is generated per shape and needs nothing from the reader.
+
 ## Two divergences the ports absorb for you
 
 Both of these are engine behaviour a spec cannot see, and both are the same shape: one
@@ -229,6 +253,16 @@ screen-precision derivations.
   `normalize` rule meets a refusal on that dialect and compiles on the other three, and
   its quality flags take the delimited-string shape rather than an array column.
 - The engine test tier runs the emitted SQL against real DuckDB, PostgreSQL and Trino
-  containers, which is where claims on this page are checked. There is no Redshift
-  container: the lane behind that port is a PostgreSQL surrogate, named as one, and it
-  cannot speak to `SUPER`, PartiQL or Redshift's own functions.
+  containers, which is where claims on this page are checked.
+- **The local Redshift lane checks the PostgreSQL-compatible subset; only a live cluster
+  checks the dialect.** There is no Redshift container to run locally, so the local
+  lane submits the port's SQL to a real PostgreSQL standing in for a cluster
+  (`tests/engines/test_redshift_surrogate.py`). A green run there says PostgreSQL
+  accepted these statements — no more, and the test names and its marker say so rather
+  than naming the engine. Fixtures are split into two classes for exactly this reason
+  (`tests/support/redshift.py`): `postgres-compatible`, which the local lane runs, and
+  `redshift-native` — everything reaching `SUPER`, PartiQL, a Redshift-only function or
+  Redshift's own type rules — which it never runs, because a green over one of those
+  would be a claim a PostgreSQL container cannot make. Nothing but a live cluster can
+  check the native class, and no lane runs one today — so treat every Redshift-specific
+  statement on this page as a rendering-level claim, not an engine observation.
