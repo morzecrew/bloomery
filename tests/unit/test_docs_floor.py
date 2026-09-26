@@ -42,6 +42,7 @@ from __future__ import annotations
 import itertools
 import re
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
@@ -49,6 +50,7 @@ from typing import TYPE_CHECKING, cast
 import pytest
 
 from bloomery import Target, build_project_ir, compile_project, load_project
+from bloomery.dialects import DialectFeature, get_dialect
 from bloomery.errors import (
     BloomeryError,
     GuardrailError,
@@ -146,18 +148,53 @@ def _guardrail_aggregate() -> object:
     return build_project_ir(project, catalog)
 
 
-def _quality_corpus_on_every_dialect() -> object:
-    """The quality corpus compiled for all three shipped dialects.
+#: Every shipped dialect, by name. The registry is deliberately not enumerable
+#: (S-0033/D-56), so the list is written out.
+_SHIPPED_DIALECTS = ("duckdb", "postgres", "redshift", "trino")
 
-    The claim under test is that none of the three NULL-on-failure/normalize
-    refusals can fire on a dialect that ships — so this must *return*, and the
-    day a dialect loses the capability it stops returning.
+
+def _quality_corpus_on_every_dialect() -> object:
+    """The quality corpus against every shipped dialect: compiled by each port
+    that declares what it asks for, refused at emit by each that does not.
+
+    The claim under test is that no shipped dialect *degrades* the corpus — it
+    either renders the construct or says it cannot. So this must return, and
+    the day a port loses a capability and keeps compiling anyway, or gains one
+    on paper without the spelling, it stops returning.
+
+    The two halves are not interchangeable, and the refusing arm is keyed
+    accordingly. "No shipped dialect is in that position" is a sentence about
+    the **NULL-on-failure cast**, so a port that lost `TRY_CAST` makes it false
+    — not a refusal this function may accept. What the page does leave open is
+    normalization, and Redshift is the first shipped port to sit there: it has
+    `TRY_CAST` and no normalization function at all (S-0015).
     """
     project, catalog = load_fixture("dirty_corpus")
-    return [
-        compile_project(project, target=Target.SQLMESH, dialect=dialect, catalog=catalog)
-        for dialect in ("duckdb", "postgres", "trino")
-    ]
+    compiled = []
+
+    for name in _SHIPPED_DIALECTS:
+        dialect = get_dialect(name)
+        compile_it = partial(
+            compile_project, project, target=Target.SQLMESH, dialect=name, catalog=catalog
+        )
+
+        assert dialect.supports(DialectFeature.TRY_CAST), (
+            f"shipped dialect {name!r} has no NULL-on-failure cast, and "
+            "concepts/data-quality.md says no shipped dialect is in that position"
+        )
+
+        if dialect.supports(DialectFeature.UNICODE_NORMALIZE):
+            compiled.append(compile_it())
+            continue
+
+        # Named by the capability, not the dialect alone: a refusal for some
+        # unrelated reason — or about the cast above — cannot stand in for the
+        # normalization one this arm exists to assert.
+        with pytest.raises(UnsupportedByTarget, match="no normalization function") as excinfo:
+            compile_it()
+        assert repr(name) in str(excinfo.value)
+
+    return compiled
 
 
 #: Every claim block in the docs, and what makes its claim checkable.

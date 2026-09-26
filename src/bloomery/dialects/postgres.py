@@ -30,6 +30,8 @@ from bloomery.typing import (
 
 __all__ = [
     "PostgresDialect",
+    "ends_with_as_right",
+    "zoneless_parse",
 ]
 
 #: PostgreSQL's reserved key words (PostgreSQL docs, appendix C): the
@@ -119,7 +121,7 @@ class PostgresDialect(SQLGlotDialect):
         rewritten = capture_group(node.copy())
         rewritten = strip_iso_text(rewritten, lambda text: text)
         rewritten = utc_from_zone(rewritten, utc)
-        rewritten = rewritten.transform(_zoneless_parse)
+        rewritten = rewritten.transform(zoneless_parse)
         rewritten = rewritten.transform(_pg_text_functions)
         rewritten = rewritten.transform(_guarded_try_cast)
 
@@ -307,9 +309,7 @@ def _pg_text_functions(node: Expression) -> Expression:
     """
 
     if isinstance(node, exp.EndsWith):
-        suffix = node.expression
-        tail = exp.func("RIGHT", node.this.copy(), exp.Length(this=suffix.copy()))
-        return exp.EQ(this=cast("Expression", tail), expression=suffix.copy())
+        return ends_with_as_right(node)
 
     if isinstance(node, exp.RegexpExtract):
         group = node.args.get("group") or exp.Literal.number(0)
@@ -332,7 +332,31 @@ def _pg_text_functions(node: Expression) -> Expression:
 # ....................... #
 
 
-def _zoneless_parse(node: Expression) -> Expression:
+def ends_with_as_right(node: Expression) -> Expression:
+    """``ENDS_WITH(x, s)`` → ``RIGHT(x, LENGTH(s)) = s``, for an engine with no
+    ``ends_with``.
+
+    A **named helper, shared by name rather than by inheritance** (S-0015/D-1,
+    S-0015/D-7): the Redshift port needs the same rewrite for its own reason —
+    SQLGlot renders ``ENDS_WITH`` verbatim there too, and Redshift defines no
+    such function — and the argument for *this* spelling is the engine-neutral
+    half. ``RIGHT``/``LENGTH`` is an exact equivalent rather than a near one:
+    deliberately not ``LIKE '%' || s``, which would read ``%`` and ``_`` in the
+    suffix as wildcards. Both engines define ``RIGHT`` and ``LENGTH``.
+    """
+
+    if not isinstance(node, exp.EndsWith):
+        return node
+
+    suffix = node.expression
+    tail = exp.func("RIGHT", node.this.copy(), exp.Length(this=suffix.copy()))
+    return exp.EQ(this=cast("Expression", tail), expression=suffix.copy())
+
+
+# ....................... #
+
+
+def zoneless_parse(node: Expression) -> Expression:
     """``TO_TIMESTAMP(x, fmt)`` → ``CAST(TO_TIMESTAMP(x, fmt) AS TIMESTAMP)``.
 
     ``parse_ts`` parses a *local wall clock*; ``to_utc`` is the only door into
@@ -358,6 +382,12 @@ def _zoneless_parse(node: Expression) -> Expression:
 
     ``parse_date``'s ``TO_DATE`` needs none of this: it returns ``date``, which
     has no zone to attach.
+
+    A **named helper, shared by name rather than by inheritance** (S-0015/D-1,
+    S-0015/D-7). Redshift's ``TO_TIMESTAMP(text, text)`` also returns
+    ``TIMESTAMPTZ`` having attached the session zone, so the defect and the fix
+    are the same one; what the Redshift port does *not* inherit is any other
+    rewrite around it.
     """
 
     if not isinstance(node, exp.StrToTime):

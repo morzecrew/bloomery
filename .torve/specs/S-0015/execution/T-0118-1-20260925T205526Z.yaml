@@ -1,0 +1,135 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0118
+base: c8383cb2bd081fffa6a61f5ba807435f9032468c
+commit: 3c6ea45a238560048d2bdda36739239b9493852d
+at: '2026-09-25T20:55:26Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: S-0011/D-4
+    grade: LOCKED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0012/D-8
+    grade: OPEN
+  - id: S-0013/D-1
+    grade: LOCKED
+  - id: S-0013/D-2
+    grade: LOCKED
+  - id: S-0013/D-6
+    grade: OPEN
+  - id: S-0016/D-1
+    grade: LOCKED
+  - id: S-0016/D-8
+    grade: OPEN
+  - id: S-0016/D-9
+    grade: OPEN
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-25T20:38:31Z'
+    claim: >-
+      claim holds in part: the docstring argued CURRENT_TIMESTAMP vs GETDATE() on
+      zone semantics only and never on AWS's leader-node-only restriction, which makes
+      the replay INSERT over the reject table unrunnable; the omission is fixed, the
+      spelling is not
+    evidence: >-
+      src/bloomery/dialects/redshift.py:180-192 — the restriction, the affected caller
+      and the reason neither spelling is yet correct are now recorded at the emission
+      site; src/bloomery/emit/lower/silver.py:2563 is the caller and src/bloomery/emit/lower/silver.py:2576
+      the FROM over the reject table it sits in
+    action: decided
+    proposal: >-
+      a row for the Redshift port: no leader-node-only function appears in a statement
+      that also references a user table, and the port states which of CURRENT_TIMESTAMP's
+      zone-correctness or GETDATE()'s runnability it gives up
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-09-25T20:38:31Z'
+    claim: >-
+      the spelling itself cannot be changed under this contract's scope: the unit
+      test pins the exact rendered string and asserts GETDATE is absent, and the allow
+      list names the module without naming its test file (S-0067/D-6), so any fix
+      to the emission turns an acceptance command red
+    evidence: >-
+      tests/unit/test_dialects/test_redshift.py:176-179 — asserts the render equals
+      the CONVERT_TIMEZONE('UTC', CURRENT_TIMESTAMP) string and that GETDATE is not
+      in it; .torve/tasks/T-0118/contract.yaml:32-36 is the allow list, which omits
+      that file
+    action: halted
+    proposal: >-
+      re-mint with tests/unit/test_dialects/test_redshift.py in scope, carrying the
+      decision the first proposal asks for
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-25T20:38:40Z'
+    claim: >-
+      compliant: the change is docstring prose at one method; no base class, no rewrite
+      and nothing from the PostgreSQL port is inherited
+    evidence: >-
+      src/bloomery/dialects/redshift.py:180-192 — the only lines added; class statement
+      and rewrite list unchanged
+    action: decided
+  - decision: S-0011/D-4
+    grade: LOCKED
+    at: '2026-09-25T20:38:40Z'
+    claim: >-
+      compliant: no LogicalType member, vector type or transform domain is touched
+    evidence: >-
+      src/bloomery/dialects/redshift.py:180-192 — docstring prose only
+    action: decided
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-09-25T20:38:40Z'
+    claim: >-
+      compliant: no engine driver, cloud SDK or Spark session is imported; the import
+      block is unchanged
+    evidence: >-
+      src/bloomery/dialects/redshift.py:180-192 — docstring prose only, no import
+      added
+    action: decided
+  - decision: S-0013/D-1
+    grade: LOCKED
+    at: '2026-09-25T20:38:40Z'
+    claim: >-
+      compliant: the zoneless-UTC invariant is unchanged, and the entry records that
+      preserving it is what the unresolved restriction puts in tension
+    evidence: >-
+      src/bloomery/dialects/redshift.py:194-197 — the emitted expression and its TIMESTAMP
+      cast are untouched
+    action: decided
+  - decision: S-0013/D-2
+    grade: LOCKED
+    at: '2026-09-25T20:38:40Z'
+    claim: >-
+      compliant: no rewrite point is copied from the PostgreSQL or Trino port; no
+      rewrite is added at all
+    evidence: >-
+      src/bloomery/dialects/redshift.py:180-192 — docstring prose only
+    action: decided
+  - decision: S-0016/D-1
+    grade: LOCKED
+    at: '2026-09-25T20:38:40Z'
+    claim: >-
+      compliant: nothing is executed and no harness is added; the port still renders
+      text only
+    evidence: >-
+      src/bloomery/dialects/redshift.py:180-192 — docstring prose only
+    action: decided
