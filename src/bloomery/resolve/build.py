@@ -2303,6 +2303,7 @@ def _build_exports(project: Project) -> ExportsIR | None:
         entities=tuple(sorted(project.exports.exports.entities)),
         marts=tuple(sorted(project.exports.exports.marts)),
         metrics=tuple(sorted(project.exports.exports.metrics)),
+        name=project.exports.exports.name,
     )
 
 
@@ -2373,6 +2374,10 @@ def _bind_imports(
             UpstreamIR(
                 alias=alias,
                 fingerprint=project_fingerprint(source),
+                # The upstream's own dbt project name (S-0002/D-10), beside the
+                # alias rather than instead of it: `None` where it exports
+                # none, which the dbt target refuses and the others never read.
+                name=source.exports.name if source.exports else None,
                 # `replace` rather than a constructor: an entity's shape is the
                 # silver model's, and listing its fields here would be a second
                 # declaration of it that a new field silently falls out of.

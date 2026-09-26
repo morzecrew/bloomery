@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0083
+phase: 6
+base: af673d7bc6d1945608bf91d85afe1203cf0cff4d
+commit: fd3f10210701f760a2af1708a6b5eb41c8812a28
+at: '2026-09-26T07:39:17Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: LOCKED
+entries:
+  - decision: D-10
+    grade: LOCKED
+    at: '2026-09-26T07:12:27Z'
+    claim: >-
+      implemented as specified: exports.yaml carries an optional patterned name, ExportsIR
+      and UpstreamIR carry it, and the dbt target spells ref(), dependencies.yml and
+      its own dbt_project.yml with it — but the pin moved for every ecom_basic artifact,
+      not only that fixture's dbt_project.yml, because ExportsIR is inside the fingerprint
+      walk (D-3) and a new field moves the project fingerprint every artifact header
+      carries
+    evidence: >-
+      src/bloomery/ir/fingerprint.py:64-71 — the walk is type-driven over every dataclass
+      field, so ExportsIR.name moves the hash; tests/golden/ecom_basic/sqlmesh/duckdb/config.yaml:2
+      is one of the eight non-dbt_project.yml goldens that moved with it
+    action: decided
+    proposal: >-
+      the row's narrative claim that only the fixture's dbt_project.yml pin moves
+      is unreachable while ExportsIR is fingerprint-covered; either accept the fingerprint
+      move (done here) or state it in the row
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-26T07:12:27Z'
+    claim: >-
+      compliant: the exports document gains a project name and no key for a quality
+      surface — a reject table, replay or quality mart still has nowhere to be named,
+      and the name crosses on ExportsIR alongside the three name lists rather than
+      beside anything quality carries
+    evidence: >-
+      src/bloomery/spec/exports.py:64-75 — the added field is a dbt project name;
+      the model's other fields are still entities, marts and metrics
+    action: decided
+    proposal: none
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-26T07:12:27Z'
+    claim: >-
+      the scope names src/bloomery/emit/dbt/__init__.py but not tests/e2e/test_dbt_parse.py,
+      which pins the emitted dbt project name for the ecom_basic fixture as the literal
+      'bloomery.' node prefix; renaming that project is what D-10 requires, so the
+      test is red and out of my allow list, left unedited
+    evidence: >-
+      `uv run pytest tests/e2e/test_dbt_parse.py::test_dbt_resolves_an_exposure_to_the_models_it_reads
+      -q` — AssertionError: {'bloomery.finance_extract', 'bloomery.weekly_revenue_review'}
+      not <= the parsed nodes, which are named ecom_platform.*
+    action: decided
+    proposal: >-
+      add tests/e2e/test_dbt_parse.py to this task's scope, or a follow-up task replacing
+      its two 'bloomery.' literals with the fixture's exported name
