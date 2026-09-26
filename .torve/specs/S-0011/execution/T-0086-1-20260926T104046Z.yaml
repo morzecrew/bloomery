@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0086
+phase: 3
+base: 7ae772718c6dfb05cd8b5145f52ec5c40aa5744e
+commit: 3c44d932d339a0ae642393637362e954b07832e7
+at: '2026-09-26T10:40:46Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: LOCKED
+  - id: D-11
+    grade: OPEN
+  - id: D-12
+    grade: OPEN
+  - id: D-13
+    grade: ASSUMED
+entries:
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-26T10:36:34Z'
+    attempt: 2
+    claim: >-
+      fusion: rrf names a method and not a ranking: neither the RRF rank constant
+      nor the per-side candidate depth is declared, so two consumers both honouring
+      the manifest return different orders for one query
+    evidence: >-
+      examples/retrieval/consume_store.py:156 — the store consumer's k=60 is its own
+      constant, not the manifest's; examples/retrieval/consume.py:47 shows the SQL
+      consumer declining the fused side altogether
+    action: decided
+    proposal: >-
+      a row on whether the manifest declares the RRF rank constant and the per-side
+      candidate depth, or states portable ranking as a non-goal of version 1
+    notes: >-
+      found by the second consumer S-0011 phase 3 requires; recorded in pages/docs/concepts/retrieval.md
+      and examples/retrieval/README.md rather than fixed, since no source path is
+      in this task's scope
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-26T10:36:34Z'
+    attempt: 2
+    claim: >-
+      the lexical side carries no identity while the dense side carries two: a store
+      must pick a sparse model to build that side at all, and nothing compares its
+      choice to the one the corpus was written with - the exact mismatch the encoder
+      identities exist to make refusable
+    evidence: >-
+      examples/retrieval/consume_store.py:154 — the sparse query the store has to
+      invent; examples/retrieval/retrieval.yaml:38 is the whole of the declared lexical
+      side
+    action: decided
+    proposal: >-
+      a row on whether lexical carries an analyser or sparse-encoder identity compared
+      the way document_encoder and producer are compared, or whether the lexical side
+      is declared runtime-defined on purpose
+    notes: >-
+      same second consumer; the dense-side asymmetry is visible in the manifest itself,
+      which carries two encoder identities and one bare lexical.fields
