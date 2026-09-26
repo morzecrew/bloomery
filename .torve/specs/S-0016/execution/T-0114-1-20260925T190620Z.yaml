@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0114
+base: 84b84817851d6699213d0e1636d637a48b70eb4c
+commit: ce60878aa97a6c9685130fbcac8755a860279453
+at: '2026-09-25T19:06:20Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: OPEN
+  - id: D-9
+    grade: OPEN
+  - id: D-10
+    grade: ASSUMED
+  - id: S-0011/D-4
+    grade: LOCKED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0012/D-8
+    grade: OPEN
+  - id: S-0013/D-1
+    grade: LOCKED
+  - id: S-0013/D-2
+    grade: LOCKED
+  - id: S-0013/D-6
+    grade: OPEN
+entries:
+  - decision: S-0013/D-2
+    grade: LOCKED
+    at: '2026-09-25T18:53:24Z'
+    claim: >-
+      no rewrite point is added, removed or inherited; the diff adds no code path,
+      so nothing is carried over from another port unmeasured
+    evidence: >-
+      src/bloomery/dialects/databricks.py:99-113 — the whole diff, comment text above
+      an unchanged attribute
+    action: decided
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-25T18:54:03Z'
+    claim: >-
+      the change is comment text above begin_transaction; no Spark session, engine
+      driver or cloud SDK is added and the port still renders text only
+    evidence: >-
+      src/bloomery/dialects/databricks.py:99-113 — the whole diff is the comment block
+      above begin_transaction: no import, no executable statement
+    action: decided
+  - decision: S-0011/D-4
+    grade: LOCKED
+    at: '2026-09-25T18:54:08Z'
+    claim: >-
+      no LogicalType member and no transform input domain is touched; the type map
+      is unchanged and no vector type is introduced
+    evidence: >-
+      src/bloomery/dialects/databricks.py:122-129 — scalar_types is identical across
+      this diff; the six members and their spellings are unchanged
+    action: decided
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-09-25T18:54:12Z'
+    claim: >-
+      no engine driver, cloud SDK or Spark session enters src/bloomery: the only file
+      changed is this port module, and in it only comment text
+    evidence: >-
+      src/bloomery/dialects/databricks.py:1-40 — the import block is unchanged by
+      this diff; the change is confined to lines 99-113
+    action: decided
+  - decision: S-0013/D-1
+    grade: LOCKED
+    at: '2026-09-25T18:54:16Z'
+    claim: >-
+      the zoneless-UTC timestamp mapping is untouched: a bloomery timestamp still
+      lowers to TIMESTAMP_NTZ and no session-zone type is reached for
+    evidence: >-
+      src/bloomery/dialects/databricks.py:127 — `TimestampType: _NTZ,` unchanged by
+      this diff
+    action: decided

@@ -71,7 +71,12 @@ EXPECTED_PATHS = {
     ],
 }
 
-DIALECTS = ["bigquery", "postgres", "trino"]
+#: ``databricks`` joins the matrix with the port (S-0016): its rewrites are
+#: concentrated in exactly the SQL these cells hold — ``TIMESTAMP_NTZ`` where
+#: the others say ``TIMESTAMP``, the ``:`` accessor, the backtick-quoted
+#: reserved relation name, ``TO_JSON(NAMED_STRUCT(…))`` for the reject table —
+#: and the artifacts are what freeze S-0016/D-8 and D-9.
+DIALECTS = ["bigquery", "databricks", "postgres", "trino"]
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)

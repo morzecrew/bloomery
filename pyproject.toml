@@ -125,6 +125,19 @@ engines = [
     # the container class as well as the client.
     "testcontainers[postgres,trino]>=4.15.0",
 ]
+# Rung 4s, the local Spark surrogate (S-0016/D-2): test-only, opt-in, and a
+# group rather than an extra so no `uv add bloomery` and no `pip install
+# bloomery[...]` can reach it — installing bloomery never pulls a JVM
+# (S-0016/D-1). Pinned in `uv.lock` like every other group, so the lane a CI
+# job runs is reproducible rather than "whatever PySpark resolved today".
+# Kept out of `default-groups` below: this is a ~400 MB wheel plus a JVM for a
+# lane that skips without Java, so `uv sync --group spark` is the way in.
+spark = [
+    # Spark 4 for `TIMESTAMP_NTZ` and ANSI mode, which are what the harness
+    # pins (S-0016/D-8); upper-bounded because a major that moved either
+    # would turn the lane red with no bloomery change.
+    "pyspark>=4.0,<5",
+]
 docs = [
     "mike",
     "pygments>=2.19",
@@ -138,7 +151,11 @@ docs = [
 # and the e2e modules that import testcontainers at the top fail collection
 # under the default selector, reddening a tree that is green everywhere else
 # (2026-09-19: two document branches judged red on a missing group).
-default-groups = "all"
+# Listed rather than `"all"` since `spark` landed: every group a default sync
+# needs, and not the one whose wheel is ~400 MB for a lane that skips without
+# a JVM (S-0016/D-2, D-7 — the lane is on probation, and probation is not a
+# reason for every worktree to download a Spark distribution).
+default-groups = ["dev", "engines", "docs"]
 # `sqlparse` reaches this lockfile only through `dbt-core`, which is a dev
 # dependency — it is never installed by anyone who installs bloomery, and no
 # bloomery code path imports it. It still carried four open advisories, three
