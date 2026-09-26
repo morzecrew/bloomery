@@ -256,7 +256,13 @@ markers = [
     # selector for the whole matrix would be convenient for whoever writes the
     # lane and misleading for everyone who later reads that it passed.
     "surrogate(name): Rung 4 — execution against something engine-shaped (an emulator, a Spark session, a Postgres shim); never engine conformance; requires Docker; opt-in, per port",
-    "engine(name): Tier 5 — testcontainers engine matrix, the real engine; requires Docker; opt-in",
+    # Rungs 5 and 6 of S-0012's ladder, both of them "the real engine": the
+    # container matrix asks it by running a query, and a hosted service is asked
+    # by its own compiler over a live credential — a BigQuery dry run parses,
+    # binds and type-checks without executing or scanning (S-0012/D-3). The
+    # backend differs, the claim a green run may make does not, so one selector
+    # covers both and neither may be spelled for a surrogate.
+    "engine(name): Tiers 5–6 — the real engine: the testcontainers matrix (Docker), or a hosted service reached with live credentials (skips with a stated reason without them); opt-in",
     "e2e: Tier 6 — target-framework acceptance (sqlmesh/dbt/cube); opt-in",
     "chaos: Mutation meta-test — deforms the lowering and requires the M12 quality battery to notice (S-0033/tests-rfc-0009-amendment); opt-in, runs pytest in a subprocess",
     "perf: Performance benchmark — bench lane (tests/bench), excluded from `just test`, scheduled CI (S-0026/benchmark-lane-tests-bench, S-0031)",

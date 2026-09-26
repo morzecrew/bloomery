@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0094
+phase: 4
+base: d5d36dd169c4b47cedd9fb58161c420b805e90c2
+commit: ff156dec04a19cd7fdaa03747e5c75c4b4317c6f
+at: '2026-09-26T03:19:27Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-26T03:09:17Z'
+    claim: >-
+      the contract asks for a lane in its own job, and its scope names neither .github/workflows/ci.yml
+      nor pyproject.toml — so the lane cannot carry a job, a marker or a module of
+      its own; it is separated by a variable of its own instead, BLOOMERY_BIGQUERY_EXECUTE,
+      and lives in the second half of the dry-run module
+    evidence: >-
+      .torve/specs/S-0014/phasing.yaml:91 — the phase's scope is the two test files;
+      pyproject.toml:248 is where a new marker would have to go and is out of scope
+    action: decided
+    proposal: >-
+      a row stating that the execution lane is selected by BLOOMERY_BIGQUERY_EXECUTE
+      and shares tests/engines/test_bigquery_live.py, or a scope naming .github/workflows/ci.yml
+      so the job can exist
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-26T03:09:17Z'
+    claim: >-
+      the execution lane seeds nothing: every bronze relation it reads is an inline
+      literal table of the corpus CSV rows, because the CI identity this port's harness
+      documents issues jobs and reads metadata and does not create tables — which
+      also keeps the lane at zero bytes scanned under its declared byte limit
+    evidence: >-
+      tests/support/bigquery.py:14 — 'it does not create tables'; the other engine
+      lanes seed with CREATE TABLE instead (tests/engines/test_merged_cleaning_engines.py:237)
+    action: decided
+    proposal: >-
+      a row stating that the live BigQuery lanes seed inline rather than by DDL, so
+      that a later phase does not grant the identity table-creation rights to write
+      a seeding fixture
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-26T03:09:17Z'
+    claim: >-
+      the contract lists regexp captures among what the lane must settle on the shared
+      fixture corpus, and no fixture in the corpus declares the regex_extract transform
+      — so that one subject is executed as the port's own rendering of the transform
+      over two literals, beside the eight the corpus does carry
+    evidence: >-
+      `rg -n 'regex_extract' tests/fixtures` — no matches; src/bloomery/transforms/_builtins.py:277
+      defines it
+    action: decided
+    proposal: >-
+      a regex_extract specimen in tests/fixtures/dirty_corpus so the capture is corpus-comparable
+      across ports, or a row accepting the rendered-expression probe for it

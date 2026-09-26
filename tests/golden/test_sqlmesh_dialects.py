@@ -1,8 +1,13 @@
-"""Golden artifacts for the sqlmesh × {postgres, redshift, trino} matrix cells
-(S-0026/golden-workflow, M10 port validation; S-0015 for the redshift cell): the same
-fixtures as the duckdb cell, rendered through the other three dialect ports —
-one dialect-neutral AST per artifact, four legal renderings. Regenerate via
-``just snapshot-update``; an unexplained golden diff fails review."""
+"""Golden artifacts for the sqlmesh × {bigquery, databricks, postgres, redshift, trino}
+matrix cells (S-0026/golden-workflow, M10 port validation; S-0014 for the bigquery cell,
+S-0015 for the redshift cell): the same fixtures as the duckdb cell, rendered through the
+other dialect ports — one dialect-neutral AST per artifact, one legal rendering per port.
+Regenerate via ``just snapshot-update``; an unexplained golden diff fails review.
+
+The bigquery cell is this port's byte-stability rung (S-0014): it is the only
+place the port's rewrites are read on the whole fixture corpus rather than on
+a construction a unit test built, and the only one where a change to them
+presents as a diff somebody has to explain."""
 
 from __future__ import annotations
 
@@ -71,7 +76,7 @@ EXPECTED_PATHS = {
 #: the others say ``TIMESTAMP``, the ``:`` accessor, the backtick-quoted
 #: reserved relation name, ``TO_JSON(NAMED_STRUCT(…))`` for the reject table —
 #: and the artifacts are what freeze S-0016/D-8 and D-9.
-DIALECTS = ["databricks", "postgres", "redshift", "trino"]
+DIALECTS = ["bigquery", "databricks", "postgres", "redshift", "trino"]
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)

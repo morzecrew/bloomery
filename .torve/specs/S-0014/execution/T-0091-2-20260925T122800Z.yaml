@@ -1,0 +1,302 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0091
+phase: 1
+attempt: 2
+base: 6fda63ae9183d546bd4944a9bd485f2b5dc1fa5f
+commit: a2564678b0fa6d738e431f1875680ddb60a10896
+at: '2026-09-25T12:28:00Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-25T10:10:02Z'
+    claim: >-
+      a bloomery timestamp becomes BigQuery DATETIME, not TIMESTAMP, and the port
+      states it in the tree rather than inheriting SQLGlot's generator default
+    evidence: >-
+      src/bloomery/dialects/bigquery.py:95 — scalar_types maps TimestampType to DATETIME;
+      src/bloomery/dialects/bigquery.py:211 _wall_clock_datetime rewrites the TIMESTAMP
+      type node before any generator is asked, and tests/unit/test_dialects/test_bigquery.py:89
+      reads it back through the neutral generator
+    action: decided
+    notes: >-
+      The zoneless-UTC invariant has its own fixture rather than riding on one that
+      happens to exercise it: tests/unit/test_dialects/test_bigquery.py:119 pins AtTimeZone
+      to DATETIME(TIMESTAMP(x, zone), 'UTC'). SQLGlot's own bigquery rendering of
+      that node reads the argument as an instant and moves its display, the backwards
+      direction, which would answer a 12:00 Berlin wall clock with 12:00Z instead
+      of 11:00Z.
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-25T10:10:02Z'
+    claim: >-
+      SAFE_CAST is BigQuery's NULL-on-failure cast and it survives the Cast to TryCast
+      rewrite the other three ports already survive
+    evidence: >-
+      tests/unit/test_dialects/test_bigquery.py:213 — the assertion drives resolve.build._try_cast_shape
+      over a cast chain and renders SAFE_CAST(raw AS DATETIME); no port-side rewrite
+      is needed, SQLGlot's bigquery generator spells exp.TryCast as SAFE_CAST
+    action: decided
+    notes: >-
+      Asserted through _try_cast_shape itself rather than against a hand-built TryCast,
+      because the rewrite is what the quality system applies and a hand-built node
+      would prove only that the test can build one.
+  - decision: D-7
+    grade: OPEN
+    at: '2026-09-25T10:10:02Z'
+    claim: >-
+      decimal(p, s) maps to NUMERIC(p, s) when scale <= 9 and precision - scale <=
+      29, else BIGNUMERIC(p, s) when scale <= 38 and precision - scale <= 38, else
+      UnsupportedByTarget; NUMERIC is the default and BIGNUMERIC the widening
+    evidence: >-
+      src/bloomery/dialects/bigquery.py:138 — physical_type with the bounds as named
+      constants at src/bloomery/dialects/bigquery.py:40; tests/unit/test_dialects/test_bigquery.py:289
+      walks both bounds exactly, one digit past each, and the refusal
+    action: decided
+    notes: >-
+      Measured against the declared-type conformance corpus rather than read off the
+      documentation: the last case in tests/unit/test_dialects/test_bigquery.py puts
+      every support.type_conformance CASE through render and physical_type, which
+      is where the decimal-carrying transforms (to_decimal, multiply, divide, round)
+      live. Bloomery forbids floats in emission paths, so wider-than-BIGNUMERIC has
+      no lossy fallback and is a refusal rather than an approximation.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-25T10:12:01Z'
+    claim: >-
+      the scope names src/bloomery/dialects/__init__.py but not tests/unit/test_dialects/test_base.py,
+      and a fourth port in the default registry necessarily breaks that file's exhaustive
+      listing assertion
+    evidence: >-
+      tests/unit/test_dialects/test_base.py:52 — the expected regex is "known dialects
+      are \['duckdb', 'postgres', 'trino'\]" and get_dialect now answers ['bigquery',
+      'duckdb', 'postgres', 'trino']; src/bloomery/dialects/__init__.py:47 is the
+      registration
+    action: decided
+    proposal: >-
+      add tests/unit/test_dialects/test_base.py to this task's allow list — the one-literal
+      fix cannot be made from inside this scope, and registering the port is what
+      the contract asks for
+    notes: |-
+      Left red deliberately rather than worked around: suppressing it would have meant not registering the port, which would break the golden cell and get_dialect('bigquery') alike. Measured blast radius is exactly this one test — ........................................................................ [  1%]
+      ........................................................................ [  2%]
+      ........................................................................ [  4%]
+      ........................................................................ [  5%]
+      ........................................................................ [  7%]
+      ........................................................................ [  8%]
+      ........................................................................ [ 10%]
+      ........................................................................ [ 11%]
+      ........................................................................ [ 13%]
+      ........................................................................ [ 14%]
+      ........................................................................ [ 16%]
+      ........................................................................ [ 17%]
+      ........................................................................ [ 19%]
+      ........................................................................ [ 20%]
+      ........................................................................ [ 22%]
+      ........................................................................ [ 23%]
+      ........................................................................ [ 25%]
+      .....................s..............s................................... [ 26%]
+      ........................s..............s................................ [ 28%]
+      ........................................................................ [ 29%]
+      ........................................................................ [ 31%]
+      ........................................................................ [ 32%]
+      ........................................................................ [ 34%]
+      ........................................................................ [ 35%]
+      ........................................................................ [ 37%]
+      ........................................................................ [ 38%]
+      ........................................................................ [ 40%]
+      ........................................................................ [ 41%]
+      ........................................................................ [ 43%]
+      ........................................................................ [ 44%]
+      ..........................................................s..sss........ [ 46%]
+      s.ss.ss.....s...s....................................................... [ 47%]
+      ........................................................................ [ 49%]
+      ........................................................................ [ 50%]
+      ........................................................................ [ 52%]
+      ........................................................................ [ 53%]
+      ........................................................................ [ 55%]
+      ........................................................................ [ 56%]
+      ........................................................................ [ 58%]
+      ........................................................................ [ 59%]
+      .....................................s.................................. [ 61%]
+      ........................................................................ [ 62%]
+      ........................................................................ [ 64%]
+      ....................................................s..............s.... [ 65%]
+      ........................................................................ [ 67%]
+      ........................................................................ [ 68%]
+      ........................................................................ [ 70%]
+      ........................................................................ [ 71%]
+      ........................................................................ [ 73%]
+      ........................................................................ [ 74%]
+      ........................................................................ [ 76%]
+      ........................................................................ [ 77%]
+      ........................................................................ [ 79%]
+      ........................................................................ [ 80%]
+      ........................................................................ [ 82%]
+      ........................................................................ [ 83%]
+      ........................................................................ [ 85%]
+      ........................................................................ [ 86%]
+      ........................................................................ [ 88%]
+      ........................................................................ [ 89%]
+      ........................................................................ [ 91%]
+      ........................................................................ [ 92%]
+      ........................................................................ [ 94%]
+      ........................................................................ [ 95%]
+      ........................................................................ [ 97%]
+      ........................................................................ [ 98%]
+      .......................................................................  [100%]refusal census: not enforced (not requested (--refusal-census is passed by `just test` and CI))
+
+      =============================== warnings summary ===============================
+      tests/unit/test_emit/test_audit_vocabulary.py: 108 warnings
+        /work/.venv/lib/python3.13/site-packages/pydantic/_internal/_generate_schema.py:325: PydanticDeprecatedSince20: `json_encoders` is deprecated. See https://docs.pydantic.dev/2.13/concepts/serialization/#custom-serializers for alternatives. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+          warnings.warn(
+
+      tests/unit/test_emit/test_audit_vocabulary.py::test_the_builtins_this_decision_declines_do_exist
+      tests/unit/test_emit/test_audit_vocabulary.py::test_the_builtins_this_decision_declines_do_exist
+        /work/.venv/lib/python3.13/site-packages/dateparser/utils/strptime.py:94: DeprecationWarning: Parsing dates involving a day of month without a year specified is ambiguious
+        and fails to parse leap day. The default behavior will change in Python 3.15
+        to either always raise an exception or to use a different default year (TBD).
+        To avoid trouble, add a specific year to the input & format.
+        See https://github.com/python/cpython/issues/70647.
+          obj = datetime(*__strptime(date_string, format)[:-3])
+
+      -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+      4805 passed, 18 skipped, 1 deselected, 110 warnings in 104.33s (0:01:44) is 4805 passed, 18 skipped, and tests/golden plus tests/property are 430 passed.
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-25T10:12:01Z'
+    claim: >-
+      the replay statements stamp resolved_at and last_evaluated_at with a bare exp.CurrentTimestamp
+      written straight into the UPDATE, which is a TIMESTAMP assigned to a DATETIME
+      column on the first engine that separates the two; the port answers the node
+      as well as the method
+    evidence: >-
+      src/bloomery/emit/lower/silver.py:2729-2730 — exp.CurrentTimestamp() built directly
+      rather than through ctx.dialect.utc_now(); src/bloomery/dialects/bigquery.py:287
+      rewrites it to CURRENT_DATETIME('UTC'), the same value utc_now returns
+    action: decided
+    proposal: >-
+      route those two stamps through ctx.dialect.utc_now() in src/bloomery/emit/lower/silver.py,
+      so the port does not have to be total over a node the lowering could have asked
+      for — out of this task's scope
+    notes: >-
+      Both columns are declared timestamp, which is UTC and zoneless, so the rewritten
+      value is what they were always meant to hold. The same walk found the dim_date
+      spine: SQLGlot's bigquery generator renders the neutral FROM-clause GENERATE_SERIES
+      as a bare GENERATE_ARRAY with the column alias dropped to a warning, three reasons
+      one statement does not plan, repaired by _unnested_series and pinned at tests/unit/test_dialects/test_bigquery.py.
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-25T12:06:30Z'
+    attempt: 2
+    claim: >-
+      a bloomery timestamp is BigQuery DATETIME, stated by the port rather than taken
+      from SQLGlot: DATETIME is the zoneless wall clock the type means, and every
+      value enters it through utc_from_zone, which converts to UTC before dropping
+      the zone
+    evidence: >-
+      src/bloomery/dialects/bigquery.py:95 — TimestampType maps to DATETIME in scalar_types;
+      the zone interpretation is spelled DATETIME(TIMESTAMP(x, zone), 'UTC') at bigquery.py:182-184,
+      and tests/unit/test_dialects/test_bigquery.py:141 is the zoneless-UTC invariant's
+      own fixture
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-25T12:06:30Z'
+    attempt: 2
+    claim: >-
+      SAFE_CAST is what a TryCast renders as on this port and it survives the Cast
+      to TryCast rewrite: SQLGlot's bigquery generator emits SAFE_CAST for exp.TryCast,
+      so the coercion lowering needs no Postgres-style guard here and the NULL-on-failure
+      contract holds
+    evidence: >-
+      tests/unit/test_dialects/test_bigquery.py:209-232 — the marked-operand TryCast
+      renders as SAFE_CAST(CASE ... END AS DATETIME), the shape a quality-carrying
+      entity emits
+    action: decided
+  - decision: D-7
+    grade: OPEN
+    at: '2026-09-25T12:06:30Z'
+    attempt: 2
+    claim: >-
+      a declared decimal(p, s) is NUMERIC(p, s) where p <= 38 and s <= 9, BIGNUMERIC(p,
+      s) where p <= 76 and s <= 38, and refused past both rather than widened; measured
+      against the declared-type battery in the port's own test file since no backend
+      runs at this rung. Recorded consequence: GoogleSQL takes no parameterized type
+      in a CAST, so a narrowing CAST(x AS DECIMAL(12, 4)) renders as CAST(x AS NUMERIC)
+      and lands on NUMERIC's scale of 9 — the value stays exact and physical_type
+      keeps the declared scale on the column, but the cast's rounding has no spelling
+      here
+    evidence: >-
+      src/bloomery/dialects/bigquery.py:48-54 — the two bound pairs as named constants,
+      applied at bigquery.py:121; the battery is tests/unit/test_dialects/test_bigquery.py:286-330,
+      including the scale-10 case that reading precision alone would get wrong
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-25T12:06:42Z'
+    attempt: 2
+    claim: >-
+      the scope names src/bloomery/dialects/__init__.py and src/bloomery/quality/pattern.py
+      without their test files, and registering a fourth shipped port necessarily
+      changes two hard-coded three-name literals in them; both assertions are now
+      red and neither file is editable under this scope
+    evidence: >-
+      tests/unit/test_dialects/test_base.py:52 — asserts the unknown-dialect message
+      lists ['duckdb', 'postgres', 'trino']; tests/unit/test_quality/test_lower.py:362
+      asserts PATTERN_TARGET_DIALECTS equals the same three. Registering the port
+      at src/bloomery/dialects/__init__.py:47 and adding it to the checked set at
+      src/bloomery/quality/pattern.py:57 makes both literals stale — the first unavoidably,
+      since the message enumerates the registry
+    action: decided
+    proposal: >-
+      add tests/unit/test_dialects/test_base.py and tests/unit/test_quality/test_lower.py
+      to this phase's scope, so the two literals can be updated alongside the port
+      they describe; both tests' intent ('the shipped ports') holds with four and
+      only their enumerations are stale
+  - decision: D-7
+    grade: OPEN
+    class: drift
+    at: '2026-09-25T12:17:20Z'
+    attempt: 3
+    claim: >-
+      the decimal bounds recorded at attempt 2 were the unparameterized maxima read
+      as independent limits, and they emit types BigQuery cannot create; GoogleSQL
+      bounds a parameterized decimal's precision relative to its scale, so the mapping
+      is now NUMERIC(p, s) where s <= 9 and p - s <= 29, BIGNUMERIC(p, s) where s
+      <= 38 and p - s <= 38, and a refusal past both — decimal(38, 0) and decimal(30,
+      0) move from NUMERIC to BIGNUMERIC, decimal(38, 9) and decimal(76, 38) stay
+      where they were
+    evidence: >-
+      src/bloomery/dialects/bigquery.py:46-59 — the bound pairs are now (integer digits,
+      scale), (29, 9) and (38, 38), and src/bloomery/dialects/bigquery.py:137 tests
+      scale and p - s rather than precision and scale independently; tests/unit/test_dialects/test_bigquery.py:290-301
+      walks both edges and the two cases the old reading got wrong
+    action: decided
+    notes: >-
+      Supersedes the D-7 entry of attempt 2, which stated bounds of (38, 9) and (76,
+      38) as independent maxima: NUMERIC carries 29 integer digits and BIGNUMERIC
+      38, so NUMERIC(38, 0) asks a 29-integer-digit type for 38 of them. Nothing below
+      the engine reports it — SQLGlot parses both spellings — which is why it survived
+      a green attempt. The declared-type battery's own decimal is decimal(12, 4) and
+      unaffected; the golden cells carry only unparameterized CAST(... AS NUMERIC),
+      so no artifact moves.
