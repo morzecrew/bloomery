@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0102
+phase: 3
+base: 298f3b6a2e3c6ea20e3c866ca6b11da4cebb45ca
+commit: b5f7f12c90d7496288545fdd937dd3b3e0fe506b
+at: '2026-09-26T06:30:33Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: OPEN
+  - id: D-9
+    grade: OPEN
+  - id: D-10
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-26T06:22:32Z'
+    claim: >-
+      PySpark lands as the test-only dependency group 'spark', pinned in uv.lock and
+      unreachable from 'uv add bloomery'; it is also kept out of default-groups so
+      a default sync does not pull a ~400 MB wheel for a lane that skips without a
+      JVM
+    evidence: >-
+      pyproject.toml:135-140 — the spark group; pyproject.toml:158 lists default-groups
+      explicitly instead of "all"; uv.lock:235 pins it
+    action: decided
+    proposal: none; D-2 is satisfied as written
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-26T06:22:32Z'
+    claim: >-
+      the lane carries surrogate("databricks_spark") and never engine("databricks"),
+      and type assertions are deliberately left to the live lane where D-4 puts them,
+      since Spark and Databricks SQL are documented to differ on type spellings
+    evidence: >-
+      tests/engines/test_databricks_surrogate.py:43 — pytestmark; tests/support/spark.py:68
+      is the marker argument
+    action: decided
+    proposal: none; D-3 is satisfied as written
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-26T06:22:32Z'
+    claim: >-
+      the scope names pyproject.toml but not uv.lock, and a dependency group cannot
+      be pinned reproducibly without the lock; uv.lock is regenerated here rather
+      than left stale, because a stale lock makes the acceptance command itself rewrite
+      it during the battery
+    evidence: >-
+      uv.lock:2187 — pyspark 4.2.0 added by 'uv lock'; the scope allows only tests/support/spark.py,
+      tests/engines/test_databricks_surrogate.py, pyproject.toml
+    action: decided
+    proposal: >-
+      a scope naming pyproject.toml for a dependency change names uv.lock, as a scope
+      naming a module names its test file (S-0067/D-6)
