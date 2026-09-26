@@ -797,3 +797,71 @@ jobs:
         if: ${{ github.event_name != 'pull_request' }}
         run: |
           uv run pytest -m surrogate
+  # The authoritative compile lane for the Snowflake port (S-0013/D-7): every
+  # statement the shared corpus renders, put through `EXPLAIN USING JSON` on a
+  # real account, which is Snowflake's own parser, binder and function
+  # resolution and the acceptance oracle the emulator lane is only evidence for.
+  #
+  # **Compile-only, in its own job.** Nothing here executes a query, creates an
+  # object or needs a warehouse, so the lane cannot scan or bill — and keeping
+  # it separate from any execution job is what makes that structural rather than
+  # a promise about which tests were written.
+  #
+  # **Never on a pull request.** The credentials live in the `snowflake` GitHub
+  # Environment and never in the repository, and a fork pull request cannot
+  # reach an environment at all, so the trigger is main, releases, the nightly
+  # schedule and manual dispatch — the events where the account's owner is the
+  # one running the code.
+  #
+  # **Absent credentials skip, they do not fail.** The lane reads them from the
+  # environment and skips with the missing variable named, because a red lane on
+  # an unconfigured account trains everyone to ignore the lane. Not part of
+  # `required-ci` for the same reason the engine matrix is not: a cloud endpoint
+  # being unreachable must not block a merge no test changed.
+  snowflake-compile:
+    name: Snowflake compile lane (EXPLAIN, no execution)
+    needs: changes
+    if: |
+      needs.changes.outputs.force_full == 'true' || (
+        github.event_name == 'push' && github.ref == 'refs/heads/main'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: snowflake
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      # The credentials are bound to this one step rather than to the job, so no
+      # later step inherits them. The account identifier and the session context
+      # are environment *variables* and only the token is a secret: what has to
+      # stay unreadable is the bearer, and naming the account in a log is how
+      # anyone tells which account answered.
+      - name: Compile the corpus on Snowflake
+        env:
+          BLOOMERY_SNOWFLAKE_ACCOUNT: ${{ vars.SNOWFLAKE_ACCOUNT }}
+          BLOOMERY_SNOWFLAKE_TOKEN: ${{ secrets.SNOWFLAKE_TOKEN }}
+          BLOOMERY_SNOWFLAKE_DATABASE: ${{ vars.SNOWFLAKE_DATABASE }}
+          BLOOMERY_SNOWFLAKE_SCHEMA: ${{ vars.SNOWFLAKE_SCHEMA }}
+          BLOOMERY_SNOWFLAKE_ROLE: ${{ vars.SNOWFLAKE_ROLE }}
+        run: |
+          uv run pytest tests/engines/test_snowflake_live.py -rs

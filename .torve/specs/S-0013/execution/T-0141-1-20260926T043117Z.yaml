@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0141
+base: ec937f6bf469968c5b4bc68b34ae89c05ebeea2c
+commit: 9aa7618b08f7f3519b997e0e3d6e1a3a1db7117f
+at: '2026-09-26T04:31:17Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: ASSUMED
+  - id: S-0012/D-1
+    grade: LOCKED
+  - id: S-0012/D-2
+    grade: LOCKED
+  - id: S-0012/D-3
+    grade: LOCKED
+  - id: S-0012/D-6
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: drift
+    at: '2026-09-26T04:18:29Z'
+    claim: >-
+      the review claim holds: the module docstring declared the lane compile-only
+      'and structurally so' while executing tests in the same file create a transient
+      database and scan, and the separation the file and the spec both call structural
+      is one unset environment variable. The docstring and the execution section's
+      comment are corrected to say what is true; the separate job S-0013/authoritative-layers
+      asks for is out of this contract's scope (allow: tests/engines/test_snowflake_live.py)
+      and remains owed
+    evidence: >-
+      .github/workflows/ci.yml:761 — `uv run pytest tests/engines/test_snowflake_live.py
+      -rs` runs the file whole under the one snowflake job, and `grep -rn WAREHOUSE
+      .github/workflows/` returns nothing, so BLOOMERY_SNOWFLAKE_WAREHOUSE is unset
+      there and tests/support/snowflake.py:366 execution_missing() is the only thing
+      skipping the execution corpus at tests/engines/test_snowflake_live.py:298
+    action: decided
+    proposal: >-
+      split `snowflake-compile` into a compile job and an execution job gated on the
+      snowflake environment's warehouse variable, so S-0013/authoritative-layers'
+      'separate jobs' is structural rather than a skip; until then no file in tests/engines/
+      may describe the separation as structural
+    notes: >-
+      the claim's two halves were checked separately: the docstring's falsity is repaired
+      here; the CI split is not reachable from this scope
+  - decision: S-0012/D-1
+    grade: LOCKED
+    at: '2026-09-26T04:18:37Z'
+    claim: >-
+      compliant: the change is documentation inside the live lane and leaves the oracle
+      where it was — this file stays marked engine('snowflake') and the emulator lane
+      stays the evidence rung it was
+    evidence: >-
+      tests/engines/test_snowflake_live.py:79 — pytestmark = pytest.mark.engine("snowflake")
+      is untouched; no assertion, marker or import changed
+    action: decided
+  - decision: S-0012/D-2
+    grade: LOCKED
+    at: '2026-09-26T04:18:37Z'
+    claim: >-
+      compliant: no marker was added, moved or reused — the surrogate rung's selection
+      is unaffected by a docstring repair
+    evidence: >-
+      tests/engines/test_snowflake_live.py:291-296 — the only other hunk is the execution
+      section's comment block; no pytest.mark appears in the diff
+    action: decided
+  - decision: S-0012/D-3
+    grade: LOCKED
+    at: '2026-09-26T04:18:37Z'
+    claim: >-
+      compliant, and the row is the reason for the change: the authoritative compile
+      rung has to be describable as compile-only, and a docstring claiming that while
+      the same file scans is what made the rung's claim unreadable
+    evidence: >-
+      tests/engines/test_snowflake_live.py:10-22 — the docstring now separates the
+      EXPLAIN sweeps from the execution corpus and names what gates each
+    action: decided

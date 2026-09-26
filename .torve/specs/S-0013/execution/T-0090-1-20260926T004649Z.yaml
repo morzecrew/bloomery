@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0090
+phase: 4
+base: 254e190f10169ae13254f845138c2b1e8192f2b6
+commit: 5f540fd5e4c1e5b5cbf8e3eff6e6667f9f57e200
+at: '2026-09-26T00:46:49Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-26T00:33:01Z'
+    claim: >-
+      Snowflake reports an unbounded VARCHAR as VARCHAR(16777216); the ceiling is
+      stripped locally before comparison rather than in the shared canonical(), on
+      the argument canonical() already uses for timestamp precision — bloomery's string
+      declares no length, so the ceiling is a spelling of unbounded and not a claim
+      a port could be wrong about; a narrower length survives
+    evidence: >-
+      tests/engines/test_snowflake_live.py:453 — _produced, with _MAX_VARCHAR at line
+      124
+    action: decided
+    proposal: >-
+      OPEN — an engine's maximum-length spelling of an unbounded string is normalized
+      by the measuring lane, not by the shared canonicalizer

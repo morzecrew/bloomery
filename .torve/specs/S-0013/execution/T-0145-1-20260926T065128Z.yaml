@@ -1,0 +1,103 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0145
+base: 9bc30b7d7c5b16c87d8c89ef2505d7a55b8283a6
+commit: 034c5323abbad6fbb3cccd961ccc04adfe548845
+at: '2026-09-26T06:51:28Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: ASSUMED
+  - id: S-0010/D-3
+    grade: OPEN
+  - id: S-0010/D-6
+    grade: ASSUMED
+  - id: S-0012/D-1
+    grade: LOCKED
+  - id: S-0012/D-3
+    grade: LOCKED
+  - id: S-0012/D-4
+    grade: LOCKED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-26T06:38:03Z'
+    claim: >-
+      the review claim holds: the SQL API names rowType types lowercase and hands
+      DATE/TIMESTAMP over as epoch counts, so the emulator-shaped canonicalizer fell
+      through to identity on a real account and the D-1 TIMESTAMP_LTZ guard could
+      not fire; fixed in the harness by uppercasing the declared type and reading
+      both value spellings
+    evidence: >-
+      tests/support/snowflake.py:274 — the declared type is now uppercased before
+      it reaches the lanes, so the guard at tests/engines/test_snowflake_live.py:503
+      and the FIXED assertion at :568 match both endpoints; tests/support/snowflake.py:303-318
+      reads a DATE as days and a TIMESTAMP as epoch seconds when the value is a count
+      rather than ISO text
+    action: decided
+    proposal: >-
+      a row on S-0013 stating that one canonicalizer serves both endpoints: the emulator's
+      uppercase/ISO spellings and the account's lowercase/epoch spellings normalize
+      to one Python value, and an assertion on a declared type names the uppercase
+      family
+    notes: >-
+      the epoch branches cannot be exercised by the acceptance battery: the surrogate
+      lane returns ISO text, the live lane needs an account, and the scope names only
+      tests/support/snowflake.py, so no unit test over _canonical could be added.
+      Verified by hand: '19723'/DATE reads 2024-01-01, '1767225600.123456789'/TIMESTAMP_NTZ
+      reads 2026-01-01 00:00:00.123456, and the same seconds with ' 1440'/TIMESTAMP_TZ
+      read the same instant zoneless. TIME stays on the identity branch: no lane asserts
+      one.
+  - decision: S-0012/D-1
+    grade: LOCKED
+    at: '2026-09-26T06:38:03Z'
+    claim: >-
+      the change keeps the emulator evidence and never oracle: it only makes the harness
+      read what each endpoint sends, and adds no claim that a surrogate green closes
+      the port
+    evidence: >-
+      tests/support/snowflake.py:248-251 — the surrogate keeps its own name for the
+      client, and the changes touch type spelling and value decoding only
+    action: decided
+    proposal: 'none: the row governs as written'
+    notes: >-
+      close-out: the live lane's assertions get stronger, not the surrogate's standing
+  - decision: S-0012/D-3
+    grade: LOCKED
+    at: '2026-09-26T06:38:03Z'
+    claim: >-
+      the authoritative compile rung is untouched: EXPLAIN USING JSON stays the live
+      lane's entry point and needs no warehouse
+    evidence: >-
+      tests/support/snowflake.py:172-179 — SqlApi.explain is unchanged
+    action: decided
+    proposal: 'none: the row governs as written'
+    notes: >-
+      close-out: an EXPLAIN answer carries no rows, so the canonicalizer change does
+      not reach this rung
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-09-26T06:38:03Z'
+    claim: >-
+      no driver or SDK was added: the epoch decoding is datetime.timedelta and re,
+      both stdlib, and nothing entered src/bloomery or pyproject.toml
+    evidence: >-
+      tests/support/snowflake.py:44-57 — the imports are json, os, re, time, urllib,
+      datetime, decimal and uuid, and nothing else
+    action: decided
+    proposal: 'none: the row governs as written'
+    notes: >-
+      close-out: the diff is one file under tests/support/ and the install path is
+      unchanged

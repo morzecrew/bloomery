@@ -1,22 +1,18 @@
-"""Golden artifacts for the sqlmesh × {bigquery, databricks, postgres, redshift, trino}
-matrix cells (S-0026/golden-workflow, M10 port validation; S-0014 for the bigquery cell,
-S-0015 for the redshift cell): the same fixtures as the duckdb cell, rendered through the
-other dialect ports — one dialect-neutral AST per artifact, one legal rendering per port.
-Regenerate via ``just snapshot-update``; an unexplained golden diff fails review.
-
-The bigquery cell is this port's byte-stability rung (S-0014): it is the only
-place the port's rewrites are read on the whole fixture corpus rather than on
-a construction a unit test built, and the only one where a change to them
-presents as a diff somebody has to explain."""
+"""Golden artifacts for the sqlmesh × {bigquery, databricks, postgres, redshift, snowflake, trino}
+matrix cells (S-0026/golden-workflow, M10 port validation; S-0013 for the snowflake cell; S-0014 for the bigquery cell; S-0015 for the redshift cell): the same
+fixtures as the duckdb cell, rendered through the other dialect ports — one dialect-neutral
+AST per artifact, one legal rendering per port. Regenerate via ``just snapshot-update``; an
+unexplained golden diff fails review."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
+import sqlglot
 from pytest_snapshot.plugin import Snapshot
 
-from support.compiling import assert_no_orphans, compile_fixture
+from support.compiling import assert_no_orphans, compile_fixture, extract_select
 
 pytestmark = pytest.mark.golden
 
@@ -76,7 +72,7 @@ EXPECTED_PATHS = {
 #: the others say ``TIMESTAMP``, the ``:`` accessor, the backtick-quoted
 #: reserved relation name, ``TO_JSON(NAMED_STRUCT(…))`` for the reject table —
 #: and the artifacts are what freeze S-0016/D-8 and D-9.
-DIALECTS = ["bigquery", "databricks", "postgres", "redshift", "trino"]
+DIALECTS = ["bigquery", "databricks", "postgres", "redshift", "snowflake", "trino"]
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)
@@ -88,3 +84,31 @@ def test_sqlmesh_dialect_golden(snapshot: Snapshot, fixture_name: str, dialect: 
     for artifact in artifacts:
         snapshot.assert_match(artifact.content, artifact.path)
     assert_no_orphans(snapshot.snapshot_dir, EXPECTED_PATHS[fixture_name])
+
+
+@pytest.mark.parametrize("fixture_name", sorted(EXPECTED_PATHS))
+def test_snowflake_renderings_are_snowflake_syntax(fixture_name: str) -> None:
+    """Every statement of the snowflake cell parses as Snowflake (S-0013/tests).
+
+    ``sqlglot.parse`` rather than a hand-split on ``;`` and ``parse_one``: the
+    quality mart carries a semicolon *inside* a comment, and a splitter that
+    read it as a statement boundary would fail on the comment rather than on
+    the SQL. The parser does the splitting and raises on the same malformed
+    statement ``parse_one`` would — which is the assertion, since each
+    statement here is one ``DialectPort.render`` call.
+
+    The SQLMesh envelope is stripped first: ``MODEL (...)`` and ``AUDIT (...)``
+    are SQLMesh's grammar, not Snowflake's, and the port never rendered them.
+    A replay artifact has no envelope and is parsed whole — every statement of
+    it, which is what the first line claims.
+    """
+    for artifact in compile_fixture(fixture_name, dialect="snowflake"):
+        if not artifact.path.endswith(".sql"):
+            continue
+
+        statements = sqlglot.parse(extract_select(artifact.content), read="snowflake")
+        assert statements, f"{fixture_name}/{artifact.path}: no statement to check"
+
+        if "/replay/" in artifact.path:
+            whole = sqlglot.parse(artifact.content, read="snowflake")
+            assert len(statements) == len(whole), f"{artifact.path}: a statement was cut"

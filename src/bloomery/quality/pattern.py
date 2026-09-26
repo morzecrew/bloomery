@@ -54,7 +54,13 @@ __all__ = [
 #: forbids, and it is why :mod:`bloomery.dialects` offers no enumeration at
 #: all. A caller that targets an extension dialect passes it explicitly to
 #: :func:`unsupported_dialects`, alongside these.
-PATTERN_TARGET_DIALECTS: Final[tuple[str, ...]] = ("bigquery", "duckdb", "postgres", "trino")
+PATTERN_TARGET_DIALECTS: Final[tuple[str, ...]] = (
+    "bigquery",
+    "duckdb",
+    "postgres",
+    "snowflake",
+    "trino",
+)
 
 
 def _sqlglot_name(dialect: DialectPort) -> str:
