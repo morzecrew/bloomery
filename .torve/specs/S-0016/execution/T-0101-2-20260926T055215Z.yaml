@@ -1,0 +1,130 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0101
+phase: 2
+attempt: 2
+base: 656662ac5764b91d2e1c61eb162041e24b636e25
+commit: 864a4b42be847c00cb6dfc98f67c568e040373d7
+at: '2026-09-26T05:52:15Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: OPEN
+  - id: D-9
+    grade: OPEN
+  - id: D-10
+    grade: ASSUMED
+entries:
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-26T05:32:02Z'
+    claim: >-
+      DESCRIBE QUERY is in the authoritative lane beside EXPLAIN EXTENDED, not an
+      optional extra: both run over every model of the corpus in the same loop, and
+      the types they report are checked against the entity model's declarations
+    evidence: >-
+      tests/support/databricks.py:239-270 — Warehouse.explain and Warehouse.describe;
+      tests/engines/test_databricks_live.py:280-305 runs both per model and asserts
+      the declared types
+    action: decided
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-26T05:32:02Z'
+    claim: >-
+      no service-principal OAuth flow is documented anywhere in the lane: the credential
+      is a personal access token, stated as such in both the workflow and .env.example,
+      with the normal-workspace path named and not required
+    evidence: >-
+      .github/workflows/databricks-live.yaml:15-21 — the PAT rationale; .env.example:11
+      says the same to a reader setting it up locally
+    action: decided
+  - decision: D-10
+    grade: LOCKED
+    at: '2026-09-26T05:32:02Z'
+    claim: >-
+      no credential is reachable from a pull request: the lane triggers only on schedule
+      and manual dispatch, each job is gated on refs/heads/main and bound to the databricks-free
+      environment, compile and execution are separate jobs against workspace.bloomery_conformance,
+      and an absent variable is a stated skip rather than a failure
+    evidence: >-
+      .github/workflows/databricks-live.yaml:23-30 — schedule and workflow_dispatch
+      only, no pull_request; jobs at :47 and :97 gate on main and name the environment;
+      tests/engines/test_databricks_live.py:74 is the stated skip
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-26T05:32:12Z'
+    claim: >-
+      the contract names five environment variables without naming them; they are
+      DATABRICKS_HOST, DATABRICKS_TOKEN, DATABRICKS_WAREHOUSE_ID, DATABRICKS_CATALOG,
+      DATABRICKS_SCHEMA — the Databricks CLI's own names, so a workspace already set
+      up needs nothing new
+    evidence: >-
+      tests/support/databricks.py:52-59 — the five names, in the order .env.example
+      lists them
+    action: decided
+    proposal: >-
+      ASSUMED — the live lane's five variables are the Databricks CLI's names plus
+      CATALOG and SCHEMA; renaming them breaks every setup already following .env.example
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-26T05:32:12Z'
+    claim: >-
+      EXPLAIN EXTENDED and DESCRIBE QUERY need the referenced relations to resolve,
+      and the spec says nothing about where they come from; bronze sources are created
+      as empty STRING columns read off the emitted SQL through SQLGlot's scopes, because
+      every source expression bloomery emits carries its own explicit cast
+    evidence: >-
+      tests/engines/test_databricks_live.py:198-256 — the scope-resolved derivation
+      and the CREATE TABLE it feeds; a column it misses surfaces as the engine's own
+      UNRESOLVED_COLUMN
+    action: decided
+    proposal: >-
+      ASSUMED — the live lane synthesizes its bronze sources from the emitted SQL
+      rather than from per-fixture DDL; the alternative is hand-written DDL per fixture,
+      which drifts silently when a mapping changes
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-26T05:32:12Z'
+    claim: >-
+      the shared fixture corpus is read as the five fixtures the databricks golden
+      matrix holds rather than every spec fixture, which keeps the lane inside what
+      Free Edition carries and still covers every rendering the port froze
+    evidence: >-
+      tests/support/databricks.py:69-76 — CORPUS, against tests/golden/test_sqlmesh_dialects.py:26
+      EXPECTED_PATHS which names the same five
+    action: decided
+    proposal: >-
+      ASSUMED — the live corpus is the databricks golden matrix's fixtures; widening
+      it to every spec fixture is a quota decision, not a coverage one
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-26T05:45:32Z'
+    attempt: 2
+    claim: >-
+      the authoritative lane now submits the port's own text: the scratch rewrite
+      splices relation names into the emitted characters instead of parsing and re-rendering,
+      which had replaced NAMED_STRUCT with STRUCT, dropped the backticks around the
+      reserved name order, and added a CAST inside TO_UTC_TIMESTAMP before EXPLAIN
+      EXTENDED and DESCRIBE QUERY ever saw the statement
+    evidence: >-
+      tests/engines/test_databricks_live.py:112-131 — the splice; tests/engines/test_databricks_live.py:198-219
+      is the tokenizer span helper and :546-553 the round-trip check that the emitted
+      SQL returns character for character
+    action: decided
