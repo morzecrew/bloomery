@@ -647,10 +647,25 @@ def test_snowflake_still_has_no_normalization_function(warehouse: SqlApi) -> Non
     of SQL that renders cleanly and dies on a function the engine never had.
     Red means Snowflake has grown one — a capability to declare, not a defect —
     and the flag can be restored.
-    """
-    answer = warehouse.submit(f"SELECT NORMALIZE(name, NFC) FROM {_NAMES}")
 
+    A bare ``not accepted`` cannot say that: a misspelled form argument, an
+    unresolvable column or a missing relation all refuse the same statement. So
+    the form is a string literal, the column is proved to resolve on its own,
+    and the refusal must carry the code an unmistakably absent function carries
+    — a code, never a message, as ``OBJECT_MISSING`` above. A ``NORMALIZE`` that
+    exists and merely spells its form differently refuses with an argument code
+    instead, and that is red.
+    """
+    resolves = warehouse.submit(f"SELECT UPPER(name) FROM {_NAMES}")
+    answer = warehouse.submit(f"SELECT NORMALIZE(name, 'NFC') FROM {_NAMES}")
+    absent = warehouse.submit(f"SELECT NO_SUCH_FUNCTION(name, 'NFC') FROM {_NAMES}")
+
+    assert resolves.accepted, f"the relation is the finding: {resolves.code} {resolves.message}"
     assert not answer.accepted, "Snowflake now normalizes; the port may declare the capability"
+    assert answer.code == absent.code, (
+        f"NORMALIZE refused as {answer.code}, not as an absent function ({absent.code}): "
+        f"{answer.message}"
+    )
 
 
 def test_charset_deletes_rather_than_substitutes(warehouse: SqlApi) -> None:
