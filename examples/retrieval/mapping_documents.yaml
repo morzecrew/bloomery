@@ -1,0 +1,9 @@
+mapping_version: 1
+source: cms__documents
+target: document
+key:
+  document_id: {from: "$.id", transform: [to_string]}
+fields:
+  title: {from: "$.title", transform: [to_string, trim]}
+  collection: {from: "$.collection", transform: [to_string, trim, lower]}
+  published_at: {from: "$.published_at", transform: [{parse_ts: ISO8601}]}

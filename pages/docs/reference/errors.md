@@ -195,6 +195,43 @@ and the comparison model; what dbt still refuses is a Tier 3 `python_model` step
 is about the adapters dbt's Python models run on rather than about anything bloomery
 lowers. All of them name the target or dialect that does support the construct.
 
+## Retrieval refusals
+
+A retrieval document declares a surface over relations the project already builds, and six
+guardrails make that declaration mean something. All six raise `RetrievalViolation`, a
+`GuardrailError` subclass that lives in `bloomery.guardrails.retrieval` rather than in
+`bloomery.errors` — retrieval ships as its own spec kind, nothing outside that module
+raises the class, and promoting it into the exported taxonomy is a decision no design
+authority has taken. Catching `GuardrailError` catches all of it, and every one arrives
+inside the same batched aggregate, addressed `retrieval: profiles.<name>`.
+
+Every disagreement is reported, not the first. A profile is authored as one block and is
+usually got wrong in more than one way at once — a space renamed, its dimensions bumped
+and a column dropped are one edit, and reporting them one at a time would be three round
+trips.
+
+| Refusal | Raised when |
+|---|---|
+| Dimensions disagree | The vector field's declared dimensions differ from its space's — a distance over vectors of different lengths cannot be computed at all |
+| Scalars disagree | The field's scalar differs from the space's; a `float32` corpus scored against a `float16` query is a silently different space, and it returns plausible neighbours while being one |
+| The field is not a vector | The profile's `vector.field` is declared some other type. A field that is not a declared vector carries no dimensions and no scalar, so nothing about the space can be checked against it — "any array will do" is how a corpus comes to hold two models' embeddings |
+| Producers disagree | The profile's `vector.producer` differs from the space's `document_encoder`. Dimensions agreeing is not spaces agreeing, and this comparison is the *only* check on an encoder identity: it is two strings, never a lookup against a provider |
+| Grain is not the relation's key | The profile's `grain` differs from the corpus relation's key — for a mart, its base entity's key. One vector per retrievable item, or the corpus is not a corpus: a coarser grain has either duplicated a vector or collapsed several, and both make top-k meaningless |
+| A named field is absent | A `lexical`, `filterable` or `return` field — or the vector field itself — the corpus relation does not carry. The message ends on the columns it *does* carry, capped at eight, because the mistake is usually a column renamed in one document and not the other |
+
+A seventh refusal is about the relation rather than the profile: a profile naming an entity
+or a mart this project does not build declares a surface nothing can serve, and every other
+check on it has nothing to read. It reports the relation and stops there rather than
+cascading five more leaves off one missing name — which is also what a mart that failed its
+own check looks like from here, one leaf in the same batch beside the mart's own.
+
+What is *not* here: anything about a vector store, an index, or whether an encoder model
+exists. A declared vector is also not a column a warehouse port emits DDL for, so
+compiling a vector-carrying relation for a SQL target is an `UnsupportedByTarget` ("no
+physical type for `vector(float32, 1536)`") rather than a retrieval refusal — the relation
+is written by the platform's step, and what bloomery contributes is the contract for
+querying it. See [Retrieval](../concepts/retrieval.md).
+
 ## The closed refusal list
 
 The `UnsupportedFilter` family is a **closed, reviewed list** (S-0032), not drift:

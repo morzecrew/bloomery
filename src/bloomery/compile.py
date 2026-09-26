@@ -10,7 +10,7 @@ import logging
 from collections.abc import Mapping
 from enum import StrEnum
 from types import MappingProxyType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from bloomery.dialects import get_dialect
 from bloomery.emit import EmitContext, EmittedArtifact, get_emitter
@@ -46,12 +46,19 @@ class Target(StrEnum):
     MetricFlow, which emits the
     semantic manifest rather than models (S-0059/D-1). Extension targets
     registered via :func:`bloomery.emit.register_emitter` are addressed by
-    their string name."""
+    their string name.
+
+    ``RETRIEVAL`` (S-0011/D-6) is the one member naming an *artifact* rather
+    than a consumer: it emits the retrieval manifest, which no framework reads.
+    A vendor-oriented vector emitter is deliberately **not** a member — it is
+    :func:`bloomery.emit.register_emitter`, out of tree, until it has an
+    artifact contract someone has run (S-0011/D-10)."""
 
     SQLMESH = "sqlmesh"
     CUBE = "cube"
     DBT = "dbt"
     METRICFLOW = "metricflow"
+    RETRIEVAL = "retrieval"
 
 
 # ....................... #
@@ -96,6 +103,31 @@ def _check_pattern_transport(ir: ProjectIR, port: DialectPort) -> None:
 # ....................... #
 
 
+def _retrieval(project: Project) -> Mapping[str, Any] | None:
+    """The authored retrieval document as plain data, for the target that writes
+    the manifest (S-0011/D-6).
+
+    Dumped here, at the one seam that sees both the specs and the emitters,
+    because the emit side consumes IR and never spec models — and the retrieval
+    kind reaches no IR node: nothing in the compile pipeline lowers a profile,
+    and the refusals that need types and keys have already fired at the
+    guardrail stage. ``by_alias`` because the projection key is spelled
+    ``return`` in the document and in the manifest, and ``exclude_none`` because
+    a manifest key meaning "no lexical side" is the key's absence, not a null.
+
+    ``None`` for a project that authored no retrieval document, which is what
+    keeps one that does not retrieve unchanged in every target.
+    """
+
+    if project.retrieval is None:
+        return None
+
+    return project.retrieval.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
+# ....................... #
+
+
 def compile_project(
     project: Project,
     *,
@@ -124,6 +156,7 @@ def compile_project(
         naming=naming if naming is not None else DefaultNaming(),
         fingerprint=project_fingerprint(ir),
         fx_rates=ir.fx_rates,
+        retrieval=_retrieval(project),
     )
     _check_pattern_transport(ir, context.dialect)
     artifacts = emitter.emit(ir, context)

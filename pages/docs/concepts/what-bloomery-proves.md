@@ -142,7 +142,10 @@ entirely on derived facts is sound and entirely undeclared.
 
     SQLMesh, dbt, MetricFlow, Cube and the SQL dialects are compilation or execution
     targets. Their ability to generate executable SQL is not itself a bloomery correctness
-    proof. Semantic acceptance happens before target lowering.
+    proof. Semantic acceptance happens before target lowering. The `retrieval` target has
+    no consumer on this side of the boundary at all — it emits a manifest no framework
+    reads, so nothing downstream of it accepts anything, and no runtime's acceptance of it
+    would be evidence either.
 
 That SQLMesh plans your models, or that Cube loads your data model, says those tools
 accepted the syntax. It says nothing about grain, additivity, units or tax basis, because

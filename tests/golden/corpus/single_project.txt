@@ -253,6 +253,7 @@ evolution_v5 sqlmesh models/silver/order_item.sql 41ad94e83122f93d57d3c1e14bdd9d
 fanout_trap cube refused GuardrailError
 fanout_trap dbt refused GuardrailError
 fanout_trap metricflow refused GuardrailError
+fanout_trap retrieval refused GuardrailError
 fanout_trap sqlmesh refused GuardrailError
 identity_resolution cube model/cubes/customers.yml 69fc195e7ada341dbe5ad65c3d98667bdbd2ed07629a0f152f7782cc62ad0b95
 identity_resolution cube model/views/customers_view.yml 4aa86d1b24287bf4ebd7000824e119735b6e51d51c60e217a1e715dc1173037a
@@ -491,6 +492,7 @@ scd2_customers sqlmesh models/silver/customer.sql 0a0723ae6cd37acbb50946040b5b87
 scd2_mart_refusal cube refused GuardrailError
 scd2_mart_refusal dbt refused GuardrailError
 scd2_mart_refusal metricflow refused GuardrailError
+scd2_mart_refusal retrieval refused GuardrailError
 scd2_mart_refusal sqlmesh refused GuardrailError
 scd2_replay cube model/cubes/data_quality.yml ac4c664de63a2073d623235273732cc3f1a75e70d9efcfb7a08ca98eea1712f6
 scd2_replay cube model/cubes/orders.yml c051424286af51fe999593bca4fd1615fdd7d3fb6484736ebfb0fbfb9662e467
