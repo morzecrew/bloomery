@@ -1,7 +1,7 @@
-"""Golden artifacts for the sqlmesh × {trino, postgres} matrix cells
-(S-0026/golden-workflow, M10 port validation): the same fixtures as the duckdb cell,
-rendered through the second and third dialect ports — one dialect-neutral
-AST per artifact, three legal renderings. Regenerate via
+"""Golden artifacts for the sqlmesh × {postgres, redshift, trino} matrix cells
+(S-0026/golden-workflow, M10 port validation; S-0015 for the redshift cell): the same
+fixtures as the duckdb cell, rendered through the other three dialect ports —
+one dialect-neutral AST per artifact, four legal renderings. Regenerate via
 ``just snapshot-update``; an unexplained golden diff fails review."""
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ EXPECTED_PATHS = {
 #: the others say ``TIMESTAMP``, the ``:`` accessor, the backtick-quoted
 #: reserved relation name, ``TO_JSON(NAMED_STRUCT(…))`` for the reject table —
 #: and the artifacts are what freeze S-0016/D-8 and D-9.
-DIALECTS = ["databricks", "postgres", "trino"]
+DIALECTS = ["databricks", "postgres", "redshift", "trino"]
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)

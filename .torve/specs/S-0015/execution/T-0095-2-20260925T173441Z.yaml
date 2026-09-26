@@ -1,0 +1,231 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0095
+phase: 1
+attempt: 2
+base: 6fda63ae9183d546bd4944a9bd485f2b5dc1fa5f
+commit: fdb386468ee5fa638a5c05bc70a888b15db0d2da
+at: '2026-09-25T17:34:41Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-25T12:45:10Z'
+    claim: >-
+      RedshiftDialect subclasses SQLGlotDialect and inherits no PostgreSQL rewrite;
+      each one was audited against Redshift separately and four were rejected outright
+      — pg_input_is_valid (not defined here), the JSONB lowering (no such type), the
+      reserved-word list (SQLGlot's redshift generator carries its own and quotes
+      it), and regexp_substr's sixth argument (Redshift's form stops at five and reads
+      the third as a start position)
+    evidence: >-
+      src/bloomery/dialects/redshift.py:94 — class RedshiftDialect(SQLGlotDialect);
+      tests/unit/test_dialects/test_redshift.py:63 asserts the non-subclassing mechanically,
+      and a sibling test greps the compiled corpus for PG_INPUT_IS_VALID, JSONB and
+      AT TIME ZONE
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-25T12:45:10Z'
+    claim: >-
+      the postgres-compatible / redshift-native split is built in the harness module
+      and classifies each fixture from its own Redshift rendering rather than from
+      a hand-kept list; nothing consumes it yet, as the contract states
+    evidence: >-
+      tests/support/redshift.py:74 — classify() reads the fixture's redshift artifacts
+      and looks for constructs PostgreSQL cannot mean; over the five golden fixtures
+      it splits 3 compatible / 2 native
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-25T12:45:10Z'
+    claim: >-
+      SUPER replaces the JSONB lowering rather than layering over it: variant is SUPER,
+      a neutral CAST(x AS JSON) becomes JSON_PARSE(x), and json_path extraction is
+      refused at emit until PartiQL navigation is built
+    evidence: >-
+      src/bloomery/dialects/redshift.py:340 — _refuse_super_navigation; the refusal
+      is needed because json_path does not declare its operand's type and Redshift
+      has no coercion between a VARCHAR holding JSON and a SUPER, so any translation
+      would be right for one shape and silently wrong for the other
+    action: decided
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-09-25T12:45:10Z'
+    claim: >-
+      no lane built here depends on LocalStack; the offline rungs are unit rewrites,
+      goldens and a re-parse assertion, all of which run with nothing but the compiler
+    evidence: >-
+      tests/support/redshift.py:26 — the module records LocalStack as an option for
+      a later phase rather than a dependency of this one
+    action: decided
+  - decision: D-6
+    grade: OPEN
+    at: '2026-09-25T12:45:22Z'
+    claim: >-
+      the port does not declare DialectFeature.ARRAY: Redshift has no array column
+      type — SUPER can hold an array and ARRAY() constructs one, but no column is
+      declared VARCHAR[] — so _quality_flags and failed_rules take the delimited-string
+      fallback, which changes the emitted artifact and the reject table's shape exactly
+      as the row anticipated
+    evidence: >-
+      tests/golden/multi_source_quality/sqlmesh/redshift/models/silver/order_line__reject.sql:22
+      — failed_rules is a TRIM over concatenated CASE arms where the postgres cell
+      renders nested ARRAY_CAT
+    action: decided
+  - decision: D-7
+    grade: OPEN
+    at: '2026-09-25T12:45:22Z'
+    claim: >-
+      exactly two helpers are genuinely shared, both as named module-level functions
+      imported from the postgres port: zoneless_parse, because Redshift's TO_TIMESTAMP(text,
+      text) also returns TIMESTAMPTZ with the session zone attached, and ends_with_as_right,
+      because neither engine defines ends_with and RIGHT/LENGTH is exact on both.
+      Everything else the postgres port carries is rejected; the Redshift port additionally
+      needs a rewrite postgres does not, LEFT/LENGTH for starts_with
+    evidence: >-
+      src/bloomery/dialects/postgres.py:335 — ends_with_as_right and zoneless_parse
+      at :359, both public and both documented as shared by name rather than by inheritance
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-25T12:45:38Z'
+    claim: >-
+      the contract names the reference page as one of three places that must be brought
+      along, and the scope's allow list does not contain it — so the page was left
+      unchanged and still opens by saying three dialects ship, and still says all
+      three shipped ports declare every capability, which redshift now makes false
+      on two counts
+    evidence: >-
+      pages/docs/reference/dialects.md:3 — 'Three SQL dialects ship'; the capability
+      sentence is at :202
+    action: decided
+    proposal: >-
+      add pages/docs/reference/dialects.md to this scope, or mint a follow-up task
+      for it; the page is the only one of the three enumeration sites left stale
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-25T12:45:38Z'
+    claim: >-
+      the port declares TRY_CAST on the strength of SQLGlot's redshift generator rather
+      than of a live engine — no Redshift container exists in this tree, so the offline
+      rungs cannot settle it. If it is wrong, every coercible rule on this port renders
+      a cast that aborts the run, which is the exact degradation the capability flag
+      exists to prevent
+    evidence: >-
+      `uv run python -c "import sqlglot; print(sqlglot.transpile('SELECT TRY_CAST(a
+      AS BIGINT)', read='duckdb', write='redshift'))"` prints ['SELECT TRY_CAST(a
+      AS BIGINT)'] — the redshift generator drops PostgreSQL's no_trycast transform
+      deliberately, which is a maintained dialect stating Redshift renders TRY_CAST
+      natively
+    action: decided
+    proposal: >-
+      D-2's surrogate lane must confirm TRY_CAST against a real Redshift before the
+      port is called proven; a surrogate green cannot, since PostgreSQL has no TRY_CAST
+      either
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-25T12:45:38Z'
+    claim: >-
+      the port does not declare UNICODE_NORMALIZE — Redshift defines no normalization
+      function at all — so it is the first shipped dialect that refuses part of the
+      dirty-data corpus. The docs-floor helper was rewritten to enumerate shipped
+      dialects by capability: each port that declares what the corpus needs compiles
+      it, each that does not is asserted to refuse by name
+    evidence: >-
+      src/bloomery/dialects/base.py:331 — the flag's own note says it exists so a
+      fourth port without one refuses the rule rather than emitting a function nothing
+      defines; the helper is at tests/unit/test_docs_floor.py:153
+    action: decided
+    proposal: >-
+      a row recording that Redshift has no Unicode normalization, and that the reference
+      page's 'all shipped ports declare all of them' no longer holds
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-25T12:45:38Z'
+    claim: >-
+      regex_extract with a capture-group index above one is refused on this port:
+      Redshift's REGEXP_SUBSTR names a group only through the 'e' match parameter,
+      which extracts the first subexpression and no other. Returning the whole match
+      instead would be a wrong answer wearing the shape of a right one
+    evidence: >-
+      src/bloomery/dialects/redshift.py:259 — _regexp_substr raises UnsupportedByTarget
+      above group 1; tests/unit/test_dialects/test_redshift.py asserts both the 'c'/'e'
+      spellings and the refusal
+    action: decided
+    proposal: >-
+      a row recording the new refusal, since it is a user-facing limit no decision
+      in the table anticipates
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-25T12:57:05Z'
+    attempt: 2
+    claim: >-
+      the SUPER lowering swallowed TRY_CAST: exp.TryCast subclasses exp.Cast, so a
+      variant cast inside the quality system emitted a bare JSON_PARSE, which raises
+      on a malformed document instead of producing the NULL the coercible rule reads
+      — the port now guards it with Redshift's own CAN_JSON_PARSE, which is what its
+      TRY_CAST capability declaration promises
+    evidence: >-
+      src/bloomery/dialects/redshift.py:328-338 — the TryCast branch now precedes
+      the Cast branch; tests/unit/test_dialects/test_redshift.py:257 asserts CASE
+      WHEN CAN_JSON_PARSE(payload) THEN JSON_PARSE(payload) END
+    action: decided
+    notes: >-
+      the audit that rejected _guarded_try_cast held for every type Redshift casts
+      natively and not for JSON, where the neutral type is not the physical one; no
+      shipped fixture declares a variant field, so no golden artifact changes
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-25T13:08:05Z'
+    attempt: 2
+    claim: >-
+      the SUPER lowering swallowed TRY_CAST: exp.TryCast subclasses exp.Cast, so a
+      variant cast inside the quality system emitted a bare JSON_PARSE, which raises
+      on a malformed document instead of producing the NULL the coercible rule reads
+      — the port now guards it with Redshift's own CAN_JSON_PARSE, which is what its
+      TRY_CAST capability declaration promises
+    evidence: >-
+      src/bloomery/dialects/redshift.py:328-338 — the TryCast branch now precedes
+      the Cast branch; tests/unit/test_dialects/test_redshift.py:257 asserts CASE
+      WHEN CAN_JSON_PARSE(payload) THEN JSON_PARSE(payload) END
+    action: decided
+    notes: >-
+      the audit that rejected _guarded_try_cast held for every type Redshift casts
+      natively and not for JSON, where the neutral type is not the physical one; no
+      shipped fixture declares a variant field, so no golden artifact changes
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-25T17:25:30Z'
+    attempt: 3
+    claim: >-
+      the contract's narrative names the reference page that opens by saying three
+      dialects ship as one of the three enumerations to bring along, but the scope
+      allow list contains no pages/ path, so updating it would convict the scope gate;
+      the page is left unchanged and still says three
+    evidence: >-
+      pages/docs/reference/dialects.md:3 — 'Three SQL dialects ship — `duckdb`, `postgres`,
+      `trino`'; line 14 says the EmitError names the three, which now names four
+    action: decided
+    proposal: >-
+      add pages/docs/reference/dialects.md to this task's scope.allow, or mint a follow-up
+      task for the docs enumeration; the other two enumerations (tests/unit/test_dialects/test_base.py:54,
+      tests/unit/test_docs_floor.py:157) are in scope and are updated
