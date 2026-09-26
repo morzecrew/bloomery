@@ -20,6 +20,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from bloomery.dialects.base import DIALECT_PORT_MEMBERS, DialectFeature, DialectPort, SQLGlotDialect
+from bloomery.dialects.databricks import DatabricksDialect
 from bloomery.dialects.duckdb import DuckDBDialect
 from bloomery.dialects.postgres import PostgresDialect
 from bloomery.dialects.redshift import RedshiftDialect
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 __all__ = [
+    "DatabricksDialect",
     "DialectFeature",
     "DialectPort",
     "DuckDBDialect",
@@ -44,6 +46,7 @@ __all__ = [
 ]
 
 _defaults: dict[str, DialectPort] = {
+    "databricks": DatabricksDialect(),
     "duckdb": DuckDBDialect(),
     "postgres": PostgresDialect(),
     "redshift": RedshiftDialect(),
