@@ -1,0 +1,137 @@
+name: Databricks live lane
+
+# The one lane that asks a real warehouse whether the generated SQL is
+# acceptable (S-0016). Everything else about the Databricks port is a claim
+# about rendering; this is the engine's own answer.
+#
+# **Never on a pull request** (S-0016/D-10). A public fork's branch cannot be
+# allowed to run arbitrary SQL under a maintainer's cloud identity, so the lane
+# is bound to `main` — on a schedule and on manual dispatch — and the
+# credentials live in the `databricks-free` GitHub Environment rather than in
+# repository secrets, where every workflow in the repository could reach them.
+# The default test tiers require none of this: with the variables absent the
+# lane skips with a stated reason, which is what a contributor sees.
+#
+# **A personal access token, not a service principal** (S-0016/D-5). No
+# machine-to-machine OAuth flow is documented as working on Databricks Free
+# Edition, so the credential here is a PAT from a workspace that offers one. On
+# a normal (non-Free) workspace a service principal is the better credential and
+# this lane needs no change beyond the secret's value — but the setup
+# instructions have to stay true as written, and today that means a token.
+
+on:
+  schedule:
+    # Mondays, 05:00 UTC — after the fuzz lane, clear of the nightly tiers. A
+    # weekly cadence is what Free Edition's fair-use quotas are sized for
+    # (S-0016/D-6), and a lane that reports on Monday is one someone reads.
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+# One serverless 2X-Small warehouse, shared with whoever else is on the
+# workspace. Runs serialise rather than overlap; the relations each run creates
+# carry their own prefix regardless (S-0067/D-8), so an overlap would be
+# correct, just slower and more expensive than it needs to be.
+concurrency:
+  group: databricks-live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ....................... #
+  # Compile-only: EXPLAIN EXTENDED + DESCRIBE QUERY. Nothing is executed and no
+  # data is scanned, which is why this job can sweep the whole corpus.
+  compile:
+    name: EXPLAIN EXTENDED + DESCRIBE QUERY (no execution)
+    if: github.ref == 'refs/heads/main' && vars.DATABRICKS_HOST != '' && vars.DATABRICKS_WAREHOUSE_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: databricks-free
+    permissions:
+      contents: read
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_WAREHOUSE_ID: ${{ vars.DATABRICKS_WAREHOUSE_ID }}
+      # The dedicated catalog and schema the lane owns (S-0016/D-10), literal
+      # rather than a variable: a lane pointed at a schema something else writes
+      # to is a lane that can damage it.
+      DATABRICKS_CATALOG: workspace
+      DATABRICKS_SCHEMA: bloomery_conformance
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install dependencies
+        # The default groups only: the `spark` group is a ~400 MB wheel plus a
+        # JVM for the surrogate lane, and nothing here runs Spark.
+        run: uv sync
+
+      # Exit code 5 (nothing collected) is a failure: a lane that collected
+      # nothing cannot have asked the engine anything. A skipped lane still
+      # collects and exits green, which is why the job's `if:` above refuses
+      # to start without the host and the warehouse: with them present, every
+      # selected test either asks the analyzer or fails.
+      - name: Ask the analyzer
+        run: uv run pytest tests/engines/test_databricks_live.py -k compile -q
+
+  # ....................... #
+  # Execution: the deliberately small runtime corpus over tiny tables. Kept a
+  # separate job (S-0016/D-10) so the cheap lane above cannot accidentally scan
+  # or bill, and behind `needs:` because SQL the analyzer rejects is not worth
+  # starting a warehouse to run.
+  runtime:
+    name: Runtime corpus (tiny tables)
+    needs: [compile]
+    if: github.ref == 'refs/heads/main' && vars.DATABRICKS_HOST != '' && vars.DATABRICKS_WAREHOUSE_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: databricks-free
+    permissions:
+      contents: read
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_WAREHOUSE_ID: ${{ vars.DATABRICKS_WAREHOUSE_ID }}
+      DATABRICKS_CATALOG: workspace
+      DATABRICKS_SCHEMA: bloomery_conformance
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install dependencies
+        # The default groups only: the `spark` group is a ~400 MB wheel plus a
+        # JVM for the surrogate lane, and nothing here runs Spark.
+        run: uv sync
+
+      - name: Run the runtime corpus
+        run: uv run pytest tests/engines/test_databricks_live.py -k runtime -q

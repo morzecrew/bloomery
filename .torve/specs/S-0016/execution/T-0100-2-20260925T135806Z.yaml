@@ -1,0 +1,218 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0100
+phase: 1
+attempt: 2
+base: 6fda63ae9183d546bd4944a9bd485f2b5dc1fa5f
+commit: dda682ab9b60b82f5f534cc443ca3a44125ea211
+at: '2026-09-25T13:58:06Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: OPEN
+  - id: D-9
+    grade: OPEN
+  - id: D-10
+    grade: ASSUMED
+entries:
+  - decision: D-9
+    grade: OPEN
+    at: '2026-09-25T13:22:47Z'
+    claim: >-
+      the port targets Databricks SQL only and does not claim generic Spark SQL: the
+      dialect name and the SQLGlot generator are both 'databricks'
+    evidence: >-
+      src/bloomery/dialects/databricks.py:97-98 — name and sqlglot_dialect; the golden
+      matrix cell is tests/golden/test_sqlmesh_dialects.py:74
+    action: decided
+    notes: >-
+      TIMESTAMP_NTZ, TRY_CAST under ANSI mode and the colon accessor are Databricks
+      SQL guarantees, not open-source Spark ones; claiming both would make every rewrite
+      here a claim about two engines with one lane of evidence.
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-25T13:23:15Z'
+    claim: >-
+      the databricks port renders text and nothing else: no Spark session, engine
+      driver or cloud SDK enters src/bloomery; every claim it makes is a claim about
+      a rewrite, and the engine-side evidence stays in the live lane under tests/
+    evidence: >-
+      src/bloomery/dialects/databricks.py:1-40 — the module's whole import list is
+      sqlglot, bloomery.dialects.base, bloomery.errors and bloomery.typing; the registry
+      entry at src/bloomery/dialects/__init__.py:47 adds no other
+    action: decided
+  - decision: D-8
+    grade: OPEN
+    at: '2026-09-25T13:23:26Z'
+    claim: >-
+      a bloomery timestamp maps to TIMESTAMP_NTZ, not TIMESTAMP, and a neutral in-expression
+      CAST(x AS TIMESTAMP) is rewritten to match so the value agrees with the column
+      type it fills
+    evidence: >-
+      src/bloomery/dialects/databricks.py:119 — TimestampType maps to _NTZ in the
+      scalar type map; _physical_types is the in-expression half
+    action: decided
+    notes: >-
+      Databricks' plain TIMESTAMP is an instant rendered through the session zone,
+      which is the S-0045 defect by another spelling: one stored row yields two days
+      for two readers. The choice pins the surrogate session to ANSI mode, where a
+      failing CAST raises rather than yielding NULL and TRY_CAST is the NULL-on-failure
+      cast the quality layer needs. Frozen by the golden artifacts under tests/golden/*/sqlmesh/databricks/.
+  - decision: D-9
+    grade: OPEN
+    at: '2026-09-25T13:23:27Z'
+    claim: >-
+      the port targets Databricks SQL only and does not claim generic Spark SQL: both
+      the dialect name and the SQLGlot generator are 'databricks'
+    evidence: >-
+      src/bloomery/dialects/databricks.py:97-98 — name and sqlglot_dialect are both
+      'databricks'; the golden matrix cell is added at tests/golden/test_sqlmesh_dialects.py:74
+    action: decided
+    notes: >-
+      TIMESTAMP_NTZ, TRY_CAST under ANSI mode and the colon accessor are Databricks
+      SQL guarantees rather than open-source Spark ones; claiming both engines would
+      put two engines behind one lane of evidence.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-25T13:23:40Z'
+    claim: >-
+      variant maps to STRING and every neutral CAST(x AS JSON) is rewritten to STRING;
+      Databricks has no JSON type, and the ':' accessor SQLGlot lowers json_path to
+      reads JSON out of a STRING column directly. The native VARIANT is deliberately
+      not reached for: it is runtime-gated and needs parse_json rather than a cast
+    evidence: >-
+      src/bloomery/dialects/databricks.py:120 — VariantType maps to STRING; tests/golden/minimal/sqlmesh/databricks/models/silver/event.sql:11
+      shows the rendered columns carry no JSON type
+    action: decided
+    proposal: >-
+      a row beside S-0016/D-8 fixing the physical type for variant on databricks:
+      STRING with the colon accessor, native VARIANT deferred until it is generally
+      available and parse_json is worth a rewrite
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-25T13:23:40Z'
+    claim: >-
+      the port declares every capability except UNICODE_NORMALIZE: Databricks has
+      no NORMALIZE and no equivalent of DuckDB's nfc_normalize, so a normalize rule
+      is refused at emit rather than rendered into a call nothing defines
+    evidence: >-
+      src/bloomery/dialects/databricks.py:111-113 — features is every DialectFeature
+      less UNICODE_NORMALIZE; no golden fixture uses the rule, so no artifact changes
+    action: decided
+    proposal: >-
+      a row recording that databricks refuses unicode normalization at emit (S-0025/D-3
+      doctrine), and that a rule needing it is a spec error on this target rather
+      than a silent pass
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-25T13:23:41Z'
+    claim: >-
+      a decimal wider than precision 38 is refused at physical_type rather than rendered:
+      Databricks caps DECIMAL at 38, so the alternative is a column the warehouse
+      rejects at the first CREATE TABLE or a value silently rounded
+    evidence: >-
+      src/bloomery/dialects/databricks.py:50 — the cap, raised as UnsupportedByTarget
+      in physical_type
+    action: decided
+    proposal: >-
+      a row fixing the decimal ceiling per port and requiring the refusal to be compile-time,
+      which is what the task statement's 'decimal precision' rewrite point resolves
+      to here
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-25T13:23:58Z'
+    claim: >-
+      the port quotes ANSI reserved words in identifiers with backticks: SQLGlot's
+      databricks generator carries no reserved-word set at all, so 'FROM silver.order'
+      renders bare and fails to parse on a warehouse with ANSI mode on, which is the
+      default
+    evidence: >-
+      src/bloomery/dialects/databricks.py:58 — the reserved set, applied over every
+      exp.Identifier in render
+    action: decided
+    proposal: >-
+      a row recording that reserved-word quoting is the port's own on databricks,
+      not the library's, so a SQLGlot upgrade that adds RESERVED_KEYWORDS is a chance
+      to delete this and not a silent duplicate
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-25T13:23:59Z'
+    claim: >-
+      the dim_date calendar needs a rewrite of its own: SQLGlot's databricks generator
+      folds the table alias into the call, rendering EXPLODE(SEQUENCE(...), _u(date_day))
+      — an explode arity Databricks does not have — so the series is wrapped in an
+      opaque call and the alias stays a table alias
+    evidence: >-
+      tests/golden/role_playing_dates/sqlmesh/databricks/models/gold/dim_date.sql:15-17
+      — FROM EXPLODE(SEQUENCE(...)) AS date_day(date_day), the same date_day column
+      the three shipped ports resolve
+    action: decided
+    proposal: >-
+      a row noting that the neutral GENERATE_SERIES table in emit/lower/marts.py needs
+      a per-port table-function rewrite, and that a new port owes a dim_date artifact
+      check because it is the only artifact this defect reaches
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-25T13:23:59Z'
+    claim: >-
+      begin_transaction keeps the inherited 'BEGIN'. Databricks SQL has no multi-statement
+      transaction — every statement is its own atomic Delta commit — so no spelling
+      is right; the inherited one is kept rather than invented, and its only reader,
+      the dbt replay envelope, is not a cell of this phase's matrix
+    evidence: >-
+      src/bloomery/dialects/databricks.py:105 — begin_transaction with the reason
+      beside it; tests/golden/test_sqlmesh_dialects.py:74 is the only matrix the port
+      enters
+    action: decided
+    proposal: >-
+      a row settling what a port declares when the engine has no transaction at all
+      — a sentinel that refuses the dbt envelope, rather than a keyword that parses
+      and means nothing
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-25T13:24:00Z'
+    claim: >-
+      the runtime SQL client has no databricks planner entry, so sql_client_for_dialect('databricks')
+      raises PlannerError while the dialect registry accepts the name. The file is
+      outside this task's scope and the phase claims rendering only, so it is left
+      alone and reported
+    evidence: >-
+      src/bloomery/runtime/sql_client.py:96-101 — _DIALECTS maps duckdb, postgres
+      and trino only
+    action: decided
+    proposal: >-
+      a row for the phase that wires the live lane: either the planner map gains databricks
+      or the two registries are made one, because two lists of known dialects drift
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-25T13:34:34Z'
+    attempt: 2
+    claim: >-
+      date truncation is rendered as DATE_TRUNC(unit, x) by a port rewrite: SQLGlot's
+      databricks generator lowers the neutral call to TRUNC(x, unit), which takes
+      no unit finer than a week and returns NULL for DAY, so the incremental time
+      column and partition key would be silently empty
+    evidence: >-
+      src/bloomery/dialects/databricks.py:350-377 — the _date_trunc rewrite; tests/golden/ecom_basic/sqlmesh/databricks/models/gold/mart_order_items.sql:17
+      now matches the three shipped ports
+    action: decided
+    proposal: >-
+      the databricks port renders date buckets with DATE_TRUNC, never TRUNC, so all
+      four ports agree on every unit
