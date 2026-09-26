@@ -691,6 +691,22 @@ def test_ordinary_repetition_still_passes(regex: str) -> None:
     ).regex == regex
 
 
+@pytest.mark.parametrize("regex", ["^a{1001}$", "^a{1,1001}$", "^a{2000,}$"])
+def test_a_repetition_bound_past_re2s_ceiling_is_refused(regex: str) -> None:
+    """RE2 refuses a repetition bound above 1000 as a parse error, where POSIX
+    ARE and Python accept it — so the spec layer would pass a pattern that
+    fails on DuckDB, Trino and BigQuery when the query runs, the class of
+    failure the portable subset exists to refuse."""
+    with pytest.raises(ValueError, match="repetition count"):
+        PatternRule.model_validate({"rule": "pattern", "regex": regex, "on_fail": "flag"})
+
+
+def test_a_repetition_bound_at_re2s_ceiling_still_passes() -> None:
+    assert PatternRule.model_validate(
+        {"rule": "pattern", "regex": "^a{1000}$", "on_fail": "flag"}
+    ).regex == "^a{1000}$"
+
+
 def test_alternation_overlap_is_not_detected_and_that_is_recorded() -> None:
     """The limit of this check, asserted so it stays a known gap rather than an
     assumed absence.

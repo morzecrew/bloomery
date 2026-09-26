@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0093
+phase: 3
+base: 58103f0641b8a2c9d031ade6624ce1c26aed8a2b
+commit: 73537542c8c67664db5a81a5d99902bef65408f0
+at: '2026-09-26T04:59:49Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+entries:
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-26T04:48:56Z'
+    claim: >-
+      the emulator lane is pinned to an exact tag and carries the surrogate marker,
+      never engine: 0.8.1 rather than the published 0.8 or latest aliases, and surrogate("bigquery_emulator")
+      as the module's only selector
+    evidence: >-
+      tests/engines/test_bigquery_surrogate.py:66-71 — the marker and the pin; tests/engines/test_bigquery_surrogate.py:206
+      asserts both so neither can be edited away silently, and the CI step at .github/workflows/ci.yml:791
+      names the emulator in the line a log reader sees
+    action: decided
+    proposal: >-
+      no amendment: the row is satisfied as written, and the assertion cited above
+      is what keeps it satisfied
+  - decision: D-6
+    grade: OPEN
+    at: '2026-09-26T04:48:56Z'
+    claim: >-
+      the emulator lane does not run on pull requests yet: of the row's two inputs
+      only one is answerable here — it catches what rungs 1 to 3 miss, because every
+      assertion in it is about a value no offline rung produces — while its runtime
+      is unmeasured, the lane having never reached a Docker daemon in a sandbox that
+      has none
+    evidence: >-
+      .github/workflows/ci.yml:791-794 — the step and its non-pull-request condition,
+      beside the 199s measurement at .github/workflows/ci.yml:684 that earned the
+      engine tiers their own PR slot
+    action: decided
+    proposal: >-
+      OPEN stays open until a nightly or push run measures the lane; the condition
+      is deleted by whoever records the number, on the evidence the engine tiers were
+      promoted on
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-26T04:48:56Z'
+    claim: >-
+      the scope names no file under tests/support/, so the emulator lane imports its
+      corpus plumbing from the live lane's test module rather than from a shared harness;
+      a second copy of the seeding, the disposition read and the request decoding
+      would be the thing that drifts
+    evidence: >-
+      tests/engines/test_bigquery_surrogate.py:53 — the import; tests/support/bigquery.py:1
+      is where these belong and is outside this task's allow list
+    action: decided
+    proposal: >-
+      a row on where a rung's shared plumbing lives: dirty_sources, dispositions and
+      the endpoint the REST harness talks to belong in tests/support/bigquery.py,
+      which means a scope that adds a rung names that file too

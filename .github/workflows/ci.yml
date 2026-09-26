@@ -551,6 +551,95 @@ jobs:
       - name: Run the mutation battery
         run: uv run pytest -m chaos
 
+  # The authoritative compile rung for the BigQuery port (S-0012/D-3): a dry
+  # run is the service's own parser, binder and type resolution, and it neither
+  # executes nor scans. Rungs 1–4 never ask BigQuery anything, so this is the
+  # only job in this file where something other than SQLGlot has an opinion
+  # about what the port renders.
+  #
+  # Never on a pull request (S-0012/D-5): GitHub withholds secrets from a fork's
+  # workflow, and a public contribution must not run SQL under a maintainer's
+  # cloud identity — `pull_request_target` is named here so it is not proposed
+  # later as a convenience. `main`, the nightly schedule and force-full runs
+  # only, behind an Environment so its protection rules apply and the credential
+  # is out of reach of the jobs above.
+  #
+  # Its own job, and deliberately the only BigQuery job that exists today: the
+  # execution lane is a separate one when it lands, so the default cloud lane
+  # cannot scan or bill by accident.
+  #
+  # Identity is Workload Identity Federation over the runner's OIDC token
+  # (S-0014/D-4) — `id-token: write` is what mints it. No service-account JSON
+  # key: a long-lived key in repository secrets is the credential most likely to
+  # outlive the maintainer who created it, and nothing here would notice that it
+  # had. The provider, the service account and the dataset are configuration
+  # rather than secrets, so they are Environment variables; the access token the
+  # exchange returns is the only secret in the job, and it expires in minutes.
+  #
+  # Green without any of them: the lane skips with a stated reason rather than
+  # failing, which is also what makes its acceptance command quiet in a sandbox.
+  # The job itself does not start without the provider and the service account:
+  # the token exchange runs before pytest could skip, and an empty input fails
+  # it rather than producing the skip the lane promises.
+  bigquery-dry-run:
+    name: BigQuery dry run (authoritative compile)
+    needs: [changes, quality]
+    if: |
+      needs.quality.result == 'success' &&
+      vars.BIGQUERY_WORKLOAD_IDENTITY_PROVIDER != '' &&
+      vars.BIGQUERY_SERVICE_ACCOUNT != '' &&
+      github.event_name != 'pull_request' &&
+      (needs.changes.outputs.force_full == 'true' ||
+       github.event_name == 'schedule' ||
+       github.event_name == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: bigquery
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Authenticate by federated identity
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.BIGQUERY_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.BIGQUERY_SERVICE_ACCOUNT }}
+          # The harness speaks the REST API over `urllib` and wants a bearer
+          # token, not a credentials file — no cloud SDK enters this repository
+          # (S-0012/D-4), on either side of the `src/` boundary.
+          token_format: access_token
+          # An hour is longer than the lane, and a token that outlives the job
+          # is a credential nobody revokes.
+          access_token_lifetime: 900s
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Dry-run the corpus on BigQuery
+        env:
+          BLOOMERY_BIGQUERY_PROJECT: ${{ vars.BIGQUERY_PROJECT }}
+          BLOOMERY_BIGQUERY_DATASET: ${{ vars.BIGQUERY_DATASET }}
+          BLOOMERY_BIGQUERY_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: uv run pytest tests/engines/test_bigquery_live.py -q
+
   # The OS smoke lane: the default tiers on Windows and macOS, nightly and on
   # force-full runs. The bug template offers both platforms while CI ran
   # Ubuntu alone, so the classic portability failures — console encoding on
@@ -691,6 +780,23 @@ jobs:
         run: |
           uv run pytest -m "engine or e2e"
 
+      # Rung 4 (S-0012/D-2): a step of its own, never folded into the selector
+      # above, because the two rungs may not report as one — a surrogate is
+      # evidence and the log has to say which line ran an emulator.
+      #
+      # **Not on pull requests yet** (S-0014/D-6). Of the row's two inputs only
+      # one is answered: the lane does catch what rungs 1–3 miss, because every
+      # assertion in it is about a *value* — a quarantined row, a decimal's
+      # scale, the instant a wall clock lands on — and no offline rung produces
+      # one. Its runtime is unmeasured: it had never run against a daemon when
+      # it landed, so there is no number to put beside the 199s that earned the
+      # tiers above their PR slot. The nightly and push runs below produce it;
+      # whoever reads one may delete this condition and record the measurement,
+      # which is the same evidence the engine tiers were promoted on.
+      - name: Run the BigQuery surrogate lane (emulator, not engine conformance)
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          uv run pytest -m surrogate
   # The authoritative compile lane for the Snowflake port (S-0013/D-7): every
   # statement the shared corpus renders, put through `EXPLAIN USING JSON` on a
   # real account, which is Snowflake's own parser, binder and function
