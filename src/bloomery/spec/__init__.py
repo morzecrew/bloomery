@@ -47,6 +47,16 @@ from bloomery.spec.quality import (
     ReferentialRule,
     UniqueRule,
 )
+from bloomery.spec.retrieval import (
+    CorpusRelation,
+    Encoder,
+    Fusion,
+    LexicalSide,
+    RetrievalProfile,
+    RetrievalSpec,
+    SemanticSpace,
+    VectorSide,
+)
 from bloomery.spec.steps import StepSet, StepUse, StepWiring
 
 # ----------------------- #
@@ -118,6 +128,15 @@ __all__ = [
     "Reconcile",
     "ReferentialRule",
     "UniqueRule",
+    # retrieval (S-0011)
+    "CorpusRelation",
+    "Encoder",
+    "Fusion",
+    "LexicalSide",
+    "RetrievalProfile",
+    "RetrievalSpec",
+    "SemanticSpace",
+    "VectorSide",
     # project + loaders
     "Project",
     "load_catalog",

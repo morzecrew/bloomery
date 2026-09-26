@@ -18,15 +18,22 @@ what disambiguates — the three namespaces are separate, so a bare list would
 make ``revenue`` mean a metric or a mart depending on who read it, which is the
 same argument :class:`~bloomery.spec.exposures.ExposureDependsOn` makes one
 document over.
+
+**Plus a name, optionally** (S-0002/D-10). The one identity a bloomery project
+carries, and it lives here — on the producer's side of the boundary — because
+exactly one target needs it: dbt's cross-project ``ref()`` names the producing
+*project*, where SQLMesh names the relation and Cube and MetricFlow read a
+mart. A project nothing imports over dbt never needs one, which is why it is
+optional rather than required.
 """
 
 from __future__ import annotations
 
-from typing import Any, Final, Literal, Self
+from typing import Annotated, Any, Final, Literal, Self
 
-from pydantic import ConfigDict, model_validator
+from pydantic import ConfigDict, StringConstraints, model_validator
 
-from bloomery.spec.common import SpecModel
+from bloomery.spec.common import IDENTIFIER_PATTERN, SpecModel
 
 # ----------------------- #
 
@@ -55,6 +62,18 @@ class Exports(SpecModel):
 
     model_config = ConfigDict(**SpecModel.model_config, json_schema_extra=_PUBLISHES_SOMETHING)
 
+    #: The producer's dbt project name — the one identity a bloomery project
+    #: carries, and only because one target needs it (S-0002/D-10). A
+    #: downstream's dbt target spells the two-argument ``ref()`` and the
+    #: ``dependencies.yml`` entry with it, while the local alias stays what
+    #: keys the compile input and the resolution (D2). Optional: every other
+    #: target names a relation or reads a mart and needs no name at all.
+    #:
+    #: Patterned, because it reaches two places nothing quotes: ``name:`` in
+    #: the emitted ``dbt_project.yml`` and the first argument of a Jinja
+    #: ``ref()`` call — the same argument :data:`~bloomery.spec.common.RelationName`
+    #: makes one document over.
+    name: Annotated[str, StringConstraints(pattern=IDENTIFIER_PATTERN)] | None = None
     entities: tuple[str, ...] = ()
     marts: tuple[str, ...] = ()
     metrics: tuple[str, ...] = ()

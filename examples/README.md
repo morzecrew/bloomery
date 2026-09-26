@@ -32,6 +32,24 @@ uv run python examples/quickstart/run.py
 The [Quickstart](https://morzecrew.github.io/bloomery/get-started/quickstart/)
 page walks through the same project step by step.
 
+## retrieval/
+
+A document-chunk corpus compiled to `retrieval_manifest.json`: one semantic
+space, two profiles, every profile carrying its space inlined for a runtime that
+cannot see the spec tree. No containers, no provider account, and no embedding is
+computed, read or validated anywhere in it.
+
+The vector column arrives from the step's declared output, because a vector is
+produced by no transform — and asking a SQL dialect for the same corpus refuses,
+since a declared vector is not a column a warehouse port emits DDL for. `consume.py`
+beside it is a demonstration of a runtime reading the manifest, not a test.
+
+```bash
+uv run python examples/retrieval/run.py
+```
+
+See [`retrieval/README.md`](retrieval/README.md).
+
 ## lakehouse/
 
 The compiler against a real lakehouse: eight spec documents compiled to SQLMesh
