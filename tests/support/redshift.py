@@ -34,8 +34,10 @@ actually emits, against the port's own Redshift-only vocabulary below.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Collection, Iterator
 from contextlib import contextmanager
+from uuid import uuid4
 
 import psycopg
 import sqlglot
@@ -278,7 +280,9 @@ def supplied_relations(fixture_name: str) -> frozenset[str]:
     )
 
 
-def relation_ddl(fixture_name: str, *, built: Collection[str]) -> tuple[str, ...]:
+def relation_ddl(
+    fixture_name: str, *, built: Collection[str], native: bool = False
+) -> tuple[str, ...]:
     """``CREATE TABLE`` for every relation the fixture reads and no model builds.
 
     Three kinds of relation, all derived rather than written out per fixture, so
@@ -300,13 +304,22 @@ def relation_ddl(fixture_name: str, *, built: Collection[str]) -> tuple[str, ...
     way, but a lane over *empty* relations has no values to coerce and still has
     the port's arithmetic to satisfy — ``total / qty`` over two ``TEXT`` columns
     is refused by PostgreSQL before it ever looks at a row.
+
+    ``native=True`` is the live lane's form: no surrogate accommodation, so
+    ``string`` stays ``VARCHAR(MAX)`` as the port emits it, and a root a mapping
+    reaches into is text rather than ``JSON`` — Redshift has no ``JSON`` type and
+    its ``JSON_EXTRACT_PATH_TEXT`` reads text where PostgreSQL's reads ``json``.
     """
 
     ir = _project_ir(fixture_name)
+    text = "VARCHAR(MAX)" if native else "VARCHAR"
+    root_type = text if native else "JSON"
     columns: dict[str, dict[str, str]] = {}
 
     for entity in ir.entities:
-        declared_types = {column.name: _physical(column.type) for column in entity.columns}
+        declared_types = {
+            column.name: _physical(column.type, native=native) for column in entity.columns
+        }
         for source in entity.sources:
             relation = _qualified(source.relation)
             if relation in built:
@@ -321,15 +334,20 @@ def relation_ddl(fixture_name: str, *, built: Collection[str]) -> tuple[str, ...
                 _declare(
                     columns.setdefault(relation, {}),
                     root.strip('"'),
-                    "JSON" if rest else declared_types.get(field.target_field, "VARCHAR"),
+                    root_type if rest else declared_types.get(field.target_field, text),
+                    root_type=root_type,
                 )
             for path in source.unmapped:
                 root, _, rest = path.removeprefix("$.").partition(".")
-                _declare(columns.setdefault(relation, {}), root.strip('"'), "VARCHAR")
+                _declare(
+                    columns.setdefault(relation, {}), root.strip('"'), text, root_type=root_type
+                )
 
     for relation in sorted(supplied_relations(fixture_name) - frozenset(columns)):
         entity = next(e for e in ir.entities if f"silver.{e.name}" == relation)
-        columns[relation] = {column.name: _physical(column.type) for column in entity.columns}
+        columns[relation] = {
+            column.name: _physical(column.type, native=native) for column in entity.columns
+        }
 
     for relation in supplied_relations(fixture_name):
         columns[relation].update({"valid_from": "TIMESTAMP", "valid_to": "TIMESTAMP"})
@@ -337,8 +355,8 @@ def relation_ddl(fixture_name: str, *, built: Collection[str]) -> tuple[str, ...
     if ir.fx_rates is not None and _rate_relation(ir.fx_rates.relation) not in built:
         rates = ir.fx_rates
         columns[_rate_relation(rates.relation)] = {
-            rates.from_currency: "VARCHAR",
-            rates.to_currency: "VARCHAR",
+            rates.from_currency: text,
+            rates.to_currency: text,
             rates.rate: "DECIMAL(18, 6)",
             rates.valid_from: "DATE",
             rates.valid_to: "DATE",
@@ -361,23 +379,28 @@ def _rate_relation(relation: str) -> str:
     return relation if "." in relation else f"silver.{relation}"
 
 
-def _physical(logical: LogicalType) -> str:
-    """The port's own physical type, through the surrogate's accommodation."""
+def _physical(logical: LogicalType, *, native: bool = False) -> str:
+    """The port's own physical type, through the surrogate's accommodation unless
+    the caller wants the port's own spelling (the live lane)."""
 
-    return to_surrogate(RedshiftDialect().physical_type(logical))
+    physical = RedshiftDialect().physical_type(logical)
+    return physical if native else to_surrogate(physical)
 
 
-def _declare(declared: dict[str, str], name: str, physical: str) -> None:
-    """Record one bronze column's type, JSON winning every disagreement.
+def _declare(
+    declared: dict[str, str], name: str, physical: str, *, root_type: str = "JSON"
+) -> None:
+    """Record one bronze column's type, the reached-into root type winning every
+    disagreement.
 
     A root two mappings read differently — one reaching into it, one reading it
     whole — is a ``json`` column either way; anything else that disagrees keeps
     the first reading, which is enough for relations that hold no rows.
     """
 
-    if declared.get(name) == "JSON":
+    if declared.get(name) == root_type:
         return
-    if physical == "JSON" or name not in declared:
+    if physical == root_type or name not in declared:
         declared[name] = physical
 
 
@@ -432,3 +455,118 @@ def _reads(select: str, known: frozenset[str]) -> frozenset[str]:
         }
         & known
     )
+
+
+# ----------------------- #
+# The authoritative rung: Redshift's own compiler, reached over the wire.
+
+#: The connection string of a real cluster or Serverless workgroup, read from the
+#: environment in the test process only (`src/bloomery/` reads no environment at
+#: all, S-0020). One libpq DSN rather than a host/user/password set: both a
+#: provisioned cluster and a Serverless workgroup speak the PostgreSQL wire
+#: protocol, so one string addresses either and the lane assembles nothing.
+LIVE_DSN_ENV = "BLOOMERY_REDSHIFT_DSN"
+
+#: Why the live lane skipped, in the words a CI log should carry. It skips rather
+#: than fails: the credential is a real cluster nobody has on a laptop or in a
+#: sandbox, and a lane that cannot be collected there is a lane nobody runs.
+NO_CREDENTIALS = (
+    f"{LIVE_DSN_ENV} is unset — the authoritative Redshift lane needs a real "
+    "cluster or Serverless workgroup"
+)
+
+
+def live_dsn() -> str | None:
+    """The configured cluster, or ``None`` when there is none."""
+
+    return os.environ.get(LIVE_DSN_ENV) or None
+
+
+@contextmanager
+def live_cluster() -> Iterator[psycopg.Connection]:
+    """A connection to the real engine, transactional and left uncommitted.
+
+    Not autocommit, unlike the surrogate: this lane runs against a cluster it
+    does not own, so everything it creates lives in one transaction that is
+    rolled back (:func:`live_scratch`). The surrogate's reason for autocommit —
+    one refusal per statement rather than per fixture — does not apply, because
+    ``EXPLAIN`` is what reports refusals here and each one fails its own test.
+    """
+
+    dsn = live_dsn()
+    if dsn is None:  # pragma: no cover — the lane skips before it gets here
+        msg = NO_CREDENTIALS
+        raise RuntimeError(msg)
+
+    connection = psycopg.connect(dsn)
+    try:
+        yield connection
+    finally:
+        connection.rollback()
+        connection.close()
+
+
+def live_fixtures() -> tuple[str, ...]:
+    """Every fixture the port renders — **both** classes.
+
+    The counterpart of :func:`surrogate_fixtures`, and the reason this rung
+    exists: it is the first one that says anything about `redshift-native` at all
+    (S-0015/D-3 excludes that class from the surrogate, not from the engine).
+    """
+
+    classified = fixtures_by_class()
+    return tuple(sorted(classified[POSTGRES_COMPATIBLE] + classified[REDSHIFT_NATIVE]))
+
+
+@contextmanager
+def live_scratch(conn: psycopg.Connection) -> Iterator[str]:
+    """The three layer schemas under a suffix of this run's own, rolled back.
+
+    The suffix is what keeps a shared workgroup shared: two runs — two CI jobs,
+    a job and someone at a prompt — would otherwise both create ``bronze``, and
+    one of them would find it already there or wait on the other's lock. Redshift
+    runs DDL inside a transaction, so the rollback leaves the cluster as it was.
+    """
+
+    suffix = uuid4().hex[:8]
+    try:
+        for schema in DEFAULT_SCHEMAS:
+            conn.execute(f"CREATE SCHEMA {schema}_{suffix}")
+        yield suffix
+    finally:
+        conn.rollback()
+
+
+def to_live(sql: str, suffix: str) -> str:
+    """One statement addressed at this run's schemas.
+
+    The only thing this rung changes about what the port emitted, and it changes
+    a schema name — not a type, a function or an argument order, which is what
+    the rung is here to have judged. Namespaces are matched with their dot, so
+    ``bronze.raw__events`` moves and a column named ``bronze`` does not.
+    """
+
+    for schema in DEFAULT_SCHEMAS:
+        sql = sql.replace(f"{schema}.", f"{schema}_{suffix}.")
+    return sql
+
+
+def submit_live(conn: psycopg.Connection, sql: str, suffix: str) -> None:
+    """One statement to the real engine, inside the scratch transaction."""
+
+    conn.execute(to_live(sql, suffix))
+
+
+def explain(conn: psycopg.Connection, sql: str, suffix: str, *, verbose: bool = False) -> str:
+    """Redshift's own plan for one statement — parsed, bound, type-resolved, and
+    nothing scanned.
+
+    The plan text is returned rather than asserted on: what a green call means is
+    that the engine's compiler accepted the statement, and the plan's *shape* is
+    the planner's business, which no rung of this port claims anything about.
+    """
+
+    keyword = "EXPLAIN VERBOSE" if verbose else "EXPLAIN"
+    with conn.cursor() as cursor:
+        cursor.execute(f"{keyword} {to_live(sql, suffix)}")  # noqa: S608
+        return "\n".join(str(row[0]) for row in cursor.fetchall())
