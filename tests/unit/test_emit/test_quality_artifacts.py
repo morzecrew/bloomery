@@ -706,6 +706,10 @@ def test_a_port_without_transactions_gets_an_envelope_that_opens_none() -> None:
     assert 'run_query("BEGIN")' not in content
     assert 'run_query("COMMIT")' not in content
     assert "No transaction: each statement below commits on its own." in content
+    # The header says the same, instead of promising a unit of work the
+    # engine cannot give: an operator reading it must not expect a rollback.
+    assert "one unit of work" not in content
+    assert "commits\n-- on its own" in content or "commits on its own" in content
 
 
 def test_the_replay_macro_wraps_its_statements_in_one_transaction() -> None:
