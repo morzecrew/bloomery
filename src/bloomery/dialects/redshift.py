@@ -303,7 +303,25 @@ def _regexp_substr(node: Expression) -> Expression:
         return node
 
     group = node.args.get("group")
-    index = int(group.name) if group is not None else 0
+
+    if group is None:
+        index = 0
+    elif isinstance(group, exp.Literal) and not group.is_string and group.name.isdigit():
+        index = int(group.name)
+    else:
+        # The transform builder writes an integer literal; a recipe's raw
+        # `expr:` is parsed as it stands and can carry anything here. The
+        # match parameter can only name the first subexpression, so a group
+        # this port cannot read at emit is refused by name (S-0025/D-3),
+        # not rendered as something else.
+        msg = (
+            f"regex_extract on dialect 'redshift' needs a literal capture-group index, got "
+            f"{group.sql()}: REGEXP_SUBSTR's 'e' match parameter can name only the first "
+            "subexpression, so the group must be known at emit. Fix: write the group as a "
+            "number, or compile this project for a dialect whose regexp_extract takes an "
+            "expression"
+        )
+        raise UnsupportedByTarget(msg)
 
     if index > 1:
         msg = (

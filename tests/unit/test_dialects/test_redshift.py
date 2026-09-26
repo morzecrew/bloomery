@@ -280,6 +280,17 @@ def test_regex_extract_expresses_the_group_as_a_match_parameter() -> None:
     )
 
 
+def test_a_group_that_is_not_a_literal_index_is_refused_by_name() -> None:
+    """A recipe's raw `expr:` can hand the group as anything — a column, a
+    string — and the canonical reparse binds it as the group without looking.
+    The match parameter can only name the first subexpression, so a group the
+    port cannot read at emit is refused as such, never a `ValueError`."""
+    with pytest.raises(UnsupportedByTarget, match="literal capture-group index"):
+        DIALECT.render(parse_one("REGEXP_EXTRACT(x, 'a(b)', n)"))
+    with pytest.raises(UnsupportedByTarget, match="literal capture-group index"):
+        DIALECT.render(parse_one("REGEXP_EXTRACT(x, 'a(b)', 'first')"))
+
+
 def test_a_group_above_the_first_is_refused_not_approximated() -> None:
     # `'e'` reaches the first subexpression and Redshift can name no other, so
     # the whole match would be a wrong answer wearing a right shape.
