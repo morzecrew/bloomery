@@ -37,6 +37,7 @@ from bloomery.guardrails.lineage import check_lineage_names
 from bloomery.guardrails.metrics import check_metrics
 from bloomery.guardrails.operands import collect_derivations
 from bloomery.guardrails.quality import check_quality
+from bloomery.guardrails.retrieval import check_retrieval
 from bloomery.guardrails.zone import check_zones
 from bloomery.ir.nodes import with_imported
 from bloomery.marts import lower_marts, lower_rollups
@@ -186,6 +187,11 @@ def check_guardrails(
     # the authored marts document and the facts from the draft, which is the
     # one guardrail that needs both sides — the key never enters `MartIR` (D3).
     violations.extend(check_evidence(project, draft))
+    # Retrieval profiles (S-0011/the-guardrails): the declaration read from the
+    # authored retrieval document and the types and keys from the draft, which is
+    # the only side that has them — a field's dimensions exist once the entity
+    # model is resolved, never before.
+    violations.extend(check_retrieval(project, draft))
     # Mart-level checks (S-0023/D-10): the flattener re-runs here as a pure
     # sibling stage; its leaves batch into the same aggregate as the rest.
     violations.extend(lower_marts(project.marts, composed).violations)
