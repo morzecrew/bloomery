@@ -51,9 +51,10 @@ the reserved-word list
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import date
 from typing import ClassVar, cast
 
-from sqlglot import exp
+from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
 
 from bloomery.dialects.base import (
@@ -157,42 +158,55 @@ class RedshiftDialect(SQLGlotDialect):
         rewritten = rewritten.transform(_starts_with_as_left)
         rewritten = rewritten.transform(_regexp_substr)
         rewritten = rewritten.transform(_super_cast)
+        rewritten = rewritten.transform(_null_if_invalid)
+        rewritten = rewritten.transform(_date_spine)
+        # The replay statements build `CurrentTimestamp` directly to stamp
+        # `resolved_at`/`last_evaluated_at`, never through `utc_now`; the
+        # generator spells it `GETDATE()`, the session's wall clock, which is
+        # the S-0045 defect arriving through a node the emit layer builds.
+        rewritten = rewritten.transform(
+            lambda n: self.utc_now() if isinstance(n, exp.CurrentTimestamp) else n
+        )
         _refuse_super_navigation(rewritten)
         return super().render(rewritten)
 
     # ....................... #
 
     def utc_now(self) -> Expression:
-        """``CAST(CONVERT_TIMEZONE('UTC', CURRENT_TIMESTAMP) AS TIMESTAMP)``.
+        """``CAST(CONVERT_TIMEZONE('UTC', CAST(GETDATE() AS TIMESTAMP WITH TIME ZONE)) AS TIMESTAMP)``.
 
         Redshift has no ``timezone(zone, ts)``, so the base spelling would emit
-        a function it does not define.
+        a function it does not define. Two Redshift facts pick the operand:
 
-        The operand is ``CURRENT_TIMESTAMP`` — zone-aware, so the conversion
-        has a source zone to read — and deliberately **not** ``GETDATE()``,
-        which SQLGlot renders for :class:`sqlglot.exp.CurrentTimestamp` and
-        which returns a *zoneless* value in the session's zone. Two-argument
-        ``CONVERT_TIMEZONE`` assumes its input is already UTC, so handing it
-        ``GETDATE()`` under a non-UTC session would relabel the session's wall
-        clock as UTC and move the instant — the S-0045 defect wearing the shape
-        of the fix.
+        * ``CURRENT_TIMESTAMP`` (and ``NOW``) is leader-node-only, and a
+          statement that also references a user table is rejected outright
+          ("not supported on Redshift tables"). The one caller is the replay
+          ``INSERT INTO bronze.<relation> … SELECT … FROM
+          silver.<entity>__reject``, which reads a user table, so the
+          zone-aware clock cannot be used at all.
+        * ``GETDATE()`` runs on the compute nodes but returns a *zoneless*
+          value in the session's zone, and two-argument ``CONVERT_TIMEZONE``
+          reads a zoneless operand as UTC — handing it ``GETDATE()`` under a
+          non-UTC session would relabel the session's wall clock as UTC and
+          move the instant (the S-0045 defect wearing the shape of the fix).
 
-        **Unresolved:** AWS documents ``CURRENT_TIMESTAMP`` as a leader-node-only
-        function, and a statement that also references a user table is rejected
-        ("Specified types or functions (one per INFO message) not supported on
-        Redshift tables"). The one caller is the replay ``INSERT INTO
-        bronze.<relation> … SELECT … FROM silver.<entity>__reject``, so that
-        statement carries both and would not run. Neither spelling is correct as
-        it stands: ``CURRENT_TIMESTAMP`` is zone-correct and unrunnable here,
-        ``GETDATE()`` runs on the compute nodes and is only UTC while the
-        session's zone is, and the functions that would read that zone back
-        (``CURRENT_SETTING``) are leader-node-only too. Choosing between them is
-        a decision this port does not carry yet, and no golden covers this
-        spelling, so nothing in the suite would report the change either way.
+        The cast between them is what makes the spelling correct: casting a
+        ``TIMESTAMP`` to ``TIMESTAMPTZ`` attaches the session zone, which is
+        exactly the zone ``GETDATE()`` reported in, so ``CONVERT_TIMEZONE``
+        then has a real zone to convert from and lands the instant in UTC,
+        under any session zone, on the compute nodes. The functions that
+        would read the session zone back explicitly (``CURRENT_SETTING``)
+        are leader-node-only too, which is why the cast carries it instead.
         """
 
         return exp.cast(
-            exp.func("CONVERT_TIMEZONE", exp.Literal.string("UTC"), exp.var("CURRENT_TIMESTAMP")),
+            exp.Anonymous(
+                this="CONVERT_TIMEZONE",
+                expressions=[
+                    exp.Literal.string("UTC"),
+                    exp.cast(exp.func("GETDATE"), exp.DataType.build("TIMESTAMPTZ")),
+                ],
+            ),
             exp.DataType.build("TIMESTAMP"),
         )
 
@@ -390,3 +404,129 @@ def _refuse_super_navigation(node: Expression) -> None:
         "extraction"
     )
     raise UnsupportedByTarget(msg)
+
+
+# ....................... #
+
+
+def _null_if_invalid(node: Expression) -> Expression:
+    """``JSON_EXTRACT_PATH_TEXT(x, 'a', 'b')`` → the same call with
+    ``null_if_invalid`` set: malformed JSON yields NULL instead of an error.
+
+    A bronze path lowers to :class:`sqlglot.exp.JSONExtractScalar`, and the
+    spelling SQLGlot renders is right as far as it goes — but Redshift's
+    ``JSON_EXTRACT_PATH_TEXT`` *raises* on a source value that is not JSON,
+    and the raise happens before any ``TRY_CAST`` around it runs, so one
+    malformed row aborts the load where the quality system says quarantine it
+    (S-0033/D-30's degradation by another route). The function's optional last
+    argument, ``null_if_invalid``, is Redshift's own answer: NULL for a value
+    that does not parse, which the ``coercible`` rule then reads as the
+    failure it is. Only a plain key path is rewritten; an index or a wildcard
+    is left to the generator, which already refuses what it cannot spell.
+    """
+
+    if not isinstance(node, exp.JSONExtractScalar) or not isinstance(node.expression, exp.JSONPath):
+        return node
+
+    steps = [step for step in node.expression.expressions if not isinstance(step, exp.JSONPathRoot)]
+
+    if not steps or not all(isinstance(step, exp.JSONPathKey) for step in steps):
+        return node
+
+    return exp.Anonymous(
+        this="JSON_EXTRACT_PATH_TEXT",
+        expressions=[
+            node.this.copy(),
+            *(exp.Literal.string(str(step.this)) for step in steps),
+            exp.true(),
+        ],
+    )
+
+
+# ....................... #
+
+
+def _date_literal(bound: Expression | None) -> date:
+    """The calendar date a series bound spells, from ``CAST('YYYY-MM-DD' AS
+    DATE)`` or the bare string literal; anything else is a bound this port
+    cannot count rows from."""
+
+    literal = bound.this if isinstance(bound, exp.Cast) else bound
+
+    if not (isinstance(literal, exp.Literal) and literal.is_string):
+        msg = (
+            f"the Redshift port needs a literal date bound to size its calendar, "
+            f"got {bound.sql() if bound is not None else 'nothing'}"
+        )
+        raise UnsupportedByTarget(msg)
+
+    try:
+        return date.fromisoformat(literal.this)
+
+    except ValueError as exc:
+        msg = f"the Redshift port cannot read {literal.this!r} as a calendar date bound"
+        raise UnsupportedByTarget(msg) from exc
+
+
+_TENS = "(" + " UNION ALL ".join(f"SELECT {n} AS d" for n in range(10)) + ")"
+
+
+def _date_spine(node: Expression) -> Expression:
+    """``GENERATE_SERIES(start, end, INTERVAL '1' DAY) AS t(c)`` in FROM
+    position → a row-generating subquery Redshift can actually run.
+
+    The calendar's neutral series node (``dim_date_select``) is a row source
+    on every shipped port. Redshift's ``GENERATE_SERIES`` is PostgreSQL's in
+    name only: it takes integers, not a date pair and an interval, and it is
+    leader-node-only, so a ``CREATE TABLE … AS`` over it — which is what a
+    ``dim_date`` model is — is refused whatever the arguments. The rendering
+    parses, so the offline rungs cannot see this; the engine refuses it on the
+    first run.
+
+    Rows are generated the way Redshift's own idiom (and dbt's) does it: a
+    ten-row literal relation cross-joined with itself once per decimal digit
+    of the count, numbered by ``ROW_NUMBER()`` and cut at the count — pure
+    SQL, executed on the compute nodes, no sequence, no recursion. The count
+    is read from the series' own literal bounds, inclusive at both ends as
+    the calendar is on every shipped port; a series this port cannot read — a
+    non-literal bound, a step other than one day — is refused by name rather
+    than rendered into SQL the engine rejects (S-0025/D-3).
+    """
+
+    if not (isinstance(node, exp.Table) and isinstance(node.this, exp.GenerateSeries)):
+        return node
+
+    series = node.this
+    step = series.args.get("step")
+    alias = node.args.get("alias")
+    unit = step.args.get("unit") if isinstance(step, exp.Interval) else None
+
+    if not (
+        isinstance(step, exp.Interval)
+        and step.this.name == "1"
+        and unit is not None
+        and unit.name.upper() == "DAY"
+        and isinstance(alias, exp.TableAlias)
+        and alias.columns
+    ):
+        msg = (
+            "the Redshift port renders a series row source only as a one-day calendar "
+            f"with a column alias, got {node.sql()}"
+        )
+        raise UnsupportedByTarget(msg)
+
+    first = _date_literal(series.args.get("start"))
+    rows = (_date_literal(series.args.get("end")) - first).days + 1
+    digits = len(str(max(rows - 1, 0)))
+    joins = " CROSS JOIN ".join(f"{_TENS} AS d{i}" for i in range(digits))
+    column = alias.columns[0].name
+    # S608 reads a SELECT built from an f-string as an injection vector. What
+    # is interpolated is a calendar date this function parsed, integers it
+    # computed, and an identifier the neutral tree already carried.
+    spine = parse_one(
+        f"SELECT DATEADD(DAY, n, CAST('{first.isoformat()}' AS DATE)) AS {column} "  # noqa: S608
+        f"FROM (SELECT ROW_NUMBER() OVER () - 1 AS n FROM {joins}) AS numbers WHERE n < {rows}",
+        read="redshift",
+    )
+
+    return exp.Subquery(this=spine, alias=exp.TableAlias(this=exp.to_identifier(alias.name)))

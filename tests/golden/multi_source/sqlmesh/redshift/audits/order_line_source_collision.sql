@@ -16,11 +16,11 @@ SELECT
   COUNT(DISTINCT _source) AS sources
 FROM (
   SELECT
-    CAST(JSON_EXTRACT_PATH_TEXT(properties, 'gift_note') AS VARCHAR(MAX)) AS gift_note,
+    CAST(JSON_EXTRACT_PATH_TEXT(properties, 'gift_note', TRUE) AS VARCHAR(MAX)) AS gift_note,
     CAST(position AS BIGINT) AS line_no,
-    CAST(JSON_EXTRACT_PATH_TEXT("order", 'id') AS VARCHAR(MAX)) AS order_id,
+    CAST(JSON_EXTRACT_PATH_TEXT("order", 'id', TRUE) AS VARCHAR(MAX)) AS order_id,
     CAST(quantity AS BIGINT) AS quantity,
-    CAST(JSON_EXTRACT_PATH_TEXT(variant, 'sku') AS VARCHAR(MAX)) AS sku,
+    CAST(JSON_EXTRACT_PATH_TEXT(variant, 'sku', TRUE) AS VARCHAR(MAX)) AS sku,
     'shopify__order_lines' AS _source
   FROM bronze.shopify__order_lines
   UNION ALL

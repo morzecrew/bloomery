@@ -150,8 +150,20 @@ def test_the_bronze_scalar_extraction_still_renders() -> None:
     # `JSON_EXTRACT_PATH_TEXT` over text returns text correctly. Refusing it
     # would refuse every mapping this port can emit.
     assert DIALECT.render(parse_one("payload ->> '$.a.b'")) == (
-        "JSON_EXTRACT_PATH_TEXT(payload, 'a', 'b')"
+        "JSON_EXTRACT_PATH_TEXT(payload, 'a', 'b', TRUE)"
     )
+
+
+def test_a_malformed_json_source_yields_null_rather_than_an_abort() -> None:
+    """Redshift's `JSON_EXTRACT_PATH_TEXT` raises on a value that is not JSON,
+    before any `TRY_CAST` around it runs, so one bad row would abort the load
+    the quality system says to quarantine. Its `null_if_invalid` argument is
+    the engine's own answer; a path with an index or a wildcard is left to the
+    generator."""
+    assert DIALECT.render(parse_one("payload ->> '$.a'")) == (
+        "JSON_EXTRACT_PATH_TEXT(payload, 'a', TRUE)"
+    )
+    assert "TRUE" not in DIALECT.render(parse_one("payload ->> '$.items[0]'"))
 
 
 def test_to_utc_is_one_convert_timezone_call() -> None:
@@ -166,17 +178,51 @@ def test_to_utc_is_one_convert_timezone_call() -> None:
     assert _rendered("to_utc", "Europe/Paris") == "CONVERT_TIMEZONE('Europe/Paris', 'UTC', x)"
 
 
-def test_utc_now_converts_a_zone_aware_clock() -> None:
-    """The operand is `CURRENT_TIMESTAMP`, not `GETDATE()` — which SQLGlot
-    renders for `CurrentTimestamp` and which returns a *zoneless* value in the
-    session's zone. Two-argument `CONVERT_TIMEZONE` assumes UTC input, so
-    `GETDATE()` under a non-UTC session would relabel the session wall clock as
-    UTC and move the instant (the S-0045 defect wearing the shape of the fix).
+def test_utc_now_runs_on_the_compute_nodes_and_still_converts_a_zone() -> None:
+    """`CURRENT_TIMESTAMP` is leader-node-only on Redshift, and the replay
+    `INSERT … SELECT FROM silver.<entity>__reject` that stamps the clock reads
+    a user table, so it must not appear. `GETDATE()` runs on the compute nodes
+    but is zoneless in the session's zone; the cast to `TIMESTAMPTZ` attaches
+    that same zone, so `CONVERT_TIMEZONE` has a real zone to convert from and
+    the instant lands in UTC under any session (S-0045).
     """
-    assert DIALECT.render(DIALECT.utc_now()) == (
-        "CAST(CONVERT_TIMEZONE('UTC', CURRENT_TIMESTAMP) AS TIMESTAMP)"
+    sql = DIALECT.render(DIALECT.utc_now())
+    # A current-instant node the emit layer builds directly (the replay's
+    # `resolved_at` stamps) gets the same spelling, not the generator's
+    # session-zone `GETDATE()`.
+    assert DIALECT.render(exp.CurrentTimestamp()) == sql
+    assert sql == (
+        "CAST(CONVERT_TIMEZONE('UTC', CAST(GETDATE() AS TIMESTAMP WITH TIME ZONE)) AS TIMESTAMP)"
     )
-    assert "GETDATE" not in DIALECT.render(DIALECT.utc_now())
+    assert "CURRENT_TIMESTAMP" not in sql
+
+
+def test_the_calendar_series_becomes_a_cross_join_generator() -> None:
+    """Redshift's `GENERATE_SERIES` takes integers only and is leader-node-only,
+    so the calendar's neutral series cannot be the row source of a `dim_date`
+    model. The port renders the engine's own idiom — a ten-row relation
+    cross-joined once per decimal digit of the count, numbered and cut — with
+    the count read from the literal bounds, inclusive at both ends."""
+    node = sqlglot.parse_one(
+        "SELECT CAST(date_day AS DATE) AS date_day FROM GENERATE_SERIES("
+        "CAST('2020-01-01' AS DATE), CAST('2020-01-10' AS DATE), INTERVAL '1' DAY"
+        ") AS date_day(date_day)"
+    )
+    sql = DIALECT.render(node)
+    sqlglot.parse_one(sql, read="redshift")
+    assert "GENERATE_SERIES" not in sql
+    assert "DATEADD(DAY, n, CAST('2020-01-01' AS DATE)) AS date_day" in sql
+    assert "ROW_NUMBER() OVER () - 1 AS n" in sql
+    assert sql.count("UNION ALL") == 9  # ten rows, one relation: 10 >= 10 days
+    assert "WHERE\n    n < 10" in sql or "WHERE n < 10" in sql
+    assert sql.rstrip().endswith(") AS date_day")
+
+    weekly = sqlglot.parse_one(
+        "SELECT d FROM GENERATE_SERIES(CAST('2020-01-01' AS DATE), CAST('2020-03-01' AS DATE),"
+        " INTERVAL '7' DAY) AS t(d)"
+    )
+    with pytest.raises(UnsupportedByTarget, match="one-day calendar"):
+        DIALECT.render(weekly)
 
 
 def test_json_object_is_redshifts_super_constructor() -> None:

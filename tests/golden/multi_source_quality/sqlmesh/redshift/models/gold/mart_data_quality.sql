@@ -61,9 +61,9 @@ FROM (
           COUNT(*)
         FROM (
           SELECT
-            TRY_CAST(JSON_EXTRACT_PATH_TEXT(properties, 'gift_note') AS VARCHAR(MAX)) AS gift_note,
+            TRY_CAST(JSON_EXTRACT_PATH_TEXT(properties, 'gift_note', TRUE) AS VARCHAR(MAX)) AS gift_note,
             TRY_CAST(position AS BIGINT) AS line_no,
-            TRY_CAST(JSON_EXTRACT_PATH_TEXT("order", 'id') AS VARCHAR(MAX)) AS order_id,
+            TRY_CAST(JSON_EXTRACT_PATH_TEXT("order", 'id', TRUE) AS VARCHAR(MAX)) AS order_id,
             TRY_CAST(CASE
               WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
               OR SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%-%'
@@ -71,7 +71,7 @@ FROM (
               ELSE created_at
             END AS TIMESTAMP) AS placed_at,
             TRY_CAST(quantity AS BIGINT) AS quantity,
-            TRY_CAST(JSON_EXTRACT_PATH_TEXT(variant, 'sku') AS VARCHAR(MAX)) AS sku,
+            TRY_CAST(JSON_EXTRACT_PATH_TEXT(variant, 'sku', TRUE) AS VARCHAR(MAX)) AS sku,
             CASE TRY_CAST(financial_status AS VARCHAR(MAX))
               WHEN 'pending'
               THEN 'open'
@@ -84,16 +84,16 @@ FROM (
             _ingested_at,
             _load_id,
             _source_row_id,
-            TRY_CAST(JSON_EXTRACT_PATH_TEXT(properties, 'gift_note') AS VARCHAR(MAX)) IS NULL
+            TRY_CAST(JSON_EXTRACT_PATH_TEXT(properties, 'gift_note', TRUE) AS VARCHAR(MAX)) IS NULL
             AND (
-              NOT JSON_EXTRACT_PATH_TEXT(properties, 'gift_note') IS NULL
+              NOT JSON_EXTRACT_PATH_TEXT(properties, 'gift_note', TRUE) IS NULL
             ) AS _branch_gift_note_coercible,
             TRY_CAST(position AS BIGINT) IS NULL AND (
               NOT position IS NULL
             ) AS _branch_line_no_coercible,
-            TRY_CAST(JSON_EXTRACT_PATH_TEXT("order", 'id') AS VARCHAR(MAX)) IS NULL
+            TRY_CAST(JSON_EXTRACT_PATH_TEXT("order", 'id', TRUE) AS VARCHAR(MAX)) IS NULL
             AND (
-              NOT JSON_EXTRACT_PATH_TEXT("order", 'id') IS NULL
+              NOT JSON_EXTRACT_PATH_TEXT("order", 'id', TRUE) IS NULL
             ) AS _branch_order_id_coercible,
             TRY_CAST(CASE
               WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
@@ -107,9 +107,9 @@ FROM (
             TRY_CAST(quantity AS BIGINT) IS NULL AND (
               NOT quantity IS NULL
             ) AS _branch_quantity_coercible,
-            TRY_CAST(JSON_EXTRACT_PATH_TEXT(variant, 'sku') AS VARCHAR(MAX)) IS NULL
+            TRY_CAST(JSON_EXTRACT_PATH_TEXT(variant, 'sku', TRUE) AS VARCHAR(MAX)) IS NULL
             AND (
-              NOT JSON_EXTRACT_PATH_TEXT(variant, 'sku') IS NULL
+              NOT JSON_EXTRACT_PATH_TEXT(variant, 'sku', TRUE) IS NULL
             ) AS _branch_sku_coercible,
             CASE TRY_CAST(financial_status AS VARCHAR(MAX))
               WHEN 'pending'
@@ -207,9 +207,9 @@ FROM (
             *
           FROM (
             SELECT
-              TRY_CAST(JSON_EXTRACT_PATH_TEXT(properties, 'gift_note') AS VARCHAR(MAX)) AS gift_note,
+              TRY_CAST(JSON_EXTRACT_PATH_TEXT(properties, 'gift_note', TRUE) AS VARCHAR(MAX)) AS gift_note,
               TRY_CAST(position AS BIGINT) AS line_no,
-              TRY_CAST(JSON_EXTRACT_PATH_TEXT("order", 'id') AS VARCHAR(MAX)) AS order_id,
+              TRY_CAST(JSON_EXTRACT_PATH_TEXT("order", 'id', TRUE) AS VARCHAR(MAX)) AS order_id,
               TRY_CAST(CASE
                 WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
                 OR SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%-%'
@@ -217,7 +217,7 @@ FROM (
                 ELSE created_at
               END AS TIMESTAMP) AS placed_at,
               TRY_CAST(quantity AS BIGINT) AS quantity,
-              TRY_CAST(JSON_EXTRACT_PATH_TEXT(variant, 'sku') AS VARCHAR(MAX)) AS sku,
+              TRY_CAST(JSON_EXTRACT_PATH_TEXT(variant, 'sku', TRUE) AS VARCHAR(MAX)) AS sku,
               CASE TRY_CAST(financial_status AS VARCHAR(MAX))
                 WHEN 'pending'
                 THEN 'open'
@@ -230,16 +230,16 @@ FROM (
               _ingested_at,
               _load_id,
               _source_row_id,
-              TRY_CAST(JSON_EXTRACT_PATH_TEXT(properties, 'gift_note') AS VARCHAR(MAX)) IS NULL
+              TRY_CAST(JSON_EXTRACT_PATH_TEXT(properties, 'gift_note', TRUE) AS VARCHAR(MAX)) IS NULL
               AND (
-                NOT JSON_EXTRACT_PATH_TEXT(properties, 'gift_note') IS NULL
+                NOT JSON_EXTRACT_PATH_TEXT(properties, 'gift_note', TRUE) IS NULL
               ) AS _branch_gift_note_coercible,
               TRY_CAST(position AS BIGINT) IS NULL AND (
                 NOT position IS NULL
               ) AS _branch_line_no_coercible,
-              TRY_CAST(JSON_EXTRACT_PATH_TEXT("order", 'id') AS VARCHAR(MAX)) IS NULL
+              TRY_CAST(JSON_EXTRACT_PATH_TEXT("order", 'id', TRUE) AS VARCHAR(MAX)) IS NULL
               AND (
-                NOT JSON_EXTRACT_PATH_TEXT("order", 'id') IS NULL
+                NOT JSON_EXTRACT_PATH_TEXT("order", 'id', TRUE) IS NULL
               ) AS _branch_order_id_coercible,
               TRY_CAST(CASE
                 WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
@@ -253,9 +253,9 @@ FROM (
               TRY_CAST(quantity AS BIGINT) IS NULL AND (
                 NOT quantity IS NULL
               ) AS _branch_quantity_coercible,
-              TRY_CAST(JSON_EXTRACT_PATH_TEXT(variant, 'sku') AS VARCHAR(MAX)) IS NULL
+              TRY_CAST(JSON_EXTRACT_PATH_TEXT(variant, 'sku', TRUE) AS VARCHAR(MAX)) IS NULL
               AND (
-                NOT JSON_EXTRACT_PATH_TEXT(variant, 'sku') IS NULL
+                NOT JSON_EXTRACT_PATH_TEXT(variant, 'sku', TRUE) IS NULL
               ) AS _branch_sku_coercible,
               CASE TRY_CAST(financial_status AS VARCHAR(MAX))
                 WHEN 'pending'

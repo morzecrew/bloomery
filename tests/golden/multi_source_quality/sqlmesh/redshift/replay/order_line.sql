@@ -44,9 +44,9 @@ USING (
       END) AS _quality_flags
     FROM (
       SELECT
-        TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.properties'), 'gift_note') AS VARCHAR(MAX)) AS gift_note,
+        TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.properties'), 'gift_note', TRUE) AS VARCHAR(MAX)) AS gift_note,
         TRY_CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.position') AS BIGINT) AS line_no,
-        TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.order'), 'id') AS VARCHAR(MAX)) AS order_id,
+        TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.order'), 'id', TRUE) AS VARCHAR(MAX)) AS order_id,
         TRY_CAST(CASE
           WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
           OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.created_at') AS VARCHAR) FROM 11) LIKE '%-%'
@@ -54,7 +54,7 @@ USING (
           ELSE JSON_EXTRACT_PATH_TEXT("raw", '$.created_at')
         END AS TIMESTAMP) AS placed_at,
         TRY_CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.quantity') AS BIGINT) AS quantity,
-        TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.variant'), 'sku') AS VARCHAR(MAX)) AS sku,
+        TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.variant'), 'sku', TRUE) AS VARCHAR(MAX)) AS sku,
         CASE TRY_CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.financial_status') AS VARCHAR(MAX))
           WHEN 'pending'
           THEN 'open'
@@ -67,17 +67,17 @@ USING (
         _ingested_at,
         _load_id,
         _source_row_id,
-        TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.properties'), 'gift_note') AS VARCHAR(MAX)) IS NULL
+        TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.properties'), 'gift_note', TRUE) AS VARCHAR(MAX)) IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.properties'), 'gift_note') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.properties'), 'gift_note', TRUE) IS NULL
         ) AS _branch_gift_note_coercible,
         TRY_CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.position') AS BIGINT) IS NULL
         AND (
           NOT JSON_EXTRACT_PATH_TEXT("raw", '$.position') IS NULL
         ) AS _branch_line_no_coercible,
-        TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.order'), 'id') AS VARCHAR(MAX)) IS NULL
+        TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.order'), 'id', TRUE) AS VARCHAR(MAX)) IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.order'), 'id') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.order'), 'id', TRUE) IS NULL
         ) AS _branch_order_id_coercible,
         TRY_CAST(CASE
           WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
@@ -92,9 +92,9 @@ USING (
         AND (
           NOT JSON_EXTRACT_PATH_TEXT("raw", '$.quantity') IS NULL
         ) AS _branch_quantity_coercible,
-        TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.variant'), 'sku') AS VARCHAR(MAX)) IS NULL
+        TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.variant'), 'sku', TRUE) AS VARCHAR(MAX)) IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.variant'), 'sku') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.variant'), 'sku', TRUE) IS NULL
         ) AS _branch_sku_coercible,
         CASE TRY_CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.financial_status') AS VARCHAR(MAX))
           WHEN 'pending'
@@ -323,7 +323,7 @@ WHEN NOT MATCHED THEN INSERT (
   _replay._quality_ok
 );
 
-UPDATE silver.order_line__reject SET resolved_at = GETDATE(), last_evaluated_at = GETDATE()
+UPDATE silver.order_line__reject SET resolved_at = CAST(CONVERT_TIMEZONE('UTC', CAST(GETDATE() AS TIMESTAMP WITH TIME ZONE)) AS TIMESTAMP), last_evaluated_at = CAST(CONVERT_TIMEZONE('UTC', CAST(GETDATE() AS TIMESTAMP WITH TIME ZONE)) AS TIMESTAMP)
 WHERE
   resolved_at IS NULL
   AND (source_relation, _source_row_id) IN (
@@ -363,9 +363,9 @@ USING (
     END || CASE WHEN _extract._branch_quantity_coercible THEN ',quantity_coercible' ELSE '' END || CASE WHEN _extract._branch_sku_coercible THEN ',sku_coercible' ELSE '' END || CASE WHEN _extract._branch_status_coercible THEN ',status_coercible' ELSE '' END || CASE WHEN _extract._branch_status_in_enum THEN ',status_in_enum' ELSE '' END) AS failed_rules
   FROM (
     SELECT
-      TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.properties'), 'gift_note') AS VARCHAR(MAX)) AS gift_note,
+      TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.properties'), 'gift_note', TRUE) AS VARCHAR(MAX)) AS gift_note,
       TRY_CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.position') AS BIGINT) AS line_no,
-      TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.order'), 'id') AS VARCHAR(MAX)) AS order_id,
+      TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.order'), 'id', TRUE) AS VARCHAR(MAX)) AS order_id,
       TRY_CAST(CASE
         WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
         OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.created_at') AS VARCHAR) FROM 11) LIKE '%-%'
@@ -373,7 +373,7 @@ USING (
         ELSE JSON_EXTRACT_PATH_TEXT("raw", '$.created_at')
       END AS TIMESTAMP) AS placed_at,
       TRY_CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.quantity') AS BIGINT) AS quantity,
-      TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.variant'), 'sku') AS VARCHAR(MAX)) AS sku,
+      TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.variant'), 'sku', TRUE) AS VARCHAR(MAX)) AS sku,
       CASE TRY_CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.financial_status') AS VARCHAR(MAX))
         WHEN 'pending'
         THEN 'open'
@@ -386,17 +386,17 @@ USING (
       _ingested_at,
       _load_id,
       _source_row_id,
-      TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.properties'), 'gift_note') AS VARCHAR(MAX)) IS NULL
+      TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.properties'), 'gift_note', TRUE) AS VARCHAR(MAX)) IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.properties'), 'gift_note') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.properties'), 'gift_note', TRUE) IS NULL
       ) AS _branch_gift_note_coercible,
       TRY_CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.position') AS BIGINT) IS NULL
       AND (
         NOT JSON_EXTRACT_PATH_TEXT("raw", '$.position') IS NULL
       ) AS _branch_line_no_coercible,
-      TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.order'), 'id') AS VARCHAR(MAX)) IS NULL
+      TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.order'), 'id', TRUE) AS VARCHAR(MAX)) IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.order'), 'id') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.order'), 'id', TRUE) IS NULL
       ) AS _branch_order_id_coercible,
       TRY_CAST(CASE
         WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
@@ -411,9 +411,9 @@ USING (
       AND (
         NOT JSON_EXTRACT_PATH_TEXT("raw", '$.quantity') IS NULL
       ) AS _branch_quantity_coercible,
-      TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.variant'), 'sku') AS VARCHAR(MAX)) IS NULL
+      TRY_CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.variant'), 'sku', TRUE) AS VARCHAR(MAX)) IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.variant'), 'sku') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT("raw", '$.variant'), 'sku', TRUE) IS NULL
       ) AS _branch_sku_coercible,
       CASE TRY_CAST(JSON_EXTRACT_PATH_TEXT("raw", '$.financial_status') AS VARCHAR(MAX))
         WHEN 'pending'
@@ -516,4 +516,4 @@ ON _target.source_relation = _replay._source
 AND _target._source_row_id = _replay._source_row_id
 WHEN MATCHED AND _target.resolved_at IS NULL THEN UPDATE SET
   failed_rules = _replay.failed_rules,
-  last_evaluated_at = GETDATE();
+  last_evaluated_at = CAST(CONVERT_TIMEZONE('UTC', CAST(GETDATE() AS TIMESTAMP WITH TIME ZONE)) AS TIMESTAMP);

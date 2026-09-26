@@ -12,4 +12,137 @@ SELECT
   CAST(DATE_TRUNC('QUARTER', date_day) AS DATE) AS date_quarter,
   CAST(DATE_TRUNC('WEEK', date_day) AS DATE) AS date_week,
   CAST(DATE_TRUNC('YEAR', date_day) AS DATE) AS date_year
-FROM GENERATE_SERIES(CAST('2020-01-01' AS DATE), CAST('2030-12-31' AS DATE), INTERVAL '1 DAY') AS date_day(date_day)
+FROM (
+  SELECT
+    DATEADD(DAY, n, CAST('2020-01-01' AS DATE)) AS date_day
+  FROM (
+    SELECT
+      ROW_NUMBER() OVER () - 1 AS n
+    FROM (
+      SELECT
+        0 AS d
+      UNION ALL
+      SELECT
+        1 AS d
+      UNION ALL
+      SELECT
+        2 AS d
+      UNION ALL
+      SELECT
+        3 AS d
+      UNION ALL
+      SELECT
+        4 AS d
+      UNION ALL
+      SELECT
+        5 AS d
+      UNION ALL
+      SELECT
+        6 AS d
+      UNION ALL
+      SELECT
+        7 AS d
+      UNION ALL
+      SELECT
+        8 AS d
+      UNION ALL
+      SELECT
+        9 AS d
+    ) AS d0
+    CROSS JOIN (
+      SELECT
+        0 AS d
+      UNION ALL
+      SELECT
+        1 AS d
+      UNION ALL
+      SELECT
+        2 AS d
+      UNION ALL
+      SELECT
+        3 AS d
+      UNION ALL
+      SELECT
+        4 AS d
+      UNION ALL
+      SELECT
+        5 AS d
+      UNION ALL
+      SELECT
+        6 AS d
+      UNION ALL
+      SELECT
+        7 AS d
+      UNION ALL
+      SELECT
+        8 AS d
+      UNION ALL
+      SELECT
+        9 AS d
+    ) AS d1
+    CROSS JOIN (
+      SELECT
+        0 AS d
+      UNION ALL
+      SELECT
+        1 AS d
+      UNION ALL
+      SELECT
+        2 AS d
+      UNION ALL
+      SELECT
+        3 AS d
+      UNION ALL
+      SELECT
+        4 AS d
+      UNION ALL
+      SELECT
+        5 AS d
+      UNION ALL
+      SELECT
+        6 AS d
+      UNION ALL
+      SELECT
+        7 AS d
+      UNION ALL
+      SELECT
+        8 AS d
+      UNION ALL
+      SELECT
+        9 AS d
+    ) AS d2
+    CROSS JOIN (
+      SELECT
+        0 AS d
+      UNION ALL
+      SELECT
+        1 AS d
+      UNION ALL
+      SELECT
+        2 AS d
+      UNION ALL
+      SELECT
+        3 AS d
+      UNION ALL
+      SELECT
+        4 AS d
+      UNION ALL
+      SELECT
+        5 AS d
+      UNION ALL
+      SELECT
+        6 AS d
+      UNION ALL
+      SELECT
+        7 AS d
+      UNION ALL
+      SELECT
+        8 AS d
+      UNION ALL
+      SELECT
+        9 AS d
+    ) AS d3
+  ) AS numbers
+  WHERE
+    n < 4018
+) AS date_day

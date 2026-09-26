@@ -8,7 +8,7 @@ MODEL (
 );
 
 SELECT
-  CAST(JSON_EXTRACT_PATH_TEXT(customer, 'id') AS VARCHAR(MAX)) AS customer_id,
+  CAST(JSON_EXTRACT_PATH_TEXT(customer, 'id', TRUE) AS VARCHAR(MAX)) AS customer_id,
   CAST(id AS VARCHAR(MAX)) AS order_id,
   '' AS _quality_flags,
   TRUE AS _quality_ok
