@@ -774,3 +774,21 @@ jobs:
       - name: Run engine and e2e tiers
         run: |
           uv run pytest -m "engine or e2e"
+
+      # Rung 4 (S-0012/D-2): a step of its own, never folded into the selector
+      # above, because the two rungs may not report as one — a surrogate is
+      # evidence and the log has to say which line ran an emulator.
+      #
+      # **Not on pull requests yet** (S-0014/D-6). Of the row's two inputs only
+      # one is answered: the lane does catch what rungs 1–3 miss, because every
+      # assertion in it is about a *value* — a quarantined row, a decimal's
+      # scale, the instant a wall clock lands on — and no offline rung produces
+      # one. Its runtime is unmeasured: it had never run against a daemon when
+      # it landed, so there is no number to put beside the 199s that earned the
+      # tiers above their PR slot. The nightly and push runs below produce it;
+      # whoever reads one may delete this condition and record the measurement,
+      # which is the same evidence the engine tiers were promoted on.
+      - name: Run the BigQuery surrogate lane (emulator, not engine conformance)
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          uv run pytest -m surrogate
