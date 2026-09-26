@@ -209,7 +209,15 @@ class Warehouse:
                 )
                 raise TimeoutError(msg)
             time.sleep(_POLL_INTERVAL)
-            payload = self._request("GET", f"{_STATEMENTS}/{payload['statement_id']}", statement)
+            # The socket timeout is what is left of the deadline, so a stalled
+            # poll cannot hold the loop past it and the cancel above still
+            # reaches a running statement promptly.
+            payload = self._request(
+                "GET",
+                f"{_STATEMENTS}/{payload['statement_id']}",
+                statement,
+                timeout=max(1.0, deadline - time.monotonic()),
+            )
 
         if state != "SUCCEEDED":
             error = payload["status"].get("error", {})
@@ -313,7 +321,13 @@ class Warehouse:
         return Result(columns=columns, rows=tuple(rows))
 
     def _request(
-        self, method: str, path: str, statement: str, *, body: dict[str, Any] | None = None
+        self,
+        method: str,
+        path: str,
+        statement: str,
+        *,
+        body: dict[str, Any] | None = None,
+        timeout: float = STATEMENT_TIMEOUT,
     ) -> dict[str, Any]:
         request = urllib.request.Request(  # noqa: S310 — https, from the host variable
             f"{self.credentials.host}{path}",
@@ -325,7 +339,7 @@ class Warehouse:
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=STATEMENT_TIMEOUT) as response:  # noqa: S310
+            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
                 return json.loads(response.read())
         except urllib.error.HTTPError as failure:
             # The workspace's own diagnosis where it sent one — a 400 carrying

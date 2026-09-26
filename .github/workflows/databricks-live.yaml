@@ -44,7 +44,7 @@ jobs:
   # data is scanned, which is why this job can sweep the whole corpus.
   compile:
     name: EXPLAIN EXTENDED + DESCRIBE QUERY (no execution)
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.DATABRICKS_HOST != '' && vars.DATABRICKS_WAREHOUSE_ID != ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: databricks-free
@@ -78,11 +78,15 @@ jobs:
             pyproject.toml
 
       - name: Install dependencies
-        run: uv sync --all-groups
+        # The default groups only: the `spark` group is a ~400 MB wheel plus a
+        # JVM for the surrogate lane, and nothing here runs Spark.
+        run: uv sync
 
       # Exit code 5 (nothing collected) is a failure: a lane that collected
-      # nothing cannot have asked the engine anything, and a skipped lane still
-      # collects. A green here always means the analyzer answered.
+      # nothing cannot have asked the engine anything. A skipped lane still
+      # collects and exits green, which is why the job's `if:` above refuses
+      # to start without the host and the warehouse: with them present, every
+      # selected test either asks the analyzer or fails.
       - name: Ask the analyzer
         run: uv run pytest tests/engines/test_databricks_live.py -k compile -q
 
@@ -94,7 +98,7 @@ jobs:
   runtime:
     name: Runtime corpus (tiny tables)
     needs: [compile]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.DATABRICKS_HOST != '' && vars.DATABRICKS_WAREHOUSE_ID != ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: databricks-free
@@ -125,7 +129,9 @@ jobs:
             pyproject.toml
 
       - name: Install dependencies
-        run: uv sync --all-groups
+        # The default groups only: the `spark` group is a ~400 MB wheel plus a
+        # JVM for the surrogate lane, and nothing here runs Spark.
+        run: uv sync
 
       - name: Run the runtime corpus
         run: uv run pytest tests/engines/test_databricks_live.py -k runtime -q

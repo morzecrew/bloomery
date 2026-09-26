@@ -304,9 +304,9 @@ _REPLAY_ENVELOPE = jinja2.Template(
 {{ begin_line }}
 
 {{ body }}
-
+{% if commit_line %}
 {{ commit_line }}
-{{ close_line }}
+{% endif %}{{ close_line }}
 """,
     autoescape=False,
 )
@@ -476,10 +476,20 @@ def _reject_artifacts(
                 fingerprint=ctx.fingerprint,
                 macro=macro,
                 open_line=f"{{% macro {macro}() %}}",
-                begin_line=f'  {{% do run_query("{ctx.dialect.begin_transaction}") %}}',
+                # A port with no multi-statement transaction (Databricks: every
+                # statement is its own Delta commit, `BEGIN` is rejected) says
+                # so with an empty spelling; the envelope then opens nothing,
+                # commits nothing, and states the guarantee it does have.
+                begin_line=(
+                    f'  {{% do run_query("{ctx.dialect.begin_transaction}") %}}'
+                    if ctx.dialect.begin_transaction
+                    else "  -- No transaction: each statement below commits on its own."
+                ),
                 body=_replay_body(entity, ctx, references),
                 redelivers=entity.scd is SCDKind.TYPE2,
-                commit_line='  {% do run_query("COMMIT") %}',
+                commit_line=(
+                    '  {% do run_query("COMMIT") %}' if ctx.dialect.begin_transaction else ""
+                ),
                 close_line="{% endmacro %}",
             ).rstrip("\n")
             + "\n",

@@ -311,6 +311,12 @@ def test_a_formatted_parse_keeps_the_written_wall_clock() -> None:
     assert DIALECT.render(node) == "CAST(TO_TIMESTAMP(x, 'yyyy-MM-dd') AS TIMESTAMP_NTZ)"
 
 
+def test_the_port_declares_no_transaction() -> None:
+    """Databricks SQL rejects `BEGIN`; every statement is its own Delta commit.
+    The empty spelling is what tells the dbt replay envelope to open none."""
+    assert DIALECT.begin_transaction == ""
+
+
 def test_exact_division_is_not_widened_to_a_float() -> None:
     """The `divide` marker means "keep this exact" (S-0046/D-3). On Postgres
     and Trino the base rewrite exists to *suppress* a double cast SQLGlot would
