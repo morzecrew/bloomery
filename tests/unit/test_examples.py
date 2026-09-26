@@ -40,6 +40,7 @@ would be two accounts of one stack, drifting.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -188,6 +189,105 @@ def test_quickstart_plans_a_query_rather_than_an_empty_one() -> None:
 
     assert "SELECT" in sql.upper(), f"no query in the planned SQL:\n{sql[:400]}"
     assert "revenue" in sql, "the requested metric is not in its own plan"
+
+
+# ....................... #
+# retrieval/ (S-0011/D-6 — the example the retrieval manifest ships with)
+
+
+def test_the_retrieval_example_runs_end_to_end() -> None:
+    """Compile a document-chunk corpus to its retrieval manifest.
+
+    Pure like `quickstart/`: no container, no provider account, and no embedding
+    computed, read or validated anywhere in it. The example has no self-check of
+    its own, so the markers are asserted here — a run that wrote no artifact, or
+    printed a summary with the space missing from it, would otherwise still
+    exit 0.
+    """
+    result = run_example("retrieval")
+
+    assert result.returncode == 0, (
+        f"the retrieval example failed:\n{result.stdout[-2000:]}\n{result.stderr[-2000:]}"
+    )
+    assert "wrote out/retrieval_manifest.json" in result.stdout, "compiled nothing"
+    assert "1536xfloat32, cosine" in result.stdout, "the space did not reach the summary"
+    assert "fusion     rrf" in result.stdout, "the hybrid profile lost its fusion method"
+
+
+def test_the_retrieval_example_manifest_inlines_the_space_on_every_profile() -> None:
+    """The manifest the run above wrote, read as a runtime would read it.
+
+    What the example claims is that a consumer with no access to the spec tree
+    has everything it needs: the space inlined per profile rather than named
+    (S-0011/D-7), and the corpus relation resolved to a namespace and a table.
+    The printed summary could show both while the file on disk carried neither.
+
+    Nothing here claims a runtime *serves* the query correctly — that is
+    `consume.py`'s demonstration, and it is deliberately not a test.
+    """
+    assert run_example("retrieval").returncode == 0
+
+    manifest = json.loads((EXAMPLES / "retrieval" / "out" / "retrieval_manifest.json").read_text())
+    profiles = manifest["profiles"]
+
+    assert manifest["retrieval_manifest_version"] == 1
+    assert sorted(profiles) == ["chunk_hybrid", "chunk_in_context"]
+    for name, profile in profiles.items():
+        space = profile["vector"]["space"]
+        assert space["name"] == "chunk_text", f"profile {name} names another space"
+        assert space["dimensions"] == 1536
+        assert space["document_encoder"]["model"] == "text-embedding-3-small"
+        assert space["query_encoder"]["input_kind"] == "query"
+
+    assert profiles["chunk_hybrid"]["relation"] == {
+        "kind": "entity",
+        "name": "chunk",
+        "namespace": "silver",
+        "table": "chunk",
+    }
+    assert profiles["chunk_in_context"]["relation"]["table"] == "mart_chunks"
+
+
+def test_the_second_consumer_reads_the_manifest_and_reports_the_disagreements() -> None:
+    """The second, unrelated reading of the manifest, through its own entry point.
+
+    `consume.py` stays out of the suite because its duckdb dependency is optional
+    and because preparing SQL is a claim about duckdb. `consume_store.py` has no
+    dependency at all — it builds a vector store's request payloads as plain data
+    — and what it prints is this phase's whole finding: the register of what the
+    two readings had to decide differently, three lines of which it computes from
+    the manifest rather than retyping.
+
+    So it is the register that is asserted, not the payloads. A script that
+    printed its judgements and computed nothing would exit 0 with the finding
+    silently gone, which is the way this phase gets skipped.
+    """
+    assert run_example("retrieval").returncode == 0
+
+    result = subprocess.run(  # noqa: S603 — a fixed path, no shell, no input
+        [sys.executable, str(EXAMPLES / "retrieval" / "consume_store.py")],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=False,
+    )
+
+    assert result.returncode == 0, (
+        f"the second consumer failed:\n{result.stdout[-2000:]}\n{result.stderr[-2000:]}"
+    )
+    register = result.stdout.split("what the two consumers disagreed about", 1)
+    assert len(register) == 2, "the second consumer printed no register"
+
+    computed = register[1]
+    assert "inert in consume.py: fusion, grain, lexical" in computed, (
+        "the keys only the store reads are not computed from the manifest"
+    )
+    assert "inert here: none" in computed, (
+        "a key the SQL consumer reads went inert without the register saying so"
+    )
+    assert "read by neither consumer: vector.producer, vector.space.document_encoder" in computed, (
+        "the two compile-time identities are no longer reported as runtime-inert"
+    )
 
 
 # ....................... #

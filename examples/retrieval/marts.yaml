@@ -1,0 +1,16 @@
+# The gold layer: one wide mart at chunk grain. The date role expands
+# `published_at` into published_day .. published_year buckets, which is what
+# gives the second retrieval profile something to filter on.
+#
+# Chunk grain, not document grain, and that is load-bearing: a mart at document
+# grain carrying chunk embeddings has either duplicated a vector or collapsed
+# several, and the retrieval guardrail refuses a profile whose grain differs from
+# its corpus relation's key for exactly that reason.
+marts_version: 1
+
+marts:
+  chunks:
+    grain: chunk
+    base: chunk
+    flatten:
+      - {date: published_at, role: published}

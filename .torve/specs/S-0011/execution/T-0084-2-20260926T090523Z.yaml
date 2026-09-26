@@ -1,0 +1,121 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0084
+phase: 1
+attempt: 2
+base: af673d7bc6d1945608bf91d85afe1203cf0cff4d
+commit: 3c79ddda1179dee8ed3fa4c48fddaf5220f608d2
+at: '2026-09-26T09:05:23Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: LOCKED
+  - id: D-11
+    grade: OPEN
+  - id: D-12
+    grade: OPEN
+  - id: D-13
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-26T08:37:20Z'
+    attempt: 4
+    claim: >-
+      retrieval ships as its own spec kind: a retrieval_version key in _KIND_KEYS
+      and its own module, with no optional key added to the entity model
+    evidence: >-
+      src/bloomery/spec/project.py:55 — 'retrieval_version': RetrievalSpec in _KIND_KEYS;
+      src/bloomery/spec/entity.py is unchanged
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-26T08:37:20Z'
+    attempt: 4
+    claim: >-
+      no embedding value is read and no encoder identity is resolved against a provider;
+      the producer refusal is a string equality over three opaque fields
+    evidence: >-
+      src/bloomery/guardrails/retrieval.py:140 — producer != space.document_encoder,
+      a dataclass equality; no network or registry call exists in the module
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-26T08:37:20Z'
+    attempt: 4
+    claim: >-
+      a vector carries a scalar type name and an int dimension and nothing else, so
+      no float literal is parsed, stored or rendered and the ban takes no exemption
+    evidence: >-
+      src/bloomery/typing/types.py:123-142 — VectorType(scalar: str, dimensions: int);
+      tests/unit/test_typing/test_vector.py:26 asserts both
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-26T08:37:20Z'
+    attempt: 4
+    claim: >-
+      the eighth LogicalType member landed and a vector is the input of no transform:
+      every registered input domain excludes it, no neutral cast reaches it, and no
+      port spells it
+    evidence: >-
+      src/bloomery/transforms/registry.py:145 — neutral_type refuses a vector; src/bloomery/transforms/_builtins.py:40
+      keeps VectorType out of _ALL_TYPES and src/bloomery/dialects/base.py:481 out
+      of every port
+    action: decided
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-26T08:37:20Z'
+    attempt: 4
+    claim: >-
+      fusion is reciprocal rank fusion only, refused by the grammar rather than by
+      a guardrail
+    evidence: >-
+      src/bloomery/spec/retrieval.py:196 — method: Literal["rrf"]
+    action: decided
+  - decision: D-11
+    grade: OPEN
+    at: '2026-09-26T08:37:20Z'
+    attempt: 4
+    claim: >-
+      decided: a vector field may be declared on an entity as well as on a mart, and
+      a profile's corpus relation names either. Confining it to marts saves nothing
+      now the union member exists either way, and a mart column is traced to an entity
+      column, so a mart-only vector is not a shape the flattener can produce; a mapping
+      chain still cannot build one, so on an entity it arrives as a step's declared
+      output, which is where an embedding is produced
+    evidence: >-
+      src/bloomery/spec/retrieval.py:140-141 — CorpusRelation takes mart or entity;
+      src/bloomery/spec/common.py:72 admits vector() in TYPE_STRING_PATTERN, which
+      every entity field reads
+    action: decided
+  - decision: D-12
+    grade: OPEN
+    at: '2026-09-26T08:37:20Z'
+    attempt: 4
+    claim: >-
+      decided: distance is a property of the semantic space, not of the retrieval
+      profile, so every field claiming one space is scored the same way; the row's
+      own argument taken as given, that moving the field to the profile later is additive
+      and the reverse is not
+    evidence: >-
+      src/bloomery/spec/retrieval.py:98 — distance: DistanceName on SemanticSpace,
+      absent from RetrievalProfile
+    action: decided

@@ -70,7 +70,8 @@ __all__ = [
 #: The closed logical-type grammar (S-0021/logical-types-bloomery-typing-types-py). The spec layer validates the
 #: grammar only; ``bloomery.typing.parse_type`` consumes the same pattern.
 TYPE_STRING_PATTERN = (
-    r"^(?:string|int|bool|date|timestamp|variant|decimal\((\d{1,3}), ?(\d{1,3})\))$"
+    r"^(?:string|int|bool|date|timestamp|variant|decimal\((\d{1,3}), ?(\d{1,3})\)"
+    r"|vector\((float32|float16), ?(\d{1,5})\))$"
 )
 
 #: Iceberg-style partition entries: a bare column or ``fn(column)`` with

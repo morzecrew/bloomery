@@ -1,0 +1,16 @@
+# The corpus, as entities. `document` is mapped from a source; `chunk` is not
+# here at all — it is produced by the step in `steps.yaml`, and its columns
+# (including the embedding) are declared by that step's manifest. That split is
+# the whole reason the retrieval kind needs no float: the vector arrives from a
+# step's declared output, and a vector is produced by no transform.
+spec_version: 1
+
+entities:
+  document:
+    grain: one row per published document
+    key: [document_id]
+    fields:
+      document_id: {type: string, required: true}
+      title: {type: string}
+      collection: {type: string}
+      published_at: {type: timestamp}

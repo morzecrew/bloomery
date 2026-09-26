@@ -27,6 +27,7 @@ from bloomery.typing import (
     StringType,
     TimestampType,
     VariantType,
+    VectorType,
 )
 
 # ----------------------- #
@@ -477,6 +478,20 @@ class SQLGlotDialect:
 
         if isinstance(t, DecimalType):
             return f"DECIMAL({t.precision}, {t.scale})"
+
+        if isinstance(t, VectorType):
+            # No port spells a vector yet (S-0011/D-4): the type exists so a
+            # retrieval guardrail can compare a dimension, and the engine-side
+            # spelling is the retrieval target's, not this port's. A KeyError
+            # here would name a dict; this names the contract.
+            msg = (
+                f"dialect {self.name!r} has no physical type for "
+                f"vector({t.scalar}, {t.dimensions}): a declared vector is not a "
+                "column this port emits DDL for. Fix: a vector column belongs to "
+                "a retrieval target, so declare it on a relation this port does "
+                "not materialize."
+            )
+            raise UnsupportedByTarget(msg)
 
         return self.scalar_types[type(t)]
 

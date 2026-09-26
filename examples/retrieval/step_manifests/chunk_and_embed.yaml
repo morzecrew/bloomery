@@ -1,0 +1,44 @@
+# The step's contract, as data. A manifest is *declared* — bloomery never
+# discovers it, never imports the entrypoint, and never runs the step: it reads
+# the contract, typechecks everything downstream against it, and emits a
+# wrapper. `run.py` loads this file and builds the registry, which is what makes
+# the registry a compile input rather than a filesystem scan.
+#
+# `embedding` is the only way a vector column can arrive in this project: a
+# vector is assignable only from an identical vector and is produced by no
+# transform, so no mapping chain could ever populate it.
+ref: chunk_and_embed
+version: 1
+kind: python_model
+determinism: seeded
+lineage: coarse
+entrypoint: platform_steps.retrieval:chunk_and_embed
+runtime_lock: sha256:0f5e9c2a7b4d16e8c3a9f0b2d5e7183c4a6b9d0e2f13548796acbde02f4165873
+
+inputs:
+  documents:
+    grain: one row per published document
+    requires: [document_id, title, published_at]
+
+parameters:
+  tokens_per_chunk:
+    type: int
+    default: 512
+    min: 64
+    max: 2048
+
+outputs:
+  chunk:
+    grain: one row per chunk of a document
+    key: [chunk_id]
+    produces:
+      chunk_id: {type: string, required: true}
+      document_id: {type: string, required: true}
+      ordinal: {type: int, required: true}
+      body: {type: string, required: true}
+      # Carried through from the document the chunk came from, because a
+      # retrieval filter over a column the corpus relation has not got is
+      # refused at compile time rather than discovered at query time.
+      document_title: {type: string}
+      published_at: {type: timestamp}
+      embedding: {type: "vector(float32, 1536)", required: true}
