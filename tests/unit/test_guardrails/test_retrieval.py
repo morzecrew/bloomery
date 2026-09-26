@@ -148,6 +148,31 @@ def test_an_imported_relation_is_built_when_the_guard_reads_the_composed_view() 
     assert any("does not build" in refusal for refusal in _refusals(draft=imported))
 
 
+def test_a_mart_imported_without_its_base_entity_is_refused_by_name() -> None:
+    """A mart-only import carries the mart's rows but not the key that
+    identifies one (S-0011/D-8), so the guard cannot check the profile's
+    `key`. That is a distinct refusal naming the missing import — not the
+    "does not build" one, which would send the author to declare a mart the
+    upstream already builds."""
+    from dataclasses import replace
+
+    from bloomery.ir.nodes import UpstreamIR, with_imported
+
+    local = _draft()
+    (mart,) = local.marts
+    mart_only = replace(
+        local,
+        entities=(),
+        marts=(),
+        upstream=(UpstreamIR(alias="up", fingerprint="blm1:up", marts=(mart,)),),
+    )
+    refusals = _refusals(draft=with_imported(mart_only), relation="{mart: chunks}")
+    assert len(refusals) == 1
+    assert "neither builds nor imports" in refusals[0]
+    assert "'chunk'" in refusals[0]
+    assert "does not build" not in refusals[0]
+
+
 def test_a_project_with_no_retrieval_document_is_never_walked() -> None:
     project = load_project({"entity_model": ENTITY_MODEL})
     assert check_retrieval(project, _draft()) == []

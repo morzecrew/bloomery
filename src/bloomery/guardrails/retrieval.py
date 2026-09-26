@@ -218,6 +218,24 @@ def check_retrieval(project: Project, draft: ProjectIR) -> list[GuardrailError]:
             mart_name = relation.mart or ""
             mart = marts.get(mart_name)
             base = None if mart is None else entities.get(mart.base)
+
+            if mart is not None and base is None:
+                # The mart crossed a project boundary without its base entity
+                # (a mart-only import): its rows are still the base's rows, but
+                # the key that identifies one is nowhere in this compile's view.
+                # Named as what it is, not as a mart the project "does not
+                # build" — the fix is one more line in the imports document.
+                errors.append(
+                    RetrievalViolation(
+                        f"profile {name!r} retrieves from mart {mart_name!r}, whose base "
+                        f"entity {mart.base!r} this project neither builds nor imports, so "
+                        f"the row key the profile's `key` is checked against is not in view "
+                        f"(S-0011/D-8). Fix: import entity {mart.base!r} beside the mart",
+                        source_path=source_path,
+                    )
+                )
+                continue
+
             resolved = (
                 None
                 if mart is None or base is None
