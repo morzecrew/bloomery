@@ -248,6 +248,48 @@ def test_the_retrieval_example_manifest_inlines_the_space_on_every_profile() -> 
     assert profiles["chunk_in_context"]["relation"]["table"] == "mart_chunks"
 
 
+def test_the_second_consumer_reads_the_manifest_and_reports_the_disagreements() -> None:
+    """The second, unrelated reading of the manifest, through its own entry point.
+
+    `consume.py` stays out of the suite because its duckdb dependency is optional
+    and because preparing SQL is a claim about duckdb. `consume_store.py` has no
+    dependency at all — it builds a vector store's request payloads as plain data
+    — and what it prints is this phase's whole finding: the register of what the
+    two readings had to decide differently, three lines of which it computes from
+    the manifest rather than retyping.
+
+    So it is the register that is asserted, not the payloads. A script that
+    printed its judgements and computed nothing would exit 0 with the finding
+    silently gone, which is the way this phase gets skipped.
+    """
+    assert run_example("retrieval").returncode == 0
+
+    result = subprocess.run(  # noqa: S603 — a fixed path, no shell, no input
+        [sys.executable, str(EXAMPLES / "retrieval" / "consume_store.py")],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=False,
+    )
+
+    assert result.returncode == 0, (
+        f"the second consumer failed:\n{result.stdout[-2000:]}\n{result.stderr[-2000:]}"
+    )
+    register = result.stdout.split("what the two consumers disagreed about", 1)
+    assert len(register) == 2, "the second consumer printed no register"
+
+    computed = register[1]
+    assert "inert in consume.py: fusion, grain, lexical" in computed, (
+        "the keys only the store reads are not computed from the manifest"
+    )
+    assert "inert here: none" in computed, (
+        "a key the SQL consumer reads went inert without the register saying so"
+    )
+    assert "read by neither consumer: vector.producer, vector.space.document_encoder" in computed, (
+        "the two compile-time identities are no longer reported as runtime-inert"
+    )
+
+
 # ....................... #
 # lakehouse/ — step 1 only, which is where bloomery's involvement ends
 

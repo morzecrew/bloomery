@@ -182,14 +182,61 @@ is silent about all of it, and the silence is deliberate — those are deploymen
 a compiler has no information to make.
 
 Nor does bloomery claim any runtime consumes the manifest correctly. It cannot: it ships
-no consumer. `examples/retrieval/consume.py` reads the manifest the way a service would
-and builds the SQL each profile describes, and it is a **demonstration** rather than
-evidence — a dev-only script with an optional dependency, never part of the test suite.
+no consumer. What it ships is two **demonstrations** — dev-only scripts, not evidence:
+`examples/retrieval/consume.py` reads the manifest as SQL over the relation it names, and
+`examples/retrieval/consume_store.py` reads the same manifest as an external vector store,
+where the relation is the source of an ingest rather than the index.
+
+## What two consumers disagreed about
+
+One demonstrated consumer is not evidence that the semantics are vendor-neutral, because a
+document shaped by its only reader looks neutral from inside. So the manifest was read a
+second time by an unrelated runtime — a store with collections, a per-point payload,
+declared payload indexes and server-side fusion — and the two readings were diffed. Both
+built a query they would serve. Here is where they did not agree.
+
+**Every key is load-bearing to someone, and each consumer ignores some.** The store reads
+`grain`, `fusion`, `lexical` and the space's name, all of which the SQL reading never
+touches; nothing the SQL reading needs is inert for the store. `vector.producer` and the
+space's `document_encoder` are read by neither — they exist to be compared at compile
+time, and only the `query_encoder` names a call a runtime makes. Running
+`consume_store.py` prints this diff, computed rather than retyped.
+
+**The relation is not an index.** The SQL consumer queries the relation in place; the store
+ingests from it and searches its own copy. The manifest names a relation and no index, so
+the two readings disagree about whether it is the corpus or the source of a copy of the
+corpus, and the store has to derive a collection name from the profile name because nothing
+identifies one. This is the seam working as intended, and worth saying out loud.
+
+**Three keys change tense between the two.** `return` is a query-time projection in SQL and
+an ingest-time decision in a store — a payload not written at ingest cannot be returned, so
+adding a column to `return` is a reindex rather than a new query. `filterable` is free in
+SQL and a declared index in a store, which needs the column's *type* to build it; the
+manifest does not carry types, so the store guesses. `grain` is unread by the SQL consumer
+and is the point id for the store — and a composite grain has to become one id by a rule
+the manifest does not give.
+
+**Two findings are real gaps, not seams.** They are recorded rather than fixed, because
+this version of the kind is what it is:
+
+- `fusion: {method: rrf}` names the method and neither the rank constant nor the candidate
+  depth per side. Both consumers honour it and return **different orders** for the same
+  query — RRF's k is 60 in one implementation and 10 in another. A method name is not a
+  ranking, and this is the weakest point of the vendor-neutral claim.
+- The lexical side declares `fields` and no tokeniser, analyser or sparse-model identity,
+  while the dense side carries two encoder identities precisely so that a corpus written by
+  one model and queried by another is refusable. The same class of bug is undefended on the
+  lexical side: a store needs a sparse model to build that side at all, and whichever it
+  picks, nothing compares it to the one the corpus was written with.
+
+And one place the contract is honoured to different precision: a `float64` space is a
+`DOUBLE` in SQL and, in a store with no `float64` storage type, `float32`. `scalar` is an
+exact contract for one consumer and a best effort for the other.
 
 ## Where to look next
 
-- `examples/retrieval/` — a document-chunk corpus compiled to its manifest, and the six
-  refusals as six edits you can make
+- `examples/retrieval/` — a document-chunk corpus compiled to its manifest, the six
+  refusals as six edits you can make, and the two consumers that disagreed
 - [Spec schemas](../reference/spec-schemas.md) — the `RetrievalSet` grammar, field by
   field
 - [Retrieval refusals](../reference/errors.md#retrieval-refusals) — what each guardrail

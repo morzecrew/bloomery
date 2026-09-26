@@ -74,16 +74,55 @@ editing `retrieval.yaml`:
 Each names the profile, what it declared, what the corpus actually has, and a
 fix. `examples/refusals/` is the same idea for the analytical side.
 
-## consume.py
+## Two consumers
 
-A **demonstration**, not a test: it reads the emitted manifest the way a retrieval
-service would, builds the top-k SQL each profile describes, and — if duckdb is
-installed — asks duckdb to prepare it against a table shaped like the corpus.
-Nothing is executed; there is no corpus and no query vector.
+Both are **demonstrations**, not tests, and neither is a claim bloomery makes.
+Which index to build, where to put the vectors, how to merge two rank lists: all
+of that is the runtime's, and the manifest is deliberately silent about it.
+
+`consume.py` reads the manifest as **SQL over the relation it names** — the
+vectors stay where the step wrote them, and a query is a `SELECT … ORDER BY
+distance LIMIT k`. If duckdb is installed it asks duckdb to prepare that query
+against a table shaped like the corpus. Nothing is executed; there is no corpus
+and no query vector.
+
+`consume_store.py` reads the same manifest as an **external vector store** — a
+Qdrant-shaped service with collections, a per-point payload, declared payload
+indexes and server-side fusion. The relation is the source of an ingest here
+rather than the index. No dependency and no network: the request payloads are
+built as plain data and printed.
 
 ```bash
 uv run python examples/retrieval/consume.py
+uv run python examples/retrieval/consume_store.py
 ```
 
-Which index to build, where to put the vectors, how to merge two rank lists: all
-of that is the runtime's, and the manifest is deliberately silent about it.
+## What the two consumers disagreed about
+
+One consumer is not evidence that the semantics are vendor-neutral. The second
+one exists to find where the first one's shape leaked into the grammar;
+`consume_store.py` prints this register, and the first three lines of it are
+computed from the manifest rather than retyped.
+
+| Where | The disagreement |
+|---|---|
+| keys read | The store needs `grain`, `fusion`, `lexical` and the space's name; the SQL reading touches none of them, and nothing it needs is inert for the store |
+| keys read by neither | `vector.producer` and the space's `document_encoder` — compile-time identities, not runtime inputs. Only `query_encoder` names a call |
+| the relation | queried in place by one, ingested from by the other: the manifest names a relation and no index, and the store has to derive a collection name from the profile name |
+| `return` | a query-time projection in SQL, an ingest-time decision in a store — a payload not written at ingest cannot be returned, so adding a column is a reindex |
+| `filterable` | free in SQL, a declared index in a store — which needs the column's *type*, and the manifest carries no types, so the store guesses |
+| `grain` | unread by the SQL consumer, the point id for the store — and a composite grain has to become one id by a rule the manifest does not give |
+| `scalar` | a `float64` space is exactly a `DOUBLE` in SQL and approximately `float32` in a store with no `float64` storage |
+
+Two of them are gaps rather than seams, recorded rather than fixed:
+
+- **`fusion: rrf` names a method, not a ranking.** Neither the rank constant nor
+  the candidate depth per side is declared, so two consumers both honouring the
+  manifest return different orders for the same query.
+- **The lexical side has no identity while the dense side has two.** `fields`
+  says which text; nothing says how it is tokenised or which sparse model builds
+  it, so the mismatch the encoder identities exist to make refusable is
+  undefended on the lexical side.
+
+[Retrieval](../../pages/docs/concepts/retrieval.md) carries the same register as
+prose.
