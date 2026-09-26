@@ -578,11 +578,16 @@ jobs:
   #
   # Green without any of them: the lane skips with a stated reason rather than
   # failing, which is also what makes its acceptance command quiet in a sandbox.
+  # The job itself does not start without the provider and the service account:
+  # the token exchange runs before pytest could skip, and an empty input fails
+  # it rather than producing the skip the lane promises.
   bigquery-dry-run:
     name: BigQuery dry run (authoritative compile)
     needs: [changes, quality]
     if: |
       needs.quality.result == 'success' &&
+      vars.BIGQUERY_WORKLOAD_IDENTITY_PROVIDER != '' &&
+      vars.BIGQUERY_SERVICE_ACCOUNT != '' &&
       github.event_name != 'pull_request' &&
       (needs.changes.outputs.force_full == 'true' ||
        github.event_name == 'schedule' ||

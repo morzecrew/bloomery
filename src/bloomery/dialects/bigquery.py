@@ -196,12 +196,21 @@ class BigQueryDialect(SQLGlotDialect):
             instant = exp.func("TIMESTAMP", at_zone.this, at_zone.args["zone"])
             return cast("Expression", exp.func("DATETIME", instant, exp.Literal.string("UTC")))
 
-        rewritten: Expression = strip_iso_text(node.copy(), space_separated)
+        rewritten: Expression = strip_iso_text(node.copy(), _space_separated_without_zulu)
         rewritten = utc_from_zone(rewritten, utc)
         # Before the guard, which reads the group: the base render restores it
         # too, but only after every port rewrite has already run.
         rewritten = capture_group(rewritten).transform(_expressible_capture_group)
         rewritten = rewritten.transform(_substr)
+        # The replay statements build `CurrentTimestamp` directly to stamp
+        # `resolved_at`/`last_evaluated_at`, never through `utc_now`. Here that
+        # renders `CURRENT_TIMESTAMP()`, an *instant*, which GoogleSQL refuses
+        # to assign to a `DATETIME` column — and would read through the
+        # session zone if it did not (S-0045, S-0014/D-1).
+        rewritten = rewritten.transform(
+            lambda n: self.utc_now() if isinstance(n, exp.CurrentTimestamp) else n
+        )
+        _exists_for_tuple_in(rewritten)
         return super().render(rewritten.transform(_unnested_series))
 
     # ....................... #
@@ -239,6 +248,86 @@ class BigQueryDialect(SQLGlotDialect):
         """
 
         return cast("Expression", exp.func("CURRENT_DATETIME", exp.Literal.string("UTC")))
+
+
+# ....................... #
+
+
+def _space_separated_without_zulu(text: Expression) -> Expression:
+    """``RTRIM(<space-separated text>, 'Zz')``: the ISO spelling this port
+    casts, with a trailing ``Z`` dropped.
+
+    The offset guard refuses text whose time part states an offset (S-0052)
+    and lets ``Z`` through, because on every other shipped port the cast
+    reads ``Z`` as the UTC it is and the wall clock comes out unchanged.
+    GoogleSQL's ``DATETIME`` cast does not parse a zone marker at all, so a
+    valid UTC value ending in ``Z`` cast to NULL here and the quality system
+    quarantined the row as a coercion failure it was not. ``Z`` is UTC, and
+    the zoneless UTC wall clock is exactly what ``timestamp`` stores
+    (S-0014/D-1), so dropping the marker changes no value.
+    """
+
+    return cast("Expression", exp.func("RTRIM", space_separated(text), exp.Literal.string("Zz")))
+
+
+# ....................... #
+
+
+def _exists_for_tuple_in(tree: Expression) -> None:
+    """``(a, b) IN (SELECT x, y FROM t)`` → ``EXISTS (SELECT … FROM t WHERE x =
+    a AND y = b)``, in place.
+
+    The replay's resolution ``UPDATE`` marks the reject rows a landed row
+    superseded with a row-value ``IN`` over a subquery, which every other
+    shipped port accepts. GoogleSQL's ``IN`` takes a single-column subquery
+    only — a tuple on its left is a syntax error — so the statement failed
+    before any reject row was marked resolved. The correlated ``EXISTS`` says
+    the same thing in the grammar this engine has.
+
+    The left side names the outer row, and inside an ``UPDATE`` that row has no
+    alias to name it by: the columns it shares with the subquery's table
+    (``_source_row_id``) would resolve to the inner one and compare it with
+    itself. So the update's target is given an alias and the left side is
+    qualified by it.
+    """
+
+    for node in list(tree.find_all(exp.In)):
+        query = node.args.get("query")
+
+        if not isinstance(node.this, exp.Tuple) or query is None:
+            continue
+
+        inner = query.this if isinstance(query, exp.Subquery) else query
+
+        if not isinstance(inner, exp.Select):
+            continue
+
+        update = node.find_ancestor(exp.Update)
+        qualifier: str | None = None
+
+        if update is not None and isinstance(update.this, exp.Table):
+            if not update.this.alias:
+                update.this.set("alias", exp.TableAlias(this=exp.to_identifier("_row")))
+
+            qualifier = update.this.alias
+
+        left = [member.copy() for member in node.this.expressions]
+
+        if qualifier is not None:
+            for member in left:
+                if isinstance(member, exp.Column):
+                    member.set("table", exp.to_identifier(qualifier))
+
+        matched = inner.copy()
+        matched = matched.where(
+            exp.and_(
+                *(
+                    exp.EQ(this=projected.unalias().copy(), expression=member)
+                    for projected, member in zip(inner.expressions, left, strict=True)
+                )
+            )
+        )
+        node.replace(exp.Exists(this=matched))
 
 
 # ....................... #

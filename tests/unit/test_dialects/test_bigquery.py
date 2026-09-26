@@ -141,6 +141,10 @@ def test_utc_now_states_the_zone_rather_than_reading_the_session() -> None:
     reach, and its zoned ``CURRENT_DATETIME`` returns exactly what ``timestamp``
     is: a zoneless wall clock already on UTC."""
     assert DIALECT.render(DIALECT.utc_now()) == "CURRENT_DATETIME('UTC')"
+    # A current-instant node the emit layer builds directly (the replay's
+    # `resolved_at` stamps) takes the same spelling: `CURRENT_TIMESTAMP()` is
+    # an instant GoogleSQL will not assign to a `DATETIME` column.
+    assert DIALECT.render(exp.CurrentTimestamp()) == "CURRENT_DATETIME('UTC')"
 
 
 def test_the_zoneless_utc_invariant_survives_a_full_projection() -> None:
@@ -224,7 +228,7 @@ def test_the_safe_cast_survives_the_cast_to_try_cast_rewrite() -> None:
         "  WHEN SUBSTR(CAST(created_at AS STRING), 11) LIKE '%+%'\n"
         "  OR SUBSTR(CAST(created_at AS STRING), 11) LIKE '%-%'\n"
         "  THEN NULL\n"
-        "  ELSE REPLACE(REPLACE(CAST(created_at AS STRING), 'T', ' '), 't', ' ')\n"
+        "  ELSE RTRIM(REPLACE(REPLACE(CAST(created_at AS STRING), 'T', ' '), 't', ' '), 'Zz')\n"
         "END AS DATETIME)"
     )
 
@@ -249,9 +253,39 @@ def test_the_iso_text_marker_becomes_a_separator_rewrite(to: str, expected: str)
         "  WHEN SUBSTR(CAST(x AS STRING), 11) LIKE '%+%'\n"
         "  OR SUBSTR(CAST(x AS STRING), 11) LIKE '%-%'\n"
         "  THEN NULL\n"
-        "  ELSE REPLACE(REPLACE(CAST(x AS STRING), 'T', ' '), 't', ' ')\n"
+        "  ELSE RTRIM(REPLACE(REPLACE(CAST(x AS STRING), 'T', ' '), 't', ' '), 'Zz')\n"
         f"END AS {expected})"
     )
+
+
+def test_a_trailing_zulu_marker_is_dropped_before_the_datetime_cast() -> None:
+    """The offset guard lets `Z` through because every other port's cast reads
+    it as the UTC it is; GoogleSQL's `DATETIME` cast parses no zone marker, so
+    a valid UTC value ending in `Z` cast to NULL and was quarantined as a
+    coercion failure. `Z` is UTC and the column stores the UTC wall clock
+    (S-0014/D-1), so the marker is trimmed and no value changes."""
+    rendered = DIALECT.render(_iso_cast())
+    assert "RTRIM(" in rendered and "'Zz')" in rendered
+
+
+def test_a_tuple_in_subquery_becomes_a_correlated_exists() -> None:
+    """GoogleSQL's `IN` takes a single-column subquery, so the replay's
+    resolution `UPDATE` — a row-value `IN` every other port accepts — failed
+    before any reject row was marked resolved. The correlated `EXISTS` says
+    the same thing; the update's target gets an alias so the outer columns the
+    subquery's table also carries do not resolve to the inner ones."""
+    update = parse_one(
+        "UPDATE silver.order_line__reject SET resolved_at = CURRENT_TIMESTAMP() "
+        "WHERE resolved_at IS NULL AND (source_relation, _source_row_id) IN "
+        "(SELECT _target._source, _target._source_row_id FROM silver.order_line AS _target)"
+    )
+    rendered = DIALECT.render(update)
+    assert " IN (" not in rendered
+    assert "UPDATE silver.order_line__reject AS _row SET" in rendered
+    assert "EXISTS(" in rendered or "EXISTS (" in rendered
+    assert "_target._source = _row.source_relation" in rendered
+    assert "_target._source_row_id = _row._source_row_id" in rendered
+    assert "CURRENT_DATETIME('UTC')" in rendered
 
 
 def test_both_iso_separators_are_normalized() -> None:

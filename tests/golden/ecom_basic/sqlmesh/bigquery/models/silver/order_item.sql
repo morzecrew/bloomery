@@ -16,7 +16,7 @@ SELECT
         WHEN SUBSTR(CAST(created_at AS STRING), 11) LIKE '%+%'
         OR SUBSTR(CAST(created_at AS STRING), 11) LIKE '%-%'
         THEN NULL
-        ELSE REPLACE(REPLACE(CAST(created_at AS STRING), 'T', ' '), 't', ' ')
+        ELSE RTRIM(REPLACE(REPLACE(CAST(created_at AS STRING), 'T', ' '), 't', ' '), 'Zz')
       END AS DATETIME),
       'Europe/Paris'
     ),

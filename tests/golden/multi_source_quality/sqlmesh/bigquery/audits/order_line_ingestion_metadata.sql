@@ -25,6 +25,6 @@ WHERE
       WHEN SUBSTR(CAST(_ingested_at AS STRING), 11) LIKE '%+%'
       OR SUBSTR(CAST(_ingested_at AS STRING), 11) LIKE '%-%'
       THEN NULL
-      ELSE REPLACE(REPLACE(CAST(_ingested_at AS STRING), 'T', ' '), 't', ' ')
+      ELSE RTRIM(REPLACE(REPLACE(CAST(_ingested_at AS STRING), 'T', ' '), 't', ' '), 'Zz')
     END AS DATETIME) IS NULL
   )

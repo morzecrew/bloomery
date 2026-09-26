@@ -58,10 +58,13 @@ USING (
           WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 11) LIKE '%+%'
           OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 11) LIKE '%-%'
           THEN NULL
-          ELSE REPLACE(
-            REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 'T', ' '),
-            't',
-            ' '
+          ELSE RTRIM(
+            REPLACE(
+              REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 'T', ' '),
+              't',
+              ' '
+            ),
+            'Zz'
           )
         END AS DATETIME) AS placed_at,
         SAFE_CAST(JSON_EXTRACT_SCALAR(raw, '$.quantity') AS INT64) AS quantity,
@@ -94,10 +97,13 @@ USING (
           WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 11) LIKE '%+%'
           OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 11) LIKE '%-%'
           THEN NULL
-          ELSE REPLACE(
-            REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 'T', ' '),
-            't',
-            ' '
+          ELSE RTRIM(
+            REPLACE(
+              REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 'T', ' '),
+              't',
+              ' '
+            ),
+            'Zz'
           )
         END AS DATETIME) IS NULL
         AND (
@@ -145,7 +151,10 @@ USING (
           WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 11) LIKE '%+%'
           OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 11) LIKE '%-%'
           THEN NULL
-          ELSE REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 'T', ' '), 't', ' ')
+          ELSE RTRIM(
+            REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 'T', ' '), 't', ' '),
+            'Zz'
+          )
         END AS DATETIME) AS placed_at,
         SAFE_CAST(JSON_EXTRACT_SCALAR(raw, '$.qty') AS INT64) AS quantity,
         SAFE_CAST(JSON_EXTRACT_SCALAR(raw, '$.product_sku') AS STRING) AS sku,
@@ -172,7 +181,10 @@ USING (
           WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 11) LIKE '%+%'
           OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 11) LIKE '%-%'
           THEN NULL
-          ELSE REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 'T', ' '), 't', ' ')
+          ELSE RTRIM(
+            REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 'T', ' '), 't', ' '),
+            'Zz'
+          )
         END AS DATETIME) IS NULL
         AND (
           NOT JSON_EXTRACT_SCALAR(raw, '$.created') IS NULL
@@ -338,14 +350,17 @@ WHEN NOT MATCHED THEN INSERT (
   _replay._quality_ok
 );
 
-UPDATE silver.order_line__reject SET resolved_at = CURRENT_TIMESTAMP(), last_evaluated_at = CURRENT_TIMESTAMP()
+UPDATE silver.order_line__reject AS _row SET resolved_at = CURRENT_DATETIME('UTC'), last_evaluated_at = CURRENT_DATETIME('UTC')
 WHERE
   resolved_at IS NULL
-  AND (source_relation, _source_row_id) IN (
+  AND EXISTS(
     SELECT
       _target._source,
       _target._source_row_id
     FROM silver.order_line AS _target
+    WHERE
+      _target._source = _row.source_relation
+      AND _target._source_row_id = _row._source_row_id
   );
 
 MERGE INTO silver.order_line__reject AS _target
@@ -433,10 +448,13 @@ USING (
         WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 11) LIKE '%+%'
         OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 11) LIKE '%-%'
         THEN NULL
-        ELSE REPLACE(
-          REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 'T', ' '),
-          't',
-          ' '
+        ELSE RTRIM(
+          REPLACE(
+            REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 'T', ' '),
+            't',
+            ' '
+          ),
+          'Zz'
         )
       END AS DATETIME) AS placed_at,
       SAFE_CAST(JSON_EXTRACT_SCALAR(raw, '$.quantity') AS INT64) AS quantity,
@@ -469,10 +487,13 @@ USING (
         WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 11) LIKE '%+%'
         OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 11) LIKE '%-%'
         THEN NULL
-        ELSE REPLACE(
-          REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 'T', ' '),
-          't',
-          ' '
+        ELSE RTRIM(
+          REPLACE(
+            REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS STRING), 'T', ' '),
+            't',
+            ' '
+          ),
+          'Zz'
         )
       END AS DATETIME) IS NULL
       AND (
@@ -520,7 +541,10 @@ USING (
         WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 11) LIKE '%+%'
         OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 11) LIKE '%-%'
         THEN NULL
-        ELSE REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 'T', ' '), 't', ' ')
+        ELSE RTRIM(
+          REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 'T', ' '), 't', ' '),
+          'Zz'
+        )
       END AS DATETIME) AS placed_at,
       SAFE_CAST(JSON_EXTRACT_SCALAR(raw, '$.qty') AS INT64) AS quantity,
       SAFE_CAST(JSON_EXTRACT_SCALAR(raw, '$.product_sku') AS STRING) AS sku,
@@ -547,7 +571,10 @@ USING (
         WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 11) LIKE '%+%'
         OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 11) LIKE '%-%'
         THEN NULL
-        ELSE REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 'T', ' '), 't', ' ')
+        ELSE RTRIM(
+          REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS STRING), 'T', ' '), 't', ' '),
+          'Zz'
+        )
       END AS DATETIME) IS NULL
       AND (
         NOT JSON_EXTRACT_SCALAR(raw, '$.created') IS NULL
@@ -587,4 +614,4 @@ ON _target.source_relation = _replay._source
 AND _target._source_row_id = _replay._source_row_id
 WHEN MATCHED AND _target.resolved_at IS NULL THEN UPDATE SET
   failed_rules = _replay.failed_rules,
-  last_evaluated_at = CURRENT_TIMESTAMP();
+  last_evaluated_at = CURRENT_DATETIME('UTC');

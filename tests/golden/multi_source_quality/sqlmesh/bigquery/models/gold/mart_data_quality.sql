@@ -68,7 +68,7 @@ FROM (
               WHEN SUBSTR(CAST(created_at AS STRING), 11) LIKE '%+%'
               OR SUBSTR(CAST(created_at AS STRING), 11) LIKE '%-%'
               THEN NULL
-              ELSE REPLACE(REPLACE(CAST(created_at AS STRING), 'T', ' '), 't', ' ')
+              ELSE RTRIM(REPLACE(REPLACE(CAST(created_at AS STRING), 'T', ' '), 't', ' '), 'Zz')
             END AS DATETIME) AS placed_at,
             SAFE_CAST(quantity AS INT64) AS quantity,
             SAFE_CAST(JSON_EXTRACT_SCALAR(variant, '$.sku') AS STRING) AS sku,
@@ -99,7 +99,7 @@ FROM (
               WHEN SUBSTR(CAST(created_at AS STRING), 11) LIKE '%+%'
               OR SUBSTR(CAST(created_at AS STRING), 11) LIKE '%-%'
               THEN NULL
-              ELSE REPLACE(REPLACE(CAST(created_at AS STRING), 'T', ' '), 't', ' ')
+              ELSE RTRIM(REPLACE(REPLACE(CAST(created_at AS STRING), 'T', ' '), 't', ' '), 'Zz')
             END AS DATETIME) IS NULL
             AND (
               NOT created_at IS NULL
@@ -143,7 +143,7 @@ FROM (
               WHEN SUBSTR(CAST(created AS STRING), 11) LIKE '%+%'
               OR SUBSTR(CAST(created AS STRING), 11) LIKE '%-%'
               THEN NULL
-              ELSE REPLACE(REPLACE(CAST(created AS STRING), 'T', ' '), 't', ' ')
+              ELSE RTRIM(REPLACE(REPLACE(CAST(created AS STRING), 'T', ' '), 't', ' '), 'Zz')
             END AS DATETIME) AS placed_at,
             SAFE_CAST(qty AS INT64) AS quantity,
             SAFE_CAST(product_sku AS STRING) AS sku,
@@ -168,7 +168,7 @@ FROM (
               WHEN SUBSTR(CAST(created AS STRING), 11) LIKE '%+%'
               OR SUBSTR(CAST(created AS STRING), 11) LIKE '%-%'
               THEN NULL
-              ELSE REPLACE(REPLACE(CAST(created AS STRING), 'T', ' '), 't', ' ')
+              ELSE RTRIM(REPLACE(REPLACE(CAST(created AS STRING), 'T', ' '), 't', ' '), 'Zz')
             END AS DATETIME) IS NULL
             AND (
               NOT created IS NULL
@@ -214,7 +214,7 @@ FROM (
                 WHEN SUBSTR(CAST(created_at AS STRING), 11) LIKE '%+%'
                 OR SUBSTR(CAST(created_at AS STRING), 11) LIKE '%-%'
                 THEN NULL
-                ELSE REPLACE(REPLACE(CAST(created_at AS STRING), 'T', ' '), 't', ' ')
+                ELSE RTRIM(REPLACE(REPLACE(CAST(created_at AS STRING), 'T', ' '), 't', ' '), 'Zz')
               END AS DATETIME) AS placed_at,
               SAFE_CAST(quantity AS INT64) AS quantity,
               SAFE_CAST(JSON_EXTRACT_SCALAR(variant, '$.sku') AS STRING) AS sku,
@@ -245,7 +245,7 @@ FROM (
                 WHEN SUBSTR(CAST(created_at AS STRING), 11) LIKE '%+%'
                 OR SUBSTR(CAST(created_at AS STRING), 11) LIKE '%-%'
                 THEN NULL
-                ELSE REPLACE(REPLACE(CAST(created_at AS STRING), 'T', ' '), 't', ' ')
+                ELSE RTRIM(REPLACE(REPLACE(CAST(created_at AS STRING), 'T', ' '), 't', ' '), 'Zz')
               END AS DATETIME) IS NULL
               AND (
                 NOT created_at IS NULL
@@ -289,7 +289,7 @@ FROM (
                 WHEN SUBSTR(CAST(created AS STRING), 11) LIKE '%+%'
                 OR SUBSTR(CAST(created AS STRING), 11) LIKE '%-%'
                 THEN NULL
-                ELSE REPLACE(REPLACE(CAST(created AS STRING), 'T', ' '), 't', ' ')
+                ELSE RTRIM(REPLACE(REPLACE(CAST(created AS STRING), 'T', ' '), 't', ' '), 'Zz')
               END AS DATETIME) AS placed_at,
               SAFE_CAST(qty AS INT64) AS quantity,
               SAFE_CAST(product_sku AS STRING) AS sku,
@@ -314,7 +314,7 @@ FROM (
                 WHEN SUBSTR(CAST(created AS STRING), 11) LIKE '%+%'
                 OR SUBSTR(CAST(created AS STRING), 11) LIKE '%-%'
                 THEN NULL
-                ELSE REPLACE(REPLACE(CAST(created AS STRING), 'T', ' '), 't', ' ')
+                ELSE RTRIM(REPLACE(REPLACE(CAST(created AS STRING), 'T', ' '), 't', ' '), 'Zz')
               END AS DATETIME) IS NULL
               AND (
                 NOT created IS NULL
