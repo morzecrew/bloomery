@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0130
+base: 0a99e90def476f86fd9563e05e63887af3e20850
+at: '2026-09-25T23:34:36Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: S-0079/D-3
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-25T23:22:38Z'
+    claim: >-
+      T-0110 thread rejected: the bare QUALIFY in the redshift golden is not SQL Redshift
+      rejects at parse time. Redshift's SELECT grammar does carry a QUALIFY clause
+      (AWS Database Developer Guide, r_QUALIFY_clause.html), so the dedupe lowering
+      needs no ROW_NUMBER-in-a-subquery rewrite on this port and the artifact is correct
+      as shipped. The mechanics the thread reports are all real -- bare QUALIFY rendered,
+      SQLGlot's redshift generator omitting eliminate_qualify, seven golden artifacts,
+      the docstring silent -- but they describe a capability the engine has, not a
+      defect; nothing changed.
+    evidence: >-
+      tests/golden/multi_source_quality/sqlmesh/redshift/models/silver/order_line.sql:185
+      — the bare QUALIFY, confirmed correct for the engine; SQLGlot's omission is
+      deliberate, not inherited-and-lost: .venv/lib/python3.13/site-packages/sqlglot/generators/redshift.py:92-100
+      writes its own exp.Select transform list (eliminate_window_clause, eliminate_distinct_on,
+      eliminate_semi_and_anti_joins, unqualify_unnest, unnest_generate_date_array_using_recursive_cte),
+      and `grep -rln eliminate_qualify .venv/lib/python3.13/site-packages/sqlglot/generators/`
+      prints hive, mysql, oracle, postgres, presto, spark2, sqlite, trino, tsql and
+      not redshift — every QUALIFY-less engine is enumerated there, redshift among
+      the natives
+    action: decided
+    proposal: >-
+      UNLISTED for S-0015: Redshift's native QUALIFY is accepted and the dedupe lowering
+      renders it verbatim, unlike the PostgreSQL port. Worth a row so the next reader
+      of the port's audit does not re-open this; the docstring audit in src/bloomery/dialects/redshift.py
+      is silent on QUALIFY and that file is outside this contract's scope.
+    notes: >-
+      Neither the thread nor this evaluation could execute against Redshift. The rejection
+      rests on the AWS SELECT grammar documenting a QUALIFY clause plus SQLGlot's
+      deliberate per-dialect enumeration above. The residual half of the thread that
+      does hold -- the port's module docstring audits every other Redshift/PostgreSQL
+      divergence but not QUALIFY -- is a documentation gap in src/bloomery/dialects/redshift.py,
+      which this scope does not allow touching; it is carried by the proposal instead.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-25T23:22:38Z'
+    claim: >-
+      T-0113 thread rejected on the same ground: it states the disjunction 'either
+      Redshift accepts QUALIFY and the port should say so, or it does not and every
+      dedupe-carrying entity emits rejected SQL', and the first branch holds -- the
+      engine accepts QUALIFY, so no artifact is wrong and no capability flag is owed.
+      Only the documentary half survives: the port's docstring audit does not mention
+      QUALIFY. That file is out of scope here, so nothing changed and the proposal
+      carries it.
+    evidence: >-
+      tests/golden/multi_source_quality/sqlmesh/redshift/models/silver/order_line.sql:185
+      — the shipped bare QUALIFY, correct for the engine; `uv run python -c "from
+      sqlglot import parse_one; from bloomery.dialects import get_dialect; n=parse_one('SELECT
+      a FROM t QUALIFY ROW_NUMBER() OVER (PARTITION BY a ORDER BY b) = 1'); [print(d,'|','
+      '.join(get_dialect(d).render(n).split())) for d in ('duckdb','postgres','trino','redshift')]"`
+      reproduces the reported split exactly (duckdb and redshift keep QUALIFY, postgres
+      and trino lower to the subquery form), and `grep -rl QUALIFY tests/golden/*/sqlmesh/redshift/`
+      prints the seven files against 0 for postgres and trino — the divergence is
+      real and intended, the engine-refusal branch of the thread's disjunction is
+      what fails
+    action: decided
+    proposal: >-
+      UNLISTED for S-0015: same row as the entry above -- record that QUALIFY survives
+      the Redshift audit, so the two open threads on this artifact close against a
+      written row rather than a re-derivation.
+    notes: >-
+      Same evaluation as the entry above, recorded separately because it is a separate
+      thread. No engine run was possible from here; the grounds are the AWS SELECT
+      grammar and SQLGlot's per-dialect enumeration of the engines that lack QUALIFY.

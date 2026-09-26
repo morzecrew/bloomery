@@ -1,14 +1,8 @@
-"""Golden artifacts for the sqlmesh × {postgres, snowflake, trino} matrix cells
-(S-0026/golden-workflow, M10 port validation): the same fixtures as the duckdb cell,
-rendered through the other three dialect ports — one dialect-neutral
-AST per artifact, four legal renderings. Regenerate via
-``just snapshot-update``; an unexplained golden diff fails review.
-
-The snowflake cell is the offline half of S-0013, and carries its syntax sanity
-beside it: that port has no container and no emulator at this rung, so
-``sqlglot.parse`` over the compiled corpus is what stands in — evidence that
-every rendering is syntax Snowflake's own parser accepts, and nothing about
-what its binder or its clock would do."""
+"""Golden artifacts for the sqlmesh × {databricks, postgres, redshift, snowflake, trino}
+matrix cells (S-0026/golden-workflow, M10 port validation; S-0013 for the snowflake cell,
+S-0015 for the redshift cell): the same fixtures as the duckdb cell, rendered through the
+other dialect ports — one dialect-neutral AST per artifact, one legal rendering per port.
+Regenerate via ``just snapshot-update``; an unexplained golden diff fails review."""
 
 from __future__ import annotations
 
@@ -78,7 +72,7 @@ EXPECTED_PATHS = {
 #: the others say ``TIMESTAMP``, the ``:`` accessor, the backtick-quoted
 #: reserved relation name, ``TO_JSON(NAMED_STRUCT(…))`` for the reject table —
 #: and the artifacts are what freeze S-0016/D-8 and D-9.
-DIALECTS = ["databricks", "postgres", "snowflake", "trino"]
+DIALECTS = ["databricks", "postgres", "redshift", "snowflake", "trino"]
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)

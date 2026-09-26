@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0116
+base: db780208340492282117d29172ce43a5f2ce3d0a
+commit: 82485704bd8a4d3ee07a6f845c4e07e523a7aa7f
+at: '2026-09-25T20:26:56Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: S-0006/D-5
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-25T20:12:44Z'
+    claim: >-
+      the three claims about pages/docs/reference/dialects.md all hold — four dialects
+      ship and redshift withholds three capabilities — and the page is updated; the
+      same staleness in pages/docs/concepts/data-quality.md, which two of the three
+      threads also name, is real but outside this contract's allow list, so it is
+      left unchanged
+    evidence: >-
+      pages/docs/concepts/data-quality.md:110 — "the three shipped dialects all have
+      one", while src/bloomery/dialects/__init__.py:49 registers a fourth; the allow
+      list names only pages/docs/reference/dialects.md
+    action: decided
+    proposal: >-
+      a follow-up task scoped to pages/docs/concepts/data-quality.md to restate its
+      dialect count; redshift does declare TRY_CAST, so only the count is wrong there,
+      not the claim
