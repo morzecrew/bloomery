@@ -156,7 +156,7 @@ def search(name: str, profile: dict[str, Any], *, limit: int = 10) -> dict[str, 
         # k=60 is this implementation's constant. The manifest declares the
         # method and no constant, so a second store fusing `rrf` with k=10 obeys
         # the same manifest and returns a different order.
-        "query": {"fusion": profile["fusion"]["method"].upper()},
+        "query": {"fusion": profile["fusion"]["method"]},  # Qdrant spells it lowercase
     }
 
 

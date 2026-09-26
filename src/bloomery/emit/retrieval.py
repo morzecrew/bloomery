@@ -27,6 +27,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 from bloomery.emit.base import ArtifactKind, EmittedArtifact
+from bloomery.errors import guaranteed
 from bloomery.ir import Layer
 
 if TYPE_CHECKING:
@@ -69,7 +70,9 @@ def _relation(relation: Mapping[str, str], naming: NamingPolicy) -> dict[str, st
     grammar refuses anything else), so the single pair is the whole of it.
     """
 
-    kind, name = next(iter(sorted(relation.items())))
+    kind, name = guaranteed(
+        sorted(relation.items()), expected="one relation kind", by="the retrieval grammar"
+    )
     namespace, table = naming.relation(name, Layer.GOLD if kind == "mart" else Layer.SILVER)
     return {"kind": kind, "name": name, "namespace": namespace, "table": table}
 

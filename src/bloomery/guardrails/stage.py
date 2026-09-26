@@ -191,7 +191,9 @@ def check_guardrails(
     # authored retrieval document and the types and keys from the draft, which is
     # the only side that has them — a field's dimensions exist once the entity
     # model is resolved, never before.
-    violations.extend(check_retrieval(project, draft))
+    # The composed view (S-0002/D-9): a profile may read an imported entity or
+    # mart, and a local mart's base may be one — both are built, upstream.
+    violations.extend(check_retrieval(project, composed))
     # Mart-level checks (S-0023/D-10): the flattener re-runs here as a pure
     # sibling stage; its leaves batch into the same aggregate as the rest.
     violations.extend(lower_marts(project.marts, composed).violations)

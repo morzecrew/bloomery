@@ -128,6 +128,26 @@ def _refusals(draft: ProjectIR | None = None, **overrides: str) -> list[str]:
 # The default: a project that does not retrieve is untouched
 
 
+def test_an_imported_relation_is_built_when_the_guard_reads_the_composed_view() -> None:
+    """The stage hands the guard the composed view (S-0002/D-9): a profile
+    over an entity an upstream builds, or a mart whose base is one, is over a
+    relation that exists. Read from the local draft alone, the guard reported
+    that the project "does not build" what the upstream builds."""
+    from dataclasses import replace
+
+    from bloomery.ir.nodes import UpstreamIR, with_imported
+
+    local = _draft()
+    (entity,) = local.entities
+    imported = replace(
+        local,
+        entities=(),
+        upstream=(UpstreamIR(alias="up", fingerprint="blm1:up", entities=(entity,)),),
+    )
+    assert _refusals(draft=with_imported(imported)) == _refusals(draft=local) == []
+    assert any("does not build" in refusal for refusal in _refusals(draft=imported))
+
+
 def test_a_project_with_no_retrieval_document_is_never_walked() -> None:
     project = load_project({"entity_model": ENTITY_MODEL})
     assert check_retrieval(project, _draft()) == []
