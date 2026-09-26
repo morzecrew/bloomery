@@ -339,6 +339,51 @@ def test_dbt_refuses_an_upstream_that_exports_no_name() -> None:
     assert "exports document" in str(raised.value)
 
 
+def _renamed_upstream(name: str) -> ProjectIR:
+    """The upstream exporting *name* instead of its own."""
+    documents = dict(fixture_sources(UPSTREAM))
+    documents["exports"] = documents["exports"].replace(f"  name: {NAME}\n", f"  name: {name}\n")
+    return build_project_ir(load_project(documents), catalog=_catalog())
+
+
+def test_dbt_refuses_two_upstreams_exporting_one_project_name() -> None:
+    """dbt resolves a cross-project ``ref()`` by project name and needs each
+    one distinct: two upstreams under one name would be one
+    ``dependencies.yml`` entry and one ``ref()`` target for two producers."""
+    documents = dict(DOWNSTREAM)
+    # Disjoint imports, so the only thing the two upstreams share is the name:
+    # `gross_revenue` crosses from the second alias and from nowhere else.
+    documents["imports"] = documents["imports"].replace(
+        "    metrics: [gross_revenue, order_count]\n",
+        "    metrics: [order_count]\n  second:\n    metrics: [gross_revenue]\n",
+    )
+    assert "second:" in documents["imports"]
+    with pytest.raises(EmitError) as raised:
+        compile_project(
+            load_project(documents),
+            target=Target.DBT,
+            dialect="duckdb",
+            catalog=_catalog(),
+            upstream={ALIAS: _upstream(), "second": _upstream()},
+        )
+    assert f"{NAME!r}" in str(raised.value)
+    assert "distinct" in str(raised.value)
+
+
+def test_dbt_refuses_an_upstream_named_like_this_project() -> None:
+    """The downstream here exports no name and is called ``bloomery``; an
+    upstream exporting that name would be this project to dbt."""
+    with pytest.raises(EmitError) as raised:
+        compile_project(
+            load_project(DOWNSTREAM),
+            target=Target.DBT,
+            dialect="duckdb",
+            catalog=_catalog(),
+            upstream={ALIAS: _renamed_upstream("bloomery")},
+        )
+    assert "this project itself" in str(raised.value)
+
+
 @pytest.mark.parametrize("target", [Target.SQLMESH, Target.CUBE, Target.METRICFLOW])
 def test_no_other_target_asks_for_a_name(target: Target) -> None:
     """SQLMesh names the relation, Cube and MetricFlow read a mart: none of

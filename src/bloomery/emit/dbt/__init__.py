@@ -1606,10 +1606,34 @@ def _dependencies_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact |
     if not ir.upstream:
         return None
 
+    # dbt resolves a cross-project `ref()` by project name, and requires the
+    # names in an account to be distinct: two upstreams exporting one name
+    # would be one `dependencies.yml` entry and one `ref()` target for two
+    # different producers, and an upstream named like this project would be
+    # this project. Refused here, where the identity is used, rather than
+    # emitted as a tree dbt loads and then cannot tell apart.
+    own = ir.exports.name if ir.exports and ir.exports.name else "bloomery"
+    claimed: dict[str, str] = {}
+
+    for up in ir.upstream:
+        name = _upstream_project(up)
+        other = claimed.get(name)
+
+        if other is not None or name == own:
+            holder = f"the alias {other!r}" if other is not None else "this project itself"
+            msg = (
+                f"imports from {up.alias!r}, whose exported dbt project name {name!r} is "
+                f"already the name of {holder}. dbt resolves a cross-project ref() by "
+                f"project name and needs each one distinct. Fix: give the producing "
+                f"projects distinct `name:` entries in their exports documents (S-0002/D-10)"
+            )
+            raise UnsupportedByTarget(msg)
+
+        claimed[name] = up.alias
+
     return EmittedArtifact.create(
         path="dependencies.yml",
-        content=_header(ctx)
-        + _yaml({"projects": [{"name": _upstream_project(up)} for up in ir.upstream]}),
+        content=_header(ctx) + _yaml({"projects": [{"name": name} for name in claimed]}),
         kind=ArtifactKind.CONFIG,
     )
 
