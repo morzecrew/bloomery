@@ -57,6 +57,8 @@ from bloomery.dialects import RedshiftDialect
 from bloomery.emit import ArtifactKind, EmittedArtifact
 from bloomery.errors import BloomeryError
 from bloomery.ir import SCDKind
+from bloomery.ir.lower import canon
+from bloomery.transforms import DEFAULT_REGISTRY
 from bloomery.typing import LogicalType
 
 # ----------------------- #
@@ -555,6 +557,51 @@ def submit_live(conn: psycopg.Connection, sql: str, suffix: str) -> None:
     """One statement to the real engine, inside the scratch transaction."""
 
     conn.execute(to_live(sql, suffix))
+
+
+def live_row(conn: psycopg.Connection, select: str) -> tuple[object, ...]:
+    """The first row of ``select``, as the engine's own values.
+
+    The execution corpus reads values rather than plans, so nothing here
+    canonicalizes or stringifies: a ``DECIMAL`` arrives as a ``Decimal`` and a
+    ``TIMESTAMP`` as a ``datetime``, and a case that expected one and got the
+    other has learned something about the port's physical types.
+    """
+
+    with conn.cursor() as cursor:
+        cursor.execute(select)  # noqa: S608 — the corpus's own rendered SQL
+        row = cursor.fetchone()
+
+    if row is None:  # pragma: no cover — a corpus case selects from no relation
+        msg = f"the engine returned no row for {select}"
+        raise AssertionError(msg)
+
+    return tuple(row)
+
+
+def port_sql(node: exp.Expression) -> str:
+    """One neutral AST as the port renders it — its rewrites, nothing else.
+
+    No canonical round trip, unlike :func:`port_transform`: a dialect method's
+    result is rendered where it is built, and re-parsing it would re-read
+    ``CURRENT_TIMESTAMP`` as SQLGlot's ``GETDATE()`` and change what the case is
+    about.
+    """
+
+    return RedshiftDialect().render(node)
+
+
+def port_transform(
+    transform: str, *args: object, operand: str = "x", input_type: LogicalType | None = None
+) -> str:
+    """One transform over ``operand`` as the port emits it, through the
+    canonical round trip the IR performs at emit (S-0020/D-2) — the same path
+    ``tests/unit/test_dialects/test_redshift.py`` pins offline, here with the
+    engine reading the result."""
+
+    spec = DEFAULT_REGISTRY[transform]
+    extra = {"input_type": input_type} if spec.types else {}
+    return port_sql(canon(spec.builder(exp.column(operand), *args, **extra)).ast())
 
 
 def explain(conn: psycopg.Connection, sql: str, suffix: str, *, verbose: bool = False) -> str:
