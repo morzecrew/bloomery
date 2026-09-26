@@ -148,10 +148,6 @@ def _guardrail_aggregate() -> object:
     return build_project_ir(project, catalog)
 
 
-#: What the dirty-data corpus asks of a port: its `coercible` rules need a
-#: NULL-on-failure cast, and its `normalize` rule needs Unicode normalization.
-_QUALITY_CAPABILITIES = (DialectFeature.TRY_CAST, DialectFeature.UNICODE_NORMALIZE)
-
 #: Every shipped dialect, by name. The registry is deliberately not enumerable
 #: (S-0033/D-56), so the list is written out.
 _SHIPPED_DIALECTS = ("duckdb", "postgres", "redshift", "trino")
@@ -166,9 +162,12 @@ def _quality_corpus_on_every_dialect() -> object:
     the day a port loses a capability and keeps compiling anyway, or gains one
     on paper without the spelling, it stops returning.
 
-    Redshift is the first shipped port to sit on the refusing side: it has
-    `TRY_CAST` and no normalization function at all (S-0015), which is exactly
-    the position the page describes a fourth dialect arriving in.
+    The two halves are not interchangeable, and the refusing arm is keyed
+    accordingly. "No shipped dialect is in that position" is a sentence about
+    the **NULL-on-failure cast**, so a port that lost `TRY_CAST` makes it false
+    — not a refusal this function may accept. What the page does leave open is
+    normalization, and Redshift is the first shipped port to sit there: it has
+    `TRY_CAST` and no normalization function at all (S-0015).
     """
     project, catalog = load_fixture("dirty_corpus")
     compiled = []
@@ -179,14 +178,21 @@ def _quality_corpus_on_every_dialect() -> object:
             compile_project, project, target=Target.SQLMESH, dialect=name, catalog=catalog
         )
 
-        if all(dialect.supports(feature) for feature in _QUALITY_CAPABILITIES):
+        assert dialect.supports(DialectFeature.TRY_CAST), (
+            f"shipped dialect {name!r} has no NULL-on-failure cast, and "
+            "concepts/data-quality.md says no shipped dialect is in that position"
+        )
+
+        if dialect.supports(DialectFeature.UNICODE_NORMALIZE):
             compiled.append(compile_it())
             continue
 
-        # Named, so a refusal for some unrelated reason cannot stand in for the
-        # capability one this arm exists to assert.
-        with pytest.raises(UnsupportedByTarget, match=repr(name)):
+        # Named by the capability, not the dialect alone: a refusal for some
+        # unrelated reason — or about the cast above — cannot stand in for the
+        # normalization one this arm exists to assert.
+        with pytest.raises(UnsupportedByTarget, match="no normalization function") as excinfo:
             compile_it()
+        assert repr(name) in str(excinfo.value)
 
     return compiled
 
