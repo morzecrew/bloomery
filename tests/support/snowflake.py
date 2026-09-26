@@ -52,7 +52,7 @@ import urllib.request
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
@@ -95,6 +95,13 @@ _POLL_INTERVAL = 0.05
 #: truncated rather than refused, because nanoseconds are the emulator's
 #: spelling of a timestamp and six digits is Python's.
 _SUB_SECOND = re.compile(r"(\.\d{6})\d+\Z")
+
+#: A real account hands dates and timestamps over as counts from the epoch
+#: rather than as ISO text; no ISO spelling is digits alone, so the two forms
+#: tell themselves apart.
+_EPOCH_COUNT = re.compile(r"-?\d+(\.\d+)?")
+_EPOCH = date(1970, 1, 1)
+_EPOCH_MOMENT = datetime(1970, 1, 1)  # zoneless, as every timestamp here is
 
 
 @dataclass(frozen=True)
@@ -267,7 +274,11 @@ def _answer(status: int, payload: dict[str, object]) -> Answer:
     assert isinstance(metadata, dict)
     row_type = metadata.get("rowType") or []
     assert isinstance(row_type, list)
-    columns = tuple((str(c["name"]), str(c["type"])) for c in row_type)
+    # The two endpoints spell the same type differently: the emulator names a
+    # column's family `FIXED`, a real account names it `fixed`. One spelling
+    # reaches the lanes, or a guard written against the account's rows silently
+    # stops matching (the D-1 `TIMESTAMP_LTZ` check is exactly such a guard).
+    columns = tuple((str(c["name"]), str(c["type"]).upper()) for c in row_type)
     data = payload.get("data") or []
     assert isinstance(data, list)
     rows = tuple(
@@ -278,13 +289,20 @@ def _answer(status: int, payload: dict[str, object]) -> Answer:
 
 
 def _canonical(value: str | None, type_: str) -> object:
-    """One cell, as the type the emulator declared for its column.
+    """One cell, as the type the endpoint declared for its column.
 
     Every value crosses the SQL API as text, so a lane comparing against
     Python values has to put the types back — and it has to put them back the
     same way every time, or two lanes reading the same column disagree about
     what they read. Decimals stay :class:`~decimal.Decimal` and never become
     floats (S-0020/D-5).
+
+    ``type_`` arrives uppercased by :func:`_answer`, and the two endpoints
+    also disagree about the *values*: the emulator writes a date or a
+    timestamp as ISO text, a real account as a count from the epoch — days for
+    a ``DATE``, seconds with nanoseconds for a ``TIMESTAMP``, followed by the
+    offset in minutes for a ``TIMESTAMP_TZ``. Both forms read back as the same
+    zoneless UTC value, which is the invariant S-0013/D-1 holds the port to.
     """
     if value is None:
         return None
@@ -297,8 +315,19 @@ def _canonical(value: str | None, type_: str) -> object:
     if type_ == "BOOLEAN":
         return value.lower() == "true"
     if type_ == "DATE":
+        if _EPOCH_COUNT.fullmatch(value):
+            return _EPOCH + timedelta(days=int(value))
         return date.fromisoformat(value)
     if type_.startswith("TIMESTAMP"):
+        # A `TIMESTAMP_TZ` carries its offset in minutes after a space; the
+        # seconds before it are already UTC, so the offset is a rendering
+        # instruction and never part of the instant.
+        seconds, _, _offset_minutes = value.partition(" ")
+        if _EPOCH_COUNT.fullmatch(seconds):
+            whole, _, fraction = seconds.partition(".")
+            return _EPOCH_MOMENT + timedelta(
+                seconds=int(whole), microseconds=int(fraction[:6].ljust(6, "0"))
+            )
         return datetime.fromisoformat(_SUB_SECOND.sub(r"\1", value))
     if type_ in {"VARIANT", "OBJECT", "ARRAY"}:
         return json.loads(value)
