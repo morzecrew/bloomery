@@ -49,7 +49,10 @@ def test_get_emitter_returns_the_default() -> None:
 
 
 def test_unknown_target_lists_known_names() -> None:
-    expected = r"unknown target 'looker': known targets are \['cube', 'dbt', 'metricflow', 'sqlmesh'\]"
+    expected = (
+        r"unknown target 'looker': known targets are "
+        r"\['cube', 'dbt', 'metricflow', 'retrieval', 'sqlmesh'\]"
+    )
     with pytest.raises(EmitError, match=expected):
         get_emitter("looker")
 

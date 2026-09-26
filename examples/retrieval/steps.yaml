@@ -1,0 +1,15 @@
+# Wiring only: which step, which version, what it reads and what it writes.
+# The manifest under `step_manifests/` is what declares the `chunk` columns —
+# `run.py` hands it to the compiler as data, because the step registry is a
+# compile input and never something the library loads off disk.
+steps_version: 1
+steps:
+  - use: chunk_and_embed@1
+    inputs: {documents: silver.document}
+    outputs: {chunk: silver.chunk}
+    parameters: {tokens_per_chunk: 512}
+    # The manifest declares `determinism: seeded`, so the wiring has to pin the
+    # seed: an embedding step that batches and shuffles gives two runs two
+    # different corpora otherwise, and a backfill nobody can reproduce is not a
+    # corpus anyone can retrieve from.
+    seed: 20260101

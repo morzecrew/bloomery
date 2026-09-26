@@ -32,6 +32,7 @@ __all__ = [
     "StringType",
     "TimestampType",
     "VariantType",
+    "VectorType",
     "assignable",
     "parse_type",
     "render_type",
@@ -118,7 +119,38 @@ class VariantType:
 # ....................... #
 
 
-LogicalType = StringType | IntType | DecimalType | BoolType | DateType | TimestampType | VariantType
+@dataclass(frozen=True, slots=True)
+class VectorType:
+    """A declared embedding vector: a scalar type **name** and a dimension count
+    (S-0011/D-3, S-0011/D-4).
+
+    The eighth member, and the only one whose existence is the point of a
+    design rather than a detail of it: a retrieval guardrail comparing a field
+    against its semantic space has nothing to compare unless the dimension is
+    in the type.
+
+    ``scalar`` is a name and ``dimensions`` an int, so no ``float`` value is
+    parsed, stored or rendered — the package-wide ban (S-0020/D-5) holds
+    unchanged rather than taking an exemption.
+    """
+
+    scalar: str
+    dimensions: int
+
+
+# ....................... #
+
+
+LogicalType = (
+    StringType
+    | IntType
+    | DecimalType
+    | BoolType
+    | DateType
+    | TimestampType
+    | VariantType
+    | VectorType
+)
 
 _TYPE_RE = re.compile(TYPE_STRING_PATTERN)
 
@@ -144,7 +176,7 @@ def parse_type(text: str, *, source_path: str) -> LogicalType:
     if match is None:
         raise TypeCheckError(
             f"unknown type {text!r}: expected one of string, int, bool, date, "
-            "timestamp, variant, decimal(p, s)",
+            "timestamp, variant, decimal(p, s), vector(scalar, dimensions)",
             source_path=source_path,
         )
 
@@ -152,6 +184,17 @@ def parse_type(text: str, *, source_path: str) -> LogicalType:
 
     if scalar is not None:
         return scalar
+
+    if match.group(3) is not None:
+        dimensions = int(match.group(4))
+
+        if dimensions < 1:
+            raise TypeCheckError(
+                f"invalid type {text!r}: vector dimensions must be >= 1",
+                source_path=source_path,
+            )
+
+        return VectorType(scalar=match.group(3), dimensions=dimensions)
 
     precision, scale = int(match.group(1)), int(match.group(2))
 
@@ -181,7 +224,14 @@ def assignable(actual: LogicalType, declared: LogicalType) -> bool:
     a decimal is assignable to a wider-or-equal declared decimal (both
     ``precision - scale`` and ``scale`` non-decreasing). Narrowing is never
     implicit (S-0021/logical-types-bloomery-typing-types-py).
+
+    A vector is assignable to nothing and from nothing but an identical vector
+    (S-0011/D-4) — not even to ``variant``, which would otherwise launder a
+    declared dimension into the unmapped tail.
     """
+
+    if isinstance(actual, VectorType) or isinstance(declared, VectorType):
+        return actual == declared
 
     if isinstance(declared, VariantType):
         return True
@@ -224,5 +274,8 @@ def render_type(logical: LogicalType) -> str:
 
     if isinstance(logical, DecimalType):
         return f"decimal({logical.precision},{logical.scale})"
+
+    if isinstance(logical, VectorType):
+        return f"vector({logical.scalar},{logical.dimensions})"
 
     return _SCALAR_NAMES[type(logical)]

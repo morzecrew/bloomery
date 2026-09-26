@@ -176,6 +176,38 @@ for dimensions in ((), ("order_date",), ("order_date", "order_customer_id")):
     plan_request = MetricRequest(metrics=("gross_revenue",), dimensions=dimensions)
     covered = resolve_request(plan_ir, plan_request, naming=DefaultNaming())
     print(build_plan(covered, plan_request, plan_metrics, filters=()).serialize())
+
+# The retrieval manifest (S-0011/D-6). Its bytes come out of a pydantic dump
+# walked into a nested dict, with the profiles sorted and every key sorted at
+# serialization — so a hash seed has two ways to reach them, and the inlined
+# space means one authored mapping is written once per profile that claims it.
+#
+# The corpus is the shipped example rather than a fixture, because a retrieval
+# project needs a step registry to have a vector column at all: the example
+# already carries the step manifest that declares one, and a second copy here
+# would be two accounts of one corpus, drifting.
+import yaml
+from bloomery.steps import StepManifest, StepRegistry
+
+retrieval_dir = fixture_dir.parents[2] / "examples" / "retrieval"
+retrieval_sources = {
+    path.name: path.read_text() for path in sorted(retrieval_dir.glob("*.yaml"))
+}
+retrieval_steps = StepRegistry({
+    (manifest.ref, manifest.version): manifest
+    for manifest in (
+        StepManifest.model_validate(yaml.safe_load(path.read_text()))
+        for path in sorted((retrieval_dir / "step_manifests").glob("*.yaml"))
+    )
+})
+for artifact in compile_project(
+    load_project(retrieval_sources),
+    target=Target.RETRIEVAL,
+    dialect="duckdb",
+    steps=retrieval_steps,
+):
+    print(artifact.path, artifact.kind, artifact.checksum)
+    print(artifact.content)
 """
 
 
@@ -310,6 +342,11 @@ def test_output_identical_across_hash_seeds() -> None:
     assert second.returncode == 0, second.stderr
     assert first.stdout == second.stdout
     assert "blm1:" in first.stdout
+    # Controls: a block that stopped producing output would still compare equal,
+    # which is how a determinism guard quietly stops guarding. One marker per
+    # artifact family whose absence would be invisible otherwise.
+    assert "retrieval_manifest.json" in first.stdout, "the retrieval manifest was not compiled"
+    assert '"retrieval_manifest_version": 1' in first.stdout
 
 
 def test_output_identical_whether_or_not_the_target_framework_is_imported() -> None:
