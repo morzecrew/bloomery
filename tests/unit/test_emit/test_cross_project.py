@@ -32,9 +32,15 @@ pytestmark = pytest.mark.unit
 #: The one fixture with an export list, so the only one that can be an upstream.
 UPSTREAM = "ecom_basic"
 
-#: What the downstream calls it. A bloomery project carries no identity of its
-#: own (S-0002/D-2), so the alias is the only name either side agrees on.
+#: What the downstream calls it. The alias keys the compile input and every
+#: resolution (S-0002/D-2), and is nothing dbt can resolve a ``ref()`` against.
 ALIAS = "platform"
+
+#: What the upstream calls *itself* — the one identity a bloomery project
+#: carries, exported by the fixture (S-0002/D-10). Deliberately not the alias:
+#: dbt's cross-project reference names the producer, and a fixture whose export
+#: name matched the alias would let a target spelling the alias pass.
+NAME = "ecom_platform"
 
 DOWNSTREAM = {
     "imports": f"""
@@ -116,11 +122,14 @@ def _artifact(artifacts: tuple[EmittedArtifact, ...], path: str) -> EmittedArtif
 
 def test_dbt_names_an_imported_entity_with_a_two_argument_ref() -> None:
     """dbt's way of naming a relation another project builds (S-0002/D-2):
-    a project component on the call, not a second kind of reference."""
+    a project component on the call, not a second kind of reference — and the
+    component is the upstream's exported name, never the local alias, because
+    that is what dbt resolves against (S-0002/D-10)."""
 
     sql = _artifact(_compile(Target.DBT), "models/gold/mart_lines.sql").content
 
-    assert f"{{{{ ref('{ALIAS}', 'order_item') }}}}" in sql
+    assert f"{{{{ ref('{NAME}', 'order_item') }}}}" in sql
+    assert f"ref('{ALIAS}'" not in sql
     # And the local entity keeps the one-argument form beside it, which is
     # what makes the project component a property of the node rather than of
     # the compile.
@@ -129,12 +138,14 @@ def test_dbt_names_an_imported_entity_with_a_two_argument_ref() -> None:
 
 def test_dbt_declares_the_projects_its_refs_name() -> None:
     """A two-argument ``ref()`` resolves only against ``dependencies.yml``;
-    emitting one without the other is a project dbt refuses to parse."""
+    emitting one without the other is a project dbt refuses to parse. The entry
+    is the upstream's exported name, which is the name the upstream's own
+    ``dbt_project.yml`` carries (S-0002/D-10)."""
 
     artifact = _artifact(_compile(Target.DBT), "dependencies.yml")
 
     assert artifact.kind is ArtifactKind.CONFIG
-    assert yaml.safe_load(artifact.content)["projects"] == [{"name": ALIAS}]
+    assert yaml.safe_load(artifact.content)["projects"] == [{"name": NAME}]
 
 
 def test_dbt_writes_no_dependencies_file_without_imports() -> None:
@@ -269,6 +280,83 @@ def test_dbt_publishes_the_exported_models() -> None:
 
 
 # ....................... #
+# S-0002/D-10: the producer's own name, and the refusal where there is none
+
+
+def _nameless_upstream() -> ProjectIR:
+    """The upstream with its exported name taken away, and nothing else."""
+
+    documents = dict(fixture_sources(UPSTREAM))
+    documents["exports"] = documents["exports"].replace(f"  name: {NAME}\n", "")
+
+    return build_project_ir(load_project(documents), catalog=_catalog())
+
+
+def test_the_dbt_project_is_named_after_its_own_export_name() -> None:
+    """The other side of the two-argument ``ref()``: a downstream naming
+    ``ecom_platform`` resolves only if the upstream's own ``dbt_project.yml``
+    says so — and the ``models:`` block is keyed by the same name, or it
+    governs no model at all."""
+    artifacts = compile_project(
+        load_project(fixture_sources(UPSTREAM)),
+        target=Target.DBT,
+        dialect="duckdb",
+        catalog=_catalog(),
+    )
+    project = yaml.safe_load(_artifact(artifacts, "dbt_project.yml").content)
+
+    assert project["name"] == NAME
+    assert sorted(project["models"][NAME]) == ["gold", "silver"]
+
+
+def test_a_project_exporting_no_name_is_still_called_bloomery() -> None:
+    """A project nothing references across a boundary needs no name of its own,
+    so the scaffold keeps the one every emitted project had."""
+    project = yaml.safe_load(
+        _artifact(_compile(Target.DBT, imports=False), "dbt_project.yml").content
+    )
+
+    assert project["name"] == "bloomery"
+    assert list(project["models"]) == ["bloomery"]
+
+
+def test_dbt_refuses_an_upstream_that_exports_no_name() -> None:
+    """Refused rather than emitted: a ``ref()`` and a ``dependencies.yml``
+    naming the alias resolve only where the upstream's dbt project happens to
+    be called that, and the tree would parse as bloomery output and fail in
+    dbt. The refusal names the alias and the fix, which is upstream."""
+
+    with pytest.raises(EmitError) as raised:
+        compile_project(
+            load_project(DOWNSTREAM),
+            target=Target.DBT,
+            dialect="duckdb",
+            catalog=_catalog(),
+            upstream={ALIAS: _nameless_upstream()},
+        )
+
+    assert f"{ALIAS!r}" in str(raised.value)
+    assert "exports document" in str(raised.value)
+
+
+@pytest.mark.parametrize("target", [Target.SQLMESH, Target.CUBE, Target.METRICFLOW])
+def test_no_other_target_asks_for_a_name(target: Target) -> None:
+    """SQLMesh names the relation, Cube and MetricFlow read a mart: none of
+    them has a cross-project reference, so none of them needs the producer's
+    identity (S-0002/D-10)."""
+
+    artifacts = compile_project(
+        load_project(DOWNSTREAM),
+        target=target,
+        dialect="duckdb",
+        catalog=_catalog(),
+        upstream={ALIAS: _nameless_upstream()},
+    )
+
+    assert artifacts
+
+
+# ....................... #
 # S-0002/D-9: a local declaration that names an imported node is judged with it
 
 
@@ -302,4 +390,4 @@ def test_an_exposure_may_name_an_imported_mart_and_metric() -> None:
     assert exposure["name"] == "revenue_board"
     # The local mart `lines` serves `gross_revenue`, so the metric leg adds it;
     # the imported mart is the two-argument reference.
-    assert exposure["depends_on"] == ["ref('mart_lines')", f"ref('{ALIAS}', 'mart_order_items')"]
+    assert exposure["depends_on"] == [f"ref('{NAME}', 'mart_order_items')", "ref('mart_lines')"]

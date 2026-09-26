@@ -18,6 +18,7 @@ from bloomery.ir import (
     DateDimensionIR,
     DedupeIR,
     DimensionRef,
+    ExportsIR,
     OnFail,
     PartitionSpec,
     ProjectIR,
@@ -231,6 +232,15 @@ def test_the_newest_field_is_appended() -> None:
 
     assert names[-1] == "upstream"
     assert names[-2] == "exports"
+
+
+def test_the_exported_name_is_appended_on_both_nodes_that_carry_it() -> None:
+    """S-0002/D-10's field lands last on each node, under the rule above: both
+    are built positionally nowhere today, and an insertion mid-list is a
+    rebinding no signature change announces."""
+
+    assert [field.name for field in dataclasses.fields(ExportsIR)][-1] == "name"
+    assert [field.name for field in dataclasses.fields(UpstreamIR)][-1] == "name"
 
 
 def test_positional_construction_still_binds_what_it_did() -> None:
