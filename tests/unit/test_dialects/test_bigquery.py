@@ -268,6 +268,20 @@ def test_a_trailing_zulu_marker_is_dropped_before_the_datetime_cast() -> None:
     assert "RTRIM(" in rendered and "'Zz')" in rendered
 
 
+def test_a_cast_past_numerics_bounds_targets_bignumeric() -> None:
+    """SQLGlot drops a decimal cast's parameters here and renders `NUMERIC`,
+    so `to_decimal(30, 0)` became `SAFE_CAST(x AS NUMERIC)` while the column
+    it feeds is `BIGNUMERIC(30, 0)` (S-0014/D-7): a valid 30-digit value came
+    back NULL and was quarantined. The cast's target now follows the column's
+    placement; a declaration `NUMERIC` holds keeps the recorded spelling."""
+    wide = exp.TryCast(this=exp.column("x"), to=exp.DataType.build("DECIMAL(30, 0)"))
+    assert DIALECT.render(wide) == "SAFE_CAST(x AS BIGNUMERIC)"
+    deep = exp.cast(exp.column("x"), exp.DataType.build("DECIMAL(20, 12)"))
+    assert DIALECT.render(deep) == "CAST(x AS BIGNUMERIC)"
+    narrow = exp.TryCast(this=exp.column("x"), to=exp.DataType.build("DECIMAL(12, 4)"))
+    assert "BIGNUMERIC" not in DIALECT.render(narrow)
+
+
 def test_a_tuple_in_subquery_becomes_a_correlated_exists() -> None:
     """GoogleSQL's `IN` takes a single-column subquery, so the replay's
     resolution `UPDATE` — a row-value `IN` every other port accepts — failed

@@ -189,7 +189,11 @@ class BigQueryDialect(SQLGlotDialect):
         lands on ``NUMERIC``'s own scale of 9. The value is exact and the
         declared column type still carries the author's scale
         (:meth:`physical_type`); what is lost is the rounding the cast performs
-        elsewhere. There is no spelling of the cast that keeps it.
+        elsewhere. There is no spelling of the cast that keeps it. What the
+        cast must keep is the *width*: a declaration past ``NUMERIC``'s bounds
+        is cast to ``BIGNUMERIC`` (:func:`_wide_decimal_cast`), or a valid
+        30-digit value would come back NULL from a ``SAFE_CAST`` to the
+        narrower type and be quarantined on its way to a column that holds it.
         """
 
         def utc(at_zone: Expression) -> Expression:
@@ -202,6 +206,7 @@ class BigQueryDialect(SQLGlotDialect):
         # too, but only after every port rewrite has already run.
         rewritten = capture_group(rewritten).transform(_expressible_capture_group)
         rewritten = rewritten.transform(_substr)
+        rewritten = rewritten.transform(_wide_decimal_cast)
         # The replay statements build `CurrentTimestamp` directly to stamp
         # `resolved_at`/`last_evaluated_at`, never through `utc_now`. Here that
         # renders `CURRENT_TIMESTAMP()`, an *instant*, which GoogleSQL refuses
@@ -248,6 +253,45 @@ class BigQueryDialect(SQLGlotDialect):
         """
 
         return cast("Expression", exp.func("CURRENT_DATETIME", exp.Literal.string("UTC")))
+
+
+# ....................... #
+
+
+def _wide_decimal_cast(node: Expression) -> Expression:
+    """A cast to a decimal past ``NUMERIC``'s bounds targets ``BIGNUMERIC``.
+
+    The transform chain builds ``CAST(x AS DECIMAL(P, S))`` and the quality
+    path turns it into a ``TryCast``; SQLGlot's bigquery generator drops the
+    parameters and renders ``NUMERIC``. For a declaration ``NUMERIC`` holds
+    that is the recorded scale loss above and nothing more. For one it does not
+    — ``decimal(30, 0)``, placed on ``BIGNUMERIC(30, 0)`` by
+    :meth:`BigQueryDialect.physical_type` (S-0014/D-7) — a ``SAFE_CAST`` to
+    ``NUMERIC`` returns NULL for a valid 30-digit value, and the quality
+    system quarantines a row the declared column would have taken. The cast's
+    target follows the same placement as the column's type.
+    """
+
+    if not isinstance(node, exp.Cast) or not node.to.is_type(exp.DataType.Type.DECIMAL):
+        return node
+
+    parameters = node.to.expressions
+
+    if len(parameters) != 2:
+        return node
+
+    try:
+        precision, scale = (int(parameter.name) for parameter in parameters)
+    except ValueError:
+        return node
+
+    integer_digits, max_scale = _NUMERIC_BOUNDS
+
+    if scale <= max_scale and precision - scale <= integer_digits:
+        return node
+
+    node.set("to", exp.DataType.build("BIGNUMERIC"))
+    return node
 
 
 # ....................... #
