@@ -1005,6 +1005,33 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../retrieval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Retrieval
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2228,7 +2255,10 @@ entirely on derived facts is sound and entirely undeclared.</p>
 <p class="admonition-title">The target boundary</p>
 <p>SQLMesh, dbt, MetricFlow, Cube and the SQL dialects are compilation or execution
 targets. Their ability to generate executable SQL is not itself a bloomery correctness
-proof. Semantic acceptance happens before target lowering.</p>
+proof. Semantic acceptance happens before target lowering. The <code>retrieval</code> target has
+no consumer on this side of the boundary at all — it emits a manifest no framework
+reads, so nothing downstream of it accepts anything, and no runtime's acceptance of it
+would be evidence either.</p>
 </div>
 <p>That SQLMesh plans your models, or that Cube loads your data model, says those tools
 accepted the syntax. It says nothing about grain, additivity, units or tax basis, because

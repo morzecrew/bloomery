@@ -831,6 +831,33 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/retrieval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Retrieval
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1984,6 +2011,100 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#retrievalset-retrieval_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        RetrievalSet (<code>retrieval_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RetrievalSet (retrieval_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#semanticspace" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        SemanticSpace
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#encoder" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Encoder
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retrievalprofile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        RetrievalProfile
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#corpusrelation" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        CorpusRelation
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vectorside" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        VectorSide
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lexicalside" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        LexicalSide
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Fusion
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2796,6 +2917,100 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#retrievalset-retrieval_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        RetrievalSet (<code>retrieval_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RetrievalSet (retrieval_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#semanticspace" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        SemanticSpace
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#encoder" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Encoder
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retrievalprofile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        RetrievalProfile
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#corpusrelation" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        CorpusRelation
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vectorside" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        VectorSide
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lexicalside" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        LexicalSide
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Fusion
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2868,13 +3083,14 @@
 
 
 <h1 id="spec-schemas">Spec schemas<a class="headerlink" href="#spec-schemas" title="Permanent link">&para;</a></h1>
-<p>Field-by-field reference for the seven spec kinds. Parsing is strict: unknown keys,
+<p>Field-by-field reference for the eight spec kinds. Parsing is strict: unknown keys,
 duplicate YAML keys, and grammar violations are hard <code>SpecParseError</code>s, batched per
 document with a source path per failure. Parse validates shape and grammar only —
 whether references exist is checked at resolution.</p>
 <p>Each project document self-identifies by its version key: <code>spec_version</code> (EntityModel),
 <code>mapping_version</code> (Mapping), <code>metrics_version</code> (MetricSet), <code>marts_version</code> (MartSet),
-<code>steps_version</code> (StepSet), <code>exposures_version</code> (ExposureSet). A project holds exactly one
+<code>steps_version</code> (StepSet), <code>exposures_version</code> (ExposureSet), <code>retrieval_version</code>
+(RetrievalSet). A project holds exactly one
 EntityModel, any number of Mappings, and at most one of every other kind. The Catalog
 (<code>catalog_version</code>) is not part of a project — load it with <code>load_catalog</code> and pass it
 separately.</p>
@@ -2893,8 +3109,8 @@ implement is <strong>refused</strong>, never read as one it does.</p>
 <tbody>
 <tr>
 <td>Type string</td>
-<td><code>string</code>, <code>int</code>, <code>bool</code>, <code>date</code>, <code>timestamp</code>, <code>variant</code>, or <code>decimal(p, s)</code></td>
-<td><code>decimal(12,4)</code></td>
+<td><code>string</code>, <code>int</code>, <code>bool</code>, <code>date</code>, <code>timestamp</code>, <code>variant</code>, <code>decimal(p, s)</code>, or <code>vector(scalar, dimensions)</code></td>
+<td><code>decimal(12,4)</code>, <code>vector(float32, 1536)</code></td>
 </tr>
 <tr>
 <td>Partition spec</td>
@@ -4817,6 +5033,314 @@ source, so the grammar is the second of two locks.</p>
 this wiring binds and that every declared rule says which output it applies to. Whether
 the manifest actually declares that output, that column or that parameter is a resolution
 question — the spec layer has never seen a manifest.</p>
+<h2 id="retrievalset-retrieval_version">RetrievalSet (<code>retrieval_version</code>)<a class="headerlink" href="#retrievalset-retrieval_version" title="Permanent link">&para;</a></h2>
+<p>At most one per project, and optional. A retrieval document declares the <em>logical</em>
+retrieval surface over relations the project already builds: which relation is a corpus,
+which column holds its vectors, what space those vectors live in, and what a query may
+filter on and get back. Nothing is built for one — the artifact is
+<code>retrieval_manifest.json</code>, emitted by the <code>retrieval</code> target — and nothing about one is
+discovered. See <a href="../../concepts/retrieval/">Retrieval</a> for what this is and is not.</p>
+<p><strong>No float appears anywhere in the grammar, and no embedding ever reaches the compiler.</strong>
+A space declares a <em>shape</em> (dimensions, scalar, distance) and an <em>identity</em> (which encoder
+writes the corpus, which reads the query) — the identity is opaque strings compared to
+strings, never resolved against a provider. Fusion is rank-based, so there is no weight to
+tune.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>retrieval_version</code></td>
+<td><code>1</code></td>
+<td>yes</td>
+<td>Document version key</td>
+</tr>
+<tr>
+<td><code>semantic_spaces</code></td>
+<td>map name → SemanticSpace</td>
+<td>yes</td>
+<td>One entry per space; the name is a bare identifier</td>
+</tr>
+<tr>
+<td><code>profiles</code></td>
+<td>map name → RetrievalProfile</td>
+<td>yes</td>
+<td>One entry per retrievable surface</td>
+</tr>
+</tbody>
+</table>
+<h3 id="semanticspace">SemanticSpace<a class="headerlink" href="#semanticspace" title="Permanent link">&para;</a></h3>
+<p>A space is what makes two vectors comparable. Two corpora in one space are searchable
+together; two corpora that merely have the same dimensions are not.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimensions</code></td>
+<td>int, 1..99999</td>
+<td>yes</td>
+<td>Vector length. Must equal the declared length of the profile's vector column</td>
+</tr>
+<tr>
+<td><code>scalar</code></td>
+<td><code>float32</code> / <code>float16</code></td>
+<td>yes</td>
+<td>The element type. Names a width, carries no value — the closed set is what keeps a corpus and a query from disagreeing about one silently</td>
+</tr>
+<tr>
+<td><code>distance</code></td>
+<td><code>cosine</code> / <code>dot</code> / <code>l2</code></td>
+<td>yes</td>
+<td>The metric a runtime scores with. Bloomery computes none of them</td>
+</tr>
+<tr>
+<td><code>document_encoder</code></td>
+<td>Encoder</td>
+<td>yes</td>
+<td>What wrote the corpus. <code>input_kind</code> must be <code>document</code></td>
+</tr>
+<tr>
+<td><code>query_encoder</code></td>
+<td>Encoder</td>
+<td>yes</td>
+<td>What reads a query. <code>input_kind</code> must be <code>query</code></td>
+</tr>
+</tbody>
+</table>
+<p>Both sides are declared because they are two different calls, and a corpus written by one
+model and queried by another is a silently different space. An encoder under
+<code>query_encoder</code> declaring <code>input_kind: document</code> is refused at parse: the document would
+read as symmetric while saying it is not.</p>
+<h3 id="encoder">Encoder<a class="headerlink" href="#encoder" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>family</code></td>
+<td>non-empty string</td>
+<td>yes</td>
+<td>Who provides the model (<code>openai</code>, <code>cohere</code>, a platform's own name)</td>
+</tr>
+<tr>
+<td><code>model</code></td>
+<td>non-empty string</td>
+<td>yes</td>
+<td>Which model. Never resolved — a compile that asked a provider whether a model exists would read the network</td>
+</tr>
+<tr>
+<td><code>input_kind</code></td>
+<td><code>document</code> / <code>query</code></td>
+<td>yes</td>
+<td>Which side of the space this identity belongs to</td>
+</tr>
+</tbody>
+</table>
+<h3 id="retrievalprofile">RetrievalProfile<a class="headerlink" href="#retrievalprofile" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>relation</code></td>
+<td>CorpusRelation</td>
+<td>yes</td>
+<td>The corpus: exactly one of a mart or an entity</td>
+</tr>
+<tr>
+<td><code>grain</code></td>
+<td>list of column names, ≥ 1</td>
+<td>yes</td>
+<td>One row per retrievable item. Must equal the corpus relation's key</td>
+</tr>
+<tr>
+<td><code>vector</code></td>
+<td>VectorSide</td>
+<td>yes</td>
+<td>The dense side</td>
+</tr>
+<tr>
+<td><code>lexical</code></td>
+<td>LexicalSide</td>
+<td>no</td>
+<td>The sparse side. Stands or falls with <code>fusion</code></td>
+</tr>
+<tr>
+<td><code>fusion</code></td>
+<td>Fusion</td>
+<td>no</td>
+<td>How the two rankings combine. Stands or falls with <code>lexical</code></td>
+</tr>
+<tr>
+<td><code>filterable</code></td>
+<td>list of column names</td>
+<td>no (<code>[]</code>)</td>
+<td>Columns a query may restrict on</td>
+</tr>
+<tr>
+<td><code>return</code></td>
+<td>list of column names, ≥ 1</td>
+<td>yes</td>
+<td>The projection. Spelled <code>return</code> in the document and in the manifest</td>
+</tr>
+</tbody>
+</table>
+<h3 id="corpusrelation">CorpusRelation<a class="headerlink" href="#corpusrelation" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mart</code></td>
+<td>mart name</td>
+<td>one of the two</td>
+<td>A gold relation — resolves to <code>gold.mart_&lt;name&gt;</code> under the default naming policy</td>
+</tr>
+<tr>
+<td><code>entity</code></td>
+<td>entity name</td>
+<td>one of the two</td>
+<td>A silver relation — resolves to <code>silver.&lt;name&gt;</code></td>
+</tr>
+</tbody>
+</table>
+<p>Two keys rather than one dotted string, because the two namespaces are separate: a name
+that resolves in both would otherwise be ambiguous, and neither prefix is a namespace a
+runtime can use.</p>
+<h3 id="vectorside">VectorSide<a class="headerlink" href="#vectorside" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>field</code></td>
+<td>column name</td>
+<td>yes</td>
+<td>The corpus column holding the vectors. Must be declared <code>vector(&lt;scalar&gt;, &lt;dimensions&gt;)</code>, matching the space on both</td>
+</tr>
+<tr>
+<td><code>space</code></td>
+<td>space name</td>
+<td>yes</td>
+<td>A space this document declares</td>
+</tr>
+<tr>
+<td><code>producer</code></td>
+<td>Encoder</td>
+<td>no</td>
+<td>What wrote <em>this</em> corpus, where it is worth stating. Refused when it differs from the space's <code>document_encoder</code> — dimensions agreeing is not spaces agreeing</td>
+</tr>
+</tbody>
+</table>
+<h3 id="lexicalside">LexicalSide<a class="headerlink" href="#lexicalside" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fields</code></td>
+<td>list of column names, ≥ 1</td>
+<td>yes</td>
+<td>The text columns a lexical ranking reads. Bloomery does not choose the analyzer, the index or the operator</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fusion">Fusion<a class="headerlink" href="#fusion" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>method</code></td>
+<td><code>rrf</code></td>
+<td>yes</td>
+<td>Reciprocal rank fusion, and only that: a rank-based method needs no score calibration, so there is no weight to author and no float to compare</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><span class="nt">retrieval_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="nt">semantic_spaces</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">chunk_text</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">dimensions</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1536</span>
+<span class="w">    </span><span class="nt">scalar</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">float32</span>
+<span class="w">    </span><span class="nt">distance</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cosine</span>
+<span class="w">    </span><span class="nt">document_encoder</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">family</span><span class="p">:</span><span class="w"> </span><span class="nv">openai</span><span class="p p-Indicator">,</span><span class="nt"> model</span><span class="p">:</span><span class="w"> </span><span class="nv">text-embedding-3-small</span><span class="p p-Indicator">,</span><span class="nt"> input_kind</span><span class="p">:</span><span class="w"> </span><span class="nv">document</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">query_encoder</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">family</span><span class="p">:</span><span class="w"> </span><span class="nv">openai</span><span class="p p-Indicator">,</span><span class="nt"> model</span><span class="p">:</span><span class="w"> </span><span class="nv">text-embedding-3-small</span><span class="p p-Indicator">,</span><span class="nt"> input_kind</span><span class="p">:</span><span class="w"> </span><span class="nv">query</span><span class="p p-Indicator">}</span>
+<span class="nt">profiles</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">chunk_hybrid</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">relation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="nv">chunk</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">chunk_id</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">vector</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">field</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">embedding</span>
+<span class="w">      </span><span class="nt">space</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chunk_text</span>
+<span class="w">      </span><span class="nt">producer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">family</span><span class="p">:</span><span class="w"> </span><span class="nv">openai</span><span class="p p-Indicator">,</span><span class="nt"> model</span><span class="p">:</span><span class="w"> </span><span class="nv">text-embedding-3-small</span><span class="p p-Indicator">,</span><span class="nt"> input_kind</span><span class="p">:</span><span class="w"> </span><span class="nv">document</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">lexical</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">fields</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">body</span><span class="p p-Indicator">]}</span>
+<span class="w">    </span><span class="nt">fusion</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="nv">rrf</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">filterable</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">document_id</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">return</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">chunk_id</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">document_id</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">body</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<p><strong>Where a vector column comes from.</strong> A <code>vector(...)</code> column is assignable only from an
+identical vector and is produced by no transform, so no mapping chain can populate one: it
+arrives from a step's declared output (<code>produces: {embedding: {type: "vector(float32,
+1536)"}}</code>) and nowhere else. Asking a SQL dialect for such a relation is refused —
+<code>UnsupportedByTarget</code>, "no physical type for vector(float32, 1536)" — because a declared
+vector is not a column a warehouse port emits DDL for. The relation is written by the
+platform's step; what bloomery contributes is the contract for querying it.</p>
+<p><strong>Shape versus resolution.</strong> Parse checks the grammar above, that every profile names a
+space this document declares, and that <code>lexical</code>/<code>fusion</code> are both present or both absent.
+Whether the corpus relation exists, whether its vector column is a vector of the right
+length and scalar, whether the grain is the relation's key and whether every named column
+is there are guardrail questions — see
+<a href="../errors/#retrieval-refusals">Retrieval refusals</a>.</p>
 
 
 

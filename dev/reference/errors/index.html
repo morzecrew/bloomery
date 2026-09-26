@@ -831,6 +831,33 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/retrieval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Retrieval
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1616,6 +1643,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#retrieval-refusals" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Retrieval refusals
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-closed-refusal-list" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1908,6 +1946,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Data-quality refusals without their own class
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#retrieval-refusals" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Retrieval refusals
       </span>
     </span>
   </a>
@@ -2569,6 +2618,63 @@ is in force on every target it compiles for.</p>
 and the comparison model; what dbt still refuses is a Tier 3 <code>python_model</code> step, which
 is about the adapters dbt's Python models run on rather than about anything bloomery
 lowers. All of them name the target or dialect that does support the construct.</p>
+<h2 id="retrieval-refusals">Retrieval refusals<a class="headerlink" href="#retrieval-refusals" title="Permanent link">&para;</a></h2>
+<p>A retrieval document declares a surface over relations the project already builds, and six
+guardrails make that declaration mean something. All six raise <code>RetrievalViolation</code>, a
+<code>GuardrailError</code> subclass that lives in <code>bloomery.guardrails.retrieval</code> rather than in
+<code>bloomery.errors</code> — retrieval ships as its own spec kind, nothing outside that module
+raises the class, and promoting it into the exported taxonomy is a decision no design
+authority has taken. Catching <code>GuardrailError</code> catches all of it, and every one arrives
+inside the same batched aggregate, addressed <code>retrieval: profiles.&lt;name&gt;</code>.</p>
+<p>Every disagreement is reported, not the first. A profile is authored as one block and is
+usually got wrong in more than one way at once — a space renamed, its dimensions bumped
+and a column dropped are one edit, and reporting them one at a time would be three round
+trips.</p>
+<table>
+<thead>
+<tr>
+<th>Refusal</th>
+<th>Raised when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dimensions disagree</td>
+<td>The vector field's declared dimensions differ from its space's — a distance over vectors of different lengths cannot be computed at all</td>
+</tr>
+<tr>
+<td>Scalars disagree</td>
+<td>The field's scalar differs from the space's; a <code>float32</code> corpus scored against a <code>float16</code> query is a silently different space, and it returns plausible neighbours while being one</td>
+</tr>
+<tr>
+<td>The field is not a vector</td>
+<td>The profile's <code>vector.field</code> is declared some other type. A field that is not a declared vector carries no dimensions and no scalar, so nothing about the space can be checked against it — "any array will do" is how a corpus comes to hold two models' embeddings</td>
+</tr>
+<tr>
+<td>Producers disagree</td>
+<td>The profile's <code>vector.producer</code> differs from the space's <code>document_encoder</code>. Dimensions agreeing is not spaces agreeing, and this comparison is the <em>only</em> check on an encoder identity: it is two strings, never a lookup against a provider</td>
+</tr>
+<tr>
+<td>Grain is not the relation's key</td>
+<td>The profile's <code>grain</code> differs from the corpus relation's key — for a mart, its base entity's key. One vector per retrievable item, or the corpus is not a corpus: a coarser grain has either duplicated a vector or collapsed several, and both make top-k meaningless</td>
+</tr>
+<tr>
+<td>A named field is absent</td>
+<td>A <code>lexical</code>, <code>filterable</code> or <code>return</code> field — or the vector field itself — the corpus relation does not carry. The message ends on the columns it <em>does</em> carry, capped at eight, because the mistake is usually a column renamed in one document and not the other</td>
+</tr>
+</tbody>
+</table>
+<p>A seventh refusal is about the relation rather than the profile: a profile naming an entity
+or a mart this project does not build declares a surface nothing can serve, and every other
+check on it has nothing to read. It reports the relation and stops there rather than
+cascading five more leaves off one missing name — which is also what a mart that failed its
+own check looks like from here, one leaf in the same batch beside the mart's own.</p>
+<p>What is <em>not</em> here: anything about a vector store, an index, or whether an encoder model
+exists. A declared vector is also not a column a warehouse port emits DDL for, so
+compiling a vector-carrying relation for a SQL target is an <code>UnsupportedByTarget</code> ("no
+physical type for <code>vector(float32, 1536)</code>") rather than a retrieval refusal — the relation
+is written by the platform's step, and what bloomery contributes is the contract for
+querying it. See <a href="../../concepts/retrieval/">Retrieval</a>.</p>
 <h2 id="the-closed-refusal-list">The closed refusal list<a class="headerlink" href="#the-closed-refusal-list" title="Permanent link">&para;</a></h2>
 <p>The <code>UnsupportedFilter</code> family is a <strong>closed, reviewed list</strong> (S-0032), not drift:
 every construct the query vocabulary cannot express was refused deliberately, with a
