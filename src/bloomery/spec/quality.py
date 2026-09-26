@@ -227,6 +227,12 @@ _ESCAPE_REFUSALS: tuple[tuple[str, str], ...] = (
 #: ``{n}``, ``{n,}``, ``{n,m}`` — the portable repetition forms.
 _REPETITION = re.compile(r"\{(\d+)(,(\d+)?)?\}")
 
+#: RE2's ceiling on a repetition bound: ``a{1001}`` is a parse error on every
+#: RE2 engine (DuckDB, Trino, BigQuery), while POSIX ARE and Python take it —
+#: so a pattern the spec layer accepted would compile clean and fail on the
+#: target at run time, which is the failure the subset exists to refuse.
+_RE2_MAX_REPEAT = 1000
+
 _SUBSET = (
     "the subset is literals, character classes, \\d/\\w/\\s and their negations, "
     "the anchors ^ and $, the quantifiers * + ? {n} {n,} {n,m}, alternation, and "
@@ -421,6 +427,13 @@ def _scan_portable(pattern: str) -> None:
             low, high = match.group(1), match.group(3)
             if high is not None and int(high) < int(low):
                 _refuse("inverted repetition", match.group(0), "the minimum exceeds the maximum")
+            if int(low) > _RE2_MAX_REPEAT or (high is not None and int(high) > _RE2_MAX_REPEAT):
+                _refuse(
+                    "repetition count",
+                    match.group(0),
+                    f"RE2 refuses a repetition bound above {_RE2_MAX_REPEAT}, so the pattern "
+                    "would fail on DuckDB, Trino and BigQuery at run time",
+                )
             # `{n}` and `{n,n}` match exactly n — a fixed length, so a body
             # containing only those can be split exactly one way. Anything
             # else varies. Only an *unbounded* outer repetition can blow up.
