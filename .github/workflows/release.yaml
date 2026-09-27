@@ -9,8 +9,30 @@ permissions:
   contents: read
 
 jobs:
+  # First, and everything else waits on it: a tag that is not on `main` runs
+  # nothing here — not the CI it would re-run with the repository's identity
+  # and not the build — the same check `build` repeats before packaging.
+  tag-on-main:
+    name: Ensure the tag is on main
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Ensure release tag is on main
+        run: bash .github/scripts/ensure-tag-on-main.sh
+
   ci:
     name: Run CI before release
+    needs: tag-on-main
     uses: ./.github/workflows/ci.yml
     with:
       force_full: true
@@ -25,11 +47,11 @@ jobs:
       # The called workflow's `bigquery-dry-run` job declares `id-token: write` — Workload
       # Identity Federation mints its token from the job's OIDC identity (S-0014/D-4). The
       # same static check applies: without this grant here the run fails at startup with no
-      # job started, which is how the v0.3.0 tag's first run ended.
+      # job started, which is how the v0.3.0 tag's first run ended. `tag-on-main` above is
+      # what keeps the grant from reaching a commit `main` never carried. No secrets are
+      # passed: the called lanes that need one skip with their stated reason, as they did
+      # on the v0.2.0 tag, and the same commit already ran them on its push to `main`.
       id-token: write
-    # The lanes the tag re-runs under `force_full` read the repository's secrets the way a
-    # push to `main` does; a called workflow sees none unless the caller passes them.
-    secrets: inherit
 
   # S-0042/D-13. The perf lane is informational on the nightly schedule and
   # **blocking here**, and the asymmetry is the decision: `just test` excludes
