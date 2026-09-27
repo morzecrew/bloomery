@@ -16,7 +16,9 @@ from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
 from bloomery.dialects import DatabricksDialect, DialectFeature
+from bloomery.emit.lower.silver import _from_payload
 from bloomery.errors import UnsupportedByTarget
+from bloomery.ir.lower import extraction
 from bloomery.transforms import DIVIDE_MARKER
 from bloomery.typing import (
     BoolType,
@@ -130,6 +132,17 @@ def test_a_neutral_variant_cast_becomes_a_string() -> None:
 def test_render_lowers_neutral_json_extraction_to_the_colon_accessor() -> None:
     node = sqlglot.parse_one("JSON_EXTRACT(payload, '$.a.b')")
     assert DIALECT.render(node) == "payload:a.b"
+
+
+def test_a_lowered_extraction_renders_as_a_path_and_not_as_a_quoted_key() -> None:
+    """The lowering builds the extraction itself rather than parsing one, and a
+    path handed over as a string literal rendered here as ``raw:'$.position'``
+    — a key literally spelled ``$.position``, which the reject table's
+    ``TO_JSON(NAMED_STRUCT(...))`` never writes — so replay read nothing back
+    on this port (T-0136). Both construction sites parse the path now.
+    """
+    assert DIALECT.render(extraction("$.payload.a.b")) == "payload:a.b"
+    assert DIALECT.render(_from_payload(exp.column("position"))) == "raw:position"
 
 
 def test_render_quotes_reserved_relation_names() -> None:

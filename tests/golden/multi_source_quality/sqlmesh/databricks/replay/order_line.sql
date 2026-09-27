@@ -51,78 +51,74 @@ USING (
       ) AS _quality_flags
     FROM (
       SELECT
-        TRY_CAST(raw:'$.properties':gift_note AS STRING) AS gift_note,
-        TRY_CAST(raw:'$.position' AS BIGINT) AS line_no,
-        TRY_CAST(raw:'$.order':id AS STRING) AS order_id,
+        TRY_CAST(raw:properties:gift_note AS STRING) AS gift_note,
+        TRY_CAST(raw:position AS BIGINT) AS line_no,
+        TRY_CAST(raw:order:id AS STRING) AS order_id,
         TRY_CAST(CASE
-          WHEN SUBSTRING(CAST(raw:'$.created_at' AS STRING), 11) LIKE '%+%'
-          OR SUBSTRING(CAST(raw:'$.created_at' AS STRING), 11) LIKE '%-%'
+          WHEN SUBSTRING(CAST(raw:created_at AS STRING), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(raw:created_at AS STRING), 11) LIKE '%-%'
           THEN NULL
-          ELSE REPLACE(REPLACE(CAST(raw:'$.created_at' AS STRING), 'T', ' '), 't', ' ')
+          ELSE REPLACE(REPLACE(CAST(raw:created_at AS STRING), 'T', ' '), 't', ' ')
         END AS TIMESTAMP_NTZ) AS placed_at,
-        TRY_CAST(raw:'$.quantity' AS BIGINT) AS quantity,
-        TRY_CAST(raw:'$.variant':sku AS STRING) AS sku,
-        CASE TRY_CAST(raw:'$.financial_status' AS STRING)
+        TRY_CAST(raw:quantity AS BIGINT) AS quantity,
+        TRY_CAST(raw:variant:sku AS STRING) AS sku,
+        CASE TRY_CAST(raw:financial_status AS STRING)
           WHEN 'pending'
           THEN 'open'
           WHEN 'paid'
           THEN 'closed'
           WHEN 'refunded'
           THEN 'reversed'
-          ELSE TRY_CAST(raw:'$.financial_status' AS STRING)
+          ELSE TRY_CAST(raw:financial_status AS STRING)
         END AS status,
         _ingested_at,
         _load_id,
         _source_row_id,
-        TRY_CAST(raw:'$.properties':gift_note AS STRING) IS NULL
+        TRY_CAST(raw:properties:gift_note AS STRING) IS NULL
         AND (
-          NOT raw:'$.properties':gift_note IS NULL
+          NOT raw:properties:gift_note IS NULL
         ) AS _branch_gift_note_coercible,
-        TRY_CAST(raw:'$.position' AS BIGINT) IS NULL
-        AND (
-          NOT raw:'$.position' IS NULL
+        TRY_CAST(raw:position AS BIGINT) IS NULL AND (
+          NOT raw:position IS NULL
         ) AS _branch_line_no_coercible,
-        TRY_CAST(raw:'$.order':id AS STRING) IS NULL
-        AND (
-          NOT raw:'$.order':id IS NULL
+        TRY_CAST(raw:order:id AS STRING) IS NULL AND (
+          NOT raw:order:id IS NULL
         ) AS _branch_order_id_coercible,
         TRY_CAST(CASE
-          WHEN SUBSTRING(CAST(raw:'$.created_at' AS STRING), 11) LIKE '%+%'
-          OR SUBSTRING(CAST(raw:'$.created_at' AS STRING), 11) LIKE '%-%'
+          WHEN SUBSTRING(CAST(raw:created_at AS STRING), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(raw:created_at AS STRING), 11) LIKE '%-%'
           THEN NULL
-          ELSE REPLACE(REPLACE(CAST(raw:'$.created_at' AS STRING), 'T', ' '), 't', ' ')
+          ELSE REPLACE(REPLACE(CAST(raw:created_at AS STRING), 'T', ' '), 't', ' ')
         END AS TIMESTAMP_NTZ) IS NULL
         AND (
-          NOT raw:'$.created_at' IS NULL
+          NOT raw:created_at IS NULL
         ) AS _branch_placed_at_coercible,
-        TRY_CAST(raw:'$.quantity' AS BIGINT) IS NULL
-        AND (
-          NOT raw:'$.quantity' IS NULL
+        TRY_CAST(raw:quantity AS BIGINT) IS NULL AND (
+          NOT raw:quantity IS NULL
         ) AS _branch_quantity_coercible,
-        TRY_CAST(raw:'$.variant':sku AS STRING) IS NULL
-        AND (
-          NOT raw:'$.variant':sku IS NULL
+        TRY_CAST(raw:variant:sku AS STRING) IS NULL AND (
+          NOT raw:variant:sku IS NULL
         ) AS _branch_sku_coercible,
-        CASE TRY_CAST(raw:'$.financial_status' AS STRING)
+        CASE TRY_CAST(raw:financial_status AS STRING)
           WHEN 'pending'
           THEN 'open'
           WHEN 'paid'
           THEN 'closed'
           WHEN 'refunded'
           THEN 'reversed'
-          ELSE TRY_CAST(raw:'$.financial_status' AS STRING)
+          ELSE TRY_CAST(raw:financial_status AS STRING)
         END IS NULL
         AND (
-          NOT raw:'$.financial_status' IS NULL
+          NOT raw:financial_status IS NULL
         ) AS _branch_status_coercible,
-        NOT CASE TRY_CAST(raw:'$.financial_status' AS STRING)
+        NOT CASE TRY_CAST(raw:financial_status AS STRING)
           WHEN 'pending'
           THEN 'open'
           WHEN 'paid'
           THEN 'closed'
           WHEN 'refunded'
           THEN 'reversed'
-          ELSE TRY_CAST(raw:'$.financial_status' AS STRING)
+          ELSE TRY_CAST(raw:financial_status AS STRING)
         END IN ('closed', 'open', 'reversed') AS _branch_status_in_enum,
         'shopify__order_lines' AS _source
       FROM silver.order_line__reject
@@ -131,67 +127,65 @@ USING (
       UNION ALL
       SELECT
         CAST(NULL AS STRING) AS gift_note,
-        TRY_CAST(raw:'$.item_index' AS BIGINT) AS line_no,
-        TRY_CAST(raw:'$.order_number' AS STRING) AS order_id,
+        TRY_CAST(raw:item_index AS BIGINT) AS line_no,
+        TRY_CAST(raw:order_number AS STRING) AS order_id,
         TRY_CAST(CASE
-          WHEN SUBSTRING(CAST(raw:'$.created' AS STRING), 11) LIKE '%+%'
-          OR SUBSTRING(CAST(raw:'$.created' AS STRING), 11) LIKE '%-%'
+          WHEN SUBSTRING(CAST(raw:created AS STRING), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(raw:created AS STRING), 11) LIKE '%-%'
           THEN NULL
-          ELSE REPLACE(REPLACE(CAST(raw:'$.created' AS STRING), 'T', ' '), 't', ' ')
+          ELSE REPLACE(REPLACE(CAST(raw:created AS STRING), 'T', ' '), 't', ' ')
         END AS TIMESTAMP_NTZ) AS placed_at,
-        TRY_CAST(raw:'$.qty' AS BIGINT) AS quantity,
-        TRY_CAST(raw:'$.product_sku' AS STRING) AS sku,
-        CASE TRY_CAST(raw:'$.state' AS STRING)
+        TRY_CAST(raw:qty AS BIGINT) AS quantity,
+        TRY_CAST(raw:product_sku AS STRING) AS sku,
+        CASE TRY_CAST(raw:state AS STRING)
           WHEN 'PROCESSING'
           THEN 'open'
           WHEN 'COMPLETE'
           THEN 'closed'
-          ELSE TRY_CAST(raw:'$.state' AS STRING)
+          ELSE TRY_CAST(raw:state AS STRING)
         END AS status,
         _ingested_at,
         _load_id,
         _source_row_id,
         FALSE AS _branch_gift_note_coercible,
-        TRY_CAST(raw:'$.item_index' AS BIGINT) IS NULL
-        AND (
-          NOT raw:'$.item_index' IS NULL
+        TRY_CAST(raw:item_index AS BIGINT) IS NULL AND (
+          NOT raw:item_index IS NULL
         ) AS _branch_line_no_coercible,
-        TRY_CAST(raw:'$.order_number' AS STRING) IS NULL
+        TRY_CAST(raw:order_number AS STRING) IS NULL
         AND (
-          NOT raw:'$.order_number' IS NULL
+          NOT raw:order_number IS NULL
         ) AS _branch_order_id_coercible,
         TRY_CAST(CASE
-          WHEN SUBSTRING(CAST(raw:'$.created' AS STRING), 11) LIKE '%+%'
-          OR SUBSTRING(CAST(raw:'$.created' AS STRING), 11) LIKE '%-%'
+          WHEN SUBSTRING(CAST(raw:created AS STRING), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(raw:created AS STRING), 11) LIKE '%-%'
           THEN NULL
-          ELSE REPLACE(REPLACE(CAST(raw:'$.created' AS STRING), 'T', ' '), 't', ' ')
+          ELSE REPLACE(REPLACE(CAST(raw:created AS STRING), 'T', ' '), 't', ' ')
         END AS TIMESTAMP_NTZ) IS NULL
         AND (
-          NOT raw:'$.created' IS NULL
+          NOT raw:created IS NULL
         ) AS _branch_placed_at_coercible,
-        TRY_CAST(raw:'$.qty' AS BIGINT) IS NULL AND (
-          NOT raw:'$.qty' IS NULL
+        TRY_CAST(raw:qty AS BIGINT) IS NULL AND (
+          NOT raw:qty IS NULL
         ) AS _branch_quantity_coercible,
-        TRY_CAST(raw:'$.product_sku' AS STRING) IS NULL
-        AND (
-          NOT raw:'$.product_sku' IS NULL
+        TRY_CAST(raw:product_sku AS STRING) IS NULL AND (
+          NOT raw:product_sku IS NULL
         ) AS _branch_sku_coercible,
-        CASE TRY_CAST(raw:'$.state' AS STRING)
+        CASE TRY_CAST(raw:state AS STRING)
           WHEN 'PROCESSING'
           THEN 'open'
           WHEN 'COMPLETE'
           THEN 'closed'
-          ELSE TRY_CAST(raw:'$.state' AS STRING)
+          ELSE TRY_CAST(raw:state AS STRING)
         END IS NULL
         AND (
-          NOT raw:'$.state' IS NULL
+          NOT raw:state IS NULL
         ) AS _branch_status_coercible,
-        NOT CASE TRY_CAST(raw:'$.state' AS STRING)
+        NOT CASE TRY_CAST(raw:state AS STRING)
           WHEN 'PROCESSING'
           THEN 'open'
           WHEN 'COMPLETE'
           THEN 'closed'
-          ELSE TRY_CAST(raw:'$.state' AS STRING)
+          ELSE TRY_CAST(raw:state AS STRING)
         END IN ('closed', 'open') AS _branch_status_in_enum,
         'woo__order_lines' AS _source
       FROM silver.order_line__reject
@@ -417,78 +411,74 @@ USING (
     ) AS failed_rules
   FROM (
     SELECT
-      TRY_CAST(raw:'$.properties':gift_note AS STRING) AS gift_note,
-      TRY_CAST(raw:'$.position' AS BIGINT) AS line_no,
-      TRY_CAST(raw:'$.order':id AS STRING) AS order_id,
+      TRY_CAST(raw:properties:gift_note AS STRING) AS gift_note,
+      TRY_CAST(raw:position AS BIGINT) AS line_no,
+      TRY_CAST(raw:order:id AS STRING) AS order_id,
       TRY_CAST(CASE
-        WHEN SUBSTRING(CAST(raw:'$.created_at' AS STRING), 11) LIKE '%+%'
-        OR SUBSTRING(CAST(raw:'$.created_at' AS STRING), 11) LIKE '%-%'
+        WHEN SUBSTRING(CAST(raw:created_at AS STRING), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(raw:created_at AS STRING), 11) LIKE '%-%'
         THEN NULL
-        ELSE REPLACE(REPLACE(CAST(raw:'$.created_at' AS STRING), 'T', ' '), 't', ' ')
+        ELSE REPLACE(REPLACE(CAST(raw:created_at AS STRING), 'T', ' '), 't', ' ')
       END AS TIMESTAMP_NTZ) AS placed_at,
-      TRY_CAST(raw:'$.quantity' AS BIGINT) AS quantity,
-      TRY_CAST(raw:'$.variant':sku AS STRING) AS sku,
-      CASE TRY_CAST(raw:'$.financial_status' AS STRING)
+      TRY_CAST(raw:quantity AS BIGINT) AS quantity,
+      TRY_CAST(raw:variant:sku AS STRING) AS sku,
+      CASE TRY_CAST(raw:financial_status AS STRING)
         WHEN 'pending'
         THEN 'open'
         WHEN 'paid'
         THEN 'closed'
         WHEN 'refunded'
         THEN 'reversed'
-        ELSE TRY_CAST(raw:'$.financial_status' AS STRING)
+        ELSE TRY_CAST(raw:financial_status AS STRING)
       END AS status,
       _ingested_at,
       _load_id,
       _source_row_id,
-      TRY_CAST(raw:'$.properties':gift_note AS STRING) IS NULL
+      TRY_CAST(raw:properties:gift_note AS STRING) IS NULL
       AND (
-        NOT raw:'$.properties':gift_note IS NULL
+        NOT raw:properties:gift_note IS NULL
       ) AS _branch_gift_note_coercible,
-      TRY_CAST(raw:'$.position' AS BIGINT) IS NULL
-      AND (
-        NOT raw:'$.position' IS NULL
+      TRY_CAST(raw:position AS BIGINT) IS NULL AND (
+        NOT raw:position IS NULL
       ) AS _branch_line_no_coercible,
-      TRY_CAST(raw:'$.order':id AS STRING) IS NULL
-      AND (
-        NOT raw:'$.order':id IS NULL
+      TRY_CAST(raw:order:id AS STRING) IS NULL AND (
+        NOT raw:order:id IS NULL
       ) AS _branch_order_id_coercible,
       TRY_CAST(CASE
-        WHEN SUBSTRING(CAST(raw:'$.created_at' AS STRING), 11) LIKE '%+%'
-        OR SUBSTRING(CAST(raw:'$.created_at' AS STRING), 11) LIKE '%-%'
+        WHEN SUBSTRING(CAST(raw:created_at AS STRING), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(raw:created_at AS STRING), 11) LIKE '%-%'
         THEN NULL
-        ELSE REPLACE(REPLACE(CAST(raw:'$.created_at' AS STRING), 'T', ' '), 't', ' ')
+        ELSE REPLACE(REPLACE(CAST(raw:created_at AS STRING), 'T', ' '), 't', ' ')
       END AS TIMESTAMP_NTZ) IS NULL
       AND (
-        NOT raw:'$.created_at' IS NULL
+        NOT raw:created_at IS NULL
       ) AS _branch_placed_at_coercible,
-      TRY_CAST(raw:'$.quantity' AS BIGINT) IS NULL
-      AND (
-        NOT raw:'$.quantity' IS NULL
+      TRY_CAST(raw:quantity AS BIGINT) IS NULL AND (
+        NOT raw:quantity IS NULL
       ) AS _branch_quantity_coercible,
-      TRY_CAST(raw:'$.variant':sku AS STRING) IS NULL
-      AND (
-        NOT raw:'$.variant':sku IS NULL
+      TRY_CAST(raw:variant:sku AS STRING) IS NULL AND (
+        NOT raw:variant:sku IS NULL
       ) AS _branch_sku_coercible,
-      CASE TRY_CAST(raw:'$.financial_status' AS STRING)
+      CASE TRY_CAST(raw:financial_status AS STRING)
         WHEN 'pending'
         THEN 'open'
         WHEN 'paid'
         THEN 'closed'
         WHEN 'refunded'
         THEN 'reversed'
-        ELSE TRY_CAST(raw:'$.financial_status' AS STRING)
+        ELSE TRY_CAST(raw:financial_status AS STRING)
       END IS NULL
       AND (
-        NOT raw:'$.financial_status' IS NULL
+        NOT raw:financial_status IS NULL
       ) AS _branch_status_coercible,
-      NOT CASE TRY_CAST(raw:'$.financial_status' AS STRING)
+      NOT CASE TRY_CAST(raw:financial_status AS STRING)
         WHEN 'pending'
         THEN 'open'
         WHEN 'paid'
         THEN 'closed'
         WHEN 'refunded'
         THEN 'reversed'
-        ELSE TRY_CAST(raw:'$.financial_status' AS STRING)
+        ELSE TRY_CAST(raw:financial_status AS STRING)
       END IN ('closed', 'open', 'reversed') AS _branch_status_in_enum,
       'shopify__order_lines' AS _source
     FROM silver.order_line__reject
@@ -497,67 +487,65 @@ USING (
     UNION ALL
     SELECT
       CAST(NULL AS STRING) AS gift_note,
-      TRY_CAST(raw:'$.item_index' AS BIGINT) AS line_no,
-      TRY_CAST(raw:'$.order_number' AS STRING) AS order_id,
+      TRY_CAST(raw:item_index AS BIGINT) AS line_no,
+      TRY_CAST(raw:order_number AS STRING) AS order_id,
       TRY_CAST(CASE
-        WHEN SUBSTRING(CAST(raw:'$.created' AS STRING), 11) LIKE '%+%'
-        OR SUBSTRING(CAST(raw:'$.created' AS STRING), 11) LIKE '%-%'
+        WHEN SUBSTRING(CAST(raw:created AS STRING), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(raw:created AS STRING), 11) LIKE '%-%'
         THEN NULL
-        ELSE REPLACE(REPLACE(CAST(raw:'$.created' AS STRING), 'T', ' '), 't', ' ')
+        ELSE REPLACE(REPLACE(CAST(raw:created AS STRING), 'T', ' '), 't', ' ')
       END AS TIMESTAMP_NTZ) AS placed_at,
-      TRY_CAST(raw:'$.qty' AS BIGINT) AS quantity,
-      TRY_CAST(raw:'$.product_sku' AS STRING) AS sku,
-      CASE TRY_CAST(raw:'$.state' AS STRING)
+      TRY_CAST(raw:qty AS BIGINT) AS quantity,
+      TRY_CAST(raw:product_sku AS STRING) AS sku,
+      CASE TRY_CAST(raw:state AS STRING)
         WHEN 'PROCESSING'
         THEN 'open'
         WHEN 'COMPLETE'
         THEN 'closed'
-        ELSE TRY_CAST(raw:'$.state' AS STRING)
+        ELSE TRY_CAST(raw:state AS STRING)
       END AS status,
       _ingested_at,
       _load_id,
       _source_row_id,
       FALSE AS _branch_gift_note_coercible,
-      TRY_CAST(raw:'$.item_index' AS BIGINT) IS NULL
-      AND (
-        NOT raw:'$.item_index' IS NULL
+      TRY_CAST(raw:item_index AS BIGINT) IS NULL AND (
+        NOT raw:item_index IS NULL
       ) AS _branch_line_no_coercible,
-      TRY_CAST(raw:'$.order_number' AS STRING) IS NULL
+      TRY_CAST(raw:order_number AS STRING) IS NULL
       AND (
-        NOT raw:'$.order_number' IS NULL
+        NOT raw:order_number IS NULL
       ) AS _branch_order_id_coercible,
       TRY_CAST(CASE
-        WHEN SUBSTRING(CAST(raw:'$.created' AS STRING), 11) LIKE '%+%'
-        OR SUBSTRING(CAST(raw:'$.created' AS STRING), 11) LIKE '%-%'
+        WHEN SUBSTRING(CAST(raw:created AS STRING), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(raw:created AS STRING), 11) LIKE '%-%'
         THEN NULL
-        ELSE REPLACE(REPLACE(CAST(raw:'$.created' AS STRING), 'T', ' '), 't', ' ')
+        ELSE REPLACE(REPLACE(CAST(raw:created AS STRING), 'T', ' '), 't', ' ')
       END AS TIMESTAMP_NTZ) IS NULL
       AND (
-        NOT raw:'$.created' IS NULL
+        NOT raw:created IS NULL
       ) AS _branch_placed_at_coercible,
-      TRY_CAST(raw:'$.qty' AS BIGINT) IS NULL AND (
-        NOT raw:'$.qty' IS NULL
+      TRY_CAST(raw:qty AS BIGINT) IS NULL AND (
+        NOT raw:qty IS NULL
       ) AS _branch_quantity_coercible,
-      TRY_CAST(raw:'$.product_sku' AS STRING) IS NULL
-      AND (
-        NOT raw:'$.product_sku' IS NULL
+      TRY_CAST(raw:product_sku AS STRING) IS NULL AND (
+        NOT raw:product_sku IS NULL
       ) AS _branch_sku_coercible,
-      CASE TRY_CAST(raw:'$.state' AS STRING)
+      CASE TRY_CAST(raw:state AS STRING)
         WHEN 'PROCESSING'
         THEN 'open'
         WHEN 'COMPLETE'
         THEN 'closed'
-        ELSE TRY_CAST(raw:'$.state' AS STRING)
+        ELSE TRY_CAST(raw:state AS STRING)
       END IS NULL
       AND (
-        NOT raw:'$.state' IS NULL
+        NOT raw:state IS NULL
       ) AS _branch_status_coercible,
-      NOT CASE TRY_CAST(raw:'$.state' AS STRING)
+      NOT CASE TRY_CAST(raw:state AS STRING)
         WHEN 'PROCESSING'
         THEN 'open'
         WHEN 'COMPLETE'
         THEN 'closed'
-        ELSE TRY_CAST(raw:'$.state' AS STRING)
+        ELSE TRY_CAST(raw:state AS STRING)
       END IN ('closed', 'open') AS _branch_status_in_enum,
       'woo__order_lines' AS _source
     FROM silver.order_line__reject
