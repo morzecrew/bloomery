@@ -40,6 +40,7 @@ from support.dirty import (
     FLAGGED,
     KEPT,
     QUARANTINED,
+    UNDECIDABLE_UNICODE,
     audits_of,
     build_corpus,
     cases,
@@ -78,24 +79,6 @@ FAMILIES: dict[str, str] = {
     "dirty_integer_extreme": "extremes.csv",
     "dirty_timestamp_extreme": "extremes.csv",
     "dirty_text_extreme": "extremes.csv",
-}
-
-#: The unicode specimens no v1 rule decides, with the reason each is beyond a
-#: rule's reach — ``{case: why}``. D26 recorded the whole family as
-#: unassertable; D86's ``normalize`` and ``charset`` rules left exactly these
-#: two, and neither is a gap a *bigger character set* would close.
-#:
-#: Named here rather than dropped from :data:`FAMILIES`, so the exclusion is
-#: reviewable, has to be argued for, and shrinks visibly in a diff.
-UNDECIDABLE_UNICODE: dict[str, str] = {
-    # `emoji_zwj_sequence` needs U+200D and `zero_width_joiner` must not have
-    # it. Same codepoint, opposite verdicts: what separates them is what sits
-    # on either side, which is not a property of the character.
-    "zero_width_joiner": "the joiner's legitimacy is contextual, not a set membership",
-    # A combining acute with no base character. The value is well-formed, in
-    # NFC, and holds no forbidden character — what is wrong with it is *where*
-    # the mark sits, which neither a normal form nor a character set can see.
-    "combining_mark_alone": "a mark with no base is a positional property, not a value one",
 }
 
 #: ``_expected``'s own vocabulary for "the row survives with its fk rewritten
