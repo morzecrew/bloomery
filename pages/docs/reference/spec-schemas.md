@@ -1,6 +1,6 @@
 # Spec schemas
 
-Field-by-field reference for the eight spec kinds. Parsing is strict: unknown keys,
+Field-by-field reference for eight of the ten spec kinds; the two composition documents, `exports_version` and `imports_version`, are described where they are consumed, under [Composing across projects](../how-to/emit-dbt.md#composing-across-projects). Parsing is strict: unknown keys,
 duplicate YAML keys, and grammar violations are hard `SpecParseError`s, batched per
 document with a source path per failure. Parse validates shape and grammar only —
 whether references exist is checked at resolution.
@@ -8,7 +8,7 @@ whether references exist is checked at resolution.
 Each project document self-identifies by its version key: `spec_version` (EntityModel),
 `mapping_version` (Mapping), `metrics_version` (MetricSet), `marts_version` (MartSet),
 `steps_version` (StepSet), `exposures_version` (ExposureSet), `retrieval_version`
-(RetrievalSet). A project holds exactly one
+(RetrievalSpec). A project holds exactly one
 EntityModel, any number of Mappings, and at most one of every other kind. The Catalog
 (`catalog_version`) is not part of a project — load it with `load_catalog` and pass it
 separately.
@@ -786,7 +786,7 @@ this wiring binds and that every declared rule says which output it applies to. 
 the manifest actually declares that output, that column or that parameter is a resolution
 question — the spec layer has never seen a manifest.
 
-## RetrievalSet (`retrieval_version`)
+## RetrievalSpec (`retrieval_version`)
 
 At most one per project, and optional. A retrieval document declares the *logical*
 retrieval surface over relations the project already builds: which relation is a corpus,

@@ -15,7 +15,7 @@ uv run python examples/retrieval/run.py
 | `mapping_documents.yaml` | Mapping | How the `cms__documents` bronze source becomes `document` |
 | `steps.yaml` | StepSet | The wiring for `chunk_and_embed@1` — inputs, outputs, parameters, seed |
 | `marts.yaml` | MartSet | One wide mart at chunk grain, with a `published` date role |
-| `retrieval.yaml` | RetrievalSet | One semantic space and two profiles over the corpus |
+| `retrieval.yaml` | RetrievalSpec | One semantic space and two profiles over the corpus |
 | `step_manifests/chunk_and_embed.yaml` | StepManifest (data) | The step's contract, including the `vector(float32, 1536)` column |
 
 The `chunk` entity is in no entity model. It is produced by the step, and its

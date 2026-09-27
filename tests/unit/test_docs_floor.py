@@ -150,7 +150,7 @@ def _guardrail_aggregate() -> object:
 
 #: Every shipped dialect, by name. The registry is deliberately not enumerable
 #: (S-0033/D-56), so the list is written out.
-_SHIPPED_DIALECTS = ("duckdb", "postgres", "redshift", "trino")
+_SHIPPED_DIALECTS = ("bigquery", "databricks", "duckdb", "postgres", "redshift", "snowflake", "trino")
 
 
 def _quality_corpus_on_every_dialect() -> object:

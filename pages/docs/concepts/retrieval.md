@@ -229,15 +229,15 @@ this version of the kind is what it is:
   lexical side: a store needs a sparse model to build that side at all, and whichever it
   picks, nothing compares it to the one the corpus was written with.
 
-And one place the contract is honoured to different precision: a `float64` space is a
-`DOUBLE` in SQL and, in a store with no `float64` storage type, `float32`. `scalar` is an
-exact contract for one consumer and a best effort for the other.
+And one place the contract is honoured to different precision: `scalar` names `float32`
+or `float16`, and a store with no storage type for the one named keeps the other. `scalar`
+is an exact contract for one consumer and a best effort for the other.
 
 ## Where to look next
 
 - `examples/retrieval/` — a document-chunk corpus compiled to its manifest, the six
   refusals as six edits you can make, and the two consumers that disagreed
-- [Spec schemas](../reference/spec-schemas.md) — the `RetrievalSet` grammar, field by
+- [Spec schemas](../reference/spec-schemas.md) — the `RetrievalSpec` grammar, field by
   field
 - [Retrieval refusals](../reference/errors.md#retrieval-refusals) — what each guardrail
   says and why

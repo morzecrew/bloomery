@@ -965,7 +965,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     schema_parser = commands.add_parser("schema", help="emit the JSON Schema for the spec kinds")
     schema_parser.add_argument(
-        "--kind", choices=[kind.value for kind in SpecKind], help="one kind (default: all six)"
+        "--kind", choices=[kind.value for kind in SpecKind], help="one kind (default: every kind)"
     )
     schema_parser.add_argument("--out", help="write one file per kind here")
     schema_parser.set_defaults(run=_schema)

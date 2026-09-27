@@ -206,9 +206,10 @@ bloomery's dbt emitter, not a gap in dbt.
 
 Two constructs are refused, and they are unrelated to each other:
 
-- **Tier 3 Python steps** — dbt's Python models run only on Snowflake, BigQuery and
-  Databricks, and none of those is a bloomery dialect. Not a quality question, and not
-  one that closes while those are the dialects.
+- **Tier 3 Python steps** — dbt's Python models are executed by the adapter of
+  Snowflake, BigQuery or Databricks, and bloomery emits no Python-model wrapper for them:
+  a port renders SQL text, and nothing runs a Python model on its behalf. Not a quality
+  question.
 - **`on_fail: quarantine` on a *step output*** — refused on **every** target, SQLMesh
   included: a step output has no ingestion-metadata key to build a reject table from, and
   a `steps:` wiring has no `quarantine:` block to state retention in. It shares a word
