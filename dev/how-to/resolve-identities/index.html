@@ -2181,8 +2181,9 @@ imports of your code, no execution. bloomery emits a wrapper that imports your e
 at run time, and the engine runs it. That is why a spec cannot become an
 arbitrary-code-execution surface: the property comes from the <em>absence</em> of a surface, not
 from validating one.</p>
-<p><strong>The dbt target refuses this project.</strong> dbt's Python models run on Snowflake, BigQuery
-and Databricks, and none of bloomery's dialects is one of those. An identity resolver is
+<p><strong>The dbt target refuses this project.</strong> dbt's Python models are executed by the adapter
+of Snowflake, BigQuery or Databricks, and bloomery emits no Python-model wrapper for them.
+An identity resolver is
 Tier 3 by construction, so this pattern is SQLMesh-only. Cube serves the marts over the
 resolved entity like any other — it builds no relation and is asked nothing about steps.</p>
 <p><strong>The matching is yours.</strong> The step in bloomery's fixture corpus is a <em>demonstration</em>:

@@ -2390,9 +2390,10 @@ still partial, and singular tests did not change that</strong> — what they clo
 bloomery's dbt emitter, not a gap in dbt.</p>
 <p>Two constructs are refused, and they are unrelated to each other:</p>
 <ul>
-<li><strong>Tier 3 Python steps</strong> — dbt's Python models run only on Snowflake, BigQuery and
-  Databricks, and none of those is a bloomery dialect. Not a quality question, and not
-  one that closes while those are the dialects.</li>
+<li><strong>Tier 3 Python steps</strong> — dbt's Python models are executed by the adapter of
+  Snowflake, BigQuery or Databricks, and bloomery emits no Python-model wrapper for them:
+  a port renders SQL text, and nothing runs a Python model on its behalf. Not a quality
+  question.</li>
 <li><strong><code>on_fail: quarantine</code> on a <em>step output</em></strong> — refused on <strong>every</strong> target, SQLMesh
   included: a step output has no ingestion-metadata key to build a reject table from, and
   a <code>steps:</code> wiring has no <code>quarantine:</code> block to state retention in. It shares a word

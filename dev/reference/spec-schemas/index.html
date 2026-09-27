@@ -2012,15 +2012,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#retrievalset-retrieval_version" class="md-nav__link">
+  <a href="#retrievalspec-retrieval_version" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        RetrievalSet (<code>retrieval_version</code>)
+        RetrievalSpec (<code>retrieval_version</code>)
       </span>
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="RetrievalSet (retrieval_version)">
+    <nav class="md-nav" aria-label="RetrievalSpec (retrieval_version)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2918,15 +2918,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#retrievalset-retrieval_version" class="md-nav__link">
+  <a href="#retrievalspec-retrieval_version" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        RetrievalSet (<code>retrieval_version</code>)
+        RetrievalSpec (<code>retrieval_version</code>)
       </span>
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="RetrievalSet (retrieval_version)">
+    <nav class="md-nav" aria-label="RetrievalSpec (retrieval_version)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -3083,14 +3083,14 @@
 
 
 <h1 id="spec-schemas">Spec schemas<a class="headerlink" href="#spec-schemas" title="Permanent link">&para;</a></h1>
-<p>Field-by-field reference for the eight spec kinds. Parsing is strict: unknown keys,
+<p>Field-by-field reference for eight of the ten spec kinds; the two composition documents, <code>exports_version</code> and <code>imports_version</code>, are described where they are consumed, under <a href="../../how-to/emit-dbt/#composing-across-projects">Composing across projects</a>. Parsing is strict: unknown keys,
 duplicate YAML keys, and grammar violations are hard <code>SpecParseError</code>s, batched per
 document with a source path per failure. Parse validates shape and grammar only —
 whether references exist is checked at resolution.</p>
 <p>Each project document self-identifies by its version key: <code>spec_version</code> (EntityModel),
 <code>mapping_version</code> (Mapping), <code>metrics_version</code> (MetricSet), <code>marts_version</code> (MartSet),
 <code>steps_version</code> (StepSet), <code>exposures_version</code> (ExposureSet), <code>retrieval_version</code>
-(RetrievalSet). A project holds exactly one
+(RetrievalSpec). A project holds exactly one
 EntityModel, any number of Mappings, and at most one of every other kind. The Catalog
 (<code>catalog_version</code>) is not part of a project — load it with <code>load_catalog</code> and pass it
 separately.</p>
@@ -5033,7 +5033,7 @@ source, so the grammar is the second of two locks.</p>
 this wiring binds and that every declared rule says which output it applies to. Whether
 the manifest actually declares that output, that column or that parameter is a resolution
 question — the spec layer has never seen a manifest.</p>
-<h2 id="retrievalset-retrieval_version">RetrievalSet (<code>retrieval_version</code>)<a class="headerlink" href="#retrievalset-retrieval_version" title="Permanent link">&para;</a></h2>
+<h2 id="retrievalspec-retrieval_version">RetrievalSpec (<code>retrieval_version</code>)<a class="headerlink" href="#retrievalspec-retrieval_version" title="Permanent link">&para;</a></h2>
 <p>At most one per project, and optional. A retrieval document declares the <em>logical</em>
 retrieval surface over relations the project already builds: which relation is a corpus,
 which column holds its vectors, what space those vectors live in, and what a query may

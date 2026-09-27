@@ -2097,9 +2097,9 @@
 
 
 <h1 id="dialects">Dialects<a class="headerlink" href="#dialects" title="Permanent link">&para;</a></h1>
-<p>Five SQL dialects ship — <code>duckdb</code>, <code>postgres</code>, <code>redshift</code>, <code>snowflake</code>, <code>trino</code> — and every
-emitter renders through the same port, so the choice of dialect is independent of the
-choice of target.</p>
+<p>Seven SQL dialects ship — <code>bigquery</code>, <code>databricks</code>, <code>duckdb</code>, <code>postgres</code>, <code>redshift</code>,
+<code>snowflake</code>, <code>trino</code> — and every emitter renders through the same port, so the choice of
+dialect is independent of the choice of target.</p>
 <h2 id="shipped-dialects">Shipped dialects<a class="headerlink" href="#shipped-dialects" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2133,11 +2133,21 @@ choice of target.</p>
 <tr>
 <td><code>snowflake</code></td>
 <td><code>SnowflakeDialect</code></td>
-<td>The first cloud port; held by offline rungs until its compile and execution lanes land — see below</td>
+<td>The first cloud port; <code>timestamp</code> is <code>TIMESTAMP_NTZ</code> by name and every current instant is <code>SYSDATE()</code> — see below</td>
+</tr>
+<tr>
+<td><code>bigquery</code></td>
+<td><code>BigQueryDialect</code></td>
+<td><code>timestamp</code> is <code>DATETIME</code>, never the instant type; <code>decimal</code> lands on <code>NUMERIC</code> or <code>BIGNUMERIC</code> by its bounds; declares every capability</td>
+</tr>
+<tr>
+<td><code>databricks</code></td>
+<td><code>DatabricksDialect</code></td>
+<td>Databricks SQL and nothing else — the port renders text and runs no Spark; <code>variant</code> is <code>STRING</code>, and there is no transaction</td>
 </tr>
 </tbody>
 </table>
-<p>Passing any other name is an <code>EmitError</code> naming the four. A fifth port is a
+<p>Passing any other name is an <code>EmitError</code> naming the seven. An eighth port is a
 <code>register_dialect()</code> call away — the port protocol is public, and the capability flags
 below exist so a new one refuses what it cannot express instead of approximating it.</p>
 <h2 id="physical-types">Physical types<a class="headerlink" href="#physical-types" title="Permanent link">&para;</a></h2>
@@ -2148,9 +2158,11 @@ below exist so a new one refuses what it cannot express instead of approximating
 <th>Logical</th>
 <th><code>duckdb</code></th>
 <th><code>postgres</code></th>
-<th><code>redshift</code></th>
 <th><code>trino</code></th>
+<th><code>redshift</code></th>
 <th><code>snowflake</code></th>
+<th><code>bigquery</code></th>
+<th><code>databricks</code></th>
 </tr>
 </thead>
 <tbody>
@@ -2158,9 +2170,11 @@ below exist so a new one refuses what it cannot express instead of approximating
 <td><code>string</code></td>
 <td><code>VARCHAR</code></td>
 <td><code>TEXT</code></td>
+<td><code>VARCHAR</code></td>
 <td><code>VARCHAR(MAX)</code></td>
 <td><code>VARCHAR</code></td>
-<td><code>VARCHAR</code></td>
+<td><code>STRING</code></td>
+<td><code>STRING</code></td>
 </tr>
 <tr>
 <td><code>int</code></td>
@@ -2169,6 +2183,8 @@ below exist so a new one refuses what it cannot express instead of approximating
 <td><code>BIGINT</code></td>
 <td><code>BIGINT</code></td>
 <td><code>NUMBER(38, 0)</code></td>
+<td><code>INT64</code></td>
+<td><code>BIGINT</code></td>
 </tr>
 <tr>
 <td><code>decimal(p,s)</code></td>
@@ -2176,6 +2192,8 @@ below exist so a new one refuses what it cannot express instead of approximating
 <td><code>DECIMAL(p, s)</code></td>
 <td><code>DECIMAL(p, s)</code></td>
 <td><code>DECIMAL(p, s)</code></td>
+<td><code>DECIMAL(p, s)</code>, <code>p</code> at most 38</td>
+<td><code>NUMERIC(p, s)</code> while <code>s</code> ≤ 9 and <code>p − s</code> ≤ 29, else <code>BIGNUMERIC(p, s)</code> while <code>s</code> ≤ 38 and <code>p − s</code> ≤ 38; refused past both</td>
 <td><code>DECIMAL(p, s)</code>, <code>p</code> at most 38</td>
 </tr>
 <tr>
@@ -2185,9 +2203,13 @@ below exist so a new one refuses what it cannot express instead of approximating
 <td><code>BOOLEAN</code></td>
 <td><code>BOOLEAN</code></td>
 <td><code>BOOLEAN</code></td>
+<td><code>BOOL</code></td>
+<td><code>BOOLEAN</code></td>
 </tr>
 <tr>
 <td><code>date</code></td>
+<td><code>DATE</code></td>
+<td><code>DATE</code></td>
 <td><code>DATE</code></td>
 <td><code>DATE</code></td>
 <td><code>DATE</code></td>
@@ -2201,14 +2223,18 @@ below exist so a new one refuses what it cannot express instead of approximating
 <td><code>TIMESTAMP</code></td>
 <td><code>TIMESTAMP</code></td>
 <td><code>TIMESTAMP_NTZ</code></td>
+<td><code>DATETIME</code></td>
+<td><code>TIMESTAMP_NTZ</code></td>
 </tr>
 <tr>
 <td><code>variant</code></td>
 <td><code>JSON</code></td>
 <td><code>JSONB</code></td>
-<td><code>SUPER</code></td>
 <td><code>JSON</code></td>
+<td><code>SUPER</code></td>
 <td><code>VARIANT</code></td>
+<td><code>JSON</code></td>
+<td><code>STRING</code></td>
 </tr>
 </tbody>
 </table>
@@ -2224,14 +2250,28 @@ engine has no wider fixed-point type to fall back to. And <code>timestamp</code>
 <code>TIMESTAMP_NTZ</code> explicitly, never bare <code>TIMESTAMP</code>, which on Snowflake is an alias an
 account or a session may point at the session-zoned <code>TIMESTAMP_LTZ</code> — the one type the
 always-UTC zoneless <code>timestamp</code> must never become.</p>
+<p>BigQuery's <code>timestamp</code> is <code>DATETIME</code>, chosen rather than inherited: GoogleSQL's <code>TIMESTAMP</code>
+is an instant, read and written through a zone, and <code>DATETIME</code> is the zoneless wall clock
+the always-UTC <code>timestamp</code> is defined as. Its <code>decimal</code> is placed by the declaration's
+<em>integer</em> digits, <code>p − s</code>, and not by <code>p</code> alone, because GoogleSQL bounds a parameterized
+type's precision relative to its scale: <code>decimal(38, 9)</code> fits <code>NUMERIC</code>, <code>decimal(30, 0)</code>
+does not and lands on <code>BIGNUMERIC</code>, and a declaration past both bounds is refused rather
+than widened into a type other than the one declared. Databricks spells <code>timestamp</code>
+<code>TIMESTAMP_NTZ</code> for Snowflake's reason — its bare <code>TIMESTAMP</code> is session-zoned — and has no
+JSON column type, so <code>variant</code> is <code>STRING</code> and its reads take the colon accessor,
+<code>payload:shipping.country</code>.</p>
+<p>The eighth logical type, <code>vector(scalar, dimensions)</code>, has no physical spelling on any
+port and is refused by name: a vector column belongs to a retrieval target, not to a
+warehouse's DDL (see <a href="../../concepts/retrieval/">Retrieval</a>).</p>
 <p>There are no floats in the type system, and a <code>decimal</code> stays exact end to end — with one
 named exception, <code>divide</code> on DuckDB, which that engine cannot express exactly. It is
 described below rather than left to be discovered.</p>
 <h2 id="where-the-ports-spell-things-differently">Where the ports spell things differently<a class="headerlink" href="#where-the-ports-spell-things-differently" title="Permanent link">&para;</a></h2>
-<p>DuckDB, Postgres and Trino declare every capability, so nothing in their columns is a
-feature gap. <code>redshift</code> withholds three and <code>snowflake</code> one — Unicode normalization,
-which neither engine has under any name, so a <code>normalize</code> rule is refused at emit rather
-than rendered as a call the engine never defined — and the cells they refuse are marked.
+<p>DuckDB, Postgres, Trino and BigQuery declare every capability, so nothing in their
+columns is a feature gap. <code>redshift</code> withholds three, and <code>snowflake</code> and <code>databricks</code> one
+each — Unicode normalization, which none of the three engines has under any name, so a
+<code>normalize</code> rule is refused at emit rather than rendered as a call the engine never
+defined — and the cells they refuse are marked.
 These are the places one engine needs different SQL for the same meaning, and the port
 supplies it — the reason a spec compiles to different text without meaning anything
 different.</p>
@@ -2241,9 +2281,11 @@ different.</p>
 <th>Construct</th>
 <th><code>duckdb</code></th>
 <th><code>postgres</code></th>
-<th><code>redshift</code></th>
 <th><code>trino</code></th>
+<th><code>redshift</code></th>
 <th><code>snowflake</code></th>
+<th><code>bigquery</code></th>
+<th><code>databricks</code></th>
 </tr>
 </thead>
 <tbody>
@@ -2251,31 +2293,39 @@ different.</p>
 <td>Zone interpretation (<code>to_utc</code>)</td>
 <td><code>x AT TIME ZONE 'Europe/Berlin' AT TIME ZONE 'UTC'</code></td>
 <td>same as DuckDB</td>
-<td><code>CONVERT_TIMEZONE('Europe/Berlin', 'UTC', x)</code></td>
 <td><code>CAST(AT_TIMEZONE(WITH_TIMEZONE(x, 'Europe/Berlin'), 'UTC') AS TIMESTAMP)</code></td>
 <td><code>CONVERT_TIMEZONE('Europe/Berlin', 'UTC', x)</code></td>
+<td><code>CONVERT_TIMEZONE('Europe/Berlin', 'UTC', x)</code></td>
+<td><code>DATETIME(TIMESTAMP(x, 'Europe/Berlin'), 'UTC')</code></td>
+<td><code>CAST(TO_UTC_TIMESTAMP(x, 'Europe/Berlin') AS TIMESTAMP_NTZ)</code></td>
 </tr>
 <tr>
 <td>Null-on-failure cast (the <code>coercible</code> marker)</td>
 <td><code>TRY_CAST(x AS BIGINT)</code></td>
 <td><code>CASE WHEN PG_INPUT_IS_VALID(x, 'BIGINT') THEN CAST(x AS BIGINT) END</code></td>
-<td><code>TRY_CAST(x AS BIGINT)</code>, and <code>CASE WHEN CAN_JSON_PARSE(x) THEN JSON_PARSE(x) END</code> for <code>variant</code></td>
 <td><code>TRY_CAST(x AS BIGINT)</code></td>
+<td><code>TRY_CAST(x AS BIGINT)</code>, and <code>CASE WHEN CAN_JSON_PARSE(x) THEN JSON_PARSE(x) END</code> for <code>variant</code></td>
 <td><code>TRY_CAST(CAST(x AS VARCHAR) AS NUMBER(38, 0))</code></td>
+<td><code>SAFE_CAST(x AS INT64)</code></td>
+<td><code>TRY_CAST(x AS BIGINT)</code></td>
 </tr>
 <tr>
 <td>Nested read <code>$.payload.shipping.country</code></td>
 <td><code>payload -&gt;&gt; '$.shipping.country'</code></td>
 <td><code>JSON_EXTRACT_PATH_TEXT(CAST(payload AS JSON), 'shipping', 'country')</code></td>
-<td><code>JSON_EXTRACT_PATH_TEXT(payload, 'shipping', 'country')</code></td>
 <td><code>JSON_EXTRACT_SCALAR(payload, '$.shipping.country')</code></td>
+<td><code>JSON_EXTRACT_PATH_TEXT(payload, 'shipping', 'country', TRUE)</code></td>
 <td><code>JSON_EXTRACT_PATH_TEXT(payload, 'shipping.country')</code></td>
+<td><code>JSON_EXTRACT_SCALAR(payload, '$.shipping.country')</code></td>
+<td><code>payload:shipping.country</code></td>
 </tr>
 <tr>
 <td><code>normalize</code> rule</td>
 <td><code>NFC_NORMALIZE(x)</code></td>
 <td><code>NORMALIZE(x, NFC)</code></td>
+<td><code>NORMALIZE(x, NFC)</code></td>
 <td><strong>refused</strong> — no <code>UNICODE_NORMALIZE</code> capability</td>
+<td><strong>refused</strong> — no NFC function</td>
 <td><code>NORMALIZE(x, NFC)</code></td>
 <td><strong>refused</strong> — no NFC function</td>
 </tr>
@@ -2283,33 +2333,41 @@ different.</p>
 <td><code>reject_id</code> digest</td>
 <td><code>SHA256('v')</code></td>
 <td><code>ENCODE(SHA256(CONVERT_TO('v', 'UTF8')), 'hex')</code></td>
-<td><code>SHA2('v', 256)</code></td>
 <td><code>LOWER(TO_HEX(SHA256(TO_UTF8('v'))))</code></td>
+<td><code>SHA2('v', 256)</code></td>
+<td><code>SHA2('v', 256)</code></td>
+<td><code>TO_HEX(SHA256('v'))</code></td>
 <td><code>SHA2('v', 256)</code></td>
 </tr>
 <tr>
 <td>Reject <code>raw</code> payload</td>
 <td><code>JSON_OBJECT('a', a)</code></td>
 <td><code>JSON_BUILD_OBJECT('a', a)</code></td>
-<td><code>OBJECT('a', a)</code></td>
 <td><code>JSON_OBJECT('a': a)</code></td>
+<td><code>OBJECT('a', a)</code></td>
 <td><code>OBJECT_CONSTRUCT_KEEP_NULL('a', a)</code></td>
+<td><code>JSON_OBJECT('a', a)</code></td>
+<td><code>TO_JSON(NAMED_STRUCT('a', a))</code></td>
 </tr>
 <tr>
 <td>Current instant</td>
 <td><code>CURRENT_TIMESTAMP</code></td>
 <td><code>CURRENT_TIMESTAMP</code></td>
-<td><code>CONVERT_TIMEZONE('UTC', CAST(GETDATE() AS TIMESTAMP WITH TIME ZONE))</code>, cast back</td>
 <td><code>CURRENT_TIMESTAMP</code></td>
+<td><code>CONVERT_TIMEZONE('UTC', CAST(GETDATE() AS TIMESTAMP WITH TIME ZONE))</code>, cast back</td>
 <td><code>SYSDATE()</code></td>
+<td><code>CURRENT_DATETIME('UTC')</code></td>
+<td><code>CAST(TO_UTC_TIMESTAMP(CURRENT_TIMESTAMP(), CURRENT_TIMEZONE()) AS TIMESTAMP_NTZ)</code></td>
 </tr>
 <tr>
 <td>Calendar row source (<code>dim_date</code>)</td>
 <td><code>GENERATE_SERIES(...)</code></td>
 <td><code>GENERATE_SERIES(...)</code></td>
-<td>a cross-joined ten-row generator numbered by <code>ROW_NUMBER()</code>, with <code>DATEADD</code></td>
 <td><code>UNNEST(SEQUENCE(...))</code></td>
+<td>a cross-joined ten-row generator numbered by <code>ROW_NUMBER()</code>, the day added to the date as an integer</td>
 <td><code>TABLE(GENERATOR(ROWCOUNT =&gt; n))</code> with <code>DATEADD</code></td>
+<td><code>UNNEST(GENERATE_DATE_ARRAY(...))</code></td>
+<td><code>EXPLODE(SEQUENCE(...))</code></td>
 </tr>
 </tbody>
 </table>
@@ -2339,8 +2397,30 @@ reject payload; and a neutral <code>CAST(x AS JSON)</code> renders there as a <s
 rewrites: each was audited against Redshift separately, and the two that survived are
 imported as named helpers. The nested read in that table is a bronze path, declared
 <code>string</code>, and <code>JSON_EXTRACT_PATH_TEXT</code> over a text column returns text correctly, so the
-port renders it; what the port refuses is the <code>json_path</code> transform's <em>variant</em>
-extraction, which would declare <code>variant</code> and produce a string.</p>
+port renders it — with <code>null_if_invalid</code> set, so a payload that is not JSON yields NULL
+for the <code>coercible</code> rule to read rather than aborting the load; what the port refuses is
+the <code>json_path</code> transform's <em>variant</em> extraction, which would declare <code>variant</code> and
+produce a string.</p>
+<p>BigQuery's column is decided rather than inherited too. <code>SAFE_CAST</code> is its null-on-failure
+cast and holds under the quality system's lowering, including the cast of a wide decimal,
+which becomes <code>SAFE_CAST(x AS BIGNUMERIC)</code> rather than a <code>NUMERIC</code> the value cannot fit.
+GoogleSQL's <code>IN</code> takes a single-column subquery only, so the replay's resolution <code>UPDATE</code>,
+which marks superseded reject rows with a row-value <code>IN</code> on every other port, is rewritten
+to a correlated <code>EXISTS</code> with the update's target aliased <code>_row</code>. Its <code>REGEXP_EXTRACT</code>
+addresses one capturing group, so a <code>regexp</code> transform naming another is refused by name.
+And its RE2 refuses a repetition bound above 1000, so a <code>pattern</code> rule's <code>{1001}</code> is
+refused at parse as outside the portable regex subset — on every dialect, since DuckDB and
+Trino are RE2 engines too. A bare <code>BEGIN</code> opens a script block there, so
+<code>begin_transaction</code> is <code>BEGIN TRANSACTION</code>.</p>
+<p>Databricks has no transaction at all: every statement is its own Delta commit and <code>BEGIN</code>
+is rejected, so <code>begin_transaction</code> is the empty string and the dbt replay envelope opens
+and commits nothing — its header says each statement commits on its own, and that a
+failure part-way leaves the earlier ones committed. Its <code>TO_UTC_TIMESTAMP(x, zone)</code> reads
+a wall clock <em>in</em> the named zone and returns the UTC one, the direction <code>to_utc</code> means
+(SQLGlot's <code>FROM_UTC_TIMESTAMP</code> runs the other way), and the same call around
+<code>CURRENT_TIMESTAMP()</code> with <code>CURRENT_TIMEZONE()</code> is how the session's clock becomes UTC's
+for every current instant, the replay's <code>resolved_at</code> stamps included. <code>DATE_TRUNC('DAY',
+x)</code> replaces SQLGlot's <code>TRUNC</code>, and reserved names are backticked.</p>
 <h3 id="arrays-and-the-shape-_quality_flags-takes-without-them">Arrays, and the shape <code>_quality_flags</code> takes without them<a class="headerlink" href="#arrays-and-the-shape-_quality_flags-takes-without-them" title="Permanent link">&para;</a></h3>
 <p><code>redshift</code> does <strong>not</strong> declare <code>DialectFeature.ARRAY</code>. Redshift's <code>SUPER</code> can hold an
 array and <code>ARRAY()</code> constructs one, but no table column can be declared <code>VARCHAR[]</code>, and
@@ -2352,7 +2432,7 @@ share one physical contract with two lowerings, and this port takes the second:<
 <thead>
 <tr>
 <th></th>
-<th>array dialects (<code>duckdb</code>, <code>postgres</code>, <code>trino</code>)</th>
+<th>array dialects (<code>duckdb</code>, <code>postgres</code>, <code>trino</code>, <code>snowflake</code>, <code>bigquery</code>, <code>databricks</code>)</th>
 <th><code>redshift</code></th>
 </tr>
 </thead>
@@ -2426,7 +2506,10 @@ tools follow) a space — and each engine takes a different subset:</p>
 </table>
 <p>Snowflake needs no fourth column: its port normalizes the separator the same way before
 any cast, the strictly-safe choice until the live corpus shows which raw spellings its
-<code>AUTO</code> format would have parsed on its own.</p>
+<code>AUTO</code> format would have parsed on its own. BigQuery and Databricks normalize it the same
+way; BigQuery also strips a trailing <code>Z</code>, which its <code>DATETIME</code> parser does not take, and
+Databricks needs the rewrite most, since under ANSI mode a lowercase <code>t</code> raises there
+rather than returning NULL.</p>
 <p>No error was ever raised for the Trino column. Outside the quality system it was a silent
 NULL; inside it the generated <code>coercible</code> rule read "the projection is NULL although the
 source was not" as a coercion failure, so <strong>every row of the source was quarantined</strong>
@@ -2491,9 +2574,14 @@ admits against real DuckDB, PostgreSQL and Trino, and compares the engine's own
 column type against the transform's declared output. It asserts set equality per
 port, so a divergence that appears fails the suite and one that is repaired fails
 it too until its row is deleted. <strong>The register is empty</strong>: on all three engines,
-every transform now produces what it says it produces. <code>redshift</code> is not probed — no
-tier runs a Redshift engine, so that port's spellings are pinned at the rendering
-level instead, and no claim on this page about it is an engine observation.</p>
+every transform now produces what it says it produces. The four cloud ports are not
+probed by it — no tier runs those engines in a container — so their spellings are pinned
+at the rendering level, and each has a lane against the engine's own compiler that says
+whether the rendered statements analyse: <code>EXPLAIN USING JSON</code> on Snowflake and a dry run
+on BigQuery, both on <code>main</code> under repository credentials; <code>EXPLAIN EXTENDED</code> and
+<code>DESCRIBE QUERY</code> on a Databricks warehouse, weekly; and <code>EXPLAIN</code> on a Redshift cluster,
+which no workflow runs today. A claim on this page about one of those four is a
+rendering-level claim unless its lane made it.</p>
 <p>Getting there closed defects on all three ports — four transforms PostgreSQL
 could not run at all, eight Trino cases where a <code>coalesce</code> or <code>nullif</code> literal
 was not coerced to its column's type, a <code>parse_ts</code> format branch that stored a
@@ -2531,22 +2619,31 @@ screen-precision derivations.</p>
   ports, so each rewrite works on a copy — a port that edited in place would leave the
   next one rendering its neighbour's spelling.</li>
 <li><strong>Reserved identifiers are quoted on every port.</strong> An entity named <code>order</code> emits
-  <code>silver."order"</code> on DuckDB, PostgreSQL, Redshift and Trino, and <code>silver."ORDER"</code> on
+  <code>silver."order"</code> on DuckDB, PostgreSQL, Redshift and Trino, <code>silver."ORDER"</code> on
   Snowflake, where an unquoted name folds to uppercase and a quoted one is taken verbatim —
-  the folded spelling is the one that names the same object as the unquoted model name.</li>
+  the folded spelling is the one that names the same object as the unquoted model name —
+  and <code>silver.`order`</code> on BigQuery and Databricks, whose quoting character is the
+  backtick.</li>
 <li><strong>Capability flags are how a port stays honest.</strong> A port that cannot express a
   null-on-failure cast, an array, a text digest, Unicode normalization, or a JSON object
   refuses the constructs that need them rather than emitting something close. <code>duckdb</code>,
-  <code>postgres</code> and <code>trino</code> declare all of them; <code>redshift</code> withholds three — arrays,
-  Unicode normalization and variant extraction — so a project using <code>json_path</code> or a
-  <code>normalize</code> rule meets a refusal on that dialect and compiles on the others, and its
-  quality flags take the delimited-string shape rather than an array column; <code>snowflake</code>
-  withholds Unicode normalization alone. No shipped example meets those refusals today;
-  the test suite provokes them against a deliberately incapable port.</li>
+  <code>postgres</code>, <code>trino</code> and <code>bigquery</code> declare all of them; <code>redshift</code> withholds three —
+  arrays, Unicode normalization and variant extraction — so a project using <code>json_path</code>
+  or a <code>normalize</code> rule meets a refusal on that dialect and compiles on the others, and
+  its quality flags take the delimited-string shape rather than an array column;
+  <code>snowflake</code> and <code>databricks</code> withhold Unicode normalization alone. No shipped example
+  meets those refusals today; the test suite provokes them against a deliberately
+  incapable port.</li>
 <li>The engine test tier runs the emitted SQL against real DuckDB, PostgreSQL and Trino
-  containers, which is where claims on this page are checked. Snowflake has no container:
-  its claims are held by the offline rungs — unit, golden, and a parse of every rendered
-  statement by Snowflake's own grammar — until its compile and execution lanes land.</li>
+  containers, which is where claims on this page are checked. The four cloud engines have
+  no container, so each is established by the ladder S-0012 names: offline rungs on every
+  pull request — unit, golden, and a re-parse of every rendered statement by the engine's
+  own grammar; a <em>surrogate</em> lane, marked <code>surrogate</code> and never <code>engine</code>, that runs on
+  <code>main</code> — the <code>sivchari/snowflake-emulator</code> image for Snowflake, the
+  <code>goccy/bigquery-emulator</code> image for BigQuery at a pinned tag, a PostgreSQL container
+  for Redshift's <code>postgres-compatible</code> fixtures, and local Spark for Databricks; and the
+  engine's own compiler as the oracle, under credentials a pull request cannot reach. A
+  green surrogate says the emulator accepted the statements, and its test names say so.</li>
 <li><strong>The local Redshift lane checks the PostgreSQL-compatible subset; only a live cluster
   checks the dialect.</strong> There is no Redshift container to run locally, so the local
   lane submits the port's SQL to a real PostgreSQL standing in for a cluster

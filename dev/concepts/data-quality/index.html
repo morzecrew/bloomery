@@ -2300,8 +2300,9 @@ unmapped enum values, failed casts, and rules you wrote all travel the same road
 <p><code>coercible</code> is <strong>opt-in per entity</strong>. An entity joins the quality system by declaring
 <code>quality:</code>, <code>quarantine:</code>, or any field-level <code>quality:</code>; <code>dedupe:</code> alone does not. An
 entity that declares none of them keeps the produce-or-raise lowering it always had.</p>
-<p>The marker needs a NULL-on-failure cast, and the three shipped dialects all have one.
-DuckDB and Trino spell it <code>TRY_CAST</code>. Postgres has no such keyword and gets a guard
+<p>The marker needs a NULL-on-failure cast, and every shipped dialect has one. DuckDB, Trino,
+Redshift and Databricks spell it <code>TRY_CAST</code>, BigQuery <code>SAFE_CAST</code>, and Snowflake <code>TRY_CAST</code>
+over a <code>VARCHAR</code> cast of the operand. Postgres has no such keyword and gets a guard
 around its <em>own</em> input parser instead — <code>CASE WHEN pg_input_is_valid(x, 't') THEN CAST(x
 AS t) END</code> — so the accept/reject set is the engine's rather than a regex approximation
 of it. Compiling the dirty-data corpus for Postgres emits the same 70 artifacts as
