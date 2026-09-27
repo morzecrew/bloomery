@@ -57,86 +57,86 @@ USING (
       ) AS _quality_flags
     FROM (
       SELECT
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.properties'), 'gift_note') AS VARCHAR) AS VARCHAR) AS gift_note,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.position') AS VARCHAR) AS BIGINT) AS line_no,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.order'), 'id') AS VARCHAR) AS VARCHAR) AS order_id,
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'properties'), 'gift_note') AS VARCHAR) AS VARCHAR) AS gift_note,
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'position') AS VARCHAR) AS BIGINT) AS line_no,
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'order'), 'id') AS VARCHAR) AS VARCHAR) AS order_id,
         TRY_CAST(CAST(CASE
-          WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR), 11) LIKE '%+%'
-          OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR), 11) LIKE '%-%'
+          WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created_at') AS VARCHAR), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created_at') AS VARCHAR), 11) LIKE '%-%'
           THEN NULL
           ELSE REPLACE(
-            REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR), 'T', ' '),
+            REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created_at') AS VARCHAR), 'T', ' '),
             't',
             ' '
           )
         END AS VARCHAR) AS TIMESTAMPNTZ) AS placed_at,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.quantity') AS VARCHAR) AS BIGINT) AS quantity,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.variant'), 'sku') AS VARCHAR) AS VARCHAR) AS sku,
-        CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.financial_status') AS VARCHAR) AS VARCHAR)
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'quantity') AS VARCHAR) AS BIGINT) AS quantity,
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'variant'), 'sku') AS VARCHAR) AS VARCHAR) AS sku,
+        CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'financial_status') AS VARCHAR) AS VARCHAR)
           WHEN 'pending'
           THEN 'open'
           WHEN 'paid'
           THEN 'closed'
           WHEN 'refunded'
           THEN 'reversed'
-          ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.financial_status') AS VARCHAR) AS VARCHAR)
+          ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'financial_status') AS VARCHAR) AS VARCHAR)
         END AS status,
         _ingested_at,
         _load_id,
         _source_row_id,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.properties'), 'gift_note') AS VARCHAR) AS VARCHAR) IS NULL
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'properties'), 'gift_note') AS VARCHAR) AS VARCHAR) IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.properties'), 'gift_note') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'properties'), 'gift_note') IS NULL
         ) AS _branch_gift_note_coercible,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.position') AS VARCHAR) AS BIGINT) IS NULL
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'position') AS VARCHAR) AS BIGINT) IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(raw, '$.position') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(raw, 'position') IS NULL
         ) AS _branch_line_no_coercible,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.order'), 'id') AS VARCHAR) AS VARCHAR) IS NULL
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'order'), 'id') AS VARCHAR) AS VARCHAR) IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.order'), 'id') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'order'), 'id') IS NULL
         ) AS _branch_order_id_coercible,
         TRY_CAST(CAST(CASE
-          WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR), 11) LIKE '%+%'
-          OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR), 11) LIKE '%-%'
+          WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created_at') AS VARCHAR), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created_at') AS VARCHAR), 11) LIKE '%-%'
           THEN NULL
           ELSE REPLACE(
-            REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR), 'T', ' '),
+            REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created_at') AS VARCHAR), 'T', ' '),
             't',
             ' '
           )
         END AS VARCHAR) AS TIMESTAMPNTZ) IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(raw, 'created_at') IS NULL
         ) AS _branch_placed_at_coercible,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.quantity') AS VARCHAR) AS BIGINT) IS NULL
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'quantity') AS VARCHAR) AS BIGINT) IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(raw, '$.quantity') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(raw, 'quantity') IS NULL
         ) AS _branch_quantity_coercible,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.variant'), 'sku') AS VARCHAR) AS VARCHAR) IS NULL
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'variant'), 'sku') AS VARCHAR) AS VARCHAR) IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.variant'), 'sku') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'variant'), 'sku') IS NULL
         ) AS _branch_sku_coercible,
-        CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.financial_status') AS VARCHAR) AS VARCHAR)
+        CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'financial_status') AS VARCHAR) AS VARCHAR)
           WHEN 'pending'
           THEN 'open'
           WHEN 'paid'
           THEN 'closed'
           WHEN 'refunded'
           THEN 'reversed'
-          ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.financial_status') AS VARCHAR) AS VARCHAR)
+          ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'financial_status') AS VARCHAR) AS VARCHAR)
         END IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(raw, '$.financial_status') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(raw, 'financial_status') IS NULL
         ) AS _branch_status_coercible,
-        NOT CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.financial_status') AS VARCHAR) AS VARCHAR)
+        NOT CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'financial_status') AS VARCHAR) AS VARCHAR)
           WHEN 'pending'
           THEN 'open'
           WHEN 'paid'
           THEN 'closed'
           WHEN 'refunded'
           THEN 'reversed'
-          ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.financial_status') AS VARCHAR) AS VARCHAR)
+          ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'financial_status') AS VARCHAR) AS VARCHAR)
         END IN ('closed', 'open', 'reversed') AS _branch_status_in_enum,
         'shopify__order_lines' AS _source
       FROM silver.order_line__reject
@@ -145,76 +145,68 @@ USING (
       UNION ALL
       SELECT
         CAST(NULL AS VARCHAR) AS gift_note,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.item_index') AS VARCHAR) AS BIGINT) AS line_no,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.order_number') AS VARCHAR) AS VARCHAR) AS order_id,
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'item_index') AS VARCHAR) AS BIGINT) AS line_no,
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'order_number') AS VARCHAR) AS VARCHAR) AS order_id,
         TRY_CAST(CAST(CASE
-          WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR), 11) LIKE '%+%'
-          OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR), 11) LIKE '%-%'
+          WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created') AS VARCHAR), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created') AS VARCHAR), 11) LIKE '%-%'
           THEN NULL
-          ELSE REPLACE(
-            REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR), 'T', ' '),
-            't',
-            ' '
-          )
+          ELSE REPLACE(REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created') AS VARCHAR), 'T', ' '), 't', ' ')
         END AS VARCHAR) AS TIMESTAMPNTZ) AS placed_at,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.qty') AS VARCHAR) AS BIGINT) AS quantity,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.product_sku') AS VARCHAR) AS VARCHAR) AS sku,
-        CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.state') AS VARCHAR) AS VARCHAR)
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'qty') AS VARCHAR) AS BIGINT) AS quantity,
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'product_sku') AS VARCHAR) AS VARCHAR) AS sku,
+        CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'state') AS VARCHAR) AS VARCHAR)
           WHEN 'PROCESSING'
           THEN 'open'
           WHEN 'COMPLETE'
           THEN 'closed'
-          ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.state') AS VARCHAR) AS VARCHAR)
+          ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'state') AS VARCHAR) AS VARCHAR)
         END AS status,
         _ingested_at,
         _load_id,
         _source_row_id,
         FALSE AS _branch_gift_note_coercible,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.item_index') AS VARCHAR) AS BIGINT) IS NULL
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'item_index') AS VARCHAR) AS BIGINT) IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(raw, '$.item_index') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(raw, 'item_index') IS NULL
         ) AS _branch_line_no_coercible,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.order_number') AS VARCHAR) AS VARCHAR) IS NULL
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'order_number') AS VARCHAR) AS VARCHAR) IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(raw, '$.order_number') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(raw, 'order_number') IS NULL
         ) AS _branch_order_id_coercible,
         TRY_CAST(CAST(CASE
-          WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR), 11) LIKE '%+%'
-          OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR), 11) LIKE '%-%'
+          WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created') AS VARCHAR), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created') AS VARCHAR), 11) LIKE '%-%'
           THEN NULL
-          ELSE REPLACE(
-            REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR), 'T', ' '),
-            't',
-            ' '
-          )
+          ELSE REPLACE(REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created') AS VARCHAR), 'T', ' '), 't', ' ')
         END AS VARCHAR) AS TIMESTAMPNTZ) IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(raw, '$.created') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(raw, 'created') IS NULL
         ) AS _branch_placed_at_coercible,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.qty') AS VARCHAR) AS BIGINT) IS NULL
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'qty') AS VARCHAR) AS BIGINT) IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(raw, '$.qty') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(raw, 'qty') IS NULL
         ) AS _branch_quantity_coercible,
-        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.product_sku') AS VARCHAR) AS VARCHAR) IS NULL
+        TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'product_sku') AS VARCHAR) AS VARCHAR) IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(raw, '$.product_sku') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(raw, 'product_sku') IS NULL
         ) AS _branch_sku_coercible,
-        CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.state') AS VARCHAR) AS VARCHAR)
+        CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'state') AS VARCHAR) AS VARCHAR)
           WHEN 'PROCESSING'
           THEN 'open'
           WHEN 'COMPLETE'
           THEN 'closed'
-          ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.state') AS VARCHAR) AS VARCHAR)
+          ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'state') AS VARCHAR) AS VARCHAR)
         END IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(raw, '$.state') IS NULL
+          NOT JSON_EXTRACT_PATH_TEXT(raw, 'state') IS NULL
         ) AS _branch_status_coercible,
-        NOT CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.state') AS VARCHAR) AS VARCHAR)
+        NOT CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'state') AS VARCHAR) AS VARCHAR)
           WHEN 'PROCESSING'
           THEN 'open'
           WHEN 'COMPLETE'
           THEN 'closed'
-          ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.state') AS VARCHAR) AS VARCHAR)
+          ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'state') AS VARCHAR) AS VARCHAR)
         END IN ('closed', 'open') AS _branch_status_in_enum,
         'woo__order_lines' AS _source
       FROM silver.order_line__reject
@@ -488,86 +480,86 @@ USING (
     ) AS failed_rules
   FROM (
     SELECT
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.properties'), 'gift_note') AS VARCHAR) AS VARCHAR) AS gift_note,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.position') AS VARCHAR) AS BIGINT) AS line_no,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.order'), 'id') AS VARCHAR) AS VARCHAR) AS order_id,
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'properties'), 'gift_note') AS VARCHAR) AS VARCHAR) AS gift_note,
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'position') AS VARCHAR) AS BIGINT) AS line_no,
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'order'), 'id') AS VARCHAR) AS VARCHAR) AS order_id,
       TRY_CAST(CAST(CASE
-        WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR), 11) LIKE '%+%'
-        OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR), 11) LIKE '%-%'
+        WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created_at') AS VARCHAR), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created_at') AS VARCHAR), 11) LIKE '%-%'
         THEN NULL
         ELSE REPLACE(
-          REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR), 'T', ' '),
+          REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created_at') AS VARCHAR), 'T', ' '),
           't',
           ' '
         )
       END AS VARCHAR) AS TIMESTAMPNTZ) AS placed_at,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.quantity') AS VARCHAR) AS BIGINT) AS quantity,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.variant'), 'sku') AS VARCHAR) AS VARCHAR) AS sku,
-      CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.financial_status') AS VARCHAR) AS VARCHAR)
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'quantity') AS VARCHAR) AS BIGINT) AS quantity,
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'variant'), 'sku') AS VARCHAR) AS VARCHAR) AS sku,
+      CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'financial_status') AS VARCHAR) AS VARCHAR)
         WHEN 'pending'
         THEN 'open'
         WHEN 'paid'
         THEN 'closed'
         WHEN 'refunded'
         THEN 'reversed'
-        ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.financial_status') AS VARCHAR) AS VARCHAR)
+        ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'financial_status') AS VARCHAR) AS VARCHAR)
       END AS status,
       _ingested_at,
       _load_id,
       _source_row_id,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.properties'), 'gift_note') AS VARCHAR) AS VARCHAR) IS NULL
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'properties'), 'gift_note') AS VARCHAR) AS VARCHAR) IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.properties'), 'gift_note') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'properties'), 'gift_note') IS NULL
       ) AS _branch_gift_note_coercible,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.position') AS VARCHAR) AS BIGINT) IS NULL
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'position') AS VARCHAR) AS BIGINT) IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(raw, '$.position') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(raw, 'position') IS NULL
       ) AS _branch_line_no_coercible,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.order'), 'id') AS VARCHAR) AS VARCHAR) IS NULL
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'order'), 'id') AS VARCHAR) AS VARCHAR) IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.order'), 'id') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'order'), 'id') IS NULL
       ) AS _branch_order_id_coercible,
       TRY_CAST(CAST(CASE
-        WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR), 11) LIKE '%+%'
-        OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR), 11) LIKE '%-%'
+        WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created_at') AS VARCHAR), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created_at') AS VARCHAR), 11) LIKE '%-%'
         THEN NULL
         ELSE REPLACE(
-          REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR), 'T', ' '),
+          REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created_at') AS VARCHAR), 'T', ' '),
           't',
           ' '
         )
       END AS VARCHAR) AS TIMESTAMPNTZ) IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(raw, 'created_at') IS NULL
       ) AS _branch_placed_at_coercible,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.quantity') AS VARCHAR) AS BIGINT) IS NULL
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'quantity') AS VARCHAR) AS BIGINT) IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(raw, '$.quantity') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(raw, 'quantity') IS NULL
       ) AS _branch_quantity_coercible,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.variant'), 'sku') AS VARCHAR) AS VARCHAR) IS NULL
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'variant'), 'sku') AS VARCHAR) AS VARCHAR) IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, '$.variant'), 'sku') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(JSON_EXTRACT_PATH_TEXT(raw, 'variant'), 'sku') IS NULL
       ) AS _branch_sku_coercible,
-      CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.financial_status') AS VARCHAR) AS VARCHAR)
+      CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'financial_status') AS VARCHAR) AS VARCHAR)
         WHEN 'pending'
         THEN 'open'
         WHEN 'paid'
         THEN 'closed'
         WHEN 'refunded'
         THEN 'reversed'
-        ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.financial_status') AS VARCHAR) AS VARCHAR)
+        ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'financial_status') AS VARCHAR) AS VARCHAR)
       END IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(raw, '$.financial_status') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(raw, 'financial_status') IS NULL
       ) AS _branch_status_coercible,
-      NOT CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.financial_status') AS VARCHAR) AS VARCHAR)
+      NOT CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'financial_status') AS VARCHAR) AS VARCHAR)
         WHEN 'pending'
         THEN 'open'
         WHEN 'paid'
         THEN 'closed'
         WHEN 'refunded'
         THEN 'reversed'
-        ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.financial_status') AS VARCHAR) AS VARCHAR)
+        ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'financial_status') AS VARCHAR) AS VARCHAR)
       END IN ('closed', 'open', 'reversed') AS _branch_status_in_enum,
       'shopify__order_lines' AS _source
     FROM silver.order_line__reject
@@ -576,76 +568,68 @@ USING (
     UNION ALL
     SELECT
       CAST(NULL AS VARCHAR) AS gift_note,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.item_index') AS VARCHAR) AS BIGINT) AS line_no,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.order_number') AS VARCHAR) AS VARCHAR) AS order_id,
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'item_index') AS VARCHAR) AS BIGINT) AS line_no,
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'order_number') AS VARCHAR) AS VARCHAR) AS order_id,
       TRY_CAST(CAST(CASE
-        WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR), 11) LIKE '%+%'
-        OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR), 11) LIKE '%-%'
+        WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created') AS VARCHAR), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created') AS VARCHAR), 11) LIKE '%-%'
         THEN NULL
-        ELSE REPLACE(
-          REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR), 'T', ' '),
-          't',
-          ' '
-        )
+        ELSE REPLACE(REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created') AS VARCHAR), 'T', ' '), 't', ' ')
       END AS VARCHAR) AS TIMESTAMPNTZ) AS placed_at,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.qty') AS VARCHAR) AS BIGINT) AS quantity,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.product_sku') AS VARCHAR) AS VARCHAR) AS sku,
-      CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.state') AS VARCHAR) AS VARCHAR)
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'qty') AS VARCHAR) AS BIGINT) AS quantity,
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'product_sku') AS VARCHAR) AS VARCHAR) AS sku,
+      CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'state') AS VARCHAR) AS VARCHAR)
         WHEN 'PROCESSING'
         THEN 'open'
         WHEN 'COMPLETE'
         THEN 'closed'
-        ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.state') AS VARCHAR) AS VARCHAR)
+        ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'state') AS VARCHAR) AS VARCHAR)
       END AS status,
       _ingested_at,
       _load_id,
       _source_row_id,
       FALSE AS _branch_gift_note_coercible,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.item_index') AS VARCHAR) AS BIGINT) IS NULL
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'item_index') AS VARCHAR) AS BIGINT) IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(raw, '$.item_index') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(raw, 'item_index') IS NULL
       ) AS _branch_line_no_coercible,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.order_number') AS VARCHAR) AS VARCHAR) IS NULL
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'order_number') AS VARCHAR) AS VARCHAR) IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(raw, '$.order_number') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(raw, 'order_number') IS NULL
       ) AS _branch_order_id_coercible,
       TRY_CAST(CAST(CASE
-        WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR), 11) LIKE '%+%'
-        OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR), 11) LIKE '%-%'
+        WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created') AS VARCHAR), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created') AS VARCHAR), 11) LIKE '%-%'
         THEN NULL
-        ELSE REPLACE(
-          REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR), 'T', ' '),
-          't',
-          ' '
-        )
+        ELSE REPLACE(REPLACE(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'created') AS VARCHAR), 'T', ' '), 't', ' ')
       END AS VARCHAR) AS TIMESTAMPNTZ) IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(raw, '$.created') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(raw, 'created') IS NULL
       ) AS _branch_placed_at_coercible,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.qty') AS VARCHAR) AS BIGINT) IS NULL
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'qty') AS VARCHAR) AS BIGINT) IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(raw, '$.qty') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(raw, 'qty') IS NULL
       ) AS _branch_quantity_coercible,
-      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.product_sku') AS VARCHAR) AS VARCHAR) IS NULL
+      TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'product_sku') AS VARCHAR) AS VARCHAR) IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(raw, '$.product_sku') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(raw, 'product_sku') IS NULL
       ) AS _branch_sku_coercible,
-      CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.state') AS VARCHAR) AS VARCHAR)
+      CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'state') AS VARCHAR) AS VARCHAR)
         WHEN 'PROCESSING'
         THEN 'open'
         WHEN 'COMPLETE'
         THEN 'closed'
-        ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.state') AS VARCHAR) AS VARCHAR)
+        ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'state') AS VARCHAR) AS VARCHAR)
       END IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(raw, '$.state') IS NULL
+        NOT JSON_EXTRACT_PATH_TEXT(raw, 'state') IS NULL
       ) AS _branch_status_coercible,
-      NOT CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.state') AS VARCHAR) AS VARCHAR)
+      NOT CASE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'state') AS VARCHAR) AS VARCHAR)
         WHEN 'PROCESSING'
         THEN 'open'
         WHEN 'COMPLETE'
         THEN 'closed'
-        ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.state') AS VARCHAR) AS VARCHAR)
+        ELSE TRY_CAST(CAST(JSON_EXTRACT_PATH_TEXT(raw, 'state') AS VARCHAR) AS VARCHAR)
       END IN ('closed', 'open') AS _branch_status_in_enum,
       'woo__order_lines' AS _source
     FROM silver.order_line__reject

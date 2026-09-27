@@ -131,14 +131,23 @@ class PostgresDialect(SQLGlotDialect):
 
         rewritten = rewritten.transform(_variant_is_jsonb)
 
-        for extract in rewritten.find_all(exp.JSONExtractScalar):
+        # Innermost first: wrapping an outer read's source in a cast copies
+        # the inner node, so the inner has to carry its form before that.
+        for extract in reversed(list(rewritten.find_all(exp.JSONExtractScalar))):
             path = extract.args.get("expression")
             if not isinstance(path, exp.JSONPath):
                 continue
             parts = path.expressions
+            nested = isinstance(extract.this, exp.JSONExtractScalar)
+            if nested:
+                # A read over another read: the replay's `raw` payload holds a
+                # bronze column's JSON *as text*, and `->>` over text is a
+                # type error here, so the inner extraction is cast back to
+                # `json` before the outer key is read.
+                extract.set("this", exp.cast(extract.this, exp.DataType.build("JSON")))
             if len(parts) == 2 and isinstance(parts[1], exp.JSONPathKey):
                 extract.set("only_json_types", True)  # ``->``/``->>`` form
-            else:
+            elif not nested:
                 extract.set("this", exp.cast(extract.this, exp.DataType.build("JSON")))
 
         rewritten = rewritten.transform(_jsonb_extraction)

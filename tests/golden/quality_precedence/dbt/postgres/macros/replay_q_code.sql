@@ -74,51 +74,51 @@ USING (
         FROM (
           SELECT
             CASE
-              WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_fail'), 'TEXT')
-              THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_fail') AS TEXT)
+              WHEN PG_INPUT_IS_VALID(raw ->> 'code_fail', 'TEXT')
+              THEN CAST(raw ->> 'code_fail' AS TEXT)
             END AS code_fail,
             CASE
-              WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_flag'), 'TEXT')
-              THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_flag') AS TEXT)
+              WHEN PG_INPUT_IS_VALID(raw ->> 'code_flag', 'TEXT')
+              THEN CAST(raw ->> 'code_flag' AS TEXT)
             END AS code_flag,
             CASE
-              WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_id'), 'TEXT')
-              THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_id') AS TEXT)
+              WHEN PG_INPUT_IS_VALID(raw ->> 'code_id', 'TEXT')
+              THEN CAST(raw ->> 'code_id' AS TEXT)
             END AS code_id,
             CASE
-              WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_quar'), 'TEXT')
-              THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_quar') AS TEXT)
+              WHEN PG_INPUT_IS_VALID(raw ->> 'code_quar', 'TEXT')
+              THEN CAST(raw ->> 'code_quar' AS TEXT)
             END AS code_quar,
             _ingested_at,
             _load_id,
             _source_row_id,
             CASE
-              WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_fail'), 'TEXT')
-              THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_fail') AS TEXT)
+              WHEN PG_INPUT_IS_VALID(raw ->> 'code_fail', 'TEXT')
+              THEN CAST(raw ->> 'code_fail' AS TEXT)
             END IS NULL
             AND (
-              NOT JSON_EXTRACT_PATH_TEXT(raw, '$.code_fail') IS NULL
+              NOT raw ->> 'code_fail' IS NULL
             ) AS _branch_code_fail_coercible,
             CASE
-              WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_flag'), 'TEXT')
-              THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_flag') AS TEXT)
+              WHEN PG_INPUT_IS_VALID(raw ->> 'code_flag', 'TEXT')
+              THEN CAST(raw ->> 'code_flag' AS TEXT)
             END IS NULL
             AND (
-              NOT JSON_EXTRACT_PATH_TEXT(raw, '$.code_flag') IS NULL
+              NOT raw ->> 'code_flag' IS NULL
             ) AS _branch_code_flag_coercible,
             CASE
-              WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_id'), 'TEXT')
-              THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_id') AS TEXT)
+              WHEN PG_INPUT_IS_VALID(raw ->> 'code_id', 'TEXT')
+              THEN CAST(raw ->> 'code_id' AS TEXT)
             END IS NULL
             AND (
-              NOT JSON_EXTRACT_PATH_TEXT(raw, '$.code_id') IS NULL
+              NOT raw ->> 'code_id' IS NULL
             ) AS _branch_code_id_coercible,
             CASE
-              WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_quar'), 'TEXT')
-              THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_quar') AS TEXT)
+              WHEN PG_INPUT_IS_VALID(raw ->> 'code_quar', 'TEXT')
+              THEN CAST(raw ->> 'code_quar' AS TEXT)
             END IS NULL
             AND (
-              NOT JSON_EXTRACT_PATH_TEXT(raw, '$.code_quar') IS NULL
+              NOT raw ->> 'code_quar' IS NULL
             ) AS _branch_code_quar_coercible
           FROM {{ ref('q_code__reject') }}
           WHERE
@@ -283,51 +283,51 @@ USING (
     FROM (
       SELECT
         CASE
-          WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_fail'), 'TEXT')
-          THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_fail') AS TEXT)
+          WHEN PG_INPUT_IS_VALID(raw ->> 'code_fail', 'TEXT')
+          THEN CAST(raw ->> 'code_fail' AS TEXT)
         END AS code_fail,
         CASE
-          WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_flag'), 'TEXT')
-          THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_flag') AS TEXT)
+          WHEN PG_INPUT_IS_VALID(raw ->> 'code_flag', 'TEXT')
+          THEN CAST(raw ->> 'code_flag' AS TEXT)
         END AS code_flag,
         CASE
-          WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_id'), 'TEXT')
-          THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_id') AS TEXT)
+          WHEN PG_INPUT_IS_VALID(raw ->> 'code_id', 'TEXT')
+          THEN CAST(raw ->> 'code_id' AS TEXT)
         END AS code_id,
         CASE
-          WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_quar'), 'TEXT')
-          THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_quar') AS TEXT)
+          WHEN PG_INPUT_IS_VALID(raw ->> 'code_quar', 'TEXT')
+          THEN CAST(raw ->> 'code_quar' AS TEXT)
         END AS code_quar,
         _ingested_at,
         _load_id,
         _source_row_id,
         CASE
-          WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_fail'), 'TEXT')
-          THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_fail') AS TEXT)
+          WHEN PG_INPUT_IS_VALID(raw ->> 'code_fail', 'TEXT')
+          THEN CAST(raw ->> 'code_fail' AS TEXT)
         END IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(raw, '$.code_fail') IS NULL
+          NOT raw ->> 'code_fail' IS NULL
         ) AS _branch_code_fail_coercible,
         CASE
-          WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_flag'), 'TEXT')
-          THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_flag') AS TEXT)
+          WHEN PG_INPUT_IS_VALID(raw ->> 'code_flag', 'TEXT')
+          THEN CAST(raw ->> 'code_flag' AS TEXT)
         END IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(raw, '$.code_flag') IS NULL
+          NOT raw ->> 'code_flag' IS NULL
         ) AS _branch_code_flag_coercible,
         CASE
-          WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_id'), 'TEXT')
-          THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_id') AS TEXT)
+          WHEN PG_INPUT_IS_VALID(raw ->> 'code_id', 'TEXT')
+          THEN CAST(raw ->> 'code_id' AS TEXT)
         END IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(raw, '$.code_id') IS NULL
+          NOT raw ->> 'code_id' IS NULL
         ) AS _branch_code_id_coercible,
         CASE
-          WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.code_quar'), 'TEXT')
-          THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.code_quar') AS TEXT)
+          WHEN PG_INPUT_IS_VALID(raw ->> 'code_quar', 'TEXT')
+          THEN CAST(raw ->> 'code_quar' AS TEXT)
         END IS NULL
         AND (
-          NOT JSON_EXTRACT_PATH_TEXT(raw, '$.code_quar') IS NULL
+          NOT raw ->> 'code_quar' IS NULL
         ) AS _branch_code_quar_coercible
       FROM {{ ref('q_code__reject') }}
       WHERE

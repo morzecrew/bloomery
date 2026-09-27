@@ -16,7 +16,9 @@ from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
 from bloomery.dialects import DatabricksDialect, DialectFeature
+from bloomery.emit.lower.silver import _from_payload
 from bloomery.errors import UnsupportedByTarget
+from bloomery.ir.lower import extraction
 from bloomery.transforms import DIVIDE_MARKER
 from bloomery.typing import (
     BoolType,
@@ -132,6 +134,17 @@ def test_render_lowers_neutral_json_extraction_to_the_colon_accessor() -> None:
     assert DIALECT.render(node) == "payload:a.b"
 
 
+def test_a_lowered_extraction_renders_as_a_path_and_not_as_a_quoted_key() -> None:
+    """The lowering builds the extraction itself rather than parsing one, and a
+    path handed over as a string literal rendered here as ``raw:'$.position'``
+    — a key literally spelled ``$.position``, which the reject table's
+    ``TO_JSON(NAMED_STRUCT(...))`` never writes — so replay read nothing back
+    on this port (T-0136). Both construction sites parse the path now.
+    """
+    assert DIALECT.render(extraction("$.payload.a.b")) == "payload:a.b"
+    assert DIALECT.render(_from_payload(exp.column("position"))) == "raw:position"
+
+
 def test_render_quotes_reserved_relation_names() -> None:
     """`order` is a reserved word here and SQLGlot's databricks generator
     carries no reserved-word set at all, so the bare rendering does not parse
@@ -205,6 +218,15 @@ def test_utc_now_states_the_zone_rather_than_inheriting_it() -> None:
     # Not the ports' zone door, which is for a zoneless local value being told
     # which clock it came off; this value already has one.
     assert "AT TIME ZONE" not in DIALECT.render(DIALECT.utc_now())
+
+
+def test_a_bare_current_timestamp_is_stamped_in_utc() -> None:
+    """The replay statements build `CurrentTimestamp` directly for
+    `resolved_at`; bare, it is an instant read through the session zone on
+    its way into a `TIMESTAMP_NTZ` column. It renders as `utc_now()` here, as
+    it does on the other cloud ports.
+    """
+    assert DIALECT.render(exp.CurrentTimestamp()) == DIALECT.render(DIALECT.utc_now())
 
 
 def test_text_sha256_needs_no_rewrite_here() -> None:

@@ -3,7 +3,7 @@ id: S-0002
 title: Multi-project composition
 kind: design
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []
@@ -37,6 +37,10 @@ motivation: |
   what the inputs are** once one project reads another. That is the whole design, and the
   reason a dictionary lookup is not the answer.
 current_state: |
+  **Implemented (2026-09-27).** Every phase landed through #172 and #188; the landing records
+  under `execution/` are the evidence, and `implementation: complete` above is the
+  status. What follows is the state as the design was accepted, kept as written.
+
   Measured against `main` at c11040d0 (#172, 2026-09-23). Every phase has landed;
   `implementation` stays `partial` because D-10 — the producer's dbt project name on
   the exports document — is an author's row with no phase behind it yet: the dbt

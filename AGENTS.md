@@ -128,14 +128,14 @@ Whether `surrogate` is a new pytest marker or a parameter on `engine`; whoever a
 - Paths: `pyproject.toml`
 - Consequence: Either spelling satisfies D-2, and the parameter form keeps one selector for the whole matrix at the cost of a marker whose meaning depends on an argument
 
-### S-0013/D-4 — `ASSUMED` (Snowflake dialect port) — implementation: none
+### S-0013/D-4 — `ASSUMED` (Snowflake dialect port)
 
 Both emulators carry the `surrogate` marker, distinct from `engine`, and neither gates a release
 
 - Paths: `tests/engines/**` `pyproject.toml`
 - Consequence: `engine("snowflake")` over an emulator is the claim made in the one place it is invisible — a test name in a CI log — so the tier table grows a rung rather than reusing one, and a green surrogate lane can never be quoted as engine conformance
 
-### S-0016/D-2 — `LOCKED` (Databricks SQL dialect port) — implementation: none
+### S-0016/D-2 — `LOCKED` (Databricks SQL dialect port)
 
 PySpark is a test-only optional dependency group, pinned reproducibly in the lockfile and never installed by `uv add bloomery`
 
@@ -143,7 +143,7 @@ PySpark is a test-only optional dependency group, pinned reproducibly in the loc
 - Consequence: A user who never targets Databricks pays nothing for this port, and the dependency cannot drift into the runtime set by accident
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0016/D-3 — `LOCKED` (Databricks SQL dialect port) — implementation: none
+### S-0016/D-3 — `LOCKED` (Databricks SQL dialect port)
 
 The Spark lane is marked `surrogate("databricks_spark")`, never as the Databricks engine — local Spark checks shared Spark semantics, and only a live warehouse checks the Databricks dialect
 
@@ -151,7 +151,7 @@ The Spark lane is marked `surrogate("databricks_spark")`, never as the Databrick
 - Consequence: A green run in that lane cannot be quoted later as Databricks conformance, because the name a CI log prints already says what was tested
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0016/D-5 — `LOCKED` (Databricks SQL dialect port) — implementation: none
+### S-0016/D-5 — `LOCKED` (Databricks SQL dialect port)
 
 No service-principal machine-to-machine OAuth flow is documented as working on Free Edition; the stated fallback is a personal access token if that workspace offers one, otherwise local and manual with unattended CI on a normal workspace
 
@@ -159,7 +159,7 @@ No service-principal machine-to-machine OAuth flow is documented as working on F
 - Consequence: A reader setting the lane up is never sent down a path the edition cannot support, and the setup instructions stay true as written
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0016/D-10 — `ASSUMED` (Databricks SQL dialect port) — implementation: none
+### S-0016/D-10 — `ASSUMED` (Databricks SQL dialect port)
 
 No cloud credential is reachable from an untrusted pull request and the default test tiers never require one: the live lane runs on `main`, on a schedule and on manual dispatch behind the `databricks-free` GitHub Environment rather than raw repository secrets, against the dedicated `workspace.bloomery_conformance` catalog and schema, with compile-only and execution jobs kept separate, and a live test skips with a stated reason when the variables are absent rather than failing
 

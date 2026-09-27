@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/unit/test_resolve/`
 
-### S-0002/D-6 — `ASSUMED` (Multi-project composition) — implementation: partial
+### S-0002/D-6 — `ASSUMED` (Multi-project composition)
 
 Lineage node ids gain a project component for imported nodes only; a local node keeps its `<kind>.<name>` spelling
 
