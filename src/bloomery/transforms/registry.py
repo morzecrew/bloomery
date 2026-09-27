@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 
 from sqlglot import exp
 
-from bloomery.errors import TransformRegistrationError
+from bloomery.errors import TransformRegistrationError, TypeCheckError
 from bloomery.typing import (
     ArgKind,
     BoolType,
@@ -34,6 +34,7 @@ from bloomery.typing import (
     StringType,
     TimestampType,
     VariantType,
+    VectorType,
 )
 
 if TYPE_CHECKING:
@@ -140,6 +141,17 @@ def neutral_type(t: LogicalType) -> exp.DataType:
 
     if isinstance(t, DecimalType):
         return exp.DataType.build(f"DECIMAL({t.precision}, {t.scale})")
+
+    if isinstance(t, VectorType):
+        # A vector is the input of no transform and the output of no cast
+        # (S-0011/D-4), so there is no neutral spelling to hand back — an
+        # embedding arrives as a step's output, never as a mapped column.
+        msg = (
+            f"no neutral cast to vector({t.scalar}, {t.dimensions}): a vector is "
+            "produced by no transform and converted from no type. Fix: populate a "
+            "vector column from a step rather than from a mapping chain."
+        )
+        raise TypeCheckError(msg)
 
     return exp.DataType.build(_NEUTRAL_TYPES[type(t)])
 

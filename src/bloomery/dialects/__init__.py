@@ -25,6 +25,7 @@ from bloomery.dialects.databricks import DatabricksDialect
 from bloomery.dialects.duckdb import DuckDBDialect
 from bloomery.dialects.postgres import PostgresDialect
 from bloomery.dialects.redshift import RedshiftDialect
+from bloomery.dialects.snowflake import SnowflakeDialect
 from bloomery.dialects.trino import TrinoDialect
 from bloomery.errors import EmitError
 
@@ -42,6 +43,7 @@ __all__ = [
     "PostgresDialect",
     "RedshiftDialect",
     "SQLGlotDialect",
+    "SnowflakeDialect",
     "TrinoDialect",
     "get_dialect",
     "register_dialect",
@@ -52,6 +54,7 @@ _defaults: dict[str, DialectPort] = {
     "databricks": DatabricksDialect(),
     "duckdb": DuckDBDialect(),
     "postgres": PostgresDialect(),
+    "snowflake": SnowflakeDialect(),
     "redshift": RedshiftDialect(),
     "trino": TrinoDialect(),
 }

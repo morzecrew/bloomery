@@ -1335,11 +1335,19 @@ class ExportsIR:
     refused where it is authored, so this node is either present with something
     in it or absent entirely — which keeps "no boundary" and "a boundary that
     publishes nothing" from being two states that mean one thing.
+
+    ``name`` is the producer's dbt project name (S-0002/D-10) — the one
+    identity a project carries, carried across because a downstream's dbt
+    target spells its cross-project ``ref()`` and its ``dependencies.yml``
+    entry with it. ``None`` where the document names none, which is what the
+    dbt target refuses an import against; every other target names a relation
+    or reads a mart and never asks.
     """
 
     entities: tuple[str, ...] = ()
     marts: tuple[str, ...] = ()
     metrics: tuple[str, ...] = ()
+    name: str | None = None
 
 
 # ....................... #
@@ -1579,6 +1587,13 @@ class UpstreamIR:
     entities: tuple[EntityIR, ...] = ()
     marts: tuple[MartIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
+    #: Beside the alias and not instead of it (S-0002/D-10): what the upstream
+    #: exports as its own dbt project name, or ``None`` where it exports none.
+    #: The alias is still what keyed this bind and what every resolution goes
+    #: through (D2); this is the name dbt's cross-project `ref()` needs, and
+    #: the dbt target is the only reader — an import from an upstream that
+    #: exports no name is refused there rather than emitted unresolvable.
+    name: str | None = None
 
 
 # ....................... #
@@ -1699,9 +1714,16 @@ class ProjectIR:
     and every field name, so the *shape* is covered, not merely the values.
     That is the intended reading of S-0020/fingerprint — an IR shape change is
     supposed to be loud.
+
+    Version 22 (S-0002/D-10) adds ``ExportsIR.name`` and ``UpstreamIR.name``
+    — the producer's dbt project name, on the exports document and on each
+    bound upstream — which is the same shape once more: a project exporting
+    no name encodes the field all the same, so every fingerprint moves, and
+    ``plan()`` refuses to read a tree that has never heard of the field as
+    the same schema as one that has.
     """
 
-    bloomery_ir_version: int = 21
+    bloomery_ir_version: int = 22
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

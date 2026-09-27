@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0085
+phase: 2
+attempt: 2
+base: 25d391b3988309aeb2340a39e3a759affac9a125
+commit: 3a4a6b0dfeae1c800edc68d75717852254443401
+at: '2026-09-26T10:03:58Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: LOCKED
+  - id: D-11
+    grade: OPEN
+  - id: D-12
+    grade: OPEN
+  - id: D-13
+    grade: ASSUMED
+entries:
+  - decision: D-10
+    grade: LOCKED
+    at: '2026-09-26T09:54:54Z'
+    attempt: 2
+    claim: >-
+      The retrieval target lands as a member naming an artifact and nothing else:
+      no vector-database member joins the target enum, and the vendor-oriented vector
+      emitter stays out of tree behind register_emitter. The enum gains RETRIEVAL
+      only, the registry gains one default emitter for it, and the emitter writes
+      one JSON manifest and no DDL, so core carries no vendor name and no compatibility
+      promise. Close-out over a touched LOCKED area, not a divergence.
+    evidence: >-
+      src/bloomery/compile.py:57-61 — the enum's five members: SQLMESH, CUBE, DBT,
+      METRICFLOW, RETRIEVAL, with no vendor member; src/bloomery/emit/__init__.py:42-50
+      lists the five default emitters and register_emitter above it is unchanged
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-26T09:55:09Z'
+    attempt: 2
+    claim: >-
+      The contract asks for the concepts page and the scope allows pages/docs/**,
+      but the docs nav that makes a page reachable lives outside that allow list,
+      so the page ships written and unpublished. Shipped it anyway rather than editing
+      the nav, because the scope gate is blocking and structural while the nav audit
+      is neither in this battery nor in this scope; flagging beats a boundary violation.
+    evidence: >-
+      pages/zensical.toml:30-37 — the concepts nav lists eight pages and is the file
+      the audit reads, and no scope entry reaches pages/zensical.toml
+    action: decided
+    proposal: >-
+      A scope naming pages/docs/** for a new page also names pages/zensical.toml,
+      the way a scope naming a module names its test file — a page absent from the
+      nav is a page nobody can reach, which is what tests/unit/test_docs_floor.py::test_every_docs_page_is_in_the_nav
+      convicts on
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-26T09:55:09Z'
+    attempt: 2
+    claim: >-
+      Three goldens moved, and none of them is an artifact whose bytes changed. The
+      two spec-schema goldens gained the vector(scalar, dimensions) alternative in
+      the type-string pattern, which is S-0011/D-4's declared cost landing in a published
+      schema. The corpus golden gained exactly two lines, both 'retrieval refused
+      GuardrailError' for the two fixtures already refused at the guardrail stage
+      for every target: the file enumerates Target, so a new member adds lines to
+      it even where the feature is unused. No existing checksum moved, so S-0011/I-1's
+      unchanged claim holds on artifacts; it is the golden that enumerates targets,
+      not the emission, that moved.
+    evidence: >-
+      tests/golden/corpus/single_project.txt:256 — one of the two added lines, the
+      other at :495, and 581 lines against 579 before; tests/golden/schema/catalog.json
+      and entity_model.json each carry the new vector alternative once
+    action: decided
+    proposal: >-
+      I-1 is worth restating as artifact bytes rather than golden files: a golden
+      that enumerates the target set moves when the set grows, and reading the invariant
+      literally makes adding any target a violation of it

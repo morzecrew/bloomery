@@ -1,0 +1,54 @@
+# The retrieval surface: one semantic space and two profiles over the same
+# corpus — one against the silver entity, one against the gold mart that carries
+# the document's columns beside the chunk's.
+#
+# Nothing here is a float. A space declares the *shape* of its vectors
+# (dimensions, scalar, distance) and the *identity* of the encoders that write
+# and read them, as opaque strings: bloomery never computes an embedding, never
+# reads one, and never asks a provider whether a model exists. Fusion is RRF and
+# only RRF — a rank-based fusion needs no score calibration, so there is no
+# weight to tune and no float to compare.
+retrieval_version: 1
+
+semantic_spaces:
+  chunk_text:
+    dimensions: 1536
+    scalar: float32
+    distance: cosine
+    # Two encoders because the query side is a different call from the document
+    # side, and a corpus written by one model and queried by another is a
+    # silently different space. Both are strings compared to strings.
+    document_encoder: {family: openai, model: text-embedding-3-small, input_kind: document}
+    query_encoder: {family: openai, model: text-embedding-3-small, input_kind: query}
+
+profiles:
+  # Hybrid: a vector side and a lexical side, fused by reciprocal rank. The two
+  # stand or fall together — a `lexical` block with no `fusion` would be a
+  # second candidate list nothing merges.
+  chunk_hybrid:
+    relation: {entity: chunk}
+    grain: [chunk_id]
+    vector:
+      field: embedding
+      space: chunk_text
+      # Declared on the profile as well, so the compile refuses a corpus written
+      # by a model the space does not claim. Dimensions agreeing is not spaces
+      # agreeing.
+      producer: {family: openai, model: text-embedding-3-small, input_kind: document}
+    lexical:
+      fields: [body]
+    fusion:
+      method: rrf
+    filterable: [document_id]
+    return: [chunk_id, document_id, ordinal, body]
+
+  # Dense only, over the mart: the same vectors, filtered by the date buckets the
+  # mart's `published` role expanded.
+  chunk_in_context:
+    relation: {mart: chunks}
+    grain: [chunk_id]
+    vector:
+      field: embedding
+      space: chunk_text
+    filterable: [published_month, published_year]
+    return: [chunk_id, body, document_title]

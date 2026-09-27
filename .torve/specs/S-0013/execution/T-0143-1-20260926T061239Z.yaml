@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0143
+base: d6f8abe1d281ee766251f2c394007d11257a8acb
+commit: b625af89d70655f84eb1d1a35c9b0405fdd5de21
+at: '2026-09-26T06:12:39Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: ASSUMED
+  - id: S-0012/D-1
+    grade: LOCKED
+  - id: S-0012/D-2
+    grade: LOCKED
+  - id: S-0012/D-3
+    grade: LOCKED
+  - id: S-0012/D-6
+    grade: ASSUMED
+entries:
+  - decision: S-0012/D-1
+    grade: LOCKED
+    at: '2026-09-26T05:57:54Z'
+    claim: >-
+      the change stays inside the authoritative lane and quotes no surrogate as conformance:
+      the probe is submitted to the real account's endpoint and its refusal code is
+      compared against a refusal from the same endpoint
+    evidence: >-
+      tests/engines/test_snowflake_live.py:662-670 — all three submissions go through
+      the warehouse fixture of this engine-marked file
+    action: decided
+  - decision: S-0012/D-2
+    grade: LOCKED
+    at: '2026-09-26T05:57:54Z'
+    claim: >-
+      the marker is untouched: the file keeps its engine('snowflake') mark and nothing
+      surrogate-marked was edited
+    evidence: >-
+      tests/engines/test_snowflake_live.py:86 — pytestmark = pytest.mark.engine("snowflake")
+      is unchanged
+    action: decided
+  - decision: S-0012/D-3
+    grade: LOCKED
+    at: '2026-09-26T05:57:54Z'
+    claim: >-
+      the authoritative compile rung is unaffected: the repaired test belongs to the
+      execution corpus and the EXPLAIN USING JSON sweeps are unchanged
+    evidence: >-
+      tests/engines/test_snowflake_live.py:206-236 — the corpus sweep over snowflake.explain
+      is untouched
+    action: decided

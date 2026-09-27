@@ -281,27 +281,42 @@ share one lowering, so a semantics bug cannot exist in only one target's SQL.
 ## Composing across projects
 
 A project that imports from an upstream names the upstream's relations the way dbt
-names another project's models — `{{ ref('platform', 'order_item') }}`, where
-`platform` is the alias the import document gave the upstream. Nothing else changes:
-a local model keeps the one-argument `ref()` beside it, and the SELECT is lowered
-exactly as it would be if the entity were yours.
+names another project's models — `{{ ref('ecom_platform', 'order_item') }}`, where
+`ecom_platform` is the `name` the *upstream's* export list publishes, not the alias you
+imported it under. dbt resolves that first argument against the producing project's own
+`dbt_project.yml`, and the alias is your private spelling of the upstream. Nothing else
+changes: a local model keeps the one-argument `ref()` beside it, and the SELECT is
+lowered exactly as it would be if the entity were yours.
 
 The reference resolves only if dbt knows the project, so the compile emits a
 `dependencies.yml` alongside it:
 
 ```yaml title="dependencies.yml"
 projects:
-  - name: platform
+  - name: ecom_platform
 ```
 
 A project that imports nothing gets no such file — an empty `projects:` list is not the
 same thing as no dependency.
 
-Two obligations come with this, neither of which bloomery can check for you:
+The name is what the two sides agree on, so a project meant to be imported over dbt
+publishes one:
 
-- **dbt's own name for the upstream project must equal the alias.** A bloomery project
-  carries no identity of its own, so the alias you chose in `imports:` is the only name
-  the two sides share, and `dependencies.yml` says it out loud.
+```yaml title="exports.yaml"
+exports_version: 1
+exports:
+  name: ecom_platform
+  entities: [order, order_item]
+```
+
+That name becomes `name:` in the emitted `dbt_project.yml` — a project that exports none
+is called `bloomery`, as every emitted project was. Importing from an upstream that
+exports no name is refused for this target rather than emitted: there would be nothing
+for dbt to resolve, and the fix is a `name:` in the upstream's own export list. No other
+target asks — SQLMesh names the relation, Cube and MetricFlow read a mart.
+
+One obligation comes with this, which bloomery cannot check for you:
+
 - **Both projects must be compiled under the same naming policy.** The downstream refers
   to *models*, but the mart it builds is read by Cube and MetricFlow at a relation the
   policy names — and the upstream built that relation under its own policy. Compile the

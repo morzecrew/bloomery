@@ -101,6 +101,7 @@ from bloomery.typing import (
     StringType,
     TimestampType,
     VariantType,
+    VectorType,
 )
 
 # ----------------------- #
@@ -244,7 +245,22 @@ def _dimensions(mart: MartIR, ir: ProjectIR) -> list[object]:
             entry["type"] = "time"
             meta["granularity"] = dimension.ref.dimension
         else:
-            entry["type"] = _DIMENSION_TYPES[type(types_by_column[dimension.column])]
+            column_type = types_by_column[dimension.column]
+
+            if isinstance(column_type, VectorType):
+                # Cube has no dimension type for an embedding vector, and the
+                # column is a retrieval surface rather than something to group
+                # by: refused by name (S-0025/D-3) rather than a KeyError from
+                # the type map.
+                msg = (
+                    f"cube cannot carry the vector column {dimension.column!r} as a "
+                    "dimension: Cube has no dimension type for an embedding. Fix: leave the "
+                    "vector out of the mart's dimensions — a retrieval profile reads it "
+                    "from the relation (S-0011/D-10)"
+                )
+                raise UnsupportedByTarget(msg)
+
+            entry["type"] = _DIMENSION_TYPES[type(column_type)]
 
         role_of = shared.get(dimension.column)
 

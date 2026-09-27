@@ -26,6 +26,7 @@ from bloomery.spec.imports import ImportSet
 from bloomery.spec.mapping import Mapping
 from bloomery.spec.marts import MartSet
 from bloomery.spec.metrics import MetricSet
+from bloomery.spec.retrieval import RetrievalSpec
 from bloomery.spec.steps import StepSet
 
 # ----------------------- #
@@ -51,6 +52,7 @@ _KIND_KEYS: dict[str, type[SpecModel]] = {
     "exposures_version": ExposureSet,
     "exports_version": ExportSet,
     "imports_version": ImportSet,
+    "retrieval_version": RetrievalSpec,
 }
 
 
@@ -75,6 +77,10 @@ class Project:
     #: input is keyed by; ``None`` where no imports document was authored,
     #: which is the only spelling of "reads nothing".
     imports: ImportSet | None = None
+    #: The declared semantic spaces and retrieval profiles (S-0011/D-1).
+    #: ``None`` where no retrieval document was authored, which is what keeps a
+    #: project that does not retrieve unchanged to the byte.
+    retrieval: RetrievalSpec | None = None
 
 
 # ....................... #
@@ -137,6 +143,7 @@ def _check_document_counts(
     exposure_sets: list[tuple[str, ExposureSet]],
     export_sets: list[tuple[str, ExportSet]],
     import_sets: list[tuple[str, ImportSet]],
+    retrieval_specs: list[tuple[str, RetrievalSpec]],
 ) -> list[BloomeryError]:
     errors: list[BloomeryError] = []
 
@@ -159,6 +166,7 @@ def _check_document_counts(
         ("ExposureSet", exposure_sets),
         ("ExportSet", export_sets),
         ("ImportSet", import_sets),
+        ("RetrievalSpec", retrieval_specs),
     ):
         if len(sets) > 1:
             names = [name for name, _ in sets]
@@ -191,6 +199,7 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
     exposure_sets: list[tuple[str, ExposureSet]] = []
     export_sets: list[tuple[str, ExportSet]] = []
     import_sets: list[tuple[str, ImportSet]] = []
+    retrieval_specs: list[tuple[str, RetrievalSpec]] = []
 
     for name in sorted(sources):
         try:
@@ -215,6 +224,8 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
             export_sets.append((name, model))
         elif isinstance(model, ImportSet):
             import_sets.append((name, model))
+        elif isinstance(model, RetrievalSpec):
+            retrieval_specs.append((name, model))
         else:  # pragma: no cover — _KIND_KEYS is closed
             # Not a `cast` on the closed table: the cast made an unhandled kind
             # silently *become* a StepSet, and hid the mismatch from pyright
@@ -235,6 +246,7 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
                 exposure_sets,
                 export_sets,
                 import_sets,
+                retrieval_specs,
             )
         )
 
@@ -255,6 +267,7 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
         exposures=exposure_sets[0][1] if exposure_sets else None,
         exports=export_sets[0][1] if export_sets else None,
         imports=import_sets[0][1] if import_sets else None,
+        retrieval=retrieval_specs[0][1] if retrieval_specs else None,
     )
 
 

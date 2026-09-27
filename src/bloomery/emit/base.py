@@ -18,11 +18,13 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from bloomery.errors import EmitError
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from sqlglot import exp
 
     from bloomery.dialects import DialectPort
@@ -181,6 +183,16 @@ class EmitContext:
     #: column expression is built where both are in scope. Defaulted so every
     #: caller that never converts is unchanged.
     fx_rates: FxRatesIR | None = None
+    #: The authored retrieval document as **plain data**, for the target that
+    #: writes the manifest (S-0011/D-6). Here rather than on the IR because the
+    #: retrieval kind never reached it: nothing in the compile pipeline lowers a
+    #: profile, so the document arrives at the one seam that sees both the specs
+    #: and the emitters — :func:`~bloomery.compile.compile_project`, which dumps
+    #: it. Plain mappings rather than the spec models, because the emit side
+    #: consumes IR and never specs (``pyproject.toml``, "Emitters never import
+    #: the spec layer"). Defaulted, so every caller that declares no retrieval
+    #: document is unchanged.
+    retrieval: Mapping[str, Any] | None = None
 
 
 # ....................... #

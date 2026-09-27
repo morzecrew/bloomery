@@ -8,8 +8,14 @@
 # a boundary somebody drew, not a restatement of everything the project
 # declares — a project that exports its whole spec has no boundary at all
 # (D1), and a fixture that exported everything would not show the difference.
+#
+# `name` is this project's dbt project name (S-0002/D-10) — the one identity a
+# bloomery project carries. Deliberately not the alias the cross-project tests
+# import it under: a downstream's `ref()` names the producer, and a fixture
+# whose name matched the alias would let a target spelling the alias pass.
 exports_version: 1
 exports:
+  name: ecom_platform
   entities: [order_item, order]
   marts: [order_items]
   metrics: [order_count, gross_revenue]

@@ -18,6 +18,7 @@ from bloomery.ir import (
     DateDimensionIR,
     DedupeIR,
     DimensionRef,
+    ExportsIR,
     OnFail,
     PartitionSpec,
     ProjectIR,
@@ -81,8 +82,8 @@ def test_the_declared_ir_version_is_the_current_one() -> None:
     # `ProjectIR.exposures`, `SourceIR.freshness`, the `owner` on each of
     # `EntityIR`/`MartIR`/`MetricIR`, `RollupIR.grants`, `ProjectIR.exports`,
     # `SourceFieldIR.zone_in`, `Ratio.includes_zero_denominator` and
-    # `ColumnIR.determines` and `ProjectIR.upstream` each change
-    # the IR
+    # `ColumnIR.determines`, `ProjectIR.upstream` and the exported project name
+    # (`ExportsIR.name`, `UpstreamIR.name`) each change the IR
     # shape; S-0020/D-3 makes the version
     # part of the fingerprint, so each bump is deliberate and loud. The M12/M13
     # wave nearly shipped without one: the fingerprints moved anyway (the
@@ -96,7 +97,7 @@ def test_the_declared_ir_version_is_the_current_one() -> None:
     # fingerprint does not move at all — two compilers of different shape then
     # agree on the fingerprint as well as the version. Named for what it pins
     # rather than for a number, because the number is what changes.
-    assert ProjectIR().bloomery_ir_version == 21
+    assert ProjectIR().bloomery_ir_version == 22
 
 
 def test_the_compiler_emits_the_declared_ir_version() -> None:
@@ -231,6 +232,15 @@ def test_the_newest_field_is_appended() -> None:
 
     assert names[-1] == "upstream"
     assert names[-2] == "exports"
+
+
+def test_the_exported_name_is_appended_on_both_nodes_that_carry_it() -> None:
+    """S-0002/D-10's field lands last on each node, under the rule above: both
+    are built positionally nowhere today, and an insertion mid-list is a
+    rebinding no signature change announces."""
+
+    assert [field.name for field in dataclasses.fields(ExportsIR)][-1] == "name"
+    assert [field.name for field in dataclasses.fields(UpstreamIR)][-1] == "name"
 
 
 def test_positional_construction_still_binds_what_it_did() -> None:

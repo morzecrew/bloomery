@@ -145,11 +145,19 @@ def expand_engine_macros(sql: str) -> str:
     return sql.replace("@execution_ds", f"'{EXECUTION_DATE}'")
 
 
+_ENVELOPE = re.compile(r"\A(?:\s*--[^\n]*\n)*\s*(?:MODEL|AUDIT)\s*\(")
+
+
 def extract_select(content: str) -> str:
-    """Strip the SQLMesh ``MODEL (...)`` envelope: the SELECT follows the
-    envelope's closing ``);`` (the envelope contains no other ``);``)."""
-    _envelope, _sep, select = content.partition(");")
-    return expand_engine_macros(select.strip())
+    """Strip the SQLMesh ``MODEL (...)`` or ``AUDIT (...)`` envelope when the
+    artifact carries one: the SELECT follows the envelope's closing ``);``
+    (the envelope contains no other ``);``). A replay artifact has no envelope
+    — it is bare statements — and is returned whole: partitioning it on its
+    first ``);`` cut inside the leading MERGE and dropped it from every check
+    built on this helper."""
+    if _ENVELOPE.match(content):
+        _envelope, _sep, content = content.partition(");")
+    return expand_engine_macros(content.strip())
 
 
 def resolve_dbt_references(sql: str) -> str:

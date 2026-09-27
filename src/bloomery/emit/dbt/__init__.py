@@ -182,6 +182,7 @@ from bloomery.ir import (
     SCDKind,
     StepKind,
     StepOutputIR,
+    UpstreamIR,
 )
 from bloomery.ir.nodes import with_imported
 from bloomery.quality import RunContext, is_quality_mart
@@ -1425,7 +1426,7 @@ def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | No
     for up in ir.upstream:  # sorted by alias on ProjectIR
         for mart in up.marts:
             _namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
-            references[mart.name] = f"ref('{up.alias}', '{relation}')"
+            references[mart.name] = f"ref('{_upstream_project(up)}', '{relation}')"
             for measure in mart.measures:
                 serving.setdefault(measure, []).append(references[mart.name])
 
@@ -1492,6 +1493,37 @@ def _entity_model(entity: EntityIR, relation: str) -> str:
     """
 
     return f"{entity.name}_snapshot" if entity.scd is SCDKind.TYPE2 else relation
+
+
+# ....................... #
+
+
+def _upstream_project(up: UpstreamIR) -> str:
+    """The dbt project name a cross-project ``ref()`` names (S-0002/D-10).
+
+    The upstream's **exported** name, never the local alias: dbt resolves the
+    first argument of a two-argument ``ref()`` against the producing project's
+    own ``dbt_project.yml``, so the alias — the downstream's private spelling
+    (D2) — resolves only where the two happen to coincide.
+
+    An upstream that exports no name is refused here rather than emitted. The
+    alternative is a ``dependencies.yml`` and a ``ref()`` naming a project dbt
+    cannot find: a tree that parses as bloomery output and fails in dbt, where
+    the fix — a name in the *upstream's* export list — is furthest away.
+    """
+
+    if up.name is None:
+        msg = (
+            f"imports from {up.alias!r}, which exports no project name. dbt names the "
+            f"producing project in a cross-project ref() and in dependencies.yml, and "
+            f"the local alias is this project's own spelling of the upstream rather than "
+            f"its identity (S-0002/D-2) — so there is nothing here that dbt could "
+            f"resolve. Fix: add `name:` to the upstream's exports document, or emit this "
+            f"project for a target that names the relation instead (S-0002/D-10)"
+        )
+        raise UnsupportedByTarget(msg)
+
+    return up.name
 
 
 # ....................... #
@@ -1570,13 +1602,14 @@ def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[tuple[str, str], str
     # dbt cannot resolve one. A local name colliding with an imported one is
     # refused at compile, so no entry here overwrites one above.
     for up in ir.upstream:  # sorted by alias on ProjectIR
+        project = _upstream_project(up)
         for entity in up.entities:
             namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
             model = _entity_model(entity, relation)
-            add(namespace, relation, f"{{{{ ref('{up.alias}', '{model}') }}}}")
+            add(namespace, relation, f"{{{{ ref('{project}', '{model}') }}}}")
         for mart in up.marts:
             namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
-            add(namespace, relation, f"{{{{ ref('{up.alias}', '{relation}') }}}}")
+            add(namespace, relation, f"{{{{ ref('{project}', '{relation}') }}}}")
 
     return references
 
@@ -1588,18 +1621,44 @@ def _dependencies_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact |
     """``dependencies.yml`` — the projects a cross-project ``ref()`` names
     (S-0002/D-2), or ``None`` where this project imports nothing.
 
-    The alias is the project name, because a bloomery project carries no
-    identity of its own: what the downstream calls the upstream is the only
-    name either side has to agree on, and dbt's own name for the upstream
-    project has to be made to match it.
+    Each entry is the upstream's **exported** project name (S-0002/D-10), which
+    is the name dbt resolves a cross-project ``ref()`` against — the local alias
+    is this project's own spelling of the upstream and says nothing about who it
+    is (D2). An upstream that exports no name is refused by
+    :func:`_upstream_project` rather than written out unresolvable.
     """
 
     if not ir.upstream:
         return None
 
+    # dbt resolves a cross-project `ref()` by project name, and requires the
+    # names in an account to be distinct: two upstreams exporting one name
+    # would be one `dependencies.yml` entry and one `ref()` target for two
+    # different producers, and an upstream named like this project would be
+    # this project. Refused here, where the identity is used, rather than
+    # emitted as a tree dbt loads and then cannot tell apart.
+    own = ir.exports.name if ir.exports and ir.exports.name else "bloomery"
+    claimed: dict[str, str] = {}
+
+    for up in ir.upstream:
+        name = _upstream_project(up)
+        other = claimed.get(name)
+
+        if other is not None or name == own:
+            holder = f"the alias {other!r}" if other is not None else "this project itself"
+            msg = (
+                f"imports from {up.alias!r}, whose exported dbt project name {name!r} is "
+                f"already the name of {holder}. dbt resolves a cross-project ref() by "
+                f"project name and needs each one distinct. Fix: give the producing "
+                f"projects distinct `name:` entries in their exports documents (S-0002/D-10)"
+            )
+            raise UnsupportedByTarget(msg)
+
+        claimed[name] = up.alias
+
     return EmittedArtifact.create(
         path="dependencies.yml",
-        content=_header(ctx) + _yaml({"projects": [{"name": up.alias} for up in ir.upstream]}),
+        content=_header(ctx) + _yaml({"projects": [{"name": name} for name in claimed]}),
         kind=ArtifactKind.CONFIG,
     )
 
@@ -1724,9 +1783,19 @@ _OPERATOR_CONTRACT = """\
 """
 
 
-def _project_artifact(ctx: EmitContext, namespaces: tuple[str, ...]) -> EmittedArtifact:
+#: What an unnamed project is called. A project that exports no name is not
+#: referenced across a boundary — the refusal in :func:`_upstream_project` is
+#: the other half of that — so any constant would do; this one is what every
+#: emitted project was called before a name could be exported (S-0002/D-10).
+_DEFAULT_PROJECT = "bloomery"
+
+
+def _project_artifact(
+    ctx: EmitContext, namespaces: tuple[str, ...], exported: str | None = None
+) -> EmittedArtifact:
+    name = exported or _DEFAULT_PROJECT
     document: dict[str, object] = {
-        "name": "bloomery",
+        "name": name,
         "version": "1.0.0",
         "profile": "bloomery",
         "model-paths": ["models"],
@@ -1749,9 +1818,10 @@ def _project_artifact(ctx: EmitContext, namespaces: tuple[str, ...]) -> EmittedA
         # relation `NamingPolicy.relation` names — which is what makes the
         # `ref()` in a downstream model resolve to the same relation the
         # SQLMesh target writes.
-        document["models"] = {
-            "bloomery": {namespace: {"+schema": namespace} for namespace in namespaces}
-        }
+        # Keyed by the project's own name, which is what dbt matches a `models:`
+        # block against: keyed by anything else the block governs no model, and
+        # the relation lands wherever dbt's default schema puts it.
+        document["models"] = {name: {namespace: {"+schema": namespace} for namespace in namespaces}}
 
     return EmittedArtifact.create(
         path="dbt_project.yml",
@@ -1777,6 +1847,12 @@ class DbtEmitter:
         the project scaffold and bronze sources; artifacts sorted by path,
         content ending in exactly one newline (S-0020/determinism-rules-package-wide rule 5)."""
         refuse_python_models(ir, "dbt")
+        # The import guard (S-0002/D-10): asked of every upstream, before any
+        # artifact is built, because an upstream whose nodes nothing references
+        # still reaches `dependencies.yml` — and half a tree written before the
+        # refusal is a tree somebody runs.
+        for up in ir.upstream:
+            _upstream_project(up)
         references = _reference_map(ir, ctx)
         # The lookup view (S-0002/D-2): a mart base is the only construct that
         # can name an imported node — a rollup's parent must be a mart this
@@ -1864,7 +1940,12 @@ class DbtEmitter:
                 }
             )
         )
-        artifacts.append(_project_artifact(ctx, namespaces))
+        # Named after this project's own export name where it has one
+        # (S-0002/D-10), so a downstream's `ref('<name>', …)` resolves against
+        # the project that published it.
+        artifacts.append(
+            _project_artifact(ctx, namespaces, ir.exports.name if ir.exports else None)
+        )
         artifacts.append(_schema_macro_artifact(ctx))
         # This target writes `tests/<check>.sql` across five families whose
         # names come from author-chosen parts (S-0043), so it needs the guard

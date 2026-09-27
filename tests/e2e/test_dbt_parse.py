@@ -255,13 +255,15 @@ def test_dbt_resolves_an_exposure_to_the_models_it_reads(tmp_path: pathlib.Path)
     assert result.success, getattr(result, "exception", None)
 
     listed = set(result.result)  # type: ignore[attr-defined]
-    assert {"bloomery.finance_extract", "bloomery.weekly_revenue_review"} <= {
+    # `ecom_basic` exports its dbt project name (S-0002/D-10), so its nodes
+    # carry that name rather than the `bloomery` fallback.
+    assert {"ecom_platform.finance_extract", "ecom_platform.weekly_revenue_review"} <= {
         name.removeprefix("exposure:") for name in listed
     }
     # The upstream walk reached past the exposure itself: the mart it reads,
     # and the silver models that mart reads.
-    assert "bloomery.gold.mart_order_items" in listed
-    assert "bloomery.silver.order_item" in listed
+    assert "ecom_platform.gold.mart_order_items" in listed
+    assert "ecom_platform.silver.order_item" in listed
 
 
 def test_the_build_would_notice_a_model_that_lands_in_the_wrong_schema(

@@ -185,6 +185,34 @@ def test_sql_table_comes_from_the_gold_naming_policy() -> None:
     assert cube["sql_table"] == "acme_gold.mart_orders"
 
 
+def test_a_vector_dimension_is_refused_by_name_not_a_key_error() -> None:
+    """Cube has no dimension type for an embedding vector, and the type map is
+    keyed by logical type — a vector column reaching it raised `KeyError`.
+    Refused by name instead (S-0025/D-3): the vector is a retrieval surface
+    read from the relation, not something to group by."""
+    from dataclasses import replace
+
+    from bloomery.typing import VectorType
+
+    embedding = VectorType(scalar="float32", dimensions=8)
+    entity = replace(_entity(), columns=(*_entity().columns, _column("embedding", embedding)))
+    mart = _mart(())
+    vector = MartColumnIR(
+        name="embedding", type=embedding, source_entity="order", source_column="embedding"
+    )
+    mart = replace(
+        mart,
+        columns=(*mart.columns, vector),
+        dimensions=(
+            *mart.dimensions,
+            MartDimensionIR(ref=DimensionRef(dimension="embedding"), column="embedding"),
+        ),
+    )
+    project = replace(_project((), ()), entities=(entity,), marts=(mart,))
+    with pytest.raises(UnsupportedByTarget, match="vector column 'embedding'"):
+        CubeEmitter().emit(project, _ctx())
+
+
 def test_dimensions_type_by_role_and_logical_type() -> None:
     artifacts = CubeEmitter().emit(_project((_metric("revenue"),), ("revenue",)), _ctx())
     dimensions = {

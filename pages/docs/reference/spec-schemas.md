@@ -1,13 +1,14 @@
 # Spec schemas
 
-Field-by-field reference for the seven spec kinds. Parsing is strict: unknown keys,
+Field-by-field reference for the eight spec kinds. Parsing is strict: unknown keys,
 duplicate YAML keys, and grammar violations are hard `SpecParseError`s, batched per
 document with a source path per failure. Parse validates shape and grammar only —
 whether references exist is checked at resolution.
 
 Each project document self-identifies by its version key: `spec_version` (EntityModel),
 `mapping_version` (Mapping), `metrics_version` (MetricSet), `marts_version` (MartSet),
-`steps_version` (StepSet), `exposures_version` (ExposureSet). A project holds exactly one
+`steps_version` (StepSet), `exposures_version` (ExposureSet), `retrieval_version`
+(RetrievalSet). A project holds exactly one
 EntityModel, any number of Mappings, and at most one of every other kind. The Catalog
 (`catalog_version`) is not part of a project — load it with `load_catalog` and pass it
 separately.
@@ -20,7 +21,7 @@ implement is **refused**, never read as one it does.
 
 | Grammar | Rule | Examples |
 |---|---|---|
-| Type string | `string`, `int`, `bool`, `date`, `timestamp`, `variant`, or `decimal(p, s)` | `decimal(12,4)` |
+| Type string | `string`, `int`, `bool`, `date`, `timestamp`, `variant`, `decimal(p, s)`, or `vector(scalar, dimensions)` | `decimal(12,4)`, `vector(float32, 1536)` |
 | Partition spec | A bare column, or `fn(column)` with `fn` ∈ `days`/`months`/`years`/`hours` | `days(order_date)` |
 | Source path | JSONPath-lite: `$` followed by dotted identifiers only | `$.customer.id` |
 | Currency code | Three uppercase letters (ISO 4217) | `EUR` |
@@ -784,3 +785,131 @@ steps:
 this wiring binds and that every declared rule says which output it applies to. Whether
 the manifest actually declares that output, that column or that parameter is a resolution
 question — the spec layer has never seen a manifest.
+
+## RetrievalSet (`retrieval_version`)
+
+At most one per project, and optional. A retrieval document declares the *logical*
+retrieval surface over relations the project already builds: which relation is a corpus,
+which column holds its vectors, what space those vectors live in, and what a query may
+filter on and get back. Nothing is built for one — the artifact is
+`retrieval_manifest.json`, emitted by the `retrieval` target — and nothing about one is
+discovered. See [Retrieval](../concepts/retrieval.md) for what this is and is not.
+
+**No float appears anywhere in the grammar, and no embedding ever reaches the compiler.**
+A space declares a *shape* (dimensions, scalar, distance) and an *identity* (which encoder
+writes the corpus, which reads the query) — the identity is opaque strings compared to
+strings, never resolved against a provider. Fusion is rank-based, so there is no weight to
+tune.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `retrieval_version` | `1` | yes | Document version key |
+| `semantic_spaces` | map name → SemanticSpace | yes | One entry per space; the name is a bare identifier |
+| `profiles` | map name → RetrievalProfile | yes | One entry per retrievable surface |
+
+### SemanticSpace
+
+A space is what makes two vectors comparable. Two corpora in one space are searchable
+together; two corpora that merely have the same dimensions are not.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `dimensions` | int, 1..99999 | yes | Vector length. Must equal the declared length of the profile's vector column |
+| `scalar` | `float32` / `float16` | yes | The element type. Names a width, carries no value — the closed set is what keeps a corpus and a query from disagreeing about one silently |
+| `distance` | `cosine` / `dot` / `l2` | yes | The metric a runtime scores with. Bloomery computes none of them |
+| `document_encoder` | Encoder | yes | What wrote the corpus. `input_kind` must be `document` |
+| `query_encoder` | Encoder | yes | What reads a query. `input_kind` must be `query` |
+
+Both sides are declared because they are two different calls, and a corpus written by one
+model and queried by another is a silently different space. An encoder under
+`query_encoder` declaring `input_kind: document` is refused at parse: the document would
+read as symmetric while saying it is not.
+
+### Encoder
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `family` | non-empty string | yes | Who provides the model (`openai`, `cohere`, a platform's own name) |
+| `model` | non-empty string | yes | Which model. Never resolved — a compile that asked a provider whether a model exists would read the network |
+| `input_kind` | `document` / `query` | yes | Which side of the space this identity belongs to |
+
+### RetrievalProfile
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `relation` | CorpusRelation | yes | The corpus: exactly one of a mart or an entity |
+| `grain` | list of column names, ≥ 1 | yes | One row per retrievable item. Must equal the corpus relation's key |
+| `vector` | VectorSide | yes | The dense side |
+| `lexical` | LexicalSide | no | The sparse side. Stands or falls with `fusion` |
+| `fusion` | Fusion | no | How the two rankings combine. Stands or falls with `lexical` |
+| `filterable` | list of column names | no (`[]`) | Columns a query may restrict on |
+| `return` | list of column names, ≥ 1 | yes | The projection. Spelled `return` in the document and in the manifest |
+
+### CorpusRelation
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `mart` | mart name | one of the two | A gold relation — resolves to `gold.mart_<name>` under the default naming policy |
+| `entity` | entity name | one of the two | A silver relation — resolves to `silver.<name>` |
+
+Two keys rather than one dotted string, because the two namespaces are separate: a name
+that resolves in both would otherwise be ambiguous, and neither prefix is a namespace a
+runtime can use.
+
+### VectorSide
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `field` | column name | yes | The corpus column holding the vectors. Must be declared `vector(<scalar>, <dimensions>)`, matching the space on both |
+| `space` | space name | yes | A space this document declares |
+| `producer` | Encoder | no | What wrote *this* corpus, where it is worth stating. Refused when it differs from the space's `document_encoder` — dimensions agreeing is not spaces agreeing |
+
+### LexicalSide
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `fields` | list of column names, ≥ 1 | yes | The text columns a lexical ranking reads. Bloomery does not choose the analyzer, the index or the operator |
+
+### Fusion
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `method` | `rrf` | yes | Reciprocal rank fusion, and only that: a rank-based method needs no score calibration, so there is no weight to author and no float to compare |
+
+```yaml
+retrieval_version: 1
+semantic_spaces:
+  chunk_text:
+    dimensions: 1536
+    scalar: float32
+    distance: cosine
+    document_encoder: {family: openai, model: text-embedding-3-small, input_kind: document}
+    query_encoder: {family: openai, model: text-embedding-3-small, input_kind: query}
+profiles:
+  chunk_hybrid:
+    relation: {entity: chunk}
+    grain: [chunk_id]
+    vector:
+      field: embedding
+      space: chunk_text
+      producer: {family: openai, model: text-embedding-3-small, input_kind: document}
+    lexical: {fields: [body]}
+    fusion: {method: rrf}
+    filterable: [document_id]
+    return: [chunk_id, document_id, body]
+```
+
+**Where a vector column comes from.** A `vector(...)` column is assignable only from an
+identical vector and is produced by no transform, so no mapping chain can populate one: it
+arrives from a step's declared output (`produces: {embedding: {type: "vector(float32,
+1536)"}}`) and nowhere else. Asking a SQL dialect for such a relation is refused —
+`UnsupportedByTarget`, "no physical type for vector(float32, 1536)" — because a declared
+vector is not a column a warehouse port emits DDL for. The relation is written by the
+platform's step; what bloomery contributes is the contract for querying it.
+
+**Shape versus resolution.** Parse checks the grammar above, that every profile names a
+space this document declares, and that `lexical`/`fusion` are both present or both absent.
+Whether the corpus relation exists, whether its vector column is a vector of the right
+length and scalar, whether the grain is the relation's key and whether every named column
+is there are guardrail questions — see
+[Retrieval refusals](errors.md#retrieval-refusals).

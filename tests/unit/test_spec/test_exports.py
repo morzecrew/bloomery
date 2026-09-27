@@ -95,6 +95,33 @@ def test_the_document_is_recognised_by_its_version_key() -> None:
     assert project.exports.exports.entities == ("customer",)
 
 
+def test_the_name_is_optional_and_publishes_nothing_by_itself() -> None:
+    """The producer's dbt project name (S-0002/D-10): the one identity a
+    bloomery project carries, absent unless a document says otherwise — and no
+    substitute for a list, since a document carrying only a name still says
+    what a project with no exports document already says."""
+
+    named = ExportSet.model_validate(
+        {"exports_version": 1, "exports": {"name": "platform", "entities": ["a"]}}
+    )
+    assert named.exports.name == "platform"
+    assert ExportSet.model_validate({"exports_version": 1, "exports": {"entities": ["a"]}})
+
+    with pytest.raises(ValidationError, match="must export at least one"):
+        ExportSet.model_validate({"exports_version": 1, "exports": {"name": "platform"}})
+
+
+def test_the_name_is_a_bare_identifier() -> None:
+    """It reaches ``name:`` in an emitted ``dbt_project.yml`` and the first
+    argument of a Jinja ``ref()``, neither of which quotes it — the argument
+    :data:`~bloomery.spec.common.RelationName` makes for a relation."""
+
+    with pytest.raises(ValidationError, match="string_pattern_mismatch"):
+        ExportSet.model_validate(
+            {"exports_version": 1, "exports": {"name": "evil') }}", "entities": ["a"]}}
+        )
+
+
 def test_a_project_allows_at_most_one() -> None:
     documents = _document("  entities: [customer]\n")
     documents["more_exports"] = documents["exports"]
