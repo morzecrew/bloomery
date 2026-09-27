@@ -71,16 +71,16 @@ USING (
       FROM (
         SELECT
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'properties' ->> 'gift_note', 'TEXT')
-            THEN CAST(raw ->> 'properties' ->> 'gift_note' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note', 'TEXT')
+            THEN CAST(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note' AS TEXT)
           END AS gift_note,
           CASE
             WHEN PG_INPUT_IS_VALID(raw ->> 'position', 'BIGINT')
             THEN CAST(raw ->> 'position' AS BIGINT)
           END AS line_no,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'order' ->> 'id', 'TEXT')
-            THEN CAST(raw ->> 'order' ->> 'id' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'order' AS JSON) ->> 'id', 'TEXT')
+            THEN CAST(CAST(raw ->> 'order' AS JSON) ->> 'id' AS TEXT)
           END AS order_id,
           CASE
             WHEN PG_INPUT_IS_VALID(
@@ -112,8 +112,8 @@ USING (
             THEN CAST(raw ->> 'quantity' AS BIGINT)
           END AS quantity,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'variant' ->> 'sku', 'TEXT')
-            THEN CAST(raw ->> 'variant' ->> 'sku' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'variant' AS JSON) ->> 'sku', 'TEXT')
+            THEN CAST(CAST(raw ->> 'variant' AS JSON) ->> 'sku' AS TEXT)
           END AS sku,
           CASE CASE
               WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
@@ -134,11 +134,11 @@ USING (
           _load_id,
           _source_row_id,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'properties' ->> 'gift_note', 'TEXT')
-            THEN CAST(raw ->> 'properties' ->> 'gift_note' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note', 'TEXT')
+            THEN CAST(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note' AS TEXT)
           END IS NULL
           AND (
-            NOT raw ->> 'properties' ->> 'gift_note' IS NULL
+            NOT CAST(raw ->> 'properties' AS JSON) ->> 'gift_note' IS NULL
           ) AS _branch_gift_note_coercible,
           CASE
             WHEN PG_INPUT_IS_VALID(raw ->> 'position', 'BIGINT')
@@ -148,11 +148,11 @@ USING (
             NOT raw ->> 'position' IS NULL
           ) AS _branch_line_no_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'order' ->> 'id', 'TEXT')
-            THEN CAST(raw ->> 'order' ->> 'id' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'order' AS JSON) ->> 'id', 'TEXT')
+            THEN CAST(CAST(raw ->> 'order' AS JSON) ->> 'id' AS TEXT)
           END IS NULL
           AND (
-            NOT raw ->> 'order' ->> 'id' IS NULL
+            NOT CAST(raw ->> 'order' AS JSON) ->> 'id' IS NULL
           ) AS _branch_order_id_coercible,
           CASE
             WHEN PG_INPUT_IS_VALID(
@@ -190,11 +190,11 @@ USING (
             NOT raw ->> 'quantity' IS NULL
           ) AS _branch_quantity_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'variant' ->> 'sku', 'TEXT')
-            THEN CAST(raw ->> 'variant' ->> 'sku' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'variant' AS JSON) ->> 'sku', 'TEXT')
+            THEN CAST(CAST(raw ->> 'variant' AS JSON) ->> 'sku' AS TEXT)
           END IS NULL
           AND (
-            NOT raw ->> 'variant' ->> 'sku' IS NULL
+            NOT CAST(raw ->> 'variant' AS JSON) ->> 'sku' IS NULL
           ) AS _branch_sku_coercible,
           CASE CASE
               WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
@@ -602,16 +602,16 @@ USING (
   FROM (
     SELECT
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'properties' ->> 'gift_note', 'TEXT')
-        THEN CAST(raw ->> 'properties' ->> 'gift_note' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note', 'TEXT')
+        THEN CAST(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note' AS TEXT)
       END AS gift_note,
       CASE
         WHEN PG_INPUT_IS_VALID(raw ->> 'position', 'BIGINT')
         THEN CAST(raw ->> 'position' AS BIGINT)
       END AS line_no,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'order' ->> 'id', 'TEXT')
-        THEN CAST(raw ->> 'order' ->> 'id' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'order' AS JSON) ->> 'id', 'TEXT')
+        THEN CAST(CAST(raw ->> 'order' AS JSON) ->> 'id' AS TEXT)
       END AS order_id,
       CASE
         WHEN PG_INPUT_IS_VALID(
@@ -643,8 +643,8 @@ USING (
         THEN CAST(raw ->> 'quantity' AS BIGINT)
       END AS quantity,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'variant' ->> 'sku', 'TEXT')
-        THEN CAST(raw ->> 'variant' ->> 'sku' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'variant' AS JSON) ->> 'sku', 'TEXT')
+        THEN CAST(CAST(raw ->> 'variant' AS JSON) ->> 'sku' AS TEXT)
       END AS sku,
       CASE CASE
           WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
@@ -665,11 +665,11 @@ USING (
       _load_id,
       _source_row_id,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'properties' ->> 'gift_note', 'TEXT')
-        THEN CAST(raw ->> 'properties' ->> 'gift_note' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note', 'TEXT')
+        THEN CAST(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note' AS TEXT)
       END IS NULL
       AND (
-        NOT raw ->> 'properties' ->> 'gift_note' IS NULL
+        NOT CAST(raw ->> 'properties' AS JSON) ->> 'gift_note' IS NULL
       ) AS _branch_gift_note_coercible,
       CASE
         WHEN PG_INPUT_IS_VALID(raw ->> 'position', 'BIGINT')
@@ -679,11 +679,11 @@ USING (
         NOT raw ->> 'position' IS NULL
       ) AS _branch_line_no_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'order' ->> 'id', 'TEXT')
-        THEN CAST(raw ->> 'order' ->> 'id' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'order' AS JSON) ->> 'id', 'TEXT')
+        THEN CAST(CAST(raw ->> 'order' AS JSON) ->> 'id' AS TEXT)
       END IS NULL
       AND (
-        NOT raw ->> 'order' ->> 'id' IS NULL
+        NOT CAST(raw ->> 'order' AS JSON) ->> 'id' IS NULL
       ) AS _branch_order_id_coercible,
       CASE
         WHEN PG_INPUT_IS_VALID(
@@ -721,11 +721,11 @@ USING (
         NOT raw ->> 'quantity' IS NULL
       ) AS _branch_quantity_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'variant' ->> 'sku', 'TEXT')
-        THEN CAST(raw ->> 'variant' ->> 'sku' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'variant' AS JSON) ->> 'sku', 'TEXT')
+        THEN CAST(CAST(raw ->> 'variant' AS JSON) ->> 'sku' AS TEXT)
       END IS NULL
       AND (
-        NOT raw ->> 'variant' ->> 'sku' IS NULL
+        NOT CAST(raw ->> 'variant' AS JSON) ->> 'sku' IS NULL
       ) AS _branch_sku_coercible,
       CASE CASE
           WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
