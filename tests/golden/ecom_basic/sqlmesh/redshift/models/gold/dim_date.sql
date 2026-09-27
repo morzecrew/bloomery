@@ -14,10 +14,10 @@ SELECT
   CAST(DATE_TRUNC('YEAR', date_day) AS DATE) AS date_year
 FROM (
   SELECT
-    DATEADD(DAY, n, CAST('2020-01-01' AS DATE)) AS date_day
+    CAST('2020-01-01' AS DATE) + n AS date_day
   FROM (
     SELECT
-      ROW_NUMBER() OVER () - 1 AS n
+      CAST(ROW_NUMBER() OVER () - 1 AS INTEGER) AS n
     FROM (
       SELECT
         0 AS d

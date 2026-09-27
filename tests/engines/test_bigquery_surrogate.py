@@ -58,6 +58,7 @@ from support.dirty import (
     FLAGGED,
     KEPT,
     QUARANTINED,
+    UNDECIDABLE_UNICODE,
     cases,
     corpus,
     expected,
@@ -80,6 +81,39 @@ HTTP_PORT = 9050
 
 #: Container start plus the first GoogleSQL analysis, which is the slow one.
 READY_TIMEOUT_SECONDS = 60.0
+
+#: What the pinned emulator answers where the corpus says otherwise —
+#: ``{corpus file: {case: side on 0.8.1}}`` — every entry an emulator defect
+#: and not a port one. go-zetasqlite's ``SAFE_CAST`` of a *column* value to
+#: ``NUMERIC`` is lenient: it reads a numeric prefix (``'12,50'`` is 12,
+#: ``'12.345.678,90'`` is 12345), reads what has none as 0 (``'NaN'``,
+#: ``'€12.50'``, ``'(45.00)'``, ``'NULL'``) and enforces no range, while the
+#: same cast of a literal is folded strictly to NULL. So the ``coercible``
+#: rule never fires on this lane's ``numerics.csv``: the rows the corpus
+#: quarantines land flagged by the ``pattern`` rule on ``amount_text``, and
+#: ``decimal38_overflow``, whose text that pattern accepts, lands clean.
+#: BigQuery returns NULL for every one; the live lane asserts the corpus
+#: unamended.
+#:
+#: Pinned exactly rather than excused, for the reason S-0014/D-3 pins the
+#: image: an emulator release that fixes the cast reports here as a diff to
+#: read, never as a silent gain.
+EMULATOR_DIVERGENT: dict[str, dict[str, str]] = {
+    "numerics.csv": {
+        "comma_decimal": FLAGGED,
+        "space_grouping_ascii": FLAGGED,
+        "space_grouping_thin": FLAGGED,
+        "currency_prefix": FLAGGED,
+        "accounting_negative": FLAGGED,
+        "literal_null_string": FLAGGED,
+        "arabic_indic_digits": FLAGGED,
+        "european_grouping_full": FLAGGED,
+        "decimal38_overflow": KEPT,
+        "nan": FLAGGED,
+        "infinity": FLAGGED,
+        "percent_suffix": FLAGGED,
+    },
+}
 
 #: `ecom_basic`'s bronze, as the two inline relations its silver models read.
 #: The rows are `tests/engines/test_trino_execution.py:43` verbatim, so a
@@ -247,9 +281,22 @@ def test_every_corpus_row_lands_on_the_side_the_corpus_says(
     # than of the data, and this engine is a surrogate — so the claim over those
     # rows is consistency, never an answer.
     divergent = {case for case, want in declared.items() if want == DIALECT_DIVERGENT}
-    assert {case: side for case, side in observed.items() if case not in divergent} == {
-        case: want for case, want in declared.items() if case not in divergent
+    # The two unicode specimens no rule reaches are held to the same claim:
+    # the DuckDB tier excludes them for the reason `UNDECIDABLE_UNICODE`
+    # gives, and an engine cannot answer what the catalogue cannot ask.
+    if name == "unicode.csv":
+        divergent |= set(UNDECIDABLE_UNICODE)
+    pinned = EMULATOR_DIVERGENT.get(name, {})
+    aside = divergent | set(pinned)
+    assert {case: side for case, side in observed.items() if case not in aside} == {
+        case: want for case, want in declared.items() if case not in aside
     }
+    for case, side in sorted(pinned.items()):
+        assert declared[case] != side, f"{name}: {case} agrees with the corpus — its pin is stale"
+        assert observed.get(case) == side, (
+            f"{name}: {case} is {observed.get(case)} on {IMAGE}, pinned {side} — the emulator "
+            "moved; re-read EMULATOR_DIVERGENT against BigQuery's own answer"
+        )
     for case in sorted(divergent):
         assert observed.get(case) in {KEPT, FLAGGED, QUARANTINED}, (
             f"{name}: {case} is in neither silver.{DIRTY_ENTITIES[name]} nor its reject table"
@@ -286,12 +333,18 @@ def test_the_reject_payload_is_readable_back_as_json(
     what a human greps for. Both are JSON the port constructed, and reading them
     back is the only check that it is JSON rather than a string that looks like
     some.
+
+    Read off the one row this emulator does quarantine — ``unicode.csv``'s
+    lone-surrogate escape, whose six characters ``\\ud800`` are the value a
+    JSON encoder is most tempted to mangle — because the numeric row the live
+    lane reads is one :data:`EMULATOR_DIVERGENT` says never reaches the reject
+    table here.
     """
     assert dirty_run(
-        "SELECT JSON_EXTRACT_SCALAR(raw, '$.raw_amount'), "
+        "SELECT JSON_EXTRACT_SCALAR(raw, '$.raw_name'), "
         "JSON_EXTRACT_SCALAR(key_values, '$.case_name') "
-        "FROM silver.dirty_number__reject WHERE _source_row_id = 'num_002'"
-    ) == [("12,50", "comma_decimal")]
+        "FROM silver.dirty_name__reject WHERE _source_row_id = 'uni_018'"
+    ) == [("\\ud800", "lone_surrogate_escape")]
 
 
 def test_the_silver_model_extracts_its_json_customer(

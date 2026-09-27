@@ -35,6 +35,7 @@ actually emits, against the port's own Redshift-only vocabulary below.
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Collection, Iterator
 from contextlib import contextmanager
 from uuid import uuid4
@@ -86,6 +87,11 @@ SURROGATE = "redshift_postgres"
 #: * ``SHA2`` — Redshift's text digest. PostgreSQL's ``sha256`` takes and
 #:   returns ``bytea``, which is why the PostgreSQL port spells it differently.
 #: * ``GETDATE`` — Redshift's session clock, no PostgreSQL equivalent.
+#: * ``JSON_EXTRACT_PATH_TEXT`` with its ``null_if_invalid`` argument — the
+#:   same function name in both, but PostgreSQL's takes path elements only and
+#:   has no overload for the trailing boolean (:func:`_null_if_invalid` on the
+#:   port says why every bronze path carries it). Matched as a pattern, since
+#:   the two-argument form is PostgreSQL's own.
 NATIVE_SPELLINGS = (
     "CAN_JSON_PARSE",
     "CONVERT_TIMEZONE",
@@ -104,6 +110,7 @@ NATIVE_SPELLINGS = (
 #: surrogate has to answer for it once, for every fixture alike. Named here so
 #: that "postgres-compatible" is read as "no Redshift-only *construct*" and not
 #: as "runs on PostgreSQL unchanged".
+NATIVE_PATTERNS = (re.compile(r"JSON_EXTRACT_PATH_TEXT\([^\n]*?, TRUE\)"),)
 PORT_WIDE_DIVERGENCES = ("VARCHAR(MAX)",)
 
 
@@ -125,7 +132,9 @@ def classify(fixture_name: str) -> str | None:
         return None
 
     sql = "\n".join(artifact.content for artifact in artifacts)
-    native = any(spelling in sql for spelling in NATIVE_SPELLINGS)
+    native = any(spelling in sql for spelling in NATIVE_SPELLINGS) or any(
+        pattern.search(sql) for pattern in NATIVE_PATTERNS
+    )
 
     return REDSHIFT_NATIVE if native else POSTGRES_COMPATIBLE
 
@@ -177,6 +186,13 @@ def surrogate_cluster() -> Iterator[psycopg.Connection]:
     acceptance: inside a transaction the first refusal aborts every statement
     after it, and a lane that reports one failure per fixture instead of one
     per statement has lost the thing it was run for.
+
+    No server-side prepared statements, because the lane resubmits one text —
+    ``SELECT * FROM silver.customer LIMIT 0`` — for relation after relation of
+    that name with a different shape each time, and psycopg's automatic
+    prepare after the fifth submission turns the sixth into PostgreSQL's
+    ``cached plan must not change result type``, a refusal of the harness and
+    not of the port.
     """
 
     with PostgresContainer(SURROGATE_IMAGE, driver=None) as container:
@@ -187,6 +203,7 @@ def surrogate_cluster() -> Iterator[psycopg.Connection]:
             password=container.password,
             dbname=container.dbname,
             autocommit=True,
+            prepare_threshold=None,
         )
         connection.execute("SET TIME ZONE 'UTC'")
         yield connection
