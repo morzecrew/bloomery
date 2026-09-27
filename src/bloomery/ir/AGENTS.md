@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/bloomery/ir/`
 
-### S-0002/D-3 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-3 — `LOCKED` (Multi-project composition)
 
 The downstream fingerprint includes the upstream fingerprint whole, never only the exports the downstream touched
 
@@ -10,7 +10,7 @@ The downstream fingerprint includes the upstream fingerprint whole, never only t
 - Consequence: An upstream change that touches nothing the downstream reads still moves the downstream fingerprint, and artifact headers change on projects nothing about which changed; the docs have to meet that head on rather than the rule being softened
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0002/D-10 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-10 — `LOCKED` (Multi-project composition)
 
 An upstream's dbt project name is part of what it exports: `exports.yaml` carries an optional `name`, `ExportsIR` carries it across, and the downstream's dbt target spells the two-argument `ref()` and the `dependencies.yml` entry with that name while the downstream's own `dbt_project.yml` is named after its own export name when it has one. The local alias stays what keys the compile input and the IR resolution (D-2); dbt is the one target whose cross-project reference needs the producer's own name, so the name lives on the producer's side of the boundary and nowhere else.
 
@@ -25,7 +25,7 @@ An upstream's dbt project name is part of what it exports: `exports.yaml` carrie
 - Paths: `src/bloomery/spec/marts.py` `src/bloomery/ir/nodes.py`
 - Consequence: Existing projects with `flatten: [{date: …, role: …}]` compile unchanged and the general role is additive beside them; departing means absorbing dates into the general vocabulary, which touches every existing project
 
-### S-0011/D-3 — `LOCKED` (Retrieval semantics) — implementation: none
+### S-0011/D-3 — `LOCKED` (Retrieval semantics)
 
 A vector's scalar type is a type name and its dimension an int; no float value enters the IR or any emission path, and this design takes no exemption from the float ban
 
