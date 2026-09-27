@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/unit/test_emit/`
 
-### S-0002/D-10 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-10 — `LOCKED` (Multi-project composition)
 
 An upstream's dbt project name is part of what it exports: `exports.yaml` carries an optional `name`, `ExportsIR` carries it across, and the downstream's dbt target spells the two-argument `ref()` and the `dependencies.yml` entry with that name while the downstream's own `dbt_project.yml` is named after its own export name when it has one. The local alias stays what keys the compile input and the IR resolution (D-2); dbt is the one target whose cross-project reference needs the producer's own name, so the name lives on the producer's side of the boundary and nowhere else.
 

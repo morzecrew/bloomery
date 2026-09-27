@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/unit/test_ir/`
 
-### S-0002/D-3 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-3 — `LOCKED` (Multi-project composition)
 
 The downstream fingerprint includes the upstream fingerprint whole, never only the exports the downstream touched
 
