@@ -64,6 +64,7 @@ from support.dirty import (
     FLAGGED,
     KEPT,
     QUARANTINED,
+    UNDECIDABLE_UNICODE,
     cases,
     corpus,
     expected,
@@ -368,6 +369,11 @@ def test_every_corpus_row_lands_on_the_side_the_corpus_says(
     # the data (`tests/support/dirty.py:79`), so the claim over it is
     # consistency: it landed somewhere, and which side is the matrix's to record.
     divergent = {case for case, want in declared.items() if want == DIALECT_DIVERGENT}
+    # The two unicode specimens no rule reaches are held to the same claim:
+    # the DuckDB tier excludes them for the reason `UNDECIDABLE_UNICODE`
+    # gives, and an engine cannot answer what the catalogue cannot ask.
+    if name == "unicode.csv":
+        divergent |= set(UNDECIDABLE_UNICODE)
     assert {case: side for case, side in observed.items() if case not in divergent} == {
         case: want for case, want in declared.items() if case not in divergent
     }
