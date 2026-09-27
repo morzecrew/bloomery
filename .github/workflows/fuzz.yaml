@@ -86,7 +86,7 @@ jobs:
       # the checked-out documents, and the determinism claim never reached
       # what the fuzzer found. Restore only; the batch job owns the saves.
       - name: Restore the cli corpus
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: fuzz/corpus/cli
           key: fuzz-corpus-cli-${{ github.run_id }}
@@ -94,7 +94,7 @@ jobs:
             fuzz-corpus-cli-
 
       - name: Restore the compile_determinism corpus
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: fuzz/corpus/compile_determinism
           key: fuzz-corpus-compile_determinism-${{ github.run_id }}
@@ -102,7 +102,7 @@ jobs:
             fuzz-corpus-compile_determinism-
 
       - name: Restore the cross_dialect corpus
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: fuzz/corpus/cross_dialect
           key: fuzz-corpus-cross_dialect-${{ github.run_id }}
@@ -110,7 +110,7 @@ jobs:
             fuzz-corpus-cross_dialect-
 
       - name: Restore the load_project corpus
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: fuzz/corpus/load_project
           key: fuzz-corpus-load_project-${{ github.run_id }}
@@ -118,7 +118,7 @@ jobs:
             fuzz-corpus-load_project-
 
       - name: Restore the metric_request corpus
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: fuzz/corpus/metric_request
           key: fuzz-corpus-metric_request-${{ github.run_id }}
@@ -126,7 +126,7 @@ jobs:
             fuzz-corpus-metric_request-
 
       - name: Restore the parse_doors corpus
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: fuzz/corpus/parse_doors
           key: fuzz-corpus-parse_doors-${{ github.run_id }}
@@ -216,7 +216,7 @@ jobs:
       # and `max-parallel: 1` above is what makes each leg's newest entry the
       # previous leg's save rather than last week's.
       - name: Restore the corpus
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.CORPUS }}
           key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}-${{ matrix.seed }}
@@ -352,7 +352,7 @@ jobs:
       # entry is visible to every later run on that branch, so saving here
       # would let a pull request decide what the corpus is.
       - name: Restore the corpus
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.CORPUS }}
           key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
