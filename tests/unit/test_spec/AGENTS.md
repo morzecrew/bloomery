@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/unit/test_spec/`
 
-### S-0002/D-1 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-1 — `LOCKED` (Multi-project composition)
 
 The boundary is an explicit export list, never "everything public by default": an entity, a mart or a metric may be named on it, grouped by kind, and a name absent from it is not exported however public it looks from inside the project
 

@@ -3,7 +3,7 @@ id: S-0013
 title: Snowflake dialect port
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []
@@ -42,6 +42,10 @@ motivation: |
   executing and without scanning, which is a better acceptance oracle than any emulator and
   is why the absence of a container blocks nothing here.
 current_state: |
+  **Implemented (2026-09-27).** Every phase landed through #184; the landing records
+  under `execution/` are the evidence, and `implementation: complete` above is the
+  status. What follows is the state as the design was accepted, kept as written.
+
   No Snowflake dialect exists. `src/bloomery/dialects/` holds `base.py` (541 lines),
   `duckdb.py`, `postgres.py` and `trino.py`, and `_defaults`
   (`src/bloomery/dialects/__init__.py`) registers exactly those three; `git log`

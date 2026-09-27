@@ -3,7 +3,7 @@ id: S-0011
 title: Retrieval semantics
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []
@@ -37,6 +37,10 @@ motivation: |
   Each is decidable from the spec alone, which is the test that separates a guardrail from
   a data-quality rule here. Nothing below needs to read a row.
 current_state: |
+  **Implemented (2026-09-27).** Every phase landed through #190; the landing records
+  under `execution/` are the evidence, and `implementation: complete` above is the
+  status. What follows is the state as the design was accepted, kept as written.
+
   Nothing of this design has landed. `grep -ril retrieval src tests examples pages` matches
   nothing; no file under `tasks/` and no log under `logs/` names it. What follows is the
   tree the design has to grow into, measured on 2026-09-18.

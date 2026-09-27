@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/bloomery/transforms/`
 
-### S-0011/D-4 — `LOCKED` (Retrieval semantics) — implementation: none
+### S-0011/D-4 — `LOCKED` (Retrieval semantics)
 
 A declared vector dimension requires a new `LogicalType` member, and a vector accepts no transform - its input domain is empty in every transform spec
 

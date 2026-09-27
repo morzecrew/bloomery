@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/unit/test_guardrails/`
 
-### S-0002/D-1 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-1 — `LOCKED` (Multi-project composition)
 
 The boundary is an explicit export list, never "everything public by default": an entity, a mart or a metric may be named on it, grouped by kind, and a name absent from it is not exported however public it looks from inside the project
 
@@ -10,14 +10,14 @@ The boundary is an explicit export list, never "everything public by default": a
 - Consequence: A project that exports its whole spec has no boundary, and its first refactor breaks every consumer; an export naming something the project does not declare is refused with `DanglingExport`, so the list is an assertion rather than a claim
 - Check: `uv run pytest tests/unit/test_spec/test_exports.py tests/unit/test_guardrails/test_exports.py -q` (shadow; runs as `decision:S-0002/D-1`, no log entry owed)
 
-### S-0002/D-6 — `ASSUMED` (Multi-project composition) — implementation: partial
+### S-0002/D-6 — `ASSUMED` (Multi-project composition)
 
 Lineage node ids gain a project component for imported nodes only; a local node keeps its `<kind>.<name>` spelling
 
 - Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/lineage.py` `src/bloomery/guardrails/lineage.py` `tests/unit/test_resolve/test_lineage.py` `tests/unit/test_guardrails/test_lineage.py`
 - Consequence: Every existing id and every published citation stays valid — a node name is public surface and `bloomery lineage --node metric.gross_revenue` is a documented invocation — while two projects' graphs can be composed without collision
 
-### S-0002/D-9 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-9 — `LOCKED` (Multi-project composition)
 
 A guard that judges a local declaration reads the composed view — this project's nodes plus the ones it imported — whenever that declaration can name an imported node, with local marts and rollups as the only publication targets: `check_metrics` over a local mart listing an imported metric, `check_classification` over a local published mart that flattens an imported entity's columns and grants, and the exposure guard over an exposure naming an imported mart or metric. Reading the draft alone there is not "judged where it was authored" — the mart, the publication and the exposure were authored here, and only their inputs crossed.
 
