@@ -8,7 +8,8 @@ import pytest
 from sqlglot import exp, parse_one
 
 from bloomery.dialects import PostgresDialect
-from bloomery.ir.lower import canon
+from bloomery.emit.lower.silver import _from_payload
+from bloomery.ir.lower import canon, extraction
 from bloomery.transforms import DEFAULT_REGISTRY
 from bloomery.typing import (
     BoolType,
@@ -210,3 +211,12 @@ def test_json_path_stays_in_jsonb_for_every_path_shape(path: str, expected: str)
     name it drops.
     """
     assert _rendered("json_path", path) == expected
+
+
+def test_a_lowered_extraction_renders_as_a_path_and_not_as_a_quoted_key() -> None:
+    """The same defect the Databricks port had (T-0136): a path handed over as
+    a string literal rendered as ``JSON_EXTRACT_PATH_TEXT(raw, '$.position')``,
+    a lookup of a key literally spelled ``$.position``.
+    """
+    assert DIALECT.render(extraction("$.payload.a.b")) == "JSON_EXTRACT_PATH_TEXT(CAST(payload AS JSON), 'a', 'b')"
+    assert DIALECT.render(_from_payload(exp.column("position"))) == "raw ->> 'position'"

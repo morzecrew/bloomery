@@ -46,40 +46,40 @@ USING (
       FROM (
         SELECT
           CASE
-            WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.group_id'), 'TEXT')
-            THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.group_id') AS TEXT)
+            WHEN PG_INPUT_IS_VALID(raw ->> 'group_id', 'TEXT')
+            THEN CAST(raw ->> 'group_id' AS TEXT)
           END AS group_id,
           CASE
-            WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.note'), 'TEXT')
-            THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.note') AS TEXT)
+            WHEN PG_INPUT_IS_VALID(raw ->> 'note', 'TEXT')
+            THEN CAST(raw ->> 'note' AS TEXT)
           END AS note,
           CASE
-            WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.status'), 'TEXT')
-            THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.status') AS TEXT)
+            WHEN PG_INPUT_IS_VALID(raw ->> 'status', 'TEXT')
+            THEN CAST(raw ->> 'status' AS TEXT)
           END AS status,
           _ingested_at,
           _load_id,
           _source_row_id,
           CASE
-            WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.group_id'), 'TEXT')
-            THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.group_id') AS TEXT)
+            WHEN PG_INPUT_IS_VALID(raw ->> 'group_id', 'TEXT')
+            THEN CAST(raw ->> 'group_id' AS TEXT)
           END IS NULL
           AND (
-            NOT JSON_EXTRACT_PATH_TEXT(raw, '$.group_id') IS NULL
+            NOT raw ->> 'group_id' IS NULL
           ) AS _branch_group_id_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.note'), 'TEXT')
-            THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.note') AS TEXT)
+            WHEN PG_INPUT_IS_VALID(raw ->> 'note', 'TEXT')
+            THEN CAST(raw ->> 'note' AS TEXT)
           END IS NULL
           AND (
-            NOT JSON_EXTRACT_PATH_TEXT(raw, '$.note') IS NULL
+            NOT raw ->> 'note' IS NULL
           ) AS _branch_note_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.status'), 'TEXT')
-            THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.status') AS TEXT)
+            WHEN PG_INPUT_IS_VALID(raw ->> 'status', 'TEXT')
+            THEN CAST(raw ->> 'status' AS TEXT)
           END IS NULL
           AND (
-            NOT JSON_EXTRACT_PATH_TEXT(raw, '$.status') IS NULL
+            NOT raw ->> 'status' IS NULL
           ) AS _branch_status_coercible
         FROM {{ ref('q_dup__reject') }}
         WHERE
@@ -201,40 +201,40 @@ USING (
   FROM (
     SELECT
       CASE
-        WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.group_id'), 'TEXT')
-        THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.group_id') AS TEXT)
+        WHEN PG_INPUT_IS_VALID(raw ->> 'group_id', 'TEXT')
+        THEN CAST(raw ->> 'group_id' AS TEXT)
       END AS group_id,
       CASE
-        WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.note'), 'TEXT')
-        THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.note') AS TEXT)
+        WHEN PG_INPUT_IS_VALID(raw ->> 'note', 'TEXT')
+        THEN CAST(raw ->> 'note' AS TEXT)
       END AS note,
       CASE
-        WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.status'), 'TEXT')
-        THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.status') AS TEXT)
+        WHEN PG_INPUT_IS_VALID(raw ->> 'status', 'TEXT')
+        THEN CAST(raw ->> 'status' AS TEXT)
       END AS status,
       _ingested_at,
       _load_id,
       _source_row_id,
       CASE
-        WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.group_id'), 'TEXT')
-        THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.group_id') AS TEXT)
+        WHEN PG_INPUT_IS_VALID(raw ->> 'group_id', 'TEXT')
+        THEN CAST(raw ->> 'group_id' AS TEXT)
       END IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(raw, '$.group_id') IS NULL
+        NOT raw ->> 'group_id' IS NULL
       ) AS _branch_group_id_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.note'), 'TEXT')
-        THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.note') AS TEXT)
+        WHEN PG_INPUT_IS_VALID(raw ->> 'note', 'TEXT')
+        THEN CAST(raw ->> 'note' AS TEXT)
       END IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(raw, '$.note') IS NULL
+        NOT raw ->> 'note' IS NULL
       ) AS _branch_note_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.status'), 'TEXT')
-        THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.status') AS TEXT)
+        WHEN PG_INPUT_IS_VALID(raw ->> 'status', 'TEXT')
+        THEN CAST(raw ->> 'status' AS TEXT)
       END IS NULL
       AND (
-        NOT JSON_EXTRACT_PATH_TEXT(raw, '$.status') IS NULL
+        NOT raw ->> 'status' IS NULL
       ) AS _branch_status_coercible
     FROM {{ ref('q_dup__reject') }}
     WHERE

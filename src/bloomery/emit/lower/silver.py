@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
-from sqlglot import exp
+from sqlglot import exp, jsonpath
 from sqlglot.expressions.core import Expression
 
 from bloomery.dialects import DialectFeature
@@ -952,7 +952,7 @@ def _from_payload(node: Expression) -> Expression:
     def rewritten(child: Expression) -> Expression:
         if isinstance(child, exp.Column) and not child.table:
             return exp.JSONExtractScalar(
-                this=exp.column("raw"), expression=exp.Literal.string(f"$.{child.name}")
+                this=exp.column("raw"), expression=jsonpath.parse(f"$.{child.name}")
             )
 
         return child

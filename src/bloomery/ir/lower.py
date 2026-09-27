@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 
-from sqlglot import exp
+from sqlglot import exp, jsonpath
 from sqlglot.expressions.core import Expression
 
 from bloomery.ir.nodes import PartitionSpec, SqlExpr
@@ -54,7 +54,7 @@ def extraction(path: str) -> Expression:
         return column
 
     remainder = "$." + ".".join(segments[1:])
-    return exp.JSONExtractScalar(this=column, expression=exp.Literal.string(remainder))
+    return exp.JSONExtractScalar(this=column, expression=jsonpath.parse(remainder))
 
 
 # ....................... #
