@@ -157,8 +157,9 @@ at run time, and the engine runs it. That is why a spec cannot become an
 arbitrary-code-execution surface: the property comes from the *absence* of a surface, not
 from validating one.
 
-**The dbt target refuses this project.** dbt's Python models run on Snowflake, BigQuery
-and Databricks, and none of bloomery's dialects is one of those. An identity resolver is
+**The dbt target refuses this project.** dbt's Python models are executed by the adapter
+of Snowflake, BigQuery or Databricks, and bloomery emits no Python-model wrapper for them.
+An identity resolver is
 Tier 3 by construction, so this pattern is SQLMesh-only. Cube serves the marts over the
 resolved entity like any other — it builds no relation and is asked nothing about steps.
 

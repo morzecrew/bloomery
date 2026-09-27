@@ -107,8 +107,9 @@ unmapped enum values, failed casts, and rules you wrote all travel the same road
 `quality:`, `quarantine:`, or any field-level `quality:`; `dedupe:` alone does not. An
 entity that declares none of them keeps the produce-or-raise lowering it always had.
 
-The marker needs a NULL-on-failure cast, and the three shipped dialects all have one.
-DuckDB and Trino spell it `TRY_CAST`. Postgres has no such keyword and gets a guard
+The marker needs a NULL-on-failure cast, and every shipped dialect has one. DuckDB, Trino,
+Redshift and Databricks spell it `TRY_CAST`, BigQuery `SAFE_CAST`, and Snowflake `TRY_CAST`
+over a `VARCHAR` cast of the operand. Postgres has no such keyword and gets a guard
 around its *own* input parser instead — `CASE WHEN pg_input_is_valid(x, 't') THEN CAST(x
 AS t) END` — so the accept/reject set is the engine's rather than a regex approximation
 of it. Compiling the dirty-data corpus for Postgres emits the same 70 artifacts as

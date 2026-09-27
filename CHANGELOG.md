@@ -7,7 +7,202 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-27
+
 ### Added
+
+- **Four cloud dialect ports: `snowflake`, `bigquery`, `redshift` and `databricks`.**
+  Seven dialects ship, and every emitter renders through the same port, so
+  `--target dbt --dialect bigquery` and `--target sqlmesh --dialect bigquery` share every
+  line of dialect logic. Each port decides its own spellings rather than inheriting
+  SQLGlot's, and refuses by name what its engine cannot express:
+
+    - **`snowflake`** — `int` is `NUMBER(38, 0)`, which is what the engine stores;
+      `timestamp` is `TIMESTAMP_NTZ` by name, never the alias bare `TIMESTAMP` may point
+      at a session-zoned type; a `decimal` past 38 digits is refused; every current
+      instant, the replay's `resolved_at` stamps included, is `SYSDATE()`; the reject
+      payload uses `OBJECT_CONSTRUCT_KEEP_NULL`, because the plain builder drops NULL
+      pairs; and the calendar's row source is a `GENERATOR`, not the scalar
+      `ARRAY_GENERATE_RANGE` SQLGlot spells. Unicode normalization is withheld.
+    - **`bigquery`** — `timestamp` is `DATETIME`, chosen over the instant type
+      `TIMESTAMP`; `decimal(p, s)` lands on `NUMERIC` or `BIGNUMERIC` by its integer
+      digits and is refused past both rather than widened; `SAFE_CAST` is the
+      null-on-failure cast, a wide decimal's included; the replay's row-value `IN`
+      becomes a correlated `EXISTS`, since GoogleSQL's `IN` takes one column;
+      `begin_transaction` is `BEGIN TRANSACTION`. Every capability is declared.
+    - **`redshift`** — not a subclass of the PostgreSQL port, and inherits none of its
+      rewrites: `string` is `VARCHAR(MAX)`, `variant` is `SUPER`, built by `JSON_PARSE`
+      and guarded by `CAN_JSON_PARSE`; a bronze path reads through
+      `JSON_EXTRACT_PATH_TEXT(…, TRUE)`, so a malformed payload yields NULL for the
+      `coercible` rule instead of aborting the load; the current instant is
+      `CONVERT_TIMEZONE('UTC', GETDATE())`; and the calendar is a cross-joined ten-row
+      generator, because `GENERATE_SERIES` is leader-node-only there. Arrays, Unicode
+      normalization and the `json_path` transform are withheld, so `_quality_flags`
+      takes the delimited-string shape on this port.
+    - **`databricks`** — Databricks SQL and nothing else: the port renders text, and no
+      Spark session, driver or SDK enters the package. `timestamp` is `TIMESTAMP_NTZ`,
+      `variant` is `STRING` read with the colon accessor, `DATE_TRUNC` replaces
+      SQLGlot's `TRUNC`, and there is no transaction — `begin_transaction` is empty,
+      every statement is its own Delta commit, and the dbt replay envelope says so in
+      its header. Unicode normalization is withheld.
+
+  [Dialects](pages/docs/reference/dialects.md) carries every port's type map and its
+  spellings side by side. Two things changed for every dialect on the way: a `pattern`
+  rule is checked against BigQuery's and Snowflake's grammars too
+  (`PATTERN_TARGET_DIALECTS`), and a repetition bound above 1000 — `a{1001}` — is refused
+  at parse as outside the portable regex subset, because RE2 refuses it on DuckDB, Trino
+  and BigQuery alike.
+
+  None of the four runs in a container, so each is established by a ladder rather than a
+  cell (S-0012): the offline rungs — unit, golden, and a re-parse of every rendered
+  statement by the engine's own grammar — run on every pull request; a *surrogate* lane,
+  marked `surrogate` and never `engine`, runs on `main` (the `sivchari/snowflake-emulator`
+  and `goccy/bigquery-emulator` images at pinned tags, a PostgreSQL container for
+  Redshift's postgres-compatible fixtures, local Spark for Databricks); and the engine's
+  own compiler is the oracle — `EXPLAIN USING JSON` on Snowflake and a dry run on BigQuery
+  run on `main` under repository credentials, `EXPLAIN EXTENDED` and `DESCRIBE QUERY` run
+  weekly against a Databricks warehouse, and Redshift's `EXPLAIN` lane waits on a cluster.
+  A green surrogate says the emulator accepted the statements, and its test names say so.
+
+- **Multi-project composition: one project reads what another publishes.** An upstream
+  declares what crosses its boundary in an exports document, and nothing else does:
+
+  ```yaml
+  exports_version: 1
+  exports:
+    name: ecom_platform          # optional — the producer's dbt project name
+    entities: [order_item, order]
+    marts: [order_items]
+    metrics: [order_count, gross_revenue]
+  ```
+
+  A downstream declares each upstream under a local alias and names what it reads:
+
+  ```yaml
+  imports_version: 1
+  imports:
+    platform:
+      entities: [order]
+      marts: [order_items]
+      metrics: [gross_revenue, order_count]
+  ```
+
+  What crosses is the upstream's *compiled IR*, handed to the compile the way a step
+  registry already is — `compile_project(project, catalog, upstream={"platform":
+  platform_ir})` — never its documents, and never a path bloomery resolves: how the
+  artifact reaches the compile is the caller's (S-0002/D-8). Imported nodes join the
+  lineage graph as `<kind>.<alias>.<name>`; local ids keep their spelling. Every refusal
+  names its side — `UnknownUpstream` when an alias was not passed, `UnexportedImport`
+  when the upstream does not export the name (or exports it and never built it),
+  `ImportCollision` when a local declaration or a second upstream answers to the same
+  name, `DanglingExport` when an export list names something the project does not
+  declare, `ReservedEntityName` when an entity is named like an imported alias. Quality
+  surfaces do not cross: an upstream entity's reject table, replay and audits stay
+  upstream, and a guard that judges a local declaration reads the composed view — this
+  project's nodes plus the ones it imported (S-0002/D-9).
+
+  The downstream fingerprint takes the upstream fingerprint **whole**, so any upstream
+  change moves it, whether or not the downstream reads what changed. Two IR versions came
+  with this — 21 for `ProjectIR.upstream`, 22 for `ExportsIR.name` and `UpstreamIR.name`
+  — so **every project's fingerprint moved**, and `plan()` refuses to diff across either;
+  recompile both sides first.
+
+  On the targets: dbt emits `{{ ref('<producer name>', '<model>') }}` for an imported
+  relation and a `dependencies.yml` naming each producer, names the project itself from
+  the export `name` (`bloomery` when it has none), marks exported models `access: public`,
+  and refuses an upstream that exports no name or two that export the same one, since dbt
+  resolves a cross-project `ref()` by project name; SQLMesh names the relation directly;
+  Cube and MetricFlow read an imported mart as a mart, and refuse one whose measures name
+  metrics the import did not bring. `bloomery schema --kind exports` and `--kind imports`
+  export the two grammars. The CLI passes no upstream yet: composition is reachable from
+  Python.
+
+- **Retrieval semantics — an embedding corpus is refused when its dimensions, its space
+  or its grain disagree.** An optional document kind, `retrieval_version: 1`, declares
+  semantic spaces and retrieval profiles:
+
+  ```yaml
+  retrieval_version: 1
+  semantic_spaces:
+    chunk_text:
+      dimensions: 1536
+      scalar: float32            # or float16
+      distance: cosine           # dot, l2
+      document_encoder: {family: openai, model: text-embedding-3-small, input_kind: document}
+      query_encoder: {family: openai, model: text-embedding-3-small, input_kind: query}
+  profiles:
+    chunk_hybrid:
+      relation: {entity: chunk}  # or {mart: …}
+      grain: [chunk_id]
+      vector: {field: embedding, space: chunk_text}
+      lexical: {fields: [body]}
+      fusion: {method: rrf}
+      filterable: [document_id]
+      return: [chunk_id, document_id, body]
+  ```
+
+  bloomery never computes, reads or validates an embedding value, and never resolves an
+  encoder identity: the encoders are opaque strings compared for equality. A declared
+  vector dimension is a new logical type — `vector(float32, 1536)`, the eighth — that no
+  transform accepts and no port spells: a vector column arrives as a step's declared
+  output, and asking a warehouse port for its DDL is refused by name. Six guardrails,
+  every one a `RetrievalViolation` addressed `retrieval: profiles.<name>`: the dimensions
+  differ, the scalar differs, the field is not a vector, the profile's producer differs
+  from the space's document encoder ("dimensions agreeing is not spaces agreeing"), the
+  grain differs from the relation's key, and a named field is absent. `--target retrieval`
+  emits one deterministic `retrieval_manifest.json` with every profile's space inlined,
+  and Cube refuses a vector as a dimension. A worked example lives under
+  `examples/retrieval/`, the concept page is [Retrieval](pages/docs/concepts/retrieval.md).
+  Two things are recorded rather than declared: the rank-fusion constant and per-side
+  depth, and the lexical side's analyser — two consumers can rank the same query
+  differently.
+
+- **`role_of:` on a flatten step — say which dimension a prefixed column family plays a
+  role of.**
+
+  ```yaml
+  flatten:
+    - {via: order_of_billing_address, prefix: billing_, role_of: address}
+    - {via: order_of_shipping_address, prefix: shipping_, role_of: address}
+  ```
+
+  Cube carries it as `meta.role_of` on each role column and MetricFlow as the entity's
+  `role`; rule R021 — two columns declared roles of one dimension draw from one value set
+  and compare — reads it through `prove_comparable`, a library call no compile path asks
+  yet. `same_as:` was considered and not built (S-0007/D-8); `determines:`, below, is the
+  third relation of the same algebra.
+
+- **`bloomery explain` renders the derivation.** After the evidence grades, the text
+  output prints `Derivation (n proof(s))`, each proof deepest premise first as
+  `<conclusion>  [<rule id>: <summary>]`, and `--format json` carries the same under a
+  `derivation` key — `rule`, `conclusion`, `facts` with their provenance, `premises`
+  recursively. Rule ids are a public contract. *What bloomery proves* shows a guardrail
+  that stayed silent beside the proof that closed, and names the two provenances —
+  `inferred_heuristic` and `unknown` — that may never close an obligation.
+
+- **A fuzz lane over the compile boundary, and continuous fuzzing in CI.** Six Atheris
+  targets under `fuzz/` — `parse_doors`, `cli`, `load_project`, `cross_dialect`,
+  `compile_determinism`, `metric_request` — try to falsify two promises: only
+  `BloomeryError` crosses `load_project`, `compile_project` and `cli.main`, and `main()`
+  never returns the reserved internal exit code. `just fuzz`, `just fuzz-repro` and
+  `just fuzz-min` run them; atheris is layered per run rather than added as a dependency.
+  In CI a weekly batch runs every target under three hash seeds, a replay job compiles
+  the whole corpus under different `PYTHONHASHSEED`s and in reverse order and asserts
+  byte-identical output, and a short non-blocking job runs on pull requests that touch
+  `src/`, `fuzz/`, the examples or the fixtures; the corpus lives in `actions/cache`,
+  seeded from `examples/` and `tests/fixtures/`. Two findings closed on the way: a
+  `RecursionError` out of an over-nested SQL expression in the additivity check and in a
+  step body's parse surfaces as the refusal it is. Contributing page:
+  [Fuzzing](pages/docs/contributing/fuzzing.md).
+
+- **Schema-directed generation in the property tier.** A hand-written Hypothesis strategy
+  over bloomery's exported JSON Schema draws whole project document sets and asserts
+  totality — every generated project compiles or is refused somewhere addressable — and
+  one direction of agreement: what the parser refuses, the schema refuses too, over three
+  mutation classes. Two divergences are named rather than fixed: the schema accepts a
+  `seeds:` block the parser refuses, and an entity name no author can spell.
+  `hypothesis-jsonschema` was measured and declined, at a quarter of the reach for
+  sixteen times the cost.
 
 - **`determines:` — say that a column fixes another's value, and a rollup that
   coarsens along it proves more.** An entity field may now declare what it
@@ -391,24 +586,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an add, because `plan()` diffs the IR and the IR keeps no canonical-field
   record.
 
-### Fixed
-
-- **A currency chain that bridges through a second currency emitted a call no
-  engine defines.** `[{convert: [EUR, CHF, …]}, {convert: [CHF, USD, …]}]`
-  resolved correctly and then wrote a literal `CONVERT_CURRENCY(...)` into the
-  model: the rewrite ran outermost-first and the inner marker was carried into
-  a copy the walk had already passed. Models compiled clean and failed on
-  their first run. The rewrite now runs innermost-first.
-
-- **A missing exchange rate was reported as a failed cast.** `convert` turns an
-  unmatched amount into `NULL` deliberately, but did not declare it, so the
-  implicit `coercible` rule read the vanished value as a coercion failure and
-  quarantined the row with the wrong reason. Reachable before only where a
-  project both converted and declared quality rules; unavoidable per row.
-  Rejecting on a missing rate is still available, and now says so:
-  `quality: [{rule: not_null, on_fail: quarantine}]`.
-
 ### Changed
+
+- **Every project's fingerprint moved twice.** `bloomery_ir_version` is **22** (was 20):
+  21 added `ProjectIR.upstream`, 22 added `ExportsIR.name` and `UpstreamIR.name`, and
+  `plan()` refuses to diff a tree across either. Recompile both sides before you diff.
+
+- **A dbt project is named from its exports document.** `dbt_project.yml`'s `name:` (and
+  its `models:` key) is the export `name` when one is declared, `bloomery` otherwise — a
+  project that adds a `name:` renames its dbt project, and every `ref()` into it moves
+  with it.
+
+- **`begin_transaction` may be empty.** A port whose engine has no transaction spells it
+  `""`, and the dbt replay envelope then opens and commits nothing, saying so in its
+  header. Databricks is the first.
+
+- **The python-model refusal on dbt no longer claims the three engines are absent.**
+  Snowflake, BigQuery and Databricks ship now; what is absent is a Python-model wrapper,
+  and the message says that.
 
 - **`DialectPort` gained a required member, `utc_now()`.** A port registered
   through `register_dialect()` must now answer with the engine's current
@@ -1286,8 +1481,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wherever the disposition appears with no `quarantine:` block in a `steps:`
   wiring to declare it. Route in a downstream mapped entity instead.
 
-### Changed
-
 - **A conversion out of an undeclared currency is refused.** *This is a breaking
   change; the fix is one line per converting field.* `convert`'s first argument
   says what the column holds before the conversion, and nothing checked it — so
@@ -1410,7 +1603,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`ResolutionError`); the snapshot writes those, so the relation would hold two
   columns of one name. On a `type1` entity both stay legal.
 
+### Removed
+
+- **`quarantine:` on an `scd: type2` entity.** The pair compiled and produced a
+  replay merge that could not work: replay admits a row by the entity's own
+  columns, and a type 2 relation carries the validity interval its framework
+  maintains as well — plus dbt's `dbt_scd_id`. The merge named none of them, so
+  it inserted a version with `valid_from`, `valid_to` and `dbt_scd_id` all NULL
+  and **reported success**. The row is present, queryable, and skipped by every
+  as-of join, which is what a type 2 relation is for. Measured on both targets.
+
+  **What to write instead**, depending on which half you need. If the history
+  matters more than the recovery, declare the entity `scd: type1` and keep
+  `quarantine:` — you lose versioning and keep the reject table and replay. If
+  the recovery matters more, keep `scd: type2` and reduce the entity's rules to
+  `flag` dispositions: no row is diverted, `_quality_flags` still records every
+  failure, and the quality mart still counts them. A rule that must divert *and*
+  a relation that must keep history is the combination with no correct lowering
+  today.
+
+  This is a removal of something that never worked rather than of a capability.
+  No fixture combined the two, which is why replay and native SCD2 had never
+  been observed failing to compose. Bringing it back is S-0003.
+
+- `UnsupportedCumulative`. The class named reserved surface no stage lowered, and
+  the surface is no longer reserved. A metric that cannot mean what it says is now
+  `InvalidMetricShape`; a filter that cannot be lowered is `MetricFilterInvalid`.
+
+- The unenforced target-capability surface: `Feature`, `TargetCapabilities`,
+  each emitter's `capabilities()`, and `METRICFLOW_PLANNER_CAPABILITIES`.
+  Nothing consulted them, and the tables claimed features no emitter emits.
+  What a target cannot express is still refused with `UnsupportedByTarget`.
+
 ### Fixed
+
+- **The conservation audit on an `scd: type2` entity failed correct data.** A source row
+  admitted on an earlier run and quarantined on this one was counted as surviving and as
+  diverted at once, so the blocking `<entity>_conservation` audit failed the build before
+  any replay ran. On a retaining relation the audit checks each row now — every surviving
+  bronze row is the current version of its identity, or it is diverted — and type 1 keeps
+  the counting form.
+
+- **A nested bronze path was read as a key spelled like one on four ports.**
+  `$.properties.gift_note` rendered `raw:'$.properties':gift_note` on Databricks and
+  `JSON_EXTRACT_PATH_TEXT(raw, '$.properties')` on PostgreSQL, Redshift and Snowflake — a
+  lookup of a key literally spelled `$.properties` — so a nested path read NULL and replay
+  read nothing back on those engines. DuckDB, Trino and BigQuery take JSONPath strings and
+  were right. Each port renders its own accessor now.
+
+- **A vector column on `bigquery` escaped as a `KeyError`.** The port's type lookup never
+  reached the vector refusal; it is refused by name, as on every other port.
+
+- **Replay stamps on `databricks` were session-zoned.** `resolved_at` and
+  `last_evaluated_at` rendered `CURRENT_TIMESTAMP()`, an instant read through the session
+  zone into a `TIMESTAMP_NTZ` column; they are UTC now, as on the other cloud ports.
+
+- **Redshift's calendar adds an integer to the date** rather than calling `DATEADD`, a
+  spelling PostgreSQL reads too, so the surrogate lane runs the spine it used to fail on.
+
+- **A currency chain that bridges through a second currency emitted a call no
+  engine defines.** `[{convert: [EUR, CHF, …]}, {convert: [CHF, USD, …]}]`
+  resolved correctly and then wrote a literal `CONVERT_CURRENCY(...)` into the
+  model: the rewrite ran outermost-first and the inner marker was carried into
+  a copy the walk had already passed. Models compiled clean and failed on
+  their first run. The rewrite now runs innermost-first.
+
+- **A missing exchange rate was reported as a failed cast.** `convert` turns an
+  unmatched amount into `NULL` deliberately, but did not declare it, so the
+  implicit `coercible` rule read the vanished value as a coercion failure and
+  quarantined the row with the wrong reason. Reachable before only where a
+  project both converted and declared quality rules; unavoidable per row.
+  Rejecting on a missing rate is still available, and now says so:
+  `quality: [{rule: not_null, on_fail: quarantine}]`.
 
 - **A catalog year below 1000 is written as four digits.** `start_year` accepts
   anything from 1, and the date spine interpolated it unpadded:
@@ -1472,38 +1736,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rules against that dialect (a regex surface, literal transport) and refuses
   what it cannot carry. Extension dialects previously had patterns rendered
   with no check at all; the shipped three dialects are unaffected.
-
-### Removed
-
-- **`quarantine:` on an `scd: type2` entity.** The pair compiled and produced a
-  replay merge that could not work: replay admits a row by the entity's own
-  columns, and a type 2 relation carries the validity interval its framework
-  maintains as well — plus dbt's `dbt_scd_id`. The merge named none of them, so
-  it inserted a version with `valid_from`, `valid_to` and `dbt_scd_id` all NULL
-  and **reported success**. The row is present, queryable, and skipped by every
-  as-of join, which is what a type 2 relation is for. Measured on both targets.
-
-  **What to write instead**, depending on which half you need. If the history
-  matters more than the recovery, declare the entity `scd: type1` and keep
-  `quarantine:` — you lose versioning and keep the reject table and replay. If
-  the recovery matters more, keep `scd: type2` and reduce the entity's rules to
-  `flag` dispositions: no row is diverted, `_quality_flags` still records every
-  failure, and the quality mart still counts them. A rule that must divert *and*
-  a relation that must keep history is the combination with no correct lowering
-  today.
-
-  This is a removal of something that never worked rather than of a capability.
-  No fixture combined the two, which is why replay and native SCD2 had never
-  been observed failing to compose. Bringing it back is S-0003.
-
-- `UnsupportedCumulative`. The class named reserved surface no stage lowered, and
-  the surface is no longer reserved. A metric that cannot mean what it says is now
-  `InvalidMetricShape`; a filter that cannot be lowered is `MetricFilterInvalid`.
-
-- The unenforced target-capability surface: `Feature`, `TargetCapabilities`,
-  each emitter's `capabilities()`, and `METRICFLOW_PLANNER_CAPABILITIES`.
-  Nothing consulted them, and the tables claimed features no emitter emits.
-  What a target cannot express is still refused with `UnsupportedByTarget`.
 
 ## [0.2.0] - 2026-08-31
 
@@ -1973,6 +2205,7 @@ artifacts explicitly **not** stable across bloomery versions.
 - Documentation: get-started, concepts, how-to guides for every target and the planner,
   full spec/transform/error/API/stability references, and a runnable `examples/quickstart/`.
 
-[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/morzecrew/bloomery/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/morzecrew/bloomery/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/morzecrew/bloomery/releases/tag/v0.1.0

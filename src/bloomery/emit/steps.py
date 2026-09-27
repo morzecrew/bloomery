@@ -97,10 +97,10 @@ def refuse_python_models(ir: ProjectIR, target: str) -> None:
 
     msg = (
         f"project wires python_model step(s) {', '.join(refused)}, which the {target} "
-        "target cannot emit (S-0034/D-52). dbt's Python models run on Snowflake, "
-        "BigQuery and Databricks only, and none of bloomery's dialects is one of them, "
-        "so the wrapper would have no adapter to execute it. Fix: compile these steps "
-        "for SQLMesh, or express them at a lower tier"
+        "target cannot emit (S-0034/D-52). dbt's Python models are executed by the "
+        "adapter of Snowflake, BigQuery or Databricks, and bloomery emits no "
+        "Python-model wrapper for them. Fix: compile these steps for SQLMesh, or "
+        "express them at a lower tier"
     )
     raise UnsupportedByTarget(msg)
 

@@ -212,23 +212,19 @@ does move every fingerprint, which is deliberate: an IR shape change should be l
 
 ## Supported dialects
 
-Three ship: **DuckDB**, **PostgreSQL** and **Trino**. Each is a `DialectPort` with a
+Seven ship: **DuckDB**, **PostgreSQL** and **Trino**, each a `DialectPort` with a
 declared `Feature` set, a column in the golden matrix, and a cell in the engine tier that
-runs the emitted SQL against the real database.
+runs the emitted SQL against the real database in a container; and **Snowflake**,
+**BigQuery**, **Redshift** and **Databricks**, each a port with the same declared set and
+golden column, established without a container by the ladder [Dialects](dialects.md)
+describes — offline rungs on every pull request, a surrogate lane that is evidence and
+never the oracle, and the engine's own compiler as the oracle under credentials a pull
+request cannot reach.
 
-Four more are costed and deliberately unbuilt. MetricFlow already ships a renderer for
-each, so the work is a port, a golden column and an engine cell:
-
-| Dialect | Estimate | Likely trigger |
-|---|---|---|
-| Snowflake | ~1 week | Enterprise ask; the most likely first |
-| BigQuery | ~1 week+ | GCP ask. Costlier: `STRUCT`/`ARRAY` semantics and the partition model differ most from the shipped three, and it is the one most likely to need a new `Feature` rather than only an implementation |
-| Databricks | ~1 week | Existing-lakehouse ask |
-| Redshift | ~1 week | Least likely |
-
-**The policy is demand-driven on a named consumer, never speculative.** The point of
-costing them without building them is that "we don't support Snowflake" becomes "Snowflake
-is about a week" — a different answer, and one that requires writing no code to give.
+**The policy is demand-driven on a named consumer, never speculative.** The four cloud
+ports were costed and left unbuilt until a design for each was accepted; an eighth port
+follows the same road, and "we don't support X" is answered with an estimate rather than
+a promise.
 
 A new dialect **declares its `Feature` set honestly or is refused**, never silently
 approximating. The Postgres `TRY_CAST` is the standard: implemented as a guard around the
@@ -236,7 +232,7 @@ engine's own parser rather than as an approximation of one, because a dialect th
 approximates a feature produces plausible wrong rows instead of an error. A new port also
 inherits its own cost questions — whether its regex engine backtracks decides whether a
 `pattern` rule is a denial-of-service surface there, and that belongs in the port's own
-assessment rather than being assumed from the three that ship.
+assessment rather than being assumed from the seven that ship.
 
 ## What binds at 0.1, and what waits for 1.0
 

@@ -226,7 +226,7 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-groups
 
-      # D-7: the seeds are generated from `examples/**` and `tests/golden/**`
+      # D-7: the seeds are generated from `examples/**` and `tests/fixtures/**`
       # here, never committed a second time under `fuzz/`.
       - name: Generate the seeds
         run: uv run python fuzz/seeds.py --target "${{ matrix.target }}"
