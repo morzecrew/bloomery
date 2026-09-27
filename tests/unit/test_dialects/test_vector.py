@@ -12,7 +12,9 @@ from bloomery.typing import StringType, VectorType
 
 pytestmark = pytest.mark.unit
 
-PORTS = ["duckdb", "postgres", "trino"]
+#: Every shipped port, in registry order: the promise is the protocol's, not
+#: one port's, and BigQuery answered a vector with a KeyError until it was.
+PORTS = ["bigquery", "databricks", "duckdb", "postgres", "redshift", "snowflake", "trino"]
 
 
 @pytest.mark.parametrize("name", PORTS)

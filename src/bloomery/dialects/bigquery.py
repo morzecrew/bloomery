@@ -125,7 +125,10 @@ class BigQueryDialect(SQLGlotDialect):
         if isinstance(t, DecimalType):
             return self._decimal_type(t)
 
-        return self.scalar_types[type(t)]
+        # The base port answers the rest — the scalars from the table, and a
+        # vector with the refusal that names the contract (S-0011/D-4) rather
+        # than the KeyError a direct lookup raised here.
+        return super().physical_type(t)
 
     # ....................... #
 
