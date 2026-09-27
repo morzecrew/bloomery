@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/bloomery/`
 
-### S-0002/D-2 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-2 — `LOCKED` (Multi-project composition)
 
 What crosses is the upstream's compiled IR, passed to the compile as an argument — not its spec documents, and not a path bloomery opens; the upstream is keyed by a local alias the downstream chooses, because a project has no identity of its own
 
@@ -10,14 +10,14 @@ What crosses is the upstream's compiled IR, passed to the compile as an argument
 - Consequence: Mappings, steps and quality surfaces stay outside the boundary, because re-resolving upstream documents downstream would put all three inside it; and an alias the compile was not given is refused with `UnknownUpstream` rather than resolving to nothing
 - Check: `uv run pytest tests/unit/test_spec/test_imports.py tests/unit/test_guardrails/test_imports.py -q` (shadow; runs as `decision:S-0002/D-2`, no log entry owed)
 
-### S-0002/D-7 — `ASSUMED` (Multi-project composition) — implementation: partial
+### S-0002/D-7 — `ASSUMED` (Multi-project composition)
 
 Two composing projects must share a naming policy; whether a mismatch is a refusal depends on the upstream IR recording the policy it was compiled under
 
 - Paths: `src/bloomery/naming.py` `src/bloomery/emit/base.py`
 - Consequence: Without a shared policy the downstream names relations the upstream never created, and the failure surfaces in the warehouse rather than in the compile — which is the worst place for it
 
-### S-0002/D-8 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-8 — `LOCKED` (Multi-project composition)
 
 No registry, no packaging, no network: how the upstream artifact reaches the compile is the caller's problem — a path, a checkout, a CI artifact — and bloomery reads what it is handed
 
@@ -142,14 +142,14 @@ Whether each of the two narrow-handler sites gains `RecursionError` or a depth l
 - Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/steps.py`
 - Consequence: A depth limit raising a named error adds a class to `src/bloomery/errors.py` and an entry to `pages/docs/reference/errors.md`; widening the catch adds neither, and the two sites may legitimately get different answers
 
-### S-0011/D-6 — `ASSUMED` (Retrieval semantics) — implementation: none
+### S-0011/D-6 — `ASSUMED` (Retrieval semantics)
 
 The retrieval manifest is emitted by a target of its own, not alongside another target's artifacts
 
 - Paths: `src/bloomery/compile.py` `src/bloomery/emit/**`
 - Consequence: A project's retrieval contract is independent of which analytical framework it compiles for, at the cost of a target enum member that names an artifact rather than a consumer
 
-### S-0011/D-10 — `LOCKED` (Retrieval semantics) — implementation: none
+### S-0011/D-10 — `LOCKED` (Retrieval semantics)
 
 A vendor-oriented vector emitter is `register_emitter`, out of tree, and stays there until it has an artifact contract someone has run; no vector-database member of the target enum
 
@@ -157,7 +157,7 @@ A vendor-oriented vector emitter is `register_emitter`, out of tree, and stays t
 - Consequence: The capability is available to anyone who wants it without core carrying a vendor's name or its compatibility promise
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0011/D-13 — `ASSUMED` (Retrieval semantics) — implementation: none
+### S-0011/D-13 — `ASSUMED` (Retrieval semantics)
 
 Runtime-evidence intake is excluded from this design: no null-rate, freshness or other measured-input rule ships under a retrieval heading
 

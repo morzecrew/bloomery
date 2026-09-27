@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/bloomery/spec/`
 
-### S-0002/D-1 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-1 — `LOCKED` (Multi-project composition)
 
 The boundary is an explicit export list, never "everything public by default": an entity, a mart or a metric may be named on it, grouped by kind, and a name absent from it is not exported however public it looks from inside the project
 
@@ -10,7 +10,7 @@ The boundary is an explicit export list, never "everything public by default": a
 - Consequence: A project that exports its whole spec has no boundary, and its first refactor breaks every consumer; an export naming something the project does not declare is refused with `DanglingExport`, so the list is an assertion rather than a claim
 - Check: `uv run pytest tests/unit/test_spec/test_exports.py tests/unit/test_guardrails/test_exports.py -q` (shadow; runs as `decision:S-0002/D-1`, no log entry owed)
 
-### S-0002/D-2 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-2 — `LOCKED` (Multi-project composition)
 
 What crosses is the upstream's compiled IR, passed to the compile as an argument — not its spec documents, and not a path bloomery opens; the upstream is keyed by a local alias the downstream chooses, because a project has no identity of its own
 
@@ -18,7 +18,7 @@ What crosses is the upstream's compiled IR, passed to the compile as an argument
 - Consequence: Mappings, steps and quality surfaces stay outside the boundary, because re-resolving upstream documents downstream would put all three inside it; and an alias the compile was not given is refused with `UnknownUpstream` rather than resolving to nothing
 - Check: `uv run pytest tests/unit/test_spec/test_imports.py tests/unit/test_guardrails/test_imports.py -q` (shadow; runs as `decision:S-0002/D-2`, no log entry owed)
 
-### S-0002/D-5 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-5 — `LOCKED` (Multi-project composition)
 
 Quality surfaces do not cross: an upstream entity's reject table, replay and quality mart stay upstream, and the downstream reads the entity
 
@@ -26,7 +26,7 @@ Quality surfaces do not cross: an upstream entity's reject table, replay and qua
 - Consequence: A downstream project cannot depend on how an upstream entity was cleaned, so the upstream is free to change its quality surface without breaking a consumer; the rule is enforced by the documents' shape, which has no key for it
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0002/D-8 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-8 — `LOCKED` (Multi-project composition)
 
 No registry, no packaging, no network: how the upstream artifact reaches the compile is the caller's problem — a path, a checkout, a CI artifact — and bloomery reads what it is handed
 
@@ -34,7 +34,7 @@ No registry, no packaging, no network: how the upstream artifact reaches the com
 - Consequence: The upstream is a value the caller assembles, exactly as a step registry is, so composition adds no I/O to a compile that performs none; the cost is that a surface with no value to pass — the CLI today — cannot compile an importing project at all
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0002/D-10 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-10 — `LOCKED` (Multi-project composition)
 
 An upstream's dbt project name is part of what it exports: `exports.yaml` carries an optional `name`, `ExportsIR` carries it across, and the downstream's dbt target spells the two-argument `ref()` and the `dependencies.yml` entry with that name while the downstream's own `dbt_project.yml` is named after its own export name when it has one. The local alias stays what keys the compile input and the IR resolution (D-2); dbt is the one target whose cross-project reference needs the producer's own name, so the name lives on the producer's side of the boundary and nowhere else.
 
@@ -110,7 +110,7 @@ Whether `same_as:` is needed at all. The in-project case is derivable from `role
 - Paths: `src/bloomery/spec/marts.py`
 - Consequence: Phase 3 exists only if this resolves that the relation is needed; resolving it the other way retires the relation and the document can complete on the first two phases
 
-### S-0011/D-1 — `LOCKED` (Retrieval semantics) — implementation: none
+### S-0011/D-1 — `LOCKED` (Retrieval semantics)
 
 Retrieval semantics ship as their own spec kind, loaded by a `retrieval_version` key in `_KIND_KEYS`, never as optional keys on the entity model
 
@@ -118,7 +118,7 @@ Retrieval semantics ship as their own spec kind, loaded by a `retrieval_version`
 - Consequence: A project that declares no retrieval document is untouched by the whole design, and a target that cannot serve retrieval refuses the kind wholesale rather than ignoring keys it does not understand
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0011/D-2 — `LOCKED` (Retrieval semantics) — implementation: none
+### S-0011/D-2 — `LOCKED` (Retrieval semantics)
 
 bloomery never computes, reads or validates an embedding value, and never resolves an encoder model identity against a provider; encoder identities are opaque strings compared for equality
 
@@ -126,7 +126,7 @@ bloomery never computes, reads or validates an embedding value, and never resolv
 - Consequence: A typo in a model name is caught by comparing a field's declared producer against its space's, and never by a lookup; a future change that verifies a model name against a provider is the erosion this row exists to halt
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0011/D-4 — `LOCKED` (Retrieval semantics) — implementation: none
+### S-0011/D-4 — `LOCKED` (Retrieval semantics)
 
 A declared vector dimension requires a new `LogicalType` member, and a vector accepts no transform - its input domain is empty in every transform spec
 
@@ -134,7 +134,7 @@ A declared vector dimension requires a new `LogicalType` member, and a vector ac
 - Consequence: The cost is six sites and cannot be avoided by choosing the other shape, because the union has no array member either; admitting a transform over a vector would put float arithmetic inside a lowered expression, which is exactly what the ban stops
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0011/D-5 — `LOCKED` (Retrieval semantics) — implementation: none
+### S-0011/D-5 — `LOCKED` (Retrieval semantics)
 
 Fusion is reciprocal rank fusion only in the first version of the kind
 
@@ -142,21 +142,21 @@ Fusion is reciprocal rank fusion only in the first version of the kind
 - Consequence: A profile declaring any other fusion method is refused by the grammar rather than by a guardrail, and weighted fusion reopens only with a portable normalization contract
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0011/D-9 — `ASSUMED` (Retrieval semantics) — implementation: none
+### S-0011/D-9 — `ASSUMED` (Retrieval semantics)
 
 Six statable guardrails, not the source proposal's ten - the projection rule folds into the grain rule, the hybrid-needs-both-sides rule becomes a grammar requirement, and the searchable-is-not-filterable rule is a design rule honoured by requiring two declarations
 
 - Paths: `src/bloomery/guardrails/**` `src/bloomery/spec/**`
 - Consequence: A reader of the source proposal will look for four rules that are not here and has to be told where they went; in exchange each remaining rule has one refusal message and one test
 
-### S-0011/D-11 — `OPEN` (Retrieval semantics) — implementation: none
+### S-0011/D-11 — `OPEN` (Retrieval semantics)
 
 Whether a vector field may be declared on an entity or only on a mart
 
 - Paths: `src/bloomery/spec/entity.py` `src/bloomery/spec/marts.py`
 - Consequence: Confining it to marts keeps the new type out of the mapping and transform paths entirely, which is most of the type-system cost; allowing it on entities means an embedding produced by a step can be declared where it is produced
 
-### S-0011/D-12 — `OPEN` (Retrieval semantics) — implementation: none
+### S-0011/D-12 — `OPEN` (Retrieval semantics)
 
 Whether `distance` is a property of the semantic space or of the retrieval profile
 
