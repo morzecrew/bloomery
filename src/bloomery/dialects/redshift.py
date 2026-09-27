@@ -509,6 +509,14 @@ def _date_spine(node: Expression) -> Expression:
     the calendar is on every shipped port; a series this port cannot read — a
     non-literal bound, a step other than one day — is refused by name rather
     than rendered into SQL the engine rejects (S-0025/D-3).
+
+    The offset is added as ``date + integer`` rather than ``DATEADD``: both
+    are Redshift's, but PostgreSQL reads ``DATEADD``'s datepart as a column
+    and the surrogate lane (S-0015/D-3) runs the spine of every
+    postgres-compatible fixture, so the spelling both engines share keeps that
+    lane able to say what it is for. The row number is cast to ``INTEGER``
+    for the same reason: ``ROW_NUMBER`` is a ``BIGINT`` on both engines, and
+    PostgreSQL has no ``date + bigint``.
     """
 
     if not (isinstance(node, exp.Table) and isinstance(node.this, exp.GenerateSeries)):
@@ -542,8 +550,9 @@ def _date_spine(node: Expression) -> Expression:
     # is interpolated is a calendar date this function parsed, integers it
     # computed, and an identifier the neutral tree already carried.
     spine = parse_one(
-        f"SELECT DATEADD(DAY, n, CAST('{first.isoformat()}' AS DATE)) AS {column} "  # noqa: S608
-        f"FROM (SELECT ROW_NUMBER() OVER () - 1 AS n FROM {joins}) AS numbers WHERE n < {rows}",
+        f"SELECT CAST('{first.isoformat()}' AS DATE) + n AS {column} "  # noqa: S608
+        f"FROM (SELECT CAST(ROW_NUMBER() OVER () - 1 AS INTEGER) AS n FROM {joins}) AS numbers "
+        f"WHERE n < {rows}",
         read="redshift",
     )
 

@@ -211,8 +211,8 @@ def test_the_calendar_series_becomes_a_cross_join_generator() -> None:
     sql = DIALECT.render(node)
     sqlglot.parse_one(sql, read="redshift")
     assert "GENERATE_SERIES" not in sql
-    assert "DATEADD(DAY, n, CAST('2020-01-01' AS DATE)) AS date_day" in sql
-    assert "ROW_NUMBER() OVER () - 1 AS n" in sql
+    assert "CAST('2020-01-01' AS DATE) + n AS date_day" in sql
+    assert "CAST(ROW_NUMBER() OVER () - 1 AS INTEGER) AS n" in sql
     assert sql.count("UNION ALL") == 9  # ten rows, one relation: 10 >= 10 days
     assert "WHERE\n    n < 10" in sql or "WHERE n < 10" in sql
     assert sql.rstrip().endswith(") AS date_day")
