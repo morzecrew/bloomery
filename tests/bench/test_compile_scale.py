@@ -31,6 +31,7 @@ from collections.abc import Callable
 import pytest
 
 from bloomery import Target, compile_project, load_project
+from bloomery.emit import ArtifactKind
 
 pytestmark = pytest.mark.perf
 
@@ -88,7 +89,10 @@ def test_compile_scales_linearly_to_a_thousand_entities(
             load_project(documents), target=Target.SQLMESH, dialect="duckdb"
         )
         durations.append(time.perf_counter() - started)
-    assert len(artifacts) == entities  # the pipeline actually ran, per entity
+    # The pipeline actually ran, per entity: one model each. The target's own
+    # `config.yaml` rides beside them and is not an entity's artifact.
+    models = [artifact for artifact in artifacts if artifact.kind is ArtifactKind.MODEL]
+    assert len(models) == entities
     median = statistics.median(durations)
     record_property(f"compile_median_ms_{entities}_entities", round(median * 1000, 1))
     if ceiling is not None:
