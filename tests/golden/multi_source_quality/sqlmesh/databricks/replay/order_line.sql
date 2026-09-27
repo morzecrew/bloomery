@@ -329,7 +329,7 @@ WHEN NOT MATCHED THEN INSERT (
   _replay._quality_ok
 );
 
-UPDATE silver.order_line__reject SET resolved_at = CURRENT_TIMESTAMP(), last_evaluated_at = CURRENT_TIMESTAMP()
+UPDATE silver.order_line__reject SET resolved_at = CAST(TO_UTC_TIMESTAMP(CURRENT_TIMESTAMP(), CURRENT_TIMEZONE()) AS TIMESTAMP_NTZ), last_evaluated_at = CAST(TO_UTC_TIMESTAMP(CURRENT_TIMESTAMP(), CURRENT_TIMEZONE()) AS TIMESTAMP_NTZ)
 WHERE
   resolved_at IS NULL
   AND (source_relation, _source_row_id) IN (
@@ -569,4 +569,4 @@ ON _target.source_relation = _replay._source
 AND _target._source_row_id = _replay._source_row_id
 WHEN MATCHED AND _target.resolved_at IS NULL THEN UPDATE SET
   failed_rules = _replay.failed_rules,
-  last_evaluated_at = CURRENT_TIMESTAMP();
+  last_evaluated_at = CAST(TO_UTC_TIMESTAMP(CURRENT_TIMESTAMP(), CURRENT_TIMEZONE()) AS TIMESTAMP_NTZ);

@@ -207,6 +207,15 @@ def test_utc_now_states_the_zone_rather_than_inheriting_it() -> None:
     assert "AT TIME ZONE" not in DIALECT.render(DIALECT.utc_now())
 
 
+def test_a_bare_current_timestamp_is_stamped_in_utc() -> None:
+    """The replay statements build `CurrentTimestamp` directly for
+    `resolved_at`; bare, it is an instant read through the session zone on
+    its way into a `TIMESTAMP_NTZ` column. It renders as `utc_now()` here, as
+    it does on the other cloud ports.
+    """
+    assert DIALECT.render(exp.CurrentTimestamp()) == DIALECT.render(DIALECT.utc_now())
+
+
 def test_text_sha256_needs_no_rewrite_here() -> None:
     """`sha2(expr, 256)` takes a string and returns the lowercase hex digest
     directly, so this port inherits the base construction — unlike Trino, whose
