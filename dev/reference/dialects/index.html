@@ -2097,9 +2097,9 @@
 
 
 <h1 id="dialects">Dialects<a class="headerlink" href="#dialects" title="Permanent link">&para;</a></h1>
-<p>Four SQL dialects ship — <code>duckdb</code>, <code>postgres</code>, <code>redshift</code>, <code>trino</code> — and every emitter
-renders through the same port, so the choice of dialect is independent of the choice of
-target.</p>
+<p>Five SQL dialects ship — <code>duckdb</code>, <code>postgres</code>, <code>redshift</code>, <code>snowflake</code>, <code>trino</code> — and every
+emitter renders through the same port, so the choice of dialect is independent of the
+choice of target.</p>
 <h2 id="shipped-dialects">Shipped dialects<a class="headerlink" href="#shipped-dialects" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2130,6 +2130,11 @@ target.</p>
 <td><code>TrinoDialect</code></td>
 <td>The federated engine; used by the lakehouse example over Iceberg</td>
 </tr>
+<tr>
+<td><code>snowflake</code></td>
+<td><code>SnowflakeDialect</code></td>
+<td>The first cloud port; held by offline rungs until its compile and execution lanes land — see below</td>
+</tr>
 </tbody>
 </table>
 <p>Passing any other name is an <code>EmitError</code> naming the four. A fifth port is a
@@ -2145,6 +2150,7 @@ below exist so a new one refuses what it cannot express instead of approximating
 <th><code>postgres</code></th>
 <th><code>redshift</code></th>
 <th><code>trino</code></th>
+<th><code>snowflake</code></th>
 </tr>
 </thead>
 <tbody>
@@ -2154,6 +2160,7 @@ below exist so a new one refuses what it cannot express instead of approximating
 <td><code>TEXT</code></td>
 <td><code>VARCHAR(MAX)</code></td>
 <td><code>VARCHAR</code></td>
+<td><code>VARCHAR</code></td>
 </tr>
 <tr>
 <td><code>int</code></td>
@@ -2161,6 +2168,7 @@ below exist so a new one refuses what it cannot express instead of approximating
 <td><code>BIGINT</code></td>
 <td><code>BIGINT</code></td>
 <td><code>BIGINT</code></td>
+<td><code>NUMBER(38, 0)</code></td>
 </tr>
 <tr>
 <td><code>decimal(p,s)</code></td>
@@ -2168,9 +2176,11 @@ below exist so a new one refuses what it cannot express instead of approximating
 <td><code>DECIMAL(p, s)</code></td>
 <td><code>DECIMAL(p, s)</code></td>
 <td><code>DECIMAL(p, s)</code></td>
+<td><code>DECIMAL(p, s)</code>, <code>p</code> at most 38</td>
 </tr>
 <tr>
 <td><code>bool</code></td>
+<td><code>BOOLEAN</code></td>
 <td><code>BOOLEAN</code></td>
 <td><code>BOOLEAN</code></td>
 <td><code>BOOLEAN</code></td>
@@ -2182,6 +2192,7 @@ below exist so a new one refuses what it cannot express instead of approximating
 <td><code>DATE</code></td>
 <td><code>DATE</code></td>
 <td><code>DATE</code></td>
+<td><code>DATE</code></td>
 </tr>
 <tr>
 <td><code>timestamp</code></td>
@@ -2189,6 +2200,7 @@ below exist so a new one refuses what it cannot express instead of approximating
 <td><code>TIMESTAMP</code></td>
 <td><code>TIMESTAMP</code></td>
 <td><code>TIMESTAMP</code></td>
+<td><code>TIMESTAMP_NTZ</code></td>
 </tr>
 <tr>
 <td><code>variant</code></td>
@@ -2196,6 +2208,7 @@ below exist so a new one refuses what it cannot express instead of approximating
 <td><code>JSONB</code></td>
 <td><code>SUPER</code></td>
 <td><code>JSON</code></td>
+<td><code>VARIANT</code></td>
 </tr>
 </tbody>
 </table>
@@ -2204,14 +2217,23 @@ the binary, indexable, canonicalized form — rather than <code>JSON</code>, whi
 preserving key order and duplicates, properties <code>variant</code> never promises. Redshift has no
 <code>JSONB</code> and its <code>SUPER</code> is a different data model, navigated with PartiQL rather than with
 <code>jsonb</code>'s operators, so that port refuses <code>json_path</code> instead of translating it.</p>
+<p>Snowflake's column has three choices of its own. <code>int</code> is <code>NUMBER(38, 0)</code> because that is
+what the engine stores — its <code>BIGINT</code> is a documented synonym for exactly that, not a
+64-bit integer. A <code>decimal</code> past 38 digits of precision is refused at emit by name: the
+engine has no wider fixed-point type to fall back to. And <code>timestamp</code> is spelled
+<code>TIMESTAMP_NTZ</code> explicitly, never bare <code>TIMESTAMP</code>, which on Snowflake is an alias an
+account or a session may point at the session-zoned <code>TIMESTAMP_LTZ</code> — the one type the
+always-UTC zoneless <code>timestamp</code> must never become.</p>
 <p>There are no floats in the type system, and a <code>decimal</code> stays exact end to end — with one
 named exception, <code>divide</code> on DuckDB, which that engine cannot express exactly. It is
 described below rather than left to be discovered.</p>
 <h2 id="where-the-ports-spell-things-differently">Where the ports spell things differently<a class="headerlink" href="#where-the-ports-spell-things-differently" title="Permanent link">&para;</a></h2>
 <p>DuckDB, Postgres and Trino declare every capability, so nothing in their columns is a
-feature gap; <code>redshift</code> is the first port to withhold any, and the cells it refuses are
-marked. These are the places one engine needs different SQL for the same meaning, and the
-port supplies it — the reason a spec compiles to different text without meaning anything
+feature gap. <code>redshift</code> withholds three and <code>snowflake</code> one — Unicode normalization,
+which neither engine has under any name, so a <code>normalize</code> rule is refused at emit rather
+than rendered as a call the engine never defined — and the cells they refuse are marked.
+These are the places one engine needs different SQL for the same meaning, and the port
+supplies it — the reason a spec compiles to different text without meaning anything
 different.</p>
 <table>
 <thead>
@@ -2221,6 +2243,7 @@ different.</p>
 <th><code>postgres</code></th>
 <th><code>redshift</code></th>
 <th><code>trino</code></th>
+<th><code>snowflake</code></th>
 </tr>
 </thead>
 <tbody>
@@ -2230,6 +2253,7 @@ different.</p>
 <td>same as DuckDB</td>
 <td><code>CONVERT_TIMEZONE('Europe/Berlin', 'UTC', x)</code></td>
 <td><code>CAST(AT_TIMEZONE(WITH_TIMEZONE(x, 'Europe/Berlin'), 'UTC') AS TIMESTAMP)</code></td>
+<td><code>CONVERT_TIMEZONE('Europe/Berlin', 'UTC', x)</code></td>
 </tr>
 <tr>
 <td>Null-on-failure cast (the <code>coercible</code> marker)</td>
@@ -2237,6 +2261,7 @@ different.</p>
 <td><code>CASE WHEN PG_INPUT_IS_VALID(x, 'BIGINT') THEN CAST(x AS BIGINT) END</code></td>
 <td><code>TRY_CAST(x AS BIGINT)</code>, and <code>CASE WHEN CAN_JSON_PARSE(x) THEN JSON_PARSE(x) END</code> for <code>variant</code></td>
 <td><code>TRY_CAST(x AS BIGINT)</code></td>
+<td><code>TRY_CAST(CAST(x AS VARCHAR) AS NUMBER(38, 0))</code></td>
 </tr>
 <tr>
 <td>Nested read <code>$.payload.shipping.country</code></td>
@@ -2244,6 +2269,7 @@ different.</p>
 <td><code>JSON_EXTRACT_PATH_TEXT(CAST(payload AS JSON), 'shipping', 'country')</code></td>
 <td><code>JSON_EXTRACT_PATH_TEXT(payload, 'shipping', 'country')</code></td>
 <td><code>JSON_EXTRACT_SCALAR(payload, '$.shipping.country')</code></td>
+<td><code>JSON_EXTRACT_PATH_TEXT(payload, 'shipping.country')</code></td>
 </tr>
 <tr>
 <td><code>normalize</code> rule</td>
@@ -2251,6 +2277,7 @@ different.</p>
 <td><code>NORMALIZE(x, NFC)</code></td>
 <td><strong>refused</strong> — no <code>UNICODE_NORMALIZE</code> capability</td>
 <td><code>NORMALIZE(x, NFC)</code></td>
+<td><strong>refused</strong> — no NFC function</td>
 </tr>
 <tr>
 <td><code>reject_id</code> digest</td>
@@ -2258,6 +2285,7 @@ different.</p>
 <td><code>ENCODE(SHA256(CONVERT_TO('v', 'UTF8')), 'hex')</code></td>
 <td><code>SHA2('v', 256)</code></td>
 <td><code>LOWER(TO_HEX(SHA256(TO_UTF8('v'))))</code></td>
+<td><code>SHA2('v', 256)</code></td>
 </tr>
 <tr>
 <td>Reject <code>raw</code> payload</td>
@@ -2265,6 +2293,23 @@ different.</p>
 <td><code>JSON_BUILD_OBJECT('a', a)</code></td>
 <td><code>OBJECT('a', a)</code></td>
 <td><code>JSON_OBJECT('a': a)</code></td>
+<td><code>OBJECT_CONSTRUCT_KEEP_NULL('a', a)</code></td>
+</tr>
+<tr>
+<td>Current instant</td>
+<td><code>CURRENT_TIMESTAMP</code></td>
+<td><code>CURRENT_TIMESTAMP</code></td>
+<td><code>CONVERT_TIMEZONE('UTC', CAST(GETDATE() AS TIMESTAMP WITH TIME ZONE))</code>, cast back</td>
+<td><code>CURRENT_TIMESTAMP</code></td>
+<td><code>SYSDATE()</code></td>
+</tr>
+<tr>
+<td>Calendar row source (<code>dim_date</code>)</td>
+<td><code>GENERATE_SERIES(...)</code></td>
+<td><code>GENERATE_SERIES(...)</code></td>
+<td>a cross-joined ten-row generator numbered by <code>ROW_NUMBER()</code>, with <code>DATEADD</code></td>
+<td><code>UNNEST(SEQUENCE(...))</code></td>
+<td><code>TABLE(GENERATOR(ROWCOUNT =&gt; n))</code> with <code>DATEADD</code></td>
 </tr>
 </tbody>
 </table>
@@ -2275,6 +2320,15 @@ regex. Trino's <code>sha256</code> takes and returns <code>varbinary</code>, so 
 even plan; its <code>to_hex</code> is uppercase, and <code>reject_id</code> has to agree across engines byte
 for byte. Trino parses only the SQL-standard <code>JSON_OBJECT</code> spelling. DuckDB has no
 <code>NORMALIZE</code> at all.</p>
+<p>Snowflake adds four of its own, none stylistic either. Its <code>TRY_CAST</code> accepts a string
+source only and SQLGlot renders it as a plain <code>CAST</code> otherwise, so the port casts the
+operand to <code>VARCHAR</code> first. Its object builder drops any pair whose value is NULL, which
+would make a quarantined payload disagree with every other port's, so the reject payload
+uses the <code>_KEEP_NULL</code> variant. Its <code>CURRENT_TIMESTAMP</code> is session-zoned, so every current
+instant — including the replay's <code>resolved_at</code> stamps — is <code>SYSDATE()</code>, the engine's UTC
+instant already typed <code>TIMESTAMP_NTZ</code>. And SQLGlot spells the calendar's series as
+<code>ARRAY_GENERATE_RANGE(...)</code>, a scalar function the engine cannot select from, so the port
+renders the row generator instead, with the count read from the calendar's own bounds.</p>
 <p>Redshift's whole column is its own for the same reason: its <code>AT TIME ZONE</code> promotes a
 zoneless value through the <em>session</em> zone the way Trino's does, so the PostgreSQL chain
 does not cancel and the three-argument <code>CONVERT_TIMEZONE(source, target, ts)</code> says it in
@@ -2370,6 +2424,9 @@ tools follow) a space — and each engine takes a different subset:</p>
 </tr>
 </tbody>
 </table>
+<p>Snowflake needs no fourth column: its port normalizes the separator the same way before
+any cast, the strictly-safe choice until the live corpus shows which raw spellings its
+<code>AUTO</code> format would have parsed on its own.</p>
 <p>No error was ever raised for the Trino column. Outside the quality system it was a silent
 NULL; inside it the generated <code>coercible</code> rule read "the projection is NULL although the
 source was not" as a coercion failure, so <strong>every row of the source was quarantined</strong>
@@ -2474,16 +2531,22 @@ screen-precision derivations.</p>
   ports, so each rewrite works on a copy — a port that edited in place would leave the
   next one rendering its neighbour's spelling.</li>
 <li><strong>Reserved identifiers are quoted on every port.</strong> An entity named <code>order</code> emits
-  <code>silver."order"</code> everywhere.</li>
+  <code>silver."order"</code> on DuckDB, PostgreSQL, Redshift and Trino, and <code>silver."ORDER"</code> on
+  Snowflake, where an unquoted name folds to uppercase and a quoted one is taken verbatim —
+  the folded spelling is the one that names the same object as the unquoted model name.</li>
 <li><strong>Capability flags are how a port stays honest.</strong> A port that cannot express a
   null-on-failure cast, an array, a text digest, Unicode normalization, or a JSON object
   refuses the constructs that need them rather than emitting something close. <code>duckdb</code>,
   <code>postgres</code> and <code>trino</code> declare all of them; <code>redshift</code> withholds three — arrays,
   Unicode normalization and variant extraction — so a project using <code>json_path</code> or a
-  <code>normalize</code> rule meets a refusal on that dialect and compiles on the other three, and
-  its quality flags take the delimited-string shape rather than an array column.</li>
+  <code>normalize</code> rule meets a refusal on that dialect and compiles on the others, and its
+  quality flags take the delimited-string shape rather than an array column; <code>snowflake</code>
+  withholds Unicode normalization alone. No shipped example meets those refusals today;
+  the test suite provokes them against a deliberately incapable port.</li>
 <li>The engine test tier runs the emitted SQL against real DuckDB, PostgreSQL and Trino
-  containers, which is where claims on this page are checked.</li>
+  containers, which is where claims on this page are checked. Snowflake has no container:
+  its claims are held by the offline rungs — unit, golden, and a parse of every rendered
+  statement by Snowflake's own grammar — until its compile and execution lanes land.</li>
 <li><strong>The local Redshift lane checks the PostgreSQL-compatible subset; only a live cluster
   checks the dialect.</strong> There is no Redshift container to run locally, so the local
   lane submits the port's SQL to a real PostgreSQL standing in for a cluster
