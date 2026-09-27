@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="bloomery">
+  <title>bloomery</title>
+  <!--
+    The same furnace as logo.svg, on its own steel ground.
+
+    A tab strip is not a page: it may be light, dark, or a colour the theme
+    picked, and a transparent mark has to survive all three. The steel plate
+    fixes the ground so the ember always sits on the contrast it was drawn for,
+    and the mark is inset and scaled up so it still reads at 16px.
+  -->
+  <rect width="32" height="32" rx="7" fill="#2B3A46"/>
+  <g transform="translate(16 16.6) scale(0.78) translate(-16 -16)">
+    <path fill-rule="evenodd" clip-rule="evenodd" fill="#E8621F"
+          d="M2.8 26 V14.5 A13.2 13.2 0 0 1 29.2 14.5 V26 H21.6 V14.5 A5.6 5.6 0 0 0 10.4 14.5 V26 Z"/>
+    <rect x="1.5" y="26" width="29" height="4" rx="2" fill="#E8621F"/>
+    <circle cx="16" cy="21.3" r="3.5" fill="#F5A623"/>
+  </g>
+</svg>

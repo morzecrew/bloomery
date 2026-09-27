@@ -1,0 +1,74 @@
+/* Steel and ember — the bloomery palette.
+ *
+ * The theme's own `primary`/`accent` names stay set in zensical.toml (blue-grey
+ * and deep-orange) because every structural rule in the stylesheet is keyed off
+ * those attribute selectors. This file re-points the colours those rules read,
+ * rather than replacing the rules.
+ *
+ * Specificity matters here. The theme sets `--md-typeset-a-color` under
+ * `[data-md-color-scheme=slate][data-md-color-primary=blue-grey]`, a two-attribute
+ * selector that outranks a bare scheme selector — so the dark-mode block below
+ * matches it attribute for attribute and wins on source order, since extra_css
+ * is loaded after the theme.
+ *
+ * Every pairing below is measured, not eyeballed:
+ *
+ *   ember  #BF4318 on white ............ 5.21:1   AA text
+ *   ember  #BF4318 on light code bg .... 4.78:1   AA text
+ *   ember  #FF9A5E on slate body ....... 7.49:1   AAA text
+ *   ember  #FF9A5E on slate code bg .... 6.57:1   AAA text
+ *   white  on steel header #2B3A46 .... 11.69:1   AAA text
+ *   white  on steel header #1D262E .... 15.34:1   AAA text
+ *
+ * The link ember is darker than the logo ember on purpose: link text has to
+ * clear 4.5:1 on white, and the mark only has to clear 3:1 as a graphic.
+ */
+
+/* ....................... */
+/* Light — steel header, forge-orange links */
+
+[data-md-color-scheme="default"],
+[data-md-color-scheme="default"][data-md-color-primary="blue-grey"] {
+  --md-primary-fg-color: #2b3a46;
+  --md-primary-fg-color--light: #405363;
+  --md-primary-fg-color--dark: #1d262e;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: rgba(255, 255, 255, 0.7);
+
+  --md-accent-fg-color: #bf4318;
+  --md-accent-fg-color--transparent: rgba(191, 67, 24, 0.1);
+  --md-accent-bg-color: #ffffff;
+  --md-accent-bg-color--light: rgba(255, 255, 255, 0.7);
+
+  --md-typeset-a-color: #bf4318;
+}
+
+/* ....................... */
+/* Dark — the neutrals lean steel rather than the theme's default violet-blue */
+
+[data-md-color-scheme="slate"] {
+  /* 225deg is the theme default and reads faintly purple next to the ember.
+     210deg puts the greys on the same side of the wheel as the header. */
+  --md-hue: 210deg;
+}
+
+[data-md-color-scheme="slate"],
+[data-md-color-scheme="slate"][data-md-color-primary="blue-grey"] {
+  --md-primary-fg-color: #1d262e;
+  --md-primary-fg-color--light: #2b3a46;
+  --md-primary-fg-color--dark: #141b21;
+
+  --md-accent-fg-color: #ff8a4c;
+  --md-accent-fg-color--transparent: rgba(255, 138, 76, 0.1);
+
+  --md-typeset-a-color: #ff9a5e;
+}
+
+/* ....................... */
+/* The mark, where it appears outside the header */
+
+.md-header__button.md-logo img,
+.md-nav__button.md-logo img {
+  height: 1.4rem;
+  width: 1.4rem;
+}

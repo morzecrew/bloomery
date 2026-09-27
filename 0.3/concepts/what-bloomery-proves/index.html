@@ -1,0 +1,2550 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Entity-first spec compiler: declarative entity/mapping/metric specs → SQLMesh, dbt, and Cube artifacts">
+      
+      
+        <meta name="author" content="Lev Litvinov">
+      
+      
+        <link rel="canonical" href="https://morzecrew.github.io/bloomery/0.3/concepts/what-bloomery-proves/">
+      
+      
+        <link rel="prev" href="../guardrails/">
+      
+      
+        <link rel="next" href="../data-quality/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/favicon.svg">
+      <meta name="generator" content="zensical-0.0.57">
+    
+    
+      
+        <title>What bloomery proves - Bloomery</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.5da3a30f.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.812a03bb.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/palette.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#what-bloomery-proves" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Bloomery" class="md-header__button md-logo" aria-label="Bloomery" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="Bloomery">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Bloomery
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              What bloomery proves
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/morzecrew/bloomery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bloomery
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../get-started/introduction/" class="md-tabs__link">
+          
+  
+  Get Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../specs-and-catalog/" class="md-tabs__link">
+          
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../how-to/emit-sqlmesh/" class="md-tabs__link">
+          
+  
+  How-to
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/spec-schemas/" class="md-tabs__link">
+          
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/fuzzing/" class="md-tabs__link">
+          
+  
+  Contributing
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Bloomery" class="md-nav__button md-logo" aria-label="Bloomery" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="Bloomery">
+
+    </a>
+    Bloomery
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/morzecrew/bloomery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bloomery
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Get Started
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Get Started
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/introduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Introduction
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Installation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quickstart
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Examples
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Concepts
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Concepts
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../specs-and-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Specs and the catalog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compile-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The compile pipeline
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../determinism/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Determinism
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Guardrails
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  What bloomery proves
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  What bloomery proves
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#representation-and-answerability-are-different-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Representation and answerability are different questions
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unknown-is-not-safe" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Unknown is not safe
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-guardrail-that-stayed-silent-and-a-proof-that-closed" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A guardrail that stayed silent, and a proof that closed
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="A guardrail that stayed silent, and a proof that closed">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-provenances-that-may-never-close-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The provenances that may never close one
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#targets-are-not-the-proof" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Targets are not the proof
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-bloomery-cannot-establish" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What bloomery cannot establish
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-a-fact-was-obtained-and-asking-for-better" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How a fact was obtained, and asking for better
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How a fact was obtained, and asking for better">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#requiring-the-stronger-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Requiring the stronger kind
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-consumer-is-often-not-the-mart" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The consumer is often not the mart
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-a-correctness-claim" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Reading a correctness claim
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data quality
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../wide-marts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The wide-mart gold layer
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../step-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Steps: referenced implementations
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../retrieval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Retrieval
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  How-to
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  How-to
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/emit-sqlmesh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit SQLMesh artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/emit-cube/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit Cube artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/emit-dbt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit dbt artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/add-quality-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Add quality rules to an entity
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/plan-a-metric-request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan a metric request
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/evolve-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Evolve a spec safely
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/evaluate-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Assess a spec before it compiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/reproduce-a-past-artifact-set/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reproduce a past artifact set
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/close-an-open-decision/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Close an open decision
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/declare-an-exposure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Declare what reads your project
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/annotate-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Say who owns a thing, what it holds, and who may read it
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/merge-sources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Merge sources into one entity
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/import-a-semantic-layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Adopt a project that already has a semantic layer
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/resolve-identities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Resolve identities across systems
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/trace-lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Trace where a metric comes from
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/trace-a-definition-over-time/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Trace a definition over time
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/use-the-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Use the CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Reference
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spec-schemas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Spec schemas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/json-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Schema export
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/transforms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Transforms
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dialects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Dialects
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Errors
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/stability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Stability
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Contributing
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Contributing
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/fuzzing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Fuzzing
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#representation-and-answerability-are-different-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Representation and answerability are different questions
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unknown-is-not-safe" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Unknown is not safe
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-guardrail-that-stayed-silent-and-a-proof-that-closed" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A guardrail that stayed silent, and a proof that closed
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="A guardrail that stayed silent, and a proof that closed">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-provenances-that-may-never-close-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The provenances that may never close one
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#targets-are-not-the-proof" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Targets are not the proof
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-bloomery-cannot-establish" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What bloomery cannot establish
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-a-fact-was-obtained-and-asking-for-better" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How a fact was obtained, and asking for better
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How a fact was obtained, and asking for better">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#requiring-the-stronger-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Requiring the stronger kind
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-consumer-is-often-not-the-mart" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The consumer is often not the mart
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-a-correctness-claim" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Reading a correctness claim
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+    
+    
+    
+      <li class="md-path__item">
+        <a href="../specs-and-catalog/" class="md-path__link">
+          
+  
+  <span class="md-ellipsis">
+    Concepts
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="what-bloomery-proves">What bloomery proves<a class="headerlink" href="#what-bloomery-proves" title="Permanent link">&para;</a></h1>
+<p>This page states the correctness claim precisely: what property bloomery establishes,
+from which facts, at what time, and what stays outside it. It exists because both
+directions of over- and under-statement are easy. "Artifact generator" undersells a
+compiler that refuses arithmetic; "guaranteed correct metrics" oversells one that has
+only ever read your declarations.</p>
+<p>The claim in one sentence:</p>
+<div class="admonition quote">
+<p class="admonition-title">The core claim</p>
+<p>bloomery does not prove that source data or business definitions are true. It proves
+that generated representations and accepted query plans preserve the semantics
+declared to bloomery, under a finite set of documented rules.</p>
+</div>
+<p>Shorter, and worth memorising, because every other sentence on this page is a
+consequence of it:</p>
+<blockquote>
+<p><strong>bloomery does not prove truth. It proves preservation of declared semantics.</strong></p>
+</blockquote>
+<p>If you tell bloomery that <code>shipping</code> is an order-grain measure in dollars, it will refuse
+every representation and every plan that would silently make it mean something else. If
+<code>shipping</code> is actually per-parcel, or the column holds euros, nothing here will save
+you — that is a wrong declaration, and bloomery has no access to the world the
+declaration is about.</p>
+<h2 id="representation-and-answerability-are-different-questions">Representation and answerability are different questions<a class="headerlink" href="#representation-and-answerability-are-different-questions" title="Permanent link">&para;</a></h2>
+<p>These two look contradictory the first time you meet them together, which is why they
+are stated side by side rather than discovered.</p>
+<p><strong>Representation safety</strong> — a mart or emitted relation must not expose a measure in a
+shape where ordinary downstream aggregation silently changes its declared meaning. This
+is what the <a href="../guardrails/">guardrails</a> enforce, and it is a property of the artifact.</p>
+<p><strong>Query answerability</strong> — a request may still be answerable when bloomery can construct a
+plan that preserves each measure at its origin grain until the correct aggregation point.
+This is a property of a <em>plan</em>, decided per request.</p>
+<p>The same measure can fail the first and pass the second:</p>
+<div class="highlight"><pre><span></span><code>An order-level shipping measure is unsafe when repeated into an order-item mart. The same
+measure may be safely answered by customer country when bloomery can aggregate from Order
+to Country through grain-preserving relationships.
+</code></pre></div>
+<p>Nothing has been relaxed between those two sentences. The mart is refused because storing
+the measure at line grain makes every later <code>SUM</code> overstate. The query is answerable
+because a plan exists that aggregates at order grain <em>first</em> and joins after — and note
+the condition: it is answered when such a plan can be built, and
+<a href="../../how-to/plan-a-metric-request/#refusals">refused when one cannot</a>, not
+answered approximately in the meantime.</p>
+<p>Without the distinction stated, the refusal reads as arbitrary — and an arbitrary-looking
+refusal is one somebody works around.</p>
+<h2 id="unknown-is-not-safe">Unknown is not safe<a class="headerlink" href="#unknown-is-not-safe" title="Permanent link">&para;</a></h2>
+<div class="admonition quote">
+<p class="admonition-title">The closed-world rule</p>
+<p>bloomery does not use heuristic schema inference as evidence of correctness. New
+capabilities are added by introducing explicit proof rules for additional safe
+operations.</p>
+</div>
+<p>A fact bloomery was not told is not a fact it assumes benign. Nothing here reads your SQL
+and concludes what a column must have meant, and no capability arrives by relaxing a check
+— it arrives as a named rule stating what it admits and what evidence closes it, so the
+set of accepted requests only ever grows deliberately.</p>
+<p>The practical consequence is that a refusal can mean "this is unsafe" <em>or</em> "no rule covers
+this yet", and both come out as a refusal rather than a guess.</p>
+<div class="admonition quote">
+<p class="admonition-title">The planner claim</p>
+<p>If bloomery returns a semantic query plan, every multiplicity-changing operation in
+that plan is justified by declared or mechanically derived semantic facts and a
+documented inference rule. If bloomery cannot construct that derivation, it refuses
+the request.</p>
+</div>
+<p>This is stronger and more testable than "correct analytics", and it was <strong>false until
+recently</strong> — which is why it is worth knowing what changed. Every request the planner
+answers now carries a derivation. Four request shapes used to be answered without one: a
+metric computed from others, a semi-additive measure, a cumulative one, and two metrics
+restricted differently. They were answered <em>correctly</em> — the number was never the problem
+— but nothing could say why, and while that was so the claim above could not honestly be
+made about the whole system.</p>
+<p>What it does not claim is that the SQL is generated from the plan. bloomery decides what
+to compute and states it; the query is still produced alongside. The derivation is
+evidence about the answer, not the machinery that produces it.</p>
+<h2 id="a-guardrail-that-stayed-silent-and-a-proof-that-closed">A guardrail that stayed silent, and a proof that closed<a class="headerlink" href="#a-guardrail-that-stayed-silent-and-a-proof-that-closed" title="Permanent link">&para;</a></h2>
+<p>Both run, and they are not two spellings of one check.</p>
+<p>A <a href="../guardrails/">guardrail</a> asks <em>did anything I know how to look for go wrong?</em>, and its
+green answer is the absence of a complaint. Nothing in that silence separates "this was
+checked and holds" from "no rule here looked at it at all", because silence carries no
+detail — which is why a guardrail can only ever tell you what bloomery did not find.</p>
+<p>A proof asks <em>which named rule admits this, resting on which facts?</em>, and its answer is an
+object: the rule that closed the obligation, the premises under it, and a provenance on
+every leaf. <code>bloomery explain</code> prints it, so the distinction is one a reader meets rather
+than one the architecture keeps to itself.</p>
+<p>Guardrails keep their own aggregate refusal throughout — one error carrying every
+violation found, not the first — while consuming the same semantic facts the proofs rest
+on. One store of facts, two ways of reading it, so the answer and the argument for it
+cannot drift apart quietly.</p>
+<h3 id="the-provenances-that-may-never-close-one">The provenances that may never close one<a class="headerlink" href="#the-provenances-that-may-never-close-one" title="Permanent link">&para;</a></h3>
+<p>A proof is only as strong as the weakest fact any of its leaves admitted, so whether a
+fact can close an obligation is decided by where the fact came from:</p>
+<table>
+<thead>
+<tr>
+<th>Provenance</th>
+<th>Closes an obligation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>declared</code> — authored in a spec</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>derived</code> — mechanically implied by declared facts</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>imported_verified</code> — read from an external artifact under an exact documented rule</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>inferred_heuristic</code> — a guess, however good</td>
+<td><strong>never</strong></td>
+</tr>
+<tr>
+<td><code>unknown</code> — no fact at all</td>
+<td><strong>never</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The last two are carried rather than discarded, and the reason is the refusal: one that
+found a heuristic match can say what it found instead of only what it lacked. They may
+inform a diagnostic; they may not close an acceptance, so a project resting on one does
+not compile.</p>
+<p>The line runs through one place — <code>Provenance.closes</code> in
+<code>src/bloomery/semantic/proof.py</code> — rather than through each rule that needs it, because a
+second copy of the line that drifted would not look like a safety change in review.</p>
+<p>It is not the line the grades below draw. <code>derived</code> closes an obligation and grades
+<code>ASSUMED</code>: closure is about soundness, the grade about authorship, and a project resting
+entirely on derived facts is sound and entirely undeclared.</p>
+<h2 id="targets-are-not-the-proof">Targets are not the proof<a class="headerlink" href="#targets-are-not-the-proof" title="Permanent link">&para;</a></h2>
+<div class="admonition quote">
+<p class="admonition-title">The target boundary</p>
+<p>SQLMesh, dbt, MetricFlow, Cube and the SQL dialects are compilation or execution
+targets. Their ability to generate executable SQL is not itself a bloomery correctness
+proof. Semantic acceptance happens before target lowering. The <code>retrieval</code> target has
+no consumer on this side of the boundary at all — it emits a manifest no framework
+reads, so nothing downstream of it accepts anything, and no runtime's acceptance of it
+would be evidence either.</p>
+</div>
+<p>That SQLMesh plans your models, or that Cube loads your data model, says those tools
+accepted the syntax. It says nothing about grain, additivity, units or tax basis, because
+none of them models those. Semantic acceptance has already happened by the time an
+artifact is written — a project that will not compile never reaches a target at all, and a
+target that happily runs a wrong query would not have been given one.</p>
+<h2 id="what-bloomery-cannot-establish">What bloomery cannot establish<a class="headerlink" href="#what-bloomery-cannot-establish" title="Permanent link">&para;</a></h2>
+<p>The boundary, stated plainly, because a guarantee whose edges are vague is quoted well
+past them:</p>
+<ul>
+<li><strong>Correctness of source values.</strong> Whether the number in the column is the right number.</li>
+<li><strong>Truth of authored business definitions.</strong> Whether <code>revenue</code> should have included
+  refunds is a question about your business, not about your specs.</li>
+<li><strong>Undeclared business constraints.</strong> A rule nobody wrote down constrains nothing.</li>
+<li><strong>Data-dependent cardinality</strong>, unless represented by a runtime audit. Whether a
+  relationship is <em>actually</em> one-to-many in today's data is a fact about rows;
+  <a href="../data-quality/">quality rules</a> measure it at run time, and the compiler cannot.</li>
+<li><strong>Correctness of arbitrary custom code</strong> outside the semantic contract. A
+  <a href="../step-registry/">step</a> declares its input and output types and those are enforced;
+  what its body computes is its author's claim, not bloomery's.</li>
+<li><strong>Semantic facts inferred only heuristically from SQL.</strong> Anything reverse-engineered
+  from a query rather than declared.</li>
+</ul>
+<p>This list is not the same as what bloomery does not <strong>do</strong> — that one is about execution
+and orchestration: it runs no SQL, schedules nothing, reads no warehouse. This one is
+about evidence: things bloomery runs no check for, and will not be able to, because the
+facts they need never arrive in a spec.</p>
+<h2 id="how-a-fact-was-obtained-and-asking-for-better">How a fact was obtained, and asking for better<a class="headerlink" href="#how-a-fact-was-obtained-and-asking-for-better" title="Permanent link">&para;</a></h2>
+<p>Every fact under a proof carries where it came from, and <code>bloomery explain</code> prints the
+grade beside it:</p>
+<div class="highlight"><pre><span></span><code><span class="gp">$ </span>bloomery<span class="w"> </span>explain<span class="w"> </span>specs/<span class="w"> </span>--metrics<span class="w"> </span>line_discount,shipping_count
+<span class="go">Evidence (2 locked, 2 assumed)</span>
+<span class="go">  ASSUMED branch:order_items</span>
+<span class="go">          order_items is aggregated to the requested grain before the join, so it holds</span>
+<span class="go">          one row per key</span>
+<span class="go">  ASSUMED branch:orders</span>
+<span class="go">          orders is aggregated to the requested grain before the join, so it holds one</span>
+<span class="go">          row per key</span>
+<span class="go">  LOCKED  mart:order_items.line_discount</span>
+<span class="go">          line_discount is a measure of order_items, whose grain is order_item</span>
+<span class="go">  LOCKED  mart:orders.shipping_count</span>
+<span class="go">          shipping_count is a measure of orders, whose grain is order</span>
+</code></pre></div>
+<p>Three grades, and they answer one question — <strong>did a human here write this down?</strong></p>
+<table>
+<thead>
+<tr>
+<th>Grade</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LOCKED</code></td>
+<td>Somebody declared it in a spec, or it follows necessarily from something they did.</td>
+</tr>
+<tr>
+<td><code>ASSUMED</code></td>
+<td>The compiler obtained it soundly on its own — a proof rule, a propagation, an exact read of an external artifact.</td>
+</tr>
+<tr>
+<td><code>OPEN</code></td>
+<td>Closes nothing. A project resting on one does not compile at all, so you will not be handed one.</td>
+</tr>
+</tbody>
+</table>
+<p><code>ASSUMED</code> is <strong>not</strong> a criticism. A derived fact is sound; the grade records where it came
+from, not whether it is right. Treating it as doubt pushes you to declare things you have
+not thought about, and a <code>LOCKED</code> fact nobody considered is worse than the default it
+replaced.</p>
+<h3 id="requiring-the-stronger-kind">Requiring the stronger kind<a class="headerlink" href="#requiring-the-stronger-kind" title="Permanent link">&para;</a></h3>
+<p>A mart can say it will not rest on anything the compiler worked out for itself:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">marts</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">statutory_revenue</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order</span>
+<span class="w">    </span><span class="nt">base</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order</span>
+<span class="w">    </span><span class="nt">measures</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">net_revenue</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">requires_evidence</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">locked</span><span class="w">    </span><span class="c1"># declared premises only</span>
+</code></pre></div>
+<p>The default is <code>assumed</code>, which is what every project does today — leaving the key out is
+byte-for-byte the same as writing it. There is no <code>open</code>: that would mean "accept
+anything", which is the absence of the annotation rather than a third setting.</p>
+<p>When a premise is weaker than the mart asked for, the refusal names the consumer, its
+measures, the column, and how the compiler reached it:</p>
+<div class="highlight"><pre><span></span><code>mart 'statutory_revenue' requires 'locked'; its measures ('net_revenue') rest on column
+'customer_tier', which the compiler reached by '&lt;basis&gt;' rather than from anything an
+author wrote (S-0070/the-grades-and-what-they-project-from). Fix: declare the relationship that carries
+'customer_tier', or set 'requires_evidence: assumed' on this mart
+</code></pre></div>
+<p>The basis above is a placeholder rather than a name you could grep for, because every way
+the compiler believes a dependency <em>from your own specs</em> is something an author declared or
+follows necessarily from one — an entity's key determining its own columns is the second
+kind. That refusal is waiting for a weaker premise the compile path does not yet mint.</p>
+<p><strong>A premise from another project's artifacts does reach it.</strong> A relationship carrying
+<code>imported_from:</code> was read out of an artifact rather than written here, so it grades
+<code>ASSUMED</code> however ordinary its cardinality — and a strict mart whose columns are carried
+through one is refused, in its own words:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">relationships</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">item_of_order</span>
+<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_item</span>
+<span class="w">    </span><span class="nt">to</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order</span>
+<span class="w">    </span><span class="nt">via</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">order_id</span><span class="p">:</span><span class="w"> </span><span class="nv">order_id</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">cardinality</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">many_to_one</span>
+<span class="w">    </span><span class="nt">imported_from</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">metricflow:semantic_manifest.json</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>mart 'statutory_revenue' requires 'locked'; its measures ('net_revenue') rest on column
+'order_customer_id', carried by 'item_of_order' — read out of
+'metricflow:semantic_manifest.json' rather than written here (S-0075/D-1). Fix: author
+the relationship in this project and drop its 'imported_from:', or set
+'requires_evidence: assumed' on this mart
+</code></pre></div>
+<p>The fix differs from the one above, and that is why the sentence does: the relationship
+<em>is</em> declared, so "declare the relationship" would send you to write a line that already
+exists. What a strict mart is asking is whether somebody <strong>here</strong> wrote it.</p>
+<p><code>imported_from:</code> names the artifact and is written by an importer, not by hand. Nothing
+checks that — bloomery cannot tell a hand-typed one from a generated one, and writing it
+on a relationship you authored silently lowers that relationship's grade.</p>
+<h3 id="the-consumer-is-often-not-the-mart">The consumer is often not the mart<a class="headerlink" href="#the-consumer-is-often-not-the-mart" title="Permanent link">&para;</a></h3>
+<p>A dashboard is the thing somebody signs off, and it usually reads several marts none of
+which knows it is feeding a statutory report. So an <strong>exposure</strong> carries the same key, and
+its requirement applies to everything beneath it:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">exposures</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">exec_dashboard</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dashboard</span>
+<span class="w">    </span><span class="nt">owner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">finance@example.com</span>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">metrics</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">net_revenue</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">requires_evidence</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">locked</span><span class="w">    </span><span class="c1"># of every mart below this, too</span>
+</code></pre></div>
+<p>That reaches the marts named under <code>depends_on.marts</code>, and — this is the point — every
+mart carrying a metric named under <code>depends_on.metrics</code>. <strong>Every</strong> such mart, not the one
+the compiler happens to emit the measure on: which mart serves a query is chosen when the
+query is planned, so a guarantee that held for only one of them would not hold for the
+number on the dashboard.</p>
+<p>The two refusals mirror the mart's, naming the metric that reached the mart and sending
+you to the exposure's own key:</p>
+<div class="highlight"><pre><span></span><code>exposure 'exec_dashboard' requires 'locked'; it reads mart 'statutory_revenue' (carrying
+metric 'net_revenue'), whose column 'customer_tier' the compiler reached by '&lt;basis&gt;' rather
+than from anything an author wrote (S-0070/the-grades-and-what-they-project-from). Fix: declare the relationship that
+carries 'customer_tier', or set 'requires_evidence: assumed' on this exposure
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>exposure 'exec_dashboard' requires 'locked'; it reads mart 'statutory_revenue' (carrying
+metric 'net_revenue'), whose column 'order_customer_id' comes in through 'item_of_order' —
+read out of 'metricflow:semantic_manifest.json' rather than written here (S-0075/D-1). Fix:
+author the relationship in this project and drop its 'imported_from:', or set
+'requires_evidence: assumed' on this exposure
+</code></pre></div>
+<p>A mart that carries its own <code>requires_evidence: locked</code> is not reported twice: its own
+refusal says the same thing with the same repair, so the exposure adds nothing to it.</p>
+<p><strong>Use it on few consumers.</strong> A finance mart feeding a statutory report is the case it
+exists for: someone signs that number, and "the compiler worked it out" is not an answer they can
+give a regulator. An exploration mart is the counter-example — it wants whatever compiles,
+and annotating it strictly buys a wall of declarations whose cheapest fix is deleting the
+requirement, which loses the guarantee everywhere at once.</p>
+<p>Two notes worth having before you adopt it:</p>
+<ul>
+<li><strong>This sits above the proof floor and never below it.</strong> Every fact a strict mart refuses
+  is one that already closed its obligation — the project is sound and would compile
+  without the annotation. You are asking a different question, not a harder version of the
+  same one.</li>
+<li><strong><code>LOCKED</code> here and <code>LOCKED</code> on an RFC decision are analogous, not the same.</strong> One grades
+  a design decision, the other grades a fact about your project.</li>
+</ul>
+<h2 id="reading-a-correctness-claim">Reading a correctness claim<a class="headerlink" href="#reading-a-correctness-claim" title="Permanent link">&para;</a></h2>
+<p>Any sentence in this documentation asserting that bloomery is correct about something
+answers four questions, or it gets rewritten:</p>
+<ol>
+<li><strong>What exact property is proven?</strong></li>
+<li><strong>From which declared facts?</strong></li>
+<li><strong>At compile time or at run time?</strong></li>
+<li><strong>What remains outside the guarantee?</strong></li>
+</ol>
+<p>Applied to the grain guardrail, for example: a measure is never embedded in a mart at a
+grain coarser than its own <em>(property)</em>, from the measure's declared <code>grain:</code> and the
+mart's declared grain <em>(facts)</em>, at compile time <em>(when)</em> — and it establishes nothing
+about whether the measure's own declared grain is the truth <em>(residue)</em>.</p>
+<p>A claim that cannot answer all four is one nobody can check, which makes it marketing
+rather than documentation.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../guardrails/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Guardrails">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Guardrails
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../data-quality/" class="md-footer__link md-footer__link--next" aria-label="Next: Data quality">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Data quality
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2026 Lev Litvinov and contributors
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.49251538.min.js"></script>
+      
+    
+  </body>
+</html>
