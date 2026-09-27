@@ -239,8 +239,14 @@ pythonpath = ["src", "tests"]
 addopts = ["--tb=short", "--strict-markers", "--strict-config"]
 # Safety net: no test may hang the run indefinitely. On timeout, dump all thread
 # stacks and kill the process (the `thread` method guarantees the run can't
-# stick). Generous enough for container startup on a cold runner (engine tier).
-timeout = 300
+# stick). Generous enough for container startup on a cold runner (engine tier)
+# and for the slowest single test in the suite: the Snowflake compile lane's
+# corpus sweep is one test issuing 140 sequential SQL API round-trips (one
+# EXPLAIN per rendered statement), and the `thread` method kills the process, so
+# a value that sweep can outrun turns its named refusal list into an aborted run
+# reporting nothing. Still well under the shortest CI job timeout (15 minutes),
+# so pytest is always the one that reports the hang.
+timeout = 600
 timeout_method = "thread"
 # Six tiers, fastest first (S-0026/D-1): `just test` runs unit/golden/property/
 # execution; engine and e2e are opt-in (Docker), perf is reserved.

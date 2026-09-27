@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0089
+phase: 3
+base: 85677c749830ecd73f386153af7d7d40d3e39489
+commit: a75c46997f93352fa9bfc8cfdc61bdd75cbf56a0
+at: '2026-09-25T19:47:14Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-25T19:38:04Z'
+    claim: >-
+      the compile lane's corpus sweep reaches Snowflake's parser only: the account
+      holds none of the corpus's relations, so every model statement is refused at
+      the binder with 002003, and function resolution is reached instead by a second
+      sweep whose columns are typed literals in a CTE
+    evidence: >-
+      tests/engines/test_snowflake_live.py:139-161 — the corpus sweep accepts 002003
+      as the expected refusal; tests/engines/test_snowflake_live.py:168-186 is the
+      probe sweep that carries its own typed columns
+    action: decided
+    proposal: >-
+      OPEN — whether the compile lane seeds empty source relations so the corpus reaches
+      the binder too; source column types are not derivable from the shared fixtures
+      today, and phase 4's seed tables are where they first exist
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-25T19:38:04Z'
+    claim: >-
+      the account is reached with a bearer token from the environment, a programmatic
+      access token by default and another type by naming it, rather than key-pair
+      JWT: JWT minting would add a crypto dependency to a two-endpoint HTTP client
+    evidence: >-
+      tests/support/snowflake.py:305-330 — account() builds the Authorization and
+      X-Snowflake-Authorization-Token-Type headers from BLOOMERY_SNOWFLAKE_TOKEN and
+      BLOOMERY_SNOWFLAKE_TOKEN_TYPE
+    action: decided
+    proposal: >-
+      ASSUMED — the live lanes authenticate with a bearer token read from the environment;
+      the token type is a variable so key-pair JWT stays reachable without a code
+      change
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-25T19:38:41Z'
+    claim: >-
+      the two entries above cite line ranges a few lines off; the exact citations
+      are given here and supersede them
+    evidence: >-
+      tests/engines/test_snowflake_live.py:143-166 — the corpus sweep, accepting 002003
+      as the expected refusal; tests/engines/test_snowflake_live.py:169-186 is the
+      probe sweep, tests/support/snowflake.py:326-350 is account() and its bearer
+      headers
+    action: decided
+    proposal: >-
+      no row owed beyond the two above; this entry corrects their citations only
