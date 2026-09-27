@@ -164,6 +164,12 @@ class DatabricksDialect(SQLGlotDialect):
         rewritten = rewritten.transform(_regexp_extract)
         rewritten = rewritten.transform(_series_table)
         rewritten = rewritten.transform(_date_trunc)
+        # The replay statements build `CurrentTimestamp` directly to stamp
+        # `resolved_at`/`last_evaluated_at`, never through `utc_now`. Bare, it
+        # renders `CURRENT_TIMESTAMP()` — an instant, read through the session
+        # zone on its way into a `TIMESTAMP_NTZ` column (S-0045); the other
+        # cloud ports rewrite it the same way.
+        rewritten = rewritten.transform(_stamp_utc)
         rewritten = rewritten.transform(_physical_types)
 
         for identifier in rewritten.find_all(exp.Identifier):
@@ -207,10 +213,7 @@ class DatabricksDialect(SQLGlotDialect):
         whatever the session zone is, it appears on both sides and cancels.
         """
 
-        return exp.cast(
-            exp.func("TO_UTC_TIMESTAMP", exp.CurrentTimestamp(), exp.func("CURRENT_TIMEZONE")),
-            exp.DataType.build(_NTZ),
-        )
+        return _utc_now()
 
     # ....................... #
 
@@ -232,6 +235,28 @@ class DatabricksDialect(SQLGlotDialect):
 
 
 # ....................... #
+
+
+def _utc_now() -> Expression:
+    """The ``utc_now`` spelling as a fresh tree (see :meth:`DatabricksDialect.utc_now`)."""
+
+    return exp.cast(
+        exp.func("TO_UTC_TIMESTAMP", exp.CurrentTimestamp(), exp.func("CURRENT_TIMEZONE")),
+        exp.DataType.build(_NTZ),
+    )
+
+
+def _stamp_utc(node: Expression) -> Expression:
+    """A bare ``CurrentTimestamp`` → the ``utc_now`` spelling; one already inside
+    that spelling — the instant ``TO_UTC_TIMESTAMP`` converts — is left alone."""
+
+    if not isinstance(node, exp.CurrentTimestamp):
+        return node
+
+    parent = node.parent
+    inside = isinstance(parent, exp.Anonymous) and parent.name.upper() == "TO_UTC_TIMESTAMP"
+
+    return node if inside else _utc_now()
 
 
 def _to_utc(at_zone: Expression) -> Expression:
