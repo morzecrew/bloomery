@@ -22,6 +22,14 @@ jobs:
       # statically — so the grant is required here even though a tag push never resolves a PR
       # (paths-filter falls back to git, and force_full skips the filter's result anyway).
       pull-requests: read
+      # The called workflow's `bigquery-dry-run` job declares `id-token: write` — Workload
+      # Identity Federation mints its token from the job's OIDC identity (S-0014/D-4). The
+      # same static check applies: without this grant here the run fails at startup with no
+      # job started, which is how the v0.3.0 tag's first run ended.
+      id-token: write
+    # The lanes the tag re-runs under `force_full` read the repository's secrets the way a
+    # push to `main` does; a called workflow sees none unless the caller passes them.
+    secrets: inherit
 
   # S-0042/D-13. The perf lane is informational on the nightly schedule and
   # **blocking here**, and the asymmetry is the decision: `just test` excludes
