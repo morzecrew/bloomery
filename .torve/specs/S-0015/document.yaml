@@ -38,6 +38,10 @@ motivation: |
   costs nothing before there are fixtures, and unpicking a subclass after artifacts ship
   is a breaking change.
 current_state: |
+  **Implemented (2026-09-27).** Every phase landed through #183; the landing records
+  under `execution/` are the evidence, and `implementation: complete` above is the
+  status. What follows is the state as the design was accepted, kept as written.
+
   Measured against the working tree on 2026-09-18.
 
   - **Three dialects ship** — `src/bloomery/dialects/duckdb.py`, `postgres.py` and

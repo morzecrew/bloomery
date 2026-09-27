@@ -36,6 +36,10 @@ motivation: |
   to work on the fixture corpus is indistinguishable from a decision until the day it
   stops working.
 current_state: |
+  **Implemented (2026-09-27).** Every phase landed through #186; the landing records
+  under `execution/` are the evidence, and `implementation: complete` above is the
+  status. What follows is the state as the design was accepted, kept as written.
+
   Three ports ship — `src/bloomery/dialects/duckdb.py`, `postgres.py` and `trino.py` —
   behind the five-method `DialectPort` protocol in `src/bloomery/dialects/base.py`, wired
   into the immutable default mapping in `src/bloomery/dialects/__init__.py`.
