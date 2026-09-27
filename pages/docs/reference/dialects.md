@@ -25,7 +25,7 @@ below exist so a new one refuses what it cannot express instead of approximating
 The seven logical types, as each port spells them:
 
 | Logical | `duckdb` | `postgres` | `trino` | `redshift` | `snowflake` | `bigquery` | `databricks` |
-|---|---|---|---|---|---|
+|---|---|---|---|---|---|---|---|
 | `string` | `VARCHAR` | `TEXT` | `VARCHAR` | `VARCHAR(MAX)` | `VARCHAR` | `STRING` | `STRING` |
 | `int` | `BIGINT` | `BIGINT` | `BIGINT` | `BIGINT` | `NUMBER(38, 0)` | `INT64` | `BIGINT` |
 | `decimal(p,s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)`, `p` at most 38 | `NUMERIC(p, s)` while `s` ≤ 9 and `p − s` ≤ 29, else `BIGNUMERIC(p, s)` while `s` ≤ 38 and `p − s` ≤ 38; refused past both | `DECIMAL(p, s)`, `p` at most 38 |
@@ -79,7 +79,7 @@ supplies it — the reason a spec compiles to different text without meaning any
 different.
 
 | Construct | `duckdb` | `postgres` | `trino` | `redshift` | `snowflake` | `bigquery` | `databricks` |
-|---|---|---|---|---|---|
+|---|---|---|---|---|---|---|---|
 | Zone interpretation (`to_utc`) | `x AT TIME ZONE 'Europe/Berlin' AT TIME ZONE 'UTC'` | same as DuckDB | `CAST(AT_TIMEZONE(WITH_TIMEZONE(x, 'Europe/Berlin'), 'UTC') AS TIMESTAMP)` | `CONVERT_TIMEZONE('Europe/Berlin', 'UTC', x)` | `CONVERT_TIMEZONE('Europe/Berlin', 'UTC', x)` | `DATETIME(TIMESTAMP(x, 'Europe/Berlin'), 'UTC')` | `CAST(TO_UTC_TIMESTAMP(x, 'Europe/Berlin') AS TIMESTAMP_NTZ)` |
 | Null-on-failure cast (the `coercible` marker) | `TRY_CAST(x AS BIGINT)` | `CASE WHEN PG_INPUT_IS_VALID(x, 'BIGINT') THEN CAST(x AS BIGINT) END` | `TRY_CAST(x AS BIGINT)` | `TRY_CAST(x AS BIGINT)`, and `CASE WHEN CAN_JSON_PARSE(x) THEN JSON_PARSE(x) END` for `variant` | `TRY_CAST(CAST(x AS VARCHAR) AS NUMBER(38, 0))` | `SAFE_CAST(x AS INT64)` | `TRY_CAST(x AS BIGINT)` |
 | Nested read `$.payload.shipping.country` | `payload ->> '$.shipping.country'` | `JSON_EXTRACT_PATH_TEXT(CAST(payload AS JSON), 'shipping', 'country')` | `JSON_EXTRACT_SCALAR(payload, '$.shipping.country')` | `JSON_EXTRACT_PATH_TEXT(payload, 'shipping', 'country', TRUE)` | `JSON_EXTRACT_PATH_TEXT(payload, 'shipping.country')` | `JSON_EXTRACT_SCALAR(payload, '$.shipping.country')` | `payload:shipping.country` |

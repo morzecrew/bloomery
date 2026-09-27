@@ -1,6 +1,6 @@
 # Spec schemas
 
-Field-by-field reference for the nine spec kinds. Parsing is strict: unknown keys,
+Field-by-field reference for eight of the ten spec kinds; the two composition documents, `exports_version` and `imports_version`, are described where they are consumed, under [Composing across projects](../how-to/emit-dbt.md#composing-across-projects). Parsing is strict: unknown keys,
 duplicate YAML keys, and grammar violations are hard `SpecParseError`s, batched per
 document with a source path per failure. Parse validates shape and grammar only —
 whether references exist is checked at resolution.
