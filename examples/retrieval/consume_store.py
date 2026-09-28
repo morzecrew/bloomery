@@ -66,10 +66,11 @@ def collection(name: str, profile: dict[str, Any]) -> dict[str, Any]:
     store indexes a corpus rather than a space.
 
     A sparse vector is configured for the lexical side, because a store has no
-    full-text index to fall back on — which is where the manifest runs out: it
-    names the *fields* the lexical side reads and no tokeniser, analyser or
-    sparse model identity, while the dense side carries two encoder identities
-    precisely so that a mismatch is refusable.
+    full-text index to fall back on. Which analyser builds it is the manifest's
+    `lexical.analyser` where the profile declares one — two opaque strings, and a
+    profile whose analyser differs from the one its corpus relation declares is
+    refused at compile time, the way a producer that differs from the space's
+    document encoder is.
     """
     space = profile["vector"]["space"]
     config: dict[str, Any] = {
@@ -83,9 +84,7 @@ def collection(name: str, profile: dict[str, Any]) -> dict[str, Any]:
         },
     }
     if "lexical" in profile:
-        # ponytail: the sparse side is named and unparameterised, because the
-        # manifest says nothing to parameterise it with.
-        config["sparse_vectors"] = {"lexical": {}}
+        config["sparse_vectors"] = {"lexical": profile["lexical"].get("analyser", {})}
     return config
 
 
@@ -127,10 +126,10 @@ def search(name: str, profile: dict[str, Any], *, limit: int = 10) -> dict[str, 
     """The query request, dense or fused.
 
     The dense request is the whole of a dense-only profile. A hybrid profile
-    becomes two prefetches and a fusion the server performs — which is where the
-    manifest is thinnest: `rrf` names the method and neither the rank constant nor
-    the depth of either candidate list, and both change the order of the results.
-    The values here are this runtime's defaults, not the manifest's.
+    becomes two prefetches and a fusion the server performs, and both numbers that
+    fusion turns on — the rank constant and the depth of each candidate list — are
+    read from the manifest rather than defaulted here. A consumer that used its own
+    would rank the same document differently for the same query.
     """
     space = profile["vector"]["space"]
     dense = {
@@ -147,16 +146,22 @@ def search(name: str, profile: dict[str, Any], *, limit: int = 10) -> dict[str, 
     if "fusion" not in profile:
         return {**request, **dense}
 
+    fusion = profile["fusion"]
+    sparse = profile["lexical"].get("analyser", {"model": "undeclared"})
+
     return {
         **request,
         "prefetch": [
-            {**dense, "limit": limit * 4},
-            {"using": "lexical", "query": "<sparse vector, model undeclared>", "limit": limit * 4},
+            {**dense, "limit": fusion["depth"]},
+            {
+                "using": "lexical",
+                "query": f"<sparse vector, analyser {sparse['model']}>",
+                "limit": fusion["depth"],
+            },
         ],
-        # k=60 is this implementation's constant. The manifest declares the
-        # method and no constant, so a second store fusing `rrf` with k=10 obeys
-        # the same manifest and returns a different order.
-        "query": {"fusion": profile["fusion"]["method"]},  # Qdrant spells it lowercase
+        # The manifest's k, not this implementation's: a store fusing `rrf` with
+        # its own constant returns a different order for the same document.
+        "query": {"fusion": fusion["method"], "params": {"k": fusion["k"]}},
     }
 
 
@@ -250,14 +255,14 @@ def register(manifest: dict[str, Any]) -> list[str]:
             " needed to declare it and is not in the manifest, so it is guessed"
         ),
         (
-            "`fusion: rrf`: names the method and not the rank constant or the candidate"
-            " depth per side, so two consumers honouring it return different orders —"
-            " the weakest point of the vendor-neutral claim"
+            "`fusion`: was a method and no numbers, which is how two consumers honouring"
+            " `rrf` returned different orders; it now carries an effective `k` and"
+            " `depth`, and both readings take them from the manifest"
         ),
         (
-            "the lexical side: `fields` and no tokeniser, analyser or sparse model"
-            " identity, while the dense side carries two encoder identities so a"
-            " mismatch is refusable — the same class of bug, undefended on one side"
+            "the lexical side: `fields` and an optional `analyser`, compared against the"
+            " one the corpus relation declares — the mismatch two encoder identities"
+            " made refusable on the dense side is refusable on this one too"
         ),
         (
             "`scalar`: honoured exactly by a SQL DOUBLE, approximately by a store with"

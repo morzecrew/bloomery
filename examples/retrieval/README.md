@@ -34,8 +34,10 @@ manifest naming `chunk_text` and nothing else would send its reader looking for 
 file bloomery does not emit.
 
 Each profile also carries the corpus relation resolved through the naming policy
-(`silver.chunk`, `gold.mart_chunks`), the vector field, the lexical side and
-fusion method where there is one, the filterable columns and the projection.
+(`silver.chunk`, `gold.mart_chunks`), the vector field, the lexical side and its
+fusion where there is one — the method with the effective `k` and `depth`, the
+defaults written out where the document did not name them — the filterable columns
+and the projection.
 
 An encoder is three opaque strings. Nothing in the compile computes an embedding,
 reads one, or asks a provider whether a model exists — and there is no float
@@ -59,8 +61,8 @@ retrieval contract does not depend on which analytical framework it compiles for
 
 ## What the guardrails refuse
 
-Six refusals fire against these specs if you break them, all at compile time. Try
-editing `retrieval.yaml`:
+Seven refusals fire against these specs if you break them, all at compile time.
+Try editing `retrieval.yaml`:
 
 | Edit | Refusal |
 |---|---|
@@ -68,6 +70,7 @@ editing `retrieval.yaml`:
 | `scalar: float16` in the space | a float32 corpus scored against a float16 query is a silently different space |
 | `field: body` on a profile | the field is declared `string` rather than a vector |
 | a different `model:` in a profile's `producer` | dimensions agreeing is not spaces agreeing |
+| `analyser: {family: lucene, model: english}` under `chunk_hybrid`'s `relation:`, then a different `model:` under its `lexical.analyser` | a corpus tokenised one way and queried another — the lexical form of the same bug. Both sides have to be declared for the comparison to exist |
 | `grain: [document_id]` on a profile | the corpus relation's key is `chunk_id` — one vector per retrievable item |
 | `return: [author]` on a profile | the corpus relation carries no such column |
 
@@ -114,15 +117,19 @@ computed from the manifest rather than retyped.
 | `grain` | unread by the SQL consumer, the point id for the store — and a composite grain has to become one id by a rule the manifest does not give |
 | `scalar` | a `float64` space is exactly a `DOUBLE` in SQL and approximately `float32` in a store with no `float64` storage |
 
-Two of them are gaps rather than seams, recorded rather than fixed:
+Two of them were gaps rather than seams, and the kind has since closed both
+additively — a project declaring neither key is unchanged and the manifest
+version did not move:
 
-- **`fusion: rrf` names a method, not a ranking.** Neither the rank constant nor
-  the candidate depth per side is declared, so two consumers both honouring the
-  manifest return different orders for the same query.
-- **The lexical side has no identity while the dense side has two.** `fields`
-  says which text; nothing says how it is tokenised or which sparse model builds
-  it, so the mismatch the encoder identities exist to make refusable is
-  undefended on the lexical side.
+- **`fusion: rrf` named a method, not a ranking.** It now carries `k` (the rank
+  constant, default 60) and `depth` (the candidates each side contributes,
+  default 100), and the manifest carries the *effective* pair — the defaults
+  written out where the document did not name them. A consumer that supplies its
+  own is the one that diverged.
+- **The lexical side now has an identity too.** `lexical.analyser` and the corpus
+  relation's `analyser` are the same opaque `{family, model}` shape as an encoder,
+  and a profile whose two disagree is refused. Both are optional: declare neither
+  and nothing changes.
 
 [Retrieval](../../pages/docs/concepts/retrieval.md) carries the same register as
 prose.

@@ -851,6 +851,7 @@ read as symmetric while saying it is not.
 |---|---|---|---|
 | `mart` | mart name | one of the two | A gold relation — resolves to `gold.mart_<name>` under the default naming policy |
 | `entity` | entity name | one of the two | A silver relation — resolves to `silver.<name>` |
+| `analyser` | Analyser | no | What the corpus text was indexed with. The lexical counterpart of a space's `document_encoder`: refused when it differs from the profile's `lexical.analyser`, and carried through to the manifest |
 
 Two keys rather than one dotted string, because the two namespaces are separate: a name
 that resolves in both would otherwise be ambiguous, and neither prefix is a namespace a
@@ -868,13 +869,31 @@ runtime can use.
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
-| `fields` | list of column names, ≥ 1 | yes | The text columns a lexical ranking reads. Bloomery does not choose the analyzer, the index or the operator |
+| `fields` | list of column names, ≥ 1 | yes | The text columns a lexical ranking reads. Bloomery does not choose the index or the operator |
+| `analyser` | Analyser | no | What tokenises a query. Refused when it differs from the `analyser` the corpus relation declares — bloomery compares the two names and resolves neither |
+
+### Analyser
+
+An analyser tokenises a query the way it tokenised the corpus, so there is no
+`input_kind`: two strings, and nothing else.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `family` | non-empty string | yes | Whose analyser (`lucene`, a store's own name) |
+| `model` | non-empty string | yes | Which one. Never resolved, for the reason an encoder's `model` is not |
 
 ### Fusion
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `method` | `rrf` | yes | Reciprocal rank fusion, and only that: a rank-based method needs no score calibration, so there is no weight to author and no float to compare |
+| `k` | int ≥ 1 | no (`60`) | The rank constant in `1 / (k + rank)`. 60 is the constant the published method names |
+| `depth` | int ≥ 1 | no (`100`) | How many candidates each side contributes. A document below the cut on both sides cannot be recovered by fusing them |
+
+A method name is not a ranking: two consumers honouring `rrf` with a different constant, or
+a different candidate depth, return different orders for one query. The manifest carries the
+**effective** pair — the defaults written out where the document did not name them — so a
+consumer that supplies its own is the one that diverged.
 
 ```yaml
 retrieval_version: 1
@@ -887,14 +906,14 @@ semantic_spaces:
     query_encoder: {family: openai, model: text-embedding-3-small, input_kind: query}
 profiles:
   chunk_hybrid:
-    relation: {entity: chunk}
+    relation: {entity: chunk, analyser: {family: lucene, model: english}}
     grain: [chunk_id]
     vector:
       field: embedding
       space: chunk_text
       producer: {family: openai, model: text-embedding-3-small, input_kind: document}
-    lexical: {fields: [body]}
-    fusion: {method: rrf}
+    lexical: {fields: [body], analyser: {family: lucene, model: english}}
+    fusion: {method: rrf, k: 60, depth: 100}
     filterable: [document_id]
     return: [chunk_id, document_id, body]
 ```
@@ -910,6 +929,7 @@ platform's step; what bloomery contributes is the contract for querying it.
 **Shape versus resolution.** Parse checks the grammar above, that every profile names a
 space this document declares, and that `lexical`/`fusion` are both present or both absent.
 Whether the corpus relation exists, whether its vector column is a vector of the right
-length and scalar, whether the grain is the relation's key and whether every named column
-is there are guardrail questions — see
+length and scalar, whether the grain is the relation's key, whether the lexical side's
+analyser is the one the corpus declares and whether every named column is there are
+guardrail questions — see
 [Retrieval refusals](errors.md#retrieval-refusals).

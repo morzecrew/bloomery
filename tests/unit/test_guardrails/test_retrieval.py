@@ -1,7 +1,8 @@
-"""The retrieval guards (S-0011/the-guardrails): the six refusals that make a
+"""The retrieval guards (S-0011/the-guardrails): the seven refusals that make a
 declared retrieval surface mean something — dimension mismatch, scalar mismatch,
-a vector field that is not a vector, a producer mismatch, a grain that is not the
-corpus relation's key, and a referenced field the corpus has not got.
+a vector field that is not a vector, a producer mismatch, an analyser mismatch
+between the lexical side and the corpus, a grain that is not the corpus
+relation's key, and a referenced field the corpus has not got.
 
 Read against a hand-built draft rather than a fixture because every refusal needs
 a *type* or a *key*: a vector column reaches an entity from a step's declared
@@ -270,7 +271,51 @@ def test_a_query_side_producer_is_not_the_document_encoder() -> None:
 
 
 # ....................... #
-# Refusal 5: the grain is not the relation's key (D8)
+# Refusal 5: the analysers disagree (D2)
+
+
+def test_a_lexical_analyser_the_corpus_does_not_declare_is_refused() -> None:
+    """The lexical form of the producer refusal: a corpus tokenised one way and
+    queried another matches on terms neither side produced, and the comparison is
+    two strings — no analyser is resolved against a store."""
+
+    (message,) = _refusals(
+        relation="{entity: chunk, analyser: {family: lucene, model: english}}",
+        lexical="{fields: [body], analyser: {family: qdrant, model: bm25}}",
+        fusion="{method: rrf}",
+    )
+    assert "queries its lexical side with qdrant/bm25" in message
+    assert "entity 'chunk' declares its text indexed with lucene/english" in message
+
+
+def test_the_same_analyser_on_both_sides_passes() -> None:
+    assert (
+        _refusals(
+            relation="{entity: chunk, analyser: {family: lucene, model: english}}",
+            lexical="{fields: [body], analyser: {family: lucene, model: english}}",
+            fusion="{method: rrf}",
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    ("relation", "lexical"),
+    [
+        ("{entity: chunk}", "{fields: [body], analyser: {family: lucene, model: english}}"),
+        ("{entity: chunk, analyser: {family: lucene, model: english}}", "{fields: [body]}"),
+        ("{entity: chunk}", "{fields: [body]}"),
+    ],
+)
+def test_one_analyser_or_neither_is_not_a_disagreement(relation: str, lexical: str) -> None:
+    """Both declared, or there is nothing to compare: a profile that names one
+    side's analyser keeps the meaning it had before the key existed."""
+
+    assert _refusals(relation=relation, lexical=lexical, fusion="{method: rrf}") == []
+
+
+# ....................... #
+# Refusal 6: the grain is not the relation's key (D8)
 
 
 def test_a_grain_that_is_not_the_relations_key_is_refused() -> None:
@@ -297,7 +342,7 @@ def test_a_mart_is_judged_against_its_base_entitys_key() -> None:
 
 
 # ....................... #
-# Refusal 6: a referenced field the corpus has not got
+# Refusal 7: a referenced field the corpus has not got
 
 
 @pytest.mark.parametrize(
@@ -353,7 +398,7 @@ def test_a_relation_the_project_does_not_build_is_refused(relation: str, expecte
 
 
 def test_an_unresolvable_relation_stops_the_other_checks_on_that_profile() -> None:
-    """There is nothing to read them against, and six refusals about a relation
-    that does not exist are six ways of saying the same thing."""
+    """There is nothing to read them against, and seven refusals about a relation
+    that does not exist are seven ways of saying the same thing."""
 
     assert len(_refusals(relation="{entity: passage}", grain="[nope]")) == 1
