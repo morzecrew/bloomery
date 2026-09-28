@@ -1,0 +1,111 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0173
+phase: 4
+base: beefedc027030da6a53e4ae6d2ec62c58afe7fc5
+commit: 8f184120b3d14eceba5d0795e4515f22e9727553
+at: '2026-09-28T18:44:11Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: OPEN
+  - id: D-9
+    grade: ASSUMED
+entries:
+  - decision: D-9
+    grade: ASSUMED
+    at: '2026-09-28T18:30:00Z'
+    attempt: 4
+    claim: >-
+      MetricFilter column: implemented as specified: grammar, IR v24, R021 check via
+      the mart's role_of map, eq/ne lowering on Cube and MetricFlow, join ON left
+      as key equality and pinned, corpus case 013 under both declarations
+    evidence: >-
+      src/bloomery/guardrails/metrics.py:263 — _check_comparison asks prove_comparable
+      with mart_roles(mart); tests/unit/test_semantic/test_proof.py pins the mart
+      join as key equality
+    action: decided
+    proposal: none — D-9 stands as written
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-28T18:30:00Z'
+    attempt: 4
+    claim: >-
+      D-9 says explain shows the warrant but not where; it is rendered inside the
+      measure's restriction note as [R021: <fact statements>] rather than as a new
+      plan-derivation node
+    evidence: >-
+      src/bloomery/planner/explain.py:136 — _clause_note re-runs prove_comparable
+      and prints the Proof's facts
+    action: decided
+    proposal: >-
+      ASSUMED — the R021 warrant for a column filter renders in the explain restriction
+      note beside the clause
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-28T18:30:00Z'
+    attempt: 4
+    claim: >-
+      semantic/additivity.py is out of scope and indexes values[0] for eq/ne when
+      a filter restricts a ratio's zero-checked column; a column: filter there has
+      no values and would raise IndexError. Not reachable from the corpus or fixtures,
+      left unfixed
+    evidence: >-
+      src/bloomery/semantic/additivity.py:307-308 — eq/ne lambdas read values[0]
+    action: decided
+    proposal: >-
+      ASSUMED — additivity treats a column: filter as not excluding zero; needs semantic/additivity.py
+      in a follow-up scope
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-28T18:30:00Z'
+    attempt: 4
+    claim: >-
+      guardrails/zone.py (out of scope) describes any metric filter on a timestamp
+      column as filtering by a literal instant; a column: filter compares two columns,
+      so the message is inaccurate though the refusal still holds
+    evidence: >-
+      src/bloomery/guardrails/zone.py:270 — the message assumes a literal
+    action: decided
+    proposal: >-
+      ASSUMED — zone.py words a column: filter as a comparison between two columns;
+      follow-up scope
+  - decision: D-9
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-09-28T18:33:43Z'
+    attempt: 4
+    claim: >-
+      The corpus case comparing billing_region to shipping_region is not landed. Any
+      corpus case needs one matrix row per expectation in comparisons/MATRIX.md (S-0006/D-4),
+      and that file is outside scope.allow, where the blocking scope gate refuses
+      it. The case was written and ran green under the execution suite, then was removed;
+      the earlier D-9 entry's claim that case 013 landed is superseded by this one
+    evidence: >-
+      tests/unit/test_comparisons_floor.py:150-175 — test_matrix_rows_are_the_corpus_cases
+      failed with missing [('013-billing-shipping-region', 'declared'), ('013-billing-shipping-region',
+      'undeclared')]
+    action: departed
+    proposal: >-
+      Amend T-0173's scope to allow comparisons/MATRIX.md, then land case 013-billing-shipping-region:
+      declared arm accepted (R021), undeclared arm refused (MetricFilterInvalid, R021);
+      naive = 100.0000 (bill_to = ship_to), correct = 300.0000 (regions compared).
+      Matrix rows: bloomery NATIVE-PLAN R021 and NATIVE-PREVENT MetricFilterInvalid
+      R021, every other cell UNKNOWN
