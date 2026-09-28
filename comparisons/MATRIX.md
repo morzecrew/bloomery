@@ -4,8 +4,9 @@ What each system does with each case of the semantic bug corpus, from a reproduc
 checked in beside it. Read [`README.md`](README.md) first: a cell is a property of a **tested
 configuration**, never of a product, and the six values have precise meanings.
 
-- **Last checked:** 2026-09-18 (every dbt Core and SQLMesh bundle; MetricFlow's `009` and
-  `011`); 2026-09-15 (MetricFlow's `002`, `005`, `008`). Each bundle's `README.md` pins its
+- **Last checked:** 2026-09-28 (every SQLMesh bundle, re-run on `0.236.2` with every
+  observation unchanged); 2026-09-18 (every dbt Core bundle; MetricFlow's `009` and `011`);
+  2026-09-15 (MetricFlow's `002`, `005`, `008`). Each bundle's `README.md` pins its
   own date and version, and those are what a cell rests on.
 - **Coverage:** 26 rows — one per *expectation*, not one per case. S-0056's twelve cases
   pin between one and three apiece, because a case is typically refused in one shape and
@@ -20,7 +21,7 @@ configuration**, never of a product, and the six values have precise meanings.
 | **bloomery** | this tree | `tests/fixtures/semantic_corpus/<case>/expected/semantic_outcome.json`, executed by `tests/execution/test_semantic_corpus.py` in the default suite |
 | **MetricFlow** | `0.212.0` | [`metricflow/<case>/`](metricflow/) — manifest authored as YAML, rendered against DuckDB `1.5.5` |
 | **dbt Core** | `1.12.3` | [`dbt/<case>/`](dbt/) — a dbt project with `semantic_models:` and `metrics:`, built by `dbt-duckdb` `1.11.0` against DuckDB `1.5.5`; no `dbt-metricflow`, no dbt Cloud |
-| **SQLMesh** | `0.236.1` | [`sqlmesh/<case>/`](sqlmesh/) — `MODEL` and `METRIC` DDL in a project with one `duckdb` gateway, planned and rendered against DuckDB `1.5.5`; no Tobiko Cloud |
+| **SQLMesh** | `0.236.2` | [`sqlmesh/<case>/`](sqlmesh/) — `MODEL` and `METRIC` DDL in a project with one `duckdb` gateway, planned and rendered against DuckDB `1.5.5`; no Tobiko Cloud |
 | **Cube** | not installed | — |
 
 The last is **`UNKNOWN` in every row**. It is listed rather than written out as twenty-six
@@ -30,7 +31,7 @@ that nobody has run it. Cube needs a runtime this repository does not carry, and
 
 ## The table
 
-| Case | Expectation | bloomery | MetricFlow `0.212.0` | dbt Core `1.12.3` | SQLMesh `0.236.1` |
+| Case | Expectation | bloomery | MetricFlow `0.212.0` | dbt Core `1.12.3` | SQLMesh `0.236.2` |
 |---|---|---|---|---|---|
 | `001-order-shipping-fanout` | `refinement` | `NATIVE-PREVENT` <br> `GrainMismatch`, S-0023/D-5 | `UNKNOWN` | `UNKNOWN` | `UNKNOWN` |
 | `001-order-shipping-fanout` | `representation` | `NATIVE-PREVENT` <br> `GrainViolation`, S-0027/D-2 | `UNKNOWN` | `UNKNOWN` | `UNKNOWN` |
@@ -168,7 +169,7 @@ reason.
 
 Eleven cells, the same five cases, and they say four things.
 
-**SQLMesh `0.236.1` both declares metrics and answers them, in this configuration.** A
+**SQLMesh `0.236.2` both declares metrics and answers them, in this configuration.** A
 `METRIC (...)` block carries a SQL expression; `sqlmesh rewrite "SELECT METRIC(x) FROM
 __semantic.__table"` turns it into a query, collecting the aggregates into a subquery over the
 model they name and composing derived metrics outside it; the query returns the corpus's

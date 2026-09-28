@@ -1,7 +1,7 @@
 # SQLMesh × 011-timezone-boundary
 
-- **System:** SQLMesh `0.236.1`, against DuckDB `1.5.5` through its `duckdb` gateway.
-- **Checked:** 2026-09-18.
+- **System:** SQLMesh `0.236.2`, against DuckDB `1.5.5` through its `duckdb` gateway.
+- **Checked:** 2026-09-28.
 - **Feature set:** a SQLMesh project — `config.yaml` with one gateway, two `MODEL (...)`
   blocks with `grain` and `references`, and two `METRIC (...)` blocks. Commands run: `sqlmesh
   info`, `sqlmesh plan --auto-apply`, `sqlmesh audit`, `sqlmesh rewrite`.

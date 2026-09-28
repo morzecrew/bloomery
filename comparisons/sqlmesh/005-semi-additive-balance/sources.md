@@ -17,7 +17,7 @@ Version-pinned and checkable offline, which is what makes it the primary citatio
 | the audits a model can declare without writing SQL, searched for one that states an additivity rule | `sqlmesh/core/audit/builtin.py` — `not_null`, `unique_values`, `accepted_values`, `accepted_range`, `not_constant`, `unique_combination_of_columns`, `mutually_exclusive_ranges` and the rest |
 
 ```
-python -c "import importlib.metadata as m; print(m.version('sqlmesh'))"   # 0.236.1
+python -c "import importlib.metadata as m; print(m.version('sqlmesh'))"   # 0.236.2
 python -c "import importlib.metadata as m; print(m.version('duckdb'))"    # 1.5.5
 ```
 

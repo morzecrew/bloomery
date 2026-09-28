@@ -17,7 +17,7 @@ Version-pinned and checkable offline, which is what makes it the primary citatio
 | the commands a SQLMesh user has | `sqlmesh/cli/main.py` — `info`, `plan`, `run`, `audit`, `rewrite`, `fetchdf`, `render`, `lint` and the rest |
 
 ```
-python -c "import importlib.metadata as m; print(m.version('sqlmesh'))"   # 0.236.1
+python -c "import importlib.metadata as m; print(m.version('sqlmesh'))"   # 0.236.2
 python -c "import importlib.metadata as m; print(m.version('duckdb'))"    # 1.5.5
 ```
 
