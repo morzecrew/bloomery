@@ -70,14 +70,21 @@ def main() -> None:
     for name, profile in sorted(manifest["profiles"].items()):
         relation = profile["relation"]
         space = profile["vector"]["space"]
-        fusion = profile.get("fusion", {}).get("method", "none (dense only)")
+        # The effective k and depth, never the document's silence: a consumer that
+        # invents either is the one that diverged from the other consumer.
+        fusion = profile.get("fusion")
+        fused = (
+            "none (dense only)"
+            if fusion is None
+            else f"{fusion['method']} (k={fusion['k']}, depth={fusion['depth']})"
+        )
         print(f"\n{name}:")
         print(f"  corpus     {relation['namespace']}.{relation['table']} ({relation['kind']})")
         print(f"  vector     {profile['vector']['field']} in {space['name']}: "
               f"{space['dimensions']}x{space['scalar']}, {space['distance']}")
         print(f"  encoders   documents {space['document_encoder']['model']}, "
               f"queries {space['query_encoder']['model']}")
-        print(f"  fusion     {fusion}")
+        print(f"  fusion     {fused}")
         print(f"  filterable {', '.join(profile['filterable'])}")
         print(f"  return     {', '.join(profile['return'])}")
 

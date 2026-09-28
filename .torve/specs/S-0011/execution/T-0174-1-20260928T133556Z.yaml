@@ -1,0 +1,116 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0174
+phase: 4
+base: c0ddecef3085129278e6501e51efad6601644b4f
+commit: 20594ff6c3d7db24f296ace462d58c1d6c52cc39
+at: '2026-09-28T13:35:56Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: LOCKED
+  - id: D-11
+    grade: OPEN
+  - id: D-12
+    grade: OPEN
+  - id: D-13
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-28T13:20:26Z'
+    claim: >-
+      the two keys land on the retrieval kind's own models and nothing is added to
+      the entity model; a project with no retrieval document is untouched and the
+      manifest version does not move
+    evidence: >-
+      src/bloomery/spec/retrieval.py:93-110 — the new Analyser model sits beside Encoder
+      in the retrieval kind; no entity-model file is in the diff
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-28T13:20:26Z'
+    claim: >-
+      an analyser identity is two opaque strings compared for equality and resolved
+      against nothing, the rule the row sets for encoders
+    evidence: >-
+      src/bloomery/guardrails/retrieval.py:159 — the seventh refusal compares family/model
+      and consults no store; emit copies the corpus analyser through unresolved
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-28T13:20:26Z'
+    claim: >-
+      no vector dimension or transform domain moves: the keys added are a lexical
+      analyser identity and two integers on fusion, so the LogicalType union and the
+      transform specs are untouched
+    evidence: >-
+      src/bloomery/spec/retrieval.py:235-239 — k and depth are ints on Fusion; src/bloomery/typing
+      and src/bloomery/transforms are absent from the diff
+    action: decided
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-28T13:20:26Z'
+    claim: >-
+      fusion is still reciprocal rank fusion only; k and depth parameterise rrf and
+      admit no second method, and neither is a float so no normalization contract
+      is reopened
+    evidence: >-
+      src/bloomery/spec/retrieval.py:231-239 — method stays Literal['rrf'] with k
+      and depth as positive ints
+    action: decided
+  - decision: D-9
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-28T13:21:24Z'
+    claim: >-
+      the row states six statable guardrails; this contract mandates a seventh, the
+      lexical analyser comparison, so the count the row fixes is now seven and the
+      row's own text is stale
+    evidence: >-
+      src/bloomery/guardrails/retrieval.py:145-162 — the seventh refusal, with one
+      message and its own tests; .torve/specs/S-0011/phasing.yaml:100 asks for it
+      by name
+    action: departed
+    proposal: >-
+      ASSUMED — seven statable guardrails: the six of the original design plus the
+      lexical analyser comparison added by amendment A-1
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-28T13:21:24Z'
+    claim: >-
+      the corpus-side analyser cannot be demonstrated in the compiled example: the
+      scope names examples/retrieval/** but not tests/unit/test_examples.py, whose
+      exact-equality assertion on chunk_hybrid's manifest relation block fails the
+      moment the example declares relation.analyser; the example carries the lexical
+      analyser and fusion numbers, and the README documents the corpus key as an edit
+      the reader makes
+    evidence: >-
+      tests/unit/test_examples.py:242-247 — the relation dict is asserted equal to
+      exactly kind/name/namespace/table, and that file is outside this task's allow
+      list
+    action: decided
+    proposal: >-
+      add tests/unit/test_examples.py to this phase's scope, or relax that assertion
+      to the four keys it means to pin, so the example can declare the corpus analyser
+      it documents

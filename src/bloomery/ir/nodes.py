@@ -27,6 +27,7 @@ from bloomery.typing import LogicalType
 
 __all__ = [
     "UpstreamIR",
+    "upstream_ancestry",
     "with_imported",
     "StepParameterIR",
     "step_sort_key",
@@ -1594,6 +1595,39 @@ class UpstreamIR:
     #: the dbt target is the only reader — an import from an upstream that
     #: exports no name is refused there rather than emitted unresolvable.
     name: str | None = None
+    #: Every project *above* this upstream — its own upstreams and theirs — as
+    #: ``(export name, fingerprint)`` pairs, sorted (S-0002/D-4). The whole
+    #: chain crosses with the upstream so that a downstream needs nothing it
+    #: was not given (D8): ``upstream`` alone makes A → B → A visible and
+    #: A → B → C → A invisible. :func:`upstream_ancestry` is what fills it.
+    ancestry: tuple[tuple[str, str], ...] = ()
+
+
+# ....................... #
+
+
+def upstream_ancestry(source: ProjectIR) -> tuple[tuple[str, str], ...]:
+    """Every project above *source*, sorted — what :attr:`UpstreamIR.ancestry`
+    is filled from (S-0002/D-4).
+
+    One function, so the bind that writes the field and the guard that reads it
+    agree about what "above" means. Each entry is ``(export name,
+    fingerprint)``: the **name** is the identity, because a fingerprint moves
+    the moment a project imports anything and so could never recognise a
+    project in a chain; the fingerprint rides beside it for the refusal message
+    and for nothing else.
+
+    A nameless upstream contributes nothing and closes no cycle: a project that
+    imports must declare an export name, refused as
+    :class:`~bloomery.errors.NamelessImporter` where it does not.
+    """
+
+    return tuple(
+        sorted(
+            {(up.name, up.fingerprint) for up in source.upstream if up.name is not None}
+            | {ancestor for up in source.upstream for ancestor in up.ancestry}
+        )
+    )
 
 
 # ....................... #
@@ -1721,9 +1755,16 @@ class ProjectIR:
     no name encodes the field all the same, so every fingerprint moves, and
     ``plan()`` refuses to read a tree that has never heard of the field as
     the same schema as one that has.
+
+    Version 23 (S-0002/D-4) adds ``UpstreamIR.ancestry``, the export names of
+    every project above each upstream. It is the same shape once more — a
+    project with no imports encodes no ``UpstreamIR`` and re-fingerprints
+    anyway, because the version is in the stream — and it is the field that
+    makes a cycle *visible*: ``upstream`` names the direct upstreams only, so
+    A → B → A could be seen and A → B → C → A could not.
     """
 
-    bloomery_ir_version: int = 22
+    bloomery_ir_version: int = 23
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

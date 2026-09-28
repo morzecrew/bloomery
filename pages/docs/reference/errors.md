@@ -41,6 +41,8 @@ BloomeryError
 │   ├── UnexportedImport
 │   ├── UnknownUpstream
 │   ├── ImportCollision
+│   ├── ImportCycle
+│   ├── NamelessImporter
 │   ├── UndeclaredZone
 │   ├── UndeclaredRatioRows
 │   ├── RatioOperandsDisagree
@@ -115,6 +117,8 @@ BloomeryError
 | `UnexportedImport` | guardrails | A project imports a name the upstream does not export — the refusal that makes an export list mean something, since without it "exported" would be a label with no consequence; the message names the upstream's list |
 | `UnknownUpstream` | guardrails | A project declares an import from an upstream this compile was not given — how the upstream reaches a compile is the caller's, so what was passed is the whole world, and the message names it |
 | `ImportCollision` | guardrails | A name a project declares is also one it imports — two things of one kind answering to one name, where any precedence rule would be invisible from the other project's file |
+| `ImportCycle` | guardrails | An upstream that was itself compiled against this project — A importing B while B imports A, or the same loop through a third project. Cycles are refused, never resolved: neither project can be compiled first, and no order is invented for them. The message names the chain link by link; the fix is deciding which project owns the shared concept |
+| `NamelessImporter` | guardrails | A project that both imports and exports, with no `name:` on its export list — a project in the middle of a chain is identified by its export name, since an alias is the downstream's own spelling and a fingerprint moves whenever an upstream does. A project that exports without a name may still be imported; it may not import |
 | `UndeclaredZone` | guardrails | A timestamp parsed from a wall clock nothing declares a zone for, whose absolute position is then read — a date role, a comparison against a literal instant, or an as-of anchor. Declare it with `zone_in: UTC` where the source's wall clocks really are UTC, or `{to_utc: <zone>}` naming the clock they run on. The compiler checks that the assertion exists, never that it is true |
 | `UndeclaredRatioRows` | guardrails | A ratio whose denominator can be zero on a row, with nothing saying whether that row belongs in it — the row contributes to the numerator and nothing to the denominator, so its amount is charged to the units other rows carried. Restrict both operands, declare the field positive at a disposition that removes the row, or declare `includes_zero_denominator: true` for the total-over-units reading |
 | `RatioOperandsDisagree` | guardrails | A ratio whose numerator and denominator are restricted to different row sets — a quotient of two quantities about different things, which is wrong whether or not a zero is involved |
@@ -197,8 +201,8 @@ lowers. All of them name the target or dialect that does support the construct.
 
 ## Retrieval refusals
 
-A retrieval document declares a surface over relations the project already builds, and six
-guardrails make that declaration mean something. All six raise `RetrievalViolation`, a
+A retrieval document declares a surface over relations the project already builds, and seven
+guardrails make that declaration mean something. All seven raise `RetrievalViolation`, a
 `GuardrailError` subclass that lives in `bloomery.guardrails.retrieval` rather than in
 `bloomery.errors` — retrieval ships as its own spec kind, nothing outside that module
 raises the class, and promoting it into the exported taxonomy is a decision no design
@@ -216,13 +220,14 @@ trips.
 | Scalars disagree | The field's scalar differs from the space's; a `float32` corpus scored against a `float16` query is a silently different space, and it returns plausible neighbours while being one |
 | The field is not a vector | The profile's `vector.field` is declared some other type. A field that is not a declared vector carries no dimensions and no scalar, so nothing about the space can be checked against it — "any array will do" is how a corpus comes to hold two models' embeddings |
 | Producers disagree | The profile's `vector.producer` differs from the space's `document_encoder`. Dimensions agreeing is not spaces agreeing, and this comparison is the *only* check on an encoder identity: it is two strings, never a lookup against a provider |
+| Analysers disagree | The profile's `lexical.analyser` differs from the `analyser` its corpus relation declares. A corpus tokenised one way and queried another matches on terms neither side produced — the lexical form of a producer mismatch, and like it, two strings compared and never resolved against a store. Both sides have to be declared: one alone, or neither, is not a disagreement |
 | Grain is not the relation's key | The profile's `grain` differs from the corpus relation's key — for a mart, its base entity's key. One vector per retrievable item, or the corpus is not a corpus: a coarser grain has either duplicated a vector or collapsed several, and both make top-k meaningless |
 | A named field is absent | A `lexical`, `filterable` or `return` field — or the vector field itself — the corpus relation does not carry. The message ends on the columns it *does* carry, capped at eight, because the mistake is usually a column renamed in one document and not the other |
 
-A seventh refusal is about the relation rather than the profile: a profile naming an entity
+An eighth refusal is about the relation rather than the profile: a profile naming an entity
 or a mart this project does not build declares a surface nothing can serve, and every other
 check on it has nothing to read. It reports the relation and stops there rather than
-cascading five more leaves off one missing name — which is also what a mart that failed its
+cascading six more leaves off one missing name — which is also what a mart that failed its
 own check looks like from here, one leaf in the same batch beside the mart's own.
 
 What is *not* here: anything about a vector store, an index, or whether an encoder model

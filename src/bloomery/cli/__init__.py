@@ -89,6 +89,7 @@ from bloomery.emit import get_emitter
 from bloomery.errors import EmitError, UnknownMember
 from bloomery.imports import metricflow_relationships
 from bloomery.imports import render as render_relationships
+from bloomery.ir import ir_from_json, ir_json
 from bloomery.naming import DefaultNaming
 from bloomery.planner import parse_filter_json
 
@@ -197,12 +198,62 @@ def _check_names(*, target: str | None = None, dialect: str | None = None) -> No
 # ....................... #
 
 
+def _upstream_map(pairs: list[str] | None) -> dict[str, ProjectIR]:
+    """``--upstream alias=path``, repeatable, as the compile's ``upstream=``.
+
+    The path is read and nothing else is: no discovery, no registry, no lookup
+    beside the spec directory (S-0002/D-8). The mapping is passed through
+    unchanged, so the resolver, the guardrails and the fingerprint see exactly
+    what a Python caller passes (S-0002/D-2) — this is a spelling of that
+    argument, never a second way to reach an upstream.
+
+    A mistyped pair and a repeated alias are usage errors, for the reason
+    :func:`_entity_map` gives: the invocation is wrong, not the specs, and
+    either answer to a repeated alias is a silent one.
+    """
+    upstream: dict[str, ProjectIR] = {}
+
+    for pair in pairs or ():
+        alias, separator, path = pair.partition("=")
+        if not separator or not alias or not path:
+            msg = f"--upstream {pair!r}: expected 'alias=path'"
+            raise _Usage(msg)
+        if alias in upstream:
+            msg = f"--upstream: alias {alias!r} is given twice"
+            raise _Usage(msg)
+        upstream[alias] = ir_from_json(io.read_text(path))
+
+    return upstream
+
+
+# ....................... #
+
+
 def _compile(arguments: argparse.Namespace) -> int:
     _check_names(target=arguments.target, dialect=arguments.dialect)
+    # The flags before the files, as `import` does: an upstream this compile
+    # cannot read is the invocation being wrong, answered before the specs.
+    upstream = _upstream_map(arguments.upstream)
     project, catalog = _load(arguments.directory, arguments.catalog)
     artifacts = compile_project(
-        project, target=arguments.target, dialect=arguments.dialect, catalog=catalog
+        project,
+        target=arguments.target,
+        dialect=arguments.dialect,
+        catalog=catalog,
+        upstream=upstream,
     )
+
+    if arguments.emit_ir is not None:
+        # Built a second time rather than returned by the compile: the public
+        # signature hands back artifacts, and a refused project has written
+        # nothing by the time we get here.
+        ir = build_project_ir(project, catalog=catalog, upstream=upstream)
+        # The path as the caller spelled it (S-0002/D-8), written through the
+        # one module that touches a disk (S-0037/D-5): `write_files` roots a
+        # relative name under a directory, and the empty name is that
+        # directory itself — so the whole path goes on the left rather than a
+        # path split being invented here, where `pathlib` is banned.
+        io.write_files(arguments.emit_ir, {"": ir_json(ir)})
 
     if arguments.out is not None:
         written = io.write_files(
@@ -879,6 +930,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     compile_parser.add_argument("--dialect", default="duckdb", help="SQL dialect")
     compile_parser.add_argument("--out", help="write artifacts here (default: JSON on stdout)")
+    compile_parser.add_argument(
+        "--emit-ir",
+        metavar="PATH",
+        help="also write the compiled IR as JSON here, for a downstream --upstream",
+    )
+    compile_parser.add_argument(
+        "--upstream",
+        action="append",
+        metavar="ALIAS=PATH",
+        help=(
+            "an IR written by --emit-ir, under the alias this project imports it as;"
+            " repeatable. The path is read as given — nothing is discovered"
+        ),
+    )
     compile_parser.set_defaults(run=_compile)
 
     plan_parser = commands.add_parser(

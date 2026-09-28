@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0171
+phase: 7
+base: c0ddecef3085129278e6501e51efad6601644b4f
+commit: c8bf5d04ccb141e95e373c90a3f6728ed3d875d3
+at: '2026-09-28T13:17:02Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: LOCKED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-28T13:03:04Z'
+    claim: >-
+      the contract pins the message the loader refuses a version mismatch with, not
+      the class; SpecParseError is the parse-stage loader class and a new class would
+      leave the documented error set and the exported one disagreeing
+    evidence: >-
+      src/bloomery/ir/json.py:154-161 — the mismatch raises SpecParseError with plan()'s
+      wording verbatim
+    action: decided
+    proposal: >-
+      OPEN — whether a loader refusal of another release's IR is SpecParseError or
+      a class of its own, given the docs floor requires every exported error class
+      to be documented
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-28T13:03:04Z'
+    claim: >-
+      --emit-ir takes a standalone path written alongside the artifacts rather than
+      a name under --out, so the IR can be emitted with no --out at all and lands
+      where the caller says (D8)
+    evidence: >-
+      src/bloomery/cli/__init__.py:249-256 — the emit path is written as given, through
+      the one module that touches a disk
+    action: decided
+    proposal: >-
+      OPEN — whether --emit-ir is a free path or a name relative to --out
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-28T13:03:04Z'
+    claim: >-
+      the cross_project fixture carried only an imports document, so no CLI invocation
+      could compile it; the downstream gained the entity, mapping and mart the how-to
+      and the CLI test run end to end
+    evidence: >-
+      tests/fixtures/cross_project/downstream/marts.yaml:4-12 — a local mart whose
+      base is the imported entity
+    action: decided
+    proposal: >-
+      OPEN — whether tests/fixtures/cross_project/downstream is a full project the
+      sweeps keep out (NON_SPEC_FIXTURES) or stays a document-only fixture
