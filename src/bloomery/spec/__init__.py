@@ -48,8 +48,8 @@ from bloomery.spec.quality import (
     UniqueRule,
 )
 from bloomery.spec.retrieval import (
-    CorpusRelation,
     Analyser,
+    CorpusRelation,
     Encoder,
     Fusion,
     LexicalSide,
