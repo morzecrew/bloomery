@@ -164,28 +164,40 @@ phasing:
   - phase: 8
     title: An import cycle is refused
     intent: >-
-      Write the check D-4 locks and execution left "satisfied by construction". A
-      cycle cannot form in one compile because an upstream arrives compiled, but two
-      projects that each name the other's export are exactly what D-4 refuses, and
-      the CLI of phase 7 makes that arrangement one command away. Each `UpstreamIR`
-      already carries the upstream's own `upstream` tuple and its exports' `name`;
-      the guard walks that transitive set and refuses, as `ImportCycle` in `bloomery.errors`,
-      an upstream whose chain names this project's own export `name` — or, for a project
-      that exports no name, whose chain carries this compile's own fingerprint. The
-      message names the chain alias by alias and ends with D-4's fix: decide which
-      project owns the shared concept. Nothing is resolved and no order is invented.
-      The error table in the docs gains the row; the `cross_project` fixture gains
-      the pair that closes the loop.
+      Write the check D-4 locks and execution left "satisfied by construction". A cycle
+      cannot form in one compile because an upstream arrives compiled, but two projects
+      that each name the other's export are exactly what D-4 refuses, and the CLI of phase
+      7 makes that arrangement one command away. What a compile holds today is one hop:
+      `ProjectIR.upstream` names the direct upstreams and an `UpstreamIR` carries no
+      ancestry of its own, so A → B → A is visible and A → B → C → A is not. The IR
+      therefore gains the closure: `UpstreamIR.ancestry`, the identity — export `name`
+      where one is declared, fingerprint always — of every project above that upstream,
+      filled when the upstream is bound from its own `upstream` tuple and their
+      ancestries, so the serialized artifact of phase 7 carries the whole chain and a
+      downstream needs nothing it was not given (D-8). `bloomery_ir_version` moves to 23
+      for the new field and every fingerprint moves with it, once. The guard then refuses,
+      as `ImportCycle` in `bloomery.errors`, any upstream whose ancestry names this
+      project's own export `name` or carries this compile's own fingerprint, and the
+      message names the chain alias by alias and ends with D-4's fix: decide which project
+      owns the shared concept. Nothing is resolved and no order is invented. The error
+      table gains the row; the `cross_project` fixture gains the three-project loop, and a
+      test asserts the two-project one and the three-project one are both refused.
     scope:
       - src/bloomery/guardrails/imports.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/ir/json.py
+      - src/bloomery/resolve/build.py
       - src/bloomery/errors.py
       - pages/docs/reference/errors.md
+      - pages/docs/concepts/determinism.md
       - tests/unit/test_guardrails/test_imports.py
+      - tests/unit/test_ir/**
       - tests/fixtures/cross_project/**
+      - tests/golden/**
     acceptance:
       - >-
-        uv run pytest tests/unit/test_guardrails/test_imports.py tests/unit/test_docs_floor.py
-        -q
+        uv run pytest tests/unit/test_guardrails/test_imports.py tests/unit/test_ir
+        tests/unit/test_docs_floor.py tests/golden -q
       - uv run mypy src
     depends_on:
       - 7
