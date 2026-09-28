@@ -18,7 +18,13 @@ from dataclasses import dataclass
 
 from bloomery.errors import BloomeryError, SpecParseError
 from bloomery.spec.catalog import Catalog
-from bloomery.spec.common import SpecModel, flatten_collected, load_yaml_mapping, validate_document
+from bloomery.spec.common import (
+    SpecModel,
+    flatten_collected,
+    load_yaml_mapping,
+    source_path_from_loc,
+    validate_document,
+)
 from bloomery.spec.entity import EntityModel
 from bloomery.spec.exports import ExportSet
 from bloomery.spec.exposures import ExposureSet
@@ -26,6 +32,7 @@ from bloomery.spec.imports import ImportSet
 from bloomery.spec.mapping import Mapping
 from bloomery.spec.marts import MartSet
 from bloomery.spec.metrics import MetricSet
+from bloomery.spec.quality import CharsetRule, NormalizeRule
 from bloomery.spec.retrieval import RetrievalSpec
 from bloomery.spec.steps import StepSet
 
@@ -181,6 +188,64 @@ def _check_document_counts(
 
 # ....................... #
 
+#: The two rules that compare *characters* (S-0033/D-86). They lower over the
+#: bare column with no cast — `NORMALIZE(col, form) <> col` and a
+#: `LENGTH(TRANSLATE(col, members, ''))` comparison — so on a non-textual
+#: column they compile to SQL PostgreSQL, Trino and DuckDB all refuse at
+#: execution (`operator/character-rules-on-a-non-textual-column-lower-to-refused-sql`).
+_CHARACTER_RULES = (NormalizeRule, CharsetRule)
+
+
+def _check_character_rules(
+    entity_model: EntityModel, mappings: list[Mapping]
+) -> list[BloomeryError]:
+    """Refuse a ``normalize`` or ``charset`` rule on a column the entity does
+    not type ``string`` — the rule is declared on a mapping and the type is the
+    entity model's, so this is the one place the two meet.
+
+    The lowering deliberately does not cast: a character rule over a number has
+    no meaning a cast would supply. A column no entity declares is left alone —
+    that is the resolve stage's refusal to make, for a better reason.
+    """
+    errors: list[BloomeryError] = []
+
+    for mapping in mappings:
+        entity = entity_model.entities.get(mapping.target)
+
+        if entity is None:
+            continue
+
+        for column, field_mapping in mapping.fields.items():
+            field = entity.fields.get(column)
+
+            if field is None or field.type == "string":
+                continue
+
+            for index, rule in enumerate(field_mapping.quality):
+                if not isinstance(rule, _CHARACTER_RULES):
+                    continue
+
+                errors.append(
+                    SpecParseError(
+                        f"a {rule.rule} rule needs a string column, and {mapping.target}."
+                        f"{column} is typed {field.type!r} — normalize and charset are the "
+                        "two rules that compare characters, and they lower over the bare "
+                        "column with no cast (a character rule over a number has no meaning "
+                        "a cast would supply), so this compiles to SQL PostgreSQL, Trino and "
+                        "DuckDB refuse at execution. Fix: declare the rule on the string "
+                        "column the value is read from, or check this one with range, length "
+                        "or pattern, whose argument decides what they reject",
+                        source_path=source_path_from_loc(
+                            mapping.document, ("fields", column, "quality", index)
+                        ),
+                    )
+                )
+
+    return errors
+
+
+# ....................... #
+
 
 def load_project(sources: AbcMapping[str, str]) -> Project:
     """Parse a project from named YAML documents. Pure: strings in, model out.
@@ -249,6 +314,10 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
                 retrieval_specs,
             )
         )
+
+    if not errors:
+        # After the counts, because it reads the one entity model they promise.
+        errors.extend(_check_character_rules(entity_models[0][1], mappings))
 
     if errors:
         flat = flatten_collected(errors)
