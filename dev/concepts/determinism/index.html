@@ -2097,6 +2097,13 @@ Same trade as everywhere else on this page: loud over silent.</p>
 moves whenever the upstream moves, and it is byte-identical whenever neither does.
 Reformatting the upstream's spec documents does not move its IR, so it does not move
 its fingerprint, so the downstream is undisturbed.</p>
+<p><strong>A fingerprint is not an identity.</strong> The same rule read the other way: a project's
+fingerprint moves the moment anything above it moves, so it cannot say <em>who</em> a project
+is across two compiles — and recognising a project is exactly what refusing an import
+cycle needs. That identity is the export <code>name</code>, and nothing else. It is why a project
+that both imports and exports must declare one (<code>NamelessImporter</code>), and why the chain
+each upstream carries with it is a list of names, with fingerprints riding beside them
+for the refusal message alone.</p>
 <h2 id="the-rules">The rules<a class="headerlink" href="#the-rules" title="Permanent link">&para;</a></h2>
 <p>Stated once, applied package-wide:</p>
 <ol>

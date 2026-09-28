@@ -1456,6 +1456,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#composing-across-projects" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Composing across projects
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#planning-a-change" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1995,6 +2006,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#composing-across-projects" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Composing across projects
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#planning-a-change" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2203,6 +2225,7 @@ passes no registry — see <a href="#compiling">Steps are the one thing the CLI 
 <code>bloomery compile</code> on the same project refuses for the same reason.</p>
 <h2 id="the-nine-commands">The nine commands<a class="headerlink" href="#the-nine-commands" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>bloomery compile     &lt;dir&gt; [--target sqlmesh] [--dialect duckdb] [--catalog F] [--out DIR]
+                           [--emit-ir PATH] [--upstream ALIAS=PATH]
 bloomery plan        &lt;old-dir&gt; &lt;new-dir&gt; [--catalog F] [--format table|json]
 bloomery resolve     &lt;dir&gt; [--catalog F] [--format table|json]
 bloomery check       &lt;dir&gt; [--catalog F] [--format table|json]
@@ -2267,6 +2290,37 @@ surface. A flag would have to invent a manifest loader. A project using <code>st
 through Python, and <code>UnknownStep</code> names the versions the registry does hold. <code>resolve</code>
 reports that refusal too, rather than answering reachability as though the wiring were
 not there.</p>
+<h2 id="composing-across-projects">Composing across projects<a class="headerlink" href="#composing-across-projects" title="Permanent link">&para;</a></h2>
+<p>A project with an <code>imports.yaml</code> reads another project's published surface, and what
+crosses is the upstream's <strong>compiled IR</strong> — never its spec documents, and never a path
+bloomery goes looking for. So composing on the command line is two commands: the upstream
+writes its IR, and the downstream is handed that file under the alias it imports it by.</p>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>compile<span class="w"> </span>tests/fixtures/ecom_basic<span class="w"> </span>--emit-ir<span class="w"> </span>/tmp/platform.json<span class="w"> </span>--out<span class="w"> </span>/tmp/upstream
+bloomery<span class="w"> </span>compile<span class="w"> </span>tests/fixtures/cross_project/downstream<span class="w"> </span>--target<span class="w"> </span>dbt<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--upstream<span class="w"> </span><span class="nv">platform</span><span class="o">=</span>/tmp/platform.json<span class="w"> </span>--out<span class="w"> </span>/tmp/downstream
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>/tmp/downstream/dbt_project.yml
+/tmp/downstream/dependencies.yml
+/tmp/downstream/macros/generate_schema_name.sql
+/tmp/downstream/models/gold/mart_lines.sql
+/tmp/downstream/models/schema.yml
+/tmp/downstream/models/silver/shipment.sql
+/tmp/downstream/models/sources.yml
+</code></pre></div>
+<p><code>mart_lines</code> is the downstream's own mart over an entity it imported: no model is emitted
+for the upstream's relations, because the upstream builds them. <code>--emit-ir</code> writes the IR
+beside the artifacts and is independent of <code>--target</code> — one IR file serves every
+downstream target. <code>--upstream</code> is repeatable, once per alias, and <code>platform</code> is the
+downstream's private spelling of the upstream in <code>imports.yaml</code>; a project carries no name
+of its own, so nothing is resolved by it.</p>
+<p><strong>The path is yours.</strong> bloomery reads the file you name and nothing else — no registry, no
+package index, no lookup beside the spec directory. A checkout, a CI artifact, a file you
+copied by hand: how the upstream IR got there is your problem, which is what keeps a
+compile free of I/O it did not ask for. Omit <code>--upstream</code> and the compile is refused with
+<code>UnknownUpstream</code> naming the alias and what was supplied.</p>
+<p>The IR is versioned. One written by a different bloomery release is refused on load with
+the message <code>plan()</code> gives for the same mismatch — recompile both sides with one compiler
+— rather than being read as though the shapes agreed.</p>
 <h2 id="planning-a-change">Planning a change<a class="headerlink" href="#planning-a-change" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>plan<span class="w"> </span>deployed/<span class="w"> </span>proposed/
 </code></pre></div>

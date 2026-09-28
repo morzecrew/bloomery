@@ -2523,6 +2523,17 @@ target asks — SQLMesh names the relation, Cube and MetricFlow read a mart.</p>
 </ul>
 <p>No model is emitted for an imported relation: the upstream builds it, and the artifacts
 you deploy stay the ones your own project owns.</p>
+<p>From the command line it is two compiles — the upstream writes its IR, the downstream is
+handed it under the alias it imports by:</p>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>compile<span class="w"> </span>tests/fixtures/ecom_basic<span class="w"> </span>--emit-ir<span class="w"> </span>/tmp/platform.json<span class="w"> </span>--out<span class="w"> </span>/tmp/upstream
+bloomery<span class="w"> </span>compile<span class="w"> </span>tests/fixtures/cross_project/downstream<span class="w"> </span>--target<span class="w"> </span>dbt<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--upstream<span class="w"> </span><span class="nv">platform</span><span class="o">=</span>/tmp/platform.json<span class="w"> </span>--out<span class="w"> </span>/tmp/downstream
+</code></pre></div>
+<p><code>/tmp/downstream/dependencies.yml</code> names <code>ecom_platform</code> and
+<code>/tmp/downstream/models/gold/mart_lines.sql</code> spells
+<code>{{ ref('ecom_platform', 'order_item') }}</code> — the export name, from an IR the downstream
+compile was handed rather than found. Both flags are described in
+<a href="../use-the-cli/#composing-across-projects">Use the CLI</a>.</p>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li>The scaffold assumes a profile named <code>bloomery</code>; wire your own <code>profiles.yml</code>.</li>

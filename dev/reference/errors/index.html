@@ -2182,6 +2182,8 @@ pulling in any pipeline stage.</p>
 │   ├── UnexportedImport
 │   ├── UnknownUpstream
 │   ├── ImportCollision
+│   ├── ImportCycle
+│   ├── NamelessImporter
 │   ├── UndeclaredZone
 │   ├── UndeclaredRatioRows
 │   ├── RatioOperandsDisagree
@@ -2400,6 +2402,16 @@ pulling in any pipeline stage.</p>
 <td><code>ImportCollision</code></td>
 <td>guardrails</td>
 <td>A name a project declares is also one it imports — two things of one kind answering to one name, where any precedence rule would be invisible from the other project's file</td>
+</tr>
+<tr>
+<td><code>ImportCycle</code></td>
+<td>guardrails</td>
+<td>An upstream that was itself compiled against this project — A importing B while B imports A, or the same loop through a third project. Cycles are refused, never resolved: neither project can be compiled first, and no order is invented for them. The message names the chain link by link; the fix is deciding which project owns the shared concept</td>
+</tr>
+<tr>
+<td><code>NamelessImporter</code></td>
+<td>guardrails</td>
+<td>A project that both imports and exports, with no <code>name:</code> on its export list — a project in the middle of a chain is identified by its export name, since an alias is the downstream's own spelling and a fingerprint moves whenever an upstream does. A project that exports without a name may still be imported; it may not import</td>
 </tr>
 <tr>
 <td><code>UndeclaredZone</code></td>
