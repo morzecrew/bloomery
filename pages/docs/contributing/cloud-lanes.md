@@ -11,8 +11,10 @@ create, where to put it, and what it costs.
 
 Every credential lives in a GitHub *environment*, never in the repository, and a pull request
 from a fork reaches none of them (S-0012/D-5). Variables name things a log may print — an
-account, a project, a warehouse; secrets hold the one bearer per engine. The lanes run on a
-push to `main` and on a release tag (`force_full`), never on a pull request.
+account, a project, a warehouse; secrets hold the one bearer per engine. The authoritative
+lanes run on a push to `main` and on a release tag (`force_full`), never on a pull request;
+the surrogate lanes need no credential and run on a pull request too, whenever its diff
+touches engine code.
 
 ## Snowflake — `EXPLAIN USING JSON`, then the execution corpus
 
@@ -20,9 +22,15 @@ push to `main` and on a release tag (`force_full`), never on a pull request.
 |---|---|---|
 | environment | `snowflake` | exists, empty |
 | `SNOWFLAKE_ACCOUNT` | variable | the account identifier, e.g. `xy12345.eu-central-1` |
-| `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`, `SNOWFLAKE_ROLE` | variables | a scratch database and schema, and a role that may create in them |
+| `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`, `SNOWFLAKE_ROLE` | variables | the database and schema the compile lane resolves names in, and the role the session takes |
 | `SNOWFLAKE_TOKEN` | secret | a programmatic access token for a user holding that role |
 | `SNOWFLAKE_WAREHOUSE` | variable | **optional** — names the warehouse the execution corpus runs on; unset, the lane is compile-only |
+
+The compile lane reads the named database and schema and writes nothing. The execution
+corpus does not use them: it creates a **transient database of its own** per run, builds in
+it, and drops it at the end (`tests/support/snowflake.py`), so the role needs `CREATE
+DATABASE` on the account and `USAGE` on the warehouse — not only rights inside the
+documented database.
 
 The compile lane (`tests/engines/test_snowflake_live.py`, job `snowflake-compile`) submits
 `EXPLAIN USING JSON` for every statement the shared corpus renders: the engine's parser,
