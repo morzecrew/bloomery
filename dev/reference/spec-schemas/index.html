@@ -2097,6 +2097,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#analyser" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Analyser
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#fusion" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -3026,6 +3037,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         LexicalSide
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#analyser" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Analyser
       </span>
     </span>
   </a>
@@ -5270,6 +5292,12 @@ read as symmetric while saying it is not.</p>
 <td>one of the two</td>
 <td>A silver relation — resolves to <code>silver.&lt;name&gt;</code></td>
 </tr>
+<tr>
+<td><code>analyser</code></td>
+<td>Analyser</td>
+<td>no</td>
+<td>What the corpus text was indexed with. The lexical counterpart of a space's <code>document_encoder</code>: refused when it differs from the profile's <code>lexical.analyser</code>, and carried through to the manifest</td>
+</tr>
 </tbody>
 </table>
 <p>Two keys rather than one dotted string, because the two namespaces are separate: a name
@@ -5321,7 +5349,40 @@ runtime can use.</p>
 <td><code>fields</code></td>
 <td>list of column names, ≥ 1</td>
 <td>yes</td>
-<td>The text columns a lexical ranking reads. Bloomery does not choose the analyzer, the index or the operator</td>
+<td>The text columns a lexical ranking reads. Bloomery does not choose the index or the operator</td>
+</tr>
+<tr>
+<td><code>analyser</code></td>
+<td>Analyser</td>
+<td>no</td>
+<td>What tokenises a query. Refused when it differs from the <code>analyser</code> the corpus relation declares — bloomery compares the two names and resolves neither</td>
+</tr>
+</tbody>
+</table>
+<h3 id="analyser">Analyser<a class="headerlink" href="#analyser" title="Permanent link">&para;</a></h3>
+<p>An analyser tokenises a query the way it tokenised the corpus, so there is no
+<code>input_kind</code>: two strings, and nothing else.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>family</code></td>
+<td>non-empty string</td>
+<td>yes</td>
+<td>Whose analyser (<code>lucene</code>, a store's own name)</td>
+</tr>
+<tr>
+<td><code>model</code></td>
+<td>non-empty string</td>
+<td>yes</td>
+<td>Which one. Never resolved, for the reason an encoder's <code>model</code> is not</td>
 </tr>
 </tbody>
 </table>
@@ -5342,8 +5403,24 @@ runtime can use.</p>
 <td>yes</td>
 <td>Reciprocal rank fusion, and only that: a rank-based method needs no score calibration, so there is no weight to author and no float to compare</td>
 </tr>
+<tr>
+<td><code>k</code></td>
+<td>int ≥ 1</td>
+<td>no (<code>60</code>)</td>
+<td>The rank constant in <code>1 / (k + rank)</code>. 60 is the constant the published method names</td>
+</tr>
+<tr>
+<td><code>depth</code></td>
+<td>int ≥ 1</td>
+<td>no (<code>100</code>)</td>
+<td>How many candidates each side contributes. A document below the cut on both sides cannot be recovered by fusing them</td>
+</tr>
 </tbody>
 </table>
+<p>A method name is not a ranking: two consumers honouring <code>rrf</code> with a different constant, or
+a different candidate depth, return different orders for one query. The manifest carries the
+<strong>effective</strong> pair — the defaults written out where the document did not name them — so a
+consumer that supplies its own is the one that diverged.</p>
 <div class="highlight"><pre><span></span><code><span class="nt">retrieval_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
 <span class="nt">semantic_spaces</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">chunk_text</span><span class="p">:</span>
@@ -5354,14 +5431,14 @@ runtime can use.</p>
 <span class="w">    </span><span class="nt">query_encoder</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">family</span><span class="p">:</span><span class="w"> </span><span class="nv">openai</span><span class="p p-Indicator">,</span><span class="nt"> model</span><span class="p">:</span><span class="w"> </span><span class="nv">text-embedding-3-small</span><span class="p p-Indicator">,</span><span class="nt"> input_kind</span><span class="p">:</span><span class="w"> </span><span class="nv">query</span><span class="p p-Indicator">}</span>
 <span class="nt">profiles</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">chunk_hybrid</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">relation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="nv">chunk</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">relation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="nv">chunk</span><span class="p p-Indicator">,</span><span class="nt"> analyser</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">family</span><span class="p">:</span><span class="w"> </span><span class="nv">lucene</span><span class="p p-Indicator">,</span><span class="nt"> model</span><span class="p">:</span><span class="w"> </span><span class="nv">english</span><span class="p p-Indicator">}}</span>
 <span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">chunk_id</span><span class="p p-Indicator">]</span>
 <span class="w">    </span><span class="nt">vector</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">field</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">embedding</span>
 <span class="w">      </span><span class="nt">space</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chunk_text</span>
 <span class="w">      </span><span class="nt">producer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">family</span><span class="p">:</span><span class="w"> </span><span class="nv">openai</span><span class="p p-Indicator">,</span><span class="nt"> model</span><span class="p">:</span><span class="w"> </span><span class="nv">text-embedding-3-small</span><span class="p p-Indicator">,</span><span class="nt"> input_kind</span><span class="p">:</span><span class="w"> </span><span class="nv">document</span><span class="p p-Indicator">}</span>
-<span class="w">    </span><span class="nt">lexical</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">fields</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">body</span><span class="p p-Indicator">]}</span>
-<span class="w">    </span><span class="nt">fusion</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="nv">rrf</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">lexical</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">fields</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">body</span><span class="p p-Indicator">],</span><span class="nt"> analyser</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">family</span><span class="p">:</span><span class="w"> </span><span class="nv">lucene</span><span class="p p-Indicator">,</span><span class="nt"> model</span><span class="p">:</span><span class="w"> </span><span class="nv">english</span><span class="p p-Indicator">}}</span>
+<span class="w">    </span><span class="nt">fusion</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="nv">rrf</span><span class="p p-Indicator">,</span><span class="nt"> k</span><span class="p">:</span><span class="w"> </span><span class="nv">60</span><span class="p p-Indicator">,</span><span class="nt"> depth</span><span class="p">:</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">}</span>
 <span class="w">    </span><span class="nt">filterable</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">document_id</span><span class="p p-Indicator">]</span>
 <span class="w">    </span><span class="nt">return</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">chunk_id</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">document_id</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">body</span><span class="p p-Indicator">]</span>
 </code></pre></div>
@@ -5375,8 +5452,9 @@ platform's step; what bloomery contributes is the contract for querying it.</p>
 <p><strong>Shape versus resolution.</strong> Parse checks the grammar above, that every profile names a
 space this document declares, and that <code>lexical</code>/<code>fusion</code> are both present or both absent.
 Whether the corpus relation exists, whether its vector column is a vector of the right
-length and scalar, whether the grain is the relation's key and whether every named column
-is there are guardrail questions — see
+length and scalar, whether the grain is the relation's key, whether the lexical side's
+analyser is the one the corpus declares and whether every named column is there are
+guardrail questions — see
 <a href="../errors/#retrieval-refusals">Retrieval refusals</a>.</p>
 
 

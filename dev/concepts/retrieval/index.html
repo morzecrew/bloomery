@@ -2214,7 +2214,7 @@ entity or a mart. It names the vector side, optionally a lexical side and the fu
 merges the two, what a query may filter on, and what it gets back.</p>
 <div class="highlight"><pre><span></span><code><span class="nt">profiles</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">chunk_hybrid</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">relation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="nv">chunk</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">relation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="nv">chunk</span><span class="p p-Indicator">,</span><span class="nt"> analyser</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">family</span><span class="p">:</span><span class="w"> </span><span class="nv">lucene</span><span class="p p-Indicator">,</span><span class="nt"> model</span><span class="p">:</span><span class="w"> </span><span class="nv">english</span><span class="p p-Indicator">}}</span>
 <span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">chunk_id</span><span class="p p-Indicator">]</span>
 <span class="w">    </span><span class="nt">vector</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">field</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">embedding</span>
@@ -2222,8 +2222,11 @@ merges the two, what a query may filter on, and what it gets back.</p>
 <span class="w">      </span><span class="nt">producer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">family</span><span class="p">:</span><span class="w"> </span><span class="nv">openai</span><span class="p p-Indicator">,</span><span class="nt"> model</span><span class="p">:</span><span class="w"> </span><span class="nv">text-embedding-3-small</span><span class="p p-Indicator">,</span><span class="nt"> input_kind</span><span class="p">:</span><span class="w"> </span><span class="nv">document</span><span class="p p-Indicator">}</span>
 <span class="w">    </span><span class="nt">lexical</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">fields</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">body</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">analyser</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">family</span><span class="p">:</span><span class="w"> </span><span class="nv">lucene</span><span class="p p-Indicator">,</span><span class="nt"> model</span><span class="p">:</span><span class="w"> </span><span class="nv">english</span><span class="p p-Indicator">}</span>
 <span class="w">    </span><span class="nt">fusion</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rrf</span>
+<span class="w">      </span><span class="nt">k</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
+<span class="w">      </span><span class="nt">depth</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
 <span class="w">    </span><span class="nt">filterable</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">document_id</span><span class="p p-Indicator">]</span>
 <span class="w">    </span><span class="nt">return</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">chunk_id</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">document_id</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">ordinal</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">body</span><span class="p p-Indicator">]</span>
 </code></pre></div>
@@ -2235,6 +2238,18 @@ wherever either was wanted.</p>
 based fusion needs no score calibration, so there is no weight to tune and no float to
 compare; weighted fusion reopens only with a portable normalization contract behind it.
 Any other method is refused by the grammar rather than by a guardrail.</p>
+<p>The method alone is not a ranking, though. <code>k</code> — the rank constant in <code>1 / (k + rank)</code>,
+default 60, the constant the published method names — and <code>depth</code>, how many candidates each
+side contributes, default 100, are what decide the order two consumers return. Both are
+optional to author and neither is optional in the manifest: a declared <code>fusion</code> block
+carries its <strong>effective</strong> pair, the defaults written out where the document did not name
+them, so two consumers of one profile read one number rather than each supplying its own.</p>
+<p>The lexical side's <code>analyser</code> is the sparse counterpart of the space's two encoder
+identities: <code>{family, model}</code>, opaque, and compared against the <code>analyser</code> the corpus
+relation declares. A corpus tokenised one way and queried another matches on terms neither
+side produced — the same class of bug two encoder identities exist to make refusable, and
+refusable here for the same reason. Both are optional; a profile declaring neither means
+what it meant before the keys existed.</p>
 <h2 id="no-float-enters-at-any-point">No float enters, at any point<a class="headerlink" href="#no-float-enters-at-any-point" title="Permanent link">&para;</a></h2>
 <p>A vector's scalar type is a <strong>type name</strong> and its dimension an <strong>int</strong>. <code>vector(float32,
 1536)</code> is a string and a number, and that is the entire footprint of vectors in the type
@@ -2259,10 +2274,12 @@ profile's declared <code>producer</code> against its space's <code>document_enco
 that disagree is a refusal; a declaration nobody checks against an API is not. A future
 change that looks a model name up against a provider is the erosion this rule exists to
 halt, and it is locked rather than merely preferred for that reason.</p>
+<p>A lexical <code>analyser</code> is the same kind of name under the same rule: two strings, compared
+against the corpus relation's two, and resolved against no store.</p>
 <h2 id="what-is-checked">What is checked<a class="headerlink" href="#what-is-checked" title="Permanent link">&para;</a></h2>
-<p>Six refusals, all at compile time, all against the resolved project rather than the raw
-documents — every one of them needs a <em>type</em> or a <em>key</em>, and neither exists until the
-entity model is resolved and the marts are flattened. They are batched with every other
+<p>Seven refusals, all at compile time, all against the resolved project rather than the raw
+documents — all but the analyser comparison need a <em>type</em> or a <em>key</em>, and neither exists
+until the entity model is resolved and the marts are flattened. They are batched with every other
 guardrail violation, so a profile got wrong in four ways reports four leaves rather than
 costing four round trips. The messages are listed in
 <a href="../../reference/errors/#retrieval-refusals">Retrieval refusals</a>.</p>
@@ -2302,13 +2319,17 @@ paid for with.</p>
 profile. In exchange it is readable by a consumer with no access to the spec tree — a
 manifest naming <code>chunk_text</code> and nothing else would send its reader looking for a file
 bloomery does not emit.</p>
+<p>Absence is exact, and it is the document's absence: <code>fusion</code> is missing only from a profile
+that declares no fusion, and an <code>analyser</code> only where none is declared. A declared <code>fusion</code>
+therefore arrives with its effective <code>k</code> and <code>depth</code> even where the document named neither.</p>
 <p>The corpus relation arrives resolved through the naming policy, as a <code>namespace</code>/<code>table</code>
-pair beside the logical name. Split rather than dotted: the grammar promises nothing about
+pair beside the logical name — with the corpus <code>analyser</code> copied through beside it where one
+is declared. Split rather than dotted: the grammar promises nothing about
 quoting, so a consumer that has to quote each part cannot recover them from one string.</p>
 <h2 id="what-a-runtime-still-owes">What a runtime still owes<a class="headerlink" href="#what-a-runtime-still-owes" title="Permanent link">&para;</a></h2>
 <p>Everything physical. Index type and parameters, where the vectors are stored, the storage
-URI, how <code>rrf</code> is actually computed over two candidate lists, and what k is. The manifest
-is silent about all of it, and the silence is deliberate — those are deployment decisions
+URI, and how <code>rrf</code> is actually computed over two candidate lists — with the k and the depth
+the manifest names. The manifest is silent about the rest of it, and the silence is deliberate — those are deployment decisions
 a compiler has no information to make.</p>
 <p>Nor does bloomery claim any runtime consumes the manifest correctly. It cannot: it ships
 no consumer. What it ships is two <strong>demonstrations</strong> — dev-only scripts, not evidence:
@@ -2339,26 +2360,27 @@ SQL and a declared index in a store, which needs the column's <em>type</em> to b
 manifest does not carry types, so the store guesses. <code>grain</code> is unread by the SQL consumer
 and is the point id for the store — and a composite grain has to become one id by a rule
 the manifest does not give.</p>
-<p><strong>Two findings are real gaps, not seams.</strong> They are recorded rather than fixed, because
-this version of the kind is what it is:</p>
+<p><strong>Two findings were real gaps, not seams</strong> — and the kind has since closed both, additively:
+a project declaring neither key compiles to the same bytes, and the manifest version did not
+move.</p>
 <ul>
-<li><code>fusion: {method: rrf}</code> names the method and neither the rank constant nor the candidate
-  depth per side. Both consumers honour it and return <strong>different orders</strong> for the same
-  query — RRF's k is 60 in one implementation and 10 in another. A method name is not a
-  ranking, and this is the weakest point of the vendor-neutral claim.</li>
-<li>The lexical side declares <code>fields</code> and no tokeniser, analyser or sparse-model identity,
-  while the dense side carries two encoder identities precisely so that a corpus written by
-  one model and queried by another is refusable. The same class of bug is undefended on the
-  lexical side: a store needs a sparse model to build that side at all, and whichever it
-  picks, nothing compares it to the one the corpus was written with.</li>
+<li><code>fusion: {method: rrf}</code> named the method and neither the rank constant nor the candidate
+  depth per side. Both consumers honoured it and returned <strong>different orders</strong> for the same
+  query — RRF's k is 60 in one implementation and 10 in another. <code>k</code> and <code>depth</code> are now
+  declared, and the manifest carries the effective pair rather than the document's silence.</li>
+<li>The lexical side declared <code>fields</code> and no analyser identity, while the dense side carried
+  two encoder identities precisely so that a corpus written by one model and queried by
+  another is refusable. <code>lexical.analyser</code> and the corpus relation's <code>analyser</code> close that:
+  whichever sparse model a store picks, the two declarations are compared and a mismatch is
+  refused.</li>
 </ul>
 <p>And one place the contract is honoured to different precision: <code>scalar</code> names <code>float32</code>
 or <code>float16</code>, and a store with no storage type for the one named keeps the other. <code>scalar</code>
 is an exact contract for one consumer and a best effort for the other.</p>
 <h2 id="where-to-look-next">Where to look next<a class="headerlink" href="#where-to-look-next" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>examples/retrieval/</code> — a document-chunk corpus compiled to its manifest, the six
-  refusals as six edits you can make, and the two consumers that disagreed</li>
+<li><code>examples/retrieval/</code> — a document-chunk corpus compiled to its manifest, the seven
+  refusals as seven edits you can make, and the two consumers that disagreed</li>
 <li><a href="../../reference/spec-schemas/">Spec schemas</a> — the <code>RetrievalSpec</code> grammar, field by
   field</li>
 <li><a href="../../reference/errors/#retrieval-refusals">Retrieval refusals</a> — what each guardrail
