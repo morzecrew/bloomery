@@ -10,6 +10,7 @@ from decimal import Decimal
 import pytest
 import yaml
 
+from bloomery import load_project
 from bloomery.errors import SpecParseError
 from bloomery.spec import (
     CoercibleRule,
@@ -722,3 +723,114 @@ def test_alternation_overlap_is_not_detected_and_that_is_recorded() -> None:
         {"rule": "pattern", "regex": "^(?:a|a)*$", "on_fail": "flag"}
     )
     assert accepted.regex == "^(?:a|a)*$"
+
+
+# ....................... #
+# The two character rules are textual by construction
+# (S-0033/D-86, operator/character-rules-on-a-non-textual-column-lower-to-refused-sql)
+#
+# `normalize` and `charset` lower over the bare column with no cast, so on a
+# non-textual column they compile to SQL every engine refuses at execution.
+# The refusal lives in `load_project` because a mapping document alone does not
+# know a column's type — the type is the entity model's.
+
+
+def _character_project(field_type: str, quality: str) -> object:
+    """One entity, one mapping, one `subject` column of ``field_type``."""
+    return load_project(
+        {
+            "entity_model": (
+                "spec_version: 1\nentities:\n  t:\n    grain: one row per thing\n"
+                "    key: [k]\n    fields:\n      k: {type: string}\n"
+                f'      subject: {{type: "{field_type}"}}\n'
+            ),
+            "mappings/things": (
+                "mapping_version: 1\nsource: s\ntarget: t\n"
+                'key:\n  k: {from: "$.k"}\n'
+                'fields:\n  subject:\n    from: "$.subject"\n    quality:\n' + quality
+            ),
+        }
+    )
+
+
+_NORMALIZE = "      - {rule: normalize, form: nfc, on_fail: flag}\n"
+_CHARSET_FORBID = "      - {rule: charset, forbid: [U+200B], on_fail: flag}\n"
+_CHARSET_ALLOW = "      - {rule: charset, allow: [U+0041-U+005A], on_fail: flag}\n"
+
+
+@pytest.mark.parametrize("field_type", ["int", "bool", "date", "timestamp", "decimal(12, 2)"])
+@pytest.mark.parametrize("quality", [_NORMALIZE, _CHARSET_FORBID, _CHARSET_ALLOW])
+def test_a_character_rule_on_a_non_textual_column_is_refused(
+    field_type: str, quality: str
+) -> None:
+    """Every non-textual member of the closed type grammar, because the claim
+    is about the grammar rather than about `int`. Both readings of `charset`:
+    `allow:` names characters too, and lowers through the same `TRANSLATE`."""
+    with pytest.raises(SpecParseError) as excinfo:
+        _character_project(field_type, quality)
+
+    assert excinfo.value.source_path == "mappings/things: fields.subject.quality[0]"
+    message = str(excinfo.value)
+    assert repr(field_type) in message  # the column's type
+    assert "normalize and charset" in message  # the two rules
+    assert "needs a string column" in message
+
+
+@pytest.mark.parametrize("quality", [_NORMALIZE, _CHARSET_FORBID, _CHARSET_ALLOW])
+def test_a_character_rule_on_a_string_column_still_parses(quality: str) -> None:
+    """The half that keeps the rules worth having: this is what D86 built."""
+    assert _character_project("string", quality) is not None
+
+
+def test_variant_is_not_string_enough() -> None:
+    """`string` and nothing else. A `variant` column holds a JSON value, which
+    is not what `NORMALIZE`/`TRANSLATE` take either."""
+    with pytest.raises(SpecParseError):
+        _character_project("variant", _NORMALIZE)
+
+
+@pytest.mark.parametrize(
+    "quality",
+    [
+        "      - {rule: length, max: 5, on_fail: flag}\n",
+        "      - {rule: pattern, regex: '^[0-9]+$', on_fail: flag}\n",
+        "      - {rule: not_null, on_fail: flag}\n",
+        "      - {rule: range, min: 0, on_fail: flag}\n",
+    ],
+)
+def test_the_rules_beside_them_are_untouched(quality: str) -> None:
+    """`length` and `pattern` are textual by construction and their argument
+    decides what they reject — refusing them here would refuse a correct spec."""
+    assert _character_project("int", quality) is not None
+
+
+@pytest.mark.parametrize("target", ["t", "no_such_entity"])
+def test_a_column_no_entity_types_is_left_to_the_resolve_stage(target: str) -> None:
+    """Guessing a type for a column — or an entity — nothing declares would
+    report this refusal about a project that is about to be refused for a
+    better reason."""
+    project = load_project(
+        {
+            "entity_model": (
+                "spec_version: 1\nentities:\n  t:\n    grain: g\n    key: [k]\n"
+                "    fields: {k: {type: string}}\n"
+            ),
+            "mappings/things": (
+                f"mapping_version: 1\nsource: s\ntarget: {target}\n"
+                'key:\n  k: {from: "$.k"}\n'
+                'fields:\n  subject:\n    from: "$.subject"\n    quality:\n' + _NORMALIZE
+            ),
+        }
+    )
+
+    assert project.mappings[0].target == target
+
+
+def test_two_bad_rules_are_one_batched_refusal() -> None:
+    """S-0019/D-6: every failure across every document arrives at once."""
+    with pytest.raises(SpecParseError) as excinfo:
+        _character_project("int", _NORMALIZE + _CHARSET_FORBID)
+
+    message = str(excinfo.value)
+    assert "fields.subject.quality[0]" in message
+    assert "fields.subject.quality[1]" in message
