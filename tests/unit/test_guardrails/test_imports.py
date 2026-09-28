@@ -12,7 +12,14 @@ from __future__ import annotations
 import pytest
 
 from bloomery import build_project_ir, load_catalog, load_project
-from bloomery.errors import GuardrailError, ImportCollision, UnexportedImport, UnknownUpstream
+from bloomery.errors import (
+    GuardrailError,
+    ImportCollision,
+    ImportCycle,
+    NamelessImporter,
+    UnexportedImport,
+    UnknownUpstream,
+)
 from dataclasses import replace
 
 from bloomery.ir import ExportsIR, ProjectIR
@@ -338,6 +345,109 @@ def test_every_surface_that_compiles_can_supply_an_upstream() -> None:
     assert timeline(versions, "metric:gross_revenue") is not None
 
 
+# ....................... #
+# Cycles (S-0002/D-4)
+
+
+def _loop(
+    which: str, *, imports: bool | str = True, named: bool = True, **upstream: ProjectIR
+) -> ProjectIR:
+    """One project of the `cross_project` loop, compiled against what it was given.
+
+    ``imports`` is the authored document (``True``), no document at all
+    (``False``), or the one entity to import instead — and the first of those
+    three is what makes the fixture usable at all. A cycle cannot be compiled
+    into existence in one step: every project in one was compiled *before* the
+    loop closed, which is the sequence each test below replays.
+
+    ``named=False`` strips the export name, which is the other thing a project
+    in a chain can be missing.
+    """
+
+    documents = fixture_sources(f"cross_project/loop_{which}")
+    if imports is False:
+        del documents["imports"]
+    elif isinstance(imports, str):
+        documents["imports"] = f"imports_version: 1\nimports:\n  next:\n    entities: [{imports}]\n"
+    if not named:
+        documents["exports"] = documents["exports"].replace(f"  name: loop_{which}\n", "")
+
+    return build_project_ir(load_project(documents), upstream=upstream)
+
+
+def test_two_projects_that_each_import_the_other_are_refused() -> None:
+    """The shortest loop, and it takes two compiles to build: `loop_a` was
+    compiled before it imported anything, `loop_b` against that, and only then
+    does `loop_a` name `loop_b`. Nothing about the second compile of `loop_a`
+    is visible from its own imports document — the alias is local."""
+
+    before = _loop("a", imports=False)
+    b = _loop("b", imports="alpha", next=before)
+
+    with pytest.raises(GuardrailError) as caught:
+        _loop("a", imports="beta", next=b)
+
+    (leaf,) = caught.value.collected
+    assert isinstance(leaf, ImportCycle)
+    message = str(caught.value)
+    assert "imports from 'next', which was compiled against this project" in message
+    assert "'loop_a' is this project's own export name" in message
+    # D4 refuses rather than resolves, so the message ends on the decision only
+    # an author can make.
+    assert "Fix: decide which project owns the shared concept" in message
+    assert leaf.source_path == "imports: imports.next"
+
+
+def test_a_loop_through_a_third_project_is_refused() -> None:
+    """`ProjectIR.upstream` names the *direct* upstreams, so A → B → A is
+    visible there and A → B → C → A is not. The ancestry each upstream carries
+    is what closes that gap, and the message names the chain link by link."""
+
+    before = _loop("a", imports=False)
+    b = _loop("b", imports="alpha", next=before)
+    c = _loop("c", imports="beta", next=b)
+
+    assert [name for name, _fingerprint in c.upstream[0].ancestry] == ["loop_a"]
+
+    with pytest.raises(GuardrailError) as caught:
+        _loop("a", next=c)  # the authored document: `loop_a` imports `loop_c`
+
+    message = str(caught.value)
+    assert isinstance(caught.value.collected[0], ImportCycle)
+    assert "'loop_a' (blm1:" in message
+    assert "'loop_b' (blm1:" in message
+
+
+def test_an_importing_project_that_exports_no_name_is_refused_before_any_chain() -> None:
+    """The sequence a fingerprint check would slip through.
+
+    `loop_a` is compiled with no imports and exported without a name, and
+    `loop_b` imports it — which stays legal, since nothing above `loop_b` has
+    to recognise it. Then `loop_a` imports `loop_b`, and its fingerprint is no
+    longer the one `loop_b` was compiled against, so nothing that compared
+    fingerprints would see the loop. The name is the identity, and the refusal
+    is for the missing one rather than for the chain.
+    """
+
+    before = _loop("a", imports=False, named=False)
+    assert before.exports is not None
+    assert before.exports.name is None
+
+    b = _loop("b", imports="alpha", next=before)
+    assert b.upstream[0].name is None
+
+    with pytest.raises(GuardrailError) as caught:
+        _loop("a", imports="beta", named=False, next=b)
+
+    (leaf,) = caught.value.collected
+    assert isinstance(leaf, NamelessImporter)
+    assert "a project that imports and is imported is identified by its export name" in str(
+        caught.value
+    ).lower()
+    assert "Fix: declare `name:` on the exports document" in str(caught.value)
+    assert leaf.source_path == "exports: exports"
+
+
 def test_an_export_the_upstream_ir_does_not_carry_is_refused() -> None:
     """An export list is checked against the authored documents (D-1) while
     what crosses is the IR (D-2), so an upstream can export a name it declared
@@ -354,3 +464,19 @@ def test_an_export_the_upstream_ir_does_not_carry_is_refused() -> None:
     assert isinstance(leaf, UnexportedImport)
     assert "carries no entity" in str(leaf)
     assert "'ghost'" in str(leaf)
+
+
+def test_a_project_importing_its_own_earlier_compile_is_refused() -> None:
+    """The one-hop loop: `loop_a` compiled before it imported anything, then
+    handed back to itself under an alias. Its ancestry is empty, so only the
+    upstream's own export name can catch it."""
+
+    before = _loop("a", imports=False)
+
+    with pytest.raises(GuardrailError) as caught:
+        _loop("a", imports="alpha", next=before)
+
+    (leaf,) = caught.value.collected
+    assert isinstance(leaf, ImportCycle)
+    assert "imports from 'next', which is this project itself" in str(caught.value)
+    assert "Fix: decide which project owns the shared concept" in str(caught.value)

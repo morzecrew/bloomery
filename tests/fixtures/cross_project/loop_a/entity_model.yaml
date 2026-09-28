@@ -1,0 +1,12 @@
+# One of the three projects of the loop (S-0002/D-4). Each declares one entity
+# of its own, exports it under a name, and imports the next project's — so
+# `loop_a` → `loop_c` → `loop_b` → `loop_a` closes, and no compile of any of
+# them can be the first.
+spec_version: 1
+entities:
+  alpha:
+    grain: one row per alpha
+    key: [alpha_id]
+    fields:
+      alpha_id: {type: string, required: true}
+      noted_at: {type: timestamp}

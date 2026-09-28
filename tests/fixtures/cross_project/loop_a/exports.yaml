@@ -1,0 +1,8 @@
+# The name is the project's identity in a chain (S-0002/D-4): an alias is the
+# downstream's own spelling and a fingerprint moves whenever an upstream does,
+# so the export name is the only thing a project recognises itself above an
+# upstream by.
+exports_version: 1
+exports:
+  name: loop_a
+  entities: [alpha]

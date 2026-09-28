@@ -327,6 +327,21 @@ One obligation comes with this, which bloomery cannot check for you:
 No model is emitted for an imported relation: the upstream builds it, and the artifacts
 you deploy stay the ones your own project owns.
 
+From the command line it is two compiles — the upstream writes its IR, the downstream is
+handed it under the alias it imports by:
+
+```bash
+bloomery compile tests/fixtures/ecom_basic --emit-ir /tmp/platform.json --out /tmp/upstream
+bloomery compile tests/fixtures/cross_project/downstream --target dbt \
+    --upstream platform=/tmp/platform.json --out /tmp/downstream
+```
+
+`/tmp/downstream/dependencies.yml` names `ecom_platform` and
+`/tmp/downstream/models/gold/mart_lines.sql` spells
+`{{ ref('ecom_platform', 'order_item') }}` — the export name, from an IR the downstream
+compile was handed rather than found. Both flags are described in
+[Use the CLI](use-the-cli.md#composing-across-projects).
+
 ## Notes
 
 - The scaffold assumes a profile named `bloomery`; wire your own `profiles.yml`.

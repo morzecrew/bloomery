@@ -1,0 +1,4 @@
+exports_version: 1
+exports:
+  name: loop_b
+  entities: [beta]

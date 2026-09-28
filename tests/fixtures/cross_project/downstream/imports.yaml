@@ -13,6 +13,6 @@
 imports_version: 1
 imports:
   platform:
-    entities: [order]
+    entities: [order, order_item]
     marts: [order_items]
     metrics: [gross_revenue, order_count]
