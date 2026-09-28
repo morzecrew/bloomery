@@ -12,3 +12,61 @@ amendments:
       assertion across two roles of one dimension — so that a comparison between
       two dimension columns carries a warrant or is refused with the rule's own
       remediation, and appears in the derivation `explain` renders.
+  - id: A-2
+    at: '2026-09-28T13:02:05Z'
+    title: D-9 gives R021 its surface; phase 4 builds it
+    changes:
+      - subject: D-9
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-9
+        field: fingerprint
+        after: fe8c37cd8fc1ceeb/202c11f3690cefb1
+    md: |-
+      T-0173's first attempt halted with the finding this row answers: none of the
+      three surfaces phase 4 gave R021 exists in the tree — a mart has no `filter:`,
+      a metric filter compares a dimension to literals only, and a mart assertion
+      carries no predicate — so admitting an author-written two-column predicate
+      meant inventing a spelling, an IR shape and a lowering the phase's scope
+      excluded. D-9 names the surface: the metric filter, which already reaches
+      every target, gains a `column:` form. Phase 4 is rewritten to build it, and
+      its scope reaches the spec, the IR, the guard, the planner and the emitters.
+editorial:
+  - subject: D-9
+    field: text
+    before: <decision>
+    after: >-
+      A metric filter may compare its dimension to another dimension column of the
+      same mart — `column:` in place of `values:`, with `=` or `!=` only — and that
+      predicate is R021's surface: the two columns must be declared roles of one dimension
+      (`role_of:` on both flatten steps), or the filter is refused with the rule's
+      own remediation. Measures, literals and the structural join a via-step emits
+      are not the rule's business.
+  - subject: D-9
+    field: fingerprint
+    before: fe8c37cd8fc1ceeb/202c11f3690cefb1
+    after: 3000599461aebf51/202c11f3690cefb1
+  - subject: D-9
+    field: text
+    before: >-
+      A metric filter may compare its dimension to another dimension column of the
+      same mart — `column:` in place of `values:`, with `=` or `!=` only — and that
+      predicate is R021's surface: the two columns must be declared roles of one dimension
+      (`role_of:` on both flatten steps), or the filter is refused with the rule's
+      own remediation. Measures, literals and the structural join a via-step emits
+      are not the rule's business.
+    after: >-
+      A metric filter may compare its dimension to another dimension column of the
+      same mart — `column:` in place of `values:`, with `=` or `!=` only — and that
+      predicate is R021's surface exactly as the rule states it: the two columns must
+      be declared roles of the same member of one dimension, the same `(dimension,
+      member)` pair (`billing_region` and `shipping_region` both `role_of: address`
+      on `region`), or the filter is refused with the rule's own remediation. Two
+      members of one dimension — `address.city` against `address.region` — are not
+      comparable and are refused the same way. Measures, literals and the structural
+      join a via-step emits are not the rule's business.
+  - subject: D-9
+    field: fingerprint
+    before: 3000599461aebf51/202c11f3690cefb1
+    after: b2ff19ac8ea257bd/202c11f3690cefb1

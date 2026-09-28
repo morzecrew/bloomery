@@ -127,3 +127,16 @@ decisions:
       Carried from row 8 of the source document, which grades it `OPEN`; Q-3 is the
       question whose answer decides it. D-2 is why an unneeded relation is dropped
       rather than landed
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      A metric filter may compare its dimension to another dimension column of the
+      same mart — `column:` in place of `values:`, with `=` or `!=` only — and that
+      predicate is R021's surface exactly as the rule states it: the two columns must
+      be declared roles of the same member of one dimension, the same `(dimension,
+      member)` pair (`billing_region` and `shipping_region` both `role_of: address`
+      on `region`), or the filter is refused with the rule's own remediation. Two
+      members of one dimension — `address.city` against `address.region` — are not
+      comparable and are refused the same way. Measures, literals and the structural
+      join a via-step emits are not the rule's business.
+    fingerprint: b2ff19ac8ea257bd/202c11f3690cefb1
