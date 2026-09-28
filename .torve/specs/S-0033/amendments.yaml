@@ -12,3 +12,16 @@ amendments:
       from the RFC that preceded it. Phase 1 is the first phase it has, and closes
       the gap where the rule is declared rather than in the lowering, since a
       character rule over a non-textual value has no meaning a cast would supply.
+  - id: A-2
+    at: '2026-09-28T12:48:33Z'
+    title: >-
+    md: |-
+      T-0175's first attempt halted on the scope: it named
+      `src/bloomery/observability/**`, which no tree has, while the advisory the
+      phase must change lives in `src/bloomery/evidence.py` with its test in
+      `tests/unit/test_advisories.py`; and it found that a mapping document does
+      not know its column's type, so a refusal at declaration has to be raised
+      where `load_project` joins the mapping to the entity model, in
+      `spec/project.py`. Scope and intent say so now; nothing else moves.
+      Phase 1's scope names the advisory where it lives, and the seam the refusal
+      needs
