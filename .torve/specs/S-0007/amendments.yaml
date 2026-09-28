@@ -47,3 +47,26 @@ editorial:
     field: fingerprint
     before: fe8c37cd8fc1ceeb/202c11f3690cefb1
     after: 3000599461aebf51/202c11f3690cefb1
+  - subject: D-9
+    field: text
+    before: >-
+      A metric filter may compare its dimension to another dimension column of the
+      same mart — `column:` in place of `values:`, with `=` or `!=` only — and that
+      predicate is R021's surface: the two columns must be declared roles of one dimension
+      (`role_of:` on both flatten steps), or the filter is refused with the rule's
+      own remediation. Measures, literals and the structural join a via-step emits
+      are not the rule's business.
+    after: >-
+      A metric filter may compare its dimension to another dimension column of the
+      same mart — `column:` in place of `values:`, with `=` or `!=` only — and that
+      predicate is R021's surface exactly as the rule states it: the two columns must
+      be declared roles of the same member of one dimension, the same `(dimension,
+      member)` pair (`billing_region` and `shipping_region` both `role_of: address`
+      on `region`), or the filter is refused with the rule's own remediation. Two
+      members of one dimension — `address.city` against `address.region` — are not
+      comparable and are refused the same way. Measures, literals and the structural
+      join a via-step emits are not the rule's business.
+  - subject: D-9
+    field: fingerprint
+    before: 3000599461aebf51/202c11f3690cefb1
+    after: b2ff19ac8ea257bd/202c11f3690cefb1
