@@ -56,7 +56,7 @@ tiers:
   executor:
     harness: claude-subscription
     profile: claude-equipped
-    model: claude-opus-5
+    model: claude-opus-5-5
     provider: anthropic
   # The review tier, as close to shadow as the configuration allows: it runs
   # on every gate-green attempt and records its findings; only a `blocker`
@@ -65,7 +65,7 @@ tiers:
   reviewer:
     harness: claude-subscription
     profile: review
-    model: claude-opus-5
+    model: claude-opus-5-5
     provider: anthropic
 
 broker:
