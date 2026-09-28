@@ -34,7 +34,7 @@ amendments:
       its scope reaches the spec, the IR, the guard, the planner and the emitters.
   - id: A-3
     at: '2026-09-28T14:55:45Z'
-    title: >-
+    title: Phase 4 names the files its surface touches
     md: |-
       T-0173's second and third attempts were refused in a second each with
       "Prompt is too long": the scope A-2 wrote — `pages/docs/**`, `tests/unit/**`,

@@ -3,22 +3,21 @@ phasing:
   - phase: 1
     title: Character rules are textual rules
     intent: >-
-      `normalize` lowers to `NORMALIZE(col, form) <> col` and `charset` to a
-      `LENGTH(TRANSLATE(col, members, ''))` comparison, both over the bare column, and
-      nothing at the spec layer keeps either off an `int`, `bool`, `date`, `timestamp` or
-      `decimal` column — so such a declaration compiles without complaint to SQL that
-      PostgreSQL, Trino and DuckDB refuse at execution (the operator source
-      `character-rules-on-a-non-textual-column-lower-to-refused-sql`). Refuse it where the
-      rule is declared: the two character rules accept a `string` column and nothing else,
-      as a `SpecParseError` at the field's path that names the column's type and the two
-      rules, the way `length` and `pattern` are already textual by construction. A mapping
-      document alone does not know a column's type — the type is the entity model's — so
-      the refusal is raised where the two meet, in `load_project`'s assembly of the
-      project, and still names the field's own source path. The lowering does not cast,
-      because a character rule over a number has no meaning a cast would supply. S-0004's
-      unstrengthened-rule advisory (`src/bloomery/evidence.py`) loses its non-textual
-      branch for these two rules, which the refusal makes unreachable, and the docs' rule
-      table says which rules are textual.
+      `normalize` lowers to `NORMALIZE(col, form) <> col` and `charset` to a `LENGTH(TRANSLATE(col,
+      members, ''))` comparison, both over the bare column, and nothing at the spec
+      layer keeps either off an `int`, `bool`, `date`, `timestamp` or `decimal` column
+      — so such a declaration compiles without complaint to SQL that PostgreSQL, Trino
+      and DuckDB refuse at execution (the operator source `character-rules-on-a-non-textual-column-lower-to-refused-sql`).
+      Refuse it where the rule is declared: the two character rules accept a `string`
+      column and nothing else, as a `SpecParseError` at the field's path that names
+      the column's type and the two rules, the way `length` and `pattern` are already
+      textual by construction. A mapping document alone does not know a column's type
+      — the type is the entity model's — so the refusal is raised where the two meet,
+      in `load_project`'s assembly of the project, and still names the field's own
+      source path. The lowering does not cast, because a character rule over a number
+      has no meaning a cast would supply. S-0004's unstrengthened-rule advisory (`src/bloomery/evidence.py`)
+      loses its non-textual branch for these two rules, which the refusal makes unreachable,
+      and the docs' rule table says which rules are textual.
     scope:
       - src/bloomery/spec/quality.py
       - src/bloomery/spec/mapping.py

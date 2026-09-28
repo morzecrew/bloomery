@@ -86,27 +86,27 @@ phasing:
     title: >-
       Fusion declares its constant, and the lexical side its analyser
     intent: >-
-      Phase 3's second consumer recorded two gaps rather than fixing them, and both are
-      the kind's own to close. `fusion:` names a method and neither the rank constant nor
-      the candidate depth per side, so two consumers honour `rrf` and return different
-      orders for one query; it gains `k` (a positive integer, default 60, which is the
-      constant the published method names) and `depth` (the candidates each side
-      contributes, a positive integer, default 100), both carried into the manifest so a
-      consumer that ignores them is the one that diverged. The lexical side declares
-      `fields` and nothing about how they are tokenised, while the dense side carries two
-      encoder identities so a corpus written by one model and queried by another is
-      refusable; it gains an optional `analyser` — the same opaque `{family, model}`
-      identity shape as an encoder, compared for equality and never resolved (D-2) — and a
-      seventh guardrail refuses a profile whose lexical analyser differs from the one the
-      corpus relation declares in its own retrieval document, when both are declared. A
-      profile that declares neither keeps today's meaning, and a project with no retrieval
-      document still compiles byte-identically. The manifest version does not move: the
-      keys are additive. Their omission rule is exact — a declared `fusion` block carries
-      its *effective* `k` and `depth` in the manifest, the defaults written out when the
-      document did not, so two consumers of one profile read one number; `fusion` is
-      absent from a profile only when the document declares no fusion at all, and
-      `analyser` is absent only when none is declared. The example, the concept page and
-      the error table carry the two.
+      Phase 3's second consumer recorded two gaps rather than fixing them, and both
+      are the kind's own to close. `fusion:` names a method and neither the rank constant
+      nor the candidate depth per side, so two consumers honour `rrf` and return different
+      orders for one query; it gains `k` (a positive integer, default 60, which is
+      the constant the published method names) and `depth` (the candidates each side
+      contributes, a positive integer, default 100), both carried into the manifest
+      so a consumer that ignores them is the one that diverged. The lexical side declares
+      `fields` and nothing about how they are tokenised, while the dense side carries
+      two encoder identities so a corpus written by one model and queried by another
+      is refusable; it gains an optional `analyser` — the same opaque `{family, model}`
+      identity shape as an encoder, compared for equality and never resolved (D-2)
+      — and a seventh guardrail refuses a profile whose lexical analyser differs from
+      the one the corpus relation declares in its own retrieval document, when both
+      are declared. A profile that declares neither keeps today's meaning, and a project
+      with no retrieval document still compiles byte-identically. The manifest version
+      does not move: the keys are additive. Their omission rule is exact — a declared
+      `fusion` block carries its *effective* `k` and `depth` in the manifest, the
+      defaults written out when the document did not, so two consumers of one profile
+      read one number; `fusion` is absent from a profile only when the document declares
+      no fusion at all, and `analyser` is absent only when none is declared. The example,
+      the concept page and the error table carry the two.
     scope:
       - src/bloomery/spec/retrieval.py
       - src/bloomery/guardrails/retrieval.py

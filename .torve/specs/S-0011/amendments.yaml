@@ -3,6 +3,7 @@ amendments:
   - id: A-1
     at: '2026-09-28T07:47:15Z'
     title: >-
+      Phase 4: fusion fixes its constants and the lexical side names its analyser
     md: |-
       Phase 3's second consumer found two real gaps and the design recorded them:
       `fusion: {method: rrf}` fixes no rank constant and no depth, so two
