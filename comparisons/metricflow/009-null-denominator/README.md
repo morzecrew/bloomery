@@ -1,7 +1,7 @@
 # MetricFlow × 009-null-denominator
 
-- **System:** MetricFlow `0.212.0`, driven from Python against DuckDB `1.5.5`.
-- **Checked:** 2026-09-18.
+- **System:** MetricFlow `0.213.0`, driven from Python against DuckDB `1.5.5`.
+- **Checked:** 2026-09-28.
 - **Feature set:** semantic models with `measures`, a `simple` metric, a `ratio` metric, and
   a `filter` on a ratio's input measures
   (`metricflow_semantic_interfaces/parsing/schemas.py`). No project-authored SQL.
@@ -57,7 +57,7 @@ on a metric's input measure, so the restriction is native — it does not need
 project-authored SQL, only a dimension over the case's own column.
 
 **Nothing marks the unfiltered one as the other question.** The two metrics sit in one
-manifest over one pair of measures and differ only by the two filters; to `0.212.0`'s
+manifest over one pair of measures and differ only by the two filters; to `0.213.0`'s
 validator they are equally valid, and neither is annotated as being about a different row
 set. An author who has not already seen `s3` writes the first one, gets `4.00`, and is told
 nothing.

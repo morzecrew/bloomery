@@ -4,8 +4,8 @@ What each system does with each case of the semantic bug corpus, from a reproduc
 checked in beside it. Read [`README.md`](README.md) first: a cell is a property of a **tested
 configuration**, never of a product, and the six values have precise meanings.
 
-- **Last checked:** 2026-09-18 (every dbt Core and SQLMesh bundle; MetricFlow's `009` and
-  `011`); 2026-09-15 (MetricFlow's `002`, `005`, `008`). Each bundle's `README.md` pins its
+- **Last checked:** 2026-09-28 (every MetricFlow bundle, re-run on `0.213.0` with every
+  observation unchanged); 2026-09-18 (every dbt Core and SQLMesh bundle). Each bundle's `README.md` pins its
   own date and version, and those are what a cell rests on.
 - **Coverage:** 26 rows — one per *expectation*, not one per case. S-0056's twelve cases
   pin between one and three apiece, because a case is typically refused in one shape and
@@ -18,7 +18,7 @@ configuration**, never of a product, and the six values have precise meanings.
 | Column | Version | Evidence |
 |---|---|---|
 | **bloomery** | this tree | `tests/fixtures/semantic_corpus/<case>/expected/semantic_outcome.json`, executed by `tests/execution/test_semantic_corpus.py` in the default suite |
-| **MetricFlow** | `0.212.0` | [`metricflow/<case>/`](metricflow/) — manifest authored as YAML, rendered against DuckDB `1.5.5` |
+| **MetricFlow** | `0.213.0` | [`metricflow/<case>/`](metricflow/) — manifest authored as YAML, rendered against DuckDB `1.5.5` |
 | **dbt Core** | `1.12.3` | [`dbt/<case>/`](dbt/) — a dbt project with `semantic_models:` and `metrics:`, built by `dbt-duckdb` `1.11.0` against DuckDB `1.5.5`; no `dbt-metricflow`, no dbt Cloud |
 | **SQLMesh** | `0.236.1` | [`sqlmesh/<case>/`](sqlmesh/) — `MODEL` and `METRIC` DDL in a project with one `duckdb` gateway, planned and rendered against DuckDB `1.5.5`; no Tobiko Cloud |
 | **Cube** | not installed | — |
@@ -30,7 +30,7 @@ that nobody has run it. Cube needs a runtime this repository does not carry, and
 
 ## The table
 
-| Case | Expectation | bloomery | MetricFlow `0.212.0` | dbt Core `1.12.3` | SQLMesh `0.236.1` |
+| Case | Expectation | bloomery | MetricFlow `0.213.0` | dbt Core `1.12.3` | SQLMesh `0.236.1` |
 |---|---|---|---|---|---|
 | `001-order-shipping-fanout` | `refinement` | `NATIVE-PREVENT` <br> `GrainMismatch`, S-0023/D-5 | `UNKNOWN` | `UNKNOWN` | `UNKNOWN` |
 | `001-order-shipping-fanout` | `representation` | `NATIVE-PREVENT` <br> `GrainViolation`, S-0027/D-2 | `UNKNOWN` | `UNKNOWN` | `UNKNOWN` |
@@ -63,7 +63,7 @@ that nobody has run it. Cube needs a runtime this repository does not carry, and
 
 Eleven cells, five cases, and they say three things.
 
-**Where the correct model was asked for, `0.212.0` was native and right in four of the five
+**Where the correct model was asked for, `0.213.0` was native and right in four of the five
 cases.** A `ratio` metric rebuilds a quotient from its operands at the requested grain;
 `non_additive_dimension` with `window_choice: max` reduces a daily snapshot to its last value
 before aggregating across accounts; a `filter` on a ratio's input measures restricts both
@@ -145,7 +145,7 @@ key exists: `non_additive_dimension` states the fact and stating it is optional,
 different way for a naive model to go unchallenged.
 
 **One difference between the two columns is the vocabulary itself, at the versions pinned.**
-`fill_nulls_with: 0` in a `ratio` metric's denominator — which MetricFlow `0.212.0` accepted,
+`fill_nulls_with: 0` in a `ratio` metric's denominator — which MetricFlow `0.213.0` accepted,
 changing nothing — is rejected outright by dbt Core `1.12.3`'s parser. The packages move
 independently, and the cells pin the version each was measured at for exactly this reason.
 

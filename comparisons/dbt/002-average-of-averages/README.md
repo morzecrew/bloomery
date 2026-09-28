@@ -65,5 +65,5 @@ configuration no dbt Core command renders a metric.
 It does **not** support any statement about dbt beyond this configuration and this version.
 In particular it says nothing about dbt Core with `dbt-metricflow` installed, or about the
 dbt Semantic Layer service: neither was run here. The engine those paths use is MetricFlow,
-which this matrix measures in its own column at `0.212.0`, and a reader comparing the two
+which this matrix measures in its own column at `0.213.0`, and a reader comparing the two
 columns is comparing two configurations rather than two products.

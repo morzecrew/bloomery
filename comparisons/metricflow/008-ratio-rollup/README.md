@@ -1,7 +1,7 @@
 # MetricFlow × 008-ratio-rollup
 
-- **System:** MetricFlow `0.212.0`, driven from Python against DuckDB `1.5.5`.
-- **Checked:** 2026-09-15.
+- **System:** MetricFlow `0.213.0`, driven from Python against DuckDB `1.5.5`.
+- **Checked:** 2026-09-28.
 - **Feature set:** semantic models with `measures`, a `simple` metric, and a `ratio` metric
   over two `simple` metrics (`metricflow_semantic_interfaces/parsing/schemas.py`). No
   project-authored SQL.
@@ -42,11 +42,11 @@ The correct construction is **native**: the quotient is rebuilt from its operand
 requested grain, by a documented metric type, and the number is right.
 
 The failure is **not represented** in this feature set. A measure whose `expr` is already a
-quotient and whose `agg` is `average` is exactly as valid, to `0.212.0`'s validator, as the
+quotient and whose `agg` is `average` is exactly as valid, to `0.213.0`'s validator, as the
 ratio metric beside it. Nothing in the manifest records that `revenue / item_count` is a
 constructed rate rather than a stored quantity, so nothing can notice that averaging it is
 meaningless.
 
-Neither half is a statement about MetricFlow beyond `0.212.0` and this configuration. In
+Neither half is a statement about MetricFlow beyond `0.213.0` and this configuration. In
 particular it says nothing about whether a dbt test or a review convention would catch the
 stored rate — only that the semantic layer itself does not.
