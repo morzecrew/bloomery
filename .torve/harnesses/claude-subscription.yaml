@@ -52,7 +52,7 @@
 # instead — withdrawing a tool the prompt never told them to stop using would
 # cost reads nobody asked to lose. Putting any of them back is one word here.
 adapter: subscription
-image: claude-sandbox:2.1.252
+image: claude-sandbox:2.1.283
 # Skills load from a skills root, never from `--add-dir`: measured, a session
 # given five through that flag listed only claude's built-ins. `~` is HOME,
 # which is the sandbox's `/tmp` — outside the workspace, so nothing lands in the
