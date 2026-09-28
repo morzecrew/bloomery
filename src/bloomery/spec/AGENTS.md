@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/bloomery/spec/`
 
-### S-0002/D-1 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-1 — `LOCKED` (Multi-project composition)
 
 The boundary is an explicit export list, never "everything public by default": an entity, a mart or a metric may be named on it, grouped by kind, and a name absent from it is not exported however public it looks from inside the project
 
@@ -10,7 +10,7 @@ The boundary is an explicit export list, never "everything public by default": a
 - Consequence: A project that exports its whole spec has no boundary, and its first refactor breaks every consumer; an export naming something the project does not declare is refused with `DanglingExport`, so the list is an assertion rather than a claim
 - Check: `uv run pytest tests/unit/test_spec/test_exports.py tests/unit/test_guardrails/test_exports.py -q` (shadow; runs as `decision:S-0002/D-1`, no log entry owed)
 
-### S-0002/D-2 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-2 — `LOCKED` (Multi-project composition)
 
 What crosses is the upstream's compiled IR, passed to the compile as an argument — not its spec documents, and not a path bloomery opens; the upstream is keyed by a local alias the downstream chooses, because a project has no identity of its own
 
@@ -18,7 +18,7 @@ What crosses is the upstream's compiled IR, passed to the compile as an argument
 - Consequence: Mappings, steps and quality surfaces stay outside the boundary, because re-resolving upstream documents downstream would put all three inside it; and an alias the compile was not given is refused with `UnknownUpstream` rather than resolving to nothing
 - Check: `uv run pytest tests/unit/test_spec/test_imports.py tests/unit/test_guardrails/test_imports.py -q` (shadow; runs as `decision:S-0002/D-2`, no log entry owed)
 
-### S-0002/D-5 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-5 — `LOCKED` (Multi-project composition)
 
 Quality surfaces do not cross: an upstream entity's reject table, replay and quality mart stay upstream, and the downstream reads the entity
 
@@ -26,7 +26,7 @@ Quality surfaces do not cross: an upstream entity's reject table, replay and qua
 - Consequence: A downstream project cannot depend on how an upstream entity was cleaned, so the upstream is free to change its quality surface without breaking a consumer; the rule is enforced by the documents' shape, which has no key for it
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0002/D-8 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-8 — `LOCKED` (Multi-project composition)
 
 No registry, no packaging, no network: how the upstream artifact reaches the compile is the caller's problem — a path, a checkout, a CI artifact — and bloomery reads what it is handed
 
@@ -34,7 +34,7 @@ No registry, no packaging, no network: how the upstream artifact reaches the com
 - Consequence: The upstream is a value the caller assembles, exactly as a step registry is, so composition adds no I/O to a compile that performs none; the cost is that a surface with no value to pass — the CLI today — cannot compile an importing project at all
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0002/D-10 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-10 — `LOCKED` (Multi-project composition)
 
 An upstream's dbt project name is part of what it exports: `exports.yaml` carries an optional `name`, `ExportsIR` carries it across, and the downstream's dbt target spells the two-argument `ref()` and the `dependencies.yml` entry with that name while the downstream's own `dbt_project.yml` is named after its own export name when it has one. The local alias stays what keys the compile input and the IR resolution (D-2); dbt is the one target whose cross-project reference needs the producer's own name, so the name lives on the producer's side of the boundary and nowhere else.
 
@@ -66,7 +66,7 @@ Modules obtain their stage logger by the documented name literally — `bloomery
 - Consequence: The two idioms ship different stable sets, and `__name__` would make the documented names a strict subset of the real ones; tuning works either way through the hierarchy, so what differs is only which names are the promise
 - Check: `uv run pytest tests/unit/test_logging_posture.py -q` (shadow; runs as `decision:S-0004/D-13`, no log entry owed)
 
-### S-0007/D-1 — `LOCKED` (Dimension algebra) — implementation: partial
+### S-0007/D-1 — `LOCKED` (Dimension algebra)
 
 Every relation is declared, never inferred — not from column names, not from cardinality, not from the data. One `GROUP BY` would answer `determines:` exactly, and from a single load of a source that has no counterexample yet; an inference cannot be told from a declaration once written down
 
@@ -74,7 +74,7 @@ Every relation is declared, never inferred — not from column names, not from c
 - Consequence: A relation has exactly the standing of a declared `many_to_one`: the compiler reads what an author wrote and never looks at a row, so nothing in the closure or the spec models may consult data or guess from a name
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0007/D-3 — `LOCKED` (Dimension algebra) — implementation: partial
+### S-0007/D-3 — `LOCKED` (Dimension algebra)
 
 A dimension is not an entity. Modelling `city` and `state` as entities with a declared `many_to_one` would reuse R002 exactly and is rejected: it taxes a two-column fact with a grain, a key and a mapping, and it puts every hierarchy level into the lineage graph as a node nobody builds
 
@@ -82,35 +82,35 @@ A dimension is not an entity. Modelling `city` and `state` as entities with a de
 - Consequence: The column-to-column determination needs its own fact and its own closure; the entity-keyed machinery is not extended to carry it, and a project with a five-level geography gains no entities
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0007/D-4 — `ASSUMED` (Dimension algebra) — implementation: partial
+### S-0007/D-4 — `ASSUMED` (Dimension algebra)
 
 Determination is a lattice, not a list. A column may determine several others independently, and `postcode` determining both `state` and `delivery_zone` is the ordinary case rather than the exotic one
 
 - Paths: `src/bloomery/spec/entity.py` `src/bloomery/spec/catalog.py`
 - Consequence: `determines:` is a set of names on the determinant and is transitively closed by the compiler; departing means an ordered-levels spelling, which is smaller, cannot express a lattice, and restates the same fact on every mart that carries the columns
 
-### S-0007/D-5 — `ASSUMED` (Dimension algebra) — implementation: partial
+### S-0007/D-5 — `ASSUMED` (Dimension algebra)
 
 `role_of:` generalizes `DateRoleStep` rather than replacing it. A date's roles expand into buckets, which is a date-specific elaboration, so the two coexist
 
 - Paths: `src/bloomery/spec/marts.py` `src/bloomery/ir/nodes.py`
 - Consequence: Existing projects with `flatten: [{date: …, role: …}]` compile unchanged and the general role is additive beside them; departing means absorbing dates into the general vocabulary, which touches every existing project
 
-### S-0007/D-6 — `OPEN` (Dimension algebra) — implementation: partial
+### S-0007/D-6 — `OPEN` (Dimension algebra)
 
 Whether `determines:` lives on the entity model or on the catalog's canonical field. A determination is a property of values rather than of a feed, which argues for the catalog; the entity model is where fields are otherwise described. The executor decides against the shape of both and logs it
 
 - Paths: `src/bloomery/spec/entity.py` `src/bloomery/spec/catalog.py`
 - Consequence: The placement decides where the parse, the cycle refusal and the transitive closure live, and whether a determination is stated once per catalog field or once per entity that maps it
 
-### S-0007/D-8 — `OPEN` (Dimension algebra) — implementation: partial
+### S-0007/D-8 — `OPEN` (Dimension algebra)
 
 Whether `same_as:` is needed at all. The in-project case is derivable from `role_of:` and the cross-project case has no consumer until multi-project composition reaches its emitted-reference phase. If both hold, this relation is not built
 
 - Paths: `src/bloomery/spec/marts.py`
 - Consequence: Phase 3 exists only if this resolves that the relation is needed; resolving it the other way retires the relation and the document can complete on the first two phases
 
-### S-0011/D-1 — `LOCKED` (Retrieval semantics) — implementation: partial
+### S-0011/D-1 — `LOCKED` (Retrieval semantics)
 
 Retrieval semantics ship as their own spec kind, loaded by a `retrieval_version` key in `_KIND_KEYS`, never as optional keys on the entity model
 
@@ -118,7 +118,7 @@ Retrieval semantics ship as their own spec kind, loaded by a `retrieval_version`
 - Consequence: A project that declares no retrieval document is untouched by the whole design, and a target that cannot serve retrieval refuses the kind wholesale rather than ignoring keys it does not understand
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0011/D-2 — `LOCKED` (Retrieval semantics) — implementation: partial
+### S-0011/D-2 — `LOCKED` (Retrieval semantics)
 
 bloomery never computes, reads or validates an embedding value, and never resolves an encoder model identity against a provider; encoder identities are opaque strings compared for equality
 
@@ -126,7 +126,7 @@ bloomery never computes, reads or validates an embedding value, and never resolv
 - Consequence: A typo in a model name is caught by comparing a field's declared producer against its space's, and never by a lookup; a future change that verifies a model name against a provider is the erosion this row exists to halt
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0011/D-4 — `LOCKED` (Retrieval semantics) — implementation: partial
+### S-0011/D-4 — `LOCKED` (Retrieval semantics)
 
 A declared vector dimension requires a new `LogicalType` member, and a vector accepts no transform - its input domain is empty in every transform spec
 
@@ -134,7 +134,7 @@ A declared vector dimension requires a new `LogicalType` member, and a vector ac
 - Consequence: The cost is six sites and cannot be avoided by choosing the other shape, because the union has no array member either; admitting a transform over a vector would put float arithmetic inside a lowered expression, which is exactly what the ban stops
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0011/D-5 — `LOCKED` (Retrieval semantics) — implementation: partial
+### S-0011/D-5 — `LOCKED` (Retrieval semantics)
 
 Fusion is reciprocal rank fusion only in the first version of the kind
 
@@ -142,21 +142,21 @@ Fusion is reciprocal rank fusion only in the first version of the kind
 - Consequence: A profile declaring any other fusion method is refused by the grammar rather than by a guardrail, and weighted fusion reopens only with a portable normalization contract
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0011/D-9 — `ASSUMED` (Retrieval semantics) — implementation: partial
+### S-0011/D-9 — `ASSUMED` (Retrieval semantics)
 
 Six statable guardrails, not the source proposal's ten - the projection rule folds into the grain rule, the hybrid-needs-both-sides rule becomes a grammar requirement, and the searchable-is-not-filterable rule is a design rule honoured by requiring two declarations
 
 - Paths: `src/bloomery/guardrails/**` `src/bloomery/spec/**`
 - Consequence: A reader of the source proposal will look for four rules that are not here and has to be told where they went; in exchange each remaining rule has one refusal message and one test
 
-### S-0011/D-11 — `OPEN` (Retrieval semantics) — implementation: partial
+### S-0011/D-11 — `OPEN` (Retrieval semantics)
 
 Whether a vector field may be declared on an entity or only on a mart
 
 - Paths: `src/bloomery/spec/entity.py` `src/bloomery/spec/marts.py`
 - Consequence: Confining it to marts keeps the new type out of the mapping and transform paths entirely, which is most of the type-system cost; allowing it on entities means an embedding produced by a step can be declared where it is produced
 
-### S-0011/D-12 — `OPEN` (Retrieval semantics) — implementation: partial
+### S-0011/D-12 — `OPEN` (Retrieval semantics)
 
 Whether `distance` is a property of the semantic space or of the retrieval profile
 
@@ -307,103 +307,103 @@ Additivity lowering per D4 exactly: additive → SUM at requested grain; semi-ad
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/planner/filters.py` `src/bloomery/planner/parse.py` `src/bloomery/planner/request.py` `src/bloomery/spec/metrics.py` `src/bloomery/spec/quality.py` `tests/execution/test_period_over_period.py` `tests/property/test_planner_properties.py` `tests/unit/test_guardrails/test_metrics.py` `tests/unit/test_planner/test_filters.py` `tests/unit/test_planner/test_request.py` `tests/unit/test_spec/test_metrics.py` `tests/unit/test_spec/test_quality.py`
 
-### S-0033/D-1 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-1 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 The governing principle: **specs describe, specs reference implementations, specs never contain implementations.** Bronze gets no cleansing (replay source); gold gets none (rebuildable).
 
 - Paths: `src/bloomery/spec/quality.py` `tests/fixtures/dirty/README.md` `tests/golden/schema/mapping.json`
 
-### S-0033/D-2 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-2 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 `OnFail = flag | quarantine | fail` (v1 — `repair` deferred, decision 17; landed in D87), explicit per rule, never a global default. Deliberately no `drop`: quarantine is drop plus recoverability; deletion happens via retention policy, with a paper trail.
 
 - Paths: `src/bloomery/ir/nodes.py` `src/bloomery/plan/diff.py` `src/bloomery/spec/quality.py` `tests/unit/test_ir/test_nodes.py` `tests/unit/test_plan/test_quality_changes.py` `tests/unit/test_spec/test_quality.py`
 
-### S-0033/D-3 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-3 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 Coercion failure is a rule: transform chains lower to failure-marker form (`TRY_CAST`-style per dialect); the implicit, overridable `coercible` rule (default `quarantine`) disposes of it. Retires `Mapping.on_unmapped_enum` (S-0019 amendment — absorbed into `in_enum`/`coercible`) and supersedes S-0025/D-7's never-implemented emitter convention with the modeled reject table.
 
 - Paths: `src/bloomery/dialects/base.py` `src/bloomery/guardrails/operands.py` `src/bloomery/quality/predicates.py` `src/bloomery/spec/mapping.py` `src/bloomery/spec/quality.py` `src/bloomery/transforms/_builtins.py` `tests/execution/test_path_conflict.py` `tests/unit/test_guardrails/test_conflict.py` `tests/unit/test_spec/test_mapping.py`
 
-### S-0033/D-5 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-5 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 Closed field-rule catalogue: `coercible`, `not_null`, `range`, `length`, `pattern` (portable regex subset, compile-time validated per target dialect via sqlglot), `in_enum`, `in_set`, `normalize` and `charset` (added by D86, which closed D26), `unique` (evaluated per partition slice in both full and incremental modes — the partition is the scope unit either way; cross-partition duplicates out of scope in every mode, dedupe's job; sampling rejected per Document 5 §11.3). New rules are RFC amendments, not config.
 
 - Paths: `src/bloomery/quality/catalogue.py` `src/bloomery/quality/pattern.py` `src/bloomery/quality/predicates.py` `src/bloomery/quality/reconcile.py` `src/bloomery/spec/quality.py` `src/bloomery/spec/steps.py` `tests/golden/schema/mapping.json`
 
-### S-0033/D-6 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-6 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 Entity-level `dedupe` requires `tie_break` under `keep: latest_by` (nondeterministic winners violate the core invariant); dedupe-referenced fields' `coercible` is forced to `fail`. Row rules `expression` and `referential` (`on_missing ∈ {unknown_member, quarantine, flag}` — `fail` deliberately excluded: orphans are an expected, recoverable data condition; a pipeline-stopping orphan gate is a `reconcile` check; `unknown_member` keeps aggregates correct via a reserved member row and requires a string-typed fk in v1 — the reserved member is the string `'__unknown__'`; a non-string fk with `unknown_member` is a compile-time `GuardrailError` naming the alternatives, typed per-key sentinels rejected); `reconcile` blocks emit model + non-blocking audit.
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/quality/catalogue.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/quality.py` `tests/unit/test_spec/test_quality.py`
 
-### S-0033/D-9 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-9 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 Silver gains `_quality_flags`/`_quality_ok`; marts gain `has_quality_flags` (S-0027 amendment). Array capability is `DialectFeature.ARRAY` — an engine property, deliberately diverging from Document 5's `TargetCapabilities` placement; dialects without it lower to a delimited string.
 
 - Paths: `src/bloomery/dialects/base.py` `src/bloomery/marts/flatten.py` `src/bloomery/spec/common.py` `tests/unit/test_dialects/test_base.py` `tests/unit/test_steps/test_lowering.py`
 
-### S-0033/D-13 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-13 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 The guardrail boundary (§5.9) is normative: guardrail = the model is wrong, compile time; quality rule = the data is wrong, run time. Nothing decidable from the spec alone enters `quality/`.
 
 - Paths: `src/bloomery/guardrails/metrics.py` `src/bloomery/quality/__init__.py` `src/bloomery/spec/quality.py`
 
-### S-0033/D-21 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-21 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 Ingestion metadata contract: entities using `quarantine` or `dedupe` require bronze `_load_id`, `_ingested_at`, `_source_row_id` (a stable per-source-row identity supplied by the ingestion layer, **NOT NULL and unique per source row** — data properties no compiler can check, so the lowering emits a generated **blocking audit** on the metadata columns: a null or duplicated `_source_row_id` stops the run); column absence is the new compile error `IngestionMetadataMissing` (`GuardrailError` leaf, `errors.py` per S-0019/D-3). `reject_id` = sha256 over the length-prefixed utf-8 **pair** (`source_relation`, `_source_row_id`) — canonical serialization per the S-0020 canon-bytes doctrine. This supersedes the triple this row first carried (this round's own earlier decision): `_load_id` is removed from the identity and becomes an attribute (the latest observing load) — re-deliveries of the same source row across loads must land on the **same** reject row (that is what `first_seen`/`last_seen` track); a per-load identity would mint a new row per retry and violate replay idempotence. A re-delivery updates `last_seen`/`_load_id`/`failed_rules` on the existing row.
 
 - Paths: `src/bloomery/dialects/base.py` `src/bloomery/dialects/trino.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/errors.py` `src/bloomery/guardrails/quality.py` `src/bloomery/quality/catalogue.py` `src/bloomery/quality/dedupe.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/common.py` `src/bloomery/transforms/_builtins.py` `tests/e2e/test_dbt_parse.py` `tests/e2e/test_sqlmesh_project.py` `tests/engines/test_merged_cleaning_engines.py` `tests/execution/test_dedupe_and_audits.py` `tests/execution/test_merged_cleaning.py` `tests/execution/test_zoneless_utc.py` `tests/fixtures/dirty/README.md` `tests/fixtures/semi_additive_inventory/mapping.yaml` `tests/support/execution.py` `tests/unit/test_dialects/test_base.py` `tests/unit/test_dialects/test_trino.py` `tests/unit/test_emit/test_dbt.py` `tests/unit/test_emit/test_quality_artifacts.py` `tests/unit/test_resolve/test_build.py` `tests/unit/test_spec/test_entity.py`
 
-### S-0033/D-23 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-23 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 `_quality_flags` **and** `failed_rules` share one physical contract: rule names identifier-constrained at parse (no escaping in any lowering); the column is never NULL (empty array / empty delimited string per `DialectFeature.ARRAY`); delimited fallback joins with `,` in lexicographic rule-name order; `_quality_ok` generated per shape; flag-set equality across lowerings asserted in the dialect-matrix tier. The reject table's `failed_rules` lowers by exactly this contract — array where `DialectFeature.ARRAY`, else the lexicographic comma-delimited string.
 
 - Paths: `src/bloomery/resolve/build.py` `src/bloomery/spec/common.py` `src/bloomery/spec/quality.py` `tests/engines/test_merged_cleaning_engines.py` `tests/unit/test_quality/test_flags.py` `tests/unit/test_spec/test_quality.py`
 
-### S-0033/D-38 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-38 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-08, M12 fix)* **`reconcile.on_fail` is not a label.** All three values emitted the same non-blocking audit while the quality mart reported `disposition = 'fail'`. `fail` now emits a **blocking** audit — §5.3 nominates reconcile as the pipeline-stopping gate, and that sentence is only true if the value blocks; `flag` stays non-blocking so a disagreement does not withhold the comparison table; `quarantine` lowers non-blocking because a reconcile routes no row, and refusing the value belongs to the spec surface where `on_fail` is typed.
 
 - Paths: `src/bloomery/spec/marts.py`
 
-### S-0033/D-86 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-86 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-10)* **The catalogue gains `normalize` and `charset`, and the confusables table is deliberately not among them. D26 is closed.** D26 offered "a Unicode normal form **and/or** a confusables table"; only the first half is built as offered. `normalize` is `NORMALIZE(col, NFC) <> col` — the dialect-neutral node, rewritten to `NFC_NORMALIZE` inside DuckDB's `render` because DuckDB has that function and no `NORMALIZE`, while SQLGlot's duckdb generator renders one verbatim (the D83 shape: renders everywhere, defined in two places out of three). One form only: Postgres and Trino spell all four, DuckDB spells one, and a rule that compiles everywhere and runs on two engines out of three is what S-0025/D-3 exists to refuse. It is a **rule and never a transform** — normalizing silently would rewrite what a source delivered, which D1 forbids. **The table is refused on determinism grounds:** UTS#39 confusables is versioned Unicode data, so embedding it would make a row's disposition depend on which Unicode revision the compiler shipped — an ambient input by another name (S-0020), and one that would move dispositions under a dependency bump nobody read as a semantic change. `charset` declares the admissible characters instead, as `U+` codepoints and inclusive ranges, exactly one of `allow:`/`forbid:`, lowering through a single `TRANSLATE(col, members, '')` read two ways. Codepoints rather than characters because every character the rule exists to catch is invisible: a literal one in YAML is unreadable in review and indistinguishable from a space in a diff. The `allow` reading turns out to be *stronger* than the table would have been for the case that motivated it — an allow-list of the script a column is written in catches a Cyrillic homoglyph, a fullwidth digit and an Arabic-Indic digit alike, none of which any denylist enumerates completely. Three declaration refusals, all decidable from the spec alone and so `GuardrailError`s: a backwards range, a range crossing the surrogate block (checked on the *span*, not the endpoints — the block is 2048 wide, so an endpoint-only check would leave the real refusal to arrive from `MAX_CHARSET_SIZE`, a constant that has nothing to do with surrogates and could grow), and a set past that cap, which exists because the members become a string literal in every row's predicate and in the IR fingerprint. `TRANSLATE` carries **no** `DialectFeature`: all three engines spell it identically and its delete-when-shorter behaviour was executed on each rather than assumed; a feature flag earns its place where the *port* has to differ, which is why `normalize` has one and this does not. Verified by execution on postgres 16 as a permanent engine tier and on `trinodb/trino:483` by hand (no Trino client dependency yet — S-0026's outstanding work), both agreeing with DuckDB on every specimen including the null. **Found on the way:** the §6 matrix rendered through `node.sql(dialect="duckdb")` rather than through the port, so it executed SQL the emitter never emits. Here that surfaced as a failure — DuckDB has no `NORMALIZE` at all — but the failure is incidental to the direction of this particular rewrite. A port rewrite that produces something the *direct* render also accepts would have diverged silently, with the matrix green on SQL no artifact contains. It is routed through the port now.
 
 - Paths: `src/bloomery/dialects/base.py` `src/bloomery/dialects/duckdb.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/quality/charset.py` `src/bloomery/quality/predicates.py` `src/bloomery/spec/quality.py` `tests/engines/test_postgres_text_rules.py` `tests/golden/schema/mapping.json`
 
-### S-0033/D-87 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-87 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-10)* **`repair` lands, its recipe is a registered `sql_macro`, and its marker is its own column. D17 is closed.** D17 gated the disposition on a repair-recipe contract and left §10 asking *inline vs catalog-referenced*. S-0034's step registry answers both at once: a recipe is `ref@version` into the registry — declared signature, `runtime_lock`, determinism tier, trust-then-verify — and D1 already holds that specs reference implementations and never contain them, so an inline recipe would have been a second, weaker copy of all of it reachable only from here. **The lowering.** The recipe is spliced at IR build, where the registry lives, and travels as SQL in the rule's params the way an `expression` rule's body does — so emission needs no registry, and a version or `runtime_lock` bump lands in the IR where the fingerprint and `plan()` see it (measured: a body change classifies RESTATING and puts the entity in `replay_scope`, because the kind's params define neither an ordered interval nor a membership set and D52's undecidable-means-replay applies). The rewrite happens at the **extract** level, inside the column's own projection: `CASE WHEN <violation over the raw expression> THEN <recipe> ELSE <raw> END`. That placement is what makes every other rule see the repaired value with no extra nesting, and it forces both halves to be rewritten to read the column's expression rather than its name, since the column is being defined in the same `SELECT`. **The marker.** `_quality_repairs` is a separate column, which was cubic's condition in review and is the right one: a rule is recorded there when its recipe *ran and worked* — it fired over the value as delivered and no longer fires over the value that replaced it. `_quality_flags` stays empty for a repaired row, so `has_quality_flags` keeps meaning **currently suspect** and no mart already asking that question changes its answer. Unlike the two universal columns it is emitted only where a repair rule exists: §12 budgeted the silver-schema churn once, and a third column empty for every project not using the feature is not worth re-opening every golden and fingerprint for. **`fallback` is required**, for the same reason `on_fail` is (D2): a recipe that ran and failed leaves the rule violated and the row is disposed of exactly as if no repair had been declared — the alternative, a still-broken value landing in silver marked as fixed, is the `drop` this RFC refuses wearing a friendlier name. **Refusals**, each a property of the declaration alone: `repair` on `coercible` (it fires *because* the projection is already NULL, so the recipe would be handed the NULL rather than the text that failed to cast — fixing a value before coercion is a Tier 1 macro in the mapping, and the message says so), on `unique` (a property of a population; no rewrite of one row makes a duplicate unique), on a row rule (no column to rewrite), two repair rules on one column (both rewrite the same projection, so which value survives would depend on authoring order and the second recipe would judge a value the first had changed), a recipe accepting more than one column (a rule has no `from:` map, and inventing one would make a rule a second mapping surface), and a column the dedupe order reads (dedupe runs *before* the field rules per D7, so the winner would be chosen on the value as delivered and then have that value rewritten underneath it — D6's reasoning exactly). Verified by executing the emitted pipeline over three rows — one the recipe fixes, one it cannot, one it must not touch — and by sabotage: disabling the recipe, and dropping the "did it run" conjunct from the marker, each fail the assertion that names them. **Not built:** `gold.mart_data_quality` gains no `rows_repaired`, so repairs are observable in silver and not in the quality mart. Recorded rather than implied — adding a measure changes the mart schema, and no demand has asked for it.
 
 - Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/ir/nodes.py` `src/bloomery/quality/lower.py` `src/bloomery/quality/predicates.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/common.py` `src/bloomery/spec/quality.py` `tests/golden/schema/entity_model.json` `tests/golden/schema/mapping.json` `tests/golden/schema/steps.json` `tests/unit/test_spec/test_quality.py`
 
-### S-0033/D-89 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-89 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-10)* **Mart-level checks are assertions, not quality rules. §10's open question is settled by the disposition model.** §8 deferred them as "blurs into reconciliation" and §10 asked "reconcile-shaped or new surface?" — the answer is neither, and what decides it is not taste. §5.9 draws the boundary at what a verdict *does*: a quality rule disposes of a **row**. A mart row is derived — no `_source_row_id`, no bronze payload, no reject table, no replay — so there is nothing to quarantine, nothing to repair, and nothing to bring back; and a `reconcile` compares *two sides*, which "no month has zero revenue" is not. What is left is D4's other half, "alert me", so `assert:` on a mart declares `{measure, agg, by, min/max, on_fail}` and lowers to an audit the mart model names. `quarantine` and `repair` are absent from its `on_fail` rather than lowered to something weaker, so an author who wanted routing learns it at the surface instead of from a mart that silently only alerts; `fail`/`flag` map to blocking/non-blocking exactly as `reconcile.on_fail` does (D38). The aggregate vocabulary is deliberately the *same tuple* the reconcile grammar uses — both compute one number over a column so a human can be told it is wrong, and two lists that mean the same thing drift. Bounds ride in `params` as text through the D57 carrier, for the same reason. **Resolution is against the flattened column set**, not the base entity's: `ordered_month` exists only because a `date:` step made it, and it is precisely the column §10's example groups by. **The body** is `SELECT <by…>, <agg>(<measure>) FROM @this_model [GROUP BY <by…>] HAVING <bound comparison>` — the value beside the group, because a failure a human must open the warehouse to understand gets ignored. A bare `HAVING` with no `GROUP BY` is the whole-mart form; both shapes were executed on DuckDB, postgres 16 and `trinodb/trino:483` rather than read out of three manuals, and all three agree. **What it cannot see, stated rather than implied:** D19 reaches the mart, so every aggregate but `count` is NULL over an empty group and the assertion stays silent — which is also why an assertion cannot notice a month that is *entirely missing*: no row means no group at all. `count` is the exception and is the one shape that catches an empty mart. Closing the missing-period case needs a join against the date spine, a coverage check with its own dependency, and it is named here rather than half-built. **dbt refuses a project carrying one**, sharing `refuse_steps`' message shape (**amended by D94**: this row said "dbt and Cube", and the Cube half was already obsolete when it was written — S-0034/D-52 had split the blanket Cube refusal on the argument that Cube builds no relation for anything, and Cube compiles the *entire* quality surface, quarantine and reject tables included, without a murmur; refusing this one check would single it out): neither has the audit form, and compiling clean while the declared gate does not exist is the failure D83 caught in the dialect ports. **Cost recorded:** `MartIR` gains a field, and the canonical encoder covers each node's field *names and count*, so every fingerprint in the corpus moves — the churn §12 budgets, spent deliberately. The fixture carrying the demonstration is `quality_precedence` rather than `ecom_basic`, because an assertion makes a project uncompilable for two targets and `ecom_basic` is the fixture those targets' goldens are built on.
 
 - Paths: `src/bloomery/emit/base.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/reconcile.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/marts/flatten.py` `src/bloomery/spec/marts.py` `tests/execution/test_quality_precedence.py` `tests/fixtures/quality_precedence/marts.yaml` `tests/golden/schema/marts.json`
 
-### S-0033/D-90 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-90 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-10)* **Cross-entity checks are `coverage:` on a relationship, and the audit hangs off the *dependent* side. §10's last open question is settled.** §10 guessed "probably reconcile-style"; it is not, and the reason is structural rather than stylistic. A `reconcile` compares two **values** and alerts beyond a tolerance — there is no right-hand value on the referenced entity to compare against, and `right: 1` is neither a shape the closed grammar admits nor one it should grow. This asserts **existence**: every row of a relationship's referenced entity has at least `min` rows referencing it. That makes it the mirror of `referential`, which asks whether every *dependent* row has a parent, and both read the same two relations through the same `via` pairs — which is why it is declared on the **relationship** rather than on either entity. **Why an audit, when a disposition would have been meaningful.** Unlike a mart row (D89), a childless customer is a real silver row with a source identity, a reject table and a replay path, so routing it is not nonsense. It is still an audit, for a reason that only shows up in the DAG: routing would need the *referenced* entity's model to read the *dependent* one, while the dependent one already reads the referenced one through this very relationship — so the pair that most wants this check (an FK one way, a coverage check the other) is exactly the pair whose models would form a cycle. Attaching the audit to the dependent side instead adds **no edge the relationship did not already imply**. `on_fail` is `fail`/`flag` only; `quarantine` and `repair` are absent from the surface rather than lowered to something weaker. **Two emission details that are each a trap closed.** The body counts a *dependent* column, never `COUNT(*)`: a `LEFT JOIN` still produces one output row for an unmatched left row, so `COUNT(*)` answers 1 for a customer with no orders at all and the check would pass on precisely the rows it exists to find. And the dependent side is `@this_model` rather than a named relation — the macro is the one reference SQLMesh rewrites inside an AUDIT body (D29), so naming the relation resolved to the virtual layer *and* put the model into its own `depends_on`, which is how the first cut emitted it. The referenced side is a sibling and is declared in `depends_on`, the trap D40 closed for step audits. Verified by a real SQLMesh plan on a fixture added to the e2e tier for it: the comment above `step_resolution` there argues that nothing else loads SQLMesh and that the gap hid three defects in a row, and this is the same shape — an audit body joining a sibling, with a `depends_on` that exists only because of the audit. dbt refuses the project (its tests are predicates, with no grouped cross-relation form); Cube is not asked, because it builds nothing (S-0034/D-52). **Cost:** `ProjectIR` gains a field, so every fingerprint moves. **Not closed:** the check counts rows that *reached* silver, so a referenced row quarantined by its own rules reads as absent — right for "has an order", wrong for a check somebody phrases as "exists", and named here rather than discovered.
 
 - Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/reconcile.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/guardrails/quality.py` `src/bloomery/ir/nodes.py` `src/bloomery/quality/lower.py` `src/bloomery/spec/entity.py` `tests/e2e/test_sqlmesh_replan.py` `tests/fixtures/coverage_check/entity_model.yaml` `tests/fixtures/dirty_corpus/entity_model.yaml` `tests/unit/test_fixtures.py`
 
-### S-0033/D-92 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-92 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-11)* **`Reconcile.on_fail` is `flag | fail`, not the full disposition vocabulary.** It was typed `OnFailName`, so `quarantine` and `repair` parsed. Neither means anything here: a reconcile compares two *aggregates*, so there is no row to divert and no recipe surface to carry a repair. `repair` lowered to `OnFail.REPAIR` with no recipe and no fallback, went non-blocking, and wrote "repair" into the quality mart's disposition column as though it were a disposition something had applied. Narrowed at the spec surface, where the other row-routing refusals live.
 
 - Paths: `src/bloomery/emit/lower/reconcile.py` `src/bloomery/spec/quality.py`
 
-### S-0033/D-95 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-95 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-12)* **An `expression` rule is a predicate over the entity's own columns — enforced, not merely documented.** `ExpressionRule.expr` was a bare string, parsed and spliced into the silver model with nothing checking it: the one authored-SQL surface in the framework with no resolution step, while every neighbour has one (`dedupe` columns D47, `reconcile` sides against a closed grammar, mart `assert` measures, recipe aliases exactly, `coverage` endpoints D91). Three refusals, each closing something **measured** rather than imagined. **A subquery**, and the reason is corruption at least as much as access: the qualifier pass that binds a bare column to the extract descends *into* a subquery, so `amt > (SELECT amt FROM other)` was emitted as `_extract.amt > (SELECT _extract.amt FROM other)` — correlated to the outer row, reading nothing from `other`. Executed on DuckDB with `amt` 10 against 1: the author's predicate is true so the rule must not fire, and it fired, flagging a good row — under `quarantine` that diverts it out of silver, which is data loss from a rule that reads correctly in the spec. A row predicate needs no subquery, and one that did could not be trusted to mean what it says; a comparison against another relation is what `reconcile:` is for. **A column the entity does not declare** — D47's own words, "a run-time binder failure on a model that compiled clean". **A qualified reference**, because the extract supplies the qualifier and a written one either names a relation the rule cannot read or shadows bloomery's. **Left open, deliberately:** the function vocabulary. `amt > pg_sleep(10)` still compiles, and narrowing that means giving expression rules a closed function list the way S-0021 gives transform chains one — a design decision about the surface, not a defect anything here demonstrated. Recorded rather than quietly widened, because the difference between "measured and fixed" and "seemed unsafe so I restricted it" is the difference this corpus is written to preserve.
 
 - Paths: `src/bloomery/guardrails/quality.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/common.py` `tests/unit/test_spec/test_sql_text.py`
 
-### S-0033/D-96 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-96 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-12)* **A `pattern` rule may not nest unbounded repetition, because the cost is invisible from the spec and lands on one engine only.** The portable-subset scanner asked whether a regex *means* the same thing on every dialect (D5) and never what it *costs*. `^(?:a+)+$` passed — capturing groups are already refused, so the audit's first example was wrong, but `(?:…)` is accepted and reaches the engine. That is the textbook catastrophic-backtracking shape: two quantifiers can split one input exponentially many ways, and a non-matching subject makes the matcher try all of them. **Why the spec layer and not the engine.** DuckDB (RE2) and Trino (RE2J) match in linear time and would shrug; **Postgres** backtracks. So the rule passes review on the dialect a developer runs locally and hangs the one production uses — the same "silently means something else on another dialect" failure D5 exists to prevent, with the argument applied to cost rather than meaning. The check is one flag per open group in the existing single-pass scanner: an **unbounded** quantifier (`*`, `+`, `{n,}`) applied to a group whose body matches a **varying** length. The two halves are deliberately different tests, and the first cut got it wrong by using "unbounded" for both — review caught that `^(?:a{1,2})+b$` was still accepted, and measurement confirmed it: matching 26 `a`s takes 0.008s, 24 takes 0.003s, doubling every two characters. A bounded-but-ambiguous body partitions the input exponentially just as an unbounded one does; only a *fixed*-length body (`{n}`, or no quantifier at all) can be split exactly one way. So `?` now marks a body ambiguous without making an outer repetition unbounded. Bounding **either** side still makes it linear: `(?:a+){1,8}` and `(?:[0-9]{3}-)*` both pass. This conservatively refuses `(?:ab?)+`, which is unambiguous in practice — stated rather than hidden, because the alternative is the overlap analysis rejected below. **The gap, recorded rather than papered over:** alternation overlap. `^(?:a
 

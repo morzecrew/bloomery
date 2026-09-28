@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/bloomery/`
 
-### S-0002/D-2 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-2 — `LOCKED` (Multi-project composition)
 
 What crosses is the upstream's compiled IR, passed to the compile as an argument — not its spec documents, and not a path bloomery opens; the upstream is keyed by a local alias the downstream chooses, because a project has no identity of its own
 
@@ -10,14 +10,14 @@ What crosses is the upstream's compiled IR, passed to the compile as an argument
 - Consequence: Mappings, steps and quality surfaces stay outside the boundary, because re-resolving upstream documents downstream would put all three inside it; and an alias the compile was not given is refused with `UnknownUpstream` rather than resolving to nothing
 - Check: `uv run pytest tests/unit/test_spec/test_imports.py tests/unit/test_guardrails/test_imports.py -q` (shadow; runs as `decision:S-0002/D-2`, no log entry owed)
 
-### S-0002/D-7 — `ASSUMED` (Multi-project composition) — implementation: partial
+### S-0002/D-7 — `ASSUMED` (Multi-project composition)
 
 Two composing projects must share a naming policy; whether a mismatch is a refusal depends on the upstream IR recording the policy it was compiled under
 
 - Paths: `src/bloomery/naming.py` `src/bloomery/emit/base.py`
 - Consequence: Without a shared policy the downstream names relations the upstream never created, and the failure surfaces in the warehouse rather than in the compile — which is the worst place for it
 
-### S-0002/D-8 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-8 — `LOCKED` (Multi-project composition)
 
 No registry, no packaging, no network: how the upstream artifact reaches the compile is the caller's problem — a path, a checkout, a CI artifact — and bloomery reads what it is handed
 
@@ -142,14 +142,14 @@ Whether each of the two narrow-handler sites gains `RecursionError` or a depth l
 - Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/steps.py`
 - Consequence: A depth limit raising a named error adds a class to `src/bloomery/errors.py` and an entry to `pages/docs/reference/errors.md`; widening the catch adds neither, and the two sites may legitimately get different answers
 
-### S-0011/D-6 — `ASSUMED` (Retrieval semantics) — implementation: partial
+### S-0011/D-6 — `ASSUMED` (Retrieval semantics)
 
 The retrieval manifest is emitted by a target of its own, not alongside another target's artifacts
 
 - Paths: `src/bloomery/compile.py` `src/bloomery/emit/**`
 - Consequence: A project's retrieval contract is independent of which analytical framework it compiles for, at the cost of a target enum member that names an artifact rather than a consumer
 
-### S-0011/D-10 — `LOCKED` (Retrieval semantics) — implementation: partial
+### S-0011/D-10 — `LOCKED` (Retrieval semantics)
 
 A vendor-oriented vector emitter is `register_emitter`, out of tree, and stays there until it has an artifact contract someone has run; no vector-database member of the target enum
 
@@ -157,7 +157,7 @@ A vendor-oriented vector emitter is `register_emitter`, out of tree, and stays t
 - Consequence: The capability is available to anyone who wants it without core carrying a vendor's name or its compatibility promise
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0011/D-13 — `ASSUMED` (Retrieval semantics) — implementation: partial
+### S-0011/D-13 — `ASSUMED` (Retrieval semantics)
 
 Runtime-evidence intake is excluded from this design: no null-rate, freshness or other measured-input rule ships under a retrieval heading
 
@@ -316,25 +316,25 @@ Filters (Jinja `where_constraints`) are the highest-risk surface: values never i
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/planner/filters.py` `src/bloomery/planner/parse.py` `src/bloomery/planner/request.py` `src/bloomery/spec/metrics.py` `src/bloomery/spec/quality.py` `tests/execution/test_period_over_period.py` `tests/property/test_planner_properties.py` `tests/unit/test_guardrails/test_metrics.py` `tests/unit/test_planner/test_filters.py` `tests/unit/test_planner/test_request.py` `tests/unit/test_spec/test_metrics.py` `tests/unit/test_spec/test_quality.py`
 
-### S-0033/D-6 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-6 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 Entity-level `dedupe` requires `tie_break` under `keep: latest_by` (nondeterministic winners violate the core invariant); dedupe-referenced fields' `coercible` is forced to `fail`. Row rules `expression` and `referential` (`on_missing ∈ {unknown_member, quarantine, flag}` — `fail` deliberately excluded: orphans are an expected, recoverable data condition; a pipeline-stopping orphan gate is a `reconcile` check; `unknown_member` keeps aggregates correct via a reserved member row and requires a string-typed fk in v1 — the reserved member is the string `'__unknown__'`; a non-string fk with `unknown_member` is a compile-time `GuardrailError` naming the alternatives, typed per-key sentinels rejected); `reconcile` blocks emit model + non-blocking audit.
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/quality/catalogue.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/quality.py` `tests/unit/test_spec/test_quality.py`
 
-### S-0033/D-10 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-10 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 One `<entity>__reject` table per entity with the §5.6 schema (stable sha256 `reject_id` for idempotent replay). Retention is **required** whenever any quarantine disposition exists — missing retention is a compile error; retention deletes **all** reject rows on expiry (unresolved measured from `last_seen`, resolved from `resolved_at`) and is the only deleter — replay never deletes. `redact:` paths apply at write time and must not intersect any path the entity's mappings read (`from` paths, recipe aliases included) — an intersecting redact is the compile error `RedactionConflict`. Bloomery emits the reject/replay artifacts and never executes them.
 
 - Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/errors.py` `src/bloomery/ir/nodes.py` `src/bloomery/resolve/build.py` `tests/engines/test_merged_cleaning_engines.py` `tests/fixtures/multi_source_quality/entity_model.yaml` `tests/unit/test_guardrails/test_quality.py`
 
-### S-0033/D-21 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-21 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 Ingestion metadata contract: entities using `quarantine` or `dedupe` require bronze `_load_id`, `_ingested_at`, `_source_row_id` (a stable per-source-row identity supplied by the ingestion layer, **NOT NULL and unique per source row** — data properties no compiler can check, so the lowering emits a generated **blocking audit** on the metadata columns: a null or duplicated `_source_row_id` stops the run); column absence is the new compile error `IngestionMetadataMissing` (`GuardrailError` leaf, `errors.py` per S-0019/D-3). `reject_id` = sha256 over the length-prefixed utf-8 **pair** (`source_relation`, `_source_row_id`) — canonical serialization per the S-0020 canon-bytes doctrine. This supersedes the triple this row first carried (this round's own earlier decision): `_load_id` is removed from the identity and becomes an attribute (the latest observing load) — re-deliveries of the same source row across loads must land on the **same** reject row (that is what `first_seen`/`last_seen` track); a per-load identity would mint a new row per retry and violate replay idempotence. A re-delivery updates `last_seen`/`_load_id`/`failed_rules` on the existing row.
 
 - Paths: `src/bloomery/dialects/base.py` `src/bloomery/dialects/trino.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/errors.py` `src/bloomery/guardrails/quality.py` `src/bloomery/quality/catalogue.py` `src/bloomery/quality/dedupe.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/common.py` `src/bloomery/transforms/_builtins.py` `tests/e2e/test_dbt_parse.py` `tests/e2e/test_sqlmesh_project.py` `tests/engines/test_merged_cleaning_engines.py` `tests/execution/test_dedupe_and_audits.py` `tests/execution/test_merged_cleaning.py` `tests/execution/test_zoneless_utc.py` `tests/fixtures/dirty/README.md` `tests/fixtures/semi_additive_inventory/mapping.yaml` `tests/support/execution.py` `tests/unit/test_dialects/test_base.py` `tests/unit/test_dialects/test_trino.py` `tests/unit/test_emit/test_dbt.py` `tests/unit/test_emit/test_quality_artifacts.py` `tests/unit/test_resolve/test_build.py` `tests/unit/test_spec/test_entity.py`
 
-### S-0033/D-56 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-56 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-08, M12 fix)* **The dialects a `pattern` is checked against are the shipped ports, never the registry.** `registered_dialects()` is process-global and mutable, so an extension dialect registered by an unrelated import could decide whether an existing project compiles — the ambient dependency S-0020 exists to forbid, and one no golden would catch. The checked set is the constant `PATTERN_TARGET_DIALECTS = (duckdb, postgres, trino)`, overridable by an explicit argument the caller supplies. Recorded consequence: an extension dialect is no longer checked at compile time. Checking it would mean plumbing a dialect set into `build_project_ir`, which is dialect-free by construction and right to be — a project is portable or it is not, and the guardrail stage has no target. Named as the escape hatch, not built.
 

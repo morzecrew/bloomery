@@ -15,6 +15,7 @@ amendments:
   - id: A-2
     at: '2026-09-28T12:48:33Z'
     title: >-
+      Phase 1 is scoped to where the advisory and the refusal live
     md: |-
       T-0175's first attempt halted on the scope: it named
       `src/bloomery/observability/**`, which no tree has, while the advisory the

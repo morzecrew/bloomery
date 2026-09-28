@@ -4,7 +4,7 @@ title: >-
   Data quality: declarative cleansing, dispositions, quarantine
 kind: design
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: []
 informed_by: []
 supersedes: []
@@ -36,6 +36,10 @@ motivation: |-
   route a row. The missing piece is a disposition system, in the spec, so the backfill
   is computed, not remembered.
 current_state: |-
+  **Implemented (2026-09-28).** Every phase landed through #206; the landing records
+  under `execution/` are the evidence, and `implementation: complete` above is the
+  status. What follows is the state as the design was accepted, kept as written.
+
   Verified against the code (the source document predates M5–M11):
 
   - `Mapping.on_unmapped_enum: Literal["quarantine"]`

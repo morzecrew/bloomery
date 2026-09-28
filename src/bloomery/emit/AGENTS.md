@@ -2,28 +2,28 @@
 
 ## Decisions governing `src/bloomery/emit/`
 
-### S-0002/D-7 — `ASSUMED` (Multi-project composition) — implementation: partial
+### S-0002/D-7 — `ASSUMED` (Multi-project composition)
 
 Two composing projects must share a naming policy; whether a mismatch is a refusal depends on the upstream IR recording the policy it was compiled under
 
 - Paths: `src/bloomery/naming.py` `src/bloomery/emit/base.py`
 - Consequence: Without a shared policy the downstream names relations the upstream never created, and the failure surfaces in the warehouse rather than in the compile — which is the worst place for it
 
-### S-0011/D-6 — `ASSUMED` (Retrieval semantics) — implementation: partial
+### S-0011/D-6 — `ASSUMED` (Retrieval semantics)
 
 The retrieval manifest is emitted by a target of its own, not alongside another target's artifacts
 
 - Paths: `src/bloomery/compile.py` `src/bloomery/emit/**`
 - Consequence: A project's retrieval contract is independent of which analytical framework it compiles for, at the cost of a target enum member that names an artifact rather than a consumer
 
-### S-0011/D-7 — `ASSUMED` (Retrieval semantics) — implementation: partial
+### S-0011/D-7 — `ASSUMED` (Retrieval semantics)
 
 The manifest inlines each profile's space fully rather than referencing it by name
 
 - Paths: `src/bloomery/emit/**`
 - Consequence: The manifest is larger and repeats a space shared by several profiles, and in exchange it is readable by a consumer that has no access to the spec tree
 
-### S-0011/D-10 — `LOCKED` (Retrieval semantics) — implementation: partial
+### S-0011/D-10 — `LOCKED` (Retrieval semantics)
 
 A vendor-oriented vector emitter is `register_emitter`, out of tree, and stays there until it has an artifact contract someone has run; no vector-database member of the target enum
 
@@ -67,7 +67,7 @@ Every artifact carries a header comment with the project fingerprint — applied
 
 - Paths: `src/bloomery/emit/base.py`
 
-### S-0033/D-89 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-89 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-10)* **Mart-level checks are assertions, not quality rules. §10's open question is settled by the disposition model.** §8 deferred them as "blurs into reconciliation" and §10 asked "reconcile-shaped or new surface?" — the answer is neither, and what decides it is not taste. §5.9 draws the boundary at what a verdict *does*: a quality rule disposes of a **row**. A mart row is derived — no `_source_row_id`, no bronze payload, no reject table, no replay — so there is nothing to quarantine, nothing to repair, and nothing to bring back; and a `reconcile` compares *two sides*, which "no month has zero revenue" is not. What is left is D4's other half, "alert me", so `assert:` on a mart declares `{measure, agg, by, min/max, on_fail}` and lowers to an audit the mart model names. `quarantine` and `repair` are absent from its `on_fail` rather than lowered to something weaker, so an author who wanted routing learns it at the surface instead of from a mart that silently only alerts; `fail`/`flag` map to blocking/non-blocking exactly as `reconcile.on_fail` does (D38). The aggregate vocabulary is deliberately the *same tuple* the reconcile grammar uses — both compute one number over a column so a human can be told it is wrong, and two lists that mean the same thing drift. Bounds ride in `params` as text through the D57 carrier, for the same reason. **Resolution is against the flattened column set**, not the base entity's: `ordered_month` exists only because a `date:` step made it, and it is precisely the column §10's example groups by. **The body** is `SELECT <by…>, <agg>(<measure>) FROM @this_model [GROUP BY <by…>] HAVING <bound comparison>` — the value beside the group, because a failure a human must open the warehouse to understand gets ignored. A bare `HAVING` with no `GROUP BY` is the whole-mart form; both shapes were executed on DuckDB, postgres 16 and `trinodb/trino:483` rather than read out of three manuals, and all three agree. **What it cannot see, stated rather than implied:** D19 reaches the mart, so every aggregate but `count` is NULL over an empty group and the assertion stays silent — which is also why an assertion cannot notice a month that is *entirely missing*: no row means no group at all. `count` is the exception and is the one shape that catches an empty mart. Closing the missing-period case needs a join against the date spine, a coverage check with its own dependency, and it is named here rather than half-built. **dbt refuses a project carrying one**, sharing `refuse_steps`' message shape (**amended by D94**: this row said "dbt and Cube", and the Cube half was already obsolete when it was written — S-0034/D-52 had split the blanket Cube refusal on the argument that Cube builds no relation for anything, and Cube compiles the *entire* quality surface, quarantine and reject tables included, without a murmur; refusing this one check would single it out): neither has the audit form, and compiling clean while the declared gate does not exist is the failure D83 caught in the dialect ports. **Cost recorded:** `MartIR` gains a field, and the canonical encoder covers each node's field *names and count*, so every fingerprint in the corpus moves — the churn §12 budgets, spent deliberately. The fixture carrying the demonstration is `quality_precedence` rather than `ecom_basic`, because an assertion makes a project uncompilable for two targets and `ecom_basic` is the fixture those targets' goldens are built on.
 

@@ -64,7 +64,7 @@ What happens to a rule identifier when a rule is split or subsumed. They become 
 - Consequence: A corpus case, a refusal code and a rendered derivation all name a rule identifier, so an identifier silently repointed changes what a pinned assertion means without changing the assertion
 - Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_a_superseded_rule_keeps_its_entry -q` (shadow; runs as `decision:S-0005/D-8`, no log entry owed)
 
-### S-0007/D-1 — `LOCKED` (Dimension algebra) — implementation: partial
+### S-0007/D-1 — `LOCKED` (Dimension algebra)
 
 Every relation is declared, never inferred — not from column names, not from cardinality, not from the data. One `GROUP BY` would answer `determines:` exactly, and from a single load of a source that has no counterexample yet; an inference cannot be told from a declaration once written down
 
@@ -72,7 +72,7 @@ Every relation is declared, never inferred — not from column names, not from c
 - Consequence: A relation has exactly the standing of a declared `many_to_one`: the compiler reads what an author wrote and never looks at a row, so nothing in the closure or the spec models may consult data or guess from a name
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0007/D-2 — `LOCKED` (Dimension algebra) — implementation: partial
+### S-0007/D-2 — `LOCKED` (Dimension algebra)
 
 A fact with no consumer is not added. Each of the three relations is listed with the rule or surface that reads it, and one that loses its consumer during execution is dropped rather than landed
 
@@ -80,7 +80,7 @@ A fact with no consumer is not added. Each of the three relations is listed with
 - Consequence: A vocabulary that outruns its rules is a spec surface nobody can be refused by, which is a promise the compiler does not keep; a relation reaching the spec models without its rule reaching `RULES` is the shape this forbids
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0007/D-3 — `LOCKED` (Dimension algebra) — implementation: partial
+### S-0007/D-3 — `LOCKED` (Dimension algebra)
 
 A dimension is not an entity. Modelling `city` and `state` as entities with a declared `many_to_one` would reuse R002 exactly and is rejected: it taxes a two-column fact with a grain, a key and a mapping, and it puts every hierarchy level into the lineage graph as a node nobody builds
 
@@ -88,7 +88,7 @@ A dimension is not an entity. Modelling `city` and `state` as entities with a de
 - Consequence: The column-to-column determination needs its own fact and its own closure; the entity-keyed machinery is not extended to carry it, and a project with a five-level geography gains no entities
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0007/D-7 — `OPEN` (Dimension algebra) — implementation: partial
+### S-0007/D-7 — `OPEN` (Dimension algebra)
 
 Whether R020 requires a determinant of every dropped dimension or merely proves more when one is present. Requiring refuses rollups that are legal today; proving more leaves them where they are and may be the honest answer. Decide with one real rollup corpus in hand
 

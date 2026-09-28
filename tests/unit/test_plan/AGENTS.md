@@ -26,13 +26,13 @@ Entity-level `grain`/`key`/`scd`/`materialization` changes are BREAKING at the e
 
 - Paths: `src/bloomery/plan/diff.py` `tests/fixtures/evolution_v5/entity_model.yaml` `tests/unit/test_plan/test_diff.py`
 
-### S-0033/D-2 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-2 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 `OnFail = flag | quarantine | fail` (v1 — `repair` deferred, decision 17; landed in D87), explicit per rule, never a global default. Deliberately no `drop`: quarantine is drop plus recoverability; deletion happens via retention policy, with a paper trail.
 
 - Paths: `src/bloomery/ir/nodes.py` `src/bloomery/plan/diff.py` `src/bloomery/spec/quality.py` `tests/unit/test_ir/test_nodes.py` `tests/unit/test_plan/test_quality_changes.py` `tests/unit/test_spec/test_quality.py`
 
-### S-0033/D-57 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-57 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-08, M12 fix)* **`range` bounds are exact or refused.** `min`/`max` typed `int
 

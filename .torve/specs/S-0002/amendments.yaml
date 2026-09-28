@@ -42,6 +42,7 @@ amendments:
   - id: A-5
     at: '2026-09-28T07:47:05Z'
     title: >-
+      Phases 7 and 8: the command compiles an importing project
     md: |-
       Two gaps the 0.3.0 changelog recorded rather than closed. Composition landed
       reachable from Python only: `compile_project(upstream=...)` is the whole
