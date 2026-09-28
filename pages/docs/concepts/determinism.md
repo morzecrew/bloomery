@@ -74,6 +74,14 @@ moves whenever the upstream moves, and it is byte-identical whenever neither doe
 Reformatting the upstream's spec documents does not move its IR, so it does not move
 its fingerprint, so the downstream is undisturbed.
 
+**A fingerprint is not an identity.** The same rule read the other way: a project's
+fingerprint moves the moment anything above it moves, so it cannot say *who* a project
+is across two compiles — and recognising a project is exactly what refusing an import
+cycle needs. That identity is the export `name`, and nothing else. It is why a project
+that both imports and exports must declare one (`NamelessImporter`), and why the chain
+each upstream carries with it is a list of names, with fingerprints riding beside them
+for the refusal message alone.
+
 ## The rules
 
 Stated once, applied package-wide:

@@ -80,6 +80,7 @@ from bloomery.cli.render import (
 )
 from bloomery.cli.serialize import SpecEncoder
 from bloomery.errors import BloomeryError
+from bloomery.ir import ir_from_json, ir_json
 from bloomery.naming import DefaultNaming
 from support.compiling import COLLIDING_ID_SOURCES, fixture_sources, load_fixture
 
@@ -2775,3 +2776,116 @@ def test_import_reports_a_bad_flag_even_when_the_specs_are_also_broken(
 
     assert code == EXIT_USAGE
     assert "expected 'model=entity'" in err
+
+
+# ....................... #
+# Composing across projects — `--emit-ir` and `--upstream` (S-0002/D-2, S-0002/D-8)
+
+
+DOWNSTREAM = str(FIXTURES / "cross_project" / "downstream")
+
+
+def _emit_ir(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> Path:
+    """The upstream's IR on disk, written by the command a caller would run."""
+    destination = tmp_path / "ir" / "platform.json"
+    code, _out, err = run(capsys, "compile", ECOM, "--emit-ir", str(destination))
+    assert code == EXIT_OK, err
+
+    return destination
+
+
+def test_emit_ir_writes_the_ir_the_api_builds(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    project, catalog = load_fixture("ecom_basic")
+    destination = _emit_ir(capsys, tmp_path)
+
+    assert destination.read_text() == ir_json(build_project_ir(project, catalog=catalog))
+
+
+def test_compile_reads_back_an_upstream_it_wrote_a_moment_earlier(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The end-to-end composition, as the how-to spells it.
+
+    The assertion is the *artifacts*, not the exit code: what the command
+    passes through has to be the value a Python caller passes, or the resolver,
+    the guardrails and the fingerprint are reading something else (S-0002/D-2).
+    """
+    written = _emit_ir(capsys, tmp_path)
+    expected = compile_project(
+        load_project(fixture_sources("cross_project/downstream")),
+        target=Target.DBT,
+        dialect="duckdb",
+        upstream={"platform": ir_from_json(written.read_text())},
+    )
+
+    out_dir = tmp_path / "downstream"
+    code, _out, err = run(
+        capsys,
+        "compile",
+        DOWNSTREAM,
+        "--target",
+        "dbt",
+        "--upstream",
+        f"platform={written}",
+        "--out",
+        str(out_dir),
+    )
+
+    assert code == EXIT_OK, err
+    for artifact in expected:
+        assert (out_dir / artifact.path).read_text() == artifact.content
+    assert "ecom_platform" in (out_dir / "dependencies.yml").read_text()
+
+
+def test_the_same_project_without_the_upstream_is_refused(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # The gap `--upstream` closes, pinned: an imports document with nothing
+    # passed is `UnknownUpstream`, and the CLI could hand over nothing at all.
+    code, _out, err = run(capsys, "compile", DOWNSTREAM)
+
+    assert code == EXIT_REFUSED
+    assert "which this compile was not given" in err
+
+
+def test_a_malformed_upstream_pair_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code, _out, err = run(capsys, "compile", DOWNSTREAM, "--upstream", "platform.json")
+
+    assert code == EXIT_USAGE
+    assert "expected 'alias=path'" in err
+
+
+def test_an_alias_given_twice_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    written = _emit_ir(capsys, tmp_path)
+
+    code, _out, err = run(
+        capsys,
+        "compile",
+        DOWNSTREAM,
+        "--upstream",
+        f"platform={written}",
+        "--upstream",
+        f"platform={written}",
+    )
+
+    assert code == EXIT_USAGE
+    assert "is given twice" in err
+
+
+def test_an_upstream_path_that_is_not_there_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    # The path is the caller's and bloomery reads what it is handed (D8): a
+    # path that is not there is the invocation being wrong, not the spec.
+    missing = tmp_path / "nowhere.json"
+
+    code, _out, err = run(capsys, "compile", DOWNSTREAM, "--upstream", f"platform={missing}")
+
+    assert code == EXIT_USAGE
+    assert "not a file" in err

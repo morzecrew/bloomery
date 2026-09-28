@@ -1,0 +1,9 @@
+# The second project of the loop (S-0002/D-4); `loop_a` states the shape.
+spec_version: 1
+entities:
+  beta:
+    grain: one row per beta
+    key: [beta_id]
+    fields:
+      beta_id: {type: string, required: true}
+      noted_at: {type: timestamp}

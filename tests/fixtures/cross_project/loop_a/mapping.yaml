@@ -1,0 +1,7 @@
+mapping_version: 1
+source: raw__alphas
+target: alpha
+key:
+  alpha_id: {from: "$.id", transform: [to_string]}
+fields:
+  noted_at: {from: "$.noted_at"}

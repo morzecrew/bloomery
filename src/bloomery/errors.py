@@ -72,6 +72,8 @@ __all__ = [
     "MartMissingTimeDimension",
     "DanglingExport",
     "ImportCollision",
+    "ImportCycle",
+    "NamelessImporter",
     "DanglingExposure",
     "InsufficientEvidence",
     "ReservedEntityName",
@@ -676,6 +678,38 @@ class UnknownUpstream(GuardrailError):
     ) -> None:
         super().__init__(message, source_path=source_path, collected=collected)
         self.supplied = supplied
+
+
+class NamelessImporter(GuardrailError):
+    """Guardrail stage (S-0002/D-4, `LOCKED`): a project that both imports and
+    exports declares no export ``name``.
+
+    The identity a cycle check needs. A fingerprint is not one — it moves the
+    moment the project imports anything, so a project would never recognise
+    itself in a chain by it — and an alias is the *downstream's* spelling, so
+    it says nothing about who the upstream is. That leaves the export name,
+    which is why a project in the middle of a chain must declare one.
+
+    A project that exports without a name may still be imported: nothing above
+    it has to recognise it. It may not import, because nothing below it ever
+    could.
+    """
+
+
+class ImportCycle(GuardrailError):
+    """Guardrail stage (S-0002/D-4, `LOCKED`): an upstream whose own chain of
+    upstreams reaches back to this project.
+
+    Refused, never resolved. Two projects that each name the other's export
+    never compile — neither can be built first — and no order is invented for
+    them, because what a cycle needs is an author's decision about which
+    project owns the shared concept.
+
+    One compile cannot form a cycle on its own: an upstream arrives already
+    compiled. What forms one is a sequence of compiles, so the chain has to
+    cross the boundary with the upstream — :attr:`~bloomery.ir.UpstreamIR.ancestry`
+    is where it rides, and the message names it link by link.
+    """
 
 
 class DanglingExposure(GuardrailError):

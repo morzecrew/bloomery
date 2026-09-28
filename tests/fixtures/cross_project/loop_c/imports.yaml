@@ -1,0 +1,4 @@
+imports_version: 1
+imports:
+  next:
+    entities: [beta]

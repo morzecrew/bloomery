@@ -1,0 +1,12 @@
+# A local mart whose base is an *imported* entity (S-0002/D-2). The mart is
+# authored here and judged here; only its inputs crossed, which is why the
+# compile cannot be run without the upstream IR the alias names.
+marts_version: 1
+marts:
+  lines:
+    grain: order_item
+    base: order_item
+    owner: analytics@example.com
+    flatten:
+      - {date: order_date, role: ordered}
+    measures: [gross_revenue]
