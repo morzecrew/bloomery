@@ -1,7 +1,7 @@
 # MetricFlow × 002-average-of-averages
 
-- **System:** MetricFlow `0.212.0`, driven from Python against DuckDB `1.5.5`.
-- **Checked:** 2026-09-15.
+- **System:** MetricFlow `0.213.0`, driven from Python against DuckDB `1.5.5`.
+- **Checked:** 2026-09-28.
 - **Feature set:** semantic models with `measures`, a `simple` metric, and a `ratio` metric
   (`metricflow_semantic_interfaces/parsing/schemas.py`). No project-authored SQL.
 - **Hosted features:** none. Everything here runs from the installed package against a local

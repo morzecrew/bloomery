@@ -2,6 +2,7 @@
   "metrics": [
     {
       "config": null,
+      "datatype": null,
       "description": "Quarantined rows as a share of rows evaluated.",
       "filter": null,
       "label": null,
@@ -55,6 +56,7 @@
     },
     {
       "config": null,
+      "datatype": null,
       "description": "Rows dedupe removed before the rules ran (per entity).",
       "filter": null,
       "label": null,
@@ -101,6 +103,7 @@
     },
     {
       "config": null,
+      "datatype": null,
       "description": "Rows the entity's rules were evaluated over (survivors of dedupe), reported once per entity.",
       "filter": null,
       "label": null,
@@ -147,6 +150,7 @@
     },
     {
       "config": null,
+      "datatype": null,
       "description": "Rows whose violation predicate fired, whatever its disposition.",
       "filter": null,
       "label": null,
@@ -193,6 +197,7 @@
     },
     {
       "config": null,
+      "datatype": null,
       "description": "Rows the split diverted to the entity's reject table, counted once per row however many rules diverted it.",
       "filter": null,
       "label": null,
@@ -239,6 +244,7 @@
     },
     {
       "config": null,
+      "datatype": null,
       "description": null,
       "filter": null,
       "label": null,
@@ -291,7 +297,7 @@
   "project_configuration": {
     "dsi_package_version": {
       "major_version": "0",
-      "minor_version": "212",
+      "minor_version": "213",
       "patch_version": "0"
     },
     "metadata": null,
@@ -321,6 +327,7 @@
       "dimensions": [
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -332,6 +339,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -343,6 +351,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -354,6 +363,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -365,6 +375,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -376,6 +387,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -387,6 +399,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -398,6 +411,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -409,6 +423,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -420,6 +435,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -434,6 +450,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -517,6 +534,7 @@
       "dimensions": [
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -528,6 +546,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -542,6 +561,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -553,6 +573,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -564,6 +585,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,

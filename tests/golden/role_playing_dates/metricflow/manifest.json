@@ -2,6 +2,7 @@
   "metrics": [
     {
       "config": null,
+      "datatype": null,
       "description": null,
       "filter": null,
       "label": null,
@@ -50,7 +51,7 @@
   "project_configuration": {
     "dsi_package_version": {
       "major_version": "0",
-      "minor_version": "212",
+      "minor_version": "213",
       "patch_version": "0"
     },
     "metadata": null,
@@ -80,6 +81,7 @@
       "dimensions": [
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -91,6 +93,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -102,6 +105,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -113,6 +117,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -127,6 +132,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -138,6 +144,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,

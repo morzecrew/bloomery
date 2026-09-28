@@ -66,5 +66,5 @@ counts.
 It does **not** support any statement about dbt beyond this configuration and this version.
 It says nothing about dbt Core with `dbt-metricflow` installed, or about the dbt Semantic
 Layer service: neither was run here. The engine those paths use is MetricFlow, measured in
-its own column at `0.212.0`, where this case's anchored row is also `CUSTOM` and for the
+its own column at `0.213.0`, where this case's anchored row is also `CUSTOM` and for the
 second of those two reasons.

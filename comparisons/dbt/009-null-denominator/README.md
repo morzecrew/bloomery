@@ -44,7 +44,7 @@ The two numbers in `observed.txt` therefore come from **models this project's au
 
 The probe is the last line, and it is the one place this column differs from MetricFlow's at
 the version each pins. `fill_nulls_with: 0` on a ratio metric's denominator — the key
-MetricFlow `0.212.0` accepted in the same position, changing nothing — is refused by dbt Core
+MetricFlow `0.213.0` accepted in the same position, changing nothing — is refused by dbt Core
 `1.12.3`'s parser:
 
 ```text

@@ -54,4 +54,4 @@ rather than `NATIVE-PLAN`, as a fact about this configuration and not about the 
 It does **not** support any statement about dbt beyond this configuration and this version.
 It says nothing about dbt Core with `dbt-metricflow` installed, or about the dbt Semantic
 Layer service: neither was run here. The engine those paths use is MetricFlow, measured in
-its own column at `0.212.0`, where this case's declared row is `NATIVE-PLAN`.
+its own column at `0.213.0`, where this case's declared row is `NATIVE-PLAN`.

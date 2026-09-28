@@ -16,7 +16,7 @@ Version-pinned and checkable offline, which is what makes it the primary citatio
 | the manifest validator, run in full | `metricflow_semantic_interfaces/validations/semantic_manifest_validator.py` |
 
 ```
-python -c "import importlib.metadata as m; print(m.version('metricflow'))"   # 0.212.0
+python -c "import importlib.metadata as m; print(m.version('metricflow'))"   # 0.213.0
 ```
 
 ## Secondary — the published documentation
@@ -47,7 +47,7 @@ The search is stated rather than implied, so it can be repeated:
 rg -in "time_?zone" .venv/lib/python3.13/site-packages/metricflow_semantic_interfaces
 ```
 
-returns nothing at `0.212.0`. The vocabulary that the manifest is parsed into has no slot for
+returns nothing at `0.213.0`. The vocabulary that the manifest is parsed into has no slot for
 a zone, which is what makes the zoneless dimension unrefusable and the anchored one
 project-authored SQL rather than a declaration.
 

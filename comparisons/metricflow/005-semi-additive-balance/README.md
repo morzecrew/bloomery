@@ -1,7 +1,7 @@
 # MetricFlow × 005-semi-additive-balance
 
-- **System:** MetricFlow `0.212.0`, driven from Python against DuckDB `1.5.5`.
-- **Checked:** 2026-09-15.
+- **System:** MetricFlow `0.213.0`, driven from Python against DuckDB `1.5.5`.
+- **Checked:** 2026-09-28.
 - **Feature set:** semantic models with `measures`, and `non_additive_dimension` with
   `window_choice: max` (`metricflow_semantic_interfaces/parsing/schemas.py`,
   `metricflow_semantic_interfaces/protocols/measure.py`). No project-authored SQL.
@@ -43,7 +43,7 @@ the block, and a measure over the same column without it validates clean and ans
 `320.0000`. The two measures are indistinguishable to the validator; only the author knows
 which one is a lie.
 
-Neither half is a statement about MetricFlow beyond `0.212.0` and this configuration. In
+Neither half is a statement about MetricFlow beyond `0.213.0` and this configuration. In
 particular it says nothing about whether a dbt test, a review convention or a
 `saved_query` would catch the measure without the block — only that the semantic layer
 itself does not.
