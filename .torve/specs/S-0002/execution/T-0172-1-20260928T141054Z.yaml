@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0172
+phase: 8
+base: 756c3af50348896bc2a0abc47a2f5727d193238d
+commit: c7fea26e06c4d229da00c1e190d2abde8ff57ba0
+at: '2026-09-28T14:10:54Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: LOCKED
+entries:
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-28T13:49:12Z'
+    claim: >-
+      cycles are refused, never resolved: the guard walks each upstream's ancestry
+      for this project's own export name and raises ImportCycle, resolving nothing
+      and inventing no order
+    evidence: >-
+      src/bloomery/guardrails/imports.py:229-242 — the refusal; src/bloomery/ir/nodes.py:1614
+      is upstream_ancestry, the closure it walks
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-28T13:49:12Z'
+    claim: >-
+      the guardrail tests this scope names gain three cases only; no guard that judges
+      a local declaration over the composed view is touched
+    evidence: >-
+      tests/unit/test_guardrails/test_imports.py:355-452 — the three added cycle cases,
+      all over check_imports
+    action: decided
+  - decision: D-10
+    grade: LOCKED
+    at: '2026-09-28T13:49:12Z'
+    claim: >-
+      the exported project name stays the producer's identity and keeps its field
+      position; ancestry is appended after it and carries export names, not aliases
+    evidence: >-
+      src/bloomery/ir/nodes.py:1596-1605 — name then ancestry on UpstreamIR
+    action: decided
