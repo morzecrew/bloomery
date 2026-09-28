@@ -37,8 +37,19 @@ profiles:
       producer: {family: openai, model: text-embedding-3-small, input_kind: document}
     lexical:
       fields: [body]
+      # What tokenises a query, as two opaque strings — the lexical counterpart of
+      # the space's two encoder identities. Declare `analyser:` on `relation:` as
+      # well and a mismatch between the two is refused at compile time; declare
+      # neither and the profile means what it meant before the key existed.
+      analyser: {family: lucene, model: english}
     fusion:
+      # `rrf` alone is a method, not a ranking: `k` is the rank constant in
+      # 1 / (k + rank) and `depth` the candidates each side contributes. Both are
+      # written out here, and both reach the manifest whether or not the document
+      # names them — two consumers of this profile read one k and one depth.
       method: rrf
+      k: 60
+      depth: 100
     filterable: [document_id]
     return: [chunk_id, document_id, ordinal, body]
 

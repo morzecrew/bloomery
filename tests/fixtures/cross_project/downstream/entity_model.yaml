@@ -1,0 +1,11 @@
+# The downstream's own entity (S-0002 (§5.1)). A project with no entity of its
+# own is not a project: what crosses the boundary is read, never re-declared.
+spec_version: 1
+entities:
+  shipment:
+    grain: one row per shipment
+    key: [shipment_id]
+    fields:
+      shipment_id: {type: string, required: true}
+      order_id: {type: string, required: true}
+      shipped_at: {type: timestamp}

@@ -1,0 +1,7 @@
+mapping_version: 1
+source: raw__gammas
+target: gamma
+key:
+  gamma_id: {from: "$.id", transform: [to_string]}
+fields:
+  noted_at: {from: "$.noted_at"}

@@ -61,7 +61,7 @@ merges the two, what a query may filter on, and what it gets back.
 ```yaml
 profiles:
   chunk_hybrid:
-    relation: {entity: chunk}
+    relation: {entity: chunk, analyser: {family: lucene, model: english}}
     grain: [chunk_id]
     vector:
       field: embedding
@@ -69,8 +69,11 @@ profiles:
       producer: {family: openai, model: text-embedding-3-small, input_kind: document}
     lexical:
       fields: [body]
+      analyser: {family: lucene, model: english}
     fusion:
       method: rrf
+      k: 60
+      depth: 100
     filterable: [document_id]
     return: [chunk_id, document_id, ordinal, body]
 ```
@@ -84,6 +87,20 @@ Fusion is **reciprocal rank fusion and nothing else** in this version of the kin
 based fusion needs no score calibration, so there is no weight to tune and no float to
 compare; weighted fusion reopens only with a portable normalization contract behind it.
 Any other method is refused by the grammar rather than by a guardrail.
+
+The method alone is not a ranking, though. `k` — the rank constant in `1 / (k + rank)`,
+default 60, the constant the published method names — and `depth`, how many candidates each
+side contributes, default 100, are what decide the order two consumers return. Both are
+optional to author and neither is optional in the manifest: a declared `fusion` block
+carries its **effective** pair, the defaults written out where the document did not name
+them, so two consumers of one profile read one number rather than each supplying its own.
+
+The lexical side's `analyser` is the sparse counterpart of the space's two encoder
+identities: `{family, model}`, opaque, and compared against the `analyser` the corpus
+relation declares. A corpus tokenised one way and queried another matches on terms neither
+side produced — the same class of bug two encoder identities exist to make refusable, and
+refusable here for the same reason. Both are optional; a profile declaring neither means
+what it meant before the keys existed.
 
 ## No float enters, at any point
 
@@ -115,11 +132,14 @@ that disagree is a refusal; a declaration nobody checks against an API is not. A
 change that looks a model name up against a provider is the erosion this rule exists to
 halt, and it is locked rather than merely preferred for that reason.
 
+A lexical `analyser` is the same kind of name under the same rule: two strings, compared
+against the corpus relation's two, and resolved against no store.
+
 ## What is checked
 
-Six refusals, all at compile time, all against the resolved project rather than the raw
-documents — every one of them needs a *type* or a *key*, and neither exists until the
-entity model is resolved and the marts are flattened. They are batched with every other
+Seven refusals, all at compile time, all against the resolved project rather than the raw
+documents — all but the analyser comparison need a *type* or a *key*, and neither exists
+until the entity model is resolved and the marts are flattened. They are batched with every other
 guardrail violation, so a profile got wrong in four ways reports four leaves rather than
 costing four round trips. The messages are listed in
 [Retrieval refusals](../reference/errors.md#retrieval-refusals).
@@ -170,15 +190,20 @@ profile. In exchange it is readable by a consumer with no access to the spec tre
 manifest naming `chunk_text` and nothing else would send its reader looking for a file
 bloomery does not emit.
 
+Absence is exact, and it is the document's absence: `fusion` is missing only from a profile
+that declares no fusion, and an `analyser` only where none is declared. A declared `fusion`
+therefore arrives with its effective `k` and `depth` even where the document named neither.
+
 The corpus relation arrives resolved through the naming policy, as a `namespace`/`table`
-pair beside the logical name. Split rather than dotted: the grammar promises nothing about
+pair beside the logical name — with the corpus `analyser` copied through beside it where one
+is declared. Split rather than dotted: the grammar promises nothing about
 quoting, so a consumer that has to quote each part cannot recover them from one string.
 
 ## What a runtime still owes
 
 Everything physical. Index type and parameters, where the vectors are stored, the storage
-URI, how `rrf` is actually computed over two candidate lists, and what k is. The manifest
-is silent about all of it, and the silence is deliberate — those are deployment decisions
+URI, and how `rrf` is actually computed over two candidate lists — with the k and the depth
+the manifest names. The manifest is silent about the rest of it, and the silence is deliberate — those are deployment decisions
 a compiler has no information to make.
 
 Nor does bloomery claim any runtime consumes the manifest correctly. It cannot: it ships
@@ -216,18 +241,19 @@ manifest does not carry types, so the store guesses. `grain` is unread by the SQ
 and is the point id for the store — and a composite grain has to become one id by a rule
 the manifest does not give.
 
-**Two findings are real gaps, not seams.** They are recorded rather than fixed, because
-this version of the kind is what it is:
+**Two findings were real gaps, not seams** — and the kind has since closed both, additively:
+a project declaring neither key compiles to the same bytes, and the manifest version did not
+move.
 
-- `fusion: {method: rrf}` names the method and neither the rank constant nor the candidate
-  depth per side. Both consumers honour it and return **different orders** for the same
-  query — RRF's k is 60 in one implementation and 10 in another. A method name is not a
-  ranking, and this is the weakest point of the vendor-neutral claim.
-- The lexical side declares `fields` and no tokeniser, analyser or sparse-model identity,
-  while the dense side carries two encoder identities precisely so that a corpus written by
-  one model and queried by another is refusable. The same class of bug is undefended on the
-  lexical side: a store needs a sparse model to build that side at all, and whichever it
-  picks, nothing compares it to the one the corpus was written with.
+- `fusion: {method: rrf}` named the method and neither the rank constant nor the candidate
+  depth per side. Both consumers honoured it and returned **different orders** for the same
+  query — RRF's k is 60 in one implementation and 10 in another. `k` and `depth` are now
+  declared, and the manifest carries the effective pair rather than the document's silence.
+- The lexical side declared `fields` and no analyser identity, while the dense side carried
+  two encoder identities precisely so that a corpus written by one model and queried by
+  another is refusable. `lexical.analyser` and the corpus relation's `analyser` close that:
+  whichever sparse model a store picks, the two declarations are compared and a mismatch is
+  refused.
 
 And one place the contract is honoured to different precision: `scalar` names `float32`
 or `float16`, and a store with no storage type for the one named keeps the other. `scalar`
@@ -235,8 +261,8 @@ is an exact contract for one consumer and a best effort for the other.
 
 ## Where to look next
 
-- `examples/retrieval/` — a document-chunk corpus compiled to its manifest, the six
-  refusals as six edits you can make, and the two consumers that disagreed
+- `examples/retrieval/` — a document-chunk corpus compiled to its manifest, the seven
+  refusals as seven edits you can make, and the two consumers that disagreed
 - [Spec schemas](../reference/spec-schemas.md) — the `RetrievalSpec` grammar, field by
   field
 - [Retrieval refusals](../reference/errors.md#retrieval-refusals) — what each guardrail

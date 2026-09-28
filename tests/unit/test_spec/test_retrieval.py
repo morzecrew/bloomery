@@ -223,6 +223,78 @@ def test_a_hybrid_profile_parses_with_both_sides() -> None:
     assert profile.fusion.method == "rrf"
 
 
+def test_fusion_defaults_to_the_published_constant_and_a_depth() -> None:
+    """A method name is not a ranking: two consumers honouring `rrf` with a
+    different k, or a different candidate depth per side, return different orders
+    for one query. 60 is the constant the published method names."""
+
+    fusion = _spec(lexical={"fields": ["body"]}, fusion={"method": "rrf"}).profiles[
+        "support_search"
+    ].fusion
+    assert fusion is not None
+    assert (fusion.k, fusion.depth) == (60, 100)
+
+
+def test_fusion_carries_the_declared_constant_and_depth() -> None:
+    fusion = _spec(
+        lexical={"fields": ["body"]}, fusion={"method": "rrf", "k": 10, "depth": 250}
+    ).profiles["support_search"].fusion
+    assert fusion is not None
+    assert (fusion.k, fusion.depth) == (10, 250)
+
+
+@pytest.mark.parametrize("overrides", [{"k": 0}, {"depth": 0}, {"k": -1}])
+def test_a_rank_constant_or_depth_below_one_is_refused(overrides: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        _spec(lexical={"fields": ["body"]}, fusion={"method": "rrf", **overrides})
+
+
+def test_an_analyser_is_two_opaque_strings_on_either_side() -> None:
+    """The lexical counterpart of the two encoder identities (S-0011/D-2): the
+    corpus relation says what indexed its text, the lexical side says what reads
+    a query, and the guardrail compares them."""
+
+    profile = _spec(
+        relation={"entity": "chunk", "analyser": {"family": "lucene", "model": "english"}},
+        lexical={"fields": ["body"], "analyser": {"family": "lucene", "model": "english"}},
+        fusion={"method": "rrf"},
+    ).profiles["support_search"]
+    assert profile.relation.analyser is not None
+    assert (profile.relation.analyser.family, profile.relation.analyser.model) == (
+        "lucene",
+        "english",
+    )
+    assert profile.lexical is not None
+    assert profile.lexical.analyser == profile.relation.analyser
+
+
+def test_neither_analyser_is_required() -> None:
+    """A profile that declares neither keeps the meaning it had before the key
+    existed."""
+
+    profile = _spec(lexical={"fields": ["body"]}, fusion={"method": "rrf"}).profiles[
+        "support_search"
+    ]
+    assert profile.relation.analyser is None
+    assert profile.lexical is not None
+    assert profile.lexical.analyser is None
+
+
+def test_an_analyser_carries_no_input_kind() -> None:
+    """An analyser tokenises a query the way it tokenised the corpus, so there
+    are not two sides to name — an `input_kind` here would be a key with one
+    legal value."""
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        _spec(
+            lexical={
+                "fields": ["body"],
+                "analyser": {"family": "lucene", "model": "english", "input_kind": "query"},
+            },
+            fusion={"method": "rrf"},
+        )
+
+
 @pytest.mark.parametrize(
     "overrides",
     [{"lexical": {"fields": ["body"]}}, {"fusion": {"method": "rrf"}}],

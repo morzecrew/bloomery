@@ -95,7 +95,7 @@ from bloomery.ir import (
     project_fingerprint,
     quality_sort_key,
 )
-from bloomery.ir.nodes import UpstreamIR, with_imported
+from bloomery.ir.nodes import UpstreamIR, upstream_ancestry, with_imported
 from bloomery.marts import lower_marts, lower_rollups
 from bloomery.quality import (
     attach_quality_mart,
@@ -2378,6 +2378,11 @@ def _bind_imports(
                 # alias rather than instead of it: `None` where it exports
                 # none, which the dbt target refuses and the others never read.
                 name=source.exports.name if source.exports else None,
+                # The whole chain above this upstream, so the artifact a
+                # further downstream is handed carries it too (S-0002/D-4,
+                # S-0002/D-8): one compile can form no cycle, a sequence of
+                # them can, and nothing here reads anything it was not given.
+                ancestry=upstream_ancestry(source),
                 # `replace` rather than a constructor: an entity's shape is the
                 # silver model's, and listing its fields here would be a second
                 # declaration of it that a new field silently falls out of.

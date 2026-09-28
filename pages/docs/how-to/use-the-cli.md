@@ -62,6 +62,7 @@ passes no registry — see [Steps are the one thing the CLI cannot wire](#compil
 
 ```text
 bloomery compile     <dir> [--target sqlmesh] [--dialect duckdb] [--catalog F] [--out DIR]
+                           [--emit-ir PATH] [--upstream ALIAS=PATH]
 bloomery plan        <old-dir> <new-dir> [--catalog F] [--format table|json]
 bloomery resolve     <dir> [--catalog F] [--format table|json]
 bloomery check       <dir> [--catalog F] [--format table|json]
@@ -141,6 +142,46 @@ surface. A flag would have to invent a manifest loader. A project using `steps:`
 through Python, and `UnknownStep` names the versions the registry does hold. `resolve`
 reports that refusal too, rather than answering reachability as though the wiring were
 not there.
+
+## Composing across projects
+
+A project with an `imports.yaml` reads another project's published surface, and what
+crosses is the upstream's **compiled IR** — never its spec documents, and never a path
+bloomery goes looking for. So composing on the command line is two commands: the upstream
+writes its IR, and the downstream is handed that file under the alias it imports it by.
+
+```bash
+bloomery compile tests/fixtures/ecom_basic --emit-ir /tmp/platform.json --out /tmp/upstream
+bloomery compile tests/fixtures/cross_project/downstream --target dbt \
+    --upstream platform=/tmp/platform.json --out /tmp/downstream
+```
+
+```text
+/tmp/downstream/dbt_project.yml
+/tmp/downstream/dependencies.yml
+/tmp/downstream/macros/generate_schema_name.sql
+/tmp/downstream/models/gold/mart_lines.sql
+/tmp/downstream/models/schema.yml
+/tmp/downstream/models/silver/shipment.sql
+/tmp/downstream/models/sources.yml
+```
+
+`mart_lines` is the downstream's own mart over an entity it imported: no model is emitted
+for the upstream's relations, because the upstream builds them. `--emit-ir` writes the IR
+beside the artifacts and is independent of `--target` — one IR file serves every
+downstream target. `--upstream` is repeatable, once per alias, and `platform` is the
+downstream's private spelling of the upstream in `imports.yaml`; a project carries no name
+of its own, so nothing is resolved by it.
+
+**The path is yours.** bloomery reads the file you name and nothing else — no registry, no
+package index, no lookup beside the spec directory. A checkout, a CI artifact, a file you
+copied by hand: how the upstream IR got there is your problem, which is what keeps a
+compile free of I/O it did not ask for. Omit `--upstream` and the compile is refused with
+`UnknownUpstream` naming the alias and what was supplied.
+
+The IR is versioned. One written by a different bloomery release is refused on load with
+the message `plan()` gives for the same mismatch — recompile both sides with one compiler
+— rather than being read as though the shapes agreed.
 
 ## Planning a change
 

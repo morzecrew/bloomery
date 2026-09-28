@@ -3,7 +3,7 @@ dependency can fail to be one.
 
 An imports document is entirely references, like the export list it mirrors —
 an alias and three lists of names — so what can go wrong with it is what can
-go wrong with a name. Three things can, and each has a different repair:
+go wrong with a name. Four things can, and each has a different repair:
 
 * **the upstream was never supplied.** How the upstream artifact reaches the
   compile is the caller's (D8), so a declared alias with no IR behind it is a
@@ -20,6 +20,13 @@ go wrong with a name. Three things can, and each has a different repair:
   an imported one, and two *upstreams* against each other — §5.4 names only
   the first, and the second is the same ambiguity with neither claimant
   local, so neither author can see it from their own file.
+* **the upstream was compiled against this project** (D4). A cycle cannot form
+  in one compile — an upstream arrives compiled — so what forms one is a
+  *sequence* of compiles, and the chain has to cross the boundary with the
+  upstream for this guard to see it: :attr:`~bloomery.ir.UpstreamIR.ancestry`
+  is where it rides, and the export name is what a project recognises itself
+  in it by. A project that both imports and exports without declaring one is
+  refused before any chain is walked, because there is nothing to walk for.
 
 **Which side each local kind is read from is not uniform, and the split is the
 one the tree already makes.** Marts and metrics come from the authored
@@ -40,7 +47,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from bloomery.errors import ImportCollision, UnexportedImport, UnknownUpstream
+from bloomery.errors import (
+    ImportCollision,
+    ImportCycle,
+    NamelessImporter,
+    UnexportedImport,
+    UnknownUpstream,
+)
+from bloomery.ir.nodes import upstream_ancestry
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -114,6 +128,20 @@ def declared_locally(project: Project, entities: Iterable[str]) -> dict[str, fro
 # ....................... #
 
 
+def _chain(ancestry: tuple[tuple[str, str], ...]) -> str:
+    """The chain above an upstream, link by link, for the cycle refusal.
+
+    The **name** is the identity and the fingerprint is context beside it,
+    abbreviated because a reader matches it against an artifact header by its
+    first few characters and the whole 64 would push the fix off the line.
+    """
+
+    return ", ".join(f"{name!r} ({fingerprint[:17]}…)" for name, fingerprint in ancestry)
+
+
+# ....................... #
+
+
 def _claimed_twice(declared: Mapping[str, Imports]) -> list[GuardrailError]:
     """Refuse a name two upstreams both supply (§5.4, widened).
 
@@ -178,6 +206,26 @@ def check_imports(
     errors: list[GuardrailError] = _claimed_twice(project.imports.imports)
     local = declared_locally(project, (entity.name for entity in draft.entities))
 
+    # This project's identity in a chain (D4), and the reason it is the export
+    # name: a fingerprint moves the moment this project imports anything, so a
+    # project could never recognise *itself* above an upstream by one. A
+    # project that exports no name at all is nobody's upstream-of-an-upstream
+    # and needs none; one that exports a list and no name is refused here
+    # rather than walked, since there is nothing to walk for.
+    own = project.exports.exports.name if project.exports is not None else None
+
+    if project.exports is not None and own is None:
+        errors.append(
+            NamelessImporter(
+                "imports from another project and exports without a `name:`. A project "
+                "that imports and is imported is identified by its export name — an alias "
+                "is the downstream's own spelling and a fingerprint moves whenever an "
+                "upstream does, so neither can close a chain (S-0002/D-4). Fix: declare "
+                "`name:` on the exports document",
+                source_path="exports: exports",
+            )
+        )
+
     for alias, read in sorted(project.imports.imports.items()):
         source_path = f"imports: imports.{alias}"
         source = upstream.get(alias)
@@ -195,6 +243,38 @@ def check_imports(
                 )
             )
             continue
+
+        # The shortest loop of all is one hop long: this project's own earlier
+        # compile handed back under an alias. Its ancestry is empty, so the
+        # name check below would pass it; the upstream's own export name is
+        # the first thing compared.
+        source_name = source.exports.name if source.exports else None
+        if own is not None and source_name == own:
+            errors.append(
+                ImportCycle(
+                    f"imports from {alias!r}, which is this project itself: it exports "
+                    f"{own!r}, this project's own export name. Import cycles are refused, "
+                    f"not resolved (S-0002/D-4), and a project reading its own earlier "
+                    f"compile is the shortest one. Fix: decide which project owns the "
+                    f"shared concept",
+                    source_path=source_path,
+                )
+            )
+            continue
+
+        ancestry = upstream_ancestry(source) if own is not None else ()
+        if any(name == own for name, _fingerprint in ancestry):
+            errors.append(
+                ImportCycle(
+                    f"imports from {alias!r}, which was compiled against this project: "
+                    f"{alias!r} sits above {_chain(ancestry)}, and {own!r} is this project's "
+                    f"own export name. Import cycles are refused, not resolved "
+                    f"(S-0002/D-4) — two projects that each name the other's export never "
+                    f"compile, and bloomery invents no order for them. Fix: decide which "
+                    f"project owns the shared concept",
+                    source_path=source_path,
+                )
+            )
 
         exported = {
             kind: frozenset(getattr(source.exports, kind) if source.exports else ())
