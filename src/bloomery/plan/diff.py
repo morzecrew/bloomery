@@ -1707,7 +1707,7 @@ def _filter_key(clause: MetricFilterIR) -> tuple[str, ...]:
     values = [repr(value) for value in clause.values]
     if clause.op in ("in", "not_in"):
         values = sorted(set(values))
-    return (clause.dimension, clause.op, *values)
+    return (clause.dimension, clause.op, clause.column or "", *values)
 
 
 # ....................... #

@@ -569,3 +569,28 @@ def test_role_of_rides_on_the_foreign_entity_role() -> None:
     # The first join takes the bare entity name and the second is disambiguated
     # by its prefix; the shared role is what says they are one dimension.
     assert foreign == {"order": "address", "shipping_order": "address"}
+
+
+def test_a_filter_comparing_two_roles_renders_dimension_against_dimension() -> None:
+    # S-0007/D-9: both sides are MetricFlow dimensions, so MetricFlow resolves
+    # each to its own column.
+    from golden.roles_of_one_dimension import CATALOG, DOCUMENTS
+
+    compared = "    filter: [{dimension: billing_region, op: eq, column: shipping_region}]\n"
+    sources = {**DOCUMENTS, "metrics": DOCUMENTS["metrics"] + compared}
+    ir = build_project_ir(load_project(sources), load_catalog(CATALOG))
+    rendered = manifest_json(emit_manifest(ir, naming=DefaultNaming()))
+    assert (
+        "{{ Dimension('order__billing_region') }} = {{ Dimension('order__shipping_region') }}"
+        in rendered
+    )
+
+
+def test_a_target_with_no_spelling_for_a_column_comparison_refuses_by_name() -> None:
+    from bloomery.emit.lower.predicates import metric_filter_sql
+    from bloomery.ir import MetricFilterIR
+    from bloomery.typing import StringType
+
+    clause = MetricFilterIR(dimension="billing_region", op="eq", values=(), column="shipping_region")
+    with pytest.raises(UnsupportedByTarget, match="compares two columns"):
+        metric_filter_sql(clause, ref="billing_region", declared=StringType())

@@ -399,7 +399,7 @@ def _dimension_source(metric: MetricIR, project: ProjectIR) -> dict[str, str]:
 
 def _restriction(
     metric: MetricIR, project: ProjectIR
-) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+) -> tuple[tuple[str, str, tuple[str, ...], str], ...]:
     """One metric's restriction, canonically.
 
     Sorted, with each clause's values sorted inside it, because the IR keeps
@@ -423,6 +423,10 @@ def _restriction(
                 source.get(clause.dimension, clause.dimension),
                 clause.op,
                 tuple(sorted(str(value) for value in clause.values)),
+                # A `column:` clause (S-0007/D-9) carries no values; its other
+                # column is the restriction, resolved the way the dimension is,
+                # or `a = column b` and `a = column c` would read as one.
+                "" if clause.column is None else source.get(clause.column, clause.column),
             )
             for clause in metric.filter
         )
@@ -436,8 +440,12 @@ def _excludes_zero_of(metric: MetricIR, column: str) -> bool:
     """Whether ``metric``'s own restriction removes the rows where ``column``
     is zero."""
 
+    # A `column:` clause compares two columns and carries no literal, so it can
+    # say nothing about a zero — and the operator table indexes `values`.
     return any(
-        clause.dimension == column and _EXCLUDES_ZERO.get(clause.op, _never)(clause.values)
+        clause.column is None
+        and clause.dimension == column
+        and _EXCLUDES_ZERO.get(clause.op, _never)(clause.values)
         for clause in metric.filter
     )
 
@@ -737,7 +745,10 @@ def _rendered(metric: MetricIR) -> str:
         return "nothing"
 
     return ", ".join(
-        f"{clause.dimension} {clause.op} {list(clause.values)}" for clause in metric.filter
+        f"{clause.dimension} {clause.op} column {clause.column}"
+        if clause.column is not None
+        else f"{clause.dimension} {clause.op} {list(clause.values)}"
+        for clause in metric.filter
     )
 
 

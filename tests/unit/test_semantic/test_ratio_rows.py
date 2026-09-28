@@ -747,3 +747,35 @@ marts:
     (parcels,) = (metric for metric in ir.metrics if metric.name == "parcels")
 
     assert _dimension_source(parcels, ir)["via_tier"] == "carrier.tier|depot.tier"
+
+
+def test_a_column_comparison_on_the_denominator_neither_crashes_nor_discharges() -> None:
+    """A `column:` clause (S-0007/D-9) carries no values, and the zero-excluding
+    operator table indexes them: read as a literal, `parcels = column crates`
+    raised `IndexError` out of the guard. It compares two columns and says
+    nothing about a zero, so the rule still asks."""
+
+    restriction = "\n    filter:\n      - {dimension: parcels, op: eq, column: crates}\n"
+    metrics = METRICS.replace('    expr: "carrier_cost"\n', f'    expr: "carrier_cost"{restriction}')
+    metrics = metrics.replace('    expr: "parcels"\n', f'    expr: "parcels"{restriction}')
+
+    refutation = answer(metrics)
+
+    assert isinstance(refutation, Refutation)
+    assert refutation.reason == RatioRowsRefusal.UNDECLARED_ROWS.value
+
+
+def test_two_column_comparisons_against_different_columns_are_different_restrictions() -> None:
+    """The canonical restriction carried a clause's values and not its other
+    column, so `parcels = column crates` and `parcels = column shipped_on` read
+    as one restriction and leg 2 passed operands that disagree."""
+
+    numerator = "\n    filter:\n      - {dimension: parcels, op: eq, column: crates}\n"
+    denominator = "\n    filter:\n      - {dimension: parcels, op: eq, column: shipped_on}\n"
+    metrics = METRICS.replace('    expr: "carrier_cost"\n', f'    expr: "carrier_cost"{numerator}')
+    metrics = metrics.replace('    expr: "parcels"\n', f'    expr: "parcels"{denominator}')
+
+    refutation = answer(metrics)
+
+    assert isinstance(refutation, Refutation)
+    assert refutation.reason == RatioRowsRefusal.OPERANDS_DISAGREE.value

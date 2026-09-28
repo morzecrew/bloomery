@@ -2191,6 +2191,7 @@ def _metric_filters(filters: tuple[MetricFilter, ...]) -> tuple[MetricFilterIR, 
                 value.isoformat() if isinstance(value, (date, datetime)) else value
                 for value in clause.values
             ),
+            column=clause.column,
         )
         for clause in filters
     )

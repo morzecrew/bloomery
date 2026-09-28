@@ -32,6 +32,7 @@ from bloomery.errors import (
 )
 from bloomery.ir import COMPUTED, Additivity
 from bloomery.semantic import RatioRowsRefusal, Refutation, prove_ratio_rows
+from bloomery.semantic.proof import prove_comparable
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -42,13 +43,14 @@ from bloomery.typing import (
 )
 
 if TYPE_CHECKING:
-    from bloomery.ir import MartIR, MetricFilterIR, MetricIR, ProjectIR
+    from bloomery.ir import MartDimensionIR, MartIR, MetricFilterIR, MetricIR, ProjectIR
     from bloomery.typing import LogicalType
 
 # ----------------------- #
 
 __all__ = [
     "check_metrics",
+    "mart_roles",
 ]
 
 
@@ -200,6 +202,9 @@ def _check_filter(
         )
         return [MetricFilterInvalid(msg, source_path=path)]
 
+    if clause.column is not None:
+        return _check_comparison(metric, clause, clause.column, mart, path, categorical)
+
     if clause.op == "is_null":
         return []
 
@@ -217,6 +222,48 @@ def _check_filter(
             "column's declared type — filter values are never cast (S-0030/D-8). "
             "Fix: write the value in the column's own type"
         )
+        return [MetricFilterInvalid(msg, source_path=path)]
+
+    return []
+
+
+# ....................... #
+
+
+def mart_roles(mart: MartIR) -> dict[str, tuple[str, str]]:
+    """The ``(dimension, member)`` pair each role-carrying column of ``mart``
+    plays, the map R021 reads (S-0007/what-each-fact-buys)."""
+
+    return {
+        column.name: (column.role_of, column.source_column)
+        for column in mart.columns
+        if column.role_of is not None
+    }
+
+
+def _check_comparison(
+    metric: MetricIR,
+    clause: MetricFilterIR,
+    other: str,
+    mart: MartIR,
+    path: str,
+    categorical: dict[str, MartDimensionIR],
+) -> list[GuardrailError]:
+    """A ``column:`` filter (S-0007/D-9): the other side is a categorical
+    dimension of the same mart, and R021 proves the two comparable."""
+
+    if other not in categorical:
+        msg = (
+            f"metric {metric.name!r} compares {clause.dimension!r} to {other!r}, which "
+            f"mart {mart.name!r} does not flatten as a categorical dimension; known: "
+            f"{sorted(categorical)}. Fix: compare against a column the mart carries"
+        )
+        return [MetricFilterInvalid(msg, source_path=path)]
+
+    answer = prove_comparable(clause.dimension, other, mart_roles(mart))
+
+    if isinstance(answer, Refutation):
+        msg = f"metric {metric.name!r} on mart {mart.name!r}: {answer.render()}"
         return [MetricFilterInvalid(msg, source_path=path)]
 
     return []

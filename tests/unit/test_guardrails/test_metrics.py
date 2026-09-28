@@ -593,3 +593,56 @@ def test_a_value_the_column_cannot_hold_is_refused(clause: str) -> None:
 
     assert isinstance(leaf, MetricFilterInvalid)
     assert "never cast" in str(leaf)
+
+
+# ....................... #
+# A filter comparing two dimensions asks R021 (S-0007/D-9)
+
+
+def _compared(clause: str, *, role_of: bool = True) -> ProjectIR:
+    """The two-roles project with ``revenue`` filtered by ``clause``, its
+    flattens declared roles of ``address`` or left bare."""
+    from bloomery import load_catalog
+    from golden.roles_of_one_dimension import CATALOG, DOCUMENTS
+
+    marts = DOCUMENTS["marts"] if role_of else DOCUMENTS["marts"].replace(", role_of: address", "")
+    sources = {
+        **DOCUMENTS,
+        "metrics": DOCUMENTS["metrics"] + f"    filter: [{clause}]\n",
+        "marts": marts,
+    }
+    return build_project_ir(load_project(sources), load_catalog(CATALOG))
+
+
+_COMPARED = "{dimension: billing_region, op: eq, column: shipping_region}"
+
+
+def test_two_declared_roles_of_one_member_may_be_compared() -> None:
+    (metric,) = _compared(_COMPARED).metrics
+    assert metric.filter[0].column == "shipping_region"
+
+
+def test_two_bare_prefixes_are_refused_with_r021s_remediation() -> None:
+    with pytest.raises(GuardrailError) as excinfo:
+        _compared(_COMPARED, role_of=False)
+    (leaf,) = excinfo.value.collected
+    assert isinstance(leaf, MetricFilterInvalid)
+    assert "Cannot prove Comparable" in str(leaf)
+    assert "declare role_of" in str(leaf)
+
+
+def test_a_role_compared_to_its_own_key_is_refused() -> None:
+    # Both columns come from `address`, but not from one member of it.
+    with pytest.raises(GuardrailError) as excinfo:
+        _compared("{dimension: billing_region, op: eq, column: shipping_address_id}")
+    (leaf,) = excinfo.value.collected
+    assert isinstance(leaf, MetricFilterInvalid)
+    assert "Cannot prove Comparable" in str(leaf)
+
+
+def test_a_column_the_mart_does_not_carry_is_refused() -> None:
+    with pytest.raises(GuardrailError) as excinfo:
+        _compared("{dimension: billing_region, op: ne, column: nowhere}")
+    (leaf,) = excinfo.value.collected
+    assert isinstance(leaf, MetricFilterInvalid)
+    assert "does not flatten" in str(leaf)

@@ -83,7 +83,8 @@ def test_the_declared_ir_version_is_the_current_one() -> None:
     # `EntityIR`/`MartIR`/`MetricIR`, `RollupIR.grants`, `ProjectIR.exports`,
     # `SourceFieldIR.zone_in`, `Ratio.includes_zero_denominator` and
     # `ColumnIR.determines`, `ProjectIR.upstream`, the exported project name
-    # (`ExportsIR.name`, `UpstreamIR.name`) and `UpstreamIR.ancestry` each
+    # (`ExportsIR.name`, `UpstreamIR.name`), `UpstreamIR.ancestry` and
+    # `MetricFilterIR.column` each
     # change the IR shape; S-0020/D-3 makes the version
     # part of the fingerprint, so each bump is deliberate and loud. The M12/M13
     # wave nearly shipped without one: the fingerprints moved anyway (the
@@ -97,7 +98,7 @@ def test_the_declared_ir_version_is_the_current_one() -> None:
     # fingerprint does not move at all — two compilers of different shape then
     # agree on the fingerprint as well as the version. Named for what it pins
     # rather than for a number, because the number is what changes.
-    assert ProjectIR().bloomery_ir_version == 23
+    assert ProjectIR().bloomery_ir_version == 24
 
 
 def test_the_compiler_emits_the_declared_ir_version() -> None:

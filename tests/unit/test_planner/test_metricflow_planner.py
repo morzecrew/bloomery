@@ -850,3 +850,21 @@ metrics:
     assert [name for node in computed for name, _expr in node.outputs] == ["inner", "outer"]
     # The aggregate carries the stored measure, never an intermediate name.
     assert query.semantic.nodes[2].measures == ("revenue",)  # type: ignore[union-attr]
+
+
+def test_a_column_filter_plans_and_explains_its_warrant() -> None:
+    """S-0007/D-9: the comparison reaches the SQL as column against column, and
+    the explanation names the R021 facts that admitted it."""
+    from bloomery import build_project_ir, load_catalog, load_project
+    from golden.roles_of_one_dimension import CATALOG, DOCUMENTS
+
+    compared = "    filter: [{dimension: billing_region, op: eq, column: shipping_region}]\n"
+    sources = {**DOCUMENTS, "metrics": DOCUMENTS["metrics"] + compared}
+    ir = build_project_ir(load_project(sources), load_catalog(CATALOG))
+    plan = PLANNER.plan(ir, MetricRequest(metrics=("revenue",)), dialect="duckdb")
+
+    assert "WHERE order__billing_region = order__shipping_region" in plan.sql
+    assert (
+        "billing_region eq column shipping_region [R021: billing_region is a role of "
+        "address.region, shipping_region is a role of address.region]"
+    ) in plan.explanation.render()

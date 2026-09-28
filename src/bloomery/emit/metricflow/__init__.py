@@ -548,6 +548,7 @@ def _where(
                     clause,
                     ref=f"{{{{ Dimension('{entity}__{clause.dimension}') }}}}",
                     declared=mart_column_type(mart, clause.dimension),
+                    column_ref=f"{{{{ Dimension('{entity}__{clause.column}') }}}}",
                 )
             )
             for clause in filters

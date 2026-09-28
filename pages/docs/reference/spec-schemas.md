@@ -578,7 +578,23 @@ column's declared logical type and are never cast.
 |---|---|---|---|
 | `dimension` | column name, `^[a-z][a-z0-9_]*$` | yes | A **categorical** dimension of the mart carrying the metric |
 | `op` | `eq` \| `ne` \| `in` \| `not_in` \| `gt` \| `gte` \| `lt` \| `lte` \| `is_null` | yes | Comparison |
-| `values` | list of scalars | per operator | One for the comparisons, one bool for `is_null`, one or more for `in`/`not_in` |
+| `values` | list of scalars | per operator, or `column` | One for the comparisons, one bool for `is_null`, one or more for `in`/`not_in` |
+| `column` | column name, `^[a-z][a-z0-9_]*$` | instead of `values` | Another categorical dimension of the same mart to compare against; `eq`/`ne` only |
+
+A filter compares its dimension against literals (`values:`) or against another
+dimension (`column:`) — exactly one of the two. The comparison is admitted only when
+both columns are proven to be roles of one dimension member: both flatten steps
+declare `role_of:` naming the same dimension, and both columns carry the same member.
+
+```yaml
+filter:
+  - {dimension: billing_region, op: eq, column: shipping_region}
+```
+
+Without the declarations the metric is refused with `MetricFilterInvalid`, naming the
+`role_of:` to add. `bloomery explain` shows the facts that admitted the comparison
+beside the filter. A target that has no spelling for a column comparison refuses it
+with `UnsupportedByTarget`; Cube and MetricFlow both spell it.
 
 Deliberately narrower than the [query vocabulary](../how-to/plan-a-metric-request.md)
 a *request* may use: no `like`/`ilike`, whose escape language and case-folding
