@@ -33,7 +33,9 @@ jobs:
   ci:
     name: Run CI before release
     needs: tag-on-main
-    uses: ./.github/workflows/ci.yml
+    # The `./` form is the one the v0.3.0 run proved; a spelling only a tag exercises is
+    # not changed on a lint's advice.
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
     with:
       force_full: true
     permissions:
