@@ -44,25 +44,25 @@ Entity-level `grain`/`key`/`scd`/`materialization` changes are BREAKING at the e
 
 - Paths: `src/bloomery/plan/diff.py` `tests/fixtures/evolution_v5/entity_model.yaml` `tests/unit/test_plan/test_diff.py`
 
-### S-0033/D-2 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+### S-0033/D-2 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
 
 `OnFail = flag | quarantine | fail` (v1 — `repair` deferred, decision 17; landed in D87), explicit per rule, never a global default. Deliberately no `drop`: quarantine is drop plus recoverability; deletion happens via retention policy, with a paper trail.
 
 - Paths: `src/bloomery/ir/nodes.py` `src/bloomery/plan/diff.py` `src/bloomery/spec/quality.py` `tests/unit/test_ir/test_nodes.py` `tests/unit/test_plan/test_quality_changes.py` `tests/unit/test_spec/test_quality.py`
 
-### S-0033/D-11 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+### S-0033/D-11 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
 
 S-0024 amendment (dated when implemented): quality rule add/remove/change, disposition changes in both directions, and dedupe changes classify `RESTATING`; `Plan` gains `replay_scope` alongside `backfill_scope` — `quarantine → flag` needs replay, not just backfill.
 
 - Paths: `src/bloomery/plan/model.py`
 
-### S-0033/D-51 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+### S-0033/D-51 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
 
 *(2026-08-08, M12 fix)* **A disposition is diffed as the author wrote it, not as it routes.** `disposition()` answers a routing question and correctly maps `unknown_member` onto `FLAG` — the row is kept either way — but `plan()` asks a different question, and the collapse made `unknown_member ⇄ flag` invisible: zero changes, `has_changes` False, no backfill, while the emitted SQL gains or loses its `'__unknown__'` CASE and every stored fk restates. D11 requires disposition changes classified in **both** directions, so the diff compares the authored label (`on_missing` for `referential`, `on_fail` otherwise). Replay follows D52 from the routing disposition: `unknown_member → quarantine` starts diverting, so there is nothing yet to replay; `quarantine → unknown_member`/`flag` stops diverting, so the diverted rows replay.
 
 - Paths: `src/bloomery/plan/diff.py`
 
-### S-0033/D-52 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+### S-0033/D-52 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
 
 *(2026-08-08, M12 fix)* **`replay_scope` names an entity only where quarantined rows can come back.** The shipped rule fired on *any* change to a formerly-quarantining rule, which named the entity for `quarantine → fail` and for a **narrowed** bound — contradicting §5.7's own "a tightening needs a backfill and no replay", and, under `fail`, feeding a replay runner rows that trip the new blocking audit and halt the pipeline. Replay now requires the old disposition to have been `quarantine` **and** one of: the rule is gone; its disposition is now `flag` (`unknown_member` included, D19); or its parameters relaxed. Relaxation is decided from the params where they are ordered (`range`/`length` bounds) or a set (`in_enum`/`in_set` membership, D49's two families together); where they are not — an unorderable `pattern` regex, an `expression` — it is **undecidable**, and the undecidable case reports the replay: a no-op MERGE is cheaper than a row stranded in quarantine, which is what §5.6's "drop plus recoverability" forbids.
 

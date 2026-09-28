@@ -8,7 +8,7 @@ Additivity extends with `NonAdditiveWithoutComponents` (a `non_additive` metric 
 
 - Paths: `src/bloomery/guardrails/additivity.py` `tests/fixtures/semi_additive_inventory/metrics.yaml` `tests/unit/test_guardrails/test_additivity.py`
 
-### S-0033/D-21 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+### S-0033/D-21 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
 
 Ingestion metadata contract: entities using `quarantine` or `dedupe` require bronze `_load_id`, `_ingested_at`, `_source_row_id` (a stable per-source-row identity supplied by the ingestion layer, **NOT NULL and unique per source row** — data properties no compiler can check, so the lowering emits a generated **blocking audit** on the metadata columns: a null or duplicated `_source_row_id` stops the run); column absence is the new compile error `IngestionMetadataMissing` (`GuardrailError` leaf, `errors.py` per S-0019/D-3). `reject_id` = sha256 over the length-prefixed utf-8 **pair** (`source_relation`, `_source_row_id`) — canonical serialization per the S-0020 canon-bytes doctrine. This supersedes the triple this row first carried (this round's own earlier decision): `_load_id` is removed from the identity and becomes an attribute (the latest observing load) — re-deliveries of the same source row across loads must land on the **same** reject row (that is what `first_seen`/`last_seen` track); a per-load identity would mint a new row per retry and violate replay idempotence. A re-delivery updates `last_seen`/`_load_id`/`failed_rules` on the existing row.
 

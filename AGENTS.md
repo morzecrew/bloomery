@@ -187,6 +187,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `comparisons/` — 9 decision(s)
 - `examples/` — 1 decision(s)
 - `examples/lakehouse/` — 8 decision(s)
+- `examples/retrieval/` — 0 decision(s)
 - `examples/targets/` — 2 decision(s)
 - `fuzz/` — 7 decision(s)
 - `pages/` — 1 decision(s)

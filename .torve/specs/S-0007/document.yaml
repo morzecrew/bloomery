@@ -3,7 +3,7 @@ id: S-0007
 title: Dimension algebra
 kind: design
 status: accepted
-implementation: complete
+implementation: partial
 depends_on: []
 informed_by: [S-0001]
 supersedes: []
