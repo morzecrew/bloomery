@@ -19,3 +19,10 @@ models:
   claude-opus-5:
     context_window: 200000
     max_tokens: 32000
+  # The seat moved here on 2026-09-28. The two figures are carried over from
+  # claude-opus-5 rather than read off a vendor page: the claude seat's image
+  # reads neither (only the dsh seat's overlay does), so they are the record's
+  # and not the attempt's until someone replaces them with the published ones.
+  claude-opus-5-5:
+    context_window: 200000
+    max_tokens: 32000
