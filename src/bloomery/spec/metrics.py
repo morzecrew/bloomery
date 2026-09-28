@@ -155,17 +155,37 @@ class MetricFilter(SpecModel):
     identifier. The second is not cosmetic — see
     :data:`~bloomery.spec.common.DimensionName`, which the reference is typed
     with: this is the one place a member name reaches a template unquoted.
+
+    ``column`` names another dimension of the same mart to compare against in
+    place of ``values`` (S-0007/D-9), with ``eq`` or ``ne`` only. Whether the
+    two columns are comparable at all is R021's question, asked by the
+    guardrail; this layer checks only that exactly one of the two keys is
+    present and that the operator is one a column comparison takes.
     """
 
     dimension: DimensionName
     op: FilterOpName
     values: tuple[FilterValue, ...] = ()
+    column: DimensionName | None = None
 
     # ....................... #
 
     @model_validator(mode="after")
     def _arity(self) -> MetricFilter:
-        if self.op == "is_null":
+        if self.column is not None:
+            if self.values:
+                msg = (
+                    f"filter on {self.dimension!r} names both column: and values: — "
+                    "compare against another dimension or against literals, not both"
+                )
+                raise ValueError(msg)
+            if self.op not in ("eq", "ne"):
+                msg = (
+                    f"filter on {self.dimension!r} ({self.op}) compares against column "
+                    f"{self.column!r}, which takes eq or ne only"
+                )
+                raise ValueError(msg)
+        elif self.op == "is_null":
             if len(self.values) != 1 or not isinstance(self.values[0], bool):
                 msg = (
                     f"filter on {self.dimension!r} (is_null) takes exactly one bool — "

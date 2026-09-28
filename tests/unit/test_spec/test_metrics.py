@@ -425,3 +425,33 @@ metrics:
 """)
 
     assert parsed.metrics["cost_per_parcel"].ratio.includes_zero_denominator is True
+
+
+# ....................... #
+# A filter comparing two dimensions (S-0007/D-9)
+
+
+def test_a_filter_may_compare_against_another_dimension() -> None:
+    (clause,) = parse(
+        "metrics_version: 1\nmetrics:\n  m:\n    filter:\n"
+        "      - {dimension: billing_region, op: ne, column: shipping_region}\n"
+    ).metrics["m"].filter
+    assert (clause.column, clause.values) == ("shipping_region", ())
+
+
+@pytest.mark.parametrize(
+    ("clause", "fragment"),
+    [
+        ("{dimension: s, op: eq, column: t, values: [a]}", "not both"),
+        ("{dimension: s, op: eq}", "exactly 1 value"),
+        ("{dimension: s, op: in, column: t}", "eq or ne only"),
+        ("{dimension: s, op: gt, column: t}", "eq or ne only"),
+        ("{dimension: s, op: is_null, column: t}", "eq or ne only"),
+    ],
+)
+def test_a_column_filter_takes_one_key_and_one_of_two_operators(
+    clause: str, fragment: str
+) -> None:
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(f"metrics_version: 1\nmetrics:\n  m:\n    filter: [{clause}]\n")
+    assert fragment in str(excinfo.value)

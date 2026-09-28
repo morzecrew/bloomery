@@ -320,6 +320,7 @@ def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
                     clause,
                     ref=f"{{CUBE}}.{clause.dimension}",
                     declared=mart_column_type(mart, clause.dimension),
+                    column_ref=f"{{CUBE}}.{clause.column}",
                 )
             }
             for clause in metric.filter

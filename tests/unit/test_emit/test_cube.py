@@ -899,3 +899,14 @@ def test_role_of_emits_one_shared_dimension_across_two_column_families() -> None
     # The date path is untouched beside it (S-0007/D-5).
     assert dimensions["ordered_day"]["meta"] == {"granularity": "day"}
     assert "meta" not in dimensions["order_id"]
+
+
+def test_a_filter_comparing_two_roles_renders_column_against_column() -> None:
+    # S-0007/D-9: the comparison R021 admitted, spelled in the cube's own terms.
+    from bloomery import compile_project, load_project
+    from golden.roles_of_one_dimension import DOCUMENTS
+
+    compared = "    filter: [{dimension: billing_region, op: ne, column: shipping_region}]\n"
+    sources = {**DOCUMENTS, "metrics": DOCUMENTS["metrics"] + compared}
+    (cube, _view) = compile_project(load_project(sources), target=Target.CUBE, dialect="duckdb")
+    assert "{CUBE}.billing_region <> {CUBE}.shipping_region" in cube.content

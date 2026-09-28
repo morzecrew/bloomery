@@ -755,3 +755,25 @@ def test_one_dimension_is_not_enough_without_the_same_member() -> None:
     undeclared = prove_comparable("billing_region", "nowhere", roles)
     assert isinstance(undeclared, Refutation)
     assert "plays no declared role" in undeclared.obligations[0].found
+
+
+def test_the_marts_join_stays_key_equality_outside_r021() -> None:
+    """S-0007/D-9: R021 governs a metric filter comparing two columns, never the
+    structural join a mart is built from. Each role's join is its declared key
+    equality, which no role_of: map would admit as a comparison."""
+    from bloomery import Target, compile_project, load_project
+    from bloomery.semantic.proof import prove_comparable
+    from golden.roles_of_one_dimension import DOCUMENTS
+
+    (mart,) = (
+        artifact.content
+        for artifact in compile_project(
+            load_project(DOCUMENTS), target=Target.SQLMESH, dialect="duckdb"
+        )
+        if artifact.path == "models/gold/mart_orders.sql"
+    )
+    assert 'ON "order".bill_to_id = billing_.address_id' in mart
+    assert 'ON "order".ship_to_id = shipping_.address_id' in mart
+
+    roles = {"billing_region": ("address", "region"), "shipping_region": ("address", "region")}
+    assert isinstance(prove_comparable("bill_to_id", "address_id", roles), Refutation)

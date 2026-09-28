@@ -22,17 +22,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from bloomery.errors import PlannerError, guaranteed
+from bloomery.guardrails.metrics import mart_roles
 from bloomery.ir import COMPUTED, Additivity, Layer, SemiAdditiveRule
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import Op, Predicate, clause_predicates
 from bloomery.planner.result import BranchSource, Explanation, MeasureExplanation
+from bloomery.semantic.proof import Proof, prove_comparable
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
     from metricflow.engine.metricflow_engine import MetricFlowExplainResult
 
-    from bloomery.ir import MartIR, MetricInputIR, MetricIR, ProjectIR
+    from bloomery.ir import MartIR, MetricFilterIR, MetricInputIR, MetricIR, ProjectIR
     from bloomery.naming import NamingPolicy
     from bloomery.planner.coverage import Coverage
     from bloomery.planner.policy import RowPolicy
@@ -131,7 +133,27 @@ def _cumulative_note(metric: MetricIR, agg: str) -> str | None:
 # ....................... #
 
 
-def _filter_note(metric: MetricIR) -> str:
+def _clause_note(clause: MetricFilterIR, mart: MartIR | None) -> str:
+    """One restriction as prose; a ``column:`` comparison carries its R021
+    warrant (S-0007/D-9), the two role declarations that make it comparable."""
+
+    if clause.column is None:
+        return f"{clause.dimension} {clause.op} {list(clause.values)}"
+
+    comparison = f"{clause.dimension} {clause.op} column {clause.column}"
+    answer = (
+        prove_comparable(clause.dimension, clause.column, mart_roles(mart))
+        if mart is not None
+        else None
+    )
+
+    if not isinstance(answer, Proof):
+        return f"{comparison} [R021]"
+
+    return f"{comparison} [R021: {', '.join(fact.statement for fact in answer.facts)}]"
+
+
+def _filter_note(metric: MetricIR, mart: MartIR | None) -> str:
     """The rows a metric is restricted to, when it is (S-0050/D-8).
 
     Always said, never implied: a filtered metric that explains itself as its
@@ -141,9 +163,7 @@ def _filter_note(metric: MetricIR) -> str:
     if not metric.filter:
         return ""
 
-    clauses = "; ".join(
-        f"{clause.dimension} {clause.op} {list(clause.values)}" for clause in metric.filter
-    )
+    clauses = "; ".join(_clause_note(clause, mart) for clause in metric.filter)
     return f" (restricted to {clauses})"
 
 
@@ -180,7 +200,7 @@ def _measure_explanation(metric: MetricIR, mart: MartIR | None) -> MeasureExplan
         expr = f"COUNT(DISTINCT {metric.expr.sql})"
     else:
         expr = f"{agg}({metric.expr.sql})"
-    restriction = _filter_note(metric)
+    restriction = _filter_note(metric, mart)
 
     if cumulative := _cumulative_note(metric, agg):
         return MeasureExplanation(metric.name, expr, additivity, cumulative + restriction)
@@ -394,7 +414,9 @@ def metric_restrictions(name: str, metrics_by_name: Mapping[str, MetricIR]) -> t
         return ()
 
     return tuple(
-        _human_predicate(
+        f"{clause.dimension} {_SYMBOLS[Op(clause.op)]} {clause.column}"
+        if clause.column is not None
+        else _human_predicate(
             Predicate(dimension=clause.dimension, op=Op(clause.op), values=tuple(clause.values)),
             clause.dimension,
         )

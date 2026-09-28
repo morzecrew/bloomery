@@ -18,7 +18,7 @@ from typing import cast
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
-from bloomery.errors import guaranteed
+from bloomery.errors import UnsupportedByTarget, guaranteed
 from bloomery.ir import AuditIR, EntityIR, MartIR, MetricFilterIR
 from bloomery.transforms import neutral_type
 from bloomery.typing import (
@@ -316,7 +316,9 @@ def mart_column_type(mart: MartIR, column: str) -> LogicalType:
 # ....................... #
 
 
-def metric_filter_sql(clause: MetricFilterIR, *, ref: str, declared: LogicalType) -> str:
+def metric_filter_sql(
+    clause: MetricFilterIR, *, ref: str, declared: LogicalType, column_ref: str | None = None
+) -> str:
     """One metric-filter clause as SQL text, over the target's own spelling of
     the column reference (S-0050/D-15).
 
@@ -335,7 +337,21 @@ def metric_filter_sql(clause: MetricFilterIR, *, ref: str, declared: LogicalType
     operator takes (``MetricFilter._arity`` refuses the rest at parse), so the
     ``is_null`` branch may index it; and each value fits the column's declared
     type (the guardrail stage, D9), so nothing is cast.
+
+    A ``column:`` clause (S-0007/D-9) renders ``ref op column_ref`` — the
+    target's spelling of the other column, which the guardrail has proved
+    comparable by R021. A caller that passes none cannot spell a
+    column-to-column filter, and the clause is refused rather than approximated.
     """
+
+    if clause.column is not None:
+        if column_ref is None:
+            msg = (
+                f"metric filter {clause.dimension} {clause.op} column {clause.column} "
+                "compares two columns, which this target has no spelling for"
+            )
+            raise UnsupportedByTarget(msg)
+        return f"{ref} {_METRIC_FILTER_COMPARISONS[clause.op]} {column_ref}"
 
     if clause.op == "is_null":
         return f"{ref} IS NULL" if clause.values[0] else f"{ref} IS NOT NULL"

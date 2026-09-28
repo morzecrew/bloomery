@@ -1018,11 +1018,16 @@ class MetricFilterIR:
     own type, and the canonical encoder has no tag for a ``date``. The
     guardrail has already checked each value against the column's declared
     type, so the renderers quote by value type and never cast.
+
+    ``column`` is set, and ``values`` empty, when the clause compares its
+    dimension to another dimension column of the same mart (S-0007/D-9); the
+    guardrail has proved the pair comparable by R021 before a renderer sees it.
     """
 
     dimension: str
     op: str
     values: tuple[str | int | bool | Decimal, ...]
+    column: str | None = None
 
 
 # ....................... #
@@ -1762,9 +1767,14 @@ class ProjectIR:
     anyway, because the version is in the stream — and it is the field that
     makes a cycle *visible*: ``upstream`` names the direct upstreams only, so
     A → B → A could be seen and A → B → C → A could not.
+
+    Version 24 (S-0007/D-9) adds ``MetricFilterIR.column``, the dimension a
+    filter compares its own to in place of literal values. Every project with
+    a metric filter encodes the field, and the version is in the stream, so
+    every fingerprint moves.
     """
 
-    bloomery_ir_version: int = 23
+    bloomery_ir_version: int = 24
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()
