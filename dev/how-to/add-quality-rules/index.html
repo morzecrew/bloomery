@@ -2169,6 +2169,34 @@ that come up immediately:</p>
 <li><code>in_enum</code> takes no values. Its admissible set <em>is</em> the <code>enum_map</code> chain's targets, so
   widening an enum means editing one list rather than two that can drift.</li>
 </ul>
+<p>Which rules are textual:</p>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>The column it may be declared on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>normalize</code>, <code>charset</code></td>
+<td><code>string</code> only — refused at parse on any other type</td>
+</tr>
+<tr>
+<td><code>length</code>, <code>pattern</code></td>
+<td>textual by construction; their argument decides what they reject</td>
+</tr>
+<tr>
+<td>everything else</td>
+<td>any type</td>
+</tr>
+</tbody>
+</table>
+<p><code>normalize</code> and <code>charset</code> compare characters, and they lower over the bare column with
+no cast — a character rule over a number has no meaning a cast would supply. Declared on
+an <code>int</code>, <code>bool</code>, <code>date</code>, <code>timestamp</code> or <code>decimal</code> column they would compile to SQL
+PostgreSQL, Trino and DuckDB refuse at execution, so the declaration is refused where it
+is written instead, naming the column's type.</p>
 <p>The <code>unmapped:</code> list is doing real work here. An entity that quarantines or dedupes
 requires the bronze ingestion-metadata columns <code>_load_id</code>, <code>_ingested_at</code>, and
 <code>_source_row_id</code>; listing them as the acknowledged tail is how a mapping states they
