@@ -21,8 +21,11 @@ the same mismatch, rather than raising on whichever field moved.
 from __future__ import annotations
 
 import dataclasses
+import functools
 import json
-from decimal import Decimal
+import types as _types
+import typing
+from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any, cast
 
@@ -97,6 +100,64 @@ def _class(name: object) -> type:
 # ....................... #
 
 
+@functools.cache
+def _hints(cls: type) -> dict[str, object]:
+    """A node class's field annotations, resolved once."""
+    return typing.get_type_hints(cls)
+
+
+def _fits(value: object, hint: object) -> bool:
+    """Whether a reconstructed *value* is of the shape *hint* declares.
+
+    The IR's fields are scalars, enums, ``Decimal``, nodes, tuples of those and
+    optionals of those (S-0020/ir-shape), which is the whole grammar this reads.
+    A hint it does not know admits anything rather than refusing a tree the
+    dump wrote — the check exists to keep a foreign document out of the
+    resolver, not to re-derive the dataclass.
+    """
+    origin = typing.get_origin(hint)
+    if origin in (typing.Union, _types.UnionType):
+        return any(_fits(value, arg) for arg in typing.get_args(hint))
+    if origin is typing.Literal:
+        return value in typing.get_args(hint)
+    if origin is tuple:
+        if not isinstance(value, tuple):
+            return False
+        args = typing.get_args(hint)
+        items = cast("tuple[object, ...]", value)
+        if len(args) == 2 and args[1] is Ellipsis:
+            return all(_fits(item, args[0]) for item in items)
+        return len(args) == len(items) and all(
+            _fits(i, a) for i, a in zip(items, args, strict=True)
+        )
+    if hint is type(None):
+        return value is None
+    if hint is bool:
+        return isinstance(value, bool)
+    if hint is int:
+        return isinstance(value, int) and not isinstance(value, bool)
+    if isinstance(hint, type) and (
+        hint in (str, Decimal) or issubclass(hint, Enum) or dataclasses.is_dataclass(hint)
+    ):
+        return isinstance(value, hint)
+    return True
+
+
+def _node(cls: type, fields: dict[str, object]) -> object:
+    """One node from its reconstructed fields, each checked against its
+    annotation before the dataclass is built — a document that names the right
+    node type and puts a string where a node belongs would otherwise reach the
+    resolver and fail there as an attribute error, which the compile boundary
+    promises never to raise (S-0008/D-1)."""
+    hints = _hints(cls)
+    for name, value in fields.items():
+        hint = hints.get(name)
+        if hint is not None and not _fits(value, hint):
+            msg = f"{cls.__name__}.{name} is not a {hint}: got {type(value).__name__}"
+            raise TypeError(msg)
+    return cls(**fields)
+
+
 def _load(value: object) -> object:
     """JSON data back to the IR value :func:`_dump` was given."""
     if isinstance(value, list):
@@ -107,8 +168,9 @@ def _load(value: object) -> object:
             return Decimal(str(node[_DECIMAL]))
         if _ENUM in node:
             return _class(node[_ENUM])(node["value"])
-        return _class(node[_NODE])(
-            **{key: _load(item) for key, item in node.items() if key != _NODE}
+        return _node(
+            _class(node[_NODE]),
+            {key: _load(item) for key, item in node.items() if key != _NODE},
         )
 
     return value
@@ -161,6 +223,6 @@ def ir_from_json(text: str) -> ProjectIR:
 
     try:
         return cast("ProjectIR", _load(payload))
-    except (KeyError, TypeError, ValueError) as exc:
+    except (KeyError, TypeError, ValueError, InvalidOperation) as exc:
         msg = f"not a bloomery IR document: {exc}"
         raise SpecParseError(msg) from exc

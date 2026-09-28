@@ -244,6 +244,24 @@ def check_imports(
             )
             continue
 
+        # The shortest loop of all is one hop long: this project's own earlier
+        # compile handed back under an alias. Its ancestry is empty, so the
+        # name check below would pass it; the upstream's own export name is
+        # the first thing compared.
+        source_name = source.exports.name if source.exports else None
+        if own is not None and source_name == own:
+            errors.append(
+                ImportCycle(
+                    f"imports from {alias!r}, which is this project itself: it exports "
+                    f"{own!r}, this project's own export name. Import cycles are refused, "
+                    f"not resolved (S-0002/D-4), and a project reading its own earlier "
+                    f"compile is the shortest one. Fix: decide which project owns the "
+                    f"shared concept",
+                    source_path=source_path,
+                )
+            )
+            continue
+
         ancestry = upstream_ancestry(source) if own is not None else ()
         if any(name == own for name, _fingerprint in ancestry):
             errors.append(

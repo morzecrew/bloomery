@@ -170,3 +170,39 @@ def test_the_version_is_read_before_anything_is_reconstructed() -> None:
 def test_a_document_that_is_not_an_ir_is_a_refusal_not_a_traceback(text: str) -> None:
     with pytest.raises(SpecParseError, match="not a bloomery IR document"):
         ir_from_json(text)
+
+
+def test_a_field_of_the_wrong_shape_is_a_refusal_not_an_attribute_error() -> None:
+    """A document that names the right node and puts a string where a node
+    belongs is refused at the loader, not left for the resolver to trip on."""
+
+    payload = json.loads(ir_json(_ir()))
+    payload["exports"] = "invalid"
+
+    with pytest.raises(SpecParseError, match="ProjectIR.exports is not a"):
+        ir_from_json(json.dumps(payload))
+
+
+def test_a_malformed_decimal_is_a_refusal() -> None:
+    """`Decimal("invalid")` raises `InvalidOperation`, an `ArithmeticError` and
+    not a `ValueError`; the loader's boundary catches it too, so a malformed
+    IR file is a refusal rather than an internal error."""
+
+    base = _ir()
+    ir = dataclasses.replace(
+        base,
+        reconcile=(
+            ReconcileIR(
+                name="orders_match",
+                left="order",
+                right="order_item",
+                tolerance=Decimal("0.0100"),
+                on_fail=OnFail.FAIL,
+            ),
+        ),
+    )
+    text = ir_json(ir).replace('"$decimal": "0.0100"', '"$decimal": "invalid"')
+    assert '"invalid"' in text
+
+    with pytest.raises(SpecParseError, match="not a bloomery IR document"):
+        ir_from_json(text)

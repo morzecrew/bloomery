@@ -464,3 +464,19 @@ def test_an_export_the_upstream_ir_does_not_carry_is_refused() -> None:
     assert isinstance(leaf, UnexportedImport)
     assert "carries no entity" in str(leaf)
     assert "'ghost'" in str(leaf)
+
+
+def test_a_project_importing_its_own_earlier_compile_is_refused() -> None:
+    """The one-hop loop: `loop_a` compiled before it imported anything, then
+    handed back to itself under an alias. Its ancestry is empty, so only the
+    upstream's own export name can catch it."""
+
+    before = _loop("a", imports=False)
+
+    with pytest.raises(GuardrailError) as caught:
+        _loop("a", imports="alpha", next=before)
+
+    (leaf,) = caught.value.collected
+    assert isinstance(leaf, ImportCycle)
+    assert "imports from 'next', which is this project itself" in str(caught.value)
+    assert "Fix: decide which project owns the shared concept" in str(caught.value)
