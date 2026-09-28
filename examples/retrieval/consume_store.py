@@ -66,11 +66,13 @@ def collection(name: str, profile: dict[str, Any]) -> dict[str, Any]:
     store indexes a corpus rather than a space.
 
     A sparse vector is configured for the lexical side, because a store has no
-    full-text index to fall back on. Which analyser builds it is the manifest's
-    `lexical.analyser` where the profile declares one — two opaque strings, and a
-    profile whose analyser differs from the one its corpus relation declares is
-    refused at compile time, the way a producer that differs from the space's
-    document encoder is.
+    full-text index to fall back on. Its configuration is the store's — index
+    settings, not an identity — so the request carries the store's defaults.
+    Which analyser *builds* the sparse vectors is the manifest's
+    `lexical.analyser` where the profile declares one, two opaque strings the
+    ingest reads (see `ingest`); a profile whose analyser differs from the one its
+    corpus relation declares is refused at compile time, the way a producer that
+    differs from the space's document encoder is.
     """
     space = profile["vector"]["space"]
     config: dict[str, Any] = {
@@ -84,7 +86,7 @@ def collection(name: str, profile: dict[str, Any]) -> dict[str, Any]:
         },
     }
     if "lexical" in profile:
-        config["sparse_vectors"] = {"lexical": profile["lexical"].get("analyser", {})}
+        config["sparse_vectors"] = {"lexical": {}}  # the store's default sparse index
     return config
 
 
@@ -113,13 +115,24 @@ def ingest(name: str, profile: dict[str, Any]) -> dict[str, Any]:
     written at ingest cannot be returned later.
     """
     relation, vector = profile["relation"], profile["vector"]
-    return {
+    plan: dict[str, Any] = {
         "collection_name": name,
         "from": f"{relation['namespace']}.{relation['table']}",
         "id": profile["grain"],
         "vector": {profile["vector"]["space"]["name"]: vector["field"]},
         "payload": sorted({*profile["return"], *profile["filterable"]}),
     }
+    if "lexical" in profile:
+        # The sparse side is built at ingest, by the analyser the manifest names;
+        # a store that built it with another would answer a query in a
+        # different space, which is the mismatch the compile-time guard refuses.
+        plan["sparse"] = {
+            "lexical": {
+                "fields": profile["lexical"]["fields"],
+                "analyser": profile["lexical"].get("analyser", {"model": "undeclared"}),
+            }
+        }
+    return plan
 
 
 def search(name: str, profile: dict[str, Any], *, limit: int = 10) -> dict[str, Any]:
