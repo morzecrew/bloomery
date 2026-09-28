@@ -32,6 +32,20 @@ amendments:
       excluded. D-9 names the surface: the metric filter, which already reaches
       every target, gains a `column:` form. Phase 4 is rewritten to build it, and
       its scope reaches the spec, the IR, the guard, the planner and the emitters.
+  - id: A-3
+    at: '2026-09-28T14:55:45Z'
+    title: >-
+    md: |-
+      T-0173's second and third attempts were refused in a second each with
+      "Prompt is too long": the scope A-2 wrote — `pages/docs/**`, `tests/unit/**`,
+      three package globs — named 1,107 files and the context pack's outline of
+      them ran to 562 KB, where the phase that ran beside it carried 64 KB. The
+      scope now names the files the surface touches: the metric filter's grammar
+      and IR, the resolver that binds it, the guard that asks R021, the planner
+      and the two emitters that render a filter, the three pages that describe
+      one, their tests, the semantic corpus and the goldens the IR move re-blesses.
+      Phase 4's scope names its files: a pack outlined over a thousand is a prompt
+      no model takes
 editorial:
   - subject: D-9
     field: text
