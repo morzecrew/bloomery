@@ -125,7 +125,10 @@ phasing:
       - src/bloomery/planner/coverage.py
       - src/bloomery/planner/policy.py
       - src/bloomery/planner/metricflow_planner.py
+      - src/bloomery/emit/lower/__init__.py
+      - src/bloomery/emit/lower/marts.py
       - src/bloomery/emit/lower/predicates.py
+      - src/bloomery/emit/cube/__init__.py
       - src/bloomery/emit/metricflow/__init__.py
       - src/bloomery/plan/diff.py
       - pages/docs/reference/spec-schemas.md
@@ -136,6 +139,7 @@ phasing:
       - tests/unit/test_semantic/test_proof.py
       - tests/unit/test_planner/test_filters.py
       - tests/unit/test_planner/test_metricflow_planner.py
+      - tests/unit/test_emit/test_cube.py
       - tests/unit/test_emit/test_metricflow.py
       - tests/unit/test_ir/**
       - tests/fixtures/semantic_corpus/**
