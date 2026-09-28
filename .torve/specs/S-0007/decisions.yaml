@@ -127,3 +127,7 @@ decisions:
       Carried from row 8 of the source document, which grades it `OPEN`; Q-3 is the
       question whose answer decides it. D-2 is why an unneeded relation is dropped
       rather than landed
+  - id: D-9
+    grade: ASSUMED
+    text: <decision>
+    fingerprint: fe8c37cd8fc1ceeb/202c11f3690cefb1
