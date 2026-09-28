@@ -67,6 +67,7 @@ nav = [
     ] },
     { "Contributing" = [
         "contributing/fuzzing.md",
+        "contributing/cloud-lanes.md",
     ] },
 ]
 
