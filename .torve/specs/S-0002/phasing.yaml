@@ -89,19 +89,19 @@ phasing:
   - phase: 6
     title: The producer's dbt project name
     intent: >-
-      Implement D-10. `exports.yaml` gains an optional `name` — the producer's dbt project
-      name, the one identity a bloomery project carries and only because one target needs
-      it; `Exports` and `ExportSet` parse it, `ExportsIR` carries it across, and `_bind_imports`
-      puts it on `UpstreamIR` beside the alias. The dbt target then spells the two-argument
-      `ref()` and the `dependencies.yml` entry with the upstream's name, and names the
-      project in `dbt_project.yml` after its own export name when it has one and `bloomery`
-      otherwise; an upstream that exports no name is refused at the import guard on the dbt
-      target rather than emitted as files dbt cannot resolve, and every other target is
-      untouched — SQLMesh names the relation, Cube and MetricFlow read a mart. The
-      `ecom_basic` fixture exports a name so the cross-project tests and the goldens show
-      it; the corpus pin moves for that fixture's `dbt_project.yml` and nothing else, which
-      is the assertion to keep. The alias stays what keys the compile input and the
-      resolver (D-2).
+      Implement D-10. `exports.yaml` gains an optional `name` — the producer's dbt
+      project name, the one identity a bloomery project carries and only because one
+      target needs it; `Exports` and `ExportSet` parse it, `ExportsIR` carries it
+      across, and `_bind_imports` puts it on `UpstreamIR` beside the alias. The dbt
+      target then spells the two-argument `ref()` and the `dependencies.yml` entry
+      with the upstream's name, and names the project in `dbt_project.yml` after its
+      own export name when it has one and `bloomery` otherwise; an upstream that exports
+      no name is refused at the import guard on the dbt target rather than emitted
+      as files dbt cannot resolve, and every other target is untouched — SQLMesh names
+      the relation, Cube and MetricFlow read a mart. The `ecom_basic` fixture exports
+      a name so the cross-project tests and the goldens show it; the corpus pin moves
+      for that fixture's `dbt_project.yml` and nothing else, which is the assertion
+      to keep. The alias stays what keys the compile input and the resolver (D-2).
     scope:
       - src/bloomery/spec/exports.py
       - src/bloomery/ir/nodes.py
@@ -118,8 +118,75 @@ phasing:
     acceptance:
       - >-
         uv run pytest tests/unit/test_spec/test_exports.py tests/unit/test_ir/test_nodes.py
-        tests/unit/test_emit tests/unit/test_guardrails/test_imports.py tests/golden -q
+        tests/unit/test_emit tests/unit/test_guardrails/test_imports.py tests/golden
+        -q
       - uv run mypy src
     depends_on:
       - 5
+    character: structural
+  - phase: 7
+    title: The CLI compiles an importing project
+    intent: >-
+      Composition is reachable from Python and from nothing else: `compile_project`
+      takes `upstream={alias: ProjectIR}` (D-2) and `bloomery compile` has no way
+      to hand one over, so a project with an imports document is refused at the command
+      line with `UnknownUpstream`. Give the IR a file form and the command a way to
+      read it. The compiled IR gains a canonical JSON dump and a loader — `ir_json(ir)`
+      and `ir_from_json(text)` under `bloomery.ir` — over the same type-driven walk
+      the fingerprint takes, so the bytes are a function of the IR and nothing else
+      and the loader refuses a `bloomery_ir_version` other than its own with the message
+      `plan()` already uses for the same mismatch. `bloomery compile --emit-ir <path>`
+      writes it beside the artifacts; `bloomery compile --upstream <alias>=<path>`
+      (repeatable) reads one back per alias and passes the mapping through unchanged,
+      so the resolver, the guards and the fingerprint see exactly what the Python
+      caller passes. The path is the caller's (D-8): no discovery, no registry, no
+      relative lookup beside the spec directory. A how-to shows the two commands end
+      to end on the `cross_project` fixture, and the CLI test compiles the downstream
+      from an upstream it wrote a moment earlier.
+    scope:
+      - src/bloomery/ir/__init__.py
+      - src/bloomery/ir/json.py
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/errors.py
+      - pages/docs/how-to/emit-dbt.md
+      - pages/docs/how-to/use-the-cli.md
+      - tests/unit/test_ir/test_json.py
+      - tests/unit/test_cli.py
+      - tests/fixtures/cross_project/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_ir tests/unit/test_cli.py tests/unit/test_emit/test_cross_project.py
+        -q
+      - uv run mypy src
+    depends_on:
+      - 6
+    character: structural
+  - phase: 8
+    title: An import cycle is refused
+    intent: >-
+      Write the check D-4 locks and execution left "satisfied by construction". A
+      cycle cannot form in one compile because an upstream arrives compiled, but two
+      projects that each name the other's export are exactly what D-4 refuses, and
+      the CLI of phase 7 makes that arrangement one command away. Each `UpstreamIR`
+      already carries the upstream's own `upstream` tuple and its exports' `name`;
+      the guard walks that transitive set and refuses, as `ImportCycle` in `bloomery.errors`,
+      an upstream whose chain names this project's own export `name` — or, for a project
+      that exports no name, whose chain carries this compile's own fingerprint. The
+      message names the chain alias by alias and ends with D-4's fix: decide which
+      project owns the shared concept. Nothing is resolved and no order is invented.
+      The error table in the docs gains the row; the `cross_project` fixture gains
+      the pair that closes the loop.
+    scope:
+      - src/bloomery/guardrails/imports.py
+      - src/bloomery/errors.py
+      - pages/docs/reference/errors.md
+      - tests/unit/test_guardrails/test_imports.py
+      - tests/fixtures/cross_project/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_guardrails/test_imports.py tests/unit/test_docs_floor.py
+        -q
+      - uv run mypy src
+    depends_on:
+      - 7
     character: structural

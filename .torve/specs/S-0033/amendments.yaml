@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-28T07:47:20Z'
+    title: 'Phase 1: character rules are textual rules'
+    md: |-
+      The operator source `character-rules-on-a-non-textual-column-lower-to-refused-sql`
+      (CodeAnt on #149) records that `normalize` and `charset`, added by D-86,
+      accept any column at the spec layer and lower over the bare column, so a
+      declaration on a number or a date compiles to SQL every shipped engine
+      refuses at execution. This document had no phasing: it arrived implemented
+      from the RFC that preceded it. Phase 1 is the first phase it has, and closes
+      the gap where the rule is declared rather than in the lowering, since a
+      character rule over a non-textual value has no meaning a cast would supply.

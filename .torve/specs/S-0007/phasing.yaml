@@ -93,3 +93,39 @@ phasing:
     depends_on:
       - 2
     character: structural
+  - phase: 4
+    title: R021 reaches the compile
+    intent: >-
+      Phase 2 landed `role_of:` with the two consumers that read it as metadata —
+      Cube's `meta.role_of` and MetricFlow's entity role — and R021 as a library call
+      (`prove_comparable`) that no compile path asks. D-2 says a fact without a consumer
+      is not added, so give the rule its surface: a predicate that compares two of
+      a mart's own dimension columns — in the mart's `filter:`, in a metric's filter,
+      or in a quality assertion over the mart — is admitted only when R021 proves
+      the two comparable, and refused with R021's own remediation ("declare `role_of:`
+      on both flatten steps, naming the dimension the two prefixed column families
+      are roles of") when it refutes. Measures, literals and a column against itself
+      are not the rule's business and stay as they are; two dimension columns with
+      no declared roles are the refutation `unrelated_dimensions`, which is the case
+      the corpus's `roles_of_one_dimension` fixture exists to show both ways. The
+      proof joins the plan's `derivation` like every other rule's, so `bloomery explain`
+      shows the warrant, and the semantic corpus gains the case that compares `billing_region`
+      to `shipping_region` under both declarations.
+    scope:
+      - src/bloomery/semantic/**
+      - src/bloomery/guardrails/**
+      - src/bloomery/marts/**
+      - pages/docs/concepts/what-bloomery-proves.md
+      - pages/docs/how-to/annotate-a-spec.md
+      - tests/unit/test_semantic/**
+      - tests/unit/test_guardrails/**
+      - tests/fixtures/semantic_corpus/**
+      - tests/golden/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_semantic tests/unit/test_guardrails tests/golden
+        -q
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural
