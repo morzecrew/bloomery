@@ -43,6 +43,20 @@ that come up immediately:
 - `in_enum` takes no values. Its admissible set *is* the `enum_map` chain's targets, so
   widening an enum means editing one list rather than two that can drift.
 
+Which rules are textual:
+
+| Rule | The column it may be declared on |
+|---|---|
+| `normalize`, `charset` | `string` only — refused at parse on any other type |
+| `length`, `pattern` | textual by construction; their argument decides what they reject |
+| everything else | any type |
+
+`normalize` and `charset` compare characters, and they lower over the bare column with
+no cast — a character rule over a number has no meaning a cast would supply. Declared on
+an `int`, `bool`, `date`, `timestamp` or `decimal` column they would compile to SQL
+PostgreSQL, Trino and DuckDB refuse at execution, so the declaration is refused where it
+is written instead, naming the column's type.
+
 The `unmapped:` list is doing real work here. An entity that quarantines or dedupes
 requires the bronze ingestion-metadata columns `_load_id`, `_ingested_at`, and
 `_source_row_id`; listing them as the acknowledged tail is how a mapping states they
