@@ -72,10 +72,16 @@ def test_an_upstream_crosses_whole() -> None:
                 fingerprint="blm1:" + "0" * 64,
                 entities=(entity,),
                 name="ecom_platform",
+                # The chain above the upstream (S-0002/D-4). It survives the
+                # file or it is not there at all: the artifact is the only
+                # thing a further downstream is handed (D8), and a cycle two
+                # projects up is visible in nothing else.
+                ancestry=(("ledger", "blm1:" + "1" * 64),),
             ),
         ),
     )
     assert _round_trip(ir) == ir
+    assert _round_trip(ir).upstream[0].ancestry == (("ledger", "blm1:" + "1" * 64),)
 
 
 def test_every_scalar_kind_survives() -> None:

@@ -1,0 +1,7 @@
+# `loop_a` reads `loop_c`, which reads `loop_b`, which reads `loop_a`. The
+# alias is local (S-0002/D-2), so the loop is invisible from this file — which
+# is why the chain crosses the boundary on `UpstreamIR.ancestry` instead.
+imports_version: 1
+imports:
+  next:
+    entities: [gamma]
