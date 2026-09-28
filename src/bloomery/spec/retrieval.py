@@ -12,7 +12,8 @@ opaque identities of the encoders that produce it. A **retrieval profile** names
 a corpus relation, its grain, its vector side, its optional lexical side, its
 filters and its projection.
 
-An encoder identity is an opaque string compared for equality (S-0011/D-2).
+An encoder identity — and, on the lexical side, an analyser identity — is an
+opaque string compared for equality (S-0011/D-2).
 bloomery does not know what ``text-embedding-3-small`` is, cannot verify it
 exists, and must never look it up: a compile that consulted a provider would
 read the network. What the identity buys is one comparison — two things claiming
@@ -39,6 +40,7 @@ from bloomery.spec.common import (
 # ----------------------- #
 
 __all__ = [
+    "Analyser",
     "CorpusRelation",
     "DistanceName",
     "Encoder",
@@ -83,6 +85,23 @@ class Encoder(SpecModel):
     family: str = Field(min_length=1)
     model: str = Field(min_length=1)
     input_kind: Literal["document", "query"]
+
+
+# ....................... #
+
+
+class Analyser(SpecModel):
+    """The opaque identity of one lexical analyser (S-0011/D-2).
+
+    Two strings and no ``input_kind``: an analyser tokenises a query the way it
+    tokenised the corpus, so there are not two sides to name. Compared for
+    equality and resolved against nothing, for the reason an
+    :class:`Encoder` is — a compile that asked a store which analyser a
+    relation was indexed with would read the network.
+    """
+
+    family: str = Field(min_length=1)
+    model: str = Field(min_length=1)
 
 
 # ....................... #
@@ -139,6 +158,12 @@ class CorpusRelation(SpecModel):
 
     mart: RelationName | None = None
     entity: RelationName | None = None
+    #: The analyser the corpus text was indexed with, when the author knows it.
+    #: The lexical counterpart of a space's ``document_encoder``: what it buys is
+    #: one comparison against the profile's ``lexical.analyser``, because a
+    #: corpus tokenised one way and queried another is the lexical form of the
+    #: bug two encoder identities already defend against (S-0011/D-2).
+    analyser: Analyser | None = None
 
     # ....................... #
 
@@ -179,6 +204,10 @@ class LexicalSide(SpecModel):
     """The lexical half of a profile: the text fields a keyword query reads."""
 
     fields: tuple[DimensionName, ...] = Field(min_length=1)
+    #: How those fields are tokenised at query time, when the author knows it.
+    #: Optional, so a profile that declares neither side's analyser keeps the
+    #: meaning it had before the key existed.
+    analyser: Analyser | None = None
 
 
 # ....................... #
@@ -191,9 +220,23 @@ class Fusion(SpecModel):
     combines *ranks*, so it needs no shared scale between a lexical score and a
     cosine similarity. A weighted method would need one, and there is no
     defensible default for it.
+
+    The method alone is not a ranking: two consumers honouring ``rrf`` with a
+    different rank constant, or a different number of candidates per side, return
+    different orders for one query. Both are declared here with defaults, and the
+    manifest carries the *effective* pair, so a consumer that ignores them is the
+    one that diverged.
     """
 
     method: Literal["rrf"]
+    #: The rank constant in ``1 / (k + rank)`` — 60 is the constant the published
+    #: method names, which makes the default the method's own rather than a
+    #: number chosen here.
+    k: int = Field(default=60, ge=1)
+    #: How many candidates each side contributes to the fusion. Larger than a
+    #: query's own limit on purpose: a document ranked below the cut on both
+    #: sides cannot be recovered by fusing them.
+    depth: int = Field(default=100, ge=1)
 
 
 # ....................... #

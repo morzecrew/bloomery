@@ -1,4 +1,4 @@
-"""The retrieval guards (S-0011/the-guardrails): the six refusals that make a
+"""The retrieval guards (S-0011/the-guardrails): the seven refusals that make a
 declared retrieval surface mean something.
 
 | Refusal | Because |
@@ -7,6 +7,7 @@ declared retrieval surface mean something.
 | field scalar differs from space scalar | a float32 corpus scored against a float16 query is a silently different space |
 | the vector field is not a vector type | "any array will do" is how a mixed-model corpus happens |
 | the field's declared producer differs from the space's | dimensions agreeing is not spaces agreeing |
+| the lexical analyser differs from the corpus relation's | a corpus tokenised one way and queried another is the same bug on the sparse side |
 | the profile grain differs from the corpus relation's key | one vector per retrievable item, or the corpus is not a corpus |
 | a filterable or returned field is absent from the corpus relation | the query cannot be served, and finding out at run time is the failure this project exists to move earlier |
 
@@ -16,9 +17,9 @@ duplicated a vector or collapsed several, and both make top-k meaningless.
 Strict key equality against the corpus relation, the same rule already applied
 to measures.
 
-No encoder identity is resolved against anything (S-0011/D-2): the producer
-refusal is a string comparison, and a compile that asked a provider whether a
-model exists would read the network.
+No encoder or analyser identity is resolved against anything (S-0011/D-2): the
+producer and analyser refusals are string comparisons, and a compile that asked
+a provider whether a model exists would read the network.
 
 **Against the draft IR, not the authored documents**, unlike the exposure guard:
 every refusal here needs a *type* or a *key*, and neither exists until the
@@ -144,6 +145,24 @@ def _check_profile(
             f"{_encoder(space.document_encoder)}. Dimensions agreeing is not spaces "
             f"agreeing (S-0011/D-2). Fix: name the same producer, or retrieve in the "
             f"space this producer writes"
+        )
+
+    corpus_analyser = profile.relation.analyser
+    lexical_analyser = None if profile.lexical is None else profile.lexical.analyser
+
+    if (
+        corpus_analyser is not None
+        and lexical_analyser is not None
+        and lexical_analyser != corpus_analyser
+    ):
+        refuse(
+            f"queries its lexical side with {lexical_analyser.family}/{lexical_analyser.model}, "
+            f"while {label} declares its text indexed with "
+            f"{corpus_analyser.family}/{corpus_analyser.model}. A corpus tokenised one way and "
+            f"queried another matches on terms neither side produced, which is the lexical form "
+            f"of the encoder mismatch two encoder identities already defend against "
+            f"(S-0011/D-2). Fix: name the same analyser on both sides, or drop the one that is "
+            f"not true"
         )
 
     if tuple(profile.grain) != key:

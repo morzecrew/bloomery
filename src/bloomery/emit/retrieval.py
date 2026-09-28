@@ -16,8 +16,16 @@ manifest naming ``chunk_space`` and nothing else would send its reader looking
 for a file bloomery does not emit. The cost is a space repeated once per profile
 that claims it.
 
-Nothing here reads a vector, resolves an encoder identity, or names a vector
-store (S-0011/D-2, S-0011/where-the-boundary-would-break). An encoder is three
+Absence in the manifest is exact, and it is the authored document's absence: a
+``fusion`` block is missing only from a profile that declares no fusion, and an
+``analyser`` only where none is declared. A declared ``fusion`` therefore arrives
+with its **effective** ``k`` and ``depth`` — the defaults written out where the
+document did not name them, because the dump the emit side is handed carries
+model defaults — so two consumers of one profile read one number rather than each
+supplying its own.
+
+Nothing here reads a vector, resolves an encoder or analyser identity, or names a
+vector store (S-0011/D-2, S-0011/where-the-boundary-would-break). An encoder is three
 strings copied through.
 """
 
@@ -57,7 +65,7 @@ MANIFEST_PATH = "retrieval_manifest.json"
 MANIFEST_VERSION = 1
 
 
-def _relation(relation: Mapping[str, str], naming: NamingPolicy) -> dict[str, str]:
+def _relation(relation: Mapping[str, Any], naming: NamingPolicy) -> dict[str, Any]:
     """One corpus relation, resolved through the naming policy.
 
     The logical name is kept beside the physical pair: a runtime interpolates
@@ -67,14 +75,25 @@ def _relation(relation: Mapping[str, str], naming: NamingPolicy) -> dict[str, st
     part cannot recover them from one string.
 
     A profile's relation names exactly one of a mart or an entity (the spec
-    grammar refuses anything else), so the single pair is the whole of it.
+    grammar refuses anything else), so the single pair is the whole of the naming.
+    The corpus ``analyser``, where one is declared, is copied through beside it —
+    two strings the consumer's lexical side is compared against, resolved here
+    against nothing (S-0011/D-2).
     """
 
+    analyser = relation.get("analyser")
     kind, name = guaranteed(
-        sorted(relation.items()), expected="one relation kind", by="the retrieval grammar"
+        sorted((key, value) for key, value in relation.items() if key != "analyser"),
+        expected="one relation kind",
+        by="the retrieval grammar",
     )
     namespace, table = naming.relation(name, Layer.GOLD if kind == "mart" else Layer.SILVER)
-    return {"kind": kind, "name": name, "namespace": namespace, "table": table}
+    resolved: dict[str, Any] = {"kind": kind, "name": name, "namespace": namespace, "table": table}
+
+    if analyser is not None:
+        resolved["analyser"] = analyser
+
+    return resolved
 
 
 # ....................... #

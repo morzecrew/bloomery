@@ -48,6 +48,7 @@ from bloomery.spec.quality import (
     UniqueRule,
 )
 from bloomery.spec.retrieval import (
+    Analyser,
     CorpusRelation,
     Encoder,
     Fusion,
@@ -130,6 +131,7 @@ __all__ = [
     "UniqueRule",
     # retrieval (S-0011)
     "CorpusRelation",
+    "Analyser",
     "Encoder",
     "Fusion",
     "LexicalSide",

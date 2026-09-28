@@ -74,13 +74,13 @@ semantic_spaces:
     query_encoder: {family: openai, model: text-embedding-3-small, input_kind: query}
 profiles:
   chunk_hybrid:
-    relation: {entity: chunk}
+    relation: {entity: chunk, analyser: {family: lucene, model: english}}
     grain: [chunk_id]
     vector:
       field: embedding
       space: chunk_text
       producer: {family: openai, model: text-embedding-3-small, input_kind: document}
-    lexical: {fields: [body]}
+    lexical: {fields: [body], analyser: {family: lucene, model: english}}
     fusion: {method: rrf}
     filterable: [document_id]
     return: [chunk_id, body]
@@ -214,6 +214,9 @@ def test_the_corpus_relation_is_resolved_through_the_naming_policy() -> None:
         "name": "chunk",
         "namespace": "silver",
         "table": "chunk",
+        # Copied through beside the resolved pair, never resolved against a store
+        # (S-0011/D-2) — and it is the corpus half of the analyser comparison.
+        "analyser": {"family": "lucene", "model": "english"},
     }
     assert profiles["chunk_dense"]["relation"] == {
         "kind": "mart",
@@ -239,12 +242,33 @@ def test_the_hybrid_side_and_the_projection_are_carried_verbatim() -> None:
     else."""
     profiles = manifest_payload()["profiles"]
 
-    assert profiles["chunk_hybrid"]["lexical"] == {"fields": ["body"]}
-    assert profiles["chunk_hybrid"]["fusion"] == {"method": "rrf"}
+    assert profiles["chunk_hybrid"]["lexical"] == {
+        "fields": ["body"],
+        "analyser": {"family": "lucene", "model": "english"},
+    }
     assert profiles["chunk_hybrid"]["filterable"] == ["document_id"]
     assert profiles["chunk_hybrid"]["return"] == ["chunk_id", "body"]
     assert profiles["chunk_hybrid"]["vector"]["producer"]["model"] == "text-embedding-3-small"
     assert "return_" not in json.dumps(profiles)
+
+
+def test_a_declared_fusion_carries_its_effective_constant_and_depth() -> None:
+    """The document names `rrf` and neither number; the manifest names all three.
+    Two consumers of one profile then read one k and one depth rather than each
+    supplying its own and ranking differently for the same query."""
+    fusion = manifest_payload()["profiles"]["chunk_hybrid"]["fusion"]
+
+    assert fusion == {"method": "rrf", "k": 60, "depth": 100}
+
+
+def test_a_declared_constant_and_depth_reach_the_manifest_unchanged() -> None:
+    sources = dict(SOURCES)
+    sources["retrieval"] = sources["retrieval"].replace(
+        "fusion: {method: rrf}", "fusion: {method: rrf, k: 10, depth: 250}"
+    )
+    fusion = manifest_payload(sources=sources)["profiles"]["chunk_hybrid"]["fusion"]
+
+    assert fusion == {"method": "rrf", "k": 10, "depth": 250}
 
 
 def test_a_dense_profile_carries_no_lexical_or_fusion_key() -> None:
@@ -256,6 +280,9 @@ def test_a_dense_profile_carries_no_lexical_or_fusion_key() -> None:
     assert "lexical" not in dense
     assert "fusion" not in dense
     assert "producer" not in dense["vector"]
+    # An analyser is absent where none is declared, on either side — the corpus
+    # relation's included, which is the key the `relation` block gained.
+    assert "analyser" not in dense["relation"]
 
 
 def test_a_project_with_no_retrieval_document_emits_nothing() -> None:
