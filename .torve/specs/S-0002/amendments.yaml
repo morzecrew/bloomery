@@ -13,7 +13,8 @@ amendments:
       Phase 3 reaches the ir facade that re-exports its nodes
   - id: A-2
     at: '2026-09-23T11:55:34Z'
-    title: Guards that judge a local declaration read the composed view
+    title: >-
+      Guards that judge a local declaration read the composed view
     md: |-
       Phase 3 ran three guards over the composed view and every other one over
       the draft, on the reasoning that an imported node was judged where it was
@@ -38,3 +39,18 @@ amendments:
       because the fixture that exports a name moves its `dbt_project.yml` and
       the corpus pin with it — the lesson phase 4 taught when it moved the
       fingerprint and left the goldens to phase 5.
+  - id: A-5
+    at: '2026-09-28T07:47:05Z'
+    title: >-
+    md: |-
+      Two gaps the 0.3.0 changelog recorded rather than closed. Composition landed
+      reachable from Python only: `compile_project(upstream=...)` is the whole
+      door, so an importing project is refused at the command line with
+      `UnknownUpstream`, and the design's own D-8 — how the artifact reaches the
+      compile is the caller's — was never given a caller. Phase 7 gives the IR a
+      canonical file form and the command a way to read and write it, and leaves
+      discovery where D-8 put it. Phase 8 writes the cycle check D-4 locks:
+      execution left it "satisfied by construction" because one compile cannot
+      form a cycle, and phase 7 makes two projects naming each other one command
+      away, which is the arrangement D-4 exists to refuse.
+      Phases 7 and 8: the CLI compiles an importing project, and a cycle is refused

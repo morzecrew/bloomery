@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-28T07:47:15Z'
+    title: >-
+    md: |-
+      Phase 3's second consumer found two real gaps and the design recorded them:
+      `fusion: {method: rrf}` fixes no rank constant and no depth, so two
+      consumers honour the same document and rank differently; and the lexical
+      side carries no analyser identity while the dense side carries two encoder
+      identities for exactly the reason a mismatch must be refusable. Both are the
+      kind's own to close, additively — a project that declares neither is
+      unchanged and the manifest version stays — so phase 4 closes them under the
+      identity rule D-2 already sets for encoders: an opaque name compared for
+      equality and never resolved.
+      Phase 4: fusion declares its constant, and the lexical side its analyser

@@ -32,43 +32,43 @@ Coverage: branch on, `fail_under=80` overall, per-package floors ratcheting up (
 
 - Paths: `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/marts/flatten.py` `src/bloomery/quality/mart.py` `src/bloomery/resolve/graph.py` `tests/fixtures/ecom_basic/marts.yaml` `tests/fixtures/quality_precedence/entity_model.yaml` `tests/unit/test_emit/test_quality_mart.py` `tests/unit/test_fixtures.py` `tests/unit/test_quality/test_mart.py` `tests/unit/test_resolve/test_graph.py`
 
-### S-0033/D-17 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+### S-0033/D-17 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
 
 *(closed by D87)* **Repair deferred out of v1** (amends rows 2 and 8 as originally drafted): dispositions v1 = `flag | quarantine | fail`; `repair` moves to §10, demand-gated on a repair-recipe contract. Constraint recorded from review (credit: cubic): when repair lands it must carry a **distinct marker** separating "repaired, now correct" from "currently flagged bad", so `has_quality_flags` keeps meaning "currently suspect".
 
 - Paths: `tests/unit/test_quality/test_repair.py`
 
-### S-0033/D-18 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+### S-0033/D-18 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
 
 Disposition precedence for a row failing multiple rules — severity order `fail > quarantine > flag`: any failing `fail` rule stops the run (blocking audit); else any failing `quarantine` rule diverts the row, with **all** failed rule names recorded in the reject's `failed_rules` (flag-level failures included); else flags accumulate in `_quality_flags`. Deterministic for every combination — no compile-time rejection of rule/disposition combinations needed.
 
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/quality/catalogue.py` `src/bloomery/quality/predicates.py` `tests/e2e/test_sqlmesh_replan.py` `tests/execution/test_quality_precedence.py` `tests/fixtures/quality_precedence/entity_model.yaml` `tests/support/precedence.py` `tests/unit/test_quality/test_predicates.py`
 
-### S-0033/D-19 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+### S-0033/D-19 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
 
 Three-valued logic: each rule defines a violation predicate and fires only when it is definitively TRUE — NULL-involved comparisons evaluating to SQL `UNKNOWN` do **not** fire (`not_null`/`coercible` own nulls; declare them if nulls are invalid). Applies to `range`/`length`/`pattern`/`in_enum`/`in_set`/`expression`/`referential` — a NULL fk is not an orphan. Corrects Document 5's referential lowering: the bare `COALESCE(fk, '__unknown__')` sketch was wrong (it maps a NULL fk to the unknown member); the lowering is `CASE WHEN ref.<pk> IS NULL AND fk IS NOT NULL THEN '__unknown__' ELSE fk END`.
 
 - Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/quality/predicates.py` `tests/fixtures/quality_precedence/mapping_dups.yaml` `tests/unit/test_ir/test_nodes.py` `tests/unit/test_quality/test_predicates.py`
 
-### S-0033/D-20 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+### S-0033/D-20 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
 
 Dedupe is a total order: after `field` DESC and the `tie_break` columns, the final sort key is the stable source-row identity `_source_row_id` — the winner is unique by construction *given the metadata contract* (D21): `_source_row_id` is declared **NOT NULL and unique per source row**, an ingestion-layer obligation enforced at run time by a generated blocking audit on the metadata columns (a data property, not compile-checkable). Null ordering pinned: `NULLS LAST` on **every** sort key including `_source_row_id` (defense in depth — DESC defaults to NULLS FIRST on several engines, so an illegally-null identity must still lose, never win).
 
 - Paths: `src/bloomery/ir/nodes.py` `src/bloomery/quality/dedupe.py` `tests/execution/test_dedupe_and_audits.py` `tests/execution/test_quality_precedence.py` `tests/fixtures/quality_precedence/entity_model.yaml` `tests/support/precedence.py` `tests/unit/test_quality/test_dedupe_and_reject.py`
 
-### S-0033/D-23 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+### S-0033/D-23 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
 
 `_quality_flags` **and** `failed_rules` share one physical contract: rule names identifier-constrained at parse (no escaping in any lowering); the column is never NULL (empty array / empty delimited string per `DialectFeature.ARRAY`); delimited fallback joins with `,` in lexicographic rule-name order; `_quality_ok` generated per shape; flag-set equality across lowerings asserted in the dialect-matrix tier. The reject table's `failed_rules` lowers by exactly this contract — array where `DialectFeature.ARRAY`, else the lexicographic comma-delimited string.
 
 - Paths: `src/bloomery/resolve/build.py` `src/bloomery/spec/common.py` `src/bloomery/spec/quality.py` `tests/engines/test_merged_cleaning_engines.py` `tests/unit/test_quality/test_flags.py` `tests/unit/test_spec/test_quality.py`
 
-### S-0033/D-56 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+### S-0033/D-56 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
 
 *(2026-08-08, M12 fix)* **The dialects a `pattern` is checked against are the shipped ports, never the registry.** `registered_dialects()` is process-global and mutable, so an extension dialect registered by an unrelated import could decide whether an existing project compiles — the ambient dependency S-0020 exists to forbid, and one no golden would catch. The checked set is the constant `PATTERN_TARGET_DIALECTS = (duckdb, postgres, trino)`, overridable by an explicit argument the caller supplies. Recorded consequence: an extension dialect is no longer checked at compile time. Checking it would mean plumbing a dialect set into `build_project_ir`, which is dialect-free by construction and right to be — a project is portable or it is not, and the guardrail stage has no target. Named as the escape hatch, not built.
 
 - Paths: `pages/docs/how-to/add-quality-rules.md` `src/bloomery/compile.py` `src/bloomery/dialects/__init__.py` `src/bloomery/quality/pattern.py` `tests/unit/test_compile.py` `tests/unit/test_dialects/test_base.py` `tests/unit/test_guardrails/test_quality.py` `tests/unit/test_quality/test_edges.py`
 
-### S-0033/D-91 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+### S-0033/D-91 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
 
 *(2026-08-11)* **A `coverage:` check's endpoints must have relations, and D90 checked neither.** `coverage_owner` documented itself "total by construction: the guardrail stage refuses an unresolvable name before emission runs" — true of the relationship *name* and of nothing else. Two holes, both found in review. A **referenced** entity that is declared but unmapped reached `_referenced_key`'s `next(...)` and raised a bare `StopIteration` mid-emission: an unbatched error after the guardrail stage had reported clean, exactly the shape `_resolve_side` refuses for reconcile. A **step-produced dependent** entity is worse than a crash — the emitter skips those in the entity loop, so the audit is built and attached to no model, and the check reports clean because it never runs. Both are now guardrail refusals, the first reusing `_side_entities` (which already models "has a relation" including step outputs) rather than inventing a second notion of it.
 

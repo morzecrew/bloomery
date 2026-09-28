@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-28T07:47:10Z'
+    title: 'Phase 4: R021 reaches the compile'
+    md: |-
+      Phase 2 landed the fact and two of its three consumers. R021 is a library
+      call (`prove_comparable`) that no compile path asks, which D-2 names as the
+      condition under which a fact is not added at all; the review of the night
+      that closed the corpus recorded it as a gap. Phase 4 gives the rule the
+      surface the design section names for it — a filter, a join predicate or an
+      assertion across two roles of one dimension — so that a comparison between
+      two dimension columns carries a warrant or is refused with the rule's own
+      remediation, and appears in the derivation `explain` renders.

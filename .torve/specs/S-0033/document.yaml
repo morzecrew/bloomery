@@ -4,7 +4,7 @@ title: >-
   Data quality: declarative cleansing, dispositions, quarantine
 kind: design
 status: accepted
-implementation: complete
+implementation: partial
 depends_on: []
 informed_by: []
 supersedes: []
