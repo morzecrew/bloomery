@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/unit/test_guardrails/`
 
-### S-0002/D-1 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-1 — `LOCKED` (Multi-project composition)
 
 The boundary is an explicit export list, never "everything public by default": an entity, a mart or a metric may be named on it, grouped by kind, and a name absent from it is not exported however public it looks from inside the project
 
@@ -10,14 +10,14 @@ The boundary is an explicit export list, never "everything public by default": a
 - Consequence: A project that exports its whole spec has no boundary, and its first refactor breaks every consumer; an export naming something the project does not declare is refused with `DanglingExport`, so the list is an assertion rather than a claim
 - Check: `uv run pytest tests/unit/test_spec/test_exports.py tests/unit/test_guardrails/test_exports.py -q` (shadow; runs as `decision:S-0002/D-1`, no log entry owed)
 
-### S-0002/D-6 — `ASSUMED` (Multi-project composition) — implementation: partial
+### S-0002/D-6 — `ASSUMED` (Multi-project composition)
 
 Lineage node ids gain a project component for imported nodes only; a local node keeps its `<kind>.<name>` spelling
 
 - Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/lineage.py` `src/bloomery/guardrails/lineage.py` `tests/unit/test_resolve/test_lineage.py` `tests/unit/test_guardrails/test_lineage.py`
 - Consequence: Every existing id and every published citation stays valid — a node name is public surface and `bloomery lineage --node metric.gross_revenue` is a documented invocation — while two projects' graphs can be composed without collision
 
-### S-0002/D-9 — `LOCKED` (Multi-project composition) — implementation: partial
+### S-0002/D-9 — `LOCKED` (Multi-project composition)
 
 A guard that judges a local declaration reads the composed view — this project's nodes plus the ones it imported — whenever that declaration can name an imported node, with local marts and rollups as the only publication targets: `check_metrics` over a local mart listing an imported metric, `check_classification` over a local published mart that flattens an imported entity's columns and grants, and the exposure guard over an exposure naming an imported mart or metric. Reading the draft alone there is not "judged where it was authored" — the mart, the publication and the exposure were authored here, and only their inputs crossed.
 
@@ -103,37 +103,37 @@ Filters (Jinja `where_constraints`) are the highest-risk surface: values never i
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/planner/filters.py` `src/bloomery/planner/parse.py` `src/bloomery/planner/request.py` `src/bloomery/spec/metrics.py` `src/bloomery/spec/quality.py` `tests/execution/test_period_over_period.py` `tests/property/test_planner_properties.py` `tests/unit/test_guardrails/test_metrics.py` `tests/unit/test_planner/test_filters.py` `tests/unit/test_planner/test_request.py` `tests/unit/test_spec/test_metrics.py` `tests/unit/test_spec/test_quality.py`
 
-### S-0033/D-3 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-3 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 Coercion failure is a rule: transform chains lower to failure-marker form (`TRY_CAST`-style per dialect); the implicit, overridable `coercible` rule (default `quarantine`) disposes of it. Retires `Mapping.on_unmapped_enum` (S-0019 amendment — absorbed into `in_enum`/`coercible`) and supersedes S-0025/D-7's never-implemented emitter convention with the modeled reject table.
 
 - Paths: `src/bloomery/dialects/base.py` `src/bloomery/guardrails/operands.py` `src/bloomery/quality/predicates.py` `src/bloomery/spec/mapping.py` `src/bloomery/spec/quality.py` `src/bloomery/transforms/_builtins.py` `tests/execution/test_path_conflict.py` `tests/unit/test_guardrails/test_conflict.py` `tests/unit/test_spec/test_mapping.py`
 
-### S-0033/D-10 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-10 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 One `<entity>__reject` table per entity with the §5.6 schema (stable sha256 `reject_id` for idempotent replay). Retention is **required** whenever any quarantine disposition exists — missing retention is a compile error; retention deletes **all** reject rows on expiry (unresolved measured from `last_seen`, resolved from `resolved_at`) and is the only deleter — replay never deletes. `redact:` paths apply at write time and must not intersect any path the entity's mappings read (`from` paths, recipe aliases included) — an intersecting redact is the compile error `RedactionConflict`. Bloomery emits the reject/replay artifacts and never executes them.
 
 - Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/errors.py` `src/bloomery/ir/nodes.py` `src/bloomery/resolve/build.py` `tests/engines/test_merged_cleaning_engines.py` `tests/fixtures/multi_source_quality/entity_model.yaml` `tests/unit/test_guardrails/test_quality.py`
 
-### S-0033/D-12 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-12 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 `gold.mart_data_quality` is an ordinary semantic model (`run_date` as time dimension); quarantine rate is a `MetricRequest`. Reject tables are never exposed through `MetricRequest`. Deliberate divergence: no `tenant_id` column (Document 5 §7.5 has one) — hard invariant #3 and the tenant guard forbid it; `NamingPolicy` namespaces are the only tenant seam.
 
 - Paths: `src/bloomery/guardrails/quality.py` `src/bloomery/quality/mart.py` `tests/execution/test_quality_mart.py` `tests/unit/test_guardrails/test_quality.py`
 
-### S-0033/D-49 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-49 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-08, M12 fix)* **`in_enum`'s rule identity carries the chain's source spellings, not only its `enum_map` targets.** `enum_map` passes an *unmapped* value through untouched, so the raw values `in_enum` admits are the mapped spellings **plus** the targets. A widening therefore has two shapes — a new target, or a new spelling for an existing target (`PAYED → paid`) — and only the first changed a rule param, so `plan()` reported `replay_scope = ()` for the second while rows sat in the reject table on that rule's account. §6's replay test used only the shape that worked, so the gap was untested. The lowering now emits `spelling_NNNN` params beside `value_NNNN`. The pairing is deliberately *not* carried: re-pointing `a → x` to `a → y` when both are already targets changes the column's value — which the column diff reports — but changes nothing about which raw values this rule admits.
 
 - Paths: `src/bloomery/guardrails/quality.py` `src/bloomery/quality/lower.py` `tests/unit/test_guardrails/test_quality.py`
 
-### S-0033/D-56 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-56 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-08, M12 fix)* **The dialects a `pattern` is checked against are the shipped ports, never the registry.** `registered_dialects()` is process-global and mutable, so an extension dialect registered by an unrelated import could decide whether an existing project compiles — the ambient dependency S-0020 exists to forbid, and one no golden would catch. The checked set is the constant `PATTERN_TARGET_DIALECTS = (duckdb, postgres, trino)`, overridable by an explicit argument the caller supplies. Recorded consequence: an extension dialect is no longer checked at compile time. Checking it would mean plumbing a dialect set into `build_project_ir`, which is dialect-free by construction and right to be — a project is portable or it is not, and the guardrail stage has no target. Named as the escape hatch, not built.
 
 - Paths: `pages/docs/how-to/add-quality-rules.md` `src/bloomery/compile.py` `src/bloomery/dialects/__init__.py` `src/bloomery/quality/pattern.py` `tests/unit/test_compile.py` `tests/unit/test_dialects/test_base.py` `tests/unit/test_guardrails/test_quality.py` `tests/unit/test_quality/test_edges.py`
 
-### S-0033/D-80 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine) — implementation: partial
+### S-0033/D-80 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-08, PR #7 review, self-audit of the fixes)* **The dedupe order outranks the nulling-chain skip, and a key column has a chain too.** D73's skip, applied uniformly, deleted the one `coercible` rule §5.4/D6 *forces*: on a column the dedupe order reads, an uncastable sort value leaves the order undefined, so the rule is FAIL-disposition and load-bearing rather than a convenience. The skip removed it and its blocking audit with no diagnostic, and `_check_dedupe_disposition` (which demands `on_fail: fail` there) plus D73's own refusal of an authored `coercible` on such a chain left the author refused coming and going — a false positive traded for a silently nondeterministic entity, which is the worse of the two. Dedupe-order columns are now exempt from both halves. Separately, `nullifying_steps` read `mapped_fields`' `None` for a key column as "no chain", but `KeyField` carries a `transform`: the key kept the exact false positive D73 removes, in its worst form, since a key has no `quality:` surface to declare the rule away and no guardrail could refuse it either. The key chain is now looked up. Also fixed here: `to_string` after `enum_map` is the identity on a string and was over-refused by D72; and an `in_enum` on a chain with **no** `enum_map` lowered to `NOT col IN ()` — invalid SQL everywhere and a rule rejecting every row — now refused in the same check, which is its natural home.
 

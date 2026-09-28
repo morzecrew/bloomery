@@ -3,7 +3,7 @@ id: S-0011
 title: Retrieval semantics
 kind: design
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []
@@ -37,7 +37,7 @@ motivation: |
   Each is decidable from the spec alone, which is the test that separates a guardrail from
   a data-quality rule here. Nothing below needs to read a row.
 current_state: |
-  **Implemented (2026-09-27).** Every phase landed through #190; the landing records
+  **Implemented (2026-09-28).** Every phase landed through #190 and #205; the landing records
   under `execution/` are the evidence, and `implementation: complete` above is the
   status. What follows is the state as the design was accepted, kept as written.
 

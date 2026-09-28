@@ -3,7 +3,7 @@ id: S-0007
 title: Dimension algebra
 kind: design
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: []
 informed_by: [S-0001]
 supersedes: []
@@ -52,6 +52,10 @@ motivation: |
   in, and the first conformed-dimension bug will be a cross-project one — the worst place to
   meet it.
 current_state: |
+  **Implemented (2026-09-28).** Every phase landed through #142 and #209; the landing records
+  under `execution/` are the evidence, and `implementation: complete` above is the
+  status. What follows is the state as the design was accepted, kept as written.
+
   **Nothing in this document has landed.** No phase of it has been executed: `determines:`,
   `role_of:` and `same_as:` appear nowhere under `src/bloomery/`, and R020 and R021 are
   names with statements and no code. `RULES` holds seventeen rules and the next free

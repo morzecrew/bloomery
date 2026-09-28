@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/bloomery/typing/`
 
-### S-0011/D-3 — `LOCKED` (Retrieval semantics) — implementation: partial
+### S-0011/D-3 — `LOCKED` (Retrieval semantics)
 
 A vector's scalar type is a type name and its dimension an int; no float value enters the IR or any emission path, and this design takes no exemption from the float ban
 
@@ -10,7 +10,7 @@ A vector's scalar type is a type name and its dimension an int; no float value e
 - Consequence: The vector logical type carries a string and an int and nothing else, so no float literal is ever parsed, stored or rendered, and the existing determinism and no-float tests keep passing unchanged
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0011/D-4 — `LOCKED` (Retrieval semantics) — implementation: partial
+### S-0011/D-4 — `LOCKED` (Retrieval semantics)
 
 A declared vector dimension requires a new `LogicalType` member, and a vector accepts no transform - its input domain is empty in every transform spec
 
