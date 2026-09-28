@@ -646,6 +646,9 @@ jobs:
           BLOOMERY_BIGQUERY_PROJECT: ${{ vars.BIGQUERY_PROJECT }}
           BLOOMERY_BIGQUERY_DATASET: ${{ vars.BIGQUERY_DATASET }}
           BLOOMERY_BIGQUERY_TOKEN: ${{ steps.auth.outputs.access_token }}
+          # Any value enables the execution corpus beside the dry run; unset,
+          # the lane bills nothing (a dry run scans no bytes).
+          BLOOMERY_BIGQUERY_EXECUTE: ${{ vars.BIGQUERY_EXECUTE }}
         run: uv run pytest tests/engines/test_bigquery_live.py -q
 
   # The OS smoke lane: the default tiers on Windows and macOS, nightly and on
@@ -795,14 +798,25 @@ jobs:
       # **Not on pull requests yet** (S-0014/D-6). Of the row's two inputs only
       # one is answered: the lane does catch what rungs 1–3 miss, because every
       # assertion in it is about a *value* — a quarantined row, a decimal's
-      # scale, the instant a wall clock lands on — and no offline rung produces
-      # one. Its runtime is unmeasured: it had never run against a daemon when
-      # it landed, so there is no number to put beside the 199s that earned the
-      # tiers above their PR slot. The nightly and push runs below produce it;
-      # whoever reads one may delete this condition and record the measurement,
-      # which is the same evidence the engine tiers were promoted on.
-      - name: Run the BigQuery surrogate lane (emulator, not engine conformance)
-        if: ${{ github.event_name != 'pull_request' }}
+       # The surrogate lanes (S-0012/D-2): the BigQuery emulator, a PostgreSQL
+      # container standing in for Redshift, the Snowflake emulator and local
+      # Spark for Databricks — evidence, never the oracle, and marked so. They
+      # ran only on `main` while their runtime was unmeasured; a push run on
+      # `main` measured the four at 1 min 3 s (2026-09-28), so a pull request
+      # that touches engine code runs them too — which is how two of them
+      # reached `main` red for the first time in #191 and #192.
+      #
+      # Local PySpark needs a JVM the runner image does not ship; without one
+      # the Databricks lane skips with its stated reason and reads green for
+      # nothing.
+      - name: Install a JVM for the Spark surrogate
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.engine == 'true' }}
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Run the surrogate lanes (emulators and stand-ins, not engine conformance)
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.engine == 'true' }}
         run: |
           uv run pytest -m surrogate
   # The authoritative compile lane for the Snowflake port (S-0013/D-7): every
@@ -871,5 +885,63 @@ jobs:
           BLOOMERY_SNOWFLAKE_DATABASE: ${{ vars.SNOWFLAKE_DATABASE }}
           BLOOMERY_SNOWFLAKE_SCHEMA: ${{ vars.SNOWFLAKE_SCHEMA }}
           BLOOMERY_SNOWFLAKE_ROLE: ${{ vars.SNOWFLAKE_ROLE }}
+          # The execution corpus runs only when a warehouse is named; unset,
+          # the lane is compile-only (`EXPLAIN`) and skips the corpus with its
+          # stated reason. See pages/docs/contributing/cloud-lanes.md.
+          BLOOMERY_SNOWFLAKE_WAREHOUSE: ${{ vars.SNOWFLAKE_WAREHOUSE }}
         run: |
           uv run pytest tests/engines/test_snowflake_live.py -rs
+
+  # The authoritative lane for the Redshift port (S-0015): `EXPLAIN` and
+  # `EXPLAIN VERBOSE`, the physical-type DDL check and the targeted execution
+  # corpus against a real cluster or Serverless workgroup. No cluster runs for
+  # free, so the job exists behind a repository variable — `REDSHIFT_CONFIGURED`
+  # — and the DSN behind an environment secret; until both are set, the
+  # PostgreSQL surrogate lane above is the only local evidence. See
+  # pages/docs/contributing/cloud-lanes.md.
+  redshift-live:
+    name: Redshift live lane (EXPLAIN, DDL, and the targeted corpus)
+    needs: changes
+    if: |
+      vars.REDSHIFT_CONFIGURED == 'true' && (
+      needs.changes.outputs.force_full == 'true' || (
+        github.event_name == 'push' && github.ref == 'refs/heads/main'
+      )
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: redshift
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      # The DSN is bound to this one step rather than to the job, so no later
+      # step inherits it; it carries the password, so the whole of it is the
+      # secret and no part is logged.
+      - name: Run the live lane on Redshift
+        env:
+          # One DSN, a secret whole (S-0015): the authoritative lane needs a
+          # real cluster or Serverless workgroup and skips, naming the
+          # variable, when it is unset.
+          BLOOMERY_REDSHIFT_DSN: ${{ secrets.REDSHIFT_DSN }}
+        run: |
+          uv run pytest tests/engines/test_redshift_live.py -rs
