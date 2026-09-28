@@ -96,24 +96,24 @@ phasing:
   - phase: 4
     title: R021 reaches the compile
     intent: >-
-      Implement D-9. Phase 2 landed `role_of:` with the two consumers that read it as
-      metadata and R021 as a library call (`prove_comparable`) no compile path asks; the
-      first attempt found that no surface for an author-written two-column predicate
-      exists, and D-9 names one. `MetricFilter` gains `column:` — a `DimensionName` of the
-      same mart — exclusive with `values:` and admitted with `=` and `!=` only; the grammar
-      refuses both keys, neither, or another operator with `column:`. `MetricFilterIR`
-      carries the column, so `bloomery_ir_version` moves and every fingerprint with it. The
-      metrics guard (`_check_filter`) asks R021 for every `column:` filter with the mart's
-      `role_of` map: a proof admits the filter and joins the plan's derivation, so
-      `bloomery explain` shows the warrant; a refutation — two columns with no declared
-      roles, or roles of different dimensions — refuses with R021's own remediation. The
-      predicate lowering renders `dimension op column` for every target that renders
-      metric filters; where a target cannot spell a column-to-column filter it is refused
-      by name, never approximated. The structural join `mart_select` emits from
-      `MartJoinIR.on` stays what it is, the relationship's own key equality, out of R021's
-      scope and pinned so by a test. The semantic corpus gains the case comparing
-      `billing_region` to `shipping_region` under both declarations; the docs' metric
-      filter grammar carries the form.
+      Implement D-9. Phase 2 landed `role_of:` with the two consumers that read it
+      as metadata and R021 as a library call (`prove_comparable`) no compile path
+      asks; the first attempt found that no surface for an author-written two-column
+      predicate exists, and D-9 names one. `MetricFilter` gains `column:` — a `DimensionName`
+      of the same mart — exclusive with `values:` and admitted with `=` and `!=` only;
+      the grammar refuses both keys, neither, or another operator with `column:`.
+      `MetricFilterIR` carries the column, so `bloomery_ir_version` moves and every
+      fingerprint with it. The metrics guard (`_check_filter`) asks R021 for every
+      `column:` filter with the mart's `role_of` map: a proof admits the filter and
+      joins the plan's derivation, so `bloomery explain` shows the warrant; a refutation
+      — two columns with no declared roles, or roles of different dimensions — refuses
+      with R021's own remediation. The predicate lowering renders `dimension op column`
+      for every target that renders metric filters; where a target cannot spell a
+      column-to-column filter it is refused by name, never approximated. The structural
+      join `mart_select` emits from `MartJoinIR.on` stays what it is, the relationship's
+      own key equality, out of R021's scope and pinned so by a test. The semantic
+      corpus gains the case comparing `billing_region` to `shipping_region` under
+      both declarations; the docs' metric filter grammar carries the form.
     scope:
       - src/bloomery/spec/metrics.py
       - src/bloomery/ir/nodes.py

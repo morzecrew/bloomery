@@ -129,5 +129,11 @@ decisions:
       rather than landed
   - id: D-9
     grade: ASSUMED
-    text: <decision>
-    fingerprint: fe8c37cd8fc1ceeb/202c11f3690cefb1
+    text: >-
+      A metric filter may compare its dimension to another dimension column of the
+      same mart — `column:` in place of `values:`, with `=` or `!=` only — and that
+      predicate is R021's surface: the two columns must be declared roles of one dimension
+      (`role_of:` on both flatten steps), or the filter is refused with the rule's
+      own remediation. Measures, literals and the structural join a via-step emits
+      are not the rule's business.
+    fingerprint: 3000599461aebf51/202c11f3690cefb1

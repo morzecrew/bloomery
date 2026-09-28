@@ -15,6 +15,14 @@ amendments:
   - id: A-2
     at: '2026-09-28T13:02:05Z'
     title: D-9 gives R021 its surface; phase 4 builds it
+    changes:
+      - subject: D-9
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-9
+        field: fingerprint
+        after: fe8c37cd8fc1ceeb/202c11f3690cefb1
     md: |-
       T-0173's first attempt halted with the finding this row answers: none of the
       three surfaces phase 4 gave R021 exists in the tree — a mart has no `filter:`,
@@ -24,11 +32,18 @@ amendments:
       excluded. D-9 names the surface: the metric filter, which already reaches
       every target, gains a `column:` form. Phase 4 is rewritten to build it, and
       its scope reaches the spec, the IR, the guard, the planner and the emitters.
-    changes:
-      - subject: D-9
-        field: grade
-        before: OPEN
-        after: ASSUMED
-      - subject: D-9
-        field: fingerprint
-        after: fe8c37cd8fc1ceeb/202c11f3690cefb1
+editorial:
+  - subject: D-9
+    field: text
+    before: <decision>
+    after: >-
+      A metric filter may compare its dimension to another dimension column of the
+      same mart — `column:` in place of `values:`, with `=` or `!=` only — and that
+      predicate is R021's surface: the two columns must be declared roles of one dimension
+      (`role_of:` on both flatten steps), or the filter is refused with the rule's
+      own remediation. Measures, literals and the structural join a via-step emits
+      are not the rule's business.
+  - subject: D-9
+    field: fingerprint
+    before: fe8c37cd8fc1ceeb/202c11f3690cefb1
+    after: 3000599461aebf51/202c11f3690cefb1
