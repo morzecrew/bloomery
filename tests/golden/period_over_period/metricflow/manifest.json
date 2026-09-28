@@ -2,6 +2,7 @@
   "metrics": [
     {
       "config": null,
+      "datatype": null,
       "description": "Revenue on sales booked from 2024-03-01 onward",
       "filter": {
         "where_filters": [
@@ -54,6 +55,7 @@
     },
     {
       "config": null,
+      "datatype": null,
       "description": "Revenue on sales of at least 50.00 made from 2024 onward",
       "filter": {
         "where_filters": [
@@ -109,6 +111,7 @@
     },
     {
       "config": null,
+      "datatype": null,
       "description": "Revenue on sales that were paid for",
       "filter": {
         "where_filters": [
@@ -161,6 +164,7 @@
     },
     {
       "config": null,
+      "datatype": null,
       "description": null,
       "filter": null,
       "label": null,
@@ -207,6 +211,7 @@
     },
     {
       "config": null,
+      "datatype": null,
       "description": null,
       "filter": null,
       "label": null,
@@ -258,6 +263,7 @@
     },
     {
       "config": null,
+      "datatype": null,
       "description": null,
       "filter": null,
       "label": null,
@@ -312,6 +318,7 @@
     },
     {
       "config": null,
+      "datatype": null,
       "description": "Revenue against the first day of its own month",
       "filter": null,
       "label": null,
@@ -361,6 +368,7 @@
     },
     {
       "config": null,
+      "datatype": null,
       "description": "Revenue minus the same period one year earlier",
       "filter": null,
       "label": null,
@@ -413,6 +421,7 @@
     },
     {
       "config": null,
+      "datatype": null,
       "description": null,
       "filter": null,
       "label": null,
@@ -459,6 +468,7 @@
     },
     {
       "config": null,
+      "datatype": null,
       "description": null,
       "filter": null,
       "label": null,
@@ -507,7 +517,7 @@
   "project_configuration": {
     "dsi_package_version": {
       "major_version": "0",
-      "minor_version": "212",
+      "minor_version": "213",
       "patch_version": "0"
     },
     "metadata": null,
@@ -537,6 +547,7 @@
       "dimensions": [
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -548,6 +559,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -559,6 +571,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -570,6 +583,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -581,6 +595,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -592,6 +607,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -603,6 +619,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -617,6 +634,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,
@@ -628,6 +646,7 @@
         },
         {
           "config": null,
+          "datatype": null,
           "description": null,
           "expr": null,
           "is_partition": false,

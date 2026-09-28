@@ -41,7 +41,7 @@ names the absence of a slot, not an unlucky search.
 
 `fill_nulls_with` reads as though it answered a null denominator. In the denominator position
 of a `ratio` metric, dbt Core `1.12.3` refuses it outright — `observed.txt`'s last line — so
-this bundle makes no claim about what it would have changed. MetricFlow `0.212.0` accepted
+this bundle makes no claim about what it would have changed. MetricFlow `0.213.0` accepted
 the same key in the same position and returned `4.0` either way; the two are different
 packages at different versions, and the difference is recorded rather than smoothed over.
 

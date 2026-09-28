@@ -1,7 +1,7 @@
 # MetricFlow × 011-timezone-boundary
 
-- **System:** MetricFlow `0.212.0`, driven from Python against DuckDB `1.5.5`.
-- **Checked:** 2026-09-18.
+- **System:** MetricFlow `0.213.0`, driven from Python against DuckDB `1.5.5`.
+- **Checked:** 2026-09-28.
 - **Feature set:** semantic models with `measures`, time dimensions with `expr`, and a
   `filter` on a `simple` metric's input measure
   (`metricflow_semantic_interfaces/parsing/schemas.py`). The zone conversion is
@@ -50,7 +50,7 @@ time dimension's `type_params` is a closed object whose only keys are `time_gran
 `NATIVE-PLAN`: the semantics live in project-authored SQL, not in a declaration.
 
 **Nothing marks the zoneless one as an assertion.** The two time dimensions are equally
-valid to `0.212.0`'s validator, and the one that silently reads a New York wall clock as UTC
+valid to `0.213.0`'s validator, and the one that silently reads a New York wall clock as UTC
 is the shorter of the two to write. `o1` lands in January, February reports `40.00`, and
 there is no declaration that was omitted — the claim "this wall clock is UTC" is made by the
 absence of a conversion, which is the one place a claim cannot be checked.
@@ -59,7 +59,7 @@ That is what `NOT-REPRESENTED` names for the `zoneless` row: the fact whose abse
 make the bare cast refusable — *this column is a wall clock, written in this zone* — has no
 place in the manifest to be stated.
 
-Neither half is a statement about MetricFlow beyond `0.212.0` and this configuration, and
+Neither half is a statement about MetricFlow beyond `0.213.0` and this configuration, and
 the `CUSTOM` half is a DuckDB claim: which dialects agree on a named-zone conversion is a
 separate question this bundle did not ask. It says nothing about whether a dbt test or a
 review convention would catch the zoneless dimension — only that the semantic layer itself
