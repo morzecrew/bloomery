@@ -4613,11 +4613,28 @@ column's declared logical type and are never cast.</p>
 <tr>
 <td><code>values</code></td>
 <td>list of scalars</td>
-<td>per operator</td>
+<td>per operator, or <code>column</code></td>
 <td>One for the comparisons, one bool for <code>is_null</code>, one or more for <code>in</code>/<code>not_in</code></td>
+</tr>
+<tr>
+<td><code>column</code></td>
+<td>column name, <code>^[a-z][a-z0-9_]*$</code></td>
+<td>instead of <code>values</code></td>
+<td>Another categorical dimension of the same mart to compare against; <code>eq</code>/<code>ne</code> only</td>
 </tr>
 </tbody>
 </table>
+<p>A filter compares its dimension against literals (<code>values:</code>) or against another
+dimension (<code>column:</code>) — exactly one of the two. The comparison is admitted only when
+both columns are proven to be roles of one dimension member: both flatten steps
+declare <code>role_of:</code> naming the same dimension, and both columns carry the same member.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">filter</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dimension</span><span class="p">:</span><span class="w"> </span><span class="nv">billing_region</span><span class="p p-Indicator">,</span><span class="nt"> op</span><span class="p">:</span><span class="w"> </span><span class="nv">eq</span><span class="p p-Indicator">,</span><span class="nt"> column</span><span class="p">:</span><span class="w"> </span><span class="nv">shipping_region</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p>Without the declarations the metric is refused with <code>MetricFilterInvalid</code>, naming the
+<code>role_of:</code> to add. <code>bloomery explain</code> shows the facts that admitted the comparison
+beside the filter. A target that has no spelling for a column comparison refuses it
+with <code>UnsupportedByTarget</code>; Cube and MetricFlow both spell it.</p>
 <p>Deliberately narrower than the <a href="../../how-to/plan-a-metric-request/">query vocabulary</a>
 a <em>request</em> may use: no <code>like</code>/<code>ilike</code>, whose escape language and case-folding
 portability buy nothing where the author already knows the values. A date-role
