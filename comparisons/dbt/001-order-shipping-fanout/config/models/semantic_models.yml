@@ -1,0 +1,55 @@
+version: 2
+
+semantic_models:
+  - name: orders
+    model: ref('orders')
+    entities:
+      - name: order
+        type: primary
+        expr: order_id
+    dimensions:
+      - name: created_at
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: shipping
+        agg: sum
+        agg_time_dimension: created_at
+
+  # The line-grain mart listing a measure that originates at the order. dbt is
+  # told the model's primary entity and the measure's aggregation; the question
+  # is whether anything reads the two against each other.
+  - name: order_lines_wide
+    model: ref('order_lines_wide')
+    entities:
+      - name: order_line
+        type: primary
+        expr: order_id || '-' || cast(line_no as varchar)
+      - name: order
+        type: foreign
+        expr: order_id
+    dimensions:
+      - name: line_created_at
+        type: time
+        expr: created_at
+        type_params:
+          time_granularity: day
+    measures:
+      - name: shipping_on_lines
+        agg: sum
+        expr: shipping
+        agg_time_dimension: line_created_at
+
+metrics:
+  - name: shipping_total
+    label: Shipping total
+    type: simple
+    type_params:
+      measure: shipping
+
+  - name: shipping_total_wide
+    label: Shipping total (line-grain mart)
+    type: simple
+    type_params:
+      measure: shipping_on_lines

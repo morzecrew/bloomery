@@ -1,0 +1,4 @@
+name: corpus_004_currency_mix
+version: "1.0.0"
+profile: corpus
+model-paths: ["models"]

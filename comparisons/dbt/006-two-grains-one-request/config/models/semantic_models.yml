@@ -1,0 +1,52 @@
+version: 2
+
+semantic_models:
+  # Each measure declared on the semantic model of the grain it originates at.
+  - name: orders
+    model: ref('orders')
+    entities:
+      - name: order
+        type: primary
+        expr: order_id
+    dimensions:
+      - name: created_at
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: shipping
+        agg: sum
+        agg_time_dimension: created_at
+
+  - name: order_items
+    model: ref('order_items')
+    entities:
+      - name: order_line
+        type: primary
+        expr: order_id || '-' || cast(line_no as varchar)
+      - name: order
+        type: foreign
+        expr: order_id
+    dimensions:
+      - name: line_created_at
+        type: time
+        expr: created_at
+        type_params:
+          time_granularity: day
+    measures:
+      - name: discount
+        agg: sum
+        agg_time_dimension: line_created_at
+
+metrics:
+  - name: shipping_total
+    label: Shipping total
+    type: simple
+    type_params:
+      measure: shipping
+
+  - name: discount_total
+    label: Discount total
+    type: simple
+    type_params:
+      measure: discount

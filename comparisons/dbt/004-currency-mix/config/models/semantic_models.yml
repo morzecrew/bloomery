@@ -1,0 +1,40 @@
+version: 2
+
+semantic_models:
+  - name: payments
+    model: ref('payments')
+    entities:
+      - name: payment
+        type: primary
+        expr: payment_id
+    dimensions:
+      - name: paid_at
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      # The only place a denomination can be written on a measure is free-form
+      # `meta`; it is recorded here so the run shows what, if anything, reads it.
+      - name: amount_eur
+        agg: sum
+        agg_time_dimension: paid_at
+        config:
+          meta:
+            currency: EUR
+      - name: fee_usd
+        agg: sum
+        agg_time_dimension: paid_at
+        config:
+          meta:
+            currency: USD
+      - name: total_mixed
+        agg: sum
+        expr: amount_eur + fee_usd
+        agg_time_dimension: paid_at
+
+metrics:
+  - name: total_usd_naive
+    label: Total taken in, USD (naive)
+    type: simple
+    type_params:
+      measure: total_mixed

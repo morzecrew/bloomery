@@ -1,0 +1,11 @@
+### dbt build
+  Found 5 models, 1 source, 2 metrics, 500 macros, 2 semantic models
+  Done. PASS=5 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=5
+### dbt compile --select metric:active_users
+  Nothing to do. Try checking your model configs and model specification args
+### dbt compile --select metric:active_users_summed
+  Nothing to do. Try checking your model configs and model specification args
+### model active_users_summed
+  -> [(4,)]
+### model active_users_distinct
+  -> [(3,)]

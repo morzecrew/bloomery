@@ -1,0 +1,4 @@
+uv run python comparisons/dbt/run.py \
+    tests/fixtures/semantic_corpus/010-many-to-many-bridge \
+    comparisons/dbt/010-many-to-many-bridge \
+    revenue_bridged revenue_per_order

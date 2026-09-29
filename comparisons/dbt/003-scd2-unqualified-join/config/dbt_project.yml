@@ -1,0 +1,4 @@
+name: corpus_003_scd2_unqualified_join
+version: "1.0.0"
+profile: corpus
+model-paths: ["models"]

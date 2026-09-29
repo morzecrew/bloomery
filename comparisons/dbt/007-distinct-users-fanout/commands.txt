@@ -1,0 +1,4 @@
+uv run python comparisons/dbt/run.py \
+    tests/fixtures/semantic_corpus/007-distinct-users-fanout \
+    comparisons/dbt/007-distinct-users-fanout \
+    active_users_summed active_users_distinct

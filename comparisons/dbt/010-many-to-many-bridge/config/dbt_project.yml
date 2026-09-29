@@ -1,0 +1,4 @@
+name: corpus_010_many_to_many_bridge
+version: "1.0.0"
+profile: corpus
+model-paths: ["models"]

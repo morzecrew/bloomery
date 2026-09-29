@@ -1,0 +1,71 @@
+version: 2
+
+semantic_models:
+  - name: orders
+    model: ref('orders')
+    entities:
+      - name: order
+        type: primary
+        expr: order_id
+    dimensions:
+      - name: ordered_on
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: revenue
+        agg: sum
+        expr: amount
+        agg_time_dimension: ordered_on
+      - name: buyers
+        agg: count_distinct
+        expr: customer_id
+        agg_time_dimension: ordered_on
+
+  # The monthly rollup declared as a semantic model of its own, its columns as
+  # the summable measures the rollup's SQL treats them as.
+  - name: orders_monthly
+    model: ref('orders_monthly')
+    entities:
+      - name: order_month_row
+        type: primary
+        expr: order_month
+    dimensions:
+      - name: order_month
+        type: time
+        type_params:
+          time_granularity: month
+    measures:
+      - name: revenue_rolled
+        agg: sum
+        expr: revenue
+        agg_time_dimension: order_month
+      - name: buyers_rolled
+        agg: sum
+        expr: buyers
+        agg_time_dimension: order_month
+
+metrics:
+  - name: revenue
+    label: Revenue
+    type: simple
+    type_params:
+      measure: revenue
+
+  - name: buyers
+    label: Buyers
+    type: simple
+    type_params:
+      measure: buyers
+
+  - name: revenue_rolled
+    label: Revenue (monthly rollup)
+    type: simple
+    type_params:
+      measure: revenue_rolled
+
+  - name: buyers_rolled
+    label: Buyers (monthly rollup)
+    type: simple
+    type_params:
+      measure: buyers_rolled

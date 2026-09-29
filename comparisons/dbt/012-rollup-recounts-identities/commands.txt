@@ -1,0 +1,4 @@
+uv run python comparisons/dbt/run.py \
+    tests/fixtures/semantic_corpus/012-rollup-recounts-identities \
+    comparisons/dbt/012-rollup-recounts-identities \
+    january_from_rollup january_from_detail

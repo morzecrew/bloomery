@@ -1,0 +1,82 @@
+version: 2
+
+semantic_models:
+  - name: orders
+    model: ref('orders')
+    entities:
+      - name: order
+        type: primary
+        expr: order_id
+    dimensions:
+      - name: placed_on
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: revenue
+        agg: sum
+        agg_time_dimension: placed_on
+
+  - name: promos
+    model: ref('promos')
+    entities:
+      - name: promo
+        type: primary
+        expr: promo_id
+    dimensions:
+      - name: label
+        type: categorical
+
+  # The bridge at its own grain: two foreign entities, each naming one row.
+  - name: order_promos
+    model: ref('order_promos')
+    entities:
+      - name: order_promo
+        type: primary
+        expr: order_id || '-' || promo_id
+      - name: order
+        type: foreign
+        expr: order_id
+      - name: promo
+        type: foreign
+        expr: promo_id
+    dimensions:
+      - name: applied_on
+        type: time
+        type_params:
+          time_granularity: day
+
+  # The bridged mart listing a measure that originates at the order.
+  - name: order_promos_wide
+    model: ref('order_promos_wide')
+    entities:
+      - name: order_promo_row
+        type: primary
+        expr: order_id || '-' || promo_id
+    dimensions:
+      - name: promo_label
+        type: categorical
+        expr: label
+      - name: promo_applied_on
+        type: time
+        expr: applied_on
+        type_params:
+          time_granularity: day
+    measures:
+      - name: revenue_on_promos
+        agg: sum
+        expr: revenue
+        agg_time_dimension: promo_applied_on
+
+metrics:
+  - name: revenue
+    label: Revenue
+    type: simple
+    type_params:
+      measure: revenue
+
+  - name: revenue_bridged
+    label: Revenue (bridged mart)
+    type: simple
+    type_params:
+      measure: revenue_on_promos
