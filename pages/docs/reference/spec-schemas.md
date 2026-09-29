@@ -631,6 +631,7 @@ At most one per project; a project without marts compiles silver only.
 |---|---|---|---|
 | `grain` | string | yes | Must equal the base entity's grain; every measure's grain must match it strictly |
 | `base` | entity name | yes | The fact the mart is built from |
+| `reading` | `current` | on an `scd: type2` base | Reads only the base's current version (`WHERE valid_to IS NULL`). Required to base a mart on a historical entity, refused on any other; the mart must then be `materialization: full` |
 | `flatten` | list of flatten steps | no (`[]`) | Applied in authored order; chains flatten transitively |
 | `measures` | list of metric names | no (`[]`) | Metrics this mart serves; a mart with measures must declare a date role |
 | `partition_by` | list of partition specs | no (`[]`) | Physical partitioning |
@@ -686,6 +687,7 @@ Discriminated on `via` vs `date`:
 flatten:
   - {via: item_of_order, prefix: order_}    # flatten a relationship
   - {via: order_of_customer, prefix: customer_, as_of: order_date}  # ... as of a date
+  - {via: order_of_customer, prefix: customer_now_, reading: current}  # ... or as it is now
   - {date: order_date, role: ordered}       # declare a date role
 ```
 
@@ -693,7 +695,8 @@ flatten:
 |---|---|---|---|---|
 | via | `via` | relationship name | yes | Relationship to flatten; `one_to_many` is refused (fan-out) |
 | via | `prefix` | string, non-empty | yes | Prefix on every flattened column — mandatory, collisions are errors |
-| via | `as_of` | base date/timestamp column | on `scd: type2` | The anchor: the instant the joined entity is read as of. Required to flatten a historical dimension, refused on any other |
+| via | `as_of` | base date/timestamp column | on `scd: type2`, unless `reading` | The anchor: the instant the joined entity is read as of. A historical dimension needs it or `reading: current`; refused on any other, and beside `reading` |
+| via | `reading` | `current` | no | Reads only the joined entity's current version (`valid_to IS NULL` in the join condition) in place of an anchor. Refused on a non-historical entity and beside `as_of`; the mart must then be `materialization: full` |
 | date | `date` | field name | yes | A date/timestamp column of the base entity |
 | date | `role` | member name | yes | Expands to `<role>_day` … `<role>_year` bucket columns (`metric_time` reserved) |
 

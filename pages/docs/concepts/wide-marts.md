@@ -101,13 +101,64 @@ today's segment for a two-year-old order.
 An `as_of` on a dimension that is *not* `scd: type2` is refused too: there is no version
 to choose between, and the validity columns it would join against do not exist.
 
-### A `base:` cannot be historical
+### Reading the current version
 
-A mart **based** on a `type2` entity is still refused, and an anchor cannot rescue it.
-There is no join to qualify. The mart declares one row per entity while the relation
-holds one per entity per version, so a `count` returns revisions — a grain lie no
-predicate addresses. Base the mart on a `type1` current-view entity built from the
-historical one.
+When the question is about the dimension as it is *now*, declare that instead of an
+anchor:
+
+```yaml
+flatten:
+  - {via: order_of_customer, prefix: customer_, reading: current}
+```
+
+`reading: current` reads only the current version — `valid_to IS NULL` — and it is a
+declaration, not a default: omit both keys and the flatten is still `HistoricalFanout`.
+On a flatten hop the predicate joins the `ON` clause, not a `WHERE`, so an order whose
+customer has no current version keeps its row with NULL customer columns:
+
+```sql
+LEFT JOIN silver.customer AS customer_
+  ON  "order".customer_id = customer_.customer_id
+  AND customer_.valid_to IS NULL
+```
+
+It is the same predicate the silver audits scope to the current version with, so a mart
+and an audit cannot disagree about which version is current.
+
+Two declarations of it are refused as `HistoricalFanout`:
+
+- **`reading: current` on an entity that is not `scd: type2`.** It holds one row per
+  key, so there is no current version to choose and no `valid_to` column to read.
+- **`reading: current` beside `as_of:` on one step.** One reads the version current now,
+  the other the version current at the anchor, and a hop reads one version.
+
+### A `base:` is historical only when read current
+
+A mart **based** on a `type2` entity is refused, and an anchor cannot rescue it. There
+is no join to qualify. The mart declares one row per entity while the relation holds one
+per entity per version, so a `count` returns revisions — a grain lie no join predicate
+addresses. Declare `reading: current` on the mart and the base is filtered to one row
+per key:
+
+```yaml
+marts:
+  customer_current:
+    grain: customer
+    base: customer
+    reading: current
+```
+
+which lowers to `WHERE customer.valid_to IS NULL`. The other route is unchanged: base
+the mart on a `type1` current-view entity built from the historical one.
+
+### A current-reading mart is built whole
+
+A mart that reads current versions — on its base or on any flatten step — must be
+`materialization: full`; declaring it incremental is refused. A version stops being
+current after the partition holding it was written, and no incremental run revisits that
+partition, so the mart would keep reading it as current. A mart with a `partition_by`
+defaults to `incremental_by_partition`, so a partitioned current-reading mart has to
+say `materialization: full` explicitly.
 
 `scd: type2` itself is unchanged. It remains fully supported as a silver target on both
 SQLMesh and dbt.
