@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0184
+phase: 7
+base: f4ffcce2b729ef2d20b1f18f953d99cd7be05c46
+commit: 7f65649353aab37cf8dcbc8e1f6821966db2662a
+at: '2026-09-29T08:08:49Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: LOCKED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-29T08:06:52Z'
+    claim: >-
+      each of the 45 new cells takes its value from its bundle's README and observed.txt;
+      the three rows no bundle answered stay UNKNOWN: dbt 001 refinement and 004 mislabelled
+      (not modelled), SQLMesh 001 refinement (rendered SQL refused, no number)
+    evidence: >-
+      comparisons/MATRIX.md:38 — 001 refinement row, two UNKNOWN cells; comparisons/dbt/004-currency-mix/README.md
+      says mislabelled was not run
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-29T08:06:52Z'
+    claim: >-
+      cells cite the in-repo bundles under comparisons/<system>/<case>/; no bundle
+      moved or changed
+    evidence: >-
+      comparisons/MATRIX.md:21-28 — the Columns table points at metricflow/, dbt/,
+      sqlmesh/ beside the matrix
+    action: decided
+  - decision: D-13
+    grade: LOCKED
+    at: '2026-09-29T08:06:52Z'
+    claim: >-
+      each filled column's Reading section now covers the seven new cases and states
+      that the rows compare which facts a vocabulary makes an author state (grain
+      of origin, currency, validity interval added), not diligence
+    evidence: >-
+      comparisons/MATRIX.md:65-288 — the three Reading sections, each ending its comparison
+      paragraph with the vocabulary sentence
+    action: decided
