@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, cast
 from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
 
-from bloomery.emit.lower.predicates import as_of_conditions
+from bloomery.emit.lower.predicates import as_of_conditions, current_version
 from bloomery.errors import EmitError, guaranteed
 from bloomery.ir import (
     VALID_FROM,
@@ -115,11 +115,20 @@ def mart_select(mart: MartIR, ctx: EmitContext) -> exp.Select:
             for from_column, to_column in join.on
         ]
         conditions.extend(_as_of_conditions(join, owners))
+
+        # S-0080/D-2: on the hop, not in a WHERE — a LEFT join keeps the base
+        # row whose key has no current version.
+        if join.reading == "current":
+            conditions.append(current_version(table=join.prefix))
+
         select = select.join(
             exp.table_(relation, db=namespace, alias=join.prefix),
             on=exp.and_(*conditions),
             join_type="LEFT",
         )
+
+    if mart.reading == "current":
+        select = select.where(current_version(table=mart.base))
 
     return select
 

@@ -1179,6 +1179,10 @@ class MartJoinIR:
     on: tuple[tuple[str, str], ...]
     as_of: str | None = None
     role_of: str | None = None
+    #: ``"current"`` reads only the joined entity's current version
+    #: (``valid_to IS NULL``) in place of an anchor (S-0080/D-2); ``None``
+    #: otherwise. Never set beside ``as_of``.
+    reading: str | None = None
 
 
 # ....................... #
@@ -1238,6 +1242,9 @@ class MartIR:
     #: Who may read this relation (S-0062/grants), or ``None`` for "bloomery
     #: has no opinion and the warehouse's grants stand" (D6).
     grants: GrantsIR | None = None
+    #: ``"current"`` reads only the base's current version (``valid_to IS
+    #: NULL``) of an ``scd: type2`` base (S-0080/D-2); ``None`` otherwise.
+    reading: str | None = None
 
 
 # ....................... #
@@ -1772,9 +1779,13 @@ class ProjectIR:
     filter compares its own to in place of literal values. Every project with
     a metric filter encodes the field, and the version is in the stream, so
     every fingerprint moves.
+
+    Version 25 (S-0080/D-2) adds ``MartIR.reading`` and ``MartJoinIR.reading``,
+    the current-version reading of an ``scd: type2`` base or flatten hop. Every
+    project with a mart encodes the field, and every fingerprint moves once.
     """
 
-    bloomery_ir_version: int = 24
+    bloomery_ir_version: int = 25
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()
