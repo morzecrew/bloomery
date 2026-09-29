@@ -86,9 +86,11 @@ def test_scd2_mart_refusal_fails_closed_on_both_sides() -> None:
     assert "matches every version of each 'customer' key" in message
     # And each routes to the fix its own side has. Only the flatten can be
     # qualified by an anchor (S-0040/phase-2-the-as-of-join); a base has nothing to qualify,
-    # so sending its author to `as_of:` would be a dead end.
-    assert message.count("Fix: declare an anchor") == 1
-    assert message.count("Fix: declare the entity scd: type1, or build a type1") == 1
+    # so sending its author to `as_of:` would be a dead end. Both lead with the
+    # current reading, which each side has (S-0080/D-5).
+    assert message.count("Fix: declare reading: current") == 2
+    assert message.count("declare an anchor") == 1
+    assert message.count("declare the entity scd: type1, or build a type1") == 1
 
 
 def test_the_same_project_without_the_scd2_line_compiles_clean() -> None:

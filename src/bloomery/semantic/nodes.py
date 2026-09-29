@@ -341,9 +341,16 @@ class RollupContext:
     as of the ship date are different numbers — and picking either would answer
     a question the caller did not ask. Repeating the *same* anchor is not a
     conflict and deduplicates.
+
+    ``current`` names the entities read at their current version — the
+    ``reading: current`` a mart declares on its base or on a ``via:`` step
+    (S-0080/D-4). An ``scd: type2`` entity named here holds one row per key,
+    so its key is its grain as a ``type1`` entity's is. Sorted and
+    deduplicated.
     """
 
     anchors: tuple[tuple[str, str], ...] = ()
+    current: tuple[str, ...] = ()
 
     # ....................... #
 
@@ -366,6 +373,10 @@ class RollupContext:
 
         if canonical != self.anchors:
             object.__setattr__(self, "anchors", canonical)
+
+        current = tuple(sorted(set(self.current)))
+        if current != self.current:
+            object.__setattr__(self, "current", current)
 
     # ....................... #
 

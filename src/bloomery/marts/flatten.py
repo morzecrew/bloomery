@@ -166,13 +166,20 @@ def _grain_prose(entity_name: str, entities: dict[str, EntityIR]) -> str:
 #: relation holding one per version — is untouched by any predicate. Telling a
 #: base-side author to add an `as_of:` would route them to a clause with
 #: nowhere to go.
+#:
+#: Both lead with the current reading (S-0080/D-5), which each side has. It
+#: leads only now that the closure proves a rollup over a current-reading mart
+#: (S-0080/D-4) — before, it sent the author from this refusal into
+#: `HISTORICAL_GRAIN`.
 _HISTORICAL_FLATTEN_FIX = (
-    "Fix: declare an anchor — as_of: <a date or timestamp column of the base> — "
+    "Fix: declare reading: current on the via: step to read each key's current "
+    "version, or declare an anchor — as_of: <a date or timestamp column of the base> — "
     "to read the dimension as of that instant, or declare the entity scd: type1"
 )
 
 _HISTORICAL_BASE_FIX = (
-    "Fix: declare the entity scd: type1, or build a type1 current-view entity "
+    "Fix: declare reading: current on the mart to read each key's current version, "
+    "or declare the entity scd: type1, or build a type1 current-view entity "
     "from it and base the mart on that"
 )
 
@@ -207,9 +214,9 @@ def _historical_leaf(
     if to_entity is None:
         return []
 
-    # S-0080/D-1: the current reading replaces the anchor on a type2 hop.
-    # Settled here rather than in `qualify_as_of`, whose CURRENT state for it
-    # is S-0080/D-4 and not yet landed.
+    # S-0080/D-1: the current reading replaces the anchor on a type2 hop. The
+    # two pairings it refuses are worded here; the one it admits is
+    # `qualify_as_of`'s CURRENT, the state the closure reads (S-0080/D-4).
     if step.reading == "current":
         if step.as_of is not None:
             msg = (
@@ -228,9 +235,9 @@ def _historical_leaf(
             )
             return [HistoricalFanout(msg, source_path=step_path)]
 
-        return []
-
-    match qualify_as_of(reading=base, target=to_entity, as_of=step.as_of):
+    match qualify_as_of(
+        reading=base, target=to_entity, as_of=step.as_of, current=step.reading == "current"
+    ):
         case AsOfState.CURRENT | AsOfState.QUALIFIED:
             return []
 

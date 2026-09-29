@@ -777,3 +777,68 @@ def test_a_cyclic_declaration_terminates_rather_than_recursing() -> None:
 
     assert closed["a"] == frozenset({"a", "b"})
     assert closed["b"] == frozenset({"a", "b"})
+
+
+# ....................... #
+# A type2 entity read at its current version (S-0080/D-4, S-0017/A-1)
+
+#: Customer tier rolls up to the customer it describes — a question only a
+#: current reading lets `customer_tier` ask as a source.
+TIER_CUSTOMER = relationship(
+    "tier_customer", "customer_tier", "customer", Cardinality.MANY_TO_ONE, (("customer_id", "customer_id"),)
+)
+CURRENT_TIER = RollupContext(current=("customer_tier",))
+
+
+def test_a_current_reading_is_the_shared_fact_s_current_state() -> None:
+    """The mart guard and the closure read the current reading from the same
+    call they read the anchor from (S-0017/D-4) — no second state for it."""
+    assert (
+        qualify_as_of(reading=ORDER, target=CUSTOMER_TIER, as_of=None, current=True)
+        is AsOfState.CURRENT
+    )
+
+
+def test_a_current_read_type2_key_determines_its_columns() -> None:
+    reached = determined(
+        grain("customer_tier", "customer_id"),
+        dependencies(project((CUSTOMER_TIER,)), CURRENT_TIER),
+    )
+
+    assert reached[ColumnRef("customer_tier", "tier")] == ()
+
+
+def test_a_rollup_out_of_a_current_read_grain_proves() -> None:
+    scope = project((CUSTOMER, CUSTOMER_TIER), (TIER_CUSTOMER,))
+    source, target = grain("customer_tier", "customer_id"), grain("customer", "customer_id")
+
+    assert isinstance(can_roll_up(source, target, scope, CURRENT_TIER), RollupProof)
+    # The reading is the whole difference: without it the refusal stands.
+    refused = can_roll_up(source, target, scope)
+    assert isinstance(refused, RollupRefusal)
+    assert refused.reason is RefusalReason.HISTORICAL_GRAIN
+
+
+def test_a_hop_onto_a_current_read_entity_reaches_its_columns_through_its_key() -> None:
+    """No anchor, and nothing blocked: the join is an ordinary many_to_one onto
+    one row per key, and the key carries the rest of the row."""
+    built = dependencies(project((ORDER, CUSTOMER_TIER), (ORDER_TIER,)), CURRENT_TIER)
+
+    assert built.blocked == ()
+    assert determined(grain("order", "order_id"), built)[ColumnRef("customer_tier", "tier")] == (
+        "order_tier",
+    )
+    assert not any(dep.basis is DependencyBasis.AS_OF for dep in built.dependencies)
+
+
+def test_the_mart_guard_admits_a_current_reading_through_the_shared_fact() -> None:
+    from bloomery.marts.flatten import _historical_leaf
+    from bloomery.spec.marts import ViaStep
+
+    step = ViaStep(via="order_tier", prefix="tier_", reading="current")
+
+    assert _historical_leaf(step, ORDER_TIER, {"customer_tier": CUSTOMER_TIER}, ORDER, "p") == []
+
+
+def test_a_current_context_is_canonical() -> None:
+    assert RollupContext(current=("b", "a", "b")).current == ("a", "b")
