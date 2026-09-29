@@ -202,6 +202,8 @@ questions:
       **Where the origin grain is authored.** A measure's grain is today implied by
       the entity it is defined on. Whether it becomes explicit syntax or stays derived
       decides how much of §7's migration is mechanical.
+    status: settled
+    settled_by: D-6
   - id: Q-2
     text: >-
       **Whether `Unit` moves from the column to the measure, or is read through it.**

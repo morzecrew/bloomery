@@ -435,6 +435,8 @@ questions:
       does, and it is what `plan()` diffs. A `.sql` file whose first line is a comment
       is fine for dbt; the question is whether a test's fingerprint means anything
       to a reader, or is noise on an artifact nobody diffs.
+    status: settled
+    settled_by: D-7
   - id: Q-2
     text: >-
       **Do `not_null` and `enum` stay schema tests?** §5.4 says yes, on readability
