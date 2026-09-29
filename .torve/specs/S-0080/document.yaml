@@ -79,6 +79,7 @@ tests: |-
   - A current-reading mart declared incremental is refused.
   - A type2 base with no reading is still refused as `HistoricalFanout` (`scd2_mart_refusal` keeps its golden).
   - After phase 2, a rollup over a current-reading mart proves its grain.
+  - Until phase 2, the `HistoricalFanout` fix text is unchanged; after it, the text leads with `reading: current`.
 docs: >-
   `concepts/wide-marts.md` gains the reading beside `as_of:`; `reference/errors.md`
   names the two new refusals; `reference/spec-schemas.md` carries the key; the `HistoricalFanout`
@@ -107,3 +108,5 @@ questions:
       Should the `HistoricalFanout` fix text lead with `reading: current` and keep
       the type1-entity route as the second option, or stay as it is until phase 2
       lands?
+    status: settled
+    settled_by: D-5

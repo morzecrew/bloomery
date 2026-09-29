@@ -80,3 +80,5 @@ questions:
     text: >-
       Should a `derived:` metric whose inputs carry different restrictions be refused,
       as R019 refuses the ratio case, on both the single-mart and the composed path?
+    status: settled
+    settled_by: D-4

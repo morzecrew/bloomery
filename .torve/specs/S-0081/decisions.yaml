@@ -47,3 +47,18 @@ decisions:
     rationale: >-
       no port's handling of those directives is measured, and dropping a parsed zone
       is the wrong-hour failure
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Phase 1 ships only beside phase 2, in one minor release whose changelog records
+      the `Z`-to-NULL change under Changed and `ISO8601_INSTANT` under Added; no 0.4.x
+      patch carries phase 1 alone
+    paths: [CHANGELOG.md]
+    consequence: >-
+      an author whose rows turn NULL finds, in the same release notes, the format
+      that parses them
+    rationale: >-
+      phase 1 alone replaces an hour-wrong value with NULL and leaves no spelling
+      for an instant, and while bloomery is 0.x a change to produced values is a minor
+      release, not a patch
+    cites: [D-1, D-2]

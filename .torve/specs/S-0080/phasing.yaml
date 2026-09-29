@@ -32,10 +32,20 @@ phasing:
     intent: >-
       `qualify_as_of`'s `CURRENT` state reaches the closure, which gives a current-read
       type2 entity its key's grain, and `can_roll_up` proves a rollup over such a
-      mart. Amends S-0017/D-3, which is the owner's. Settles D-4.
-    scope: [src/bloomery/semantic/**, tests/unit/test_semantic/**]
+      mart. The `HistoricalFanout` fix text then leads with the current reading, and
+      its refusal goldens move with it. Amends S-0017/D-3, which is the owner's. Settles
+      D-4 and D-5.
+    scope:
+      - src/bloomery/semantic/**
+      - tests/unit/test_semantic/**
+      - src/bloomery/marts/flatten.py
+      - tests/unit/test_guardrails/test_stage.py
+      - tests/golden/refusals/**
     acceptance:
       - uv run pytest tests/unit/test_semantic -q
+      - >-
+        uv run pytest tests/golden/test_refusal_messages.py tests/unit/test_guardrails/test_stage.py
+        tests/unit/test_examples.py -q
     depends_on:
       - 1
     character: structural

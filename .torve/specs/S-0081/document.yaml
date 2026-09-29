@@ -99,3 +99,5 @@ questions:
       Should phase 1 ship alone as a 0.4.x patch, given it changes rows from wrong
       to NULL, or wait for the instant format so an affected author has somewhere
       to go?
+    status: settled
+    settled_by: D-4

@@ -63,3 +63,18 @@ decisions:
       the current reading restores one row per key, which is exactly the grain the
       entity key states
     cites: [S-0017/D-3, S-0017/D-4]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The `HistoricalFanout` fix text leads with the current reading from phase 2
+      on — `reading: current` on the base, or on the flatten step's `via:` — and keeps
+      the anchor and the type1 routes after it; phase 1 leaves the text as it stands
+    paths: [src/bloomery/marts/flatten.py, tests/golden/test_refusal_messages.py]
+    consequence: >-
+      the refusal sends an author to the current reading only once a rollup over a
+      current-reading mart proves, never from one refusal into another
+    rationale: >-
+      until the closure proves a current-reading mart's grain, a rollup over one is
+      refused with `HISTORICAL_GRAIN`, so advice that led there would trade the author's
+      refusal for a second one
+    cites: [D-4]

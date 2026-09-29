@@ -45,8 +45,9 @@ phasing:
     title: The docs name the instant format
     intent: >-
       `reference/transforms.md` gains `ISO8601_INSTANT`, the `Z` rule and the `%z`
-      refusal.
-    scope: [pages/docs/reference/transforms.md]
+      refusal. The changelog's Unreleased section records the `Z`-to-NULL change under
+      Changed and the instant format under Added (D-4).
+    scope: [pages/docs/reference/transforms.md, CHANGELOG.md]
     acceptance:
       - >-
         uv run pytest tests/unit/test_docs_floor.py tests/unit/test_docs_snippets.py

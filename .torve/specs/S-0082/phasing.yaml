@@ -42,4 +42,26 @@ phasing:
         -q
     depends_on:
       - 1
+      - 4
     character: routine
+  - phase: 4
+    title: >-
+      A derived metric over disagreeing restrictions is refused
+    intent: >-
+      A `derived:` metric whose inputs carry different restrictions is refused with
+      R019's `operands_disagree` on the single-mart path and on the composed path,
+      naming each input and its restriction; a derived metric whose inputs agree is
+      admitted as before. Waits on phase 1 because the composed path admits a metric's
+      own filter there. Settles D-4.
+    scope:
+      - src/bloomery/semantic/additivity.py
+      - src/bloomery/semantic/proof.py
+      - src/bloomery/planner/**
+      - tests/unit/test_semantic/**
+      - tests/unit/test_planner/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_semantic tests/unit/test_planner -q
+    depends_on:
+      - 1
+    character: structural
