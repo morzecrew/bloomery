@@ -105,7 +105,9 @@ class StepInput(SpecModel):
 
     ``requires`` is a *lower* bound — the step may be handed a relation with
     more columns, and asking for fewer than it reads is the manifest's bug,
-    not the wiring's. Bloomery checks the bound is met, never that it is tight.
+    not the wiring's. Bloomery checks the bound is met, never that it is tight,
+    against the relation the wiring binds where the project declares it
+    (S-0034/D-57): an unknown relation and a reserved column are not checked.
     """
 
     grain: str

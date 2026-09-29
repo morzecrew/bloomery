@@ -267,6 +267,13 @@ Multi-output emission resolved — **supersedes the draft §10 entry and its exe
 
 - Paths: `src/bloomery/resolve/build.py` `tests/unit/test_steps/test_macro_fields.py`
 
+### S-0034/D-57 — `ASSUMED` (The step registry: referenced implementations)
+
+A step input's `requires` is a lower bound the compile checks: when the wiring binds the input to an entity the project declares or to another step's output, every required column is one of that relation's columns — the entity's fields, or the output's `produces` — or the compile refuses with a `StepError` naming the step, the input, the relation and what is missing. A relation the project does not declare, and a reserved column name, are not checked
+
+- Paths: `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_lowering.py` `pages/docs/concepts/step-registry.md`
+- Consequence: a step that reads a column its bound relation lacks is refused at compile rather than failing at run time on the engine; a silver table kept outside bloomery still binds, unchecked
+
 ### S-0035/D-10 — `ASSUMED` (Public surface and stability policy)
 
 **The `TYPE_CHECKING` guard is lifted on public signatures before the closure test lands.** `typing.get_type_hints` currently raises `NameError` on 7 of the 29 exports, including `compile_project`, because `from __future__ import annotations` plus a `TYPE_CHECKING`-only import leaves the annotation naming something absent at run time. Decision 1's enforcement is unimplementable until those names are importable at run time — a prerequisite the design did not see, found by running the proposed walk rather than by reading it. Guards on internal signatures are untouched.

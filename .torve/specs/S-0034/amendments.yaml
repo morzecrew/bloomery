@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T04:08:02Z'
+    title: A step input's requires is enforced
+    changes:
+      - subject: D-57
+        field: text
+        after: >-
+          A step input's `requires` is a lower bound the compile checks: when the
+          wiring binds the input to an entity the project declares or to another step's
+          output, every required column is one of that relation's columns — the entity's
+          fields, or the output's `produces` — or the compile refuses with a `StepError`
+          naming the step, the input, the relation and what is missing. A relation
+          the project does not declare, and a reserved column name, are not checked
+    md: >-
+      The owner decided (2026-09-29) that `requires` is enforced; `StepInput`'s docstring
+      had said so since the manifest landed, and nothing read it. D-57 records the
+      rule and its two exemptions. This answers the `requires` part of Q-1; the rest
+      of Q-1 (the parameter-bounds grammar) is unchanged.
