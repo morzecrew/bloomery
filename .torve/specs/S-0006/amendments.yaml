@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T05:06:07Z'
+    title: >-
+      Phases 4 to 7: the seven cases no system has a bundle for
+    md: >-
+      Seven of the twelve corpus cases (001, 003, 004, 006, 007, 010, 012) have no
+      bundle for any of the three systems, so their 15 rows read `UNKNOWN` in all
+      45 cells. Phases 4 to 6 add the bundles, one system each, scoped to that system's
+      directory so the three run side by side; the MetricFlow and SQLMesh runners
+      grow grouped and multi-metric requests, additively, pinned by every existing
+      bundle reproducing byte for byte. Phase 7 fills the matrix from what the bundles
+      measured, and nothing else.
