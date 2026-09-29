@@ -62,18 +62,19 @@ decisions:
       shows the ordering is structural — forced by where the node sits — the proof
       becomes decoration and the row should be revisited rather than defended.
   - id: D-7
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Whether per-measure restriction scopes on `Filter` or on `Aggregate`** (§5.5).
-      One node type per concept against keeping the restriction beside what it restricts.
-      Execution decides against `resolve.build._metric_filters`, which already holds
-      the authored clauses, and logs which and why.
+      Per-measure restriction scopes on `Filter`. `Filter.measures` names the measures
+      its predicates restrict, empty meaning every measure beneath, because `Filter`
+      is the node that makes the restriction claim. A scoped `Filter` with no predicates
+      is refused at construction.
+    fingerprint: 9e29cb918413b73a/202c11f3690cefb1
   - id: D-8
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **What replaces `_plannable`.** Its four conditions exist to decline; once nothing
-      declines they are either deleted or turned into a dispatch to the node stating
-      each shape. The second cannot silently regrow into a list of exclusions, which
-      the enumerating version of that guard already did twice — but it is a bigger
-      change, and the choice belongs to whoever sees both shapes against the code.
+      `_plannable` is replaced by `_measures_are_embedded`, the precondition of R008
+      alone: every reduced number is a measure the mart embeds, at a statable additivity.
+      Its other three exclusions became plan nodes, and `build` returns `None` only
+      where coverage or the additivity guardrail has already refused.
     paths: [src/bloomery/planner/semantic_plan.py]
+    fingerprint: 3234bb4ae0485c21/483498c4fe039a93

@@ -283,9 +283,9 @@ Rendering: one `where_constraints` entry per `Clause`; `AnyOf` **always** parent
 
 - Paths: `src/bloomery/planner/coverage.py`
 
-### S-0055/D-8 — `OPEN` (Multi-grain aggregate-then-join query planning)
+### S-0055/D-8 — `ASSUMED` (Multi-grain aggregate-then-join query planning)
 
-**Whether `DistinctCount`, `Snapshot` and `SemiAdditive` enter branch planning at all in P1.** §8 gates them on their proof rules being independently sound. Decide per class, with the corpus case each one converts, rather than as a group.
+None of `distinct_count`, `semi_additive` and snapshot enters branch planning: a composed plan admits only components declaring `additivity: additive` with no `cumulative` and no `filter`; the first two decline with `UnreachableAtGrain`, directly and as a derived metric's component, and snapshot has no authored spelling (S-0053/D-11).
 
 - Paths: `src/bloomery/ir/nodes.py` `src/bloomery/planner/semantic_plan.py` `src/bloomery/semantic/rollup.py` `tests/fixtures/semantic_corpus/007-distinct-users-fanout/problem.md` `tests/fixtures/semantic_corpus/012-rollup-recounts-identities/problem.md` `tests/unit/test_planner/test_coverage.py`
 
@@ -342,9 +342,9 @@ Rendering: one `where_constraints` entry per `Clause`; `AnyOf` **always** parent
 - Paths: `src/bloomery/planner/semantic_plan.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0071/D-8 — `OPEN` (Completing the semantic plan)
+### S-0071/D-8 — `ASSUMED` (Completing the semantic plan)
 
-**What replaces `_plannable`.** Its four conditions exist to decline; once nothing declines they are either deleted or turned into a dispatch to the node stating each shape. The second cannot silently regrow into a list of exclusions, which the enumerating version of that guard already did twice — but it is a bigger change, and the choice belongs to whoever sees both shapes against the code.
+`_plannable` is replaced by `_measures_are_embedded`, the precondition of R008 alone: every reduced number is a measure the mart embeds, at a statable additivity. Its other three exclusions became plan nodes, and `build` returns `None` only where coverage or the additivity guardrail has already refused.
 
 - Paths: `src/bloomery/planner/semantic_plan.py`
 

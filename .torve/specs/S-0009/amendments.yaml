@@ -29,3 +29,30 @@ amendments:
       spec documents the golden tier compiles. The row now says what the code
       does; the decision itself — seeds are generated at build time, never
       committed a second time — is unchanged.
+  - id: A-2
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-5
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-5
+        field: text
+        before: >-
+          When the pull-request fuzzing job becomes a required check — not before
+          a month non-blocking, and not while the harness is still producing findings
+          per week
+        after: >-
+          The pull-request fuzz job `pr` is non-blocking: it sets `continue-on-error:
+          true` and is absent from `ci.yml`'s `required-ci`. It is promoted to a required
+          check only by a separate commit, after a month of non-blocking runs and
+          once the harness stops producing findings week on week.
+      - subject: D-5
+        field: fingerprint
+        after: 6d515a73a8a3c3e0/a2ae58da4858baa1
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-5: The policy and the promotion condition are in the tree and pinned by tests. The promotion itself is a future act that the condition governs, and it has not happened. Evidence: .github/workflows/fuzz.yaml; tests/unit/test_fuzz_workflows.py::test_the_pull_request_job_is_non_blocking; tests/unit/test_fuzz_workflows.py::test_no_fuzz_job_is_part_of_the_required_check; .torve/specs/S-0009/execution/T-0015-1-20260919T104650Z.yaml.

@@ -73,25 +73,22 @@ decisions:
       the difference.
     paths: [src/bloomery/resolve/build.py]
   - id: D-7
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Whether `currency_in:` extends to `RecipeFieldMapping` and `MacroFieldMapping`.**
-      This row assumed a recipe's chain can hold a conversion, and it cannot: a `Recipe`
-      is `{id, requires, expr}` — a SQL expression over aliases, with no transform
-      chain — and a macro's body is opaque SQL. Neither can carry a `convert` step,
-      so neither can hold a conversion whose input would need declaring, and neither
-      reaches the code that would ask. Answered "no" for both, and "yes" for `KeyField`,
-      which this row did not think to ask about (see `logs/T-0025.md` (`logs/T-0025.md`),
-      D158).
+      `currency_in:` lives on `SimpleFieldMapping` and `KeyField` only. `RecipeFieldMapping`
+      and `MacroFieldMapping` carry no transform chain, so neither can hold a `convert`
+      step or a conversion input to declare. A key keeps it because a decimal key
+      is legal and `resolve.build` walks its chain.
     paths: [src/bloomery/evidence.py, tests/unit/test_evidence.py]
+    fingerprint: 39becb30e18c6c9d/b46f4ea1f60e4121
   - id: D-8
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Whether R009's proof is retained anywhere or produced on demand.** `prove_rollup`
-      is called by the planner when someone asks; a conversion happens once at compile
-      time and nobody asks later. Deciding it decides whether the guardrail stage
-      grows a proof channel — which is a bigger change than this document, and probably
-      the wrong place for it. Prefer on demand, and log the reason.
+      R009's proof is not retained. `resolve.build._check_denomination` calls `prove_conversion`
+      once at compile time, raises `ResolutionError` on a `Refutation` and discards
+      the `Proof`; no later stage asks for it, so the guardrail stage has no proof
+      channel.
+    fingerprint: 3d95853842107e3d/202c11f3690cefb1
   - id: D-9
     grade: ASSUMED
     text: >-
@@ -108,15 +105,11 @@ decisions:
       rather than this row. Added by execution 2026-09-07 — see `logs/T-0025.md` (`logs/T-0025.md`)
       (D161, attempt 4).
   - id: D-10
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **How a per-row conversion spells its source currency.** §5.1's example wrote
-      `{convert: [*, USD, paid_at]}`, and `*` is not an ISO-4217 code — resolution
-      refuses it on the code format before the per-row refusal is reached, so the
-      example was uncopyable and the question it stood in for was never asked. With
-      the input declared on the field, `from` is derivable and the two-argument spelling
-      is the obvious candidate; keeping a three-argument form would need something
-      to write in the first slot that is not a currency. Decide with P2's lowering,
-      which is the first code that reads it. Added by execution 2026-09-07 — see `logs/T-0025.md`
-      (`logs/T-0025.md`) (D162).
+      A per-row conversion keeps the three-argument spelling, `{convert: [currency_code,
+      USD, paid_at]}`: the first slot names the column that `currency_in: {column:
+      …}` declares. Resolution checks it against the declaration as it checks a literal
+      code, and skips the ISO-4217 format check for that slot only.
     paths: [tests/fixtures/currency_convert_per_row/mapping.yaml]
+    fingerprint: 8b34945c647ca06f/f33d8ecefe6a813a

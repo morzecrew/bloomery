@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: text
+        before: >-
+          **Whether the human CLI table prints open decisions.** JSON gets them by
+          construction. The table is a summary (S-0037/D-4), and this is either the
+          most useful line `bloomery resolve` could print or the one that turns a
+          summary into a dump. Whoever builds this decides and logs it.
+        after: >-
+          `bloomery resolve`'s human table prints an `Open decisions (N)` section
+          with one row per decision: canonical, gap, target `entity.field`, the catalog's
+          recipe ids in catalog order, and the metrics it blocks. Recipe alias slots
+          (`requires`) stay out of the table and appear only in `--format json`.
+      - subject: D-7
+        field: fingerprint
+        after: 42e01f0b1125c4b6/c7c35391b2d08b70
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-7: The implementation took the 'print them' side and bounded the row to ids, which avoids the dump the row warns about. Evidence: src/bloomery/cli/render.py; tests/unit/test_cli.py::test_resolve_prints_the_open_decisions_with_their_recipe_ids.

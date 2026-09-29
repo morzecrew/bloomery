@@ -71,12 +71,15 @@ decisions:
       §3 requires the partition be deterministic and minimal under *documented* tie-breaking,
       and does not say what the tie-break is. Whoever implements it decides and documents
       it, since several defensible orders exist and only a written one is reproducible.
+    superseded_by: D-11
   - id: D-8
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Whether `DistinctCount`, `Snapshot` and `SemiAdditive` enter branch planning
-      at all in P1.** §8 gates them on their proof rules being independently sound.
-      Decide per class, with the corpus case each one converts, rather than as a group.
+      None of `distinct_count`, `semi_additive` and snapshot enters branch planning:
+      a composed plan admits only components declaring `additivity: additive` with
+      no `cumulative` and no `filter`; the first two decline with `UnreachableAtGrain`,
+      directly and as a derived metric's component, and snapshot has no authored spelling
+      (S-0053/D-11).
     paths:
       - src/bloomery/ir/nodes.py
       - src/bloomery/planner/semantic_plan.py
@@ -84,6 +87,7 @@ decisions:
       - tests/fixtures/semantic_corpus/007-distinct-users-fanout/problem.md
       - tests/fixtures/semantic_corpus/012-rollup-recounts-identities/problem.md
       - tests/unit/test_planner/test_coverage.py
+    fingerprint: 48201bde916e95c8/46f7e9b32cb139ca
   - id: D-9
     grade: LOCKED
     text: >-

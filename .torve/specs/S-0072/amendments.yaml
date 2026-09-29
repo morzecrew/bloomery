@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-9
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-9
+        field: text
+        before: >-
+          Whether `depends_on.marts` should now admit a rollup. The refusal that exists
+          was written when a rollup was not a node; if it stays, it needs its reason
+          restated in the new world.
+        after: >-
+          `depends_on.marts` still refuses a rollup, with its own message. Now that
+          a rollup is a `mart` node, the reason is that admitting one is a grammar
+          change with two more legs, the dbt emitter's `ref()` and `plan()`'s `mart:`
+          change subject; widening one of the three reports a dependency clean.
+      - subject: D-9
+        field: fingerprint
+        after: dc8ed81988f31a07/202c11f3690cefb1
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-9: The guard's docstring restates the refusal's reason for the node world, as the row asked (cites D9, T-0039). Evidence: src/bloomery/guardrails/exposures.py; tests/unit/test_guardrails/test_exposures.py.

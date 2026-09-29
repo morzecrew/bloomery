@@ -65,17 +65,17 @@ decisions:
       mean the check cannot be expressed over the current transform vocabulary, which
       nothing so far suggests.
   - id: D-7
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Whether a step output needs a zone declaration.** §5.3 discharges a value
-      that never passed `parse_ts`, which lets a `python_model` emitting a wall clock
-      through. Deciding it needs one example of a step that does so; the executor
-      decides and logs it.
+      A step output needs no zone declaration. R018 reads only mapping chains, and
+      a column that no chain passed through `parse_ts` discharges as `DERIVED`, since
+      it was never a wall clock. A step emitting a wall clock is a known hole; a zone
+      surface on `steps:` is S-0034's question.
+    fingerprint: cc6a90c1436ed1c2/202c11f3690cefb1
   - id: D-8
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Whether the refusal is `UndeclaredZone` or a reuse of an existing denomination
-      error.** R009's family already refuses an undeclared currency, and one class
-      for "undeclared denomination" may read better than two. Decide when the message
-      is written, since the deciding fact is whether one message can name both without
-      hedging.
+      The refusal is its own class, `UndeclaredZone`, not a reuse of R009's undeclared-currency
+      refusal: that one refuses a conversion and this one refuses a consumption, and
+      the repair names `zone_in:` or `to_utc` rather than a currency.
+    fingerprint: 8c3b75d8da0e0a44/202c11f3690cefb1

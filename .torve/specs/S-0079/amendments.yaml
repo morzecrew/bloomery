@@ -76,3 +76,32 @@ amendments:
       `test_resolution.py`, which their docstrings describe and the phase's
       acceptance did not run — T-0021's tree was green at every gate and red
       on `tests/unit` (T-0025, T-0026).
+  - id: A-2
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-11
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-11
+        field: text
+        before: >-
+          Where `_determinations` lives. It is stated here as a private helper in
+          `src/bloomery/marts/rollup.py`, beside its only caller; it could as well
+          be a function on the IR that `lower_rollups` imports, if a second consumer
+          appears while the phase is being built. The executor decides against the
+          shape of both and logs it
+        after: >-
+          `_determinations` is a private helper in `src/bloomery/marts/rollup.py`,
+          beside its only caller `lower_rollups`, deriving the mart-namespace mapping
+          at the call and storing nothing. No second consumer appeared during the
+          build, so it did not move onto the IR.
+      - subject: D-11
+        field: fingerprint
+        after: 69293dc99e6c37c1/ff2768c3e5a9ea33
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-11: The default placement the row stated is what shipped, with one caller. Evidence: src/bloomery/marts/rollup.py.

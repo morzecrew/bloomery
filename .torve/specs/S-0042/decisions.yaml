@@ -36,6 +36,7 @@ decisions:
       The floor percentages in §5.2. Each must be set from measured current coverage,
       one notch below — above it fails on day one, far below it ratchets nothing.
       The executor measures and logs the numbers.
+    superseded_by: D-16
   - id: D-6
     grade: LOCKED
     text: >-
@@ -68,6 +69,7 @@ decisions:
       Which stability promises bind at 0.1 versus 1.0. §5.5 changes the page; it does
       not freeze the API. The split must be stated before the tag — after it, the
       first answer given becomes the promise.
+    superseded_by: D-23
   - id: D-11
     grade: OPEN
     text: >-
@@ -76,6 +78,7 @@ decisions:
       prose cannot be parsed for claims in general. The tractable rule — every refusal-asserting
       block names an error class, every named class is in the table — is proposed,
       not settled.
+    superseded_by: D-17
   - id: D-12
     grade: OPEN
     text: >-
@@ -84,6 +87,7 @@ decisions:
       targets, not a procedure, and `LruManifestHydrator.get` has three materially
       different paths. The numbers must come from measurement; D4 fixes only the *method*
       for choosing them.
+    superseded_by: D-18
   - id: D-13
     grade: LOCKED
     text: >-

@@ -24,24 +24,28 @@ decisions:
       changes artifacts for projects that did not ask for it is not optional.
     paths: [src/bloomery/cli/render.py, src/bloomery/plan/diff.py]
   - id: D-4
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether partial adoption within a project is refused by `check` (§10).
+      Partial adoption is allowed: a node without `id:` keys by its name (`spec.project.key`)
+      beside nodes that adopted one. Only a collision is refused, at parse: two nodes
+      minting one id, or an id equal to another node's name. Nothing refuses a project
+      for mixing adopted and unadopted nodes.
+    fingerprint: 04027546d09d5d1d/202c11f3690cefb1
   - id: D-5
     grade: ASSUMED
     text: >-
       Emitted relation names stay derived from `name`. Decoupling them is a warehouse-migration
       feature wearing this document's clothes.
   - id: D-6
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether node identity is a write-once `id:` or a one-shot `renamed_from:` in
-      S-0024/D-3's shape (§10). Recorded rather than assumed: the codebase already
-      chose the second answer for fields, and a document that does not say why nodes
-      differ is one that looks like it did not know.
+      Node identity is a write-once optional `id:` on metrics, steps and canonical
+      fields; `renamed_from:` stays field-level. Editing an `id:` is a delete and
+      an add, and a timeline never carries one name across two different ids.
     paths:
       - src/bloomery/resolve/timeline.py
       - tests/unit/test_resolve/test_timeline.py
+    fingerprint: 4acec8fc0df7ea18/e459cc2f6fd436ca
   - id: D-7
     grade: ASSUMED
     text: >-

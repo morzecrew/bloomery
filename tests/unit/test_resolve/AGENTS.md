@@ -215,9 +215,9 @@ Change classification needs no new class — but adding a mapping to a single-so
 
 - Paths: `tests/unit/test_resolve/test_resolution.py`
 
-### S-0049/D-7 — `OPEN` (Mapping identity)
+### S-0049/D-7 — `ASSUMED` (Mapping identity)
 
-**Whether `FieldProvenance` sorts by `(entity, field, mapping)` or `(entity, mapping, field)`.** §5.4 argues the first — a field's answers stay adjacent — but the second groups a reader's attention by document, which is what they will edit. Execution decides against the corpus, and logs it: whichever reads better on `multi_source`'s four collapsed facts is the answer, and that is a thing to look at rather than reason about.
+`Resolution.provenance` sorts `FieldProvenance` entries by `(entity, field, mapping)`. On `multi_source` this keeps a merged field's per-mapping answers, such as `order_line.quantity`'s two, next to each other.
 
 - Paths: `src/bloomery/resolve/resolution.py` `tests/unit/test_resolve/test_resolution.py`
 
@@ -255,9 +255,9 @@ The reservation is checked in one place over every entity name the graph can see
 - Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/resolve/build.py` `tests/unit/test_resolve/test_currency_convert.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0067/D-6 — `OPEN` (Stable node identity across renames)
+### S-0067/D-6 — `ASSUMED` (Stable node identity across renames)
 
-Whether node identity is a write-once `id:` or a one-shot `renamed_from:` in S-0024/D-3's shape (§10). Recorded rather than assumed: the codebase already chose the second answer for fields, and a document that does not say why nodes differ is one that looks like it did not know.
+Node identity is a write-once optional `id:` on metrics, steps and canonical fields; `renamed_from:` stays field-level. Editing an `id:` is a delete and an add, and a timeline never carries one name across two different ids.
 
 - Paths: `src/bloomery/resolve/timeline.py` `tests/unit/test_resolve/test_timeline.py`
 

@@ -66,8 +66,11 @@ decisions:
     rationale: >-
       It becomes relevant only if a target end-to-end test needs AWS-facing behaviour
   - id: D-6
-    grade: OPEN
-    text: Whether the port declares `DialectFeature.ARRAY`
+    grade: ASSUMED
+    text: >-
+      The Redshift port does not declare `DialectFeature.ARRAY`: Redshift has no array
+      column type, so `_quality_flags` and `failed_rules` take the delimited-string
+      fallback.
     paths: [src/bloomery/dialects/redshift.py]
     consequence: >-
       `_quality_flags` lowers to a delimited string without it — a supported path,
@@ -76,10 +79,14 @@ decisions:
       Establish Redshift's actual collection capability on the live lane and decide
       from that, not from the PostgreSQL port's answer; whoever builds the port decides
       it and records the evidence, and the live lane is where it is confirmed
+    fingerprint: cb3a4c1866c8e198/745af634e946a283
   - id: D-7
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Which helpers are genuinely shared with the PostgreSQL port
+      The Redshift port shares exactly two helpers with PostgreSQL, imported by name
+      and not through inheritance: `zoneless_parse` and `ends_with_as_right`. Every
+      other PostgreSQL rewrite was audited and rejected, and `RedshiftDialect` subclasses
+      `SQLGlotDialect`, not `PostgresDialect`.
     paths: [src/bloomery/dialects/redshift.py, src/bloomery/dialects/postgres.py]
     consequence: >-
       D-1 forbids inheritance and permits sharing, and the boundary between them is
@@ -87,3 +94,4 @@ decisions:
     rationale: >-
       Enumerate the shared helpers explicitly when the port is written, so a later
       reader can tell a shared abstraction from a leaked assumption
+    fingerprint: e264597baf80bd7f/7141250242dabb43

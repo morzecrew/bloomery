@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-4
+        field: superseded_by
+        after: S-0073/D-1
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Answered by a later row, which the row now names:
+      - D-4 is answered by S-0073/D-1: S-0073 rejected S-0068 outright (S-0073/D-3) and ruled no `--as-of` (S-0073/D-2); history is caller-assembled, which is Candidate C's recipe with no port.

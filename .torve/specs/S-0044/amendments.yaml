@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-4
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-4
+        field: text
+        before: >-
+          Which option of §4. The lean is **(a)**: it is the only one that keeps the
+          DuckDB and PostgreSQL artifacts unchanged in meaning, keeps one producer
+          for the construct, and makes a fourth dialect fail loud rather than quietly
+          wrong.
+        after: >-
+          `parse_ts: ISO8601` builds `CAST(BLM_ISO_TEXT(x) AS TIMESTAMP)`: the marker
+          (`ISO_TEXT_MARKER`, built only by `iso_text`) wraps the text rather than
+          the cast, so the `TryCast` rewrite still applies; every port rewrites it
+          through `strip_iso_text`, and `SQLGlotDialect.render` raises `UnsupportedByTarget`
+          if the marker survives. `parse_date` is not marked.
+      - subject: D-4
+        field: fingerprint
+        after: ceccf95db727bf21/18be9d87ecd22b89
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-4: Option (a) is built, with one refinement the row did not foresee: the marker wraps the text inside the cast. S-0046/D-3 cites this row as the established marker pattern. Evidence: src/bloomery/transforms/_builtins.py; src/bloomery/dialects/base.py.

@@ -15,3 +15,45 @@ amendments:
       identity rule D-2 already sets for encoders: an opaque name compared for
       equality and never resolved.
       Phase 4: fusion declares its constant, and the lexical side its analyser
+  - id: A-2
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-11
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-11
+        field: text
+        before: >-
+          Whether a vector field may be declared on an entity or only on a mart
+        after: >-
+          A vector field may be declared on an entity as well as on a mart. `vector(<scalar>,
+          <dimensions>)` is in the `TYPE_STRING_PATTERN` that every entity `Field.type`
+          reads, and a profile's `CorpusRelation` names either a `mart` or an `entity`.
+          On an entity, a vector arrives as a step's declared output.
+      - subject: D-11
+        field: fingerprint
+        after: 9c75a60a52d8382f/abd323801e0115d6
+      - subject: D-12
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-12
+        field: text
+        before: >-
+          Whether `distance` is a property of the semantic space or of the retrieval
+          profile
+        after: >-
+          `distance` is a property of the semantic space: `SemanticSpace.distance`
+          is one of `cosine`, `dot` or `l2`, `RetrievalProfile` has no distance field,
+          and every field claiming one space is scored the same way.
+      - subject: D-12
+        field: fingerprint
+        after: a96e3bd55648d2a6/b148a8f6dfe768fa
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-11: Execution decided the question in T-0084, and the spec models implement the answer. Evidence: src/bloomery/spec/common.py; src/bloomery/spec/entity.py; src/bloomery/spec/retrieval.py; tests/unit/test_guardrails/test_retrieval.py.
+      - D-12: Execution decided the question in T-0084, taking the row's own argument that a later move from space to profile is additive. Evidence: src/bloomery/spec/retrieval.py; tests/unit/test_spec/test_retrieval.py::test_the_worked_document_parses_with_distance_on_the_space.

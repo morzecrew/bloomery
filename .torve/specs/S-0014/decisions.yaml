@@ -80,10 +80,12 @@ decisions:
       means a lane that names its own weaker claim rather than one that quietly inherits
       the stronger one
   - id: D-6
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether the emulator lane runs on pull requests, and the executor decides it
-      on measured runtime and on whether it catches anything rungs 1 through 3 miss
+      The BigQuery emulator lane runs in `engine-e2e`'s `pytest -m surrogate` step
+      on push, nightly, and on same-repo pull requests whose changes match the `engine`
+      path filter. It is advisory, not part of `required-ci`. The four surrogate lanes
+      together measured 1 min 3 s on 2026-09-28.
     paths: [tests/engines/test_bigquery_surrogate.py, .github/workflows/ci.yml]
     consequence: >-
       It needs no credential, which makes it eligible where the other three ports'
@@ -91,14 +93,17 @@ decisions:
       slot on every pull request buys time from every contributor for a signal that
       may be redundant
     rationale: >-
-      Left open by row D6 of `rfcs/0048-bigquery-dialect.md`, and left open here:
-      the answer is a measurement nobody has taken, not an argument
+      The row's two inputs were measured: a push run on `main` put the four surrogate
+      lanes at 1 min 3 s (2026-09-28), and the lane caught value defects rungs 1 to
+      3 missed (#191, #192), so #201 moved it onto pull requests that touch engine
+      code
+    fingerprint: c8dfe21d3938f40b/1a4cb56b01cfedb5
   - id: D-7
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      The `NUMERIC` and `BIGNUMERIC` mapping for a declared `decimal(p, s)`, and which
-      bounds a declared type may not exceed, decided against the declared-type conformance
-      battery rather than from the documentation and recorded with the bounds
+      A declared `decimal(p, s)` lowers to `NUMERIC(p, s)` where `s <= 9` and `p -
+      s <= 29`, otherwise to `BIGNUMERIC(p, s)` where `s <= 38` and `p - s <= 38`.
+      Past both bounds it is refused with `UnsupportedByTarget`, never widened.
     paths:
       - src/bloomery/dialects/bigquery.py
       - tests/unit/test_dialects/test_bigquery.py
@@ -111,3 +116,4 @@ decisions:
       can answer it, and the declared-against-produced corpus exists because `to_utc`
       declared one type and produced another on all three shipped ports for the whole
       life of the project without any tier noticing
+    fingerprint: 56bc4f95955adaa9/ed17ed407aa88fdd

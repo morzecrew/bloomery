@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-8
+        field: superseded_by
+        after: S-0041/D-22
+      - subject: D-10
+        field: superseded_by
+        after: S-0041/D-23
+      - subject: D-11
+        field: superseded_by
+        after: S-0041/D-24
+      - subject: D-25
+        field: superseded_by
+        after: S-0041/D-26
+      - subject: D-27
+        field: superseded_by
+        after: S-0041/D-28
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Answered by a later row, which the row now names:
+      - D-8 is answered by S-0041/D-22: D-22 answers it: no acknowledgement, because a misspelled field is already refused as `MissingReference`.
+      - D-10 is answered by S-0041/D-23: D-23 answers it: `scd: type2` plus multi-source is refused, with a message naming the as-of dependency.
+      - D-11 is answered by S-0041/D-24: D-24 answers it: `required:` means coverage only, and the runtime null check stays `assert: {not_null: true}`.
+      - D-25 is answered by S-0041/D-26: D-26 answers it: option (a), with the lowered expression on a new `SourceColumnIR` under `SourceIR` and `ColumnIR` keeping the schema.
+      - D-27 is answered by S-0041/D-28: D-28 answers it for P1 (refuse `direct:` on a merged entity). D-36 then answers D-28: allowed when every mapping records a direct path for the column, refused when they disagree.
