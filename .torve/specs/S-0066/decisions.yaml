@@ -113,3 +113,23 @@ decisions:
       code, and skips the ISO-4217 format check for that slot only.
     paths: [tests/fixtures/currency_convert_per_row/mapping.yaml]
     fingerprint: 8b34945c647ca06f/f33d8ecefe6a813a
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      Under per-row conversion, a currency code the rate relation has no row for converts
+      the amount to NULL and the row survives. `convert` is declared `nullifies`,
+      so `coercible` does not quarantine the row; an author who wants the miss rejected
+      declares `{rule: not_null}` on the converted field
+    paths:
+      - src/bloomery/transforms/_builtins.py
+      - src/bloomery/transforms/registry.py
+      - tests/execution/test_currency_convert.py
+    consequence: >-
+      A payment in an unrecognised currency still counts as a row with a NULL amount,
+      and rejecting it is a rule the author writes rather than a default
+    rationale: >-
+      Per-row changes a miss's multiplicity, not its meaning, and the `convert` declaration
+      records that reading the vanished value as a failed cast would quarantine one
+      row under the wrong cause (log T-0052), which `test_a_code_the_feed_has_no_row_for_converts_to_null`
+      pins
+    cites: [S-0040/D-11, D-10]

@@ -148,3 +148,21 @@ decisions:
     paths:
       - src/bloomery/spec/common.py
       - tests/unit/test_spec/test_relation_names.py
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      Spec unions discriminate on their literal `rule` field where one exists, and
+      otherwise through a callable `Discriminator` with `Tag`s (`FieldMapping`, `FlattenStep`).
+      Single-value checks are `AfterValidator`s on `Annotated` aliases (`SqlText`,
+      `MemberName`), cross-field checks are `model_validator(mode="after")`, and pre-coercion
+      hooks appear only where the raw input must be seen
+    paths: [src/bloomery/spec/*.py]
+    consequence: >-
+      A new spec union picks the member from a tag field or from which key is present,
+      so pydantic reports an error against one member rather than listing every member's
+      failures
+    rationale: >-
+      Settled at implementation: the mapping and flatten shapes carry no tag key,
+      so a callable decides by key presence, and `_filter_value` is the one `BeforeValidator`
+      because it must see a YAML float before union coercion turns it into a `Decimal`
+    cites: [D-1]

@@ -891,3 +891,26 @@ decisions:
       are nobody's to know here, and the reserved columns a silver relation carries
       depend on its quality configuration, which the lowering decides
     cites: [D-3, S-0025/D-3]
+  - id: D-58
+    grade: ASSUMED
+    text: >-
+      A `StepParameter` bounds its value with optional, inclusive `min` and `max`,
+      both `Decimal`. A manifest whose `min` exceeds its `max` is refused at parse;
+      a wired value outside the bounds, or not numeric while a bound is declared,
+      is refused at compile with a `StepError`. The manifest's own `default` is not
+      checked against the bounds
+    paths:
+      - src/bloomery/steps/manifest.py
+      - src/bloomery/resolve/steps.py
+      - tests/unit/test_steps/test_lowering.py
+      - tests/unit/test_steps/test_manifest_and_registry.py
+    consequence: >-
+      A platform team states a parameter's range once and every tenant wiring that
+      leaves it is refused before a run, while a default outside the range passes
+      unchecked
+    rationale: >-
+      The `_check_parameters` docstring calls bounds the enforcement half of parameterize-never-fork,
+      a contract only if a value outside them is an error, and `Decimal` keeps floats
+      out as S-0020/D-5 requires; the `requires` half of the question is settled by
+      S-0034/D-57
+    cites: [D-2, D-7, S-0020/D-5, D-57]

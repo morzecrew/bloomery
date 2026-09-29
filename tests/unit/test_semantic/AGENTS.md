@@ -98,4 +98,11 @@ An unprovable rollup is **refused**, never warned about. A rollup is read instea
 - Paths: `tests/unit/test_semantic/test_plan.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0071/D-9 — `ASSUMED` (Completing the semantic plan)
+
+No semantic-corpus case evidences the cumulative shape. R016 is evidenced by plan-level tests: `test_a_cumulative_metric_states_its_window` asserts the `Window` node, its frame and its proof, and `test_the_window_rule_and_the_rollup_refusal_agree` ties R016's terminal half to the rollup lowering's refusal of a `cumulative:` measure
+
+- Paths: `tests/unit/test_semantic/test_plan.py` `tests/fixtures/semantic_corpus/README.md` `src/bloomery/marts/rollup.py`
+- Consequence: The corpus stays limited to cases where valid SQL returns a wrong number, and a change to R016 or to the rollup refusal meets a unit test rather than a fixture
+
 <!-- /torve:managed -->

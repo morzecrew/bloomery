@@ -265,3 +265,20 @@ decisions:
       than decorative. No new gate is proposed here: the tractable rule over prose
       was already measured and rejected in D17, and inventing one for counts would
       be the allowlist-that-defeats-itself again.
+  - id: D-27
+    grade: ASSUMED
+    text: >-
+      The first published release is `0.1.0`, tagged `v0.1.0` with its `CHANGELOG.md`
+      section, not a `0.0.x`. Releases continue the `0.` series under the below-1.0
+      promise S-0042/D-23 states, and the version is derived from the tag, never written
+      by hand
+    paths: [CHANGELOG.md, pyproject.toml]
+    consequence: >-
+      Existing documents that say 0.1 stay correct, and the honesty the question asks
+      of the number is carried by D-23's weaker Python-API promise below 1.0 rather
+      than by a smaller version
+    rationale: >-
+      Settled at release: `v0.1.0` shipped on 2026-08-15 and `v0.2.0` through `v0.4.0`
+      followed it, so the number is a published fact, and `hatch-vcs` reads it from
+      the tag as S-0042/D-8 records
+    cites: [D-8, D-23]

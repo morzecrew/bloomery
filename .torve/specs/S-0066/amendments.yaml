@@ -78,3 +78,18 @@ amendments:
       - D-7: The row's own text already states the answer (no for both, yes for KeyField); the spec types and two tests confirm it, so only the grade and the phrasing lag. Evidence: src/bloomery/spec/mapping.py; src/bloomery/spec/common.py.
       - D-8: Neither 'retained' nor re-derived on demand: it is computed once to decide and dropped, since nothing consumes it. Evidence: src/bloomery/semantic/denomination.py; src/bloomery/resolve/build.py; prove_conversion has one caller: src/bloomery/resolve/build.py.
       - D-10: P2 filled the first slot with the declared column name instead of dropping it, which also keeps D-4's checked `from`. Evidence: tests/fixtures/currency_convert_per_row/mapping.yaml; src/bloomery/transforms/_builtins.py; src/bloomery/semantic/denomination.py; tests/unit/test_resolve/test_currency_convert.py.
+  - id: A-2
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-11
+        field: text
+        after: >-
+          Under per-row conversion, a currency code the rate relation has no row for
+          converts the amount to NULL and the row survives. `convert` is declared
+          `nullifies`, so `coercible` does not quarantine the row; an author who wants
+          the miss rejected declares `{rule: not_null}` on the converted field
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-11 answers Q-1.

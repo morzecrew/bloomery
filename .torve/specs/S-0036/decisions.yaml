@@ -67,3 +67,26 @@ decisions:
     text: >-
       **No behaviour, artifact, or public-API change.** This wave is inert by construction;
       anything it changes is a defect.
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      Lowering has no `audits` stage: each audit is built beside the relation it guards,
+      entity audits in `silver`, reconcile, coverage and mart-assert audits in `reconcile`,
+      step audits in `emit/steps.py`, over shared predicates in `predicates`. No shared
+      capability check exists; each emitter refuses what it cannot express per construct
+      with `UnsupportedByTarget`
+    paths:
+      - src/bloomery/emit/lower/__init__.py
+      - src/bloomery/emit/base.py
+      - src/bloomery/emit/steps.py
+      - tests/unit/test_import_contracts.py
+    consequence: >-
+      A new audit kind lands in the stage that builds its relation, and a target's
+      refusal message stays specific to that target because nothing generic sits in
+      front of it
+    rationale: >-
+      The `emit/lower` docstring says extract is not separable from the rule pipeline,
+      so `silver` holds the entity SELECT and the audits over it, and `emit/base.py`
+      says the `Feature` tables were removed because nothing consulted them and they
+      drifted; part 3 was answered at adoption in the question itself
+    cites: [D-1, S-0025/D-3]

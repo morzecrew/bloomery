@@ -430,6 +430,13 @@ Determinism tiers: `pure` (freely backfillable) | `seeded` (seed required in the
 
 - Paths: `src/bloomery/evidence.py`
 
+### S-0039/D-12 — `ASSUMED` (`SpecEvidence`: spec analysis as a first-class output)
+
+`SpecEvidence` never carries compiled artifacts, even at `COMPLETE`. `MartSummary` holds only name, grain, measures, role-qualified dimensions and materialization, with no column count. `evaluate()` takes no `targets` parameter and stops before emission. `Stage` is public and an open enum: callers compare against `COMPLETE`, and adding or splitting a stage is not breaking
+
+- Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/build.py` `tests/unit/test_evidence.py`
+- Consequence: A caller wanting artifacts still calls `compile_project`, and target-specific refusals such as `UnsupportedByTarget` stay invisible to evidence until a consumer needs a target-dependent answer
+
 ### S-0040/D-1 — `LOCKED` (Temporal joins: SCD2 flattening and currency conversion)
 
 Flattening an entity with `scd: type2` into a mart is **refused** at compile time, not silently emitted and not silently filtered to the current version. The join has no validity predicate and the relation has one row per version, so the emitted mart multiplies the base grain while every guardrail passes. Consequence: the only shipped way to use a historical dimension in a mart is a `type1` current-view entity built from it, until §5.3 exists.
@@ -518,6 +525,20 @@ A mart whose **`base`** is `scd: type2` is refused on the same account. There is
 
 - Paths: `src/bloomery/evidence.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0047/D-11 — `ASSUMED` (The unresolved-work report)
+
+`OpenDecision.blocks` names metrics only: every metric blocked on the decision, directly or through a metric it requires, sorted and never empty. No mart is named, and a canonical field no metric requires is not an open decision
+
+- Paths: `src/bloomery/evidence.py` `tests/unit/test_unresolved.py`
+- Consequence: A caller that wants to show the marts a decision affects derives them from the blocked metrics, and a derived metric waiting on the decision is counted in its cost
+
+### S-0047/D-12 — `ASSUMED` (The unresolved-work report)
+
+`UNLINKED` and `UNMAPPED` decisions share one collection, `SpecEvidence.unresolved`, sorted by `canonical`; each `OpenDecision` carries a `gap: Gap` naming which edit closes it, an entity-model edit or a mapping field
+
+- Paths: `src/bloomery/evidence.py` `tests/unit/test_unresolved.py`
+- Consequence: A mapping-only chooser filters on `gap` itself and leaves `UNLINKED` entries standing, and the report makes no claim about which caller owns which entry
 
 ### S-0049/D-1 — `LOCKED` (Mapping identity)
 

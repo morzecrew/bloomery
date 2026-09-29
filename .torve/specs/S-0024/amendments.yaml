@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-9
+        field: text
+        after: >-
+          `Change.subject` is `<kind>:<name>`, the kind one of `entity`, `field`,
+          `metric`, `mart`, `relationship`, `date_dimension`, `quality`, `dedupe`,
+          `quarantine`, `reconcile`, `freshness`, `step` or `rollup`; a `field:` subject
+          names the column alone and `Change.entity` carries its owner. `detail` is
+          fixed wording written in `plan/diff.py`, interpolating only names and values
+          from the two IRs
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-9 answers Q-1.

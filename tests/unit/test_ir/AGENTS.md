@@ -16,6 +16,13 @@ The downstream fingerprint includes the upstream fingerprint whole, never only t
 
 - Paths: `src/bloomery/ir/fingerprint.py` `tests/unit/test_ir/test_fingerprint.py` `tests/unit/test_ir/test_nodes.py`
 
+### S-0020/D-12 — `ASSUMED` (Intermediate representation and determinism contract)
+
+`_canon_bytes` writes `None` as `N` and a bool as `B0`/`B1`; an enum's value, an `int`, a `str` and a `Decimal` are tagged `E`, `I`, `S`, `D` with an ASCII byte length and `:` before the payload; a tuple is `T<count>:` then its items; a dataclass is `C`, its class name, field count and each named field
+
+- Paths: `src/bloomery/ir/fingerprint.py` `tests/unit/test_ir/test_fingerprint.py`
+- Consequence: Changing a tag or the framing moves every `project_fingerprint` and every emitted artifact header that records one, and a float or any other unlisted type raises `TypeError` rather than encoding
+
 ### S-0023/D-7 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
 Path conflict does not raise (`PathConflict` is not an error class): the compiler emits the derived column, a `<name>__direct` shadow, and a `RECONCILE` `AuditIR`. The forbidden thing is the silent choice; both paths are valid, so the refusal targets the silence, not the spec.
@@ -47,5 +54,12 @@ Three-valued logic: each rule defines a violation predicate and fires only when 
 - Paths: `src/bloomery/ir/nodes.py` `tests/unit/test_ir/**`
 - Consequence: Every project's fingerprint moves and `plan()` refuses to diff a version 19 IR against a version 20 one, which is the refusal that makes the change loud. The version is declared once, on the dataclass — `test_the_compiler_emits_the_declared_ir_version` is what stops it being bumped in one of two places
 - Check: `uv run pytest tests/unit/test_ir/test_nodes.py tests/unit/test_determinism_guard.py -q` (shadow; runs as `decision:S-0079/D-2`, no log entry owed)
+
+### S-0079/D-12 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
+
+`bloomery_ir_version` 20 absorbs both shape changes: S-0007 added `role_of` to `MartColumnIR` and `MartJoinIR` while the version stayed 19, and this document's 19 → 20, which `ProjectIR`'s docstring records for `determines`, is the bump that covers it. `role_of` gets no bump of its own
+
+- Paths: `src/bloomery/ir/nodes.py` `tests/unit/test_ir/test_nodes.py`
+- Consequence: An IR stamped 20 or later carries `role_of`; one stamped 19 may or may not, so an IR serialized between the two landings is the one pair `plan()`'s version check cannot tell apart
 
 <!-- /torve:managed -->

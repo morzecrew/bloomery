@@ -142,3 +142,21 @@ decisions:
       guard, and `RowPolicy.as_filter()` renames to `as_clause()`. The rest of this
       contract — `QueryPlan`, refusal policy, `Explanation` shape, D4/D6–D10 — is
       untouched.
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      `MeasureExplanation` carries four strings — `name`, `expr`, `additivity` and
+      `note` — and `Explanation.render()` output is pinned by exact-string assertions
+      in the planner's unit tests, not by golden files under `tests/golden/`
+    paths:
+      - src/bloomery/planner/result.py
+      - tests/unit/test_planner/test_metricflow_planner.py
+    consequence: >-
+      Rewording a note or re-laying the rendered block fails a unit test and is fixed
+      by editing the expected string in review, not by a `just snapshot-update` regeneration
+    rationale: >-
+      Settled at implementation: the rendered text is a handful of lines per plan,
+      so `test_ratio_explanation_render` and `test_semi_additive_explanation_render`
+      assert it whole beside the request that produced it, and no golden directory
+      was created for it
+    cites: [D-8]

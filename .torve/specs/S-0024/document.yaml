@@ -258,6 +258,8 @@ questions:
       None blocking. Implementation is free to settle `detail` string wording and
       the exact `subject` grammar, provided both are deterministic and the §5.5 table's
       classifications hold verbatim.
+    status: settled
+    settled_by: D-9
   - id: Q-2
     text: >-
       *(Resolved 2026-08-07, discovered during M9.)* §5.3's staleness rule and D2's

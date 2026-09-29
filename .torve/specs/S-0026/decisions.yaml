@@ -309,3 +309,21 @@ decisions:
       That is a weaker gate than D23 made the nightly lane, and the difference is
       the point: D23 could remove a tolerance because a scheduled run has no one waiting
       on it.
+  - id: D-27
+    grade: ASSUMED
+    text: >-
+      Golden snapshots use the `pytest-snapshot` plugin's `snapshot` fixture, regenerated
+      by `just snapshot-update` (`pytest tests/golden --snapshot-update`); no conftest
+      implements it. `just test` and CI's test job run one selection, `-m "not engine
+      and not e2e and not chaos and not perf and not surrogate"`, and the engine and
+      e2e tiers run as their own `-m "engine or e2e"` job
+    paths: [pyproject.toml, justfile, .github/workflows/ci.yml, tests/golden/*.py]
+    consequence: >-
+      The default selection is an exclusion list, so a new opt-in marker must be added
+      to it in both `justfile` and `ci.yml` or it runs in every default lane
+    rationale: >-
+      Settled at implementation: `pytest-snapshot` supplies the fixture and the `--snapshot-update`
+      flag the design needed, and the CI step's comment records that its expression
+      is kept identical to `just test`'s after it once silently ran the chaos battery
+      on every pull request
+    cites: [D-3, D-5]

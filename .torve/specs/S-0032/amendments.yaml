@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-16
+        field: text
+        after: >-
+          The planner has no `JsonDict` alias: `parse_filter_json`, `parse_sort_json`
+          and `parse_page_json` take a `Mapping[str, object]`. The clause cap is a
+          keyword argument, `parse_filter_json(payload, *, clause_cap=DEFAULT_CLAUSE_CAP)`,
+          defaulting to the exported module constant `DEFAULT_CLAUSE_CAP = 64`; no
+          planner constructor carries it
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-16 answers Q-1.

@@ -55,4 +55,18 @@ No phase's acceptance command runs a fuzz target: acceptance runs the test files
 - Paths: `fuzz/**`
 - Consequence: A phase can be judged in a sandbox with no Docker and no time budget for mutation, and the sabotage proof that a target catches its own known defect is a step the executor performs and logs rather than a gate the battery runs
 
+### S-0008/D-10 — `ASSUMED` (Fuzzing the compile boundary)
+
+One chain is known to turn the stack-position band into an escape: a step body `resolve.steps._parse_body` accepts is re-parsed at emit through `SqlExpr.ast` by `ir.nodes._parse_sql`, which catches nothing, and raises `RecursionError`. It is the `parse_doors` target's deferred open finding, and that target stays out of the pull-request fuzz matrix until fixed
+
+- Paths: `src/bloomery/ir/nodes.py` `fuzz/fuzz_parse_doors.py` `.github/workflows/fuzz.yaml` `fuzz/measure_parse_depth.py`
+- Consequence: `_parse_sql` is the one parse site that owes a fix, and until it lands a `parse_doors` crash there reads as the known finding while any other crash is new
+
+### S-0008/D-11 — `ASSUMED` (Fuzzing the compile boundary)
+
+Neither `resolve/build.py` nor `quality/pattern.py` re-parses a composition of validator-cleared fragments: `_recipe_expr` re-parses a catalog recipe's `SqlText` `expr` alone, unguarded, and splices extractions into its AST without re-rendering, and `_transports_literal` re-parses its own `RegexpLike` render of a string literal inside `except Exception`
+
+- Paths: `src/bloomery/resolve/build.py` `src/bloomery/quality/pattern.py` `fuzz/fuzz_parse_doors.py`
+- Consequence: The parse-door target's composed shape has no site in these two files, and `_recipe_expr` belongs to its direct shape, where a recipe cleared at load can still meet the stack-position band
+
 <!-- /torve:managed -->

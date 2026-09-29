@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-13
+        field: text
+        after: >-
+          `classification:` is a key on the entity model's `Field`, never on a mapping
+          path. A merged entity's column carries one classification whatever its source
+          paths, and `ColumnIR.classification` carries it unchanged to the guard and
+          the targets
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-13 answers Q-1.

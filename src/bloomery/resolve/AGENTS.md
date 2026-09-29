@@ -17,6 +17,20 @@ Lineage node ids gain a project component for imported nodes only; a local node 
 - Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/lineage.py` `src/bloomery/guardrails/lineage.py` `tests/unit/test_resolve/test_lineage.py` `tests/unit/test_guardrails/test_lineage.py`
 - Consequence: Every existing id and every published citation stays valid — a node name is public surface and `bloomery lineage --node metric.gross_revenue` is a documented invocation — while two projects' graphs can be composed without collision
 
+### S-0002/D-11 — `ASSUMED` (Multi-project composition)
+
+A downstream project reads an imported entity and never extends it: an import names nodes with no field list, a mapping targets only an entity the local model declares, and a local entity of the imported name is refused as an `ImportCollision`, so a field is added upstream and exported from there
+
+- Paths: `src/bloomery/spec/imports.py` `src/bloomery/guardrails/imports.py` `src/bloomery/resolve/refs.py` `tests/unit/test_guardrails/test_imports.py`
+- Consequence: A downstream that needs another column on an imported entity asks the upstream to add it, or models it on a local entity of a different name
+
+### S-0002/D-12 — `ASSUMED` (Multi-project composition)
+
+A name two or more upstreams supply under one kind is an `ImportCollision`, as a local-against-imported name is: `_claimed_twice` refuses it once per name, naming every alias that supplies it, and `_bind_imports` binds it from none of them
+
+- Paths: `src/bloomery/guardrails/imports.py` `src/bloomery/resolve/build.py` `tests/unit/test_guardrails/test_imports.py`
+- Consequence: A downstream importing one name from two upstreams is refused until it imports that name from one of them, and three suppliers produce one refusal rather than three
+
 ### S-0003/D-2 — `LOCKED` (Replay on a historical entity)
 
 A recovered row reaches the entity through whatever produces the entity's versions, so the framework does the versioning it owns; nothing on the replay path writes to a `scd: type2` entity relation
@@ -31,6 +45,13 @@ The route is a write back to bronze: replay re-delivers the recovered row to the
 
 - Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/resolve/build.py` `pages/docs/concepts/data-quality.md`
 - Consequence: The versioning, the audits and the conservation law hold by construction, because the row arrives through the path every other row arrives through; the cost is that bloomery now emits a statement that writes into the caller's landing zone
+
+### S-0003/D-11 — `ASSUMED` (Replay on a historical entity)
+
+A type 2 replay re-delivers a reject row to bronze with its own `_source_row_id`, `_load_id` `__replay__` and `utc_now()` as `_ingested_at`; `quarantine:` without `dedupe:`, or with `redact:`, is refused; the generated audits scope to `valid_to IS NULL`; and a reject row resolves only on a version newer than its `last_seen`
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/resolve/build.py` `src/bloomery/dialects/base.py` `src/bloomery/quality/catalogue.py`
+- Consequence: An executor on the remaining phase inherits the reserved load, both refusals, the zoneless clock, the audit scope and the resolution evidence as decisions, and changing one is a row change rather than a refactor
 
 ### S-0004/D-2 — `LOCKED` (Observability: logging and a warnings channel)
 
@@ -62,6 +83,13 @@ Both narrow-handler sites widen the catch; neither adds a depth limit. `evidence
 
 - Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/steps.py`
 - Consequence: A depth limit raising a named error adds a class to `src/bloomery/errors.py` and an entry to `pages/docs/reference/errors.md`; widening the catch adds neither, and the two sites may legitimately get different answers
+
+### S-0008/D-11 — `ASSUMED` (Fuzzing the compile boundary)
+
+Neither `resolve/build.py` nor `quality/pattern.py` re-parses a composition of validator-cleared fragments: `_recipe_expr` re-parses a catalog recipe's `SqlText` `expr` alone, unguarded, and splices extractions into its AST without re-rendering, and `_transports_literal` re-parses its own `RegexpLike` render of a string literal inside `except Exception`
+
+- Paths: `src/bloomery/resolve/build.py` `src/bloomery/quality/pattern.py` `fuzz/fuzz_parse_doors.py`
+- Consequence: The parse-door target's composed shape has no site in these two files, and `_recipe_expr` belongs to its direct shape, where a recipe cleared at load can still meet the stack-position band
 
 ### S-0019/D-4 — `ASSUMED` (Spec layer and error model)
 
@@ -140,6 +168,13 @@ Emission order is a topological sort with ties broken lexicographically by node 
 All cross-spec reference validation lives here, not parse (S-0019/D-4): mapping targets, `canonical:` links, relationship endpoints, metric template refs. All failures are `ResolutionError`s with source paths, batched per stage; later checks run only on a reference-clean graph.
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/resolve/refs.py` `tests/unit/test_resolve/test_refs.py`
+
+### S-0022/D-8 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
+
+`Graph` is two sorted tuples — `nodes` by name, `edges` by (src, dst, label) — with no stored adjacency; a consumer such as `order.py` builds its own successor and predecessor maps from `edges`. `validate_references` runs one pass per concern into a shared error list and raises once, as the single failure or a `ResolutionError` aggregate
+
+- Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/refs.py` `tests/unit/test_resolve/test_graph.py` `tests/unit/test_resolve/test_refs.py`
+- Consequence: A new reference check is one more pass appending to the shared list, and a traversal that needs adjacency derives it locally rather than adding an index to `Graph`
 
 ### S-0023/D-2 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
@@ -274,6 +309,13 @@ A step input's `requires` is a lower bound the compile checks: when the wiring b
 - Paths: `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_lowering.py` `pages/docs/concepts/step-registry.md`
 - Consequence: a step that reads a column its bound relation lacks is refused at compile rather than failing at run time on the engine; a silver table kept outside bloomery still binds, unchecked
 
+### S-0034/D-58 — `ASSUMED` (The step registry: referenced implementations)
+
+A `StepParameter` bounds its value with optional, inclusive `min` and `max`, both `Decimal`. A manifest whose `min` exceeds its `max` is refused at parse; a wired value outside the bounds, or not numeric while a bound is declared, is refused at compile with a `StepError`. The manifest's own `default` is not checked against the bounds
+
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_lowering.py` `tests/unit/test_steps/test_manifest_and_registry.py`
+- Consequence: A platform team states a parameter's range once and every tenant wiring that leaves it is refused before a run, while a default outside the range passes unchecked
+
 ### S-0035/D-10 — `ASSUMED` (Public surface and stability policy)
 
 **The `TYPE_CHECKING` guard is lifted on public signatures before the closure test lands.** `typing.get_type_hints` currently raises `NameError` on 7 of the 29 exports, including `compile_project`, because `from __future__ import annotations` plus a `TYPE_CHECKING`-only import leaves the annotation naming something absent at run time. Decision 1's enforcement is unimplementable until those names are importable at run time — a prerequisite the design did not see, found by running the proposed walk rather than by reading it. Guards on internal signatures are untouched.
@@ -291,6 +333,13 @@ A step input's `requires` is a lower bound the compile checks: when the wiring b
 **`stage_reached` is mandatory to read**, stated first in the docstring and tested on the ambiguous case: an empty `unreachable` means "nothing unreachable" only at `COMPLETE`, and means "never computed" at `PARSE`. Without it the empty tuple is ambiguous in exactly the way that produces a wrong conclusion.
 
 - Paths: `src/bloomery/cli/render.py` `src/bloomery/resolve/build.py` `tests/unit/test_cli.py` `tests/unit/test_resolve/test_lineage.py`
+
+### S-0039/D-12 — `ASSUMED` (`SpecEvidence`: spec analysis as a first-class output)
+
+`SpecEvidence` never carries compiled artifacts, even at `COMPLETE`. `MartSummary` holds only name, grain, measures, role-qualified dimensions and materialization, with no column count. `evaluate()` takes no `targets` parameter and stops before emission. `Stage` is public and an open enum: callers compare against `COMPLETE`, and adding or splitting a stage is not breaking
+
+- Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/build.py` `tests/unit/test_evidence.py`
+- Consequence: A caller wanting artifacts still calls `compile_project`, and target-specific refusals such as `UnsupportedByTarget` stay invisible to evidence until a consumer needs a target-dependent answer
 
 ### S-0040/D-4 — `LOCKED` (Temporal joins: SCD2 flattening and currency conversion)
 

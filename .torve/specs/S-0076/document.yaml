@@ -293,6 +293,8 @@ questions:
       the measure's SQL walked for a timestamp literal beside a column whose provenance
       is known. If that walk is not reliable, the rule's real surface is smaller than
       §5.3 claims and the case converts for a weaker reason.
+    status: settled
+    settled_by: D-9
   - id: Q-3
     text: >-
       Whether `zone_in:` belongs on a **step output** as well as a mapping. A `python_model`
@@ -306,3 +308,5 @@ questions:
       the mapping is still the place to declare — but the transform chain R018 walks
       is the recipe's, and whether that composes has not been checked against a recipe
       that does it.
+    status: settled
+    settled_by: D-10

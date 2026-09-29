@@ -107,3 +107,25 @@ decisions:
       rename was measured at the identical cost; it is dropped for buying only a synonym,
       not for being expensive.
     paths: [tests/unit/test_evidence.py, tests/unit/test_resolve/test_reach.py]
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      `SpecEvidence` never carries compiled artifacts, even at `COMPLETE`. `MartSummary`
+      holds only name, grain, measures, role-qualified dimensions and materialization,
+      with no column count. `evaluate()` takes no `targets` parameter and stops before
+      emission. `Stage` is public and an open enum: callers compare against `COMPLETE`,
+      and adding or splitting a stage is not breaking
+    paths:
+      - src/bloomery/evidence.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_evidence.py
+    consequence: >-
+      A caller wanting artifacts still calls `compile_project`, and target-specific
+      refusals such as `UnsupportedByTarget` stay invisible to evidence until a consumer
+      needs a target-dependent answer
+    rationale: >-
+      The `SpecEvidence` docstring says a type meaning assessment should not sometimes
+      mean output and compilation is per target while an assessment is not, and the
+      `Stage` docstring says stages describe how the pipeline is built, so one may
+      change without changing what the `COMPLETE` comparison means
+    cites: [D-1, D-5, D-9]

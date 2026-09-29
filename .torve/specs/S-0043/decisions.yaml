@@ -119,3 +119,24 @@ decisions:
       - src/bloomery/emit/steps.py
       - tests/unit/test_emit/test_dbt.py
       - tests/unit/test_steps/test_dbt_and_cube_emission.py
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      The operator contract lives in two places: a comment block at the head of every
+      emitted `dbt_project.yml`, after the generated header, and the operator-contract
+      section of the dbt how-to page. Both carry the `dbt build` sentence of S-0043/D-2
+      and the `--warn-error` sentence of S-0043/D-3
+    paths:
+      - src/bloomery/emit/dbt/__init__.py
+      - tests/unit/test_emit/test_dbt.py
+      - pages/docs/how-to/emit-dbt.md
+    consequence: >-
+      Whoever runs an emitted dbt project learns that `dbt run` leaves bloomery's
+      checks unevaluated without opening bloomery's docs, and changing either sentence
+      moves the dbt goldens as well as the page
+    rationale: >-
+      The `_OPERATOR_CONTRACT` comment says the docs page is read by whoever compiled
+      the project and `dbt_project.yml` by whoever runs it, who may not be a bloomery
+      user, and a unit test pins the sentence because a golden would follow it out
+      of the file silently
+    cites: [D-2, D-3]

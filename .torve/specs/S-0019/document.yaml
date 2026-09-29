@@ -196,3 +196,5 @@ questions:
     text: >-
       None blocking. Implementation is free to settle exact Pydantic idioms (discriminators,
       `BeforeValidator` vs `model_validator`) as long as error paths stay precise.
+    status: settled
+    settled_by: D-15

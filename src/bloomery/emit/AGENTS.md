@@ -91,6 +91,13 @@ Multi-output emission resolved — **supersedes the draft §10 entry and its exe
 
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/steps.py` `tests/e2e/test_dbt_parse.py` `tests/golden/test_cube.py` `tests/unit/test_marts/test_asserts.py` `tests/unit/test_steps/test_dbt_and_cube_emission.py`
 
+### S-0036/D-9 — `ASSUMED` (Lowering decomposition)
+
+Lowering has no `audits` stage: each audit is built beside the relation it guards, entity audits in `silver`, reconcile, coverage and mart-assert audits in `reconcile`, step audits in `emit/steps.py`, over shared predicates in `predicates`. No shared capability check exists; each emitter refuses what it cannot express per construct with `UnsupportedByTarget`
+
+- Paths: `src/bloomery/emit/lower/__init__.py` `src/bloomery/emit/base.py` `src/bloomery/emit/steps.py` `tests/unit/test_import_contracts.py`
+- Consequence: A new audit kind lands in the stage that builds its relation, and a target's refusal message stays specific to that target because nothing generic sits in front of it
+
 ### S-0043/D-5 — `LOCKED` (The dbt singular-test surface)
 
 **The model reference goes through `_reference_map`, never string formatting.** It is what makes a singular test a DAG participant rather than a query that happens to name a table, and it is already built for exactly this shape. Consequence: a singular test is ordered against its model by dbt, which is what makes "blocking" mean anything at all under D2.

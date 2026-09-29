@@ -367,3 +367,5 @@ questions:
       None blocking. Implementation is free to settle `--snapshot-update` mechanics
       (pytest-snapshot vs a ~30-line conftest) and exact CI lane wiring, as long as
       the marker taxonomy and default selection match §5.1.
+    status: settled
+    settled_by: D-27

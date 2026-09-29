@@ -437,6 +437,8 @@ questions:
     text: >-
       **Should `blocks` name metrics only, or metrics and the marts that carry them?**
       Metrics are what reachability speaks in. A mart is what a reader recognizes.
+    status: settled
+    settled_by: D-11
   - id: Q-3
     text: >-
       **Should `UNLINKED` entries live in a different collection?** D10 settles the
@@ -445,3 +447,5 @@ questions:
       field says "same worklist, different edit"; two collections say "these are not
       yours". The second is a stronger claim about who a caller is, and this document
       is not ready to make it.
+    status: settled
+    settled_by: D-12

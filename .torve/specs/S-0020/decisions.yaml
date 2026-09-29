@@ -152,3 +152,20 @@ decisions:
       - tests/unit/test_errors.py
       - tests/unit/test_signature_closure.py
       - tests/unit/test_total_lookups.py
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      `_canon_bytes` writes `None` as `N` and a bool as `B0`/`B1`; an enum's value,
+      an `int`, a `str` and a `Decimal` are tagged `E`, `I`, `S`, `D` with an ASCII
+      byte length and `:` before the payload; a tuple is `T<count>:` then its items;
+      a dataclass is `C`, its class name, field count and each named field
+    paths: [src/bloomery/ir/fingerprint.py, tests/unit/test_ir/test_fingerprint.py]
+    consequence: >-
+      Changing a tag or the framing moves every `project_fingerprint` and every emitted
+      artifact header that records one, and a float or any other unlisted type raises
+      `TypeError` rather than encoding
+    rationale: >-
+      The module chose a purpose-built stream because JSON 'tempts float formatting
+      and key-ordering bugs', and `test_scalar_kinds_are_type_tagged` and `test_nested_tuples_length_prefixed`
+      pin that lookalike values and regrouped tuples never collide
+    cites: [D-3, D-5]

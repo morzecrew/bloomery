@@ -203,7 +203,11 @@ questions:
       Whether the how-to should ship a runnable example under `examples/`, which would
       make the recipe executable rather than quoted, at the cost of a directory that
       needs a git history to demonstrate anything.
+    status: settled
+    settled_by: D-6
   - id: Q-2
     text: >-
       Whether `plan()`'s two-IR signature deserves a documented "compare two instants"
       framing of its own, or whether that is the how-to's job.
+    status: settled
+    settled_by: D-7

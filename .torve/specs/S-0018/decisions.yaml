@@ -85,3 +85,18 @@ decisions:
       the job environment, and the token's scope (`Public Repo Read-only`) is what
       bounds the credential `docker login` necessarily leaves in the runner's config
       for the rest of the job.
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      The repository slug is `morzecrew/bloomery`: `[project.urls]` in `pyproject.toml`,
+      `repo_url` in `pages/zensical.toml`, the README badges and the changelog links
+      all point at `https://github.com/morzecrew/bloomery`, the repository the package
+      is pushed to
+    paths: [pyproject.toml, pages/zensical.toml, README.md, CHANGELOG.md]
+    consequence: >-
+      Moving the repository to another org or name is one coordinated edit of these
+      four files, and the PyPI project links and the docs site follow them
+    rationale: >-
+      Settled at implementation: the assumed slug is the one the repository was created
+      under, and the git remote reads `github.com/morzecrew/bloomery`, so no URL needed
+      fixing at push time

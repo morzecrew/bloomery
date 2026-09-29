@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-11
+        field: text
+        after: >-
+          `spec_version: 1` promises a document keeps its meaning, not that it keeps
+          loading. A newly reserved generated-column name, or authored text that is
+          not one SQL expression, may refuse a document that loaded before without
+          a version bump, provided the refusal is binary, reaches only an already-broken
+          document, names the authored address and fix, and appears in `CHANGELOG.md`
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-11 answers Q-1.

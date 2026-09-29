@@ -58,3 +58,23 @@ decisions:
       The goldens are regenerated in a commit of their own, separate from the emitter
       change. Every SQLMesh fixture gains a path, and a mechanical diff of that size
       is where a real change hides.
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      The emitted `config.yaml` carries no `model_defaults.cron` and no emitted model
+      sets a `cron`: `model_defaults` holds `dialect` and `start` only. The spec states
+      no schedule, so the project runs at SQLMesh's own default cadence until the
+      caller supplies one
+    paths:
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - tests/unit/test_emit/test_sqlmesh.py
+    consequence: >-
+      A caller who needs another cadence sets it outside the emitted file, as the
+      gateway already is, and bloomery never asserts a schedule nobody gave it
+    rationale: >-
+      Settled at implementation: `test_the_project_file_carries_only_model_defaults`
+      pins `model_defaults` to `dialect` and `start`, and S-0064's non-goals say bloomery
+      knows no schedule and emits no `cron`; whether an unstated cron has a wrong-answer
+      mode of its own, the reasoning M4 falsified for `start`, is argued nowhere in
+      the code or docs and stays open
+    cites: [D-1]

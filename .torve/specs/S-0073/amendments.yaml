@@ -25,3 +25,18 @@ amendments:
 
       Settled by the implementation:
       - D-6: Settled as 'runnable in place': the block is executed, which is stronger than the signature check §6 asked for, and no example directory was added. Evidence: tests/unit/test_docs_snippets.py; pages/docs/how-to/reproduce-a-past-artifact-set.md; examples/ holds lakehouse, quickstart, refusals, retrieval, targets and no reproduce example.
+  - id: A-2
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-7
+        field: text
+        after: >-
+          Comparing two instants is the how-to's framing, not `plan()`'s: the Compare
+          section of `reproduce-a-past-artifact-set.md` says `plan()` takes two IRs
+          and does not care where either came from, and `plan()`'s docstring states
+          only the diff contract
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-7 answers Q-2.

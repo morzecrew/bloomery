@@ -375,3 +375,5 @@ questions:
     text: >-
       Exact `JsonDict` alias and clause-cap plumbing (constructor arg vs module constant)
       — implementation-settled.
+    status: settled
+    settled_by: D-16

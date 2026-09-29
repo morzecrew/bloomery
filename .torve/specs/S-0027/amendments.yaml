@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-10
+        field: text
+        after: >-
+          Every flattened mart column is a requestable dimension: `_mart_ir` builds
+          one `MartDimensionIR` per column, a date bucket keeping its role's `DimensionRef`
+          and a plain attribute getting `DimensionRef(dimension=<column>)`, and nothing
+          narrows the set
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-10 answers Q-1.

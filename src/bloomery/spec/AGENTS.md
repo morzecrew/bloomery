@@ -42,6 +42,13 @@ An upstream's dbt project name is part of what it exports: `exports.yaml` carrie
 - Consequence: A downstream compiled against an upstream that exports no name keeps emitting `ref('<alias>', ...)` and a `dependencies.yml` naming the alias — resolvable only when the upstream's dbt project happens to be named so — and the refusal for that case is a documented gap until the row is graded. An exported SCD2 entity is a snapshot on dbt, which no project can reference across the boundary; the export is legal and the dbt target has nothing public to give for it.
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0002/D-11 — `ASSUMED` (Multi-project composition)
+
+A downstream project reads an imported entity and never extends it: an import names nodes with no field list, a mapping targets only an entity the local model declares, and a local entity of the imported name is refused as an `ImportCollision`, so a field is added upstream and exported from there
+
+- Paths: `src/bloomery/spec/imports.py` `src/bloomery/guardrails/imports.py` `src/bloomery/resolve/refs.py` `tests/unit/test_guardrails/test_imports.py`
+- Consequence: A downstream that needs another column on an imported entity asks the upstream to add it, or models it on a local entity of a different name
+
 ### S-0004/D-2 — `LOCKED` (Observability: logging and a warnings channel)
 
 A log record never carries nondeterminism of bloomery's making — no timestamp, id or counter the compiler invented — and is built only from values the pipeline already holds: stage names, counts, fingerprints and source paths
@@ -222,6 +229,13 @@ Catalog is passed separately from `Project` (vertical-level vs tenant-level), ma
 *(2026-08-12)* **An entity or mart name is an identifier, because it reaches the model envelope and nothing there quotes it.** Both were unconstrained — `entities: dict[str, Entity]`, and marts under `MemberName`, which only rejects reserved words. Field names travel a *different* path and were always safe: they reach SQL through SQLGlot, which quotes them and doubles an inner quote, verified by compiling a field named `amt") OR 1=1 --` and reading the escaped identifier back out. A **relation** name also reaches the SQLMesh `MODEL (...)` block, which is Jinja over pre-rendered strings (D4) and quotes nothing, so an entity named `t"; DROP TABLE x --` emitted `name silver.t"; DROP TABLE x --,` into the model definition verbatim. Fixed at the spec layer with `^[a-z][a-z0-9_]*$` rather than by escaping at the envelope, on the same reasoning that pins `StepRef`: a relation name has no business carrying anything but identifier characters, and a pattern refuses at the source path where the author can act on it instead of silently mangling the artifact. Step output bindings were already covered by `RELATION_PATTERN`; metric names do not become relations. Every name in the fixture corpus already matched, so the constraint documents existing practice rather than narrowing it.
 
 - Paths: `src/bloomery/spec/common.py` `tests/unit/test_spec/test_relation_names.py`
+
+### S-0019/D-15 — `ASSUMED` (Spec layer and error model)
+
+Spec unions discriminate on their literal `rule` field where one exists, and otherwise through a callable `Discriminator` with `Tag`s (`FieldMapping`, `FlattenStep`). Single-value checks are `AfterValidator`s on `Annotated` aliases (`SqlText`, `MemberName`), cross-field checks are `model_validator(mode="after")`, and pre-coercion hooks appear only where the raw input must be seen
+
+- Paths: `src/bloomery/spec/*.py`
+- Consequence: A new spec union picks the member from a tag field or from which key is present, so pydantic reports an error against one member rather than listing every member's failures
 
 ### S-0020/D-5 — `ASSUMED` (Intermediate representation and determinism contract)
 
@@ -409,6 +423,13 @@ Ingestion metadata contract: entities using `quarantine` or `dedupe` require bro
 
 - Paths: `src/bloomery/spec/quality.py` `tests/unit/test_spec/test_quality.py`
 
+### S-0033/D-97 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+
+`pattern` is evaluated on every row and never sampled. `PatternRule` takes only `regex`, with extra keys forbidden, and lowers to a per-row `NOT REGEXP_LIKE(column, regex)` violation predicate. Its cost is bounded at parse, by refusing nested unbounded repetition, rather than by reading fewer rows
+
+- Paths: `src/bloomery/spec/quality.py` `src/bloomery/quality/predicates.py` `tests/execution/test_pattern_anchoring.py`
+- Consequence: A `pattern` result on a huge partition is exact, like every other rule's, and an author worried about its cost writes a cheaper regex rather than asking for a sample
+
 ### S-0034/D-2 — `ASSUMED` (The step registry: referenced implementations)
 
 `StepManifest` per §5.2: `ref`, `version`, `kind`, `determinism`, `runtime_lock`, typed `inputs`/`outputs` with grain + `key` (the grain's uniqueness columns) + `produces`, bounded `parameters`, `lineage: coarse|column`. Step bodies live in the platform repo — never in bloomery, never in tenant specs; tenant specs wire `use: ref@version` + bindings + parameters + optional S-0033 quality rules on outputs.
@@ -450,6 +471,13 @@ Implementation binding: `StepRegistry` gains `sql_bodies: Mapping[tuple[str, int
 **The four permissive version keys are pinned to `Literal[1]`**, matching `steps_version`. The draft proposed *adding* keys on the belief that four kinds lacked them; every kind already has one, and the key is the document-kind **discriminator** — a document without it cannot be identified at all, so "missing means 1" would break loading rather than preserve it. The real defect is that `spec_version: 99` and `mapping_version: 42` are accepted and silently read as v1, so a spec written for a future bloomery is misread rather than refused. `spec_version` keeps its irregular name: renaming is a breaking change for consistency alone.
 
 - Paths: `src/bloomery/schema.py` `src/bloomery/spec/catalog.py` `src/bloomery/spec/entity.py` `src/bloomery/spec/exports.py` `src/bloomery/spec/exposures.py` `src/bloomery/spec/imports.py` `src/bloomery/spec/mapping.py` `src/bloomery/spec/marts.py` `src/bloomery/spec/metrics.py` `tests/unit/test_schema.py` `tests/unit/test_spec/test_document_versions.py` `tests/unit/test_spec/test_exports.py` `tests/unit/test_spec/test_exposures.py`
+
+### S-0035/D-11 — `ASSUMED` (Public surface and stability policy)
+
+`spec_version: 1` promises a document keeps its meaning, not that it keeps loading. A newly reserved generated-column name, or authored text that is not one SQL expression, may refuse a document that loaded before without a version bump, provided the refusal is binary, reaches only an already-broken document, names the authored address and fix, and appears in `CHANGELOG.md`
+
+- Paths: `pages/docs/reference/stability.md` `src/bloomery/spec/common.py` `tests/unit/test_steps/test_lowering.py`
+- Consequence: Adding a name to `RESERVED_MEMBER_REASONS` ships in a minor with a Changed entry and a reason the refusal quotes, while any change that alters what a loading document means still mints a version
 
 ### S-0037/D-10 — `ASSUMED` (Authoring ergonomics: schema export, CLI, fix suggestions)
 
@@ -593,6 +621,20 @@ A rollup declares its own `grants:` and does not inherit its parent mart's — D
 
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/spec/marts.py`
 
+### S-0062/D-13 — `ASSUMED` (Ownership, classification and grants)
+
+`classification:` is a key on the entity model's `Field`, never on a mapping path. A merged entity's column carries one classification whatever its source paths, and `ColumnIR.classification` carries it unchanged to the guard and the targets
+
+- Paths: `src/bloomery/spec/entity.py` `src/bloomery/ir/nodes.py` `src/bloomery/guardrails/classification.py` `tests/unit/test_classification_guard.py`
+- Consequence: An author classifies a column once, where the field is declared, and two mappings feeding one field cannot give it two classifications
+
+### S-0063/D-8 — `ASSUMED` (Exposures and downstream consumers)
+
+An exposure's `depends_on` keeps two kinds, `metrics` and `marts`, each optional but not both empty. A mart named directly is an edge of its own, so an exposure that reads a mart and names no metric is checked by the guardrails and reached by `plan()`'s `affected_exposures` like any other
+
+- Paths: `src/bloomery/spec/exposures.py` `tests/unit/test_plan/test_exposures.py` `tests/unit/test_guardrails/test_evidence.py`
+- Consequence: An author lists the mart a dashboard reads directly instead of routing it through a metric, and an impact report cannot omit a consumer that names no metric
+
 ### S-0064/D-1 — `LOCKED` (Declared source freshness)
 
 bloomery **declares** freshness and never measures it. The threshold is emitted; the framework runs the query. This is the same line drawn everywhere else — no execution, no clock, no environment.
@@ -605,6 +647,13 @@ bloomery **declares** freshness and never measures it. The threshold is emitted;
 Durations reuse `quarantine.retention`'s grammar and validator. One spelling of a duration across the spec surface.
 
 - Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/spec/quality.py` `tests/fixtures/quality_precedence/mapping_codes.yaml`
+
+### S-0064/D-11 — `ASSUMED` (Declared source freshness)
+
+`freshness:` is a key at a mapping document's root, beside the `source:` it thresholds (`Mapping.freshness`); the catalog carries none. No spec model has §5.1's `sources:` list, so the block sits where the mapping names the relation it reads
+
+- Paths: `src/bloomery/spec/mapping.py` `src/bloomery/spec/catalog.py` `tests/unit/test_spec/test_mapping.py`
+- Consequence: An author declares a threshold in the mapping that reads the relation, and two mappings of one relation reconcile by the cross-mapping rules rather than through one catalog entry
 
 ### S-0065/D-10 — `ASSUMED` (Rollup marts and pre-aggregations)
 

@@ -154,6 +154,13 @@ Replay merge semantics: replay applies the **same dedupe ordering** as the pipel
 
 - Paths: `src/bloomery/emit/base.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/reconcile.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/marts/flatten.py` `src/bloomery/spec/marts.py` `tests/execution/test_quality_precedence.py` `tests/fixtures/quality_precedence/marts.yaml` `tests/golden/schema/marts.json`
 
+### S-0033/D-97 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+
+`pattern` is evaluated on every row and never sampled. `PatternRule` takes only `regex`, with extra keys forbidden, and lowers to a per-row `NOT REGEXP_LIKE(column, regex)` violation predicate. Its cost is bounded at parse, by refusing nested unbounded repetition, rather than by reading fewer rows
+
+- Paths: `src/bloomery/spec/quality.py` `src/bloomery/quality/predicates.py` `tests/execution/test_pattern_anchoring.py`
+- Consequence: A `pattern` result on a huge partition is exact, like every other rule's, and an author worried about its cost writes a cheaper regex rather than asking for a sample
+
 ### S-0034/D-16 — `ASSUMED` (The step registry: referenced implementations)
 
 Multi-output emission resolved — **supersedes the draft §10 entry and its execute-exactly-once constraint** (recorded honestly: that constraint is dropped, not satisfied): each declared output gets its own generated wrapper model, each executing the step and returning its own output; safe **for correctly declared steps** — nondeterministic steps are compile-refused and seeded steps re-execute with the same recorded seed (pure/seeded ⇒ identical results); residual risk recorded: a *misdeclared* step slips the compile check and, under N executions, can produce disagreeing sibling outputs within one run (behavioral gates catch run-to-run, not intra-run, divergence) — accepted for v1, with a cross-output consistency audit named as the demand-gated mitigation. `assert_step_contract` runs in every wrapper against **all** declared outputs, catching partial-output lies wherever the run starts. The N-executions-for-N-outputs cost is documented; a single-execution staging optimization is a demand-gated, named escape hatch — not built.
@@ -295,5 +302,12 @@ The check exists, and it is a **conformance battery at the engine tiers over the
 The acceptance evidence is S-0056's semantic bug corpus plus an execution-tier comparison against the same request computed from silver. A golden proves nothing here.
 
 - Paths: `tests/execution/test_rollup.py`
+
+### S-0066/D-11 — `ASSUMED` (Declared input currency for conversion)
+
+Under per-row conversion, a currency code the rate relation has no row for converts the amount to NULL and the row survives. `convert` is declared `nullifies`, so `coercible` does not quarantine the row; an author who wants the miss rejected declares `{rule: not_null}` on the converted field
+
+- Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/transforms/registry.py` `tests/execution/test_currency_convert.py`
+- Consequence: A payment in an unrecognised currency still counts as a row with a NULL amount, and rejecting it is a rule the author writes rather than a default
 
 <!-- /torve:managed -->

@@ -250,6 +250,8 @@ questions:
       Whether `classification` belongs on a **field** or on a **mapping path**. The
       field is where a reader looks; the path is what `redact:` already keys on, and
       a merged entity has one field with several paths.
+    status: settled
+    settled_by: D-13
   - id: Q-2
     text: >-
       Whether `owner` should also reach the MetricFlow manifest, which has an `owners`

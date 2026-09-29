@@ -360,3 +360,5 @@ questions:
     text: >-
       `MeasureExplanation`'s exact fields — implementation settles; `render()` output
       is locked by golden tests once written.
+    status: settled
+    settled_by: D-14

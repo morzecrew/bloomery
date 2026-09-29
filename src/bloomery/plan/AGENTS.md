@@ -44,6 +44,13 @@ Entity-level `grain`/`key`/`scd`/`materialization` changes are BREAKING at the e
 
 - Paths: `src/bloomery/plan/diff.py` `tests/fixtures/evolution_v5/entity_model.yaml` `tests/unit/test_plan/test_diff.py`
 
+### S-0024/D-9 — `ASSUMED` (Plan: spec diff and change classification)
+
+`Change.subject` is `<kind>:<name>`, the kind one of `entity`, `field`, `metric`, `mart`, `relationship`, `date_dimension`, `quality`, `dedupe`, `quarantine`, `reconcile`, `freshness`, `step` or `rollup`; a `field:` subject names the column alone and `Change.entity` carries its owner. `detail` is fixed wording written in `plan/diff.py`, interpolating only names and values from the two IRs
+
+- Paths: `src/bloomery/plan/model.py` `src/bloomery/plan/diff.py` `tests/unit/test_plan/test_diff.py`
+- Consequence: Plans stay byte-comparable across runs, and a newly diffable kind extends the same `<kind>:<name>` grammar rather than inventing a second subject shape
+
 ### S-0033/D-2 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 `OnFail = flag | quarantine | fail` (v1 — `repair` deferred, decision 17; landed in D87), explicit per rule, never a global default. Deliberately no `drop`: quarantine is drop plus recoverability; deletion happens via retention policy, with a paper trail.
@@ -160,6 +167,13 @@ The compiler never attributes a change to data. "No definition change" is the co
 
 - Paths: `src/bloomery/cli/__init__.py` `src/bloomery/guardrails/lineage.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/model.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0073/D-7 — `ASSUMED` (Caller-assembled spec history)
+
+Comparing two instants is the how-to's framing, not `plan()`'s: the Compare section of `reproduce-a-past-artifact-set.md` says `plan()` takes two IRs and does not care where either came from, and `plan()`'s docstring states only the diff contract
+
+- Paths: `pages/docs/how-to/reproduce-a-past-artifact-set.md` `src/bloomery/plan/diff.py`
+- Consequence: A reader of the API reference learns what `plan()` diffs, and a reader arriving with an incident learns from the how-to that two historical compiles need nothing beyond it
 
 ### S-0074/D-2 — `LOCKED` (Spec timeline)
 

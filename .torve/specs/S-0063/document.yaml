@@ -222,3 +222,5 @@ questions:
       only on metrics and reach marts transitively. Marts are the physical surface
       and a dashboard can read one directly, which argues for keeping it; one dependency
       kind is simpler.
+    status: settled
+    settled_by: D-8

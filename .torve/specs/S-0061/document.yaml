@@ -267,6 +267,8 @@ questions:
   - id: Q-1
     text: >-
       §5.3's three-way choice for a project with no date dimension (D5).
+    status: settled
+    settled_by: D-5
   - id: Q-2
     text: >-
       Whether `config.yaml` should carry `model_defaults.cron`. SQLMesh defaults to

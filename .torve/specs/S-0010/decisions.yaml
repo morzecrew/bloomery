@@ -108,3 +108,42 @@ decisions:
       a generated `entity_model.yaml` resolve at all — the one thing schema-directed
       generation does not get for free from the schema. ASSUMED so an executor may
       depart on evidence. Carried at the grade the source document gives it.
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The generated-document strategy supports what pydantic's `model_json_schema`
+      emits: `$ref` into `$defs`, `anyOf`/`oneOf`, `const`, `enum`, `properties`/`required`,
+      `patternProperties`, `additionalProperties` as a schema, and scalar types with
+      `pattern`, `minimum` and `minItems`; a `type` or a `$ref` outside that subset
+      raises `NotImplementedError`
+    paths:
+      - tests/support/schema_strategies.py
+      - tests/property/test_schema_agreement.py
+    consequence: >-
+      A new schema type or a `$ref` outside `$defs` in the export fails the property
+      tier loudly, while a new constraint keyword on a known type is ignored rather
+      than refused
+    rationale: >-
+      The module docstring enumerates the subset as closed because the schemas are
+      pydantic-generated, and S-0010/D-3 was settled by measured reach rather than
+      by this enumeration, so the vocabulary itself is recorded nowhere else
+    cites: [D-3]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      Generated documents are cross-consistent: a project's documents draw their names
+      from one shared pool, because independently drawn documents got past `resolve`
+      0 times in 200. Single-kind entity-model generation keeps running beside it
+      as the guardrail baseline, reaching a guardrail 14 times in 200
+    paths:
+      - tests/property/test_schema_agreement.py
+      - tests/support/schema_strategies.py
+    consequence: >-
+      The resolver and every cross-document guardrail are reached only by pooled project
+      draws, so a generator that stops sharing the pool turns `test_independently_drawn_documents_never_get_past_the_resolver`
+      red while the single-kind properties keep passing
+    rationale: >-
+      Measured rather than assumed: the independent arm stopped at parse or at resolve
+      on every draw (`mapping targets unknown entity`), while the pooled arm got past
+      the resolver 68 times and compiled 55
+    cites: [D-5, D-6]
