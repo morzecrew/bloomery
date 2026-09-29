@@ -22,6 +22,16 @@ amendments:
       - subject: D-6
         field: fingerprint
         after: c8dfe21d3938f40b/1a4cb56b01cfedb5
+      - subject: D-6
+        field: rationale
+        before: >-
+          Left open by row D6 of `rfcs/0048-bigquery-dialect.md`, and left open here:
+          the answer is a measurement nobody has taken, not an argument
+        after: >-
+          The row's two inputs were measured: a push run on `main` put the four surrogate
+          lanes at 1 min 3 s (2026-09-28), and the lane caught value defects rungs
+          1 to 3 missed (#191, #192), so #201 moved it onto pull requests that touch
+          engine code
       - subject: D-7
         field: grade
         before: OPEN

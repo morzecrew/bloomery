@@ -33,11 +33,12 @@ amendments:
         after: >-
           Both narrow-handler sites widen the catch; neither adds a depth limit. `evidence._divides`
           catches `(SqlglotError, RecursionError)` and returns `False`. `resolve.steps._parse_body`
-          catches the same pair and raises the existing `StepError`. No error class
-          is added to `src/bloomery/errors.py`.
+          catches the same pair and returns it as the existing `StepError`, which
+          `lower_steps` raises with the others it collects. No error class is added
+          to `src/bloomery/errors.py`.
       - subject: D-7
         field: fingerprint
-        after: 7fef39d282f70da0/afba915b48d717ab
+        after: e5a99b73ffc94643/afba915b48d717ab
     md: |-
       These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
 

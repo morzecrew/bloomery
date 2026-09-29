@@ -59,10 +59,10 @@ decisions:
     text: >-
       `SemanticPlan` sits beside `QueryPlan`'s shipped surfaces as the required field
       `QueryPlan.semantic`; `sql`, `columns` and `explanation` are unchanged. `bloomery
-      plan` renders its evidence sections from `query.semantic` and appends them after
-      the SQL and the explanation.
+      explain` renders its evidence sections from `query.semantic` and appends them
+      after the SQL and the explanation.
     paths: [src/bloomery/cli/__init__.py]
-    fingerprint: d4e29852afb7992b/5dc05b016c966b08
+    fingerprint: 8db8c4b995d24eaf/5dc05b016c966b08
   - id: D-8
     grade: OPEN
     text: >-

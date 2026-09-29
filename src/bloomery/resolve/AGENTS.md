@@ -58,7 +58,7 @@ Modules obtain their stage logger by the documented name literally — `bloomery
 
 ### S-0008/D-7 — `ASSUMED` (Fuzzing the compile boundary)
 
-Both narrow-handler sites widen the catch; neither adds a depth limit. `evidence._divides` catches `(SqlglotError, RecursionError)` and returns `False`. `resolve.steps._parse_body` catches the same pair and raises the existing `StepError`. No error class is added to `src/bloomery/errors.py`.
+Both narrow-handler sites widen the catch; neither adds a depth limit. `evidence._divides` catches `(SqlglotError, RecursionError)` and returns `False`. `resolve.steps._parse_body` catches the same pair and returns it as the existing `StepError`, which `lower_steps` raises with the others it collects. No error class is added to `src/bloomery/errors.py`.
 
 - Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/steps.py`
 - Consequence: A depth limit raising a named error adds a class to `src/bloomery/errors.py` and an entry to `pages/docs/reference/errors.md`; widening the catch adds neither, and the two sites may legitimately get different answers

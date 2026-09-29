@@ -101,9 +101,9 @@ decisions:
     grade: ASSUMED
     text: >-
       R020 proves more and refuses nothing. `_coarsening` adds a determination premise
-      where a dropped dimension determines a kept one and returns `None` otherwise,
-      so a rollup with no determination reaching it gets the answer it had before
-      R020 existed.
+      only when every dropped dimension determines, through the declared closure,
+      at least one kept dimension, and returns `None` otherwise, so a rollup that
+      is not a coarsening gets the answer it had before R020 existed.
     paths: [src/bloomery/semantic/proof.py, src/bloomery/semantic/rollup.py]
     consequence: >-
       The strict reading is a new refusal against projects that compile today; the
@@ -113,7 +113,7 @@ decisions:
       Carried from row 7 of the source document, which grades it `OPEN`; Q-2 states
       the same question. The coarsening corpus case the tests section asks for is
       what settles it
-    fingerprint: a8d634bdcf4624d2/282fe1c4605e79f0
+    fingerprint: 54ae4e210ba7892a/282fe1c4605e79f0
   - id: D-8
     grade: ASSUMED
     text: >-

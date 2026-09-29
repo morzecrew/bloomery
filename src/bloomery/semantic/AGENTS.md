@@ -90,7 +90,7 @@ A dimension is not an entity. Modelling `city` and `state` as entities with a de
 
 ### S-0007/D-7 — `ASSUMED` (Dimension algebra)
 
-R020 proves more and refuses nothing. `_coarsening` adds a determination premise where a dropped dimension determines a kept one and returns `None` otherwise, so a rollup with no determination reaching it gets the answer it had before R020 existed.
+R020 proves more and refuses nothing. `_coarsening` adds a determination premise only when every dropped dimension determines, through the declared closure, at least one kept dimension, and returns `None` otherwise, so a rollup that is not a coarsening gets the answer it had before R020 existed.
 
 - Paths: `src/bloomery/semantic/proof.py` `src/bloomery/semantic/rollup.py`
 - Consequence: The strict reading is a new refusal against projects that compile today; the permissive reading changes no existing verdict and only adds a proof where a determinant exists

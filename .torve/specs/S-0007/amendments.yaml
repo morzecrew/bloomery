@@ -82,12 +82,12 @@ amendments:
           Decide with one real rollup corpus in hand
         after: >-
           R020 proves more and refuses nothing. `_coarsening` adds a determination
-          premise where a dropped dimension determines a kept one and returns `None`
-          otherwise, so a rollup with no determination reaching it gets the answer
-          it had before R020 existed.
+          premise only when every dropped dimension determines, through the declared
+          closure, at least one kept dimension, and returns `None` otherwise, so a
+          rollup that is not a coarsening gets the answer it had before R020 existed.
       - subject: D-7
         field: fingerprint
-        after: a8d634bdcf4624d2/282fe1c4605e79f0
+        after: 54ae4e210ba7892a/282fe1c4605e79f0
       - subject: D-8
         field: grade
         before: OPEN

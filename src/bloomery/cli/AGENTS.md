@@ -130,7 +130,7 @@ Floats are banned in IR and emission; `Decimal`/int only.
 
 ### S-0054/D-7 — `ASSUMED` (Safe rollup planner and SemanticPlan IR)
 
-`SemanticPlan` sits beside `QueryPlan`'s shipped surfaces as the required field `QueryPlan.semantic`; `sql`, `columns` and `explanation` are unchanged. `bloomery plan` renders its evidence sections from `query.semantic` and appends them after the SQL and the explanation.
+`SemanticPlan` sits beside `QueryPlan`'s shipped surfaces as the required field `QueryPlan.semantic`; `sql`, `columns` and `explanation` are unchanged. `bloomery explain` renders its evidence sections from `query.semantic` and appends them after the SQL and the explanation.
 
 - Paths: `src/bloomery/cli/__init__.py`
 

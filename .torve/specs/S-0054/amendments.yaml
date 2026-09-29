@@ -18,11 +18,11 @@ amendments:
         after: >-
           `SemanticPlan` sits beside `QueryPlan`'s shipped surfaces as the required
           field `QueryPlan.semantic`; `sql`, `columns` and `explanation` are unchanged.
-          `bloomery plan` renders its evidence sections from `query.semantic` and
+          `bloomery explain` renders its evidence sections from `query.semantic` and
           appends them after the SQL and the explanation.
       - subject: D-7
         field: fingerprint
-        after: d4e29852afb7992b/5dc05b016c966b08
+        after: 8db8c4b995d24eaf/5dc05b016c966b08
       - subject: D-8
         field: superseded_by
         after: S-0054/D-11
