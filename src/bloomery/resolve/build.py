@@ -138,6 +138,7 @@ from bloomery.transforms import (
     neutral_type,
     registry,
 )
+from bloomery.transforms._builtins import ISO8601_INSTANT
 from bloomery.typing import (
     ChainCheck,
     DateType,
@@ -1069,9 +1070,37 @@ def _zone_declaration(
     this design cannot afford, since the author's only escape would be dropping
     the declaration. R018 keeps the pressure from the other side: the same
     field with no declaration at all is refused where it is consumed.
+
+    An ``ISO8601_INSTANT`` parse adds two (S-0081/D-2). Its value is already
+    the UTC instant the text named, so a ``to_utc`` after it converts twice —
+    both sides are ``timestamp``, and the type system cannot see it — and a
+    ``zone_in:`` beside it can truthfully say only ``UTC``.
     """
 
     zone = source.zone_in
+    parses = [
+        step.name == "parse_ts" and step.args == (ISO8601_INSTANT,) for step in source.transform
+    ]
+
+    if any(parses):
+        after = source.transform[parses.index(True) + 1 :]
+
+        if any(step.name == "to_utc" for step in after):
+            msg = (
+                f"to_utc after parse_ts: {ISO8601_INSTANT} on column {column!r} — the "
+                "parse already produced the UTC instant the text names, so converting "
+                "it from a zone shifts it a second time. Fix: drop the to_utc, or parse "
+                "with ISO8601 if the text is a wall clock without a zone"
+            )
+            raise ResolutionError(msg, source_path=source_path)
+
+        if zone is not None and zone not in UTC_ZONES:
+            msg = (
+                f"zone_in: {zone!r} on column {column!r}, which parse_ts: "
+                f"{ISO8601_INSTANT} reads as an instant already in UTC. Fix: drop the "
+                "declaration, or declare zone_in: UTC"
+            )
+            raise ResolutionError(msg, source_path=source_path)
 
     if zone is None:
         return None

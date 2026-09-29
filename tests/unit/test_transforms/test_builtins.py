@@ -419,3 +419,24 @@ def test_the_narrowing_cast_becomes_a_try_cast_inside_the_quality_system() -> No
     the reason narrowing is safe to add to an entity carrying quality rules."""
     node = DEFAULT_REGISTRY["multiply"].builder(exp.column("x"), 2, input_type=DecimalType(12, 4))
     assert _try_cast_shape(node).sql() == "TRY_CAST(x * 2 AS DECIMAL(13, 4))"
+
+
+# ....................... #
+# S-0081/D-2, D-3: the instant format and zone directives
+
+
+def test_the_instant_format_lowers_to_its_own_marker() -> None:
+    built = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("x"), "ISO8601_INSTANT")
+
+    assert built.sql() == "CAST(BLM_ISO_INSTANT_TEXT(x) AS TIMESTAMP)"
+
+
+@pytest.mark.parametrize("fmt", ["%Y-%m-%d %H:%M:%S%z", "%Y-%m-%d %H:%M:%S %Z", "%%%z"])
+def test_a_zone_directive_is_refused_naming_the_instant_format(fmt: str) -> None:
+    with pytest.raises(TypeCheckError, match="ISO8601_INSTANT"):
+        DEFAULT_REGISTRY["parse_ts"].output_type(StringType(), (fmt,))
+
+
+@pytest.mark.parametrize("fmt", ["%Y-%m-%d %H:%M:%S%%z", "%Y-%m-%d%%Z", "%Y-%m-%d %H:%M:%S"])
+def test_an_escaped_zone_directive_is_literal_text(fmt: str) -> None:
+    assert DEFAULT_REGISTRY["parse_ts"].output_type(StringType(), (fmt,)) == TimestampType()

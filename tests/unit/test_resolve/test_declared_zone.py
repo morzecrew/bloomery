@@ -337,3 +337,36 @@ def test_the_two_utc_spellings_agree_with_each_other(declared: str, converted: s
     )
 
     assert _zone_of(ir) == declared
+
+
+# ....................... #
+# S-0081/D-2: an instant parse is already UTC
+
+
+@pytest.mark.parametrize("zone", [None, "UTC", "Etc/UTC"])
+def test_an_instant_parse_builds_with_no_zone_or_utc(zone: str | None) -> None:
+    declared = f", zone_in: {zone}" if zone else ""
+    ir = _build(
+        f'booked_at: {{from: "$.booked_at", transform: [{{parse_ts: ISO8601_INSTANT}}]{declared}}}'
+    )
+
+    assert _zone_of(ir) == zone
+
+
+def test_to_utc_after_an_instant_parse_is_refused() -> None:
+    """Both sides are `timestamp`, so the type system cannot see the second
+    conversion; this is the only place that can."""
+
+    with pytest.raises(ResolutionError, match="to_utc after parse_ts: ISO8601_INSTANT"):
+        _build(
+            'booked_at: {from: "$.booked_at", '
+            "transform: [{parse_ts: ISO8601_INSTANT}, {to_utc: Europe/Paris}]}"
+        )
+
+
+def test_a_non_utc_zone_beside_an_instant_parse_is_refused() -> None:
+    with pytest.raises(ResolutionError, match="zone_in: 'Europe/Paris'"):
+        _build(
+            'booked_at: {from: "$.booked_at", '
+            "transform: [{parse_ts: ISO8601_INSTANT}], zone_in: Europe/Paris}"
+        )

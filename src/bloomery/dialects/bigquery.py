@@ -203,7 +203,17 @@ class BigQueryDialect(SQLGlotDialect):
             instant = exp.func("TIMESTAMP", at_zone.this, at_zone.args["zone"])
             return cast("Expression", exp.func("DATETIME", instant, exp.Literal.string("UTC")))
 
-        rewritten: Expression = strip_iso_text(node.copy(), _space_separated_without_zulu)
+        def instant(aware: exp.Cast) -> Expression:
+            # `TIMESTAMPTZ` renders as GoogleSQL's `TIMESTAMP`, an instant whose
+            # cast reads `Z` and an offset; `DATETIME(…, 'UTC')` is its UTC wall
+            # clock. The `Z` is kept, unlike the wall-clock spelling's, because
+            # here it is the zone being parsed (S-0081/D-2).
+            aware.set("this", space_separated(aware.this))
+            return cast("Expression", exp.func("DATETIME", aware, exp.Literal.string("UTC")))
+
+        rewritten: Expression = strip_iso_text(
+            node.copy(), _space_separated_without_zulu, instant=instant
+        )
         rewritten = utc_from_zone(rewritten, utc)
         # Before the guard, which reads the group: the base render restores it
         # too, but only after every port rewrite has already run.

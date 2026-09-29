@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib
 from collections.abc import Iterator
+from datetime import datetime
 
 import typing
 
@@ -409,3 +410,54 @@ def test_the_zulu_marker_is_refused_only_under_to_utc_on_every_port(port: str) -
     dialect = get_dialect(port)
     assert "'%Z%'" in dialect.render(canon(zoned).ast())
     assert "'%Z%'" not in dialect.render(canon(parsed).ast())
+
+
+ALL_PORTS = ["bigquery", "databricks", "duckdb", "postgres", "redshift", "snowflake", "trino"]
+
+
+@pytest.mark.parametrize("port", ALL_PORTS)
+def test_every_port_spells_the_instant_parse(port: str) -> None:
+    """S-0081/D-2: no marker survives, and every port guards zoneless text
+    positively — a `Z` or a sign past the date — before its own spelling."""
+    parsed = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("written"), "ISO8601_INSTANT")
+    sql = get_dialect(port).render(canon(parsed).ast())
+
+    assert "BLM_" not in sql
+    assert "'%Z%'" in sql and "'%+%'" in sql
+
+
+def test_a_port_without_an_instant_spelling_is_refused_by_name() -> None:
+    class Plain(SQLGlotDialect):
+        name = "plain"
+        sqlglot_dialect = "duckdb"
+
+        def render(self, node: exp.Expression) -> str:
+            return super().render(strip_iso_text(node.copy(), lambda text: text))
+
+    parsed = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("written"), "ISO8601_INSTANT")
+
+    with pytest.raises(UnsupportedByTarget, match="BLM_ISO_INSTANT_TEXT"):
+        Plain().render(canon(parsed).ast())
+
+
+@pytest.mark.parametrize("session", ["UTC", "Asia/Tokyo", "America/New_York"])
+@pytest.mark.parametrize("quality", [False, True])
+def test_the_instant_parse_lands_on_utc_on_duckdb(session: str, quality: bool) -> None:
+    """Measured, not asserted from the text: `Z` and an offset give the UTC
+    instant under any session zone, lowercase ISO forms read the same, and
+    zoneless text is NULL — plain and under the quality system's `TRY_CAST`."""
+    duckdb = pytest.importorskip("duckdb")
+    from bloomery.resolve.build import _try_cast_shape
+
+    parsed = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("w"), "ISO8601_INSTANT")
+    tree = _try_cast_shape(parsed) if quality else parsed
+    sql = get_dialect("duckdb").render(canon(tree).ast())
+    connection = duckdb.connect()
+    connection.execute(f"SET TimeZone = '{session}'")
+    rows = connection.execute(
+        f"SELECT {sql} FROM (VALUES ('2025-01-01T12:00:00Z'), ('2025-01-01t12:00:00z'), "
+        "('2025-01-01 12:00:00+02:00'), ('2025-01-01T12:00:00'), (NULL)) AS t(w)"
+    ).fetchall()
+
+    noon, ten = (datetime(2025, 1, 1, hour) for hour in (12, 10))
+    assert [row[0] for row in rows] == [noon, noon, ten, None, None]

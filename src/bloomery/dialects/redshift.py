@@ -151,7 +151,7 @@ class RedshiftDialect(SQLGlotDialect):
         """
 
         rewritten = capture_group(node.copy())
-        rewritten = strip_iso_text(rewritten, lambda text: text)
+        rewritten = strip_iso_text(rewritten, lambda text: text, instant=_instant)
         rewritten = utc_from_zone(rewritten, _convert_timezone)
         rewritten = rewritten.transform(zoneless_parse)
         rewritten = rewritten.transform(ends_with_as_right)
@@ -254,6 +254,22 @@ def _convert_timezone(at_zone: Expression) -> Expression:
             at_zone.this.copy(),
         ),
     )
+
+
+# ....................... #
+
+
+def _instant(aware: exp.Cast) -> Expression:
+    """``CAST(CONVERT_TIMEZONE('UTC', CAST(text AS TIMESTAMPTZ)) AS TIMESTAMP)``.
+
+    :meth:`RedshiftDialect.utc_now`'s spelling with the parsed instant in place
+    of the current one: the operand is ``TIMESTAMPTZ`` carrying the text's own
+    zone, so the two-argument form converts from it rather than reading the
+    operand as UTC (S-0081/D-2).
+    """
+
+    in_utc = exp.Anonymous(this="CONVERT_TIMEZONE", expressions=[exp.Literal.string("UTC"), aware])
+    return exp.cast(in_utc, exp.DataType.build("TIMESTAMP"))
 
 
 # ....................... #

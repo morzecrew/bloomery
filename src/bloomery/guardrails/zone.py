@@ -41,6 +41,7 @@ from bloomery.errors import UndeclaredZone
 from bloomery.semantic import Refutation
 from bloomery.semantic.zone import WallClock, prove_zone
 from bloomery.spec.mapping import mapping_doc
+from bloomery.transforms._builtins import ISO8601_INSTANT
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -98,10 +99,16 @@ def _readings(entity: EntityIR, column: str) -> tuple[WallClock, ...]:
                 continue
 
             names = {step.name for step in field.transform}
+            # An instant parse is never a wall clock and owes no zone
+            # (S-0081/D-2); only a wall-clock parse does.
+            wall_clock = any(
+                step.name == "parse_ts" and step.args != (ISO8601_INSTANT,)
+                for step in field.transform
+            )
             readings.append(
                 WallClock(
                     relation=source.relation,
-                    parsed="parse_ts" in names,
+                    parsed=wall_clock,
                     converted="to_utc" in names,
                     declared=field.zone_in,
                 )

@@ -158,7 +158,7 @@ class DatabricksDialect(SQLGlotDialect):
         # spell the call at all; the base render applies it again, and a tree
         # that already names a group is untouched.
         rewritten = capture_group(node.copy())
-        rewritten = strip_iso_text(rewritten, space_separated)
+        rewritten = strip_iso_text(rewritten, space_separated, instant=_instant)
         rewritten = utc_from_zone(rewritten, _to_utc)
         rewritten = rewritten.transform(_zoneless_parse)
         rewritten = rewritten.transform(_regexp_extract)
@@ -276,6 +276,24 @@ def _to_utc(at_zone: Expression) -> Expression:
     """
 
     shifted = exp.func("TO_UTC_TIMESTAMP", at_zone.this.copy(), at_zone.args["zone"].copy())
+    return exp.cast(shifted, exp.DataType.build(_NTZ))
+
+
+# ....................... #
+
+
+def _instant(aware: exp.Cast) -> Expression:
+    """``CAST(TO_UTC_TIMESTAMP(CAST(text AS TIMESTAMP), CURRENT_TIMEZONE()) AS TIMESTAMP_NTZ)``.
+
+    The neutral ``TIMESTAMPTZ`` renders as this engine's ``TIMESTAMP``, the
+    session-zone instant, and its cast reads ``Z`` and an offset. The rest is
+    :func:`_utc_now`'s spelling with the parsed instant in place of the current
+    one: the session wall clock read back out of the session zone is the UTC
+    wall clock, under any session (S-0081/D-2).
+    """
+
+    aware.set("this", space_separated(aware.this))
+    shifted = exp.func("TO_UTC_TIMESTAMP", aware, exp.func("CURRENT_TIMEZONE"))
     return exp.cast(shifted, exp.DataType.build(_NTZ))
 
 

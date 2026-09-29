@@ -736,3 +736,13 @@ def test_a_column_wrapped_in_a_function_is_still_pinned() -> None:
     (refusal,) = refusals(metrics=metrics)
 
     assert "order.placed_at" in str(refusal)
+
+
+def test_an_instant_parse_owes_no_zone() -> None:
+    """S-0081/D-2: `ISO8601_INSTANT` reads the zone the text states, so the
+    value was never a wall clock and R018 does not ask for a declaration."""
+
+    marts = CARRIED.replace("flatten: []", "flatten:\n      - {date: placed_at, role: placed}")
+    mapping = MAPPING.replace(PARSED, PARSED.replace("ISO8601", "ISO8601_INSTANT"))
+
+    assert refusals(mapping=mapping, marts=marts) == []

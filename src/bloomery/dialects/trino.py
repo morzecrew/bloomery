@@ -110,7 +110,15 @@ class TrinoDialect(SQLGlotDialect):
             in_utc = exp.func("at_timezone", stated, exp.Literal.string("UTC"))
             return exp.cast(in_utc, exp.DataType.build("TIMESTAMP"))
 
-        rewritten: Expression = strip_iso_text(node.copy(), space_separated)
+        def instant(aware: exp.Cast) -> Expression:
+            # Trino's zone-aware cast takes the space separator only, like its
+            # zoneless one; `at_timezone` then moves the instant to UTC and the
+            # cast drops the zone, as in `utc_now` (S-0081/D-2).
+            aware.set("this", space_separated(aware.this))
+            in_utc = exp.func("at_timezone", aware, exp.Literal.string("UTC"))
+            return exp.cast(in_utc, exp.DataType.build("TIMESTAMP"))
+
+        rewritten: Expression = strip_iso_text(node.copy(), space_separated, instant=instant)
         return super().render(utc_from_zone(rewritten, utc))
 
     # ....................... #

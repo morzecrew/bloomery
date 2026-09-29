@@ -51,6 +51,16 @@ _ALL_TYPES: tuple[type[LogicalType], ...] = (
 #: engine's native ISO-8601 parsing — instead of an explicit format string.
 _ISO8601 = "ISO8601"
 
+#: ``parse_ts``'s format for text that stamps its own zone — ``Z`` or a numeric
+#: offset — parsed to the UTC instant it names (S-0081/D-2). Never a wall
+#: clock: zoneless text is NULL under it, the way offset text is NULL under
+#: :data:`_ISO8601`.
+ISO8601_INSTANT = "ISO8601_INSTANT"
+
+#: A ``%z`` or ``%Z`` directive that is not the second half of an escaped
+#: ``%%`` (S-0081/D-3).
+_ZONE_DIRECTIVE = re.compile(r"(?<!%)(?:%%)*%[zZ]")
+
 _PRECISION_CAP = 38
 
 
@@ -476,6 +486,12 @@ ISO_TEXT_MARKER = "BLM_ISO_TEXT"
 #: reads it as one: NULL, never a UTC value shifted by the zone a second time.
 ISO_ZONED_TEXT_MARKER = "BLM_ISO_ZONED_TEXT"
 
+#: The marker an ``ISO8601_INSTANT`` parse wraps its text in (S-0081/D-2).
+#: Each port replaces the *cast* around it — not only the text, as for the
+#: wall-clock marker — because the cast to a zoneless ``TIMESTAMP`` is exactly
+#: what drops the zone the text names.
+ISO_INSTANT_TEXT_MARKER = "BLM_ISO_INSTANT_TEXT"
+
 
 def iso_text(col: Expression) -> Expression:
     """Mark ``col`` as text a *timestamp* cast is about to read as ISO 8601.
@@ -493,12 +509,37 @@ def iso_text(col: Expression) -> Expression:
 # ....................... #
 
 
+def _zoneless_format(_: LogicalType, args: tuple[str | int, ...]) -> LogicalType:
+    """``parse_ts`` produces a timestamp — once its format is proven not to
+    parse a zone the zoneless type would then drop.
+
+    No port's spelling of a ``%z``/``%Z`` directive is measured, and a format
+    that reads a zone and discards it is the wrong-hour failure (S-0081/D-3).
+    An escaped ``%%z`` is literal text and passes.
+    """
+    fmt = str(args[0])
+
+    if _ZONE_DIRECTIVE.search(fmt):
+        msg = (
+            f"parse_ts format {fmt!r} parses a zone with %z or %Z, and the zoneless "
+            "timestamp it lands in would drop it. Fix: use parse_ts: ISO8601_INSTANT "
+            "for text that carries Z or a numeric offset"
+        )
+        raise TypeCheckError(msg)
+
+    return TimestampType()
+
+
 @transform(
-    "parse_ts", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=TimestampType()
+    "parse_ts", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=_zoneless_format
 )
 def parse_ts(col: Expression, fmt: str) -> Expression:
     if fmt == _ISO8601:
         return exp.cast(iso_text(col), exp.DataType.build("TIMESTAMP"))
+
+    if fmt == ISO8601_INSTANT:
+        marked = exp.Anonymous(this=ISO_INSTANT_TEXT_MARKER, expressions=[col])
+        return exp.cast(marked, exp.DataType.build("TIMESTAMP"))
 
     return exp.StrToTime(this=col, format=exp.Literal.string(fmt))
 
