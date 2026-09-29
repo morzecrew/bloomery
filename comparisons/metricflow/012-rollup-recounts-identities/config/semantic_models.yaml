@@ -1,0 +1,75 @@
+semantic_model:
+  name: orders
+  node_relation:
+    alias: corpus__orders
+    schema_name: bronze
+    relation_name: bronze.corpus__orders
+  entities:
+    - name: order
+      type: primary
+      expr: order_id
+  dimensions:
+    - name: ordered_on
+      type: time
+      expr: ordered_on
+      type_params:
+        time_granularity: day
+  measures:
+    - name: revenue
+      agg: sum
+      expr: amount
+      agg_time_dimension: ordered_on
+    - name: buyers
+      agg: count_distinct
+      expr: customer_id
+      agg_time_dimension: ordered_on
+---
+semantic_model:
+  name: orders_monthly
+  node_relation:
+    alias: orders_monthly
+    schema_name: bronze
+    relation_name: bronze.orders_monthly
+  entities:
+    - name: order_month
+      type: primary
+      expr: ordered_month
+  dimensions:
+    - name: ordered_month
+      type: time
+      expr: ordered_month
+      type_params:
+        time_granularity: month
+  measures:
+    - name: revenue_rolled
+      agg: sum
+      expr: revenue
+      agg_time_dimension: ordered_month
+    - name: buyers_rolled
+      agg: sum
+      expr: buyers
+      agg_time_dimension: ordered_month
+---
+metric:
+  name: revenue
+  type: simple
+  type_params:
+    measure: revenue
+---
+metric:
+  name: buyers
+  type: simple
+  type_params:
+    measure: buyers
+---
+metric:
+  name: revenue_rolled
+  type: simple
+  type_params:
+    measure: revenue_rolled
+---
+metric:
+  name: buyers_rolled
+  type: simple
+  type_params:
+    measure: buyers_rolled

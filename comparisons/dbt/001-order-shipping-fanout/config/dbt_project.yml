@@ -1,0 +1,4 @@
+name: corpus_001_order_shipping_fanout
+version: "1.0.0"
+profile: corpus
+model-paths: ["models"]

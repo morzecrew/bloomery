@@ -1,0 +1,48 @@
+### sqlmesh info
+  Models: 3
+### sqlmesh plan --auto-apply --no-prompts
+  Virtual layer updated
+### sqlmesh audit
+  Found 0 audit(s).
+  Finished with 0 audit errors and 0 audits skipped.
+### sqlmesh rewrite metric:shipping_total
+  SELECT
+    shipping_total AS shipping_total
+  FROM (
+    SELECT
+      SUM(silver__orders.shipping) AS shipping_total
+    FROM silver.orders AS silver__orders
+  ) AS __table
+### metric shipping_total
+  -> [(Decimal('9.0000'),)]
+### sqlmesh rewrite metric:shipping_total_on_lines
+  SELECT
+    shipping_total_on_lines AS shipping_total_on_lines
+  FROM (
+    SELECT
+      SUM(silver__order_lines.shipping) AS shipping_total_on_lines
+    FROM silver.order_lines AS silver__order_lines
+  ) AS __table
+### metric shipping_total_on_lines
+  -> [(Decimal('27.0000'),)]
+### sqlmesh rewrite query:shipping_by_line
+  SELECT
+    __table.line_no AS line_no,
+    shipping_total AS shipping_total
+  FROM (
+    SELECT
+      silver__order_items.line_no,
+      SUM(silver__orders.shipping) AS shipping_total
+    FROM silver.orders AS silver__orders
+    LEFT JOIN silver.order_items AS silver__order_items
+      ON silver__orders.order_id = (order_id, line_no)
+    GROUP BY
+      silver__order_items.line_no
+  ) AS __table
+  ORDER BY
+    line_no
+### query shipping_by_line
+  refused: BinderException: Binder Error: Ambiguous reference to column name "order_id" (use: "silver__orders.order_id" or "silver__order_items.order_id")
+
+LINE 10:     ON silver__orders.order_id = (order_id, line_no)
+                                           ^

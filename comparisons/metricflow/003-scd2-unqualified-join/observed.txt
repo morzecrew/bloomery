@@ -1,0 +1,7 @@
+SemanticManifestValidator: 0 error(s), 0 warning(s)
+### revenue
+  -> [(Decimal('300.0000'),)]
+### revenue/customer__tier
+  -> [('bronze', Decimal('300.0000')), ('gold', Decimal('300.0000'))]
+### revenue/versioned_customer__tier
+  -> [('bronze', Decimal('100.0000')), ('gold', Decimal('200.0000'))]

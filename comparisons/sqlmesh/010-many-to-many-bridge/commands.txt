@@ -1,0 +1,5 @@
+uv run python comparisons/sqlmesh/run.py \
+    tests/fixtures/semantic_corpus/010-many-to-many-bridge \
+    comparisons/sqlmesh/010-many-to-many-bridge \
+    --query "revenue_by_label=SELECT label, METRIC(revenue) FROM __semantic.__table GROUP BY label ORDER BY label" \
+    revenue revenue_through_bridge

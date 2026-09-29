@@ -1,0 +1,4 @@
+uv run python comparisons/dbt/run.py \
+    tests/fixtures/semantic_corpus/003-scd2-unqualified-join \
+    comparisons/dbt/003-scd2-unqualified-join \
+    revenue_unanchored revenue_anchored

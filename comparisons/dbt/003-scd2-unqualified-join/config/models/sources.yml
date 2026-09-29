@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: bronze
+    schema: bronze
+    tables:
+      - name: corpus__orders
+  # Supplied by the operator's snapshotting, as the case creates it; dbt reads
+  # it rather than building it.
+  - name: silver
+    schema: silver
+    tables:
+      - name: customer_tier

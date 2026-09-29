@@ -1,0 +1,5 @@
+uv run python comparisons/sqlmesh/run.py \
+    tests/fixtures/semantic_corpus/001-order-shipping-fanout \
+    comparisons/sqlmesh/001-order-shipping-fanout \
+    --query "shipping_by_line=SELECT line_no, METRIC(shipping_total) FROM __semantic.__table GROUP BY line_no ORDER BY line_no" \
+    shipping_total shipping_total_on_lines

@@ -1,0 +1,5 @@
+uv run python comparisons/dbt/run.py \
+    tests/fixtures/semantic_corpus/004-currency-mix \
+    comparisons/dbt/004-currency-mix \
+    --probe semantic_models.0.measures.0.currency=EUR \
+    total_usd_mixed total_usd_converted

@@ -1,0 +1,70 @@
+### sqlmesh info
+  Models: 2
+### sqlmesh plan --auto-apply --no-prompts
+  Virtual layer updated
+### sqlmesh audit
+  Found 0 audit(s).
+  Finished with 0 audit errors and 0 audits skipped.
+### sqlmesh rewrite metric:shipping_total
+  SELECT
+    shipping_total AS shipping_total
+  FROM (
+    SELECT
+      SUM(silver__orders.shipping) AS shipping_total
+    FROM silver.orders AS silver__orders
+  ) AS __table
+### metric shipping_total
+  -> [(Decimal('16.0000'),)]
+### sqlmesh rewrite metric:discount_total
+  SELECT
+    discount_total AS discount_total
+  FROM (
+    SELECT
+      SUM(silver__order_items.discount) AS discount_total
+    FROM silver.order_items AS silver__order_items
+  ) AS __table
+### metric discount_total
+  -> [(Decimal('6.0000'),)]
+### sqlmesh rewrite query:shipping_and_discount
+  SELECT
+    shipping_total AS shipping_total,
+    discount_total AS discount_total
+  FROM (
+    SELECT
+      SUM(silver__orders.shipping) AS shipping_total
+    FROM silver.orders AS silver__orders
+  ) AS __table
+  FULL JOIN (
+    SELECT
+      SUM(silver__order_items.discount) AS discount_total
+    FROM silver.order_items AS silver__order_items
+  ) AS silver__order_items
+    ON TRUE
+### query shipping_and_discount
+  -> [(Decimal('16.0000'), Decimal('6.0000'))]
+### sqlmesh rewrite query:shipping_and_discount_by_order
+  SELECT
+    __table.order_id AS order_id,
+    shipping_total AS shipping_total,
+    discount_total AS discount_total
+  FROM (
+    SELECT
+      silver__orders.order_id,
+      SUM(silver__orders.shipping) AS shipping_total
+    FROM silver.orders AS silver__orders
+    GROUP BY
+      silver__orders.order_id
+  ) AS __table
+  FULL JOIN (
+    SELECT
+      silver__order_items.order_id,
+      SUM(silver__order_items.discount) AS discount_total
+    FROM silver.order_items AS silver__order_items
+    GROUP BY
+      silver__order_items.order_id
+  ) AS silver__order_items
+    ON __table.order_id = silver__order_items.order_id
+  ORDER BY
+    order_id
+### query shipping_and_discount_by_order
+  -> [('o1', Decimal('9.0000'), Decimal('3.0000')), ('o2', Decimal('5.0000'), Decimal('2.0000')), ('o3', Decimal('2.0000'), Decimal('1.0000'))]

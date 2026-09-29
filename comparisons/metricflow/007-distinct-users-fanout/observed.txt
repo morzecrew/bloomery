@@ -1,0 +1,9 @@
+SemanticManifestValidator: 0 error(s), 0 warning(s)
+### active_users
+  -> [(3,)]
+### active_users/metric_time__day
+  -> [(datetime.datetime(2025, 1, 1, 0, 0), 2), (datetime.datetime(2025, 1, 2, 0, 0), 2)]
+### active_users/metric_time__month
+  -> [(datetime.datetime(2025, 1, 1, 0, 0), 3)]
+### active_users_summed_daily
+  -> [(4,)]

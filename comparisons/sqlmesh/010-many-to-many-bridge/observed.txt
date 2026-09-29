@@ -1,0 +1,47 @@
+### sqlmesh info
+  Models: 4
+### sqlmesh plan --auto-apply --no-prompts
+  Virtual layer updated
+### sqlmesh audit
+  Found 0 audit(s).
+  Finished with 0 audit errors and 0 audits skipped.
+### sqlmesh rewrite metric:revenue
+  SELECT
+    revenue AS revenue
+  FROM (
+    SELECT
+      SUM(silver__orders.revenue) AS revenue
+    FROM silver.orders AS silver__orders
+  ) AS __table
+### metric revenue
+  -> [(Decimal('150.00'),)]
+### sqlmesh rewrite metric:revenue_through_bridge
+  SELECT
+    revenue_through_bridge AS revenue_through_bridge
+  FROM (
+    SELECT
+      SUM(silver__promoted_orders.revenue) AS revenue_through_bridge
+    FROM silver.promoted_orders AS silver__promoted_orders
+  ) AS __table
+### metric revenue_through_bridge
+  -> [(Decimal('250.00'),)]
+### sqlmesh rewrite query:revenue_by_label
+  SELECT
+    __table.label AS label,
+    revenue AS revenue
+  FROM (
+    SELECT
+      silver__promos.label,
+      SUM(silver__orders.revenue) AS revenue
+    FROM silver.orders AS silver__orders
+    LEFT JOIN silver.order_promos AS silver__order_promos
+      ON silver__orders.order_id = silver__order_promos.promo_id
+    LEFT JOIN silver.promos AS silver__promos
+      ON silver__order_promos.promo_id = silver__promos.promo_id
+    GROUP BY
+      silver__promos.label
+  ) AS __table
+  ORDER BY
+    label
+### query revenue_by_label
+  -> [(None, Decimal('150.00'))]

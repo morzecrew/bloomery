@@ -1,0 +1,9 @@
+SemanticManifestValidator: 0 error(s), 0 warning(s)
+### buyers,revenue
+  -> [(3, Decimal('110.00'))]
+### buyers,revenue/metric_time__month
+  -> [(datetime.datetime(2025, 1, 1, 0, 0), 3, Decimal('110.00'))]
+### buyers_rolled,revenue_rolled
+  -> [(4, Decimal('110.00'))]
+### buyers_rolled,revenue_rolled/metric_time__month
+  -> [(datetime.datetime(2025, 1, 1, 0, 0), 4, Decimal('110.00'))]

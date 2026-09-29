@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0183
+phase: 6
+base: e99f208063dae59a5fde44a5aba38e8790e6a756
+commit: e8c4acb79384c1a827defe98dc945d800c4392a0
+at: '2026-09-29T07:58:24Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: LOCKED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-29T07:45:24Z'
+    claim: >-
+      Every value in the seven new bundles comes from the run in its observed.txt.
+      What could not be run with the case's data is stated as unrun in the README
+      rather than filled: SQLMesh's SCD type-2 kinds in 003, which build a history
+      the case supplies, and a JPY rate row in 004, which the case does not carry.
+      MATRIX.md is untouched, so every one of these cells stays UNKNOWN until phase
+      7.
+    evidence: >-
+      comparisons/sqlmesh/003-scd2-unqualified-join/README.md:55 — the unrun SCD type-2
+      kinds, and why; 004's README says the same of the JPY variant
+    action: decided
+    proposal: no change — the row held as written
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-29T07:45:24Z'
+    claim: >-
+      The bundles live in this repository at comparisons/sqlmesh/<case>/, one per
+      case, and each reads the case's schema/ and data/ in place through run.py. Nothing
+      is fetched at run time.
+    evidence: >-
+      comparisons/sqlmesh/001-order-shipping-fanout/commands.txt:3 — the bundle path;
+      the other six commands.txt files have the same shape
+    action: decided
+    proposal: no change — the row held as written
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-29T07:45:24Z'
+    claim: >-
+      009's observed.txt pinned the plan's elapsed time (0.03s), and a rerun prints
+      0.02s, so the acceptance loop failed on 009 some runs and passed on others.
+      run.py now drops the trailing time from the audits-failed line, and line 4 of
+      009's observed.txt loses that time and nothing else. So one existing bundle's
+      observed.txt changed, which departs from 'every existing bundle reproduces byte
+      for byte'.
+    evidence: >-
+      comparisons/sqlmesh/run.py:188-190 — the elapsed time is stripped; 009-null-denominator/observed.txt:4
+      is the matching line
+    action: decided
+    proposal: >-
+      ASSUMED — observed.txt records nothing that varies between two runs of the same
+      project (timings, temp paths); run.py normalises such output and a bundle is
+      re-recorded when it did not
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-29T07:45:24Z'
+    claim: >-
+      The contract asks for a query option without saying what it looks like. Chose
+      --query <label>=<sql>, rendered and executed the same way as a named metric,
+      with the SQL passed whole, so a grouped or multi-metric request is visible verbatim
+      in commands.txt.
+    evidence: >-
+      comparisons/sqlmesh/run.py:162 — the --query branch; metric output is unchanged,
+      so the five older bundles still reproduce
+    action: decided
+    proposal: >-
+      ASSUMED — run.py takes a whole METRIC(...) request as --query <label>=<sql>,
+      printed under 'sqlmesh rewrite query:<label>' and 'query <label>'

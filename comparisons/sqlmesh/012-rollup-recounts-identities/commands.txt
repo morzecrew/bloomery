@@ -1,0 +1,7 @@
+uv run python comparisons/sqlmesh/run.py \
+    tests/fixtures/semantic_corpus/012-rollup-recounts-identities \
+    comparisons/sqlmesh/012-rollup-recounts-identities \
+    --query "rolled=SELECT METRIC(buyers_rolled), METRIC(revenue_rolled) FROM __semantic.__table" \
+    --query "detail=SELECT METRIC(buyers), METRIC(revenue) FROM __semantic.__table" \
+    --probe "silver.daily_sales.additive=false" \
+    buyers_rolled buyers

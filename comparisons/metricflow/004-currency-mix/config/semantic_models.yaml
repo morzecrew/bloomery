@@ -1,0 +1,83 @@
+semantic_model:
+  name: payments
+  node_relation:
+    alias: corpus__payments
+    schema_name: bronze
+    relation_name: bronze.corpus__payments
+  entities:
+    - name: payment
+      type: primary
+      expr: payment_id
+  dimensions:
+    - name: paid_at
+      type: time
+      expr: paid_at
+      type_params:
+        time_granularity: day
+  measures:
+    - name: amount_plus_fee
+      agg: sum
+      expr: amount_eur + fee_usd
+      agg_time_dimension: paid_at
+---
+semantic_model:
+  name: payments_converted
+  node_relation:
+    alias: payments_converted
+    schema_name: bronze
+    relation_name: bronze.payments_converted
+  entities:
+    - name: converted_payment
+      type: primary
+      expr: payment_id
+  dimensions:
+    - name: paid_at
+      type: time
+      expr: paid_at
+      type_params:
+        time_granularity: day
+  measures:
+    - name: converted_plus_fee
+      agg: sum
+      expr: amount_usd + fee_usd
+      agg_time_dimension: paid_at
+---
+semantic_model:
+  name: payments_converted_as_jpy
+  node_relation:
+    alias: payments_converted_as_jpy
+    schema_name: bronze
+    relation_name: bronze.payments_converted_as_jpy
+  entities:
+    - name: jpy_converted_payment
+      type: primary
+      expr: payment_id
+  dimensions:
+    - name: paid_at
+      type: time
+      expr: paid_at
+      type_params:
+        time_granularity: day
+  measures:
+    - name: jpy_converted_plus_fee
+      agg: sum
+      expr: amount_usd + fee_usd
+      agg_time_dimension: paid_at
+---
+metric:
+  name: total_usd_mixed
+  type: simple
+  type_params:
+    measure: amount_plus_fee
+---
+metric:
+  name: total_usd_converted
+  type: simple
+  type_params:
+    measure: converted_plus_fee
+---
+metric:
+  name: total_usd_mislabelled
+  type: simple
+  type_params:
+    measure: jpy_converted_plus_fee

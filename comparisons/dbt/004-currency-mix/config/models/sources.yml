@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: bronze
+    schema: bronze
+    tables:
+      - name: corpus__payments
+  # The operator-supplied rate relation, as the case creates it.
+  - name: silver
+    schema: silver
+    tables:
+      - name: fx_rate

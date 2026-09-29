@@ -1,0 +1,4 @@
+name: corpus_007_distinct_users_fanout
+version: "1.0.0"
+profile: corpus
+model-paths: ["models"]

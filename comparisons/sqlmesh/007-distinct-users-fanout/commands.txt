@@ -1,0 +1,6 @@
+uv run python comparisons/sqlmesh/run.py \
+    tests/fixtures/semantic_corpus/007-distinct-users-fanout \
+    comparisons/sqlmesh/007-distinct-users-fanout \
+    --query "active_users_by_day=SELECT session_day, METRIC(active_users) FROM __semantic.__table GROUP BY session_day ORDER BY session_day" \
+    --probe "silver.daily_users.additive=false" \
+    active_users_summed active_users

@@ -1,0 +1,11 @@
+### dbt build
+  Found 6 models, 2 sources, 2 metrics, 500 macros, 2 semantic models
+  Done. PASS=6 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=6
+### dbt compile --select metric:shipping_total
+  Nothing to do. Try checking your model configs and model specification args
+### dbt compile --select metric:shipping_total_wide
+  Nothing to do. Try checking your model configs and model specification args
+### model shipping_total_naive
+  -> [(Decimal('27.0000'),)]
+### model shipping_total_correct
+  -> [(Decimal('9.0000'),)]

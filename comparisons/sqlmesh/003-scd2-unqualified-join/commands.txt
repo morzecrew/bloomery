@@ -1,0 +1,7 @@
+uv run python comparisons/sqlmesh/run.py \
+    tests/fixtures/semantic_corpus/003-scd2-unqualified-join \
+    comparisons/sqlmesh/003-scd2-unqualified-join \
+    --query "revenue_by_tier=SELECT tier, METRIC(revenue) FROM __semantic.__table GROUP BY tier ORDER BY tier" \
+    --query "revenue_by_history_tier=SELECT history_tier, METRIC(revenue) FROM __semantic.__table GROUP BY history_tier ORDER BY history_tier" \
+    --query "revenue_by_tier_as_of=SELECT tier_at_order, METRIC(revenue_as_of) FROM __semantic.__table GROUP BY tier_at_order ORDER BY tier_at_order" \
+    revenue
