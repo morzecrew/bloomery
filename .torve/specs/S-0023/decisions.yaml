@@ -170,7 +170,7 @@ decisions:
     paths:
       - src/bloomery/guardrails/arithmetic.py
       - src/bloomery/emit/lower/predicates.py
-      - tests/golden/path_conflict/sqlmesh/duckdb/audits/item_net_price_reconcile.sql
+      - tests/golden/test_sqlmesh_duckdb.py
       - tests/unit/test_guardrails/test_conflict.py
     consequence: >-
       A row where exactly one of the two paths is NULL counts as a disagreement, and
