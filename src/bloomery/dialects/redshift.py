@@ -260,16 +260,17 @@ def _convert_timezone(at_zone: Expression) -> Expression:
 
 
 def _instant(aware: exp.Cast) -> Expression:
-    """``CAST(CONVERT_TIMEZONE('UTC', CAST(text AS TIMESTAMPTZ)) AS TIMESTAMP)``.
+    """``TIMEZONE('UTC', CAST(text AS TIMESTAMPTZ))`` (S-0081/D-2).
 
-    :meth:`RedshiftDialect.utc_now`'s spelling with the parsed instant in place
-    of the current one: the operand is ``TIMESTAMPTZ`` carrying the text's own
-    zone, so the two-argument form converts from it rather than reading the
-    operand as UTC (S-0081/D-2).
+    Redshift documents ``TIMEZONE(zone, timestamptz)`` as returning the
+    ``TIMESTAMP`` that instant reads in *zone*, which is the zoneless UTC value
+    wanted. ``CONVERT_TIMEZONE`` documents only a ``TIMESTAMP`` operand, so a
+    ``TIMESTAMPTZ`` handed to it goes through an implicit conversion Redshift
+    does not specify — and one through the session zone would land the session
+    wall clock instead of the instant (bloomery #227, CodeRabbit).
     """
 
-    in_utc = exp.Anonymous(this="CONVERT_TIMEZONE", expressions=[exp.Literal.string("UTC"), aware])
-    return exp.cast(in_utc, exp.DataType.build("TIMESTAMP"))
+    return exp.Anonymous(this="TIMEZONE", expressions=[exp.Literal.string("UTC"), aware])
 
 
 # ....................... #

@@ -426,6 +426,17 @@ def test_every_port_spells_the_instant_parse(port: str) -> None:
     assert "'%Z%'" in sql and "'%+%'" in sql
 
 
+def test_redshift_converts_the_parsed_instant_with_timezone() -> None:
+    """`TIMEZONE(zone, timestamptz)` is documented to return the zoneless
+    `TIMESTAMP` the instant reads in *zone*; `CONVERT_TIMEZONE` documents only
+    a `TIMESTAMP` operand (bloomery #227)."""
+    parsed = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("written"), "ISO8601_INSTANT")
+    sql = get_dialect("redshift").render(canon(parsed).ast())
+
+    assert "TIMEZONE('UTC', CAST(" in sql
+    assert "CONVERT_TIMEZONE" not in sql
+
+
 def test_a_port_without_an_instant_spelling_is_refused_by_name() -> None:
     class Plain(SQLGlotDialect):
         name = "plain"

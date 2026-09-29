@@ -1105,7 +1105,15 @@ def _zone_declaration(
             )
             raise ResolutionError(msg, source_path=source_path)
 
-        if zone is not None and zone not in UTC_ZONES:
+        # The declaration is about the value the chain ends with, which is the
+        # instant only when no later parse re-read it as a wall clock.
+        if (
+            zone is not None
+            and zone not in UTC_ZONES
+            and parses[
+                max(at for at, step in enumerate(source.transform) if step.name == "parse_ts")
+            ]
+        ):
             msg = (
                 f"zone_in: {zone!r} on column {column!r}, which parse_ts: "
                 f"{ISO8601_INSTANT} reads as an instant already in UTC. Fix: drop the "

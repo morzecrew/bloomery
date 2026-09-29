@@ -100,11 +100,10 @@ def _readings(entity: EntityIR, column: str) -> tuple[WallClock, ...]:
 
             names = {step.name for step in field.transform}
             # An instant parse is never a wall clock and owes no zone
-            # (S-0081/D-2); only a wall-clock parse does.
-            wall_clock = any(
-                step.name == "parse_ts" and step.args != (ISO8601_INSTANT,)
-                for step in field.transform
-            )
+            # (S-0081/D-2); only a wall-clock parse does. The last parse is
+            # the one that made the value: a parse before it was re-read.
+            parses = [step for step in field.transform if step.name == "parse_ts"]
+            wall_clock = bool(parses) and parses[-1].args != (ISO8601_INSTANT,)
             readings.append(
                 WallClock(
                     relation=source.relation,

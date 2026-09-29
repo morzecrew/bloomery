@@ -374,6 +374,19 @@ def test_to_utc_after_a_later_wall_clock_parse_is_that_parse_s_conversion() -> N
     )
 
 
+def test_a_zone_declared_for_a_later_wall_clock_parse_is_that_parse_s() -> None:
+    """`zone_in:` describes the value the chain ends with; after a later
+    `parse_ts: ISO8601` that is a wall clock, not the instant (bloomery #227)."""
+
+    ir = _build(
+        'booked_at: {from: "$.booked_at", transform: [{parse_ts: ISO8601_INSTANT}, '
+        "to_string, {parse_ts: ISO8601}, {to_utc: America/New_York}], "
+        "zone_in: America/New_York}"
+    )
+
+    assert _zone_of(ir) == "America/New_York"
+
+
 def test_a_non_utc_zone_beside_an_instant_parse_is_refused() -> None:
     with pytest.raises(ResolutionError, match="zone_in: 'Europe/Paris'"):
         _build(
