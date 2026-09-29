@@ -43,7 +43,7 @@ from bloomery.errors import (
 )
 from bloomery.ir import COMPUTED, Additivity, Cardinality, Layer, SqlExpr
 from bloomery.marts import DATE_BUCKETS
-from bloomery.planner.explain import _human_predicate
+from bloomery.planner.explain import human_predicate
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import TimeGrain, clause_predicates
 from bloomery.semantic import Proof, RefusalReason, grain_of, prove_rollup
@@ -1030,7 +1030,7 @@ def _not_on_every_branch(
     )
 
     msg = (
-        f"{kind} `{_human_predicate(restriction, name)}` does not reach every branch: "
+        f"{kind} `{human_predicate(restriction, name)}` does not reach every branch: "
         f"{lacking} cannot apply it.\n"
         f"  {kind} dimension {name!r} is not carried by every mart this request needs:\n"
         f"{listed}\n"

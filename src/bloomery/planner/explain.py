@@ -46,6 +46,7 @@ if TYPE_CHECKING:
 __all__ = [
     "applied_predicates",
     "build",
+    "human_predicate",
 ]
 
 _RATIO_NOTE = "non-additive ratio — recomputed at the requested grain, not summed"
@@ -244,7 +245,7 @@ def _scalar(value: Scalar) -> str:
 # ....................... #
 
 
-def _human_predicate(predicate: Predicate, resolved_name: str) -> str:
+def human_predicate(predicate: Predicate, resolved_name: str) -> str:
     """One predicate as prose in bloomery names (S-0028/explanation-d8 shape,
     vocabulary per S-0032/types-replaces-rfc-0011-d2-s-filterexpr-orderspec)."""
     op = predicate.op
@@ -266,6 +267,9 @@ def _human_predicate(predicate: Predicate, resolved_name: str) -> str:
     return f"{resolved_name} {_SYMBOLS[op]} {_scalar(values[0])}"
 
 
+# The private spelling predates the public one; kept for existing callers.
+_human_predicate = human_predicate
+
 # ....................... #
 
 
@@ -274,7 +278,7 @@ def _human_clause(clause: Clause, resolutions: tuple[ResolvedDimension, ...]) ->
     by parsing rendered SQL (S-0032/D-11); an ``AnyOf`` group joins its
     members with `` OR ``."""
     rendered = tuple(
-        _human_predicate(predicate, resolved.name)
+        human_predicate(predicate, resolved.name)
         for predicate, resolved in zip(clause_predicates(clause), resolutions, strict=True)
     )
     return " OR ".join(rendered)
@@ -438,7 +442,7 @@ def metric_restrictions(name: str, metrics_by_name: Mapping[str, MetricIR]) -> t
     return tuple(
         f"{clause.dimension} {_SYMBOLS[Op(clause.op)]} {clause.column}"
         if clause.column is not None
-        else _human_predicate(
+        else human_predicate(
             Predicate(dimension=clause.dimension, op=Op(clause.op), values=tuple(clause.values)),
             clause.dimension,
         )
