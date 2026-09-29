@@ -356,6 +356,8 @@ questions:
     text: >-
       Exact `StepManifest` Pydantic surface (parameter-bounds grammar, `requires`
       strictness) — implementation settles within §5.2's shape.
+    status: settled
+    settled_by: D-58
   - id: Q-2
     text: >-
       ~~Whether `sql_model` bodies take parameters via Jinja or sqlglot placeholder

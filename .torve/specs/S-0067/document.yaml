@@ -221,6 +221,8 @@ questions:
     text: >-
       Whether partial adoption is allowed within a project, or `check` refuses a project
       where some nodes of a kind carry `id:` and others do not.
+    status: settled
+    settled_by: D-4
   - id: Q-2
     text: >-
       Whether `fingerprint` should have an id-only variant that a rename does not
@@ -232,3 +234,5 @@ questions:
       at node level (D6). The second is what this codebase already does for fields,
       and it is enforceable; the first is what S-0068 and S-0069 want, because an
       id is a key to hang history on and an annotation is not.
+    status: settled
+    settled_by: D-6

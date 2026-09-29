@@ -46,6 +46,20 @@ Cross-document consistency is produced by generating a pool of names the documen
 - Paths: `tests/property/**` `tests/support/**`
 - Consequence: The generator is stateful across a project's documents, so the reach fraction for a set is not the fraction for a single kind and the two are reported separately; a pool that constrains the generated space more than it buys is a departure to log against this row, not a bug
 
+### S-0010/D-7 — `ASSUMED` (Generating from the spec schema)
+
+The generated-document strategy supports what pydantic's `model_json_schema` emits: `$ref` into `$defs`, `anyOf`/`oneOf`, `const`, `enum`, `properties`/`required`, `patternProperties`, `additionalProperties` as a schema, and scalar types with `pattern`, `minimum` and `minItems`; a `type` or a `$ref` outside that subset raises `NotImplementedError`
+
+- Paths: `tests/support/schema_strategies.py` `tests/property/test_schema_agreement.py`
+- Consequence: A new schema type or a `$ref` outside `$defs` in the export fails the property tier loudly, while a new constraint keyword on a known type is ignored rather than refused
+
+### S-0010/D-8 — `ASSUMED` (Generating from the spec schema)
+
+Generated documents are cross-consistent: a project's documents draw their names from one shared pool, because independently drawn documents got past `resolve` 0 times in 200. Single-kind entity-model generation keeps running beside it as the guardrail baseline, reaching a guardrail 14 times in 200
+
+- Paths: `tests/property/test_schema_agreement.py` `tests/support/schema_strategies.py`
+- Consequence: The resolver and every cross-document guardrail are reached only by pooled project draws, so a generator that stops sharing the pool turns `test_independently_drawn_documents_never_get_past_the_resolver` red while the single-kind properties keep passing
+
 ### S-0019/D-4 — `ASSUMED` (Spec layer and error model)
 
 Parse validates shape and grammar only; reference existence (entities, transforms, canonical fields) is deferred to resolve/typecheck. Consequence: a shape-valid spec with dangling references parses fine — callers must run `resolve` to trust it.
@@ -156,5 +170,12 @@ The incremental and first-run bodies are **two pre-rendered SELECTs** chosen by 
 
 - Paths: `src/bloomery/emit/dbt/__init__.py` `tests/e2e/test_dbt_parse.py` `tests/property/test_compile_properties.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0079/D-13 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
+
+A mart dimension's `ref.qualified` equals its `column` for every column `_mart_ir` builds, plain or date bucket, and `test_every_flattened_column_is_a_requestable_dimension` pins it. `_determinations` does not lean on it: it translates each column to its qualified name through the mart's `dimensions`
+
+- Paths: `src/bloomery/marts/flatten.py` `src/bloomery/marts/rollup.py` `tests/unit/test_marts/test_flatten.py` `tests/property/test_metricflow_properties.py`
+- Consequence: A future role that made the two names differ fails the flatten test and the MetricFlow round-trip property rather than silently dropping an R020 proof
 
 <!-- /torve:managed -->

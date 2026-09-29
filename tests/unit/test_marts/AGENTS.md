@@ -8,6 +8,13 @@
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/marts/flatten.py` `src/bloomery/spec/marts.py` `tests/golden/schema/marts.json` `tests/unit/test_marts/test_flatten.py` `tests/unit/test_spec/test_marts.py`
 
+### S-0027/D-10 — `ASSUMED` (Marts and role-playing dimensions)
+
+Every flattened mart column is a requestable dimension: `_mart_ir` builds one `MartDimensionIR` per column, a date bucket keeping its role's `DimensionRef` and a plain attribute getting `DimensionRef(dimension=<column>)`, and nothing narrows the set
+
+- Paths: `src/bloomery/marts/flatten.py` `src/bloomery/ir/nodes.py` `tests/unit/test_marts/test_flatten.py`
+- Consequence: A column that `flatten:` adds to a mart is requestable by every consumer that reads `MartIR.dimensions`, so narrowing a noisy surface is a new decision rather than a filter in one consumer
+
 ### S-0033/D-15 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 A mart's `base` must be a silver entity, never a reject table — a mart over `<entity>__reject` is a compile error. Mart rowcounts legitimately differ from bronze (quarantined rows never reach marts); the conservation audit is what makes the difference explainable.
@@ -45,5 +52,12 @@ A mart whose **`base`** is `scd: type2` is refused on the same account. There is
 The as-of anchor is `as_of:` on the mart's `flatten` `via:` step (`ViaStep.as_of`), naming a date or timestamp column of the base entity. It is required to flatten an `scd: type2` entity; an anchor on a non-historical entity or naming a non-temporal or unknown column is refused as `HistoricalFanout`. It is declared, never inferred.
 
 - Paths: `tests/fixtures/semantic_corpus/003-scd2-unqualified-join/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/003-scd2-unqualified-join/problem.md` `tests/unit/test_marts/test_flatten.py`
+
+### S-0079/D-13 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
+
+A mart dimension's `ref.qualified` equals its `column` for every column `_mart_ir` builds, plain or date bucket, and `test_every_flattened_column_is_a_requestable_dimension` pins it. `_determinations` does not lean on it: it translates each column to its qualified name through the mart's `dimensions`
+
+- Paths: `src/bloomery/marts/flatten.py` `src/bloomery/marts/rollup.py` `tests/unit/test_marts/test_flatten.py` `tests/property/test_metricflow_properties.py`
+- Consequence: A future role that made the two names differ fails the flatten test and the MetricFlow round-trip property rather than silently dropping an R020 proof
 
 <!-- /torve:managed -->

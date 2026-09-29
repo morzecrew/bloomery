@@ -48,6 +48,13 @@ A correction arriving by this route adds a version and closes the previous one; 
 - Paths: `src/bloomery/emit/lower/silver.py` `tools/spikes/rfc0060_dbt.py`
 - Consequence: Measured on both targets by changing an existing row's value in bronze and re-running: each closes the standing version, opens a new one and retains the old. Routing through the framework means taking the framework's answer, so the question is answered by the route rather than chosen
 
+### S-0003/D-11 — `ASSUMED` (Replay on a historical entity)
+
+A type 2 replay re-delivers a reject row to bronze with its own `_source_row_id`, `_load_id` `__replay__` and `utc_now()` as `_ingested_at`; `quarantine:` without `dedupe:`, or with `redact:`, is refused; the generated audits scope to `valid_to IS NULL`; and a reject row resolves only on a version newer than its `last_seen`
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/resolve/build.py` `src/bloomery/dialects/base.py` `src/bloomery/quality/catalogue.py`
+- Consequence: An executor on the remaining phase inherits the reserved load, both refusals, the zoneless clock, the audit scope and the resolution evidence as decisions, and changing one is a row change rather than a refactor
+
 ### S-0019/D-7 — `ASSUMED` (Spec layer and error model)
 
 `materialization` is explicit-with-derived-default (settles original open question #4); the resolved value is IR-recorded and diffable.
@@ -71,6 +78,13 @@ Floats are banned in IR and emission; `Decimal`/int only.
 Path conflict does not raise (`PathConflict` is not an error class): the compiler emits the derived column, a `<name>__direct` shadow, and a `RECONCILE` `AuditIR`. The forbidden thing is the silent choice; both paths are valid, so the refusal targets the silence, not the spec.
 
 - Paths: `src/bloomery/emit/lower/predicates.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/guardrails/conflict.py` `src/bloomery/guardrails/quality.py` `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/mapping.py` `tests/fixtures/path_conflict/entity_model.yaml` `tests/fixtures/path_conflict/mapping.yaml` `tests/unit/test_emit/test_sqlmesh.py` `tests/unit/test_guardrails/test_conflict.py` `tests/unit/test_guardrails/test_quality.py` `tests/unit/test_ir/test_lower.py` `tests/unit/test_spec/test_mapping.py`
+
+### S-0023/D-12 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
+
+Guardrails read the parsed expression with sqlglot's `find_all` over the node types they judge — `arithmetic.py` visits `exp.Add`, `exp.Sub`, `exp.Mul` and `exp.Div` and branches with `isinstance` — rather than a visitor class or a `match` statement. The `RECONCILE` audit selects rows where `<column> IS DISTINCT FROM <column>__direct`
+
+- Paths: `src/bloomery/guardrails/arithmetic.py` `src/bloomery/emit/lower/predicates.py` `tests/golden/path_conflict/sqlmesh/duckdb/audits/item_net_price_reconcile.sql` `tests/unit/test_guardrails/test_conflict.py`
+- Consequence: A row where exactly one of the two paths is NULL counts as a disagreement, and changing the reconcile predicate moves the checked-in `path_conflict` audit goldens
 
 ### S-0025/D-1 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
 
@@ -239,6 +253,13 @@ Replay merge semantics: replay applies the **same dedupe ordering** as the pipel
 **Split by pipeline stage, never by target.** A per-target lowering file would invert S-0025's port design — targets differ in *assembly* and share *lowering* — and would invite precisely the divergence the three-way equivalence tier exists to catch. `emit/lowering.py` becomes `emit/lower/{select,quality,steps,marts,audits}.py` with `__init__.py` as the pipeline and the only module emitters import.
 
 - Paths: `src/bloomery/emit/lower/__init__.py`
+
+### S-0036/D-9 — `ASSUMED` (Lowering decomposition)
+
+Lowering has no `audits` stage: each audit is built beside the relation it guards, entity audits in `silver`, reconcile, coverage and mart-assert audits in `reconcile`, step audits in `emit/steps.py`, over shared predicates in `predicates`. No shared capability check exists; each emitter refuses what it cannot express per construct with `UnsupportedByTarget`
+
+- Paths: `src/bloomery/emit/lower/__init__.py` `src/bloomery/emit/base.py` `src/bloomery/emit/steps.py` `tests/unit/test_import_contracts.py`
+- Consequence: A new audit kind lands in the stage that builds its relation, and a target's refusal message stays specific to that target because nothing generic sits in front of it
 
 ### S-0040/D-4 — `LOCKED` (Temporal joins: SCD2 flattening and currency conversion)
 

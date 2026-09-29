@@ -81,3 +81,25 @@ decisions:
       - src/bloomery/errors.py
       - src/bloomery/resolve/refs.py
       - tests/unit/test_resolve/test_refs.py
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      `Graph` is two sorted tuples — `nodes` by name, `edges` by (src, dst, label)
+      — with no stored adjacency; a consumer such as `order.py` builds its own successor
+      and predecessor maps from `edges`. `validate_references` runs one pass per concern
+      into a shared error list and raises once, as the single failure or a `ResolutionError`
+      aggregate
+    paths:
+      - src/bloomery/resolve/graph.py
+      - src/bloomery/resolve/refs.py
+      - tests/unit/test_resolve/test_graph.py
+      - tests/unit/test_resolve/test_refs.py
+    consequence: >-
+      A new reference check is one more pass appending to the shared list, and a traversal
+      that needs adjacency derives it locally rather than adding an index to `Graph`
+    rationale: >-
+      Settled at implementation: sorted tuples keep the graph a deterministic, comparable
+      value (`test_graph_collections_are_sorted`), and per-concern passes feeding
+      one list still batch across kinds as `test_reference_failures_are_batched_across_kinds`
+      requires
+    cites: [D-1, D-7, S-0020/D-4]

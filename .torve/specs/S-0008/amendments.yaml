@@ -45,3 +45,28 @@ amendments:
       Settled by the implementation:
       - D-6: The justfile states the choice and the reason, and the marker table has no fuzz entry. Evidence: justfile:126-160; .gitignore:257-263; pyproject.toml; .torve/specs/S-0008/execution/T-0008-2-20260919T030230Z.yaml.
       - D-7: Each site was decided separately in T-0008, and both came out the same way. Evidence: src/bloomery/evidence.py; src/bloomery/resolve/steps.py; tests/unit/test_steps/test_lowering.py::test_a_body_too_deep_to_parse_is_a_step_error_not_a_recursion_error; tests/unit/test_evidence.py::test_an_expression_too_deep_for_this_stack_is_not_a_raw_recursion_error.
+  - id: A-2
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-10
+        field: text
+        after: >-
+          One chain is known to turn the stack-position band into an escape: a step
+          body `resolve.steps._parse_body` accepts is re-parsed at emit through `SqlExpr.ast`
+          by `ir.nodes._parse_sql`, which catches nothing, and raises `RecursionError`.
+          It is the `parse_doors` target's deferred open finding, and that target
+          stays out of the pull-request fuzz matrix until fixed
+      - subject: D-11
+        field: text
+        after: >-
+          Neither `resolve/build.py` nor `quality/pattern.py` re-parses a composition
+          of validator-cleared fragments: `_recipe_expr` re-parses a catalog recipe's
+          `SqlText` `expr` alone, unguarded, and splices extractions into its AST
+          without re-rendering, and `_transports_literal` re-parses its own `RegexpLike`
+          render of a string literal inside `except Exception`
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-10 answers Q-1.
+      - D-11 answers Q-2.

@@ -182,3 +182,5 @@ questions:
   - id: Q-1
     text: >-
       None blocking. Exact `_canon_bytes` tag scheme is implementation-free.
+    status: settled
+    settled_by: D-12

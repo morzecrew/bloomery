@@ -228,6 +228,44 @@ decisions:
       that calls it, and the row exists so the choice is decided rather than discovered
     cites: [D-4]
     fingerprint: 69293dc99e6c37c1/ff2768c3e5a9ea33
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      `bloomery_ir_version` 20 absorbs both shape changes: S-0007 added `role_of`
+      to `MartColumnIR` and `MartJoinIR` while the version stayed 19, and this document's
+      19 → 20, which `ProjectIR`'s docstring records for `determines`, is the bump
+      that covers it. `role_of` gets no bump of its own
+    paths: [src/bloomery/ir/nodes.py, tests/unit/test_ir/test_nodes.py]
+    consequence: >-
+      An IR stamped 20 or later carries `role_of`; one stamped 19 may or may not,
+      so an IR serialized between the two landings is the one pair `plan()`'s version
+      check cannot tell apart
+    rationale: >-
+      Settled at implementation: #142 added `role_of` without touching the version
+      and #160 bumped 19 → 20 over that tree, and renumbering now would move every
+      golden fingerprint again under versions 21 to 24, which already build on 20
+    cites: [D-2]
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      A mart dimension's `ref.qualified` equals its `column` for every column `_mart_ir`
+      builds, plain or date bucket, and `test_every_flattened_column_is_a_requestable_dimension`
+      pins it. `_determinations` does not lean on it: it translates each column to
+      its qualified name through the mart's `dimensions`
+    paths:
+      - src/bloomery/marts/flatten.py
+      - src/bloomery/marts/rollup.py
+      - tests/unit/test_marts/test_flatten.py
+      - tests/property/test_metricflow_properties.py
+    consequence: >-
+      A future role that made the two names differ fails the flatten test and the
+      MetricFlow round-trip property rather than silently dropping an R020 proof
+    rationale: >-
+      The question feared a proof silently not made; the build keyed the derivation
+      through `dimensions` instead of assuming the equality, and the equality itself
+      stays pinned where the emitters rely on it, by the unit test and the round-trip
+      property S-0030/D-7 asks for
+    cites: [D-4, S-0030/D-7]
 invariants:
   - id: I-1
     statement: >-

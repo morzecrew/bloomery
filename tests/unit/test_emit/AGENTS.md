@@ -219,6 +219,13 @@ The collision audit reads the **union output, before dedupe**, and groups by **e
 - Paths: `src/bloomery/emit/base.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/steps.py` `tests/unit/test_emit/test_dbt.py` `tests/unit/test_steps/test_dbt_and_cube_emission.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0043/D-11 — `ASSUMED` (The dbt singular-test surface)
+
+The operator contract lives in two places: a comment block at the head of every emitted `dbt_project.yml`, after the generated header, and the operator-contract section of the dbt how-to page. Both carry the `dbt build` sentence of S-0043/D-2 and the `--warn-error` sentence of S-0043/D-3
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `tests/unit/test_emit/test_dbt.py` `pages/docs/how-to/emit-dbt.md`
+- Consequence: Whoever runs an emitted dbt project learns that `dbt run` leaves bloomery's checks unevaluated without opening bloomery's docs, and changing either sentence moves the dbt goldens as well as the page
+
 ### S-0050/D-1 — `LOCKED` (Metrics over time: derived metrics, offsets, cumulative windows, metric filters)
 
 **A derived metric is `expr` over aliased inputs, each input a metric.** `inputs` is a mapping keyed by alias, not a list: the alias is the input's identity because `expr` references it, and a dict makes a duplicate alias unrepresentable rather than a validation. Consequence: `MetricIR` gains a `derived` field and the additivity guard must accept it as a decomposition.
@@ -280,6 +287,13 @@ The replay macro wraps its three statements in an explicit `BEGIN`/`COMMIT`. `ru
 
 - Paths: `src/bloomery/emit/dbt/__init__.py` `tests/e2e/test_dbt_quality.py` `tests/unit/test_emit/test_quality_artifacts.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0061/D-8 — `ASSUMED` (The SQLMesh project file)
+
+The emitted `config.yaml` carries no `model_defaults.cron` and no emitted model sets a `cron`: `model_defaults` holds `dialect` and `start` only. The spec states no schedule, so the project runs at SQLMesh's own default cadence until the caller supplies one
+
+- Paths: `src/bloomery/emit/sqlmesh/__init__.py` `tests/unit/test_emit/test_sqlmesh.py`
+- Consequence: A caller who needs another cadence sets it outside the emitted file, as the gateway already is, and bloomery never asserts a schedule nobody gave it
 
 ### S-0063/D-4 — `LOCKED` (Exposures and downstream consumers)
 

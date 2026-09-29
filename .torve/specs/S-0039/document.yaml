@@ -349,3 +349,5 @@ questions:
       is whether adding a stage is then a breaking change. Leaning: treat `Stage`
       as an open enum in the policy — consumers compare against `COMPLETE` and treat
       everything else as incomplete.
+    status: settled
+    settled_by: D-12

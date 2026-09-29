@@ -2,6 +2,13 @@
 
 ## Decisions governing `src/bloomery/dialects/`
 
+### S-0003/D-11 — `ASSUMED` (Replay on a historical entity)
+
+A type 2 replay re-delivers a reject row to bronze with its own `_source_row_id`, `_load_id` `__replay__` and `utc_now()` as `_ingested_at`; `quarantine:` without `dedupe:`, or with `redact:`, is refused; the generated audits scope to `valid_to IS NULL`; and a reject row resolves only on a version newer than its `last_seen`
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/resolve/build.py` `src/bloomery/dialects/base.py` `src/bloomery/quality/catalogue.py`
+- Consequence: An executor on the remaining phase inherits the reserved load, both refusals, the zoneless clock, the audit scope and the resolution evidence as decisions, and changing one is a row change rather than a refactor
+
 ### S-0011/D-4 — `LOCKED` (Retrieval semantics)
 
 A declared vector dimension requires a new `LogicalType` member, and a vector accepts no transform - its input domain is empty in every transform spec

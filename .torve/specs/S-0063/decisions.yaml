@@ -59,3 +59,22 @@ decisions:
       The metric-only walk is the shortcut that omits exactly the mart-only exposure,
       and an impact report that is confidently incomplete is worse than none.
     paths: [src/bloomery/plan/diff.py, tests/unit/test_plan/test_exposures.py]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      An exposure's `depends_on` keeps two kinds, `metrics` and `marts`, each optional
+      but not both empty. A mart named directly is an edge of its own, so an exposure
+      that reads a mart and names no metric is checked by the guardrails and reached
+      by `plan()`'s `affected_exposures` like any other
+    paths:
+      - src/bloomery/spec/exposures.py
+      - tests/unit/test_plan/test_exposures.py
+      - tests/unit/test_guardrails/test_evidence.py
+    consequence: >-
+      An author lists the mart a dashboard reads directly instead of routing it through
+      a metric, and an impact report cannot omit a consumer that names no metric
+    rationale: >-
+      The metric-only walk omits exactly the mart-only exposure, and `test_a_changed_mart_reaches_the_exposure_that_reads_only_marts`
+      pins `finance_extract`, a consumer that names no metric and that one dependency
+      kind could not express
+    cites: [D-7]

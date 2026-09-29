@@ -28,3 +28,19 @@ amendments:
 
       Settled by the implementation:
       - D-6: Both options assumed a written file; execution found a project holds exactly one EntityModel document, so the question became printing a block to paste. Evidence: src/bloomery/cli/__init__.py; tests/unit/test_cli.py.
+  - id: A-2
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-11
+        field: text
+        after: >-
+          `bloomery import` shares every command's exit contract: `1` when it reads
+          the artifact and refuses it, such as a semantic model it cannot map to an
+          entity; `2` for a usage error, such as a malformed or repeated `--entity`;
+          `0` when it prints a block, and when the project already states every relationship
+          and it prints nothing
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-11 answers Q-2.

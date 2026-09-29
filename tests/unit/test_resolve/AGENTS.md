@@ -63,6 +63,13 @@ All cross-spec reference validation lives here, not parse (S-0019/D-4): mapping 
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/resolve/refs.py` `tests/unit/test_resolve/test_refs.py`
 
+### S-0022/D-8 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
+
+`Graph` is two sorted tuples — `nodes` by name, `edges` by (src, dst, label) — with no stored adjacency; a consumer such as `order.py` builds its own successor and predecessor maps from `edges`. `validate_references` runs one pass per concern into a shared error list and raises once, as the single failure or a `ResolutionError` aggregate
+
+- Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/refs.py` `tests/unit/test_resolve/test_graph.py` `tests/unit/test_resolve/test_refs.py`
+- Consequence: A new reference check is one more pass appending to the shared list, and a traversal that needs adjacency derives it locally rather than adding an index to `Graph`
+
 ### S-0025/D-13 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
 
 (Reverses D6) Bloomery owns the date dimension: one catalog definition emits both the SQLMesh `gold.dim_date` model and the MetricFlow time-spine declaration (S-0030 R1). D6's demand-gate is satisfied — MetricFlow is the demand.

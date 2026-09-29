@@ -61,3 +61,24 @@ decisions:
       - src/bloomery/steps/splice.py
       - src/bloomery/transforms/_builtins.py
       - tests/unit/test_steps/test_splice.py
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      `ArgKind` has four members — `STR`, `INT`, `NUMBER` and `LITERAL` — and `enum_map`'s
+      mapping is neither a kind nor a spec field: `enum_map` is a `variadic` `TransformSpec`
+      with `arg_kinds` `(STR, STR)`, taking a flat from/to list that parse normalizes
+      into the same `TransformStep(name, args)` as every other step
+    paths:
+      - src/bloomery/typing/types.py
+      - src/bloomery/transforms/registry.py
+      - src/bloomery/transforms/_builtins.py
+      - tests/unit/test_transforms/test_builtins.py
+    consequence: >-
+      A transform with structured arguments repeats scalar kinds through `variadic`
+      or earns a new `ArgKind` by amendment, and a second variadic transform turns
+      `test_enum_map_is_the_only_variadic_transform` red
+    rationale: >-
+      Settled at implementation: a flat pair list keeps `TransformStep.args` a tuple
+      of scalars, so parse and typecheck read one shape, and the typechecker refuses
+      a list whose length is not a positive multiple of two (`test_enum_map_requires_pairs`)
+    cites: [D-2]

@@ -117,11 +117,25 @@ A step input's `requires` is a lower bound the compile checks: when the wiring b
 - Paths: `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_lowering.py` `pages/docs/concepts/step-registry.md`
 - Consequence: a step that reads a column its bound relation lacks is refused at compile rather than failing at run time on the engine; a silver table kept outside bloomery still binds, unchecked
 
+### S-0034/D-58 — `ASSUMED` (The step registry: referenced implementations)
+
+A `StepParameter` bounds its value with optional, inclusive `min` and `max`, both `Decimal`. A manifest whose `min` exceeds its `max` is refused at parse; a wired value outside the bounds, or not numeric while a bound is declared, is refused at compile with a `StepError`. The manifest's own `default` is not checked against the bounds
+
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_lowering.py` `tests/unit/test_steps/test_manifest_and_registry.py`
+- Consequence: A platform team states a parameter's range once and every tenant wiring that leaves it is refused before a run, while a default outside the range passes unchecked
+
 ### S-0035/D-3 — `ASSUMED` (Public surface and stability policy)
 
 **`assert_step_contract` is promoted to `bloomery.steps.__all__`** and the generated wrapper's import rewritten to the shallow path. The module path was de-facto public API — imported by bloomery's own artifacts shipped into consumer repositories — with no declaration and no test protecting it. `bloomery.steps.contract` keeps working; this adds a supported path rather than removing an unsupported one. A golden assertion pins the emitted import line.
 
 - Paths: `tests/unit/test_steps/test_emission.py`
+
+### S-0035/D-11 — `ASSUMED` (Public surface and stability policy)
+
+`spec_version: 1` promises a document keeps its meaning, not that it keeps loading. A newly reserved generated-column name, or authored text that is not one SQL expression, may refuse a document that loaded before without a version bump, provided the refusal is binary, reaches only an already-broken document, names the authored address and fix, and appears in `CHANGELOG.md`
+
+- Paths: `pages/docs/reference/stability.md` `src/bloomery/spec/common.py` `tests/unit/test_steps/test_lowering.py`
+- Consequence: Adding a name to `RESERVED_MEMBER_REASONS` ships in a minor with a Changed entry and a reason the refusal quotes, while any change that alters what a loading document means still mints a version
 
 ### S-0041/D-7 — `ASSUMED` (Deterministic union merge)
 

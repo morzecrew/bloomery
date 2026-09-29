@@ -246,3 +246,5 @@ questions:
       `enum_map`'s mapping arg is modeled as a kind or a dedicated spec field, as
       long as parse (S-0019) and this layer agree on the normalized `TransformStep`
       shape.
+    status: settled
+    settled_by: D-8

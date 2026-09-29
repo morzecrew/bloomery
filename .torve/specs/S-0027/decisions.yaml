@@ -117,3 +117,22 @@ decisions:
       - tests/unit/test_fixtures.py
       - tests/unit/test_quality/test_mart.py
       - tests/unit/test_resolve/test_graph.py
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      Every flattened mart column is a requestable dimension: `_mart_ir` builds one
+      `MartDimensionIR` per column, a date bucket keeping its role's `DimensionRef`
+      and a plain attribute getting `DimensionRef(dimension=<column>)`, and nothing
+      narrows the set
+    paths:
+      - src/bloomery/marts/flatten.py
+      - src/bloomery/ir/nodes.py
+      - tests/unit/test_marts/test_flatten.py
+    consequence: >-
+      A column that `flatten:` adds to a mart is requestable by every consumer that
+      reads `MartIR.dimensions`, so narrowing a noisy surface is a new decision rather
+      than a filter in one consumer
+    rationale: >-
+      Settled at implementation: the question's current answer was kept, and `test_every_flattened_column_is_a_requestable_dimension`
+      pins dimensions equal to columns for plain and bucket columns alike
+    cites: [D-5, D-6]

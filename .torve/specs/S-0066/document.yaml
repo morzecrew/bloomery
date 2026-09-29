@@ -271,6 +271,8 @@ questions:
       Per-row makes this a data question rather than a spec one, and the answer is
       probably the existing NULL behaviour plus a quality rule — but it is not settled,
       and P2 is where it must be.
+    status: settled
+    settled_by: D-11
   - id: Q-2
     text: >-
       ~~**Whether `currency_in:` belongs on `RecipeFieldMapping` and `MacroFieldMapping`

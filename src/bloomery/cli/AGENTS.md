@@ -300,4 +300,11 @@ The CLI command takes spec directories positionally, like `plan`. It resolves no
 - Paths: `src/bloomery/cli/__init__.py` `src/bloomery/imports.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0075/D-11 — `ASSUMED` (Mechanical imports and per-relationship provenance)
+
+`bloomery import` shares every command's exit contract: `1` when it reads the artifact and refuses it, such as a semantic model it cannot map to an entity; `2` for a usage error, such as a malformed or repeated `--entity`; `0` when it prints a block, and when the project already states every relationship and it prints nothing
+
+- Paths: `src/bloomery/cli/__init__.py` `tests/unit/test_cli.py`
+- Consequence: A script can tell a wrong artifact from a wrong invocation, and an import that adds nothing reads as success rather than as a refusal to retry
+
 <!-- /torve:managed -->

@@ -451,3 +451,5 @@ questions:
       **Where does the operator-contract sentence live?** It is a property of the
       emitted project, so arguably it belongs *in* the emitted project — a comment
       in `dbt_project.yml` — rather than only in bloomery's docs.
+    status: settled
+    settled_by: D-11

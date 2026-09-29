@@ -166,3 +166,20 @@ decisions:
       time, `FilterTypeMismatch` when it does not parse, `InvalidLiteral` when non-finite,
       **no SQL cast ever emitted**. The §6 non-finite property row now names all eight
       scalar-taking operators.
+  - id: D-16
+    grade: ASSUMED
+    text: >-
+      The planner has no `JsonDict` alias: `parse_filter_json`, `parse_sort_json`
+      and `parse_page_json` take a `Mapping[str, object]`. The clause cap is a keyword
+      argument, `parse_filter_json(payload, *, clause_cap=DEFAULT_CLAUSE_CAP)`, defaulting
+      to the exported module constant `DEFAULT_CLAUSE_CAP = 64`; no planner constructor
+      carries it
+    paths: [src/bloomery/planner/parse.py, tests/unit/test_planner/test_parse.py]
+    consequence: >-
+      A caller that needs a tighter or looser cap passes it per call, and one that
+      passes nothing gets the S-0032/D-4 default without configuring a planner
+    rationale: >-
+      Settled at implementation: a read-only `Mapping` accepts any parsed JSON object
+      and `_require_mapping` guards the boundary, while `test_clause_cap_is_configurable`
+      pins the keyword and the constant keeps the default one reviewable number
+    cites: [D-4, D-10]

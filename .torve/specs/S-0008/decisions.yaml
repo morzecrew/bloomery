@@ -144,3 +144,45 @@ decisions:
       a later replay test over a checked-in corpus could become a real acceptance
       command
     cites: [D-6]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      One chain is known to turn the stack-position band into an escape: a step body
+      `resolve.steps._parse_body` accepts is re-parsed at emit through `SqlExpr.ast`
+      by `ir.nodes._parse_sql`, which catches nothing, and raises `RecursionError`.
+      It is the `parse_doors` target's deferred open finding, and that target stays
+      out of the pull-request fuzz matrix until fixed
+    paths:
+      - src/bloomery/ir/nodes.py
+      - fuzz/fuzz_parse_doors.py
+      - .github/workflows/fuzz.yaml
+      - fuzz/measure_parse_depth.py
+    consequence: >-
+      `_parse_sql` is the one parse site that owes a fix, and until it lands a `parse_doors`
+      crash there reads as the known finding while any other crash is new
+    rationale: >-
+      The target's docstring records a 45-second run reaching `_parse_sql` with a
+      body parsed happily one stage earlier, and `fuzz/measure_parse_depth.py` run
+      on HEAD finds every fixture parse site within 17 frames of the stack, where
+      the accepted nesting stays at 50 levels, the same as at the validator
+    cites: [D-7, S-0009/D-5]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      Neither `resolve/build.py` nor `quality/pattern.py` re-parses a composition
+      of validator-cleared fragments: `_recipe_expr` re-parses a catalog recipe's
+      `SqlText` `expr` alone, unguarded, and splices extractions into its AST without
+      re-rendering, and `_transports_literal` re-parses its own `RegexpLike` render
+      of a string literal inside `except Exception`
+    paths:
+      - src/bloomery/resolve/build.py
+      - src/bloomery/quality/pattern.py
+      - fuzz/fuzz_parse_doors.py
+    consequence: >-
+      The parse-door target's composed shape has no site in these two files, and `_recipe_expr`
+      belongs to its direct shape, where a recipe cleared at load can still meet the
+      stack-position band
+    rationale: >-
+      Read at the source: `_recipe_expr` calls `parse_one(recipe.expr)` and then `transform`s
+      the tree, and `_transports_literal` states that any generator or parser failure
+      is a refusal rather than a crash

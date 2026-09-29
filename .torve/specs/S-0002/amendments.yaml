@@ -55,3 +55,35 @@ amendments:
       form a cycle, and phase 7 makes two projects naming each other one command
       away, which is the arrangement D-4 exists to refuse.
       Phases 7 and 8: the CLI compiles an importing project, and a cycle is refused
+  - id: A-6
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-11
+        field: text
+        after: >-
+          A downstream project reads an imported entity and never extends it: an import
+          names nodes with no field list, a mapping targets only an entity the local
+          model declares, and a local entity of the imported name is refused as an
+          `ImportCollision`, so a field is added upstream and exported from there
+      - subject: D-12
+        field: text
+        after: >-
+          A name two or more upstreams supply under one kind is an `ImportCollision`,
+          as a local-against-imported name is: `_claimed_twice` refuses it once per
+          name, naming every alias that supplies it, and `_bind_imports` binds it
+          from none of them
+      - subject: D-13
+        field: text
+        after: >-
+          The cross-boundary grain refusal belongs to the resolution phase, not the
+          declaration phase: once imported names resolve, `check_grain` reads an imported
+          entity's grain off the upstream's IR and refuses a fan-out across the boundary
+          exactly as within one project, and a grain neither project declares stays
+          unknown
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-11 answers Q-2.
+      - D-12 answers Q-4.
+      - D-13 answers Q-5.

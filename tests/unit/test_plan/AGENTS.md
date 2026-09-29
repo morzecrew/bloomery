@@ -26,6 +26,13 @@ Entity-level `grain`/`key`/`scd`/`materialization` changes are BREAKING at the e
 
 - Paths: `src/bloomery/plan/diff.py` `tests/fixtures/evolution_v5/entity_model.yaml` `tests/unit/test_plan/test_diff.py`
 
+### S-0024/D-9 — `ASSUMED` (Plan: spec diff and change classification)
+
+`Change.subject` is `<kind>:<name>`, the kind one of `entity`, `field`, `metric`, `mart`, `relationship`, `date_dimension`, `quality`, `dedupe`, `quarantine`, `reconcile`, `freshness`, `step` or `rollup`; a `field:` subject names the column alone and `Change.entity` carries its owner. `detail` is fixed wording written in `plan/diff.py`, interpolating only names and values from the two IRs
+
+- Paths: `src/bloomery/plan/model.py` `src/bloomery/plan/diff.py` `tests/unit/test_plan/test_diff.py`
+- Consequence: Plans stay byte-comparable across runs, and a newly diffable kind extends the same `<kind>:<name>` grammar rather than inventing a second subject shape
+
 ### S-0033/D-2 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 `OnFail = flag | quarantine | fail` (v1 — `repair` deferred, decision 17; landed in D87), explicit per rule, never a global default. Deliberately no `drop`: quarantine is drop plus recoverability; deletion happens via retention policy, with a paper trail.
@@ -76,5 +83,12 @@ Change classification needs no new class — but adding a mapping to a single-so
 
 - Paths: `src/bloomery/plan/diff.py` `tests/unit/test_plan/test_exposures.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0063/D-8 — `ASSUMED` (Exposures and downstream consumers)
+
+An exposure's `depends_on` keeps two kinds, `metrics` and `marts`, each optional but not both empty. A mart named directly is an edge of its own, so an exposure that reads a mart and names no metric is checked by the guardrails and reached by `plan()`'s `affected_exposures` like any other
+
+- Paths: `src/bloomery/spec/exposures.py` `tests/unit/test_plan/test_exposures.py` `tests/unit/test_guardrails/test_evidence.py`
+- Consequence: An author lists the mart a dashboard reads directly instead of routing it through a metric, and an impact report cannot omit a consumer that names no metric
 
 <!-- /torve:managed -->

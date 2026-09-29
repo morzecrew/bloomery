@@ -48,3 +48,27 @@ amendments:
       Settled by the implementation:
       - D-7: Decided in T-0062 and cited by the test docstring. No test builds an actual step-produced wall clock; the pinned path is the never-parsed discharge a step output takes. Evidence: src/bloomery/guardrails/zone.py; src/bloomery/semantic/zone.py; tests/unit/test_guardrails/test_zone.py.
       - D-8: The class docstring gives the reason, answering the row's 'can one message name both' question with no. Evidence: src/bloomery/errors.py; src/bloomery/guardrails/zone.py; tests/unit/test_guardrails/test_zone.py.
+  - id: A-2
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-9
+        field: text
+        after: >-
+          R018 decides a comparison against a literal instant over the IR expression:
+          `_pinned_columns` walks a metric's whole `expr` tree for `=`, `!=`, `<`,
+          `<=`, `>`, `>=` or `BETWEEN` whose operands hold an entity column beside
+          a string literal or a literal cast to `TIMESTAMP`; a metric `filter` on
+          an entity column is the same site
+      - subject: D-10
+        field: text
+        after: >-
+          R018 does not reach a timestamp parsed inside a catalog recipe: a recipe
+          fills no transform chain, so the column's empty chain discharges it as never
+          a wall clock and no `zone_in:` is asked of the mapping. `test_a_recipe_that_parses_a_timestamp_is_not_reached_by_r018`
+          pins the hole, so closing it is a deliberate change
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-9 answers Q-2.
+      - D-10 answers Q-4.

@@ -246,3 +246,5 @@ questions:
       None blocking. Implementation is free to settle the internal graph representation
       (adjacency maps vs edge lists) and whether `refs.py` checks run as one pass
       or several, as long as batching semantics and error paths match §5.5.
+    status: settled
+    settled_by: D-8

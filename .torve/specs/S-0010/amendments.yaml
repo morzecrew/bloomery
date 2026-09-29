@@ -49,3 +49,27 @@ amendments:
       Settled by the implementation:
       - D-3: The row's tiebreak was measured (hand-written reached the resolver 111/400, from_schema 37/400), and the dependency was declined. Evidence: tests/support/schema_strategies.py; pyproject.toml; tests/property/test_schema_agreement.py::test_the_measured_reach_of_the_generated_documents; tests/property/test_schema_agreement.py::test_independently_drawn_documents_never_get_past_the_resolver.
       - D-5: The row asked for the obligation to be discharged with whatever was measured, including 'no evidence either way'. The tests record the baseline and the reopening condition. Evidence: tests/property/test_schema_agreement.py; .torve/specs/S-0010/execution/T-0035-1-20260921T172809Z.yaml, T-0036-1-20260921T181347Z.yaml.
+  - id: A-2
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-7
+        field: text
+        after: >-
+          The generated-document strategy supports what pydantic's `model_json_schema`
+          emits: `$ref` into `$defs`, `anyOf`/`oneOf`, `const`, `enum`, `properties`/`required`,
+          `patternProperties`, `additionalProperties` as a schema, and scalar types
+          with `pattern`, `minimum` and `minItems`; a `type` or a `$ref` outside that
+          subset raises `NotImplementedError`
+      - subject: D-8
+        field: text
+        after: >-
+          Generated documents are cross-consistent: a project's documents draw their
+          names from one shared pool, because independently drawn documents got past
+          `resolve` 0 times in 200. Single-kind entity-model generation keeps running
+          beside it as the guardrail baseline, reaching a guardrail 14 times in 200
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-7 answers Q-2.
+      - D-8 answers Q-3.

@@ -307,3 +307,5 @@ questions:
       worried about (`spec ↛ ir`, `ir ↛ resolve`, `resolve ↛ emit`) all hold — the
       last three because the existing `layers` contract has been enforcing them all
       along. The contracts land green.
+    status: settled
+    settled_by: D-9

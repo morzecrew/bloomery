@@ -29,3 +29,18 @@ amendments:
 
       Settled by the implementation:
       - D-5: Execution took the 'no config at all' arm (T-0015 log decision 075); the docstring and the test both call D5 answered. Evidence: src/bloomery/emit/sqlmesh/__init__.py; tests/unit/test_emit/test_sqlmesh.py.
+  - id: A-2
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-8
+        field: text
+        after: >-
+          The emitted `config.yaml` carries no `model_defaults.cron` and no emitted
+          model sets a `cron`: `model_defaults` holds `dialect` and `start` only.
+          The spec states no schedule, so the project runs at SQLMesh's own default
+          cadence until the caller supplies one
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-8 answers Q-2 in part; the question stays open.

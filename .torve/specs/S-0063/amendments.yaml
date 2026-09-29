@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-8
+        field: text
+        after: >-
+          An exposure's `depends_on` keeps two kinds, `metrics` and `marts`, each
+          optional but not both empty. A mart named directly is an edge of its own,
+          so an exposure that reads a mart and names no metric is checked by the guardrails
+          and reached by `plan()`'s `affected_exposures` like any other
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-8 answers Q-2.

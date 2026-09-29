@@ -50,3 +50,19 @@ amendments:
       Settled by the implementation:
       - D-7: The field's comment states the choice and its reason ('Scoped here rather than on Aggregate because this is the node that makes the claim'). Evidence: src/bloomery/semantic/plan.py; src/bloomery/planner/semantic_plan.py; tests/unit/test_semantic/test_plan.py.
       - D-8: The docstring cites S-0071/D-8 and describes the guard as a single precondition rather than a list of exclusions. Evidence: src/bloomery/planner/semantic_plan.py; src/bloomery/planner/result.py; tests/unit/test_semantic/test_plan.py.
+  - id: A-2
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-9
+        field: text
+        after: >-
+          No semantic-corpus case evidences the cumulative shape. R016 is evidenced
+          by plan-level tests: `test_a_cumulative_metric_states_its_window` asserts
+          the `Window` node, its frame and its proof, and `test_the_window_rule_and_the_rollup_refusal_agree`
+          ties R016's terminal half to the rollup lowering's refusal of a `cumulative:`
+          measure
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-9 answers Q-3.

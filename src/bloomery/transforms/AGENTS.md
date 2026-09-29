@@ -40,6 +40,13 @@ Transform builders produce SQLGlot AST only — never string formatting. Dialect
 
 - Paths: `src/bloomery/dialects/base.py` `src/bloomery/steps/splice.py` `src/bloomery/transforms/_builtins.py` `tests/unit/test_steps/test_splice.py`
 
+### S-0021/D-8 — `ASSUMED` (Logical types and the transform registry)
+
+`ArgKind` has four members — `STR`, `INT`, `NUMBER` and `LITERAL` — and `enum_map`'s mapping is neither a kind nor a spec field: `enum_map` is a `variadic` `TransformSpec` with `arg_kinds` `(STR, STR)`, taking a flat from/to list that parse normalizes into the same `TransformStep(name, args)` as every other step
+
+- Paths: `src/bloomery/typing/types.py` `src/bloomery/transforms/registry.py` `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py`
+- Consequence: A transform with structured arguments repeats scalar kinds through `variadic` or earns a new `ArgKind` by amendment, and a second variadic transform turns `test_enum_map_is_the_only_variadic_transform` red
+
 ### S-0025/D-3 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
 
 Capability mismatch behavior is fail-loud: `UnsupportedByTarget` naming entity + feature. Silent degradation is forbidden.
@@ -183,6 +190,13 @@ Arithmetic transforms **narrow their own result** to the type they declare, rath
 
 - Paths: `src/bloomery/guardrails/arithmetic.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/catalog.py` `src/bloomery/transforms/_builtins.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0066/D-11 — `ASSUMED` (Declared input currency for conversion)
+
+Under per-row conversion, a currency code the rate relation has no row for converts the amount to NULL and the row survives. `convert` is declared `nullifies`, so `coercible` does not quarantine the row; an author who wants the miss rejected declares `{rule: not_null}` on the converted field
+
+- Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/transforms/registry.py` `tests/execution/test_currency_convert.py`
+- Consequence: A payment in an unrecognised currency still counts as a row with a NULL amount, and rejecting it is a rule the author writes rather than a default
 
 ### S-0076/D-1 — `LOCKED` (Declared source timezone)
 

@@ -26,3 +26,18 @@ amendments:
       `spec/project.py`. Scope and intent say so now; nothing else moves.
       Phase 1's scope names the advisory where it lives, and the seam the refusal
       needs
+  - id: A-3
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-97
+        field: text
+        after: >-
+          `pattern` is evaluated on every row and never sampled. `PatternRule` takes
+          only `regex`, with extra keys forbidden, and lowers to a per-row `NOT REGEXP_LIKE(column,
+          regex)` violation predicate. Its cost is bounded at parse, by refusing nested
+          unbounded repetition, rather than by reading fewer rows
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-97 answers Q-4.

@@ -313,3 +313,5 @@ questions:
       None blocking. Implementation is free to settle the AST-walk mechanics (visitor
       vs. pattern match on `exp` node types) and the exact `RECONCILE` audit SQL shape,
       as long as messages and batching semantics match this RFC.
+    status: settled
+    settled_by: D-12

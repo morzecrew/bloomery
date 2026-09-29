@@ -25,6 +25,13 @@ An upstream's dbt project name is part of what it exports: `exports.yaml` carrie
 - Paths: `src/bloomery/spec/marts.py` `src/bloomery/ir/nodes.py`
 - Consequence: Existing projects with `flatten: [{date: …, role: …}]` compile unchanged and the general role is additive beside them; departing means absorbing dates into the general vocabulary, which touches every existing project
 
+### S-0008/D-10 — `ASSUMED` (Fuzzing the compile boundary)
+
+One chain is known to turn the stack-position band into an escape: a step body `resolve.steps._parse_body` accepts is re-parsed at emit through `SqlExpr.ast` by `ir.nodes._parse_sql`, which catches nothing, and raises `RecursionError`. It is the `parse_doors` target's deferred open finding, and that target stays out of the pull-request fuzz matrix until fixed
+
+- Paths: `src/bloomery/ir/nodes.py` `fuzz/fuzz_parse_doors.py` `.github/workflows/fuzz.yaml` `fuzz/measure_parse_depth.py`
+- Consequence: `_parse_sql` is the one parse site that owes a fix, and until it lands a `parse_doors` crash there reads as the known finding while any other crash is new
+
 ### S-0011/D-3 — `LOCKED` (Retrieval semantics)
 
 A vector's scalar type is a type name and its dimension an int; no float value enters the IR or any emission path, and this design takes no exemption from the float ban
@@ -90,6 +97,13 @@ Unreachable metrics are IR members (`unreachable` tuple with missing leaves), no
 
 - Paths: `src/bloomery/ir/nodes.py`
 
+### S-0020/D-12 — `ASSUMED` (Intermediate representation and determinism contract)
+
+`_canon_bytes` writes `None` as `N` and a bool as `B0`/`B1`; an enum's value, an `int`, a `str` and a `Decimal` are tagged `E`, `I`, `S`, `D` with an ASCII byte length and `:` before the payload; a tuple is `T<count>:` then its items; a dataclass is `C`, its class name, field count and each named field
+
+- Paths: `src/bloomery/ir/fingerprint.py` `tests/unit/test_ir/test_fingerprint.py`
+- Consequence: Changing a tag or the framing moves every `project_fingerprint` and every emitted artifact header that records one, and a float or any other unlisted type raises `TypeError` rather than encoding
+
 ### S-0022/D-3 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
 
 A canonical field is available iff some mapped field links to it via `canonical:` with a direct mapping or validated recipe. A metric is reachable iff every leaf of its `requires`/`requires_metrics` closure is available; unreachable metrics report the specific missing leaves and are stored in the IR (S-0020/D-6) as product-facing output.
@@ -119,6 +133,13 @@ Path conflict does not raise (`PathConflict` is not an error class): the compile
 Gold is wide pre-joined marts declared in a fifth spec kind (`marts_version: 1`); no query-time joins on the common path. One `MartIR` is read by both the mart builder (SQLMesh, joins at build) and the planner (no joins) — they cannot disagree.
 
 - Paths: `src/bloomery/ir/nodes.py`
+
+### S-0027/D-10 — `ASSUMED` (Marts and role-playing dimensions)
+
+Every flattened mart column is a requestable dimension: `_mart_ir` builds one `MartDimensionIR` per column, a date bucket keeping its role's `DimensionRef` and a plain attribute getting `DimensionRef(dimension=<column>)`, and nothing narrows the set
+
+- Paths: `src/bloomery/marts/flatten.py` `src/bloomery/ir/nodes.py` `tests/unit/test_marts/test_flatten.py`
+- Consequence: A column that `flatten:` adds to a mart is requestable by every consumer that reads `MartIR.dimensions`, so narrowing a noisy surface is a new decision rather than a filter in one consumer
 
 ### S-0028/D-5 — `ASSUMED` (Native planner: MetricRequest → QueryPlan)
 
@@ -371,6 +392,13 @@ A rollup declares its own `grants:` and does not inherit its parent mart's — D
 
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/spec/marts.py`
 
+### S-0062/D-13 — `ASSUMED` (Ownership, classification and grants)
+
+`classification:` is a key on the entity model's `Field`, never on a mapping path. A merged entity's column carries one classification whatever its source paths, and `ColumnIR.classification` carries it unchanged to the guard and the targets
+
+- Paths: `src/bloomery/spec/entity.py` `src/bloomery/ir/nodes.py` `src/bloomery/guardrails/classification.py` `tests/unit/test_classification_guard.py`
+- Consequence: An author classifies a column once, where the field is declared, and two mappings feeding one field cannot give it two classifications
+
 ### S-0063/D-1 — `LOCKED` (Exposures and downstream consumers)
 
 Exposures are **declared**, never discovered. Discovery needs a network and credentials; S-0020 forbids both, and a compiler that reads a BI tool is a different program.
@@ -496,6 +524,13 @@ Whether the mart-namespace determination is also worth carrying onto `MartColumn
 
 - Paths: `src/bloomery/ir/nodes.py`
 - Consequence: Answering it later is additive and costs another version bump; answering it now would store a derived fact against D-4 on the strength of a consumer nobody has written
+
+### S-0079/D-12 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
+
+`bloomery_ir_version` 20 absorbs both shape changes: S-0007 added `role_of` to `MartColumnIR` and `MartJoinIR` while the version stayed 19, and this document's 19 → 20, which `ProjectIR`'s docstring records for `determines`, is the bump that covers it. `role_of` gets no bump of its own
+
+- Paths: `src/bloomery/ir/nodes.py` `tests/unit/test_ir/test_nodes.py`
+- Consequence: An IR stamped 20 or later carries `role_of`; one stamped 19 may or may not, so an IR serialized between the two landings is the one pair `plan()`'s version check cannot tell apart
 
 ## Invariants holding over `src/bloomery/ir/`
 

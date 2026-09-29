@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-14
+        field: text
+        after: >-
+          `MeasureExplanation` carries four strings — `name`, `expr`, `additivity`
+          and `note` — and `Explanation.render()` output is pinned by exact-string
+          assertions in the planner's unit tests, not by golden files under `tests/golden/`
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-14 answers Q-2.

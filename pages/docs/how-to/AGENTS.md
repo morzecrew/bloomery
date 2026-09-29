@@ -14,6 +14,13 @@ Expand/contract is enforced in this stage: dropping/narrowing a field referenced
 
 - Paths: `pages/docs/how-to/add-quality-rules.md` `src/bloomery/compile.py` `src/bloomery/dialects/__init__.py` `src/bloomery/quality/pattern.py` `tests/unit/test_compile.py` `tests/unit/test_dialects/test_base.py` `tests/unit/test_guardrails/test_quality.py` `tests/unit/test_quality/test_edges.py`
 
+### S-0043/D-11 — `ASSUMED` (The dbt singular-test surface)
+
+The operator contract lives in two places: a comment block at the head of every emitted `dbt_project.yml`, after the generated header, and the operator-contract section of the dbt how-to page. Both carry the `dbt build` sentence of S-0043/D-2 and the `--warn-error` sentence of S-0043/D-3
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `tests/unit/test_emit/test_dbt.py` `pages/docs/how-to/emit-dbt.md`
+- Consequence: Whoever runs an emitted dbt project learns that `dbt run` leaves bloomery's checks unevaluated without opening bloomery's docs, and changing either sentence moves the dbt goldens as well as the page
+
 ### S-0062/D-10 — `LOCKED` (Ownership, classification and grants)
 
 `secret` on a column a **published relation** carries is a refusal — a mart or a rollup, unconditionally. A published relation is the thing `secret` says this column is not part of, so the two statements cannot both hold. Independent of redaction, and of whether anything is granted.
@@ -34,5 +41,12 @@ An exposure naming an undeclared metric or mart is refused. An exposure pointing
 
 - Paths: `pages/docs/how-to/declare-an-exposure.md` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/errors.py` `src/bloomery/guardrails/exposures.py` `src/bloomery/guardrails/stage.py` `src/bloomery/resolve/graph.py` `tests/unit/test_guardrails/test_exposures.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0073/D-7 — `ASSUMED` (Caller-assembled spec history)
+
+Comparing two instants is the how-to's framing, not `plan()`'s: the Compare section of `reproduce-a-past-artifact-set.md` says `plan()` takes two IRs and does not care where either came from, and `plan()`'s docstring states only the diff contract
+
+- Paths: `pages/docs/how-to/reproduce-a-past-artifact-set.md` `src/bloomery/plan/diff.py`
+- Consequence: A reader of the API reference learns what `plan()` diffs, and a reader arriving with an incident learns from the how-to that two historical compiles need nothing beyond it
 
 <!-- /torve:managed -->

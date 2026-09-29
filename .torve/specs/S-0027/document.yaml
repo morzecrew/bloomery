@@ -217,3 +217,5 @@ questions:
       requestable dimensions automatically (current answer: yes — every flattened
       column is a dimension; the planner filters to what requests actually name).
       Implementation may narrow this if the surface proves noisy.
+    status: settled
+    settled_by: D-10

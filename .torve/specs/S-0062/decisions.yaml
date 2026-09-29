@@ -124,3 +124,24 @@ decisions:
       - src/bloomery/emit/dbt/__init__.py
       - src/bloomery/ir/nodes.py
       - src/bloomery/spec/marts.py
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      `classification:` is a key on the entity model's `Field`, never on a mapping
+      path. A merged entity's column carries one classification whatever its source
+      paths, and `ColumnIR.classification` carries it unchanged to the guard and the
+      targets
+    paths:
+      - src/bloomery/spec/entity.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/guardrails/classification.py
+      - tests/unit/test_classification_guard.py
+    consequence: >-
+      An author classifies a column once, where the field is declared, and two mappings
+      feeding one field cannot give it two classifications
+    rationale: >-
+      Once classification composed with `grants` rather than `redact:`, nothing needed
+      the path `redact:` keys on: the guard's docstring says `redact:` governs a reject
+      row, classification governs a published column, and an entity is where a classified
+      column is declared
+    cites: [D-9, D-10]

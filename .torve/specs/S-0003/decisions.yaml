@@ -129,4 +129,26 @@ decisions:
       Carried from row 10 of rfcs/0060-replay-on-a-historical-entity.md, which grades
       it ASSUMED: a project may re-enable restatement or full-refresh a snapshot by
       hand, so the claim is about this route and not about what an operator can do
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      A type 2 replay re-delivers a reject row to bronze with its own `_source_row_id`,
+      `_load_id` `__replay__` and `utc_now()` as `_ingested_at`; `quarantine:` without
+      `dedupe:`, or with `redact:`, is refused; the generated audits scope to `valid_to
+      IS NULL`; and a reject row resolves only on a version newer than its `last_seen`
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/dialects/base.py
+      - src/bloomery/quality/catalogue.py
+    consequence: >-
+      An executor on the remaining phase inherits the reserved load, both refusals,
+      the zoneless clock, the audit scope and the resolution evidence as decisions,
+      and changing one is a row change rather than a refactor
+    rationale: >-
+      The T-0064 log proposed all five as ASSUMED and each is pinned by a reproduction
+      the docstrings record: a second correct delivery failed the dbt identity and
+      conservation audits before `_current_version`, and plain membership drained
+      a reject row before the framework had versioned it (PR #128)
+    cites: [D-2, D-7]
 retired: [D-5, D-6]

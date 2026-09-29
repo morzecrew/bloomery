@@ -36,6 +36,13 @@ Unknown transform name → `UnknownTransformError` naming the closest match, com
 
 - Paths: `src/bloomery/typing/check.py`
 
+### S-0021/D-8 — `ASSUMED` (Logical types and the transform registry)
+
+`ArgKind` has four members — `STR`, `INT`, `NUMBER` and `LITERAL` — and `enum_map`'s mapping is neither a kind nor a spec field: `enum_map` is a `variadic` `TransformSpec` with `arg_kinds` `(STR, STR)`, taking a flat from/to list that parse normalizes into the same `TransformStep(name, args)` as every other step
+
+- Paths: `src/bloomery/typing/types.py` `src/bloomery/transforms/registry.py` `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py`
+- Consequence: A transform with structured arguments repeats scalar kinds through `variadic` or earns a new `ArgKind` by amendment, and a second variadic transform turns `test_enum_map_is_the_only_variadic_transform` red
+
 ### S-0076/D-1 — `LOCKED` (Declared source timezone)
 
 **A zone is declared, never inferred.** Not from the column name, not from a project default, not from the values. An inferred zone is indistinguishable from a declared one once written down, and the failure it produces is a five-hour shift with full compiler blessing. Locked because every cheaper alternative is a way of making the wrong answer easier to reach than today.

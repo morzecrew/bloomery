@@ -16,6 +16,20 @@ Cross-document consistency is produced by generating a pool of names the documen
 - Paths: `tests/property/**` `tests/support/**`
 - Consequence: The generator is stateful across a project's documents, so the reach fraction for a set is not the fraction for a single kind and the two are reported separately; a pool that constrains the generated space more than it buys is a departure to log against this row, not a bug
 
+### S-0010/D-7 — `ASSUMED` (Generating from the spec schema)
+
+The generated-document strategy supports what pydantic's `model_json_schema` emits: `$ref` into `$defs`, `anyOf`/`oneOf`, `const`, `enum`, `properties`/`required`, `patternProperties`, `additionalProperties` as a schema, and scalar types with `pattern`, `minimum` and `minItems`; a `type` or a `$ref` outside that subset raises `NotImplementedError`
+
+- Paths: `tests/support/schema_strategies.py` `tests/property/test_schema_agreement.py`
+- Consequence: A new schema type or a `$ref` outside `$defs` in the export fails the property tier loudly, while a new constraint keyword on a known type is ignored rather than refused
+
+### S-0010/D-8 — `ASSUMED` (Generating from the spec schema)
+
+Generated documents are cross-consistent: a project's documents draw their names from one shared pool, because independently drawn documents got past `resolve` 0 times in 200. Single-kind entity-model generation keeps running beside it as the guardrail baseline, reaching a guardrail 14 times in 200
+
+- Paths: `tests/property/test_schema_agreement.py` `tests/support/schema_strategies.py`
+- Consequence: The resolver and every cross-document guardrail are reached only by pooled project draws, so a generator that stops sharing the pool turns `test_independently_drawn_documents_never_get_past_the_resolver` red while the single-kind properties keep passing
+
 ### S-0012/D-1 — `LOCKED` (Validating a dialect port against an engine we cannot run)
 
 An emulator, a surrogate engine or a compatible-wire shim is evidence, never the oracle: the real engine's own compiler is the dialect oracle, and no rung below the authoritative ones may be quoted as engine conformance

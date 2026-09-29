@@ -79,3 +79,44 @@ decisions:
       refusal: that one refuses a conversion and this one refuses a consumption, and
       the repair names `zone_in:` or `to_utc` rather than a currency.
     fingerprint: 8c3b75d8da0e0a44/202c11f3690cefb1
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      R018 decides a comparison against a literal instant over the IR expression:
+      `_pinned_columns` walks a metric's whole `expr` tree for `=`, `!=`, `<`, `<=`,
+      `>`, `>=` or `BETWEEN` whose operands hold an entity column beside a string
+      literal or a literal cast to `TIMESTAMP`; a metric `filter` on an entity column
+      is the same site
+    paths:
+      - src/bloomery/guardrails/zone.py
+      - tests/unit/test_guardrails/test_zone.py
+      - tests/fixtures/semantic_corpus/011-timezone-boundary/**
+    consequence: >-
+      The rule's surface is the one the design claims, corpus case 011's zoneless
+      arm is refused with `UndeclaredZone` at its comparison, and two columns compared
+      with each other never fire
+    rationale: >-
+      The `zone.py` docstrings record the two choices that make the walk reliable:
+      the whole tree, because case 011's comparison sits two levels inside a `CASE`,
+      and a column looked for inside each operand, because a cast column compared
+      to a literal is the same bug (PR #126)
+    cites: [D-5]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      R018 does not reach a timestamp parsed inside a catalog recipe: a recipe fills
+      no transform chain, so the column's empty chain discharges it as never a wall
+      clock and no `zone_in:` is asked of the mapping. `test_a_recipe_that_parses_a_timestamp_is_not_reached_by_r018`
+      pins the hole, so closing it is a deliberate change
+    paths:
+      - src/bloomery/guardrails/zone.py
+      - tests/unit/test_guardrails/test_zone.py
+    consequence: >-
+      A project whose recipe casts wall-clock text to a timestamp compiles without
+      a zone refusal, and whoever closes the hole needs a declaration site on the
+      catalog side first
+    rationale: >-
+      The test's docstring records the choice: the parse lives in the catalog, where
+      there is no `zone_in:` to write, and refusing it would be a refusal no author
+      could satisfy
+    cites: [D-7]

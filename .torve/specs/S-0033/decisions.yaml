@@ -1731,3 +1731,24 @@ decisions:
       is the overlap analysis rejected below. **The gap, recorded rather than papered
       over:** alternation overlap. `^(?:a
     paths: [src/bloomery/spec/quality.py, tests/unit/test_spec/test_quality.py]
+  - id: D-97
+    grade: ASSUMED
+    text: >-
+      `pattern` is evaluated on every row and never sampled. `PatternRule` takes only
+      `regex`, with extra keys forbidden, and lowers to a per-row `NOT REGEXP_LIKE(column,
+      regex)` violation predicate. Its cost is bounded at parse, by refusing nested
+      unbounded repetition, rather than by reading fewer rows
+    paths:
+      - src/bloomery/spec/quality.py
+      - src/bloomery/quality/predicates.py
+      - tests/execution/test_pattern_anchoring.py
+    consequence: >-
+      A `pattern` result on a huge partition is exact, like every other rule's, and
+      an author worried about its cost writes a cheaper regex rather than asking for
+      a sample
+    rationale: >-
+      Settled at implementation: `PatternRule` was built with no sampling parameter,
+      which keeps the lean the question states (a probabilistic result in an otherwise
+      exact system is the reason S-0033/D-5 rejects sampling for `unique`), and S-0033/D-96
+      answers the cost concern in the spec instead
+    cites: [D-5, D-96]

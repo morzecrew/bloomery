@@ -24,3 +24,18 @@ amendments:
       - D-10 is answered by S-0042/D-23: D-23 states the 0.1-versus-1.0 split: spec YAML and artifacts bind fully now; the Python API binds as 'never silent' now and 'never outside a major' at 1.0.
       - D-11 is answered by S-0042/D-17: D-17 answers it: the completeness trigger is admonition blocks (`!!! warning` / `!!! danger`), with the stated limit that plain prose is not caught.
       - D-12 is answered by S-0042/D-18: D-18 answers it: `tests/bench/test_hydration.py` pins fixture, cold/warm, repetitions, statistic and ceiling.
+  - id: A-2
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-27
+        field: text
+        after: >-
+          The first published release is `0.1.0`, tagged `v0.1.0` with its `CHANGELOG.md`
+          section, not a `0.0.x`. Releases continue the `0.` series under the below-1.0
+          promise S-0042/D-23 states, and the version is derived from the tag, never
+          written by hand
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-27 answers Q-2.

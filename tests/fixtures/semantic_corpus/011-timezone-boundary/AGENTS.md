@@ -22,4 +22,11 @@
 - Paths: `src/bloomery/semantic/denomination.py` `src/bloomery/spec/mapping.py` `src/bloomery/transforms/_builtins.py` `src/bloomery/typing/types.py` `tests/fixtures/semantic_corpus/011-timezone-boundary/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0076/D-9 — `ASSUMED` (Declared source timezone)
+
+R018 decides a comparison against a literal instant over the IR expression: `_pinned_columns` walks a metric's whole `expr` tree for `=`, `!=`, `<`, `<=`, `>`, `>=` or `BETWEEN` whose operands hold an entity column beside a string literal or a literal cast to `TIMESTAMP`; a metric `filter` on an entity column is the same site
+
+- Paths: `src/bloomery/guardrails/zone.py` `tests/unit/test_guardrails/test_zone.py` `tests/fixtures/semantic_corpus/011-timezone-boundary/**`
+- Consequence: The rule's surface is the one the design claims, corpus case 011's zoneless arm is refused with `UndeclaredZone` at its comparison, and two columns compared with each other never fire
+
 <!-- /torve:managed -->

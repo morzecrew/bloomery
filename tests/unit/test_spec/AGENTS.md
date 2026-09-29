@@ -192,6 +192,13 @@ The FX rate relation declares **both** interval ends (`valid_from` and `valid_to
 - Paths: `tests/unit/test_spec/test_quality.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0064/D-11 — `ASSUMED` (Declared source freshness)
+
+`freshness:` is a key at a mapping document's root, beside the `source:` it thresholds (`Mapping.freshness`); the catalog carries none. No spec model has §5.1's `sources:` list, so the block sits where the mapping names the relation it reads
+
+- Paths: `src/bloomery/spec/mapping.py` `src/bloomery/spec/catalog.py` `tests/unit/test_spec/test_mapping.py`
+- Consequence: An author declares a threshold in the mapping that reads the relation, and two mappings of one relation reconcile by the cross-mapping rules rather than through one catalog entry
+
 ### S-0067/D-2 — `LOCKED` (Stable node identity across renames)
 
 The id is opaque. Compared for equality, never parsed, never used to derive a path, a relation name or an ordering.

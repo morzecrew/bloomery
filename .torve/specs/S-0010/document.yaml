@@ -318,9 +318,13 @@ questions:
       How much of the emitted JSON Schema vocabulary needs support? The schemas are
       generated from Pydantic models, so the vocabulary is closed — but nobody has
       enumerated it. Enumerating it decides D-3 outright, and is about an hour's work.
+    status: settled
+    settled_by: D-7
   - id: Q-3
     text: >-
       Do generated documents need to be cross-consistent at all, or does one kind
       at a time reach the guardrails often enough to be worth running? Phase 1's reach
       fraction on a single document answers it before phase 2 pays for the shared
       pool.
+    status: settled
+    settled_by: D-8

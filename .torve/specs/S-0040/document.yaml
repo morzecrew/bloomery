@@ -398,6 +398,8 @@ questions:
       the relationship? §5.3 proposes the flatten entry because that is the join being
       qualified; a mart-level default would be less repetitive and more ambiguous
       with two historical dimensions.
+    status: settled
+    settled_by: D-8
   - id: Q-3
     text: >-
       **Should `convert` be removed from the transform whitelist entirely** rather

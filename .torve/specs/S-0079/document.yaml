@@ -430,6 +430,8 @@ questions:
       Nothing in the corpus licenses a shape change without a bump. Either this document's
       19 → 20 absorbs both shape changes, or S-0007's landing owes its own bump first
       and this one is 20 → 21. The owner decides; the design is unchanged either way.
+    status: settled
+    settled_by: D-12
   - id: Q-2
     text: >-
       Whether the catalog's canonical field ever carries a determination, and whether
@@ -438,6 +440,8 @@ questions:
       assumes the entity model is the only home and adds no catalog-side field. Closing
       D-6 by amendment would settle this, and the answer changes what `_column_ir`
       reads.
+    status: settled
+    settled_by: S-0007/D-6
   - id: Q-3
     text: >-
       Whether `ref.qualified == column.name` may be relied on. The derivation keys
@@ -447,6 +451,8 @@ questions:
       differ, this derivation keys on the wrong name and the failure is a proof silently
       not made. The owner says whether that equality is a standing fact worth a row
       of its own.
+    status: settled
+    settled_by: D-13
   - id: Q-4
     text: >-
       Whether a determination between columns of two different entities should ever
