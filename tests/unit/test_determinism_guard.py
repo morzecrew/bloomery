@@ -244,17 +244,25 @@ for name in ("semi_additive_inventory", "dirty_corpus", "quality_precedence"):
 """
 
 
+def _env(seed: str) -> dict[str, str]:
+    """A child environment built from nothing, so no inherited variable can move
+    the output — except the few Windows needs to find a home directory, which
+    `sqlmesh` asks for at import."""
+    return {
+        **{name: os.environ[name] for name in ("SYSTEMROOT", "USERPROFILE") if name in os.environ},
+        "PYTHONHASHSEED": seed,
+        "PYTHONPATH": os.pathsep.join((str(REPO_ROOT / "src"), str(REPO_ROOT / "tests"))),
+        "PYTHONIOENCODING": "utf-8",
+    }
+
+
 def run_with_hash_seed(seed: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-c", SCRIPT, str(FIXTURE_DIR)],
         capture_output=True,
         encoding="utf-8",
         check=False,
-        env={
-            "PYTHONHASHSEED": seed,
-            "PYTHONPATH": os.pathsep.join((str(REPO_ROOT / "src"), str(REPO_ROOT / "tests"))),
-            "PYTHONIOENCODING": "utf-8",
-        },
+        env=_env(seed),
         cwd=REPO_ROOT,
     )
 
@@ -315,11 +323,7 @@ def _run_listening(state: str, *, seed: str = "0") -> subprocess.CompletedProces
         capture_output=True,
         encoding="utf-8",
         check=False,
-        env={
-            "PYTHONPATH": os.pathsep.join((str(REPO_ROOT / "src"), str(REPO_ROOT / "tests"))),
-            "PYTHONIOENCODING": "utf-8",
-            "PYTHONHASHSEED": seed,
-        },
+        env=_env(seed),
         cwd=REPO_ROOT,
     )
 
@@ -330,11 +334,7 @@ def _run_framework(state: str, *, seed: str = "0") -> subprocess.CompletedProces
         capture_output=True,
         encoding="utf-8",
         check=False,
-        env={
-            "PYTHONPATH": os.pathsep.join((str(REPO_ROOT / "src"), str(REPO_ROOT / "tests"))),
-            "PYTHONIOENCODING": "utf-8",
-            "PYTHONHASHSEED": seed,
-        },
+        env=_env(seed),
         cwd=REPO_ROOT,
     )
 
