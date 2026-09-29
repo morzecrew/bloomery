@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0200
+phase: 4
+base: 0fee76a882b70763c56be9c0046a8f96965cb0e0
+commit: 220004145dd2122eace96428cb0fc2adca7c2d48
+at: '2026-09-29T10:03:58Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-29T09:57:54Z'
+    claim: >-
+      derived metrics with disagreeing input restrictions are refused on both paths;
+      the check lives in planner/coverage.py (_covering_mart for single-mart, resolve_branches
+      before composing) rather than compose.py, because compose.py renders SQL after
+      the request is accepted and a refusal belongs to the precheck
+    evidence: >-
+      src/bloomery/planner/coverage.py:1271 — _one_row_set, called from _covering_mart
+      and resolve_branches; src/bloomery/semantic/additivity.py:742 is prove_derived_rows
+    action: decided
+  - decision: S-0005/D-2
+    grade: LOCKED
+    at: '2026-09-29T09:57:54Z'
+    claim: >-
+      the new entry point returns a Proof or Refutation, never a boolean; the planner
+      reads the refutation's obligation for its message
+    evidence: >-
+      src/bloomery/semantic/additivity.py:742 — prove_derived_rows returns Proof |
+      Refutation
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-29T09:57:54Z'
+    claim: >-
+      the contract names the reason code but not the exception class; the planner
+      raises errors.RatioOperandsDisagree, the class R019's operands_disagree already
+      reaches authors as, rather than a PlannerError subclass without a reason code
+    evidence: >-
+      src/bloomery/planner/coverage.py:1304 — raise RatioOperandsDisagree(msg)
+    action: decided
+    proposal: >-
+      ASSUMED — a derived metric refused at plan time for disagreeing inputs raises
+      RatioOperandsDisagree (a GuardrailError), not a PlannerError
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-29T09:57:54Z'
+    claim: >-
+      each input is compared by its own filter only; a derived input that is itself
+      derived is checked on its own inputs, not flattened into an effective restriction
+      for the outer comparison
+    evidence: >-
+      src/bloomery/semantic/additivity.py:742 — prove_derived_rows compares _restriction
+      of direct inputs
+    action: decided
+    proposal: >-
+      ASSUMED — a derived metric's restriction for R019 purposes is its own filter;
+      nested restrictions are not propagated
