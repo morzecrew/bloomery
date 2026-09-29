@@ -116,7 +116,7 @@ def read_entry(entry: Entry) -> tuple[dict[str, str], str | None]:
             if path.name != CATALOG
         }
         catalog_path = directory / CATALOG
-        catalog = catalog_path.read_text() if catalog_path.exists() else None
+        catalog = catalog_path.read_text(encoding="utf-8") if catalog_path.exists() else None
         return sources, catalog
 
     # A blob is raw fuzzer bytes. The slot it replaces is the trailing byte,
@@ -127,11 +127,11 @@ def read_entry(entry: Entry) -> tuple[dict[str, str], str | None]:
     # document the blob displaces matters less than that both agree on it.
     data = Path(entry.path).read_bytes()
     sources = {
-        path.stem: path.read_text()
+        path.stem: path.read_text(encoding="utf-8")
         for path in sorted(FUZZ_FIXTURES.glob("*.yaml"))
         if path.name != CATALOG
     }
-    catalog = (FUZZ_FIXTURES / CATALOG).read_text()
+    catalog = (FUZZ_FIXTURES / CATALOG).read_text(encoding="utf-8")
     slots = sorted([*sources, Path(CATALOG).stem])
     slot = slots[data[-1] % len(slots)] if data else slots[0]
     document = data[:-1].decode("utf-8", "replace")

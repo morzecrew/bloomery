@@ -87,7 +87,7 @@ def _project(*, widened: bool, blocking: bool = False) -> tuple[Project, Project
             _ENTITY_TAIL, _ENTITY_TAIL_PLUS_BLOCKING
         )
     project = load_project(sources)
-    catalog = load_catalog((FIXTURES / FIXTURE / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / FIXTURE / "catalog.yaml").read_text(encoding="utf-8"))
     return project, build_project_ir(project, catalog)
 
 
@@ -193,7 +193,7 @@ def test_plan_sees_a_widening_that_only_adds_a_spelling() -> None:
         NARROW, NARROW.replace("refunded, refunded]", "refunded, refunded, PAID, paid]")
     )
     spelled = load_project(sources)
-    new = build_project_ir(spelled, load_catalog((FIXTURES / FIXTURE / "catalog.yaml").read_text()))
+    new = build_project_ir(spelled, load_catalog((FIXTURES / FIXTURE / "catalog.yaml").read_text(encoding="utf-8")))
     result = plan(old, new)
     assert result.has_changes
     assert ENTITY in result.backfill_scope.entities

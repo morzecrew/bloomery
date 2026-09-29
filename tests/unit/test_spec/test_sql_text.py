@@ -256,7 +256,7 @@ def test_every_expression_the_corpus_owns_is_a_scalar_expression() -> None:
     """
     authored = set()
     for path in (FIXTURES).rglob("*.yaml"):
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         authored.update(re.findall(r'expr:\s*"([^"]+)"', text))
         authored.update(re.findall(r"expr:\s*'([^']+)'", text))
 

@@ -43,14 +43,14 @@ def registry() -> StepRegistry:
     """
     manifests = {}
     for path in sorted((HERE / "step_manifests").glob("*.yaml")):
-        manifest = StepManifest.model_validate(yaml.safe_load(path.read_text()))
+        manifest = StepManifest.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
         manifests[manifest.ref, manifest.version] = manifest
     return StepRegistry(manifests)
 
 
 def main() -> None:
     project = load_project(
-        {path.name: path.read_text() for path in sorted(HERE.glob("*.yaml"))}
+        {path.name: path.read_text(encoding="utf-8") for path in sorted(HERE.glob("*.yaml"))}
     )
     steps = registry()
 
@@ -59,13 +59,13 @@ def main() -> None:
     ):
         destination = OUT / artifact.path
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(artifact.content)
+        destination.write_text(artifact.content, encoding="utf-8")
         print(f"wrote {destination.relative_to(HERE)}")
 
     # What a runtime reads. Printed rather than only written, because the shape
     # is the example: profile -> relation, space, lexical side, fusion method,
     # filterable columns, projection.
-    manifest = json.loads((OUT / "retrieval_manifest.json").read_text())
+    manifest = json.loads((OUT / "retrieval_manifest.json").read_text(encoding="utf-8"))
     print("\n-- retrieval_manifest.json --")
     for name, profile in sorted(manifest["profiles"].items()):
         relation = profile["relation"]

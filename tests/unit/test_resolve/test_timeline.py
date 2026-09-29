@@ -242,7 +242,7 @@ def test_minting_a_catalog_id_alone_is_not_a_definition_change_either() -> None:
     rather than argued, because the blanking is one keyword and invisible.
     """
     project, _ = load_fixture("ecom_basic")
-    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")
     minted = text.replace("  unit_price:\n", "  unit_price:\n    id: cf_9b2e14\n", 1)
     assert minted != text, "the edit the rest of this test rests on"
 
@@ -620,7 +620,7 @@ def test_a_catalog_field_is_compared_by_the_only_record_of_one_there_is() -> Non
     only as `ColumnIR.canonical`, a string reference — so the catalog's own
     model is what gets compared."""
     project, _ = load_fixture("ecom_basic")
-    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")
     widened = text.replace("type: decimal(12,4)", "type: decimal(14,4)", 1)
     assert widened != text, "the edit the rest of this test rests on"
 
@@ -679,7 +679,7 @@ def test_an_unreachable_metric_is_compared_coarsely_and_that_is_stated() -> None
     waiting for — it becoming reachable — is not.
     """
     project, catalog = load_fixture("ecom_basic")
-    text = (FIXTURES / "ecom_basic" / "metrics.yaml").read_text()
+    text = (FIXTURES / "ecom_basic" / "metrics.yaml").read_text(encoding="utf-8")
     edited = text.replace('expr: "unit_price - cogs"', 'expr: "unit_price - cogs - 1"', 1)
     assert edited != text, "the edit the rest of this test rests on"
     moved = load_project({**fixture_sources("ecom_basic"), "metrics": edited})
@@ -700,7 +700,7 @@ def test_a_template_moving_moves_every_metric_built_from_it() -> None:
     the authored spec would report nothing at all.
     """
     project, _ = load_fixture("ecom_basic")
-    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")
     edited = text.replace('expr: "unit_price * quantity"', 'expr: "unit_price * quantity * 2"', 1)
     assert edited != text, "the edit the rest of this test rests on"
 
@@ -999,7 +999,7 @@ def _moved_template() -> str:
     that changes no meaning, so the test is about the sinks and not about
     whether a guardrail lets the edit through."""
 
-    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")
     moved = text.replace('expr: "unit_price * quantity"', 'expr: "quantity * unit_price"', 1)
     assert moved != text, "the catalog no longer spells the expression this test edits"
     return moved
@@ -1016,7 +1016,7 @@ def test_a_change_names_the_exposures_and_marts_it_reaches() -> None:
     """
 
     project = load_project(fixture_sources("ecom_basic"))
-    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")
     history = [
         SpecVersion(label="mar", project=project, catalog=load_catalog(text)),
         SpecVersion(label="apr", project=project, catalog=load_catalog(_moved_template())),
@@ -1085,7 +1085,7 @@ def test_a_change_reaching_no_consumer_names_none() -> None:
     # The same question asked of a project that *does* declare consumers, so
     # the emptiness above is the graph's answer and not a walk that no-ops.
     project = load_project(fixture_sources("ecom_basic"))
-    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")
     populated = timeline(
         [
             SpecVersion(label="mar", project=project, catalog=load_catalog(text)),
@@ -1132,7 +1132,7 @@ def test_the_sinks_are_found_for_a_node_that_adopted_an_id() -> None:
     )
     assert "mtr_7f3a9c" in sources["metrics"], "the fixture stopped spelling the metric this way"
 
-    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")
     project = load_project(sources)
     history = [
         SpecVersion(label="mar", project=project, catalog=load_catalog(text)),

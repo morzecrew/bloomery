@@ -40,7 +40,7 @@ from support.ir_factory import build_project_ir
 print(json.dumps({kind.value: schema for kind, schema in all_spec_schemas().items()}))
 
 fixture_dir = pathlib.Path(sys.argv[1])
-sources = {path.stem: path.read_text() for path in sorted(fixture_dir.glob("*.yaml"))}
+sources = {path.stem: path.read_text(encoding="utf-8") for path in sorted(fixture_dir.glob("*.yaml"))}
 project = load_project(sources)
 
 for mapping in project.mappings:
@@ -61,7 +61,7 @@ for artifact in compile_project(project, target=Target.SQLMESH, dialect="duckdb"
 # model whose UNION ALL carries the order, and the collision audit whose
 # GROUP BY carries the composite key.
 ms_dir = fixture_dir.parent / "multi_source"
-ms_sources = {path.stem: path.read_text() for path in sorted(ms_dir.glob("*.yaml"))}
+ms_sources = {path.stem: path.read_text(encoding="utf-8") for path in sorted(ms_dir.glob("*.yaml"))}
 for artifact in compile_project(
     load_project(ms_sources), target=Target.SQLMESH, dialect="duckdb"
 ):
@@ -72,12 +72,12 @@ for artifact in compile_project(
 # hash-seed-independent too — every artifact's full bytes are compared.
 eb_dir = fixture_dir.parent / "ecom_basic"
 eb_sources = {
-    path.stem: path.read_text()
+    path.stem: path.read_text(encoding="utf-8")
     for path in sorted(eb_dir.glob("*.yaml"))
     if path.stem != "catalog"
 }
 eb_project = load_project(eb_sources)
-eb_catalog = load_catalog((eb_dir / "catalog.yaml").read_text())
+eb_catalog = load_catalog((eb_dir / "catalog.yaml").read_text(encoding="utf-8"))
 for target in (Target.CUBE, Target.DBT):
     for artifact in compile_project(
         eb_project, target=target, dialect="postgres", catalog=eb_catalog
@@ -93,11 +93,11 @@ for target in (Target.CUBE, Target.DBT):
 for manifest_fixture in ("ecom_basic", "non_additive_aov"):
     mf_dir = fixture_dir.parent / manifest_fixture
     mf_sources = {
-        path.stem: path.read_text()
+        path.stem: path.read_text(encoding="utf-8")
         for path in sorted(mf_dir.glob("*.yaml"))
         if path.stem != "catalog"
     }
-    mf_catalog = load_catalog((mf_dir / "catalog.yaml").read_text())
+    mf_catalog = load_catalog((mf_dir / "catalog.yaml").read_text(encoding="utf-8"))
     mf_ir = build_real_ir(load_project(mf_sources), catalog=mf_catalog)
     print(manifest_json(emit_manifest(mf_ir, naming=DefaultNaming())))
 
@@ -109,12 +109,12 @@ for manifest_fixture in ("ecom_basic", "non_additive_aov"):
 for evidence_fixture in ("ecom_basic", "fanout_trap"):
     ev_dir = fixture_dir.parent / evidence_fixture
     ev_sources = {
-        path.stem: path.read_text()
+        path.stem: path.read_text(encoding="utf-8")
         for path in sorted(ev_dir.glob("*.yaml"))
         if path.stem != "catalog"
     }
     ev_catalog_path = ev_dir / "catalog.yaml"
-    ev_catalog = load_catalog(ev_catalog_path.read_text()) if ev_catalog_path.exists() else None
+    ev_catalog = load_catalog(ev_catalog_path.read_text(encoding="utf-8")) if ev_catalog_path.exists() else None
     evidence = evaluate(load_project(ev_sources), catalog=ev_catalog)
     print(evidence.stage_reached, evidence.fingerprint)
     print(evidence.reachable, evidence.entities)
@@ -191,12 +191,12 @@ from bloomery.steps import StepManifest, StepRegistry
 
 retrieval_dir = fixture_dir.parents[2] / "examples" / "retrieval"
 retrieval_sources = {
-    path.name: path.read_text() for path in sorted(retrieval_dir.glob("*.yaml"))
+    path.name: path.read_text(encoding="utf-8") for path in sorted(retrieval_dir.glob("*.yaml"))
 }
 retrieval_steps = StepRegistry({
     (manifest.ref, manifest.version): manifest
     for manifest in (
-        StepManifest.model_validate(yaml.safe_load(path.read_text()))
+        StepManifest.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
         for path in sorted((retrieval_dir / "step_manifests").glob("*.yaml"))
     )
 })
@@ -230,11 +230,11 @@ from bloomery import Target, compile_project, load_catalog, load_project
 for name in ("semi_additive_inventory", "dirty_corpus", "quality_precedence"):
     fixture_dir = pathlib.Path(sys.argv[1]).parent / name
     sources = {
-        path.stem: path.read_text()
+        path.stem: path.read_text(encoding="utf-8")
         for path in sorted(fixture_dir.glob("*.yaml"))
         if path.stem != "catalog"
     }
-    catalog = load_catalog((fixture_dir / "catalog.yaml").read_text())
+    catalog = load_catalog((fixture_dir / "catalog.yaml").read_text(encoding="utf-8"))
     for artifact in compile_project(
         load_project(sources), target=Target.SQLMESH, dialect="duckdb", catalog=catalog
     ):
@@ -286,12 +286,12 @@ if listening:
 for name in ("minimal", "ecom_basic", "multi_source_quality"):
     directory = fixture_dir.parent / name
     sources = {
-        path.stem: path.read_text()
+        path.stem: path.read_text(encoding="utf-8")
         for path in sorted(directory.glob("*.yaml"))
         if path.stem != "catalog"
     }
     catalog_path = directory / "catalog.yaml"
-    catalog = load_catalog(catalog_path.read_text()) if catalog_path.exists() else None
+    catalog = load_catalog(catalog_path.read_text(encoding="utf-8")) if catalog_path.exists() else None
     project = load_project(sources)
     for target in (Target.SQLMESH, Target.DBT):
         for artifact in compile_project(

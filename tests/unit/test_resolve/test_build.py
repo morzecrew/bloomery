@@ -1483,7 +1483,7 @@ def _with_exposures(body: str) -> tuple[str, ...]:
 
     sources = fixture_sources("ecom_basic")
     sources["exposures"] = body
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     ir = build_project_ir(load_project(sources), catalog=catalog)
     return ir.exposures[0].metrics
 
@@ -1512,7 +1512,7 @@ def test_the_kind_is_lowered_to_the_closed_vocabulary() -> None:
     type the dbt emitter would write out and dbt would refuse."""
 
     sources = fixture_sources("ecom_basic")
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     ir = build_project_ir(load_project(sources), catalog=catalog)
 
     assert [exposure.kind for exposure in ir.exposures] == [
@@ -1535,7 +1535,7 @@ def _with_exports(body: str, *, fixture: str = "cross_mart_branches") -> Exports
 
     sources = fixture_sources(fixture)
     sources["exports"] = body
-    catalog = load_catalog((FIXTURES / fixture / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / fixture / "catalog.yaml").read_text(encoding="utf-8"))
     return build_project_ir(load_project(sources), catalog=catalog).exports
 
 
@@ -1619,12 +1619,12 @@ marts:
 
 
 def _upstream_ir():
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     return build_project_ir(load_project(fixture_sources("ecom_basic")), catalog=catalog)
 
 
 def _importing():
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     return build_project_ir(
         load_project(dict(IMPORTING)), catalog=catalog, upstream={"platform": _upstream_ir()}
     )
@@ -1708,7 +1708,7 @@ def test_a_local_mart_publishing_an_imported_secret_column_is_refused() -> None:
     upstream_sources["marts"] = upstream_sources["marts"].replace(
         "      - {via: item_of_order, prefix: order_}\n", "", 1
     )
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     upstream = build_project_ir(load_project(upstream_sources), catalog=catalog)
     documents = {
         **IMPORTING,
@@ -1730,7 +1730,7 @@ def test_a_local_mart_publishing_an_imported_secret_column_is_refused() -> None:
 def test_a_filter_on_an_imported_metric_is_checked_against_the_local_mart() -> None:
     """`check_metrics` reads the marts that list a metric; an imported metric
     listed by a local mart was invisible to it (PR #172 review; S-0002/D-9)."""
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     upstream_sources = dict(fixture_sources("ecom_basic"))
     upstream_sources["metrics"] = upstream_sources["metrics"] + (
         "  emea_revenue:\n    grain: order_item\n    additivity: additive\n    agg: sum\n"

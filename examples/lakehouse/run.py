@@ -185,10 +185,10 @@ def compile_to(out: Path) -> list[str]:
     are swept; `config.yaml` and SQLMesh's `state.db` live in this same root
     and are not artifacts.
     """
-    catalog = load_catalog((SPECS / "catalog.yaml").read_text())
+    catalog = load_catalog((SPECS / "catalog.yaml").read_text(encoding="utf-8"))
     project = load_project(
         {
-            path.name: path.read_text()
+            path.name: path.read_text(encoding="utf-8")
             for path in sorted(SPECS.glob("*.yaml"))
             if path.name != "catalog.yaml"
         }
@@ -203,7 +203,7 @@ def compile_to(out: Path) -> list[str]:
     for artifact in artifacts:
         destination = out / artifact.path
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(artifact.content)
+        destination.write_text(artifact.content, encoding="utf-8")
     return [artifact.path for artifact in artifacts]
 
 
@@ -237,7 +237,7 @@ def main() -> None:
     for path in written:
         print(f"  {path}")
 
-    (OUT / "config.yaml").write_text(CONFIG.format(state=OUT / "state.db"))
+    (OUT / "config.yaml").write_text(CONFIG.format(state=OUT / "state.db"), encoding="utf-8")
 
     print("\nbuilding it — the generated audits run as part of this plan")
     sqlmesh("plan", "--auto-apply", "--no-prompts")

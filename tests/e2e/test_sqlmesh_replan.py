@@ -438,8 +438,8 @@ def _write_project(root: Path, fixture: str, warehouse: Path) -> None:
     for artifact in compile_fixture(fixture):
         dest = root / artifact.path
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(artifact.content)
-    (root / "config.yaml").write_text(CONFIG_TEMPLATE.format(database=warehouse))
+        dest.write_text(artifact.content, encoding="utf-8")
+    (root / "config.yaml").write_text(CONFIG_TEMPLATE.format(database=warehouse), encoding="utf-8")
     _write_platform_steps(root, fixture)
 
 
@@ -459,16 +459,16 @@ def _write_platform_steps(root: Path, fixture: str) -> None:
         # the platform's own registry does with its real one.
         package = root / "platform_steps"
         package.mkdir(exist_ok=True)
-        (package / "__init__.py").write_text("")
+        (package / "__init__.py").write_text("", encoding="utf-8")
         (package / "resolve_customers.py").write_text(
-            Path(support_identity.__file__).read_text()
+            Path(support_identity.__file__).read_text(encoding="utf-8")
         )
         return
     if fixture != "step_resolution":
         return
     package = root / "platform_steps"
     package.mkdir(exist_ok=True)
-    (package / "__init__.py").write_text("")
+    (package / "__init__.py").write_text("", encoding="utf-8")
     (package / "resolve_customers.py").write_text(
         "import pandas as pd\n\n\n"
         "def resolve(raw, threshold):\n"
@@ -481,7 +481,7 @@ def _write_platform_steps(root: Path, fixture: str) -> None:
         "            {'source_system': raw['source_system'], 'source_id': raw['source_id'],\n"
         "             'canonical_id': canonical, 'method': ['exact'] * len(raw)}\n"
         "        ),\n"
-        "    }\n"
+        "    }\n", encoding="utf-8"
     )
 
 

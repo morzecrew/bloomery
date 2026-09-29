@@ -38,7 +38,7 @@ DOWNSTREAM = "multi_mart_refusal"
 
 
 def _catalog():
-    return load_catalog((FIXTURES / UPSTREAM / "catalog.yaml").read_text())
+    return load_catalog((FIXTURES / UPSTREAM / "catalog.yaml").read_text(encoding="utf-8"))
 
 
 def _upstream() -> ProjectIR:

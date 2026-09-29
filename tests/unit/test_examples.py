@@ -71,11 +71,11 @@ def load_example_specs(name: str) -> tuple[dict[str, str], Catalog]:
     """One example's `specs/` directory, split the way its own `run.py` splits it."""
     specs = EXAMPLES / name / "specs"
     documents = {
-        path.name: path.read_text()
+        path.name: path.read_text(encoding="utf-8")
         for path in sorted(specs.glob("*.yaml"))
         if path.name != "catalog.yaml"
     }
-    return documents, load_catalog((specs / "catalog.yaml").read_text())
+    return documents, load_catalog((specs / "catalog.yaml").read_text(encoding="utf-8"))
 
 
 def test_every_refusal_case_still_refuses() -> None:
@@ -227,7 +227,7 @@ def test_the_retrieval_example_manifest_inlines_the_space_on_every_profile() -> 
     """
     assert run_example("retrieval").returncode == 0
 
-    manifest = json.loads((EXAMPLES / "retrieval" / "out" / "retrieval_manifest.json").read_text())
+    manifest = json.loads((EXAMPLES / "retrieval" / "out" / "retrieval_manifest.json").read_text(encoding="utf-8"))
     profiles = manifest["profiles"]
 
     assert manifest["retrieval_manifest_version"] == 1
