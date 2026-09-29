@@ -212,4 +212,25 @@ Under per-row conversion, a currency code the rate relation has no row for conve
 - Paths: `src/bloomery/semantic/denomination.py` `src/bloomery/spec/mapping.py` `src/bloomery/transforms/_builtins.py` `src/bloomery/typing/types.py` `tests/fixtures/semantic_corpus/011-timezone-boundary/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0081/D-1 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice) — implementation: none
+
+A `to_utc` whose operand is an ISO wall-clock parse makes the parse zoned: every port's guard then reads a trailing `Z` as an offset and yields NULL, because the chain has declared the text a wall clock in a named zone
+
+- Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/dialects/base.py` `tests/execution/test_zoneless_utc.py`
+- Consequence: a UTC value is never shifted by a zone's offset a second time; it is NULL, which a quality rule can see
+
+### S-0081/D-2 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice) — implementation: none
+
+`parse_ts: ISO8601_INSTANT` parses text carrying `Z` or a numeric offset to the UTC instant on every port and yields NULL for zoneless text; R018 treats it as never a wall clock, `to_utc` after it is refused at resolve, and `zone_in:` beside it may only be `UTC`
+
+- Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/dialects/**` `src/bloomery/semantic/zone.py` `src/bloomery/resolve/build.py`
+- Consequence: a source that stamps instants has a spelling, and the compiler refuses the double conversion the type system cannot see
+
+### S-0081/D-3 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice) — implementation: none
+
+A `parse_ts` format containing `%z` or `%Z` is refused at parse, naming `ISO8601_INSTANT`
+
+- Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py`
+- Consequence: no format parses a zone and then drops it
+
 <!-- /torve:managed -->

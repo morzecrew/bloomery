@@ -113,7 +113,7 @@ Refinement is never implicit: a coarser measure is not moved to a finer grain be
 
 ### S-0017/D-3 — `LOCKED` (Semantic grain model and functional dependencies)
 
-`one_to_many` and `many_to_many` contribute no dependency in the preserving direction, and no heuristic ever contributes one; the closure admits only entity keys, declared `many_to_one` and `one_to_one` relationships, as-of-qualified historical hops, and transitive closure over those
+`one_to_many` and `many_to_many` contribute no dependency in the preserving direction, and no heuristic ever contributes one; the closure admits only entity keys, declared `many_to_one` and `one_to_one` relationships, as-of-qualified historical hops, a type2 entity read at its current version at its key's grain, and transitive closure over those
 
 - Paths: `src/bloomery/semantic/closure.py` `src/bloomery/semantic/nodes.py` `src/bloomery/semantic/proof.py`
 - Consequence: A `one_to_many` read inversely is a `many_to_one` and is admitted as one; read in its declared direction it contributes nothing, and the dependency it did not contribute is kept as a blocked edge so a refusal can name it
@@ -278,7 +278,7 @@ Measure grain must strictly equal mart grain; coarser or finer is `GrainViolatio
 
 ### S-0055/D-8 — `ASSUMED` (Multi-grain aggregate-then-join query planning)
 
-None of `distinct_count`, `semi_additive` and snapshot enters branch planning: a composed plan admits only components declaring `additivity: additive` with no `cumulative` and no `filter`; the first two decline with `UnreachableAtGrain`, directly and as a derived metric's component, and snapshot has no authored spelling (S-0053/D-11).
+None of `distinct_count`, `semi_additive` and snapshot enters branch planning: a composed plan admits only components declaring `additivity: additive` with no `cumulative`, and a component's own `filter` enters as a `Filter` scoped to its measures; the first two decline with `UnreachableAtGrain`, directly and as a derived metric's component, and snapshot has no authored spelling (S-0053/D-11).
 
 - Paths: `src/bloomery/ir/nodes.py` `src/bloomery/planner/semantic_plan.py` `src/bloomery/semantic/rollup.py` `tests/fixtures/semantic_corpus/007-distinct-users-fanout/problem.md` `tests/fixtures/semantic_corpus/012-rollup-recounts-identities/problem.md` `tests/unit/test_planner/test_coverage.py`
 
@@ -451,6 +451,27 @@ The grades are a total function of `Provenance` and every member maps to exactly
 
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/semantic/additivity.py` `src/bloomery/spec/quality.py` `tests/fixtures/semantic_corpus/008-ratio-rollup/**` `tests/fixtures/semantic_corpus/009-null-denominator/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0080/D-4 — `ASSUMED` (A mart may read the current version of a type2 entity) — implementation: none
+
+`qualify_as_of` gains a `CURRENT` state, and the closure gives a current-read type2 entity its key's grain, so a rollup over a current-reading mart proves as over a type1 entity; this is a new dependency kind and amends S-0017/D-3
+
+- Paths: `src/bloomery/semantic/historical.py` `src/bloomery/semantic/closure.py` `tests/unit/test_semantic/test_closure.py`
+- Consequence: the mart guard and the closure keep one reading of a type2 hop (S-0017/D-4), and rollups over these marts prove
+
+### S-0081/D-2 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice) — implementation: none
+
+`parse_ts: ISO8601_INSTANT` parses text carrying `Z` or a numeric offset to the UTC instant on every port and yields NULL for zoneless text; R018 treats it as never a wall clock, `to_utc` after it is refused at resolve, and `zone_in:` beside it may only be `UTC`
+
+- Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/dialects/**` `src/bloomery/semantic/zone.py` `src/bloomery/resolve/build.py`
+- Consequence: a source that stamps instants has a spelling, and the compiler refuses the double conversion the type system cannot see
+
+### S-0082/D-4 — `ASSUMED` (A metric's own filter crosses into a composed plan) — implementation: none
+
+A `derived:` metric whose inputs carry different restrictions — different own filters, or a filter on one input and none on another — is refused with R019's `operands_disagree` on the single-mart and the composed path alike, naming each input and its restriction
+
+- Paths: `src/bloomery/semantic/additivity.py` `src/bloomery/planner/compose.py`
+- Consequence: admitting a metric's own filter into a composed plan never lets a derived metric fold two row sets into one number, and a derived metric whose inputs agree composes as they do
 
 ## Invariants holding over `src/bloomery/semantic/`
 

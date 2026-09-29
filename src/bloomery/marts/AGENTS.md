@@ -208,6 +208,27 @@ A mart dimension's `ref.qualified` equals its `column` for every column `_mart_i
 - Paths: `src/bloomery/marts/flatten.py` `src/bloomery/marts/rollup.py` `tests/unit/test_marts/test_flatten.py` `tests/property/test_metricflow_properties.py`
 - Consequence: A future role that made the two names differ fails the flatten test and the MetricFlow round-trip property rather than silently dropping an R020 proof
 
+### S-0080/D-1 — `ASSUMED` (A mart may read the current version of a type2 entity) — implementation: none
+
+A mart may declare `reading: current` on its base, and a flatten `via:` in place of `as_of:`, to read only the current version (`valid_to IS NULL`) of an `scd: type2` entity; it is refused on a non-historical entity and beside `as_of:` on one hop, and a type2 base with no reading is refused as before
+
+- Paths: `src/bloomery/spec/marts.py` `src/bloomery/marts/flatten.py` `tests/unit/test_marts/test_flatten.py`
+- Consequence: an author reaches the current version of a history table with one key, and the refusal stays the default
+
+### S-0080/D-3 — `ASSUMED` (A mart may read the current version of a type2 entity) — implementation: none
+
+A mart that reads current versions is materialized whole; declaring it incremental is refused
+
+- Paths: `src/bloomery/marts/flatten.py` `tests/unit/test_marts/test_flatten.py`
+- Consequence: no partition keeps a version that stopped being current after it was written
+
+### S-0080/D-5 — `ASSUMED` (A mart may read the current version of a type2 entity) — implementation: none
+
+The `HistoricalFanout` fix text leads with the current reading from phase 2 on — `reading: current` on the base, or on the flatten step's `via:` — and keeps the anchor and the type1 routes after it; phase 1 leaves the text as it stands
+
+- Paths: `src/bloomery/marts/flatten.py` `tests/golden/test_refusal_messages.py`
+- Consequence: the refusal sends an author to the current reading only once a rollup over a current-reading mart proves, never from one refusal into another
+
 ## Invariants holding over `src/bloomery/marts/`
 
 - **S-0079/I-2**: No IR node carries a mapping; the canonical encoder writes `None`, `bool`, `Enum`, `int`, `str`, `Decimal`, tuples and frozen dataclasses, and raises on anything else

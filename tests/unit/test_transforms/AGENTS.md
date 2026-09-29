@@ -58,4 +58,11 @@ Arithmetic transforms **narrow their own result** to the type they declare, rath
 
 - Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py`
 
+### S-0081/D-3 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice) — implementation: none
+
+A `parse_ts` format containing `%z` or `%Z` is refused at parse, naming `ISO8601_INSTANT`
+
+- Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py`
+- Consequence: no format parses a zone and then drops it
+
 <!-- /torve:managed -->

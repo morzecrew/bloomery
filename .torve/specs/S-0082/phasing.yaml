@@ -7,8 +7,8 @@ phasing:
       `_projected` and `_composable` admit a metric's own filter; the composed plan
       carries scoped `Filter` nodes; the two refusal tests become admissions; an engine-tier
       composed test with a filtered metric; the parity generator gains a filtered
-      cross-mart shape and the baseline its conversion. Amends S-0055/D-8. Settles
-      D-1 and D-2.
+      cross-mart shape and the baseline its conversion. Implements S-0055/A-2, the
+      amendment of D-8. Settles D-1 and D-2.
     scope:
       - src/bloomery/planner/**
       - tests/unit/test_planner/**

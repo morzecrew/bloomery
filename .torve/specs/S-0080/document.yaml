@@ -3,7 +3,7 @@ id: S-0080
 title: >-
   A mart may read the current version of a type2 entity
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0040, S-0017]
 informed_by: [S-0027, S-0076]
@@ -70,9 +70,9 @@ design:
       one reading (S-0017/D-4). The closure gives a current-read type2 entity its
       key's grain, which lets a rollup over the mart prove as it would over a type1
       entity. That is a new dependency kind, and S-0017/D-3 closes the list of kinds:
-      phase 2 amends S-0017/D-3, which is LOCKED and so the owner's. Until phase 2
-      lands, a rollup over a current-reading mart is refused with `HISTORICAL_GRAIN`
-      as it is today, and the mart itself compiles.
+      the owner accepted amending it, which S-0017/A-1 records, and phase 2 implements
+      it. Until phase 2 lands, a rollup over a current-reading mart is refused with
+      `HISTORICAL_GRAIN` as it is today, and the mart itself compiles.
 tests: |-
   - A type2 base with `reading: current` compiles, and its select carries `valid_to IS NULL`; executed on DuckDB, a key with three versions counts once.
   - A flatten `via:` with `reading: current` joins only current versions; `reading:` beside `as_of:` is refused, and on a type1 entity is refused.

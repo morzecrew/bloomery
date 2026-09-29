@@ -35,7 +35,8 @@ decisions:
       `one_to_many` and `many_to_many` contribute no dependency in the preserving
       direction, and no heuristic ever contributes one; the closure admits only entity
       keys, declared `many_to_one` and `one_to_one` relationships, as-of-qualified
-      historical hops, and transitive closure over those
+      historical hops, a type2 entity read at its current version at its key's grain,
+      and transitive closure over those
     paths:
       - src/bloomery/semantic/closure.py
       - src/bloomery/semantic/nodes.py
@@ -46,6 +47,7 @@ decisions:
       not contribute is kept as a blocked edge so a refusal can name it
     rationale: >-
       The value of every proof built on top is exactly the weakest fact admitted here
+    fingerprint: 4b2ecd28c6a83bcf/6b1b228f36759d88
   - id: D-4
     grade: ASSUMED
     text: >-

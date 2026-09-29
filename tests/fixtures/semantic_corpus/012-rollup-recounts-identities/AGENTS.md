@@ -11,7 +11,7 @@
 
 ### S-0055/D-8 — `ASSUMED` (Multi-grain aggregate-then-join query planning)
 
-None of `distinct_count`, `semi_additive` and snapshot enters branch planning: a composed plan admits only components declaring `additivity: additive` with no `cumulative` and no `filter`; the first two decline with `UnreachableAtGrain`, directly and as a derived metric's component, and snapshot has no authored spelling (S-0053/D-11).
+None of `distinct_count`, `semi_additive` and snapshot enters branch planning: a composed plan admits only components declaring `additivity: additive` with no `cumulative`, and a component's own `filter` enters as a `Filter` scoped to its measures; the first two decline with `UnreachableAtGrain`, directly and as a derived metric's component, and snapshot has no authored spelling (S-0053/D-11).
 
 - Paths: `src/bloomery/ir/nodes.py` `src/bloomery/planner/semantic_plan.py` `src/bloomery/semantic/rollup.py` `tests/fixtures/semantic_corpus/007-distinct-users-fanout/problem.md` `tests/fixtures/semantic_corpus/012-rollup-recounts-identities/problem.md` `tests/unit/test_planner/test_coverage.py`
 
