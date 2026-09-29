@@ -169,12 +169,12 @@ decisions:
       request it answers — which is the measurement the row asked for arriving from
       a different direction
   - id: D-8
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      What happens to a rule identifier when a rule is split or subsumed. They become
-      a public contract the moment continuous integration asserts on them, so decide
-      the versioning discipline before the first identifier ships, since the choice
-      is unmakeable afterwards
+      Rule identifiers in `RULES` are append-only: an id is never reused or repointed.
+      A split or a subsumption mints new ids. The old `Rule` keeps its entry, with
+      `superseded_by` naming its replacements and its id listed in `SUPERSEDED`. `Proof`
+      refuses any rule id that is not in `RULES`.
     paths: [src/bloomery/semantic/proof.py]
     consequence: >-
       A corpus case, a refusal code and a rendered derivation all name a rule identifier,
@@ -191,6 +191,7 @@ decisions:
     check: >-
       uv run pytest tests/unit/test_semantic/test_proof.py::test_a_superseded_rule_keeps_its_entry
       -q
+    fingerprint: 6c3959e6a868f764/8c4f61cccc92992d
   - id: D-9
     grade: LOCKED
     text: >-

@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-8
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-8
+        field: text
+        before: >-
+          Which physical timestamp type each logical type maps to, given `TIMESTAMP`
+          and `TIMESTAMP_NTZ` — establish it on the live lane, and pin the surrogate's
+          ANSI mode to the setting that matches whatever is chosen
+        after: >-
+          A bloomery `timestamp` maps to `TIMESTAMP_NTZ` on Databricks, never `TIMESTAMP`,
+          and a neutral in-expression `CAST(x AS TIMESTAMP)` is rewritten to match.
+          The Spark surrogate session pins `spark.sql.ansi.enabled` to `true` and
+          its timezone to `UTC`.
+      - subject: D-8
+        field: fingerprint
+        after: e0f920dc9966f0a2/2e82f004f914921f
+      - subject: D-9
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-9
+        field: text
+        before: >-
+          Whether the port targets Databricks SQL only or claims generic Spark SQL
+          as well — decide it before the first golden artifact
+        after: >-
+          The port targets Databricks SQL only and does not claim generic Spark SQL:
+          the dialect `name` and its `sqlglot_dialect` are both `databricks`.
+      - subject: D-9
+        field: fingerprint
+        after: 3925b9a5035a01c6/2e82f004f914921f
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-8: Execution decided the mapping in T-0100, the unit tests pin it, and the golden cells freeze it. Evidence: src/bloomery/dialects/databricks.py; tests/support/spark.py; tests/unit/test_dialects/test_databricks.py::test_a_neutral_timestamp_cast_becomes_ntz.
+      - D-9: The choice was made before the first golden artifact, as the row required, and the golden matrix now freezes it. Evidence: src/bloomery/dialects/databricks.py; tests/golden/test_sqlmesh_dialects.py; .torve/specs/S-0016/execution/T-0100-2-20260925T135806Z.yaml.

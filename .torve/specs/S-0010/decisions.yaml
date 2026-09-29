@@ -35,12 +35,12 @@ decisions:
       the drift that module exists to measure, reproduced one level up. Carried at
       the grade the source document gives it.
   - id: D-3
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether the generator is `hypothesis-jsonschema`'s `from_schema()` or a hand-written
-      strategy over the subset of JSON Schema bloomery emits is decided by execution,
-      with the tiebreak being the fraction of generated documents that reach the resolver
-      — never the dependency's release date
+      The generator is a hand-written Hypothesis strategy over the exported JSON Schema
+      subset, in `tests/support/schema_strategies.py`, not `hypothesis-jsonschema`'s
+      `from_schema()`. Identifier positions draw from the shared `NAMES` pool so that
+      references resolve, and `pyproject.toml` has no `hypothesis-jsonschema` entry.
     paths: [tests/property/**, tests/support/**, pyproject.toml]
     consequence: >-
       Adopting the dependency adds a `dev`-group entry to `pyproject.toml` carrying
@@ -53,6 +53,7 @@ decisions:
       and the vocabulary is closed. A generator producing schema-valid noise refused
       at the first cross-reference has solved nothing whichever route produced it,
       so capability decides. Q-2 enumerates the vocabulary and settles this outright.
+    fingerprint: ad439a890fe0e0bd/afc1fbd4ed865c98
   - id: D-4
     grade: ASSUMED
     text: >-
@@ -72,11 +73,13 @@ decisions:
       rather than LOCKED because that row is the authority here and this one merely
       inherits it. Carried at the grade the source document gives it.
   - id: D-5
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      What would move this work to a fuzz target after all is stated by execution,
-      the candidate signal being guardrail branches reached materially faster under
-      coverage feedback than under generation
+      Generation stays in the property tier. The one signal that would reopen D-1's
+      seam is a coverage-guided fuzzer reaching guardrail branches materially faster
+      than generation's measured baseline: 14 of 200 entity-model draws and 21 of
+      300 project draws refused at a guardrail. No coverage-guided comparison has
+      been measured.
     paths: [tests/property/**]
     consequence: >-
       The row is discharged with whatever was measured — including "no evidence either
@@ -87,6 +90,7 @@ decisions:
       is a rule nobody can revisit honestly. Q-1 is the question; this row is the
       obligation to answer it in the log. Carried at the grade the source document
       gives it.
+    fingerprint: 403c7689886195be/5919043a349d646f
   - id: D-6
     grade: ASSUMED
     text: >-

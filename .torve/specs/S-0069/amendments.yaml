@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-6
+        field: superseded_by
+        after: S-0069/D-8
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Answered by a later row, which the row now names:
+      - D-6 is answered by S-0069/D-8: The row is marked 'Superseded by 8'; D-8 answers it: neither refusal nor warning, a test plus an `InvariantViolated` invariant.

@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-6
+        field: superseded_by
+        after: S-0077/D-8
+      - subject: D-7
+        field: superseded_by
+        after: S-0077/D-9
+      - subject: D-11
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-11
+        field: text
+        before: >-
+          **A corpus expectation may name the result it returns.** §6's third arm
+          is accepted *and* returns the number the corpus pins as naive, which the
+          harness could not express: `Outcome.ACCEPTED` mapped to "correct" and that
+          mapping was the whole vocabulary. An expectation now carries an optional
+          `answer:`, defaulting to its outcome's mapping. Without it the arm this
+          RFC argues hardest for cannot be written down, because until case 009 no
+          case had two right answers — see `logs/T-0063.md` (unlisted, 15:13Z).
+        after: >-
+          A corpus expectation may name the result it returns. `Expectation.answer`
+          is optional and defaults to its outcome's mapping, `ACCEPTED` to `correct`
+          and `UNGUARDED` to `naive`; case 009's `inclusive` arm is accepted and pins
+          `answer: naive`.
+      - subject: D-11
+        field: fingerprint
+        after: d0f53010152dfd88/202c11f3690cefb1
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-11: The row is a decision already written as one; the harness and case 009 implement it exactly, so only the grade lags. Evidence: tests/support/semantic_corpus.py; tests/execution/test_semantic_corpus.py.
+
+      Answered by a later row, which the row now names:
+      - D-6 is answered by S-0077/D-8: The row is marked 'Superseded by D8'; D-8 says R019 reads declarations only, so no mart discharges the premise.
+      - D-7 is answered by S-0077/D-9: The row is marked 'Superseded by D9'; D-9 leaves the redundant declaration alone.

@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-6
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-6
+        field: text
+        before: Whether the port declares `DialectFeature.ARRAY`
+        after: >-
+          The Redshift port does not declare `DialectFeature.ARRAY`: Redshift has
+          no array column type, so `_quality_flags` and `failed_rules` take the delimited-string
+          fallback.
+      - subject: D-6
+        field: fingerprint
+        after: cb3a4c1866c8e198/745af634e946a283
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: text
+        before: >-
+          Which helpers are genuinely shared with the PostgreSQL port
+        after: >-
+          The Redshift port shares exactly two helpers with PostgreSQL, imported by
+          name and not through inheritance: `zoneless_parse` and `ends_with_as_right`.
+          Every other PostgreSQL rewrite was audited and rejected, and `RedshiftDialect`
+          subclasses `SQLGlotDialect`, not `PostgresDialect`.
+      - subject: D-7
+        field: fingerprint
+        after: e264597baf80bd7f/7141250242dabb43
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-6: Execution decided the question in T-0095, and the capability set is pinned by a unit test. Evidence: src/bloomery/dialects/redshift.py; tests/unit/test_dialects/test_redshift.py::test_the_declared_capabilities_are_the_three_redshift_lacks; tests/engines/test_redshift_live.py; .torve/specs/S-0015/execution/T-0095-2-20260925T173441Z.yaml.
+      - D-7: The module docstring lists the shared helpers and what the audit rejected, which is the explicit list the row asked for. Evidence: src/bloomery/dialects/redshift.py; src/bloomery/dialects/postgres.py; tests/unit/test_dialects/test_redshift.py::test_strip_suffix_shares_the_postgres_helper; tests/unit/test_dialects/test_redshift.py::test_parse_ts_with_a_format_is_cast_back_to_a_zoneless_timestamp.

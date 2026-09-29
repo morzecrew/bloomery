@@ -10,9 +10,9 @@ A declared vector dimension requires a new `LogicalType` member, and a vector ac
 - Consequence: The cost is six sites and cannot be avoided by choosing the other shape, because the union has no array member either; admitting a transform over a vector would put float arithmetic inside a lowered expression, which is exactly what the ban stops
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0012/D-8 — `OPEN` (Validating a dialect port against an engine we cannot run)
+### S-0012/D-8 — `ASSUMED` (Validating a dialect port against an engine we cannot run)
 
-Whether a cloud port ships in-tree or as an extension package registered through `register_dialect`; decide it before the first cloud port lands
+Cloud ports ship in-tree. `SnowflakeDialect`, `BigQueryDialect`, `RedshiftDialect` and `DatabricksDialect` live in `src/bloomery/dialects/`, are registered in the immutable default registry, and were released in 0.3.0 with no runtime dependency beyond `sqlglot`. `register_dialect` remains the overlay for third-party ports.
 
 - Paths: `src/bloomery/dialects/**`
 - Consequence: Moving a shipped dialect between the two is a breaking change either way, so the choice is cheap now and expensive later
@@ -33,9 +33,9 @@ Nothing is inherited from the PostgreSQL or the Trino port without being measure
 - Consequence: A rewrite this port applies is a rewrite something measured on Snowflake asked for, so a copied `TO_UTF8`/`TO_HEX`/`LOWER` or a copied separator rewrite is a finding even when the tests are green; the reverse also holds, and a rewrite point Snowflake needs nothing for is answered by a capability flag or by nothing at all
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0013/D-6 — `OPEN` (Snowflake dialect port)
+### S-0013/D-6 — `ASSUMED` (Snowflake dialect port)
 
-The concrete type map — which Snowflake type each bloomery logical type lowers to, `VARIANT` and the decimal bounds included — is decided by whoever measures it, under D-1's constraint
+Snowflake's type map is `string` to `VARCHAR`, `int` to `NUMBER(38, 0)`, `decimal(p, s)` to `DECIMAL(p, s)` (refused past 38 digits of precision), `bool` to `BOOLEAN`, `date` to `DATE`, `timestamp` to `TIMESTAMP_NTZ`, and `variant` to `VARIANT` instead of the base adapter's `JSON`.
 
 - Paths: `src/bloomery/dialects/**`
 - Consequence: `physical_type` is a one-way door once artifacts exist in the wild, so the table is written from measurements rather than guessed in prose; D-1 fixes the timestamp constraint and nothing else about the map is fixed, including whether `VariantType` keeps the base adapter's `JSON` or becomes `VARIANT`
@@ -56,9 +56,9 @@ The `DATETIME` against `TIMESTAMP` choice is made explicitly by this port and ne
 - Consequence: A port whose safe cast does not survive that rewrite silently turns a quality-carrying entity back into produce-or-raise on one engine: the bad value aborts the run instead of becoming NULL where `coercible` can see it and the row can be quarantined
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0014/D-7 — `OPEN` (BigQuery dialect port)
+### S-0014/D-7 — `ASSUMED` (BigQuery dialect port)
 
-The `NUMERIC` and `BIGNUMERIC` mapping for a declared `decimal(p, s)`, and which bounds a declared type may not exceed, decided against the declared-type conformance battery rather than from the documentation and recorded with the bounds
+A declared `decimal(p, s)` lowers to `NUMERIC(p, s)` where `s <= 9` and `p - s <= 29`, otherwise to `BIGNUMERIC(p, s)` where `s <= 38` and `p - s <= 38`. Past both bounds it is refused with `UnsupportedByTarget`, never widened.
 
 - Paths: `src/bloomery/dialects/bigquery.py` `tests/unit/test_dialects/test_bigquery.py`
 - Consequence: The two types have different precision and scale bounds and different division behaviour, and bloomery forbids floats in emission paths, so this mapping decides what a declared decimal can express at all on this engine
@@ -78,16 +78,16 @@ The `NUMERIC` and `BIGNUMERIC` mapping for a declared `decimal(p, s)`, and which
 - Paths: `src/bloomery/dialects/redshift.py`
 - Consequence: They are different data models, not different spellings, and a translation layer that mostly works is worse than a port that refuses `variant` until it is built
 
-### S-0015/D-6 — `OPEN` (Redshift dialect port)
+### S-0015/D-6 — `ASSUMED` (Redshift dialect port)
 
-Whether the port declares `DialectFeature.ARRAY`
+The Redshift port does not declare `DialectFeature.ARRAY`: Redshift has no array column type, so `_quality_flags` and `failed_rules` take the delimited-string fallback.
 
 - Paths: `src/bloomery/dialects/redshift.py`
 - Consequence: `_quality_flags` lowers to a delimited string without it — a supported path, but one that changes emitted artifacts and the reject table's shape
 
-### S-0015/D-7 — `OPEN` (Redshift dialect port)
+### S-0015/D-7 — `ASSUMED` (Redshift dialect port)
 
-Which helpers are genuinely shared with the PostgreSQL port
+The Redshift port shares exactly two helpers with PostgreSQL, imported by name and not through inheritance: `zoneless_parse` and `ends_with_as_right`. Every other PostgreSQL rewrite was audited and rejected, and `RedshiftDialect` subclasses `SQLGlotDialect`, not `PostgresDialect`.
 
 - Paths: `src/bloomery/dialects/redshift.py` `src/bloomery/dialects/postgres.py`
 - Consequence: D-1 forbids inheritance and permits sharing, and the boundary between them is exactly where this port will be tempted back
@@ -100,16 +100,16 @@ No Spark session, engine driver or cloud SDK enters `src/bloomery`; the `databri
 - Consequence: Installing bloomery never pulls a JVM or a warehouse client, and "bloomery targets Databricks" cannot turn into "bloomery executes Spark"; a port that needs to run something to answer a question has asked the question in the wrong tier
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0016/D-8 — `OPEN` (Databricks SQL dialect port)
+### S-0016/D-8 — `ASSUMED` (Databricks SQL dialect port)
 
-Which physical timestamp type each logical type maps to, given `TIMESTAMP` and `TIMESTAMP_NTZ` — establish it on the live lane, and pin the surrogate's ANSI mode to the setting that matches whatever is chosen
+A bloomery `timestamp` maps to `TIMESTAMP_NTZ` on Databricks, never `TIMESTAMP`, and a neutral in-expression `CAST(x AS TIMESTAMP)` is rewritten to match. The Spark surrogate session pins `spark.sql.ansi.enabled` to `true` and its timezone to `UTC`.
 
 - Paths: `src/bloomery/dialects/**`
 - Consequence: The choice is constrained by this repository's zoneless-UTC invariant exactly as it is on the Snowflake and BigQuery ports, and the executor that settles it logs the table it arrived at with the evidence that produced it
 
-### S-0016/D-9 — `OPEN` (Databricks SQL dialect port)
+### S-0016/D-9 — `ASSUMED` (Databricks SQL dialect port)
 
-Whether the port targets Databricks SQL only or claims generic Spark SQL as well — decide it before the first golden artifact
+The port targets Databricks SQL only and does not claim generic Spark SQL: the dialect `name` and its `sqlglot_dialect` are both `databricks`.
 
 - Paths: `src/bloomery/dialects/**`
 - Consequence: The answer names the dialect and the emitted artifacts carry the name, so changing it afterwards is a breaking change to every project compiled against it
@@ -225,9 +225,9 @@ The fix lives in the **neutral spelling**, not at the port, because provenance d
 - Paths: `examples/lakehouse/**` `src/bloomery/dialects/postgres.py` `src/bloomery/dialects/trino.py` `src/bloomery/ir/nodes.py` `src/bloomery/transforms/_builtins.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0044/D-4 — `OPEN` (ISO 8601 timestamps across dialects)
+### S-0044/D-4 — `ASSUMED` (ISO 8601 timestamps across dialects)
 
-Which option of §4. The lean is **(a)**: it is the only one that keeps the DuckDB and PostgreSQL artifacts unchanged in meaning, keeps one producer for the construct, and makes a fourth dialect fail loud rather than quietly wrong.
+`parse_ts: ISO8601` builds `CAST(BLM_ISO_TEXT(x) AS TIMESTAMP)`: the marker (`ISO_TEXT_MARKER`, built only by `iso_text`) wraps the text rather than the cast, so the `TryCast` rewrite still applies; every port rewrites it through `strip_iso_text`, and `SQLGlotDialect.render` raises `UnsupportedByTarget` if the marker survives. `parse_date` is not marked.
 
 - Paths: `src/bloomery/dialects/base.py` `src/bloomery/dialects/trino.py` `src/bloomery/transforms/_builtins.py`
 

@@ -53,17 +53,19 @@ decisions:
       three drift and CI asserts on the weakest of them.
     paths: [tests/unit/test_cli.py]
   - id: D-7
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Whether `check` is a new command or `resolve` gaining an exit-code contract.**
-      The surfaces overlap substantially and two near-identical commands is its own
-      defect; so is overloading a command whose current output people already parse.
-      Decide it against what `resolve` actually prints today, and log the decision.
+      `check` is a separate command, not an exit contract added to `resolve`. Both
+      commands read `stage_reached` from one `SpecEvidence` through `_evidence_exit`,
+      so their exit codes cannot disagree. `check` prints checked-surface counts and
+      refusals; `resolve` prints reachability and open decisions.
     paths: [src/bloomery/cli/__init__.py, src/bloomery/cli/render.py]
+    fingerprint: f94622d4fbc3e7e5/83e85c87c7318092
   - id: D-8
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **What the "obligations proven" count means before a planner exists.** Until
-      S-0054 lands there is no request surface to count against, and a number nobody
-      can reproduce is the vanity total D5 refuses. Either define the pre-planner
-      denominator or omit the line until there is one.
+      `bloomery check` prints no "obligations proven" line, no total and no percentage,
+      because no project declares a request to prove against and the count would have
+      no denominator. It prints one count for each surface in `CHECKED_SURFACES`,
+      or says the counts are unavailable when no IR was built.
+    fingerprint: 8fdfc30aeb1a844b/202c11f3690cefb1

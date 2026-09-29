@@ -85,6 +85,7 @@ decisions:
       and in what spelling. Silence is indistinguishable from a typo, which argues
       for acknowledgement; `unmapped:` is the nearest existing mechanism but is source-column-shaped.
       Whoever builds it decides and logs it.
+    superseded_by: D-22
   - id: D-9
     grade: ASSUMED
     text: >-
@@ -105,6 +106,7 @@ decisions:
       versions, and fixing it needs validity columns nothing models (S-0040/phase-2-the-as-of-join).
       Refusing the combination is the expected answer; whoever builds this decides
       and logs it.
+    superseded_by: D-23
   - id: D-11
     grade: OPEN
     text: >-
@@ -116,6 +118,7 @@ decisions:
       one bad source poisons a column the others fill correctly. Whoever builds this
       decides, and the decision is either the audit or an explicit statement that
       `required:` means coverage only.
+    superseded_by: D-24
   - id: D-12
     grade: LOCKED
     text: >-
@@ -288,6 +291,7 @@ decisions:
       — no new node, and a coupling nothing enforces. **Lean (a).** Whoever takes
       this decides and logs it *before* writing the union, because it decides what
       P1 costs.
+    superseded_by: D-26
   - id: D-26
     grade: ASSUMED
     text: >-
@@ -343,6 +347,7 @@ decisions:
       the whole path-conflict amendment there (worse — it removes a check rather than
       scoping it). Decide before writing the split, not during: the shadow is built
       from a `Derivation`, which is per entity and not yet per source.
+    superseded_by: D-28
   - id: D-28
     grade: LOCKED
     text: >-

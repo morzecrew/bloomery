@@ -68,13 +68,14 @@ decisions:
       Recorded here so the coupling is visible from the feature that would break it.
     paths: [src/bloomery/evidence.py]
   - id: D-7
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Whether the human CLI table prints open decisions.** JSON gets them by construction.
-      The table is a summary (S-0037/D-4), and this is either the most useful line
-      `bloomery resolve` could print or the one that turns a summary into a dump.
-      Whoever builds this decides and logs it.
+      `bloomery resolve`'s human table prints an `Open decisions (N)` section with
+      one row per decision: canonical, gap, target `entity.field`, the catalog's recipe
+      ids in catalog order, and the metrics it blocks. Recipe alias slots (`requires`)
+      stay out of the table and appear only in `--format json`.
     paths: [src/bloomery/cli/render.py, tests/unit/test_cli.py]
+    fingerprint: 42e01f0b1125c4b6/c7c35391b2d08b70
   - id: D-8
     grade: ASSUMED
     text: >-

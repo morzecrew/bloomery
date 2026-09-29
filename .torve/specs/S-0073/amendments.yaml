@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-6
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-6
+        field: text
+        before: >-
+          Whether the how-to's recipe ships as a runnable example (§10).
+        after: >-
+          The how-to's recipe does not ship as a separate example; the suite executes
+          its `reproduce.py` block. `test_the_reproduce_recipe_actually_runs` runs
+          the block as printed over `ecom_basic` sources and asserts it compiles artifacts,
+          so the page cannot drift from the API.
+      - subject: D-6
+        field: fingerprint
+        after: 6106218cb122854d/202c11f3690cefb1
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-6: Settled as 'runnable in place': the block is executed, which is stronger than the signature check §6 asked for, and no example directory was added. Evidence: tests/unit/test_docs_snippets.py; pages/docs/how-to/reproduce-a-past-artifact-set.md; examples/ holds lakehouse, quickstart, refusals, retrieval, targets and no reproduce example.

@@ -34,17 +34,20 @@ decisions:
       Where an engine cannot express a transform, the port **declares the capability
       absent** and emit refuses by name, rather than the engine failing on first run.
   - id: D-5
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether `to_bool`/`to_int` across the boolean boundary get a PostgreSQL spelling
-      (`x::int::boolean`) or a refusal. A spelling is cheap; a refusal is honest about
-      `to_bool` over an arbitrary integer having no agreed meaning.
+      `to_bool` over an integer is spelled, not refused, and spelled once in the builder
+      as `x <> 0`, the non-zero-is-true meaning DuckDB and Trino already agree on;
+      `to_int` over a boolean builds `CAST(CAST(x AS INT) AS BIGINT)`. No engine-specific
+      spelling exists.
     paths:
       - src/bloomery/transforms/_builtins.py
       - tests/unit/test_transforms/test_builtins.py
+    fingerprint: 241df38357020f53/19bd40cf41544d81
   - id: D-6
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether Trino's `coalesce`/`nullif` literals are cast to the column type at
-      build (needing D1) or the spec surface narrows to reject a literal whose type
-      cannot match.
+      `coalesce` and `nullif` cast their literal to the column's logical type at build,
+      through `_typed_literal` with the builder's `input_type` (D1). A string literal
+      over a string column stays uncast. The spec surface does not narrow.
+    fingerprint: 24aa2a3bf72f2428/202c11f3690cefb1

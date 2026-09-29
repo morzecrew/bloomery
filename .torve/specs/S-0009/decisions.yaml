@@ -59,10 +59,12 @@ decisions:
       container. Depart if the corpus plateaus and nobody can say which modules it
       reaches
   - id: D-5
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      When the pull-request fuzzing job becomes a required check — not before a month
-      non-blocking, and not while the harness is still producing findings per week
+      The pull-request fuzz job `pr` is non-blocking: it sets `continue-on-error:
+      true` and is absent from `ci.yml`'s `required-ci`. It is promoted to a required
+      check only by a separate commit, after a month of non-blocking runs and once
+      the harness stops producing findings week on week.
     paths: [.github/workflows/**]
     consequence: >-
       Promotion is a deliberate act with a stated condition rather than a thing someone
@@ -71,6 +73,7 @@ decisions:
     rationale: >-
       The actual condition is a judgement about whether a red check would be believed;
       execution states the condition it used
+    fingerprint: 6d515a73a8a3c3e0/a2ae58da4858baa1
   - id: D-6
     grade: OPEN
     text: >-

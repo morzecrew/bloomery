@@ -40,9 +40,9 @@ A mart whose **`base`** is `scd: type2` is refused on the same account. There is
 - Paths: `src/bloomery/errors.py` `src/bloomery/marts/flatten.py` `tests/fixtures/scd2_as_of/marts.yaml` `tests/fixtures/scd2_mart_refusal/entity_model.yaml` `tests/fixtures/scd2_replay/marts.yaml` `tests/golden/refusals/scd2_mart_refusal.txt` `tests/unit/test_fixtures.py` `tests/unit/test_guardrails/test_stage.py` `tests/unit/test_marts/test_flatten.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0040/D-8 — `OPEN` (Temporal joins: SCD2 flattening and currency conversion)
+### S-0040/D-8 — `ASSUMED` (Temporal joins: SCD2 flattening and currency conversion)
 
-The as-of anchor's spelling and location. §5.3 proposes `as_of:` on the `flatten` entry; a mart-level default and a relationship-level declaration are both defensible. Whoever builds Phase 2 decides and logs it. It must be **declared** either way — inference is closed by S-0038.
+The as-of anchor is `as_of:` on the mart's `flatten` `via:` step (`ViaStep.as_of`), naming a date or timestamp column of the base entity. It is required to flatten an `scd: type2` entity; an anchor on a non-historical entity or naming a non-temporal or unknown column is refused as `HistoricalFanout`. It is declared, never inferred.
 
 - Paths: `tests/fixtures/semantic_corpus/003-scd2-unqualified-join/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/003-scd2-unqualified-join/problem.md` `tests/unit/test_marts/test_flatten.py`
 

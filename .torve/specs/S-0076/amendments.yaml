@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: text
+        before: >-
+          **Whether a step output needs a zone declaration.** §5.3 discharges a value
+          that never passed `parse_ts`, which lets a `python_model` emitting a wall
+          clock through. Deciding it needs one example of a step that does so; the
+          executor decides and logs it.
+        after: >-
+          A step output needs no zone declaration. R018 reads only mapping chains,
+          and a column that no chain passed through `parse_ts` discharges as `DERIVED`,
+          since it was never a wall clock. A step emitting a wall clock is a known
+          hole; a zone surface on `steps:` is S-0034's question.
+      - subject: D-7
+        field: fingerprint
+        after: cc6a90c1436ed1c2/202c11f3690cefb1
+      - subject: D-8
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-8
+        field: text
+        before: >-
+          **Whether the refusal is `UndeclaredZone` or a reuse of an existing denomination
+          error.** R009's family already refuses an undeclared currency, and one class
+          for "undeclared denomination" may read better than two. Decide when the
+          message is written, since the deciding fact is whether one message can name
+          both without hedging.
+        after: >-
+          The refusal is its own class, `UndeclaredZone`, not a reuse of R009's undeclared-currency
+          refusal: that one refuses a conversion and this one refuses a consumption,
+          and the repair names `zone_in:` or `to_utc` rather than a currency.
+      - subject: D-8
+        field: fingerprint
+        after: 8c3b75d8da0e0a44/202c11f3690cefb1
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-7: Decided in T-0062 and cited by the test docstring. No test builds an actual step-produced wall clock; the pinned path is the never-parsed discharge a step output takes. Evidence: src/bloomery/guardrails/zone.py; src/bloomery/semantic/zone.py; tests/unit/test_guardrails/test_zone.py.
+      - D-8: The class docstring gives the reason, answering the row's 'can one message name both' question with no. Evidence: src/bloomery/errors.py; src/bloomery/guardrails/zone.py; tests/unit/test_guardrails/test_zone.py.

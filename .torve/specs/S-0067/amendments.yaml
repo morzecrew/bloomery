@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-4
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-4
+        field: text
+        before: >-
+          Whether partial adoption within a project is refused by `check` (§10).
+        after: >-
+          Partial adoption is allowed: a node without `id:` keys by its name (`spec.project.key`)
+          beside nodes that adopted one. Only a collision is refused, at parse: two
+          nodes minting one id, or an id equal to another node's name. Nothing refuses
+          a project for mixing adopted and unadopted nodes.
+      - subject: D-4
+        field: fingerprint
+        after: 04027546d09d5d1d/202c11f3690cefb1
+      - subject: D-6
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-6
+        field: text
+        before: >-
+          Whether node identity is a write-once `id:` or a one-shot `renamed_from:`
+          in S-0024/D-3's shape (§10). Recorded rather than assumed: the codebase
+          already chose the second answer for fields, and a document that does not
+          say why nodes differ is one that looks like it did not know.
+        after: >-
+          Node identity is a write-once optional `id:` on metrics, steps and canonical
+          fields; `renamed_from:` stays field-level. Editing an `id:` is a delete
+          and an add, and a timeline never carries one name across two different ids.
+      - subject: D-6
+        field: fingerprint
+        after: 4acec8fc0df7ea18/e459cc2f6fd436ca
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-4: Execution settled it in T-0032, and the document's own status line says 'partial adoption allowed with only a collision refused'. Evidence: src/bloomery/spec/project.py; tests/unit/test_spec/test_metrics.py.
+      - D-6: Execution chose the write-once `id:` (T-0032), and the timeline code and test enforce the delete-and-add reading. Evidence: src/bloomery/spec/metrics.py; src/bloomery/spec/steps.py; src/bloomery/spec/catalog.py; src/bloomery/spec/entity.py.

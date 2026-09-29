@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: text
+        before: >-
+          **Whether per-measure restriction scopes on `Filter` or on `Aggregate`**
+          (§5.5). One node type per concept against keeping the restriction beside
+          what it restricts. Execution decides against `resolve.build._metric_filters`,
+          which already holds the authored clauses, and logs which and why.
+        after: >-
+          Per-measure restriction scopes on `Filter`. `Filter.measures` names the
+          measures its predicates restrict, empty meaning every measure beneath, because
+          `Filter` is the node that makes the restriction claim. A scoped `Filter`
+          with no predicates is refused at construction.
+      - subject: D-7
+        field: fingerprint
+        after: 9e29cb918413b73a/202c11f3690cefb1
+      - subject: D-8
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-8
+        field: text
+        before: >-
+          **What replaces `_plannable`.** Its four conditions exist to decline; once
+          nothing declines they are either deleted or turned into a dispatch to the
+          node stating each shape. The second cannot silently regrow into a list of
+          exclusions, which the enumerating version of that guard already did twice
+          — but it is a bigger change, and the choice belongs to whoever sees both
+          shapes against the code.
+        after: >-
+          `_plannable` is replaced by `_measures_are_embedded`, the precondition of
+          R008 alone: every reduced number is a measure the mart embeds, at a statable
+          additivity. Its other three exclusions became plan nodes, and `build` returns
+          `None` only where coverage or the additivity guardrail has already refused.
+      - subject: D-8
+        field: fingerprint
+        after: 3234bb4ae0485c21/483498c4fe039a93
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-7: The field's comment states the choice and its reason ('Scoped here rather than on Aggregate because this is the node that makes the claim'). Evidence: src/bloomery/semantic/plan.py; src/bloomery/planner/semantic_plan.py; tests/unit/test_semantic/test_plan.py.
+      - D-8: The docstring cites S-0071/D-8 and describes the guard as a single precondition rather than a list of exclusions. Evidence: src/bloomery/planner/semantic_plan.py; src/bloomery/planner/result.py; tests/unit/test_semantic/test_plan.py.

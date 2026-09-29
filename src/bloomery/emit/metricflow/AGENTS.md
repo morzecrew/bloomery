@@ -91,9 +91,9 @@ Serialization via MetricFlow's pydantic-v1-style `.json()` / `.parse_raw()`, sor
 - Paths: `src/bloomery/emit/metricflow/__init__.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0059/D-5 — `OPEN` (Loose ends inside shipped subsystems)
+### S-0059/D-5 — `ASSUMED` (Loose ends inside shipped subsystems)
 
-The manifest's artifact path — `semantic_manifest.json` at the root, or under a namespace. Settled by execution; §10 states the case for the root.
+The MetricFlow target emits its one artifact at the root as `semantic_manifest.json` (`MANIFEST_PATH`), not under a namespace: a MetricFlow project holds a single top-level manifest, and nothing else in the emitted tree competes for the name.
 
 - Paths: `src/bloomery/emit/metricflow/__init__.py`
 

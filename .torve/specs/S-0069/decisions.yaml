@@ -49,6 +49,7 @@ decisions:
     text: >-
       **Superseded by 8.** Whether an unattributable spec field is a `check` refusal
       or a warning (§9).
+    superseded_by: D-8
   - id: D-7
     grade: ASSUMED
     text: >-
