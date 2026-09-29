@@ -42,6 +42,7 @@ from bloomery.errors import (
 )
 from bloomery.ir import COMPUTED, Additivity, Cardinality, Layer, SqlExpr
 from bloomery.marts import DATE_BUCKETS
+from bloomery.planner.explain import _human_predicate
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import TimeGrain, clause_predicates
 from bloomery.semantic import Proof, RefusalReason, grain_of, prove_rollup
@@ -52,7 +53,7 @@ if TYPE_CHECKING:
     from bloomery.ir import MartIR, MetricIR, ProjectIR
     from bloomery.naming import NamingPolicy
     from bloomery.planner.policy import RowPolicy
-    from bloomery.planner.request import MetricRequest
+    from bloomery.planner.request import MetricRequest, Predicate
 
 # ----------------------- #
 
@@ -993,7 +994,7 @@ def _homes(
 
 
 def _not_on_every_branch(
-    ir: ProjectIR, name: str, marts: Sequence[MartIR], *, kind: str
+    ir: ProjectIR, restriction: Predicate, marts: Sequence[MartIR], *, kind: str
 ) -> UnreachableAtGrain:
     """The refusal for a restriction one branch can evaluate and another cannot
     (S-0055/D-4, S-0055/D-5; logs/T-0027.md, D-176).
@@ -1004,32 +1005,31 @@ def _not_on_every_branch(
     applied throughout. So the whole request refuses, and the message names
     every branch and what it has, because the fix is a mart change rather than
     a request change.
+
+    The restriction itself leads, and the branches without it are named apart
+    from the table (S-0082/D-3): the author reads which filter to drop or which
+    mart to widen, rather than a grain comparison that was never the problem.
     """
 
+    name = restriction.dimension
     candidates = _candidate_triples(ir, name)
     width = max(len(mart.name) for mart in marts)
-    listed = "\n".join(
-        f"  {mart.name:<{width}} → "
-        + (
-            local
-            if (
-                local := next(
-                    (
-                        found
-                        for triple in candidates
-                        if (found := _column_with(mart, triple)) is not None
-                    ),
-                    None,
-                )
-            )
-            is not None
-            else "not carried"
+    local = {
+        mart.name: next(
+            (found for triple in candidates if (found := _column_with(mart, triple)) is not None),
+            None,
         )
         for mart in marts
+    }
+    lacking = ", ".join(mart.name for mart in marts if local[mart.name] is None)
+    listed = "\n".join(
+        f"  {mart.name:<{width}} → {local[mart.name] or 'not carried'}" for mart in marts
     )
 
     msg = (
-        f"{kind} dimension {name!r} is not carried by every mart this request needs:\n"
+        f"{kind} `{_human_predicate(restriction, name)}` does not reach every branch: "
+        f"{lacking} cannot apply it.\n"
+        f"  {kind} dimension {name!r} is not carried by every mart this request needs:\n"
         f"{listed}\n"
         "  A restriction placed on some branches and not others narrows one measure and "
         "not the other, and the join reports the two side by side as though one "
@@ -1044,7 +1044,7 @@ def _not_on_every_branch(
 
 
 def _restricted_dimensions(
-    ir: ProjectIR, name: str, marts: Sequence[MartIR], *, kind: str
+    ir: ProjectIR, restriction: Predicate, marts: Sequence[MartIR], *, kind: str
 ) -> list[tuple[MartIR, ResolvedDimension]]:
     """Each branch's own column for one restriction, when no single provenance
     anchors it — or the refusal that says why there is none.
@@ -1071,6 +1071,7 @@ def _restricted_dimensions(
     fire at all.
     """
 
+    name = restriction.dimension
     resolved: list[tuple[MartIR, ResolvedDimension]] = []
 
     for mart in marts:
@@ -1079,7 +1080,7 @@ def _restricted_dimensions(
         except AmbiguousDimension:
             raise
         except PlannerError:
-            raise _not_on_every_branch(ir, name, marts, kind=kind) from None
+            raise _not_on_every_branch(ir, restriction, marts, kind=kind) from None
 
     _one_dimension(name, resolved)
 
@@ -1329,14 +1330,16 @@ def resolve_branches(
     # filter placed elsewhere, it is a request with no consistent meaning.
     restrictions: dict[str, dict[str, ResolvedDimension]] = {}
 
-    for kind, name in [
+    for kind, restriction in [
         *(
-            ("filter", predicate.dimension)
+            ("filter", predicate)
             for clause in request.filters
             for predicate in clause_predicates(clause)
         ),
-        *((("row policy", policy.dimension),) if policy is not None else ()),
+        *((("row policy", policy.as_clause()),) if policy is not None else ()),
     ]:
+        name = restriction.dimension
+
         if name in restrictions:
             # A repeat, not a conflict: both routes below are pure in their
             # arguments, so the second lookup would return the first's answer.
@@ -1361,7 +1364,7 @@ def resolve_branches(
             if target is not None
             else {
                 mart.name: dimension
-                for mart, dimension in _restricted_dimensions(ir, name, ordered, kind=kind)
+                for mart, dimension in _restricted_dimensions(ir, restriction, ordered, kind=kind)
             }
         )
 

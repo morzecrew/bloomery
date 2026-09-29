@@ -1073,6 +1073,46 @@ def test_a_row_policy_reaches_every_branch_or_the_request_refuses() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("filters", "policy", "named"),
+    [
+        (
+            (Predicate(dimension="region", op=Op.EQ, values=("EU",)),),
+            None,
+            "filter `region = 'EU'` does not reach every branch: customers cannot apply it",
+        ),
+        (
+            (),
+            RowPolicy(dimension="region", op=Op.IN, value=("EU", "US")),
+            "row policy `region in ('EU', 'US')` does not reach every branch: "
+            "customers cannot apply it",
+        ),
+    ],
+)
+def test_a_restriction_missing_from_a_branch_names_itself_and_the_branch(
+    filters: tuple[Predicate, ...], policy: RowPolicy | None, named: str
+) -> None:
+    """S-0082/D-3: the refusal says which restriction and which branches lack it,
+    rather than blaming grains — the author's fix is to drop that filter or
+    widen that mart."""
+    ir = fixture_ir("cross_mart_branches")
+
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        resolve_branches(
+            ir,
+            MetricRequest(
+                metrics=("customer_count", "shipping_count"),
+                dimensions=("tier",),
+                filters=filters,
+            ),
+            naming=DefaultNaming(),
+            policy=policy,
+        )
+
+    assert named in str(excinfo.value)
+    assert "grain" not in str(excinfo.value)
+
+
 def test_a_third_marts_naming_does_not_decide_what_the_request_meant() -> None:
     """Identity is anchored on one provenance every branch can reach, not on
     whichever mart carrying the name happens to sort first.
