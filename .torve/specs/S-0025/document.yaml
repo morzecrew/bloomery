@@ -246,9 +246,13 @@ questions:
       predicate bloomery builds. The pinned sqlmesh does ship `accepted_range` and
       `match_regex_pattern_list`, semantically equal to what bloomery emits; taking
       them would strand the shared predicate with dbt as its only consumer.
+    status: settled
+    settled_by: D-16
   - id: Q-2
     text: >-
       ~~Whether Cube views should be emitted per metric or per metric-grain group~~
       — **settled 2026-08-10, D17.** Neither: **per mart**. A per-grain view over
       two marts at one grain would need a `join_path` between them, and bloomery models
       no relationship between marts — so it could only be emitted by inventing a join.
+    status: settled
+    settled_by: D-17

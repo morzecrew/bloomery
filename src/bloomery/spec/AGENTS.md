@@ -96,16 +96,16 @@ Determination is a lattice, not a list. A column may determine several others in
 - Paths: `src/bloomery/spec/marts.py` `src/bloomery/ir/nodes.py`
 - Consequence: Existing projects with `flatten: [{date: …, role: …}]` compile unchanged and the general role is additive beside them; departing means absorbing dates into the general vocabulary, which touches every existing project
 
-### S-0007/D-6 — `OPEN` (Dimension algebra)
+### S-0007/D-6 — `ASSUMED` (Dimension algebra)
 
-Whether `determines:` lives on the entity model or on the catalog's canonical field. A determination is a property of values rather than of a feed, which argues for the catalog; the entity model is where fields are otherwise described. The executor decides against the shape of both and logs it
+`determines:` lives on the entity model's `Field`, is declared on the determinant and names only that entity's own fields. `Entity._determination_is_declared_and_acyclic` refuses a dangling name or a cycle. The catalog's `CanonicalField` carries no determination.
 
 - Paths: `src/bloomery/spec/entity.py` `src/bloomery/spec/catalog.py`
 - Consequence: The placement decides where the parse, the cycle refusal and the transitive closure live, and whether a determination is stated once per catalog field or once per entity that maps it
 
-### S-0007/D-8 — `OPEN` (Dimension algebra)
+### S-0007/D-8 — `ASSUMED` (Dimension algebra)
 
-Whether `same_as:` is needed at all. The in-project case is derivable from `role_of:` and the cross-project case has no consumer until multi-project composition reaches its emitted-reference phase. If both hold, this relation is not built
+`same_as:` is not built. Within one project, two `role_of:` steps already say that two roles share a value set, and R021 reads them through `prove_comparable`. Across projects the relation has no consumer until a reference is emitted over the boundary, so it is retired rather than pending.
 
 - Paths: `src/bloomery/spec/marts.py`
 - Consequence: Phase 3 exists only if this resolves that the relation is needed; resolving it the other way retires the relation and the document can complete on the first two phases
@@ -149,16 +149,16 @@ Six statable guardrails, not the source proposal's ten - the projection rule fol
 - Paths: `src/bloomery/guardrails/**` `src/bloomery/spec/**`
 - Consequence: A reader of the source proposal will look for four rules that are not here and has to be told where they went; in exchange each remaining rule has one refusal message and one test
 
-### S-0011/D-11 — `OPEN` (Retrieval semantics)
+### S-0011/D-11 — `ASSUMED` (Retrieval semantics)
 
-Whether a vector field may be declared on an entity or only on a mart
+A vector field may be declared on an entity as well as on a mart. `vector(<scalar>, <dimensions>)` is in the `TYPE_STRING_PATTERN` that every entity `Field.type` reads, and a profile's `CorpusRelation` names either a `mart` or an `entity`. On an entity, a vector arrives as a step's declared output.
 
 - Paths: `src/bloomery/spec/entity.py` `src/bloomery/spec/marts.py`
 - Consequence: Confining it to marts keeps the new type out of the mapping and transform paths entirely, which is most of the type-system cost; allowing it on entities means an embedding produced by a step can be declared where it is produced
 
-### S-0011/D-12 — `OPEN` (Retrieval semantics)
+### S-0011/D-12 — `ASSUMED` (Retrieval semantics)
 
-Whether `distance` is a property of the semantic space or of the retrieval profile
+`distance` is a property of the semantic space: `SemanticSpace.distance` is one of `cosine`, `dot` or `l2`, `RetrievalProfile` has no distance field, and every field claiming one space is scored the same way.
 
 - Paths: `src/bloomery/spec/**`
 - Consequence: Putting it on the space is the easier position to relax later, since moving a field from the space to the profile is additive and the reverse is not

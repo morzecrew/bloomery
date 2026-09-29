@@ -24,6 +24,7 @@ decisions:
     text: >-
       Candidate A, B or C (§5.1). The lean is A behind a port, with B reachable as
       a second adapter.
+    superseded_by: S-0073/D-1
   - id: D-5
     grade: ASSUMED
     text: >-

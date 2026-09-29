@@ -333,6 +333,8 @@ questions:
       tests by construction (§5.1 item 2 compiles fixtures), but a reader looking
       for "is the tree healthy" looks at `quality`. Splitting them across both would
       make `quality` no longer byte-identical to CI, which S-0018/D-4 protects.
+    status: settled
+    settled_by: D-21
   - id: Q-2
     text: >-
       **Is 0.1 the right number**, or is 0.0.x more honest for a first published artifact?
@@ -343,8 +345,12 @@ questions:
       **Which promises bind at 0.1 and which at 1.0?** §5.5 says the stability page
       changes; it does not say the API is frozen. The split needs stating before the
       tag, not after.
+    status: settled
+    settled_by: D-23
   - id: Q-4
     text: >-
       **Should `RETIRED.md` be generated rather than hand-appended?** `git log --diff-filter=D`
       can produce it, but a generated file that regenerates differently on a shallow
       clone is worse than a committed one. §5.4 assumes hand-appended, checked mechanically.
+    status: settled
+    settled_by: D-7

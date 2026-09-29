@@ -317,3 +317,5 @@ questions:
       the date dimension already has levels — `day`, `month` and `year` are a declared
       hierarchy in all but name. Whether the general vocabulary absorbs it or sits
       beside it is a real choice, and absorbing it touches every existing project.
+    status: settled
+    settled_by: D-5

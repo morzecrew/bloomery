@@ -115,9 +115,9 @@ Floats are banned in IR and emission; `Decimal`/int only.
 - Paths: `src/bloomery/cli/render.py` `src/bloomery/evidence.py` `tests/unit/test_unresolved.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0047/D-7 — `OPEN` (The unresolved-work report)
+### S-0047/D-7 — `ASSUMED` (The unresolved-work report)
 
-**Whether the human CLI table prints open decisions.** JSON gets them by construction. The table is a summary (S-0037/D-4), and this is either the most useful line `bloomery resolve` could print or the one that turns a summary into a dump. Whoever builds this decides and logs it.
+`bloomery resolve`'s human table prints an `Open decisions (N)` section with one row per decision: canonical, gap, target `entity.field`, the catalog's recipe ids in catalog order, and the metrics it blocks. Recipe alias slots (`requires`) stay out of the table and appear only in `--format json`.
 
 - Paths: `src/bloomery/cli/render.py` `tests/unit/test_cli.py`
 
@@ -128,9 +128,9 @@ Floats are banned in IR and emission; `Decimal`/int only.
 - Paths: `src/bloomery/cli/render.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0054/D-7 — `OPEN` (Safe rollup planner and SemanticPlan IR)
+### S-0054/D-7 — `ASSUMED` (Safe rollup planner and SemanticPlan IR)
 
-**Whether `SemanticPlan` lowers to the existing `QueryPlan`, replaces it, or sits beside it.** Three shapes with different migration costs and different answers to "what does `bloomery plan` print". P1 exists partly to answer this from contact with the code; log the decision with what P1 found.
+`SemanticPlan` sits beside `QueryPlan`'s shipped surfaces as the required field `QueryPlan.semantic`; `sql`, `columns` and `explanation` are unchanged. `bloomery explain` renders its evidence sections from `query.semantic` and appends them after the SQL and the explanation.
 
 - Paths: `src/bloomery/cli/__init__.py`
 
@@ -141,9 +141,9 @@ Floats are banned in IR and emission; `Decimal`/int only.
 - Paths: `src/bloomery/cli/__init__.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0057/D-7 — `OPEN` (`bloomery check` and imported semantic provenance)
+### S-0057/D-7 — `ASSUMED` (`bloomery check` and imported semantic provenance)
 
-**Whether `check` is a new command or `resolve` gaining an exit-code contract.** The surfaces overlap substantially and two near-identical commands is its own defect; so is overloading a command whose current output people already parse. Decide it against what `resolve` actually prints today, and log the decision.
+`check` is a separate command, not an exit contract added to `resolve`. Both commands read `stage_reached` from one `SpecEvidence` through `_evidence_exit`, so their exit codes cannot disagree. `check` prints checked-surface counts and refusals; `resolve` prints reachability and open decisions.
 
 - Paths: `src/bloomery/cli/__init__.py` `src/bloomery/cli/render.py`
 

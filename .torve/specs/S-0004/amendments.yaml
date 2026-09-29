@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-16
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-16
+        field: text
+        before: >-
+          What makes a quality rule "unstrengthened" — the vocabulary the second advisory
+          candidate names and this codebase does not have — is decided at implementation
+          against the `QualityRule` subclasses in `src/bloomery/spec/quality.py`,
+          and the decision is logged
+        after: >-
+          No quality rule is advised as unstrengthened, and the unstrengthened-rule
+          advisory does not exist. The only rules provably vacuous from a declared
+          type, `normalize` and `charset` on a non-`string` column, are refused as
+          a `SpecParseError` by `_check_character_rules` in `load_project`, and `AdvisoryCode`
+          carries only `inexact_division` and `undeclared_audience`.
+      - subject: D-16
+        field: fingerprint
+        after: fc85480bde866908/93d13834f72e5485
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-16: T-0012 first defined the term: a rule strengthens a column when it can reject a value the declared type admits. S-0033 phase 1 (A-1, T-0175) then made the only branch that could fire unreachable and deleted the advisory, so the replacement text records that the advisory was withdrawn, not the old definition. Evidence: src/bloomery/spec/project.py; src/bloomery/evidence.py; tests/unit/test_spec/test_quality.py::test_a_character_rule_on_a_non_textual_column_is_refused; .torve/specs/S-0004/execution/T-0012-1-20260919T042610Z.yaml.

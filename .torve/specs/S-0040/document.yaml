@@ -404,3 +404,5 @@ questions:
       than refused at emit? Removal is cleaner but changes the exported JSON Schema's
       transform enum, which is a spec-surface change; refusal keeps the surface stable.
       §5.2 chooses refusal; a reviewer may reasonably prefer removal.
+    status: settled
+    settled_by: D-15

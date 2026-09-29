@@ -166,12 +166,20 @@ def main() -> None:
         with contextlib.suppress(Exception):
             evaluate(load_project(documents), catalog=catalog, steps=steps)
 
-    sys.getrecursionlimit()
-    for _site, _depths in sorted(observed.items(), key=lambda kv: -max(kv[1])):
-        pass
+    limit = sys.getrecursionlimit()
+    print(f"compiled {compiled} project(s), {refused} refused; recursion limit {limit}")
+    print()
+    print(f"{'site':<52} {'calls':>6} {'deepest':>8} {'left':>6}")
+    for site, depths in sorted(observed.items(), key=lambda kv: -max(kv[1])):
+        print(f"{site:<52} {len(depths):>6} {max(depths):>8} {limit - max(depths):>6}")
 
+    # How deep an expression `parse_one` still accepts as the stack grows
+    # under it: the margin a value cleared by the shallow validator has left.
+    print()
+    print(f"{'extra frames':>12} {'stack depth':>12} {'max nesting':>12}")
     for extra in (0, 4, 8, 16, 32):
-        _depth, _levels = _max_nesting(extra)
+        depth, levels = _max_nesting(extra)
+        print(f"{extra:>12} {depth:>12} {levels:>12}")
 
 
 if __name__ == "__main__":

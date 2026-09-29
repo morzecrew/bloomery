@@ -99,9 +99,9 @@ The fix lives in the **neutral spelling**, not at the port, because provenance d
 - Paths: `examples/lakehouse/**` `src/bloomery/dialects/postgres.py` `src/bloomery/dialects/trino.py` `src/bloomery/ir/nodes.py` `src/bloomery/transforms/_builtins.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0044/D-4 — `OPEN` (ISO 8601 timestamps across dialects)
+### S-0044/D-4 — `ASSUMED` (ISO 8601 timestamps across dialects)
 
-Which option of §4. The lean is **(a)**: it is the only one that keeps the DuckDB and PostgreSQL artifacts unchanged in meaning, keeps one producer for the construct, and makes a fourth dialect fail loud rather than quietly wrong.
+`parse_ts: ISO8601` builds `CAST(BLM_ISO_TEXT(x) AS TIMESTAMP)`: the marker (`ISO_TEXT_MARKER`, built only by `iso_text`) wraps the text rather than the cast, so the `TryCast` rewrite still applies; every port rewrites it through `strip_iso_text`, and `SQLGlotDialect.render` raises `UnsupportedByTarget` if the marker survives. `parse_date` is not marked.
 
 - Paths: `src/bloomery/dialects/base.py` `src/bloomery/dialects/trino.py` `src/bloomery/transforms/_builtins.py`
 
@@ -164,9 +164,9 @@ Arithmetic transforms **narrow their own result** to the type they declare, rath
 
 - Paths: `src/bloomery/dialects/base.py` `src/bloomery/transforms/_builtins.py`
 
-### S-0046/D-5 — `OPEN` (Transform types the engine agrees with)
+### S-0046/D-5 — `ASSUMED` (Transform types the engine agrees with)
 
-Whether `to_bool`/`to_int` across the boolean boundary get a PostgreSQL spelling (`x::int::boolean`) or a refusal. A spelling is cheap; a refusal is honest about `to_bool` over an arbitrary integer having no agreed meaning.
+`to_bool` over an integer is spelled, not refused, and spelled once in the builder as `x <> 0`, the non-zero-is-true meaning DuckDB and Trino already agree on; `to_int` over a boolean builds `CAST(CAST(x AS INT) AS BIGINT)`. No engine-specific spelling exists.
 
 - Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py`
 

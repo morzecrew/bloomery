@@ -225,3 +225,5 @@ questions:
       ergonomics and the exact counter surface. **Answered (2026-08-07): V1 and V3
       both PASS** ([`spikes/metricflow/VERIFICATION.md`](spikes/metricflow/VERIFICATION.md));
       budgets confirmed (§5.5), login-time pre-warming stays out of scope (§8).
+    status: settled
+    settled_by: D-9

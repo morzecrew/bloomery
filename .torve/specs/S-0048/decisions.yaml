@@ -36,15 +36,13 @@ decisions:
       - src/bloomery/resolve/reach.py
       - src/bloomery/resolve/resolution.py
   - id: D-4
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Whether `Direction.BOTH` returns one merged sub-DAG or an upstream/downstream
-      pair — and P1 therefore ships `UPSTREAM` and `DOWNSTREAM` only.** Merged is
-      simpler to type and loses which side a node came from, which the first renderer
-      needs to draw a root. Deferring the *member* rather than guessing its shape
-      is the point: a `BOTH` shipped in P1 and reshaped in P2 is a breaking change
-      to a published `__all__` type, and D2 has just bound `Lineage` to SemVer. Settled
-      by whoever builds that renderer; the executor decides and logs it.
+      `Direction.BOTH` returns one merged `Lineage`. Its nodes and edges are the union
+      of the upstream and downstream walks, never the subgraph induced on that union,
+      and `truncated` is true if either walk was cut. `BOTH` shipped in P2, after
+      the renderer.
+    fingerprint: 72217ddfe3bbb3aa/202c11f3690cefb1
   - id: D-5
     grade: ASSUMED
     text: >-
@@ -82,9 +80,9 @@ decisions:
       makes the eventual unification a refactor instead of a rediscovery.
     paths: [tests/unit/test_resolve/test_lineage_agreement.py]
   - id: D-8
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Whether `lineage()` accepts a node name as well as a `Node`.** The CLI must
-      resolve a string either way; the question is whether that resolution is a library
-      function or stays a CLI concern. The risk of the library form is a second, looser
-      way to name a node.
+      `lineage()` takes a `Node` only. Resolving a string to a node is the CLI's private
+      `_find_node`, which refuses an unknown id with at most five `difflib` near misses
+      and refuses an id that names two nodes by listing both kinds.
+    fingerprint: 632f0cb654bdbfaa/202c11f3690cefb1

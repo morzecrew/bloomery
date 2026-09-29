@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-8
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-8
+        field: text
+        before: >-
+          What happens to a rule identifier when a rule is split or subsumed. They
+          become a public contract the moment continuous integration asserts on them,
+          so decide the versioning discipline before the first identifier ships, since
+          the choice is unmakeable afterwards
+        after: >-
+          Rule identifiers in `RULES` are append-only: an id is never reused or repointed.
+          A split or a subsumption mints new ids. The old `Rule` keeps its entry,
+          with `superseded_by` naming its replacements and its id listed in `SUPERSEDED`.
+          `Proof` refuses any rule id that is not in `RULES`.
+      - subject: D-8
+        field: fingerprint
+        after: 6c3959e6a868f764/8c4f61cccc92992d
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-8: The discipline is implemented and guarded. `SUPERSEDED` is empty, so the guard has not yet been exercised by a real split. That is a gap in test coverage, not an open question. Evidence: src/bloomery/semantic/proof.py; src/bloomery/semantic/proof.py, 445-449; tests/unit/test_semantic/test_proof.py::test_a_superseded_rule_keeps_its_entry.

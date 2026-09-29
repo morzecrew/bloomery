@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-4
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-4
+        field: text
+        before: >-
+          **Whether `Direction.BOTH` returns one merged sub-DAG or an upstream/downstream
+          pair — and P1 therefore ships `UPSTREAM` and `DOWNSTREAM` only.** Merged
+          is simpler to type and loses which side a node came from, which the first
+          renderer needs to draw a root. Deferring the *member* rather than guessing
+          its shape is the point: a `BOTH` shipped in P1 and reshaped in P2 is a breaking
+          change to a published `__all__` type, and D2 has just bound `Lineage` to
+          SemVer. Settled by whoever builds that renderer; the executor decides and
+          logs it.
+        after: >-
+          `Direction.BOTH` returns one merged `Lineage`. Its nodes and edges are the
+          union of the upstream and downstream walks, never the subgraph induced on
+          that union, and `truncated` is true if either walk was cut. `BOTH` shipped
+          in P2, after the renderer.
+      - subject: D-4
+        field: fingerprint
+        after: 72217ddfe3bbb3aa/202c11f3690cefb1
+      - subject: D-8
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-8
+        field: text
+        before: >-
+          **Whether `lineage()` accepts a node name as well as a `Node`.** The CLI
+          must resolve a string either way; the question is whether that resolution
+          is a library function or stays a CLI concern. The risk of the library form
+          is a second, looser way to name a node.
+        after: >-
+          `lineage()` takes a `Node` only. Resolving a string to a node is the CLI's
+          private `_find_node`, which refuses an unknown id with at most five `difflib`
+          near misses and refuses an id that names two nodes by listing both kinds.
+      - subject: D-8
+        field: fingerprint
+        after: 632f0cb654bdbfaa/202c11f3690cefb1
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-4: Merged was chosen over a pair. A stale comment at lineage.py still says the coercion 'refuses "both"', which is no longer true. Evidence: src/bloomery/resolve/lineage.py; tests/unit/test_resolve/test_lineage.py::test_both_is_the_union_of_the_two_walks.
+      - D-8: P1 built the Node-only signature and the retired log recorded it as D8's answer. `timeline()` accepts a string, but it spans versions and is S-0069's surface, not this one. Evidence: src/bloomery/resolve/lineage.py; src/bloomery/cli/__init__.py; tests/unit/test_cli.py::test_lineage_suggestions_are_bounded_and_deterministic.

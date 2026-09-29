@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-8
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-8
+        field: text
+        before: >-
+          Whether a cloud port ships in-tree or as an extension package registered
+          through `register_dialect`; decide it before the first cloud port lands
+        after: >-
+          Cloud ports ship in-tree. `SnowflakeDialect`, `BigQueryDialect`, `RedshiftDialect`
+          and `DatabricksDialect` live in `src/bloomery/dialects/`, are registered
+          in the immutable default registry, and were released in 0.3.0 with no runtime
+          dependency beyond `sqlglot`. `register_dialect` remains the overlay for
+          third-party ports.
+      - subject: D-8
+        field: fingerprint
+        after: 8d38e819c8e2626f/2e82f004f914921f
+      - subject: D-9
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-9
+        field: text
+        before: >-
+          Whether `surrogate` is a new pytest marker or a parameter on `engine`; whoever
+          adds the first surrogate lane decides and updates the marker table with
+          the reason
+        after: >-
+          `surrogate(name)` is a pytest marker of its own, not a parameter on `engine`.
+          `engine(name)` keeps meaning the real engine, so a CI log separates rung
+          4 from rungs 5–6, and the reason sits beside the entry in the `pyproject.toml`
+          marker table.
+      - subject: D-9
+        field: fingerprint
+        after: 9aec47f68891fde7/64c12685ac41aa45
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-8: Decided by building and releasing, not by a logged decision. S-0013/S-0014/S-0015/S-0016 each deferred the question to this row and built in-tree anyway, and after 0.3.0 moving a port out is the breaking change the consequence warns about. Evidence: src/bloomery/dialects/__init__.py; CHANGELOG.md; pyproject.toml dependencies.
+      - D-9: The first surrogate lane chose the spelling and recorded the reason, as the row required. Evidence: pyproject.toml; tests/unit/test_tier_ladder_guard.py::test_the_selector_is_distinct_from_engine; tests/unit/test_tier_ladder_guard.py::test_the_table_records_why; .torve/specs/S-0012/execution/T-0007-1-20260919T004033Z.yaml.

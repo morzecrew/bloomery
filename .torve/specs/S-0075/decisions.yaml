@@ -64,12 +64,13 @@ decisions:
       that is observable. Not `LOCKED` because a second importer may show the mapping
       table wants a shape the first did not need.
   - id: D-6
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Whether the importer writes one `imported.yaml` or one document per source
-      model.** One is a simpler contract and a worse diff on a large import; per-model
-      matches the layout of the project being imported from. Decide it against what
-      a real manifest produces, and log the decision.
+      The importer writes no document. `bloomery import` prints a `relationships:`
+      block, each entry carrying `imported_from:`, for the author to paste into the
+      project's one entity-model document. An `imported.yaml` could not be loaded
+      back, and the spec directory is only read.
+    fingerprint: 2eb0eeefc07102dd/202c11f3690cefb1
   - id: D-7
     grade: ASSUMED
     text: >-

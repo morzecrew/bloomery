@@ -212,12 +212,12 @@ decisions:
       refuses at the spec surface, read one layer down
     cites: [S-0007/D-2, S-0007/what-each-fact-buys]
   - id: D-11
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Where `_determinations` lives. It is stated here as a private helper in `src/bloomery/marts/rollup.py`,
-      beside its only caller; it could as well be a function on the IR that `lower_rollups`
-      imports, if a second consumer appears while the phase is being built. The executor
-      decides against the shape of both and logs it
+      `_determinations` is a private helper in `src/bloomery/marts/rollup.py`, beside
+      its only caller `lower_rollups`, deriving the mart-namespace mapping at the
+      call and storing nothing. No second consumer appeared during the build, so it
+      did not move onto the IR.
     paths: [src/bloomery/marts/rollup.py]
     consequence: >-
       Either placement satisfies D-4, since neither stores anything. Moving it out
@@ -227,6 +227,7 @@ decisions:
       There is one caller today and no evidence of a second. The default is the module
       that calls it, and the row exists so the choice is decided rather than discovered
     cites: [D-4]
+    fingerprint: 69293dc99e6c37c1/ff2768c3e5a9ea33
 invariants:
   - id: I-1
     statement: >-

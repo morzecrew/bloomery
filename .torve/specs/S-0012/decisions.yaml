@@ -109,10 +109,12 @@ decisions:
       whose surrogate is both cheap and faithful may earn a pull-request slot, and
       the Snowflake document's OSS emulator is the likely first case
   - id: D-8
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether a cloud port ships in-tree or as an extension package registered through
-      `register_dialect`; decide it before the first cloud port lands
+      Cloud ports ship in-tree. `SnowflakeDialect`, `BigQueryDialect`, `RedshiftDialect`
+      and `DatabricksDialect` live in `src/bloomery/dialects/`, are registered in
+      the immutable default registry, and were released in 0.3.0 with no runtime dependency
+      beyond `sqlglot`. `register_dialect` remains the overlay for third-party ports.
     paths: [src/bloomery/dialects/**]
     consequence: >-
       Moving a shipped dialect between the two is a breaking change either way, so
@@ -121,12 +123,14 @@ decisions:
       `register_dialect` already accepts a `DialectPort` from outside the package,
       and the two paths differ in dependency weight, release cadence and who is on
       the hook when a hosted engine changes under a shipped port
+    fingerprint: 8d38e819c8e2626f/2e82f004f914921f
   - id: D-9
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether `surrogate` is a new pytest marker or a parameter on `engine`; whoever
-      adds the first surrogate lane decides and updates the marker table with the
-      reason
+      `surrogate(name)` is a pytest marker of its own, not a parameter on `engine`.
+      `engine(name)` keeps meaning the real engine, so a CI log separates rung 4 from
+      rungs 5–6, and the reason sits beside the entry in the `pyproject.toml` marker
+      table.
     paths: [pyproject.toml]
     consequence: >-
       Either spelling satisfies D-2, and the parameter form keeps one selector for
@@ -134,3 +138,4 @@ decisions:
     rationale: >-
       D-2 fixes the requirement, not the spelling; `@pytest.mark.engine("redshift",
       surrogate=True)` meets it as well as a separate marker does
+    fingerprint: 9aec47f68891fde7/64c12685ac41aa45

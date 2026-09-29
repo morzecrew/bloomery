@@ -142,8 +142,8 @@ def lineage(
     # `Direction.UPSTREAM == "upstream"` and the API invites a caller — or a CLI
     # parsing argv — to pass the string. An `is` comparison against the member
     # would take the *other* branch for one and record the requested direction
-    # on the result, so the value would misreport the walk it describes. This
-    # also refuses `"both"`, which is D4's P2 member and has no behaviour yet.
+    # on the result, so the value would misreport the walk it describes.
+    # `"both"` coerces to `Direction.BOTH`, the merged walk (D4).
     direction = Direction(direction)
 
     if max_depth is not None and max_depth < 0:

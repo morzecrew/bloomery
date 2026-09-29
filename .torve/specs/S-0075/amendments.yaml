@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-6
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-6
+        field: text
+        before: >-
+          **Whether the importer writes one `imported.yaml` or one document per source
+          model.** One is a simpler contract and a worse diff on a large import; per-model
+          matches the layout of the project being imported from. Decide it against
+          what a real manifest produces, and log the decision.
+        after: >-
+          The importer writes no document. `bloomery import` prints a `relationships:`
+          block, each entry carrying `imported_from:`, for the author to paste into
+          the project's one entity-model document. An `imported.yaml` could not be
+          loaded back, and the spec directory is only read.
+      - subject: D-6
+        field: fingerprint
+        after: 2eb0eeefc07102dd/202c11f3690cefb1
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-6: Both options assumed a written file; execution found a project holds exactly one EntityModel document, so the question became printing a block to paste. Evidence: src/bloomery/cli/__init__.py; tests/unit/test_cli.py.

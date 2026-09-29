@@ -90,16 +90,17 @@ decisions:
       - tests/e2e/test_dbt_parse.py
       - tests/unit/test_emit/test_dbt.py
   - id: D-8
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      The as-of anchor's spelling and location. §5.3 proposes `as_of:` on the `flatten`
-      entry; a mart-level default and a relationship-level declaration are both defensible.
-      Whoever builds Phase 2 decides and logs it. It must be **declared** either way
-      — inference is closed by S-0038.
+      The as-of anchor is `as_of:` on the mart's `flatten` `via:` step (`ViaStep.as_of`),
+      naming a date or timestamp column of the base entity. It is required to flatten
+      an `scd: type2` entity; an anchor on a non-historical entity or naming a non-temporal
+      or unknown column is refused as `HistoricalFanout`. It is declared, never inferred.
     paths:
       - tests/fixtures/semantic_corpus/003-scd2-unqualified-join/expected/semantic_outcome.json
       - tests/fixtures/semantic_corpus/003-scd2-unqualified-join/problem.md
       - tests/unit/test_marts/test_flatten.py
+    fingerprint: 31b6586c8aceda68/a30689e072bba212
   - id: D-9
     grade: ASSUMED
     text: >-
@@ -111,6 +112,7 @@ decisions:
       Whether `convert` is refused (D4) or removed from the transform whitelist outright.
       Removal is cleaner and changes the exported JSON Schema's transform enum — a
       spec-surface change this RFC declines to make on a construct that may return.
+    superseded_by: D-15
   - id: D-11
     grade: LOCKED
     text: >-

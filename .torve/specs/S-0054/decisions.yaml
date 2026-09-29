@@ -55,13 +55,14 @@ decisions:
       is the enforceable half.
     paths: [src/bloomery/planner/compose.py]
   - id: D-7
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Whether `SemanticPlan` lowers to the existing `QueryPlan`, replaces it, or
-      sits beside it.** Three shapes with different migration costs and different
-      answers to "what does `bloomery plan` print". P1 exists partly to answer this
-      from contact with the code; log the decision with what P1 found.
+      `SemanticPlan` sits beside `QueryPlan`'s shipped surfaces as the required field
+      `QueryPlan.semantic`; `sql`, `columns` and `explanation` are unchanged. `bloomery
+      explain` renders its evidence sections from `query.semantic` and appends them
+      after the SQL and the explanation.
     paths: [src/bloomery/cli/__init__.py]
+    fingerprint: 8db8c4b995d24eaf/5dc05b016c966b08
   - id: D-8
     grade: OPEN
     text: >-
@@ -74,6 +75,7 @@ decisions:
       because the table is append-only and a grade records what was asked of an executor
       at the time; the supersession marker above is what a reader acts on (see logs/T-0021.md,
       D119).
+    superseded_by: D-11
   - id: D-9
     grade: LOCKED
     text: >-

@@ -434,3 +434,5 @@ questions:
       are "worth" FOREIGN entities. **Answered (2026-08-07): V1–V4 ALL PASS** — [`spikes/metricflow/VERIFICATION.md`](spikes/metricflow/VERIFICATION.md)
       is the written record; the M4.5 gate is cleared (facts folded into §3, §5.7,
       §5.9, §9, D14).
+    status: settled
+    settled_by: D-14

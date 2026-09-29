@@ -213,12 +213,18 @@ questions:
     text: >-
       Whether `plan()` should emit `supersedes` edges for the tree-versus-target comparison
       it already performs, making the same vocabulary available without S-0068.
+    status: settled
+    settled_by: D-9
   - id: Q-2
     text: >-
       Whether an unchanged-definition answer should attempt to name what *else* could
       have moved, or stop cleanly at the compiler's boundary. Helpfulness here risks
       claiming knowledge of a warehouse this package does not read.
+    status: settled
+    settled_by: D-3
   - id: Q-3
     text: >-
       Whether the facet list should be derived from the spec models rather than written
       out, so that D6's failure mode is a type error instead of a review miss.
+    status: settled
+    settled_by: D-8

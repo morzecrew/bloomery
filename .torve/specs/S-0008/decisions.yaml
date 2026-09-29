@@ -78,9 +78,11 @@ decisions:
       space and already runs Hypothesis. Depart if a class of finding is genuinely
       awkward in both and pick whichever is cheaper
   - id: D-6
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether the lane is a seventh pytest marker or a `just` lane outside pytest
+      Fuzzing is a `just` lane (`fuzz`, `fuzz-repro`, `fuzz-min`), not a seventh pytest
+      marker. A libFuzzer run is time-boxed rather than pass-or-fail, and the corpus
+      under `fuzz/corpus/` is a gitignored build artifact, not a checked-in test input.
     paths: [justfile, pyproject.toml]
     consequence: >-
       A marker would cover only a replay test over the corpus, so the choice decides
@@ -89,12 +91,14 @@ decisions:
       The six tiers declared in `pyproject.toml` are pytest markers, but a libFuzzer
       target is not a pytest test. Settled by whether the replay job in `rfcs/0072-continuous-fuzzing-in-ci.md`
       wants to be invoked through pytest
+    fingerprint: 5c5bad0d3bb39dc0/a3aa81dd2fde5bd5
   - id: D-7
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether each of the two narrow-handler sites gains `RecursionError` or a depth
-      limit raising a named error — decided per site from its reproduction, and logged
-      either way
+      Both narrow-handler sites widen the catch; neither adds a depth limit. `evidence._divides`
+      catches `(SqlglotError, RecursionError)` and returns `False`. `resolve.steps._parse_body`
+      catches the same pair and returns it as the existing `StepError`, which `lower_steps`
+      raises with the others it collects. No error class is added to `src/bloomery/errors.py`.
     paths: [src/bloomery/evidence.py, src/bloomery/resolve/steps.py]
     consequence: >-
       A depth limit raising a named error adds a class to `src/bloomery/errors.py`
@@ -107,6 +111,7 @@ decisions:
       the fix is hygiene. `src/bloomery/evidence.py` reads an authored `Project` and
       `src/bloomery/resolve/steps.py` reads a registry declared trusted input, so
       the argument does not transfer between them
+    fingerprint: e5a99b73ffc94643/afba915b48d717ab
   - id: D-8
     grade: ASSUMED
     text: >-
