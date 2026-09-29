@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0182
+phase: 5
+base: e99f208063dae59a5fde44a5aba38e8790e6a756
+commit: 2c2dee9e46584cf790d14ccd5822e9158f90cec5
+at: '2026-09-29T07:25:05Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: LOCKED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-29T07:22:35Z'
+    claim: >-
+      every cell the seven new bundles support was measured by running commands.txt
+      against the case's own schema/ and data/ on 2026-09-29; observed.txt is that
+      stdout verbatim, and what was seen only while authoring (003's primary_entity
+      load error, 006's ORDER BY order parse error) is labelled as not in observed.txt;
+      no cell is left UNKNOWN because every request ran
+    evidence: >-
+      comparisons/metricflow/004-currency-mix/observed.txt:1-7 — representative transcript;
+      the acceptance loop re-runs all twelve commands.txt and diffs them against observed.txt
+    action: decided
+    proposal: no change — the row held as written
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-29T07:22:35Z'
+    claim: >-
+      the seven bundles live in this repository at comparisons/metricflow/<case>/
+      beside the existing five; MATRIX.md is not touched
+    evidence: >-
+      comparisons/metricflow/001-order-shipping-fanout/commands.txt:1-6 — each new
+      bundle's commands.txt names its own comparisons/metricflow/<case> directory
+    action: decided
+    proposal: no change — the row held as written
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-29T07:22:35Z'
+    claim: >-
+      run.py request syntax is metric[,metric...][/group-by[,group-by...]], ordered
+      by the group-by for stable output, and a bundle's setup relation is config/setup.sql
+      run after the case's rows; a plain metric name is the old request, so the five
+      existing bundles reproduce unchanged
+    evidence: >-
+      comparisons/metricflow/run.py:108-120 — the request parse and MetricFlowQueryRequest.create
+      call; comparisons/metricflow/run.py:79-81 loads setup.sql
+    action: decided
+    proposal: >-
+      ASSUMED — a MetricFlow bundle request is metric[,metric...][/group-by...], and
+      a relation a case needs but does not create is the bundle's config/setup.sql
