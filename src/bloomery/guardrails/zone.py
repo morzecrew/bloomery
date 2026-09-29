@@ -41,7 +41,7 @@ from bloomery.errors import UndeclaredZone
 from bloomery.semantic import Refutation
 from bloomery.semantic.zone import WallClock, prove_zone
 from bloomery.spec.mapping import mapping_doc
-from bloomery.transforms._builtins import ISO8601_INSTANT
+from bloomery.transforms import ISO8601_INSTANT
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
