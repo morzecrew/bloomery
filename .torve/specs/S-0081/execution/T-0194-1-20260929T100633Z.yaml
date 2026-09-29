@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0194
+phase: 1
+base: d13676f1f3135f504a3ef0fe6955614eb5776e24
+commit: b389dacac9db9d493b6ba9998e78389f64673701
+at: '2026-09-29T10:06:33Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-09-29T10:04:12Z'
+    claim: >-
+      to_utc swaps BLM_ISO_TEXT for BLM_ISO_ZONED_TEXT in its operand; strip_iso_text's
+      guard adds an UPPER(window) LIKE '%Z%' refusal for the zoned marker, so every
+      port inherits it; the render guard refuses either marker
+    evidence: >-
+      src/bloomery/dialects/base.py:52-110 — _without_offset's zoned branch; to_utc's
+      swap is in src/bloomery/transforms/_builtins.py
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    class: spec-gap
+    at: '2026-09-29T10:04:12Z'
+    claim: >-
+      Changelog Changed entry written under Unreleased; phase 2 (ISO8601_INSTANT,
+      the Added entry) is not in this task's scope and must land in the same minor
+      release before it is cut
+    evidence: >-
+      CHANGELOG.md:8-19 — Unreleased/Changed migration note
+    action: decided
