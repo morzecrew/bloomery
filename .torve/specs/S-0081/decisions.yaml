@@ -39,7 +39,8 @@ decisions:
   - id: D-3
     grade: ASSUMED
     text: >-
-      A `parse_ts` format containing `%z` or `%Z` is refused at parse, naming `ISO8601_INSTANT`
+      A `parse_ts` format carrying a `%z` or `%Z` directive is refused at parse, naming
+      `ISO8601_INSTANT`; an escaped `%%z` or `%%Z` is literal text and is not refused
     paths:
       - src/bloomery/transforms/_builtins.py
       - tests/unit/test_transforms/test_builtins.py

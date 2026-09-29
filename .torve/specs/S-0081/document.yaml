@@ -72,6 +72,7 @@ tests: |-
   - `to_utc` after an instant parse is refused; `zone_in: Europe/Paris` beside one is refused.
   - R018 does not ask an instant parse for a zone.
   - `%z` in a format is refused.
+  - `%%z` in a format is literal text and parses; `%z` is refused.
 docs: >-
   `reference/transforms.md` gains `ISO8601_INSTANT` and the `Z` rule; the changelog
   carries the migration note.

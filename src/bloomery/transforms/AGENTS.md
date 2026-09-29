@@ -228,7 +228,7 @@ A `to_utc` whose operand is an ISO wall-clock parse makes the parse zoned: every
 
 ### S-0081/D-3 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice) — implementation: none
 
-A `parse_ts` format containing `%z` or `%Z` is refused at parse, naming `ISO8601_INSTANT`
+A `parse_ts` format carrying a `%z` or `%Z` directive is refused at parse, naming `ISO8601_INSTANT`; an escaped `%%z` or `%%Z` is literal text and is not refused
 
 - Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py`
 - Consequence: no format parses a zone and then drops it
