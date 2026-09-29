@@ -470,6 +470,12 @@ def to_bool(col: Expression, *, input_type: LogicalType) -> Expression:
 #: cast rejects ISO 8601 is silently NULL data.
 ISO_TEXT_MARKER = "BLM_ISO_TEXT"
 
+#: The same marker once ``to_utc`` has named the text's zone (S-0081/D-1). The
+#: chain has then declared the text a wall clock in that zone, so a trailing
+#: ``Z`` contradicts it exactly as a numeric offset does, and every port's guard
+#: reads it as one: NULL, never a UTC value shifted by the zone a second time.
+ISO_ZONED_TEXT_MARKER = "BLM_ISO_ZONED_TEXT"
+
 
 def iso_text(col: Expression) -> Expression:
     """Mark ``col`` as text a *timestamp* cast is about to read as ISO 8601.
@@ -526,7 +532,13 @@ def to_utc(col: Expression, zone: str) -> Expression:
     """Interpret a zoneless local timestamp in ``zone`` — the only door into
     the always-UTC ``timestamp`` type (S-0021/logical-types-bloomery-typing-types-py)."""
 
-    return exp.AtTimeZone(this=col, zone=exp.Literal.string(zone))
+    def zoned(child: Expression) -> Expression:
+        if isinstance(child, exp.Anonymous) and child.name.upper() == ISO_TEXT_MARKER:
+            return exp.Anonymous(this=ISO_ZONED_TEXT_MARKER, expressions=child.expressions)
+
+        return child
+
+    return exp.AtTimeZone(this=col.transform(zoned), zone=exp.Literal.string(zone))
 
 
 # ....................... #

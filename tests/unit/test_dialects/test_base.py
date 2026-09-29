@@ -396,3 +396,16 @@ def test_utc_now_is_not_rewritten_by_the_ports_zone_door() -> None:
     """
     for name in ("duckdb", "postgres", "trino"):
         assert "AT TIME ZONE" not in get_dialect(name).render(get_dialect(name).utc_now())
+
+
+@pytest.mark.parametrize(
+    "port", ["bigquery", "databricks", "duckdb", "postgres", "redshift", "snowflake", "trino"]
+)
+def test_the_zulu_marker_is_refused_only_under_to_utc_on_every_port(port: str) -> None:
+    """S-0081/D-1: ``to_utc`` over an ISO parse zones the marker, and every
+    port's guard then refuses ``Z``; a bare parse still reads it as UTC."""
+    parsed = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("written"), "ISO8601")
+    zoned = DEFAULT_REGISTRY["to_utc"].builder(parsed.copy(), "Europe/Berlin")
+    dialect = get_dialect(port)
+    assert "'%Z%'" in dialect.render(canon(zoned).ast())
+    assert "'%Z%'" not in dialect.render(canon(parsed).ast())

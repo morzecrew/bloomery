@@ -18,6 +18,7 @@ from sqlglot.expressions.core import Expression
 
 from bloomery.errors import UnsupportedByTarget
 from bloomery.transforms import DIVIDE_MARKER, ISO_TEXT_MARKER
+from bloomery.transforms._builtins import ISO_ZONED_TEXT_MARKER
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -48,8 +49,12 @@ __all__ = [
 #: every ``+`` or ``-`` inside it belongs to a UTC offset (S-0052/D-5).
 _OFFSET_WINDOW = 11
 
+#: Both spellings of the ISO-text marker: a bare parse, and one ``to_utc`` has
+#: zoned (S-0081/D-1).
+_ISO_MARKERS = frozenset({ISO_TEXT_MARKER, ISO_ZONED_TEXT_MARKER})
 
-def _without_offset(text: Expression, parsed: Expression) -> Expression:
+
+def _without_offset(text: Expression, parsed: Expression, *, zoned: bool = False) -> Expression:
     """``parsed``, or NULL when ``text`` carries a numeric UTC offset.
 
     ``parse_ts: ISO8601`` reads a *local wall clock*, and ``to_utc`` is the only
@@ -70,7 +75,10 @@ def _without_offset(text: Expression, parsed: Expression) -> Expression:
 
     A ``Z`` suffix is deliberately **not** refused. It names UTC, which is the
     zone the target type is already in, so truncating it loses nothing — where
-    a numeric offset loses exactly the difference (S-0052/D-4).
+    a numeric offset loses exactly the difference (S-0052/D-4). Unless
+    ``zoned``: a ``to_utc`` after the parse has declared the text a wall clock
+    in a named zone, and a ``Z`` then contradicts it like any offset, so it is
+    refused too rather than shifted by the zone a second time (S-0081/D-1).
 
     The window is taken over an explicit ``VARCHAR`` cast for the reason the
     Trino port already casts before its own ``replace``: the marker is text in
@@ -90,6 +98,11 @@ def _without_offset(text: Expression, parsed: Expression) -> Expression:
         exp.Like(this=window, expression=exp.Literal.string("%+%")),
         exp.Like(this=window.copy(), expression=exp.Literal.string("%-%")),
     )
+    if zoned:
+        offset_bearing = exp.or_(
+            offset_bearing,
+            exp.Like(this=exp.Upper(this=window.copy()), expression=exp.Literal.string("%Z%")),
+        )
     return exp.Case(ifs=[exp.If(this=offset_bearing, true=exp.null())], default=parsed)
 
 
@@ -161,9 +174,10 @@ def strip_iso_text(node: Expression, spelling: Callable[[Expression], Expression
     """
 
     def replace(child: Expression) -> Expression:
-        if isinstance(child, exp.Anonymous) and child.name.upper() == ISO_TEXT_MARKER:
+        if isinstance(child, exp.Anonymous) and child.name.upper() in _ISO_MARKERS:
             text = child.expressions[0]
-            return _without_offset(text.copy(), spelling(text))
+            zoned = child.name.upper() == ISO_ZONED_TEXT_MARKER
+            return _without_offset(text.copy(), spelling(text), zoned=zoned)
 
         return child
 
@@ -448,11 +462,7 @@ class SQLGlotDialect:
         refusal, arriving later and naming nothing actionable.
         """
         surviving = next(
-            (
-                child
-                for child in node.find_all(exp.Anonymous)
-                if child.name.upper() == ISO_TEXT_MARKER
-            ),
+            (child for child in node.find_all(exp.Anonymous) if child.name.upper() in _ISO_MARKERS),
             None,
         )
 
