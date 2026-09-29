@@ -200,8 +200,6 @@ questions:
     text: >-
       **What happens to `QueryPlan`.** Whether `SemanticPlan` lowers to it, replaces
       it, or sits beside it is a real fork and P1 exists partly to answer it.
-    status: settled
-    settled_by: D-7
   - id: Q-2
     text: >-
       **Whether refusal messages change for requests that are already refused.** `UnreachableAtGrain`'s

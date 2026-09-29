@@ -280,5 +280,3 @@ questions:
       can carry a `convert` step, so the key would be one an author could write and
       nothing could read. The question left standing is one this section did not ask:
       `KeyField` *does* carry a chain, and does take the declaration.
-    status: settled
-    settled_by: D-7

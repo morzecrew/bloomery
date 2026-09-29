@@ -151,11 +151,7 @@ questions:
       **Whether the determinism claim moves or stays.** The current description leads
       with byte-identical output, which is true, shipped, and the thing users can
       check today. The proposed replacement leads with semantics and drops it.
-    status: settled
-    settled_by: D-6
   - id: Q-2
     text: >-
       **Who owns the "supported integrations" list in §5** so it does not go stale
       on the next target.
-    status: settled
-    settled_by: D-7

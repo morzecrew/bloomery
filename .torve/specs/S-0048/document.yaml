@@ -509,16 +509,12 @@ questions:
       — which matters for rendering, since a tree drawn from a merged DAG has no root
       direction. Settled by the first renderer; D4 delegates it, and P1 ships without
       the member rather than shipping a shape that would have to change.
-    status: settled
-    settled_by: D-4
   - id: Q-2
     text: >-
       **Should `lineage()` accept a node *name* as well as a `Node`?** The CLI must
       accept a string and the library takes a `Node`. Whether the string form belongs
       in the library or stays a CLI concern is genuinely open; the risk of putting
       it in the library is a second, looser way to name a node.
-    status: settled
-    settled_by: D-8
   - id: Q-3
     text: >-
       **Does anything want lineage on an unresolved graph?** The termination argument

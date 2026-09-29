@@ -431,8 +431,6 @@ questions:
       a summary by design and S-0037/D-4 puts the lossless surface in JSON. An open
       decision is arguably the most actionable thing `bloomery resolve` could say,
       which argues the other way. Whoever builds this decides (D7).
-    status: settled
-    settled_by: D-7
   - id: Q-2
     text: >-
       **Should `blocks` name metrics only, or metrics and the marts that carry them?**

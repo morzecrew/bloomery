@@ -330,5 +330,3 @@ questions:
       manifest and nothing else in the emitted tree competes for the name; if a second
       MetricFlow artifact ever ships, that answer changes. Delegated to execution
       (D5).
-    status: settled
-    settled_by: D-5
