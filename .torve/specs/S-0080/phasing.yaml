@@ -21,6 +21,11 @@ phasing:
       - tests/execution/test_as_of_join.py
       - tests/fixtures/scd2_current/**
       - tests/golden/**
+      - src/bloomery/resolve/facets.py
+      - tests/unit/test_resolve/**
+      - tests/unit/test_ir/test_nodes.py
+      - tests/unit/test_planner/test_parity.py
+      - tests/unit/test_planner/parity_baseline.tsv
     acceptance:
       - >-
         uv run pytest tests/unit/test_marts tests/execution/test_as_of_join.py tests/golden
