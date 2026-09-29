@@ -71,6 +71,13 @@ Marts are optional: a project without a `marts:` document compiles silver only; 
 
 - Paths: `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/marts/flatten.py` `src/bloomery/quality/mart.py` `src/bloomery/resolve/graph.py` `tests/fixtures/ecom_basic/marts.yaml` `tests/fixtures/quality_precedence/entity_model.yaml` `tests/unit/test_emit/test_quality_mart.py` `tests/unit/test_fixtures.py` `tests/unit/test_quality/test_mart.py` `tests/unit/test_resolve/test_graph.py`
 
+### S-0027/D-10 — `ASSUMED` (Marts and role-playing dimensions)
+
+Every flattened mart column is a requestable dimension: `_mart_ir` builds one `MartDimensionIR` per column, a date bucket keeping its role's `DimensionRef` and a plain attribute getting `DimensionRef(dimension=<column>)`, and nothing narrows the set
+
+- Paths: `src/bloomery/marts/flatten.py` `src/bloomery/ir/nodes.py` `tests/unit/test_marts/test_flatten.py`
+- Consequence: A column that `flatten:` adds to a mart is requestable by every consumer that reads `MartIR.dimensions`, so narrowing a noisy surface is a new decision rather than a filter in one consumer
+
 ### S-0033/D-9 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 Silver gains `_quality_flags`/`_quality_ok`; marts gain `has_quality_flags` (S-0027 amendment). Array capability is `DialectFeature.ARRAY` — an engine property, deliberately diverging from Document 5's `TargetCapabilities` placement; dialects without it lower to a delimited string.
@@ -151,6 +158,13 @@ Cube-to-cube `joins` stay out of this RFC. They reintroduce the query-time joins
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/marts/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0071/D-9 — `ASSUMED` (Completing the semantic plan)
+
+No semantic-corpus case evidences the cumulative shape. R016 is evidenced by plan-level tests: `test_a_cumulative_metric_states_its_window` asserts the `Window` node, its frame and its proof, and `test_the_window_rule_and_the_rollup_refusal_agree` ties R016's terminal half to the rollup lowering's refusal of a `cumulative:` measure
+
+- Paths: `tests/unit/test_semantic/test_plan.py` `tests/fixtures/semantic_corpus/README.md` `src/bloomery/marts/rollup.py`
+- Consequence: The corpus stays limited to cases where valid SQL returns a wrong number, and a change to R016 or to the rollup refusal meets a unit test rather than a fixture
+
 ### S-0079/D-4 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
 
 The mart-namespace mapping R020 consumes is **derived at the call and stored nowhere**: `lower_rollups` builds `dict[str, tuple[str, ...]]` keyed by `ref.qualified` and passes it as the fourth argument. No field is added to `MartIR`, `MartDimensionIR` or `MartColumnIR`, and the second phase moves no fingerprint
@@ -186,6 +200,13 @@ R020 stays permissive. A rollup with nothing declared reaching it is answered ex
 
 - Paths: `src/bloomery/marts/rollup.py`
 - Consequence: Either placement satisfies D-4, since neither stores anything. Moving it out of the lowering module is what would make a second caller cheap, and a second caller is what would make the move necessary
+
+### S-0079/D-13 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
+
+A mart dimension's `ref.qualified` equals its `column` for every column `_mart_ir` builds, plain or date bucket, and `test_every_flattened_column_is_a_requestable_dimension` pins it. `_determinations` does not lean on it: it translates each column to its qualified name through the mart's `dimensions`
+
+- Paths: `src/bloomery/marts/flatten.py` `src/bloomery/marts/rollup.py` `tests/unit/test_marts/test_flatten.py` `tests/property/test_metricflow_properties.py`
+- Consequence: A future role that made the two names differ fails the flatten test and the MetricFlow round-trip property rather than silently dropping an R020 proof
 
 ## Invariants holding over `src/bloomery/marts/`
 

@@ -120,3 +120,25 @@ decisions:
       - src/bloomery/resolve/timeline.py
       - src/bloomery/schema.py
       - tests/unit/test_signature_closure.py
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      `spec_version: 1` promises a document keeps its meaning, not that it keeps loading.
+      A newly reserved generated-column name, or authored text that is not one SQL
+      expression, may refuse a document that loaded before without a version bump,
+      provided the refusal is binary, reaches only an already-broken document, names
+      the authored address and fix, and appears in `CHANGELOG.md`
+    paths:
+      - pages/docs/reference/stability.md
+      - src/bloomery/spec/common.py
+      - tests/unit/test_steps/test_lowering.py
+    consequence: >-
+      Adding a name to `RESERVED_MEMBER_REASONS` ships in a minor with a Changed entry
+      and a reason the refusal quotes, while any change that alters what a loading
+      document means still mints a version
+    rationale: >-
+      The stability page says a version bump exists to stop a document being read
+      as something it is not and neither refusal can reinterpret one, so a bump would
+      make every author edit every document for a problem almost none have; part 1
+      (no root re-exports beyond signature closure) is already S-0035/D-1
+    cites: [D-1, D-5, S-0042/D-23]

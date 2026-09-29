@@ -135,6 +135,13 @@ Errors: `PlannerError(BloomeryError)` with leaves `UnknownMember`, `UnreachableA
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/planner/request.py` `tests/unit/test_planner/test_request.py`
 
+### S-0028/D-14 — `ASSUMED` (Native planner: MetricRequest → QueryPlan)
+
+`MeasureExplanation` carries four strings — `name`, `expr`, `additivity` and `note` — and `Explanation.render()` output is pinned by exact-string assertions in the planner's unit tests, not by golden files under `tests/golden/`
+
+- Paths: `src/bloomery/planner/result.py` `tests/unit/test_planner/test_metricflow_planner.py`
+- Consequence: Rewording a note or re-laying the rendered block fails a unit test and is fixed by editing the expected string in review, not by a `just snapshot-update` regeneration
+
 ### S-0030/D-2 — `ASSUMED` (MetricFlow backend: manifest emitter and planner adapter)
 
 `MetricRequest`/`QueryPlan`/`ColumnDescriptor`/`Explanation` (S-0028) do **not** change — the stable API the Query Agent binds to. MetricFlow types never cross that boundary; errors are translated (`InvalidQueryException` → `UnknownMember`/`UnreachableAtGrain`/`AmbiguousDimension`). This seam is what makes the backend swappable.
@@ -188,6 +195,13 @@ The §5.3 closed list is the deliverable: eight bloomery-owned refusal types + t
 Rendering: one `where_constraints` entry per `Clause`; `AnyOf` **always** parenthesized (`policy AND a OR b` leaks every row matching `b`); policy first via `RowPolicy.as_clause()` (renaming `as_filter()`; `RowPolicy` stays single-predicate, its op space narrowing with `Op` — `between`/`contains` policies are invalid post-migration, and range policies move into the request filters or become gte-only/lte-only policies); all shipped S-0030/filters-the-highest-risk-surface safety rules unchanged and merge-blocking; `Explanation.filters` built from `Clause` objects, never from parsing SQL.
 
 - Paths: `src/bloomery/planner/explain.py` `src/bloomery/planner/filters.py` `src/bloomery/planner/policy.py` `tests/execution/test_planner_filters.py` `tests/unit/test_planner/test_filters.py` `tests/unit/test_planner/test_request.py`
+
+### S-0032/D-16 — `ASSUMED` (Query vocabulary: filters, sort, pagination)
+
+The planner has no `JsonDict` alias: `parse_filter_json`, `parse_sort_json` and `parse_page_json` take a `Mapping[str, object]`. The clause cap is a keyword argument, `parse_filter_json(payload, *, clause_cap=DEFAULT_CLAUSE_CAP)`, defaulting to the exported module constant `DEFAULT_CLAUSE_CAP = 64`; no planner constructor carries it
+
+- Paths: `src/bloomery/planner/parse.py` `tests/unit/test_planner/test_parse.py`
+- Consequence: A caller that needs a tighter or looser cap passes it per call, and one that passes nothing gets the S-0032/D-4 default without configuring a planner
 
 ### S-0035/D-4 — `ASSUMED` (Public surface and stability policy)
 

@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-12
+        field: text
+        after: >-
+          `SpecEvidence` never carries compiled artifacts, even at `COMPLETE`. `MartSummary`
+          holds only name, grain, measures, role-qualified dimensions and materialization,
+          with no column count. `evaluate()` takes no `targets` parameter and stops
+          before emission. `Stage` is public and an open enum: callers compare against
+          `COMPLETE`, and adding or splitting a stage is not breaking
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-12 answers Q-1.

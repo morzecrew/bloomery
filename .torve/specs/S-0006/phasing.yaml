@@ -46,6 +46,106 @@ phasing:
         uv run pytest tests/unit/test_comparisons_floor.py -q
     depends_on:
       - 2
+  - phase: 4
+    title: dbt Core, the seven cases with no bundle
+    intent: >-
+      Add a dbt Core bundle under `comparisons/dbt/<case>/` for each of 001-order-shipping-fanout,
+      003-scd2-unqualified-join, 004-currency-mix, 006-two-grains-one-request, 007-distinct-users-fanout,
+      010-many-to-many-bridge and 012-rollup-recounts-identities, run through `comparisons/dbt/run.py`
+      unchanged. Each bundle has the five entries the floor test checks (`README.md`
+      with the `System:` pin and a `Checked:` date of the run, `config/`, `commands.txt`,
+      `observed.txt` as that command's stdout verbatim, `sources.md` citing installed
+      package files), reads the case's `schema/` and `data/` in place, and records
+      what the system does with the case's question — measured, never from memory
+      (D-2): a cell that cannot be run stays unrun and the README says why. Nothing
+      in a bundle fetches at run time (no `dbt deps`, no hosted features). `comparisons/MATRIX.md`
+      is not touched: phase 7 fills the cells from these bundles. D-2 and D-9 have
+      no check, so the attempt owes divergence entries for them (`torve log owed`).
+    scope: [comparisons/dbt/**]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_comparisons_floor.py -q
+      - >-
+        sh -c 'for d in comparisons/dbt/*/; do sh "$d/commands.txt" | diff -q - "$d/observed.txt"
+        >/dev/null || { echo "$d does not reproduce"; exit 1; }; done'
+    character: structural
+  - phase: 5
+    title: MetricFlow, the seven cases with no bundle
+    intent: >-
+      Add a MetricFlow bundle under `comparisons/metricflow/<case>/` for each of 001-order-shipping-fanout,
+      003-scd2-unqualified-join, 004-currency-mix, 006-two-grains-one-request, 007-distinct-users-fanout,
+      010-many-to-many-bridge and 012-rollup-recounts-identities. `comparisons/metricflow/run.py`
+      renders one metric per request with no group-by and cannot create a relation;
+      extend it additively, with grouped and multi-metric requests and a setup SQL
+      file a bundle's `config/` may carry for a view its case needs, so that every
+      existing bundle still reproduces its `observed.txt` byte for byte. Each bundle
+      has the five entries the floor test checks (`README.md` with the `System:` pin
+      and a `Checked:` date of the run, `config/`, `commands.txt`, `observed.txt`
+      as that command's stdout verbatim, `sources.md` citing installed package files),
+      reads the case's `schema/` and `data/` in place, and records what the system
+      does with the case's question — measured, never from memory (D-2): a cell that
+      cannot be run stays unrun and the README says why. Nothing in a bundle fetches
+      at run time (no `dbt deps`, no hosted features). `comparisons/MATRIX.md` is
+      not touched: phase 7 fills the cells from these bundles. D-2 and D-9 have no
+      check, so the attempt owes divergence entries for them (`torve log owed`).
+    scope: [comparisons/metricflow/**]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_comparisons_floor.py -q
+      - >-
+        sh -c 'for d in comparisons/metricflow/*/; do sh "$d/commands.txt" | diff
+        -q - "$d/observed.txt" >/dev/null || { echo "$d does not reproduce"; exit
+        1; }; done'
+    character: structural
+  - phase: 6
+    title: SQLMesh, the seven cases with no bundle
+    intent: >-
+      Add a SQLMesh bundle under `comparisons/sqlmesh/<case>/` for each of 001-order-shipping-fanout,
+      003-scd2-unqualified-join, 004-currency-mix, 006-two-grains-one-request, 007-distinct-users-fanout,
+      010-many-to-many-bridge and 012-rollup-recounts-identities. `comparisons/sqlmesh/run.py`
+      rewrites one metric with no GROUP BY; extend it additively with a query option
+      for a grouped or multi-metric `METRIC(...)` request, so that every existing
+      bundle still reproduces its `observed.txt` byte for byte. Model names avoid
+      the relations a case's schema already creates (`silver.customer_tier` in 003,
+      `silver.fx_rate` in 004). Each bundle has the five entries the floor test checks
+      (`README.md` with the `System:` pin and a `Checked:` date of the run, `config/`,
+      `commands.txt`, `observed.txt` as that command's stdout verbatim, `sources.md`
+      citing installed package files), reads the case's `schema/` and `data/` in place,
+      and records what the system does with the case's question — measured, never
+      from memory (D-2): a cell that cannot be run stays unrun and the README says
+      why. Nothing in a bundle fetches at run time (no `dbt deps`, no hosted features).
+      `comparisons/MATRIX.md` is not touched: phase 7 fills the cells from these bundles.
+      D-2 and D-9 have no check, so the attempt owes divergence entries for them (`torve
+      log owed`).
+    scope: [comparisons/sqlmesh/**]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_comparisons_floor.py -q
+      - >-
+        sh -c 'for d in comparisons/sqlmesh/*/; do sh "$d/commands.txt" | diff -q
+        - "$d/observed.txt" >/dev/null || { echo "$d does not reproduce"; exit 1;
+        }; done'
+    character: structural
+  - phase: 7
+    title: The matrix reads what the new bundles measured
+    intent: >-
+      Fill `comparisons/MATRIX.md` from the bundles phases 4 to 6 landed: the 45 cells
+      of the seven cases' 15 rows, each value one the bundle's `observed.txt` and
+      README support under the six values `comparisons/README.md` defines (a cell
+      a bundle left unrun stays `UNKNOWN`); the Last-checked and Coverage lines; each
+      system's "Reading the ... column" section, which D-13 requires beside a filled
+      column; and "Where bloomery loses", with any row the new cells add. No bundle
+      changes. D-2 and D-13 have no check, so the attempt owes divergence entries
+      for them.
+    scope: [comparisons/MATRIX.md]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_comparisons_floor.py -q
+    depends_on:
+      - 4
+      - 5
+      - 6
+    character: structural
 contract_example:
   schema_version: 2
   id: T-0100

@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-15
+        field: text
+        after: >-
+          Spec unions discriminate on their literal `rule` field where one exists,
+          and otherwise through a callable `Discriminator` with `Tag`s (`FieldMapping`,
+          `FlattenStep`). Single-value checks are `AfterValidator`s on `Annotated`
+          aliases (`SqlText`, `MemberName`), cross-field checks are `model_validator(mode="after")`,
+          and pre-coercion hooks appear only where the raw input must be seen
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-15 answers Q-1.

@@ -92,3 +92,24 @@ decisions:
       it does not want. D2a survives untouched, because two different thresholds are
       a real disagreement about one thing.
     paths: [tests/unit/test_guardrails/test_quality.py]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      `freshness:` is a key at a mapping document's root, beside the `source:` it
+      thresholds (`Mapping.freshness`); the catalog carries none. No spec model has
+      §5.1's `sources:` list, so the block sits where the mapping names the relation
+      it reads
+    paths:
+      - src/bloomery/spec/mapping.py
+      - src/bloomery/spec/catalog.py
+      - tests/unit/test_spec/test_mapping.py
+    consequence: >-
+      An author declares a threshold in the mapping that reads the relation, and two
+      mappings of one relation reconcile by the cross-mapping rules rather than through
+      one catalog entry
+    rationale: >-
+      The `Mapping.freshness` comment places it beside `source:` because that is where
+      the relation is named and §5.1's list exists on no spec model (log T-0047),
+      and D-10 later made the threshold a statement about the relation without moving
+      where it is written
+    cites: [D-10]

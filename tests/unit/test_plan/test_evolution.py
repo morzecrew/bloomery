@@ -35,7 +35,7 @@ def evolution_ir_without_discount(version: int) -> ProjectIR:
     assert _DISCOUNT_MAPPING_LINES in sources["mapping"]
     sources["entity_model"] = sources["entity_model"].replace(_DISCOUNT_ENTITY_LINE, "")
     sources["mapping"] = sources["mapping"].replace(_DISCOUNT_MAPPING_LINES, "")
-    catalog_text = (FIXTURES / f"evolution_v{version}" / "catalog.yaml").read_text()
+    catalog_text = (FIXTURES / f"evolution_v{version}" / "catalog.yaml").read_text(encoding="utf-8")
     return build_project_ir(load_project(sources), load_catalog(catalog_text))
 
 

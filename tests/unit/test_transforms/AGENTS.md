@@ -14,6 +14,13 @@ Starter set is exactly: `trim upper lower to_string to_int to_decimal to_bool pa
 
 - Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py` `tests/unit/test_transforms/test_registry.py`
 
+### S-0021/D-8 — `ASSUMED` (Logical types and the transform registry)
+
+`ArgKind` has four members — `STR`, `INT`, `NUMBER` and `LITERAL` — and `enum_map`'s mapping is neither a kind nor a spec field: `enum_map` is a `variadic` `TransformSpec` with `arg_kinds` `(STR, STR)`, taking a flat from/to list that parse normalizes into the same `TransformStep(name, args)` as every other step
+
+- Paths: `src/bloomery/typing/types.py` `src/bloomery/transforms/registry.py` `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py`
+- Consequence: A transform with structured arguments repeats scalar kinds through `variadic` or earns a new `ArgKind` by amendment, and a second variadic transform turns `test_enum_map_is_the_only_variadic_transform` red
+
 ### S-0025/D-3 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
 
 Capability mismatch behavior is fail-loud: `UnsupportedByTarget` naming entity + feature. Silent degradation is forbidden.

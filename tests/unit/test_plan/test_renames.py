@@ -61,7 +61,7 @@ def sides(
     distinguish from a rename, and `adopt=False` is how a test asks for that.
     """
     sources = fixture_sources(fixture)
-    catalog_text = (FIXTURES / fixture / "catalog.yaml").read_text()
+    catalog_text = (FIXTURES / fixture / "catalog.yaml").read_text(encoding="utf-8")
     anchor = f"  {was}:\n"
     assert anchor in sources["metrics"], was
 
@@ -123,7 +123,7 @@ def test_a_delete_is_still_a_delete() -> None:
     what a project actually has to do to delete one.
     """
     sources = fixture_sources("ecom_basic")
-    catalog_text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    catalog_text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")
     old_project = load_project(
         {
             **sources,
@@ -286,7 +286,7 @@ def test_a_canonical_dependency_is_not_relabelled_as_a_metric() -> None:
     touched.
     """
     sources = fixture_sources("ecom_basic")
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     shadowing = (
         sources["metrics"]
         + """

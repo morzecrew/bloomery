@@ -2,6 +2,20 @@
 
 ## Decisions governing `src/bloomery/quality/`
 
+### S-0003/D-11 — `ASSUMED` (Replay on a historical entity)
+
+A type 2 replay re-delivers a reject row to bronze with its own `_source_row_id`, `_load_id` `__replay__` and `utc_now()` as `_ingested_at`; `quarantine:` without `dedupe:`, or with `redact:`, is refused; the generated audits scope to `valid_to IS NULL`; and a reject row resolves only on a version newer than its `last_seen`
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/resolve/build.py` `src/bloomery/dialects/base.py` `src/bloomery/quality/catalogue.py`
+- Consequence: An executor on the remaining phase inherits the reserved load, both refusals, the zoneless clock, the audit scope and the resolution evidence as decisions, and changing one is a row change rather than a refactor
+
+### S-0008/D-11 — `ASSUMED` (Fuzzing the compile boundary)
+
+Neither `resolve/build.py` nor `quality/pattern.py` re-parses a composition of validator-cleared fragments: `_recipe_expr` re-parses a catalog recipe's `SqlText` `expr` alone, unguarded, and splices extractions into its AST without re-rendering, and `_transports_literal` re-parses its own `RegexpLike` render of a string literal inside `except Exception`
+
+- Paths: `src/bloomery/resolve/build.py` `src/bloomery/quality/pattern.py` `fuzz/fuzz_parse_doors.py`
+- Consequence: The parse-door target's composed shape has no site in these two files, and `_recipe_expr` belongs to its direct shape, where a recipe cleared at load can still meet the stack-position band
+
 ### S-0020/D-4 — `ASSUMED` (Intermediate representation and determinism contract)
 
 All IR collections are tuples with explicit lexicographic sort, except authored-order fields (`key`, transform chains, recipe aliases, `partition_by`).
@@ -169,6 +183,13 @@ Ingestion metadata contract: entities using `quarantine` or `dedupe` require bro
 *(2026-08-10)* **Cross-entity checks are `coverage:` on a relationship, and the audit hangs off the *dependent* side. §10's last open question is settled.** §10 guessed "probably reconcile-style"; it is not, and the reason is structural rather than stylistic. A `reconcile` compares two **values** and alerts beyond a tolerance — there is no right-hand value on the referenced entity to compare against, and `right: 1` is neither a shape the closed grammar admits nor one it should grow. This asserts **existence**: every row of a relationship's referenced entity has at least `min` rows referencing it. That makes it the mirror of `referential`, which asks whether every *dependent* row has a parent, and both read the same two relations through the same `via` pairs — which is why it is declared on the **relationship** rather than on either entity. **Why an audit, when a disposition would have been meaningful.** Unlike a mart row (D89), a childless customer is a real silver row with a source identity, a reject table and a replay path, so routing it is not nonsense. It is still an audit, for a reason that only shows up in the DAG: routing would need the *referenced* entity's model to read the *dependent* one, while the dependent one already reads the referenced one through this very relationship — so the pair that most wants this check (an FK one way, a coverage check the other) is exactly the pair whose models would form a cycle. Attaching the audit to the dependent side instead adds **no edge the relationship did not already imply**. `on_fail` is `fail`/`flag` only; `quarantine` and `repair` are absent from the surface rather than lowered to something weaker. **Two emission details that are each a trap closed.** The body counts a *dependent* column, never `COUNT(*)`: a `LEFT JOIN` still produces one output row for an unmatched left row, so `COUNT(*)` answers 1 for a customer with no orders at all and the check would pass on precisely the rows it exists to find. And the dependent side is `@this_model` rather than a named relation — the macro is the one reference SQLMesh rewrites inside an AUDIT body (D29), so naming the relation resolved to the virtual layer *and* put the model into its own `depends_on`, which is how the first cut emitted it. The referenced side is a sibling and is declared in `depends_on`, the trap D40 closed for step audits. Verified by a real SQLMesh plan on a fixture added to the e2e tier for it: the comment above `step_resolution` there argues that nothing else loads SQLMesh and that the gap hid three defects in a row, and this is the same shape — an audit body joining a sibling, with a `depends_on` that exists only because of the audit. dbt refuses the project (its tests are predicates, with no grouped cross-relation form); Cube is not asked, because it builds nothing (S-0034/D-52). **Cost:** `ProjectIR` gains a field, so every fingerprint moves. **Not closed:** the check counts rows that *reached* silver, so a referenced row quarantined by its own rules reads as absent — right for "has an order", wrong for a check somebody phrases as "exists", and named here rather than discovered.
 
 - Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/reconcile.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/guardrails/quality.py` `src/bloomery/ir/nodes.py` `src/bloomery/quality/lower.py` `src/bloomery/spec/entity.py` `tests/e2e/test_sqlmesh_replan.py` `tests/fixtures/coverage_check/entity_model.yaml` `tests/fixtures/dirty_corpus/entity_model.yaml` `tests/unit/test_fixtures.py`
+
+### S-0033/D-97 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+
+`pattern` is evaluated on every row and never sampled. `PatternRule` takes only `regex`, with extra keys forbidden, and lowers to a per-row `NOT REGEXP_LIKE(column, regex)` violation predicate. Its cost is bounded at parse, by refusing nested unbounded repetition, rather than by reading fewer rows
+
+- Paths: `src/bloomery/spec/quality.py` `src/bloomery/quality/predicates.py` `tests/execution/test_pattern_anchoring.py`
+- Consequence: A `pattern` result on a huge partition is exact, like every other rule's, and an author worried about its cost writes a cheaper regex rather than asking for a sample
 
 ### S-0041/D-28 — `LOCKED` (Deterministic union merge)
 

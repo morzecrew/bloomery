@@ -134,7 +134,7 @@ def test_the_filesystem_carve_out_is_two_lines_not_the_cli_package() -> None:
     spec files, ``os`` for the null device the broken-pipe path re-aims stdout
     at — and neither buys a clock.
     """
-    config = (ROOT / "pyproject.toml").read_text()
+    config = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert "[tool.ruff.lint.per-file-ignores]" not in config, (
         "a per-file ignore would exempt a clock in the same file as the door"
     )
@@ -143,7 +143,7 @@ def test_the_filesystem_carve_out_is_two_lines_not_the_cli_package() -> None:
     exempted = [
         (path.relative_to(package).as_posix(), line.strip())
         for path in sorted(package.rglob("*.py"))
-        for line in path.read_text().splitlines()
+        for line in path.read_text(encoding="utf-8").splitlines()
         if "# noqa: TID251" in line
     ]
     assert [path for path, _ in exempted] == ["cli/io.py", "cli/io.py"], exempted
@@ -163,7 +163,7 @@ def test_the_pygrep_hook_it_replaces_is_gone() -> None:
     """Two guards over one invariant drift apart (S-0036/D-6). The banned-api
     table is a superset of the hook's four spellings, so the hook is removed —
     this pins that it stays removed."""
-    config = (ROOT / ".pre-commit-config.yaml").read_text()
+    config = (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
     assert "no-nondeterminism-sources" not in config
     assert "pygrep" not in config
 
@@ -175,5 +175,5 @@ def test_the_gate_runs_it() -> None:
     — so unlike the standalone script this replaces, purity now rides the check
     that was always going to run anyway.
     """
-    assert '"TID251",' in (ROOT / "pyproject.toml").read_text()
-    assert 'ruff check "src"' in (ROOT / "justfile").read_text()
+    assert '"TID251",' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'ruff check "src"' in (ROOT / "justfile").read_text(encoding="utf-8")

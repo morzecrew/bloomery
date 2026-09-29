@@ -119,3 +119,20 @@ decisions:
       - src/bloomery/guardrails/evidence.py
       - src/bloomery/semantic/proof.py
       - src/bloomery/spec/entity.py
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      `bloomery import` shares every command's exit contract: `1` when it reads the
+      artifact and refuses it, such as a semantic model it cannot map to an entity;
+      `2` for a usage error, such as a malformed or repeated `--entity`; `0` when
+      it prints a block, and when the project already states every relationship and
+      it prints nothing
+    paths: [src/bloomery/cli/__init__.py, tests/unit/test_cli.py]
+    consequence: >-
+      A script can tell a wrong artifact from a wrong invocation, and an import that
+      adds nothing reads as success rather than as a refusal to retry
+    rationale: >-
+      The tests pin the refusal/usage split S-0037/D-4 set for the other commands,
+      and `_import`'s docstring records why agreement exits `0`: two statements that
+      agree are not a contradiction, and there is nothing to paste
+    cites: [S-0037/D-4]

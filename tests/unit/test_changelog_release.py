@@ -112,7 +112,7 @@ class Entry:
 def entries() -> list[Entry]:
     """Every chunk the action would keep — `get-entries.ts` in full."""
     kept = []
-    for chunk in CHANGELOG.read_text().split(_SEPARATOR):
+    for chunk in CHANGELOG.read_text(encoding="utf-8").split(_SEPARATOR):
         bracketed = _BRACKETED.match(chunk)
         bare = _BARE.match(chunk)
         if bracketed is not None:
@@ -142,7 +142,7 @@ def test_the_pinned_action_is_the_one_this_was_ported_from() -> None:
     `PINNED_ACTION_REF`". Silently keeping stale rules would leave a green test
     asserting the behaviour of a version nothing runs.
     """
-    workflow = RELEASE_WORKFLOW.read_text()
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
     assert "mindsers/changelog-reader-action" in workflow, (
         "the release no longer reads the changelog with this action; "
         "this file's rules describe that action's parser and nothing else"
@@ -221,7 +221,7 @@ def test_an_unreleased_section_is_open_for_the_next_change() -> None:
 def test_every_released_version_has_a_link_reference() -> None:
     """The `[0.1.0]` in a heading renders as a broken link without one, on a
     page whose whole job is to be read by someone deciding whether to upgrade."""
-    text = CHANGELOG.read_text()
+    text = CHANGELOG.read_text(encoding="utf-8")
     for entry in released():
         assert f"\n[{entry.id}]: http" in text, (
             f"[{entry.id}] has no link reference at the foot of the file"

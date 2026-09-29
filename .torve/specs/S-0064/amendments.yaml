@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-11
+        field: text
+        after: >-
+          `freshness:` is a key at a mapping document's root, beside the `source:`
+          it thresholds (`Mapping.freshness`); the catalog carries none. No spec model
+          has §5.1's `sources:` list, so the block sits where the mapping names the
+          relation it reads
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-11 answers Q-2.

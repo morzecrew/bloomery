@@ -9,7 +9,7 @@ Capability grows monotonically — the safe queries of one release are a subset 
 - Paths: `src/bloomery/semantic/proof.py` `tests/fixtures/semantic_corpus/**` `CHANGELOG.md`
 - Consequence: A new rule ships with positive and adversarial tests showing the boundary it admits, so a reader can see what was widened; a project that compiled last release and refuses in this one is either a documented soundness fix or a defect, and the note is what tells them apart
 
-### S-0006/D-8 — `ASSUMED` (Evidence-based semantic capability matrix)
+### S-0006/D-8 — `ASSUMED` (Evidence-based semantic capability matrix) — implementation: partial
 
 Cube's pre-aggregation matching is a row this matrix owes, and by D-4 it is a case the semantic corpus must carry before the row can be measured
 
@@ -29,5 +29,12 @@ Cube's pre-aggregation matching is a row this matrix owes, and by D-4 it is a ca
 
 - Paths: `tests/fixtures/dirty/**` `tests/fixtures/fanout_trap/**` `tests/fixtures/semantic_corpus/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0071/D-9 — `ASSUMED` (Completing the semantic plan)
+
+No semantic-corpus case evidences the cumulative shape. R016 is evidenced by plan-level tests: `test_a_cumulative_metric_states_its_window` asserts the `Window` node, its frame and its proof, and `test_the_window_rule_and_the_rollup_refusal_agree` ties R016's terminal half to the rollup lowering's refusal of a `cumulative:` measure
+
+- Paths: `tests/unit/test_semantic/test_plan.py` `tests/fixtures/semantic_corpus/README.md` `src/bloomery/marts/rollup.py`
+- Consequence: The corpus stays limited to cases where valid SQL returns a wrong number, and a change to R016 or to the rollup refusal meets a unit test rather than a fixture
 
 <!-- /torve:managed -->

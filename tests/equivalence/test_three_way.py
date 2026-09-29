@@ -41,10 +41,10 @@ from support.planning import fixture_ir, fixture_mart, make_planner
 pytestmark = pytest.mark.engine("cube")
 
 HERE = Path(__file__).parent
-REQUESTS: list[dict[str, Any]] = yaml.safe_load((HERE / "golden_requests.yaml").read_text())
+REQUESTS: list[dict[str, Any]] = yaml.safe_load((HERE / "golden_requests.yaml").read_text(encoding="utf-8"))
 #: Grouped by fixture so the cache-of-one opens each stack exactly once.
 REQUESTS.sort(key=lambda entry: str(entry["fixture"]))
-DIVERGENCES: dict[str, Any] = yaml.safe_load((HERE / "known_divergences.yaml").read_text())
+DIVERGENCES: dict[str, Any] = yaml.safe_load((HERE / "known_divergences.yaml").read_text(encoding="utf-8"))
 
 #: §5.8's tolerance, verbatim.
 ATOL = Decimal("0.01")
@@ -117,7 +117,7 @@ def _planner_frame(
 def _reference_frame(
     entry: dict[str, Any], connection: psycopg.Connection
 ) -> dict[tuple[str, ...], Decimal | None]:
-    sql = (HERE / "reference_sql" / entry["reference"]).read_text()
+    sql = (HERE / "reference_sql" / entry["reference"]).read_text(encoding="utf-8")
     with connection.cursor() as cursor:
         cursor.execute(sql)
         rows = cursor.fetchall()

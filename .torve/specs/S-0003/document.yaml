@@ -302,3 +302,5 @@ questions:
       audit scope, and the resolution evidence — are accepted as rows of this document.
       They are built and tested in the tree and govern the areas the remaining phase
       touches, so an executor arriving now inherits nothing about them
+    status: settled
+    settled_by: D-11

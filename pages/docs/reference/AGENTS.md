@@ -16,6 +16,13 @@ The advisory vocabulary is a closed enum with no free-text constructor, and ever
 
 - Paths: `pages/docs/reference/errors.md` `src/bloomery/emit/lower/silver.py`
 
+### S-0035/D-11 — `ASSUMED` (Public surface and stability policy)
+
+`spec_version: 1` promises a document keeps its meaning, not that it keeps loading. A newly reserved generated-column name, or authored text that is not one SQL expression, may refuse a document that loaded before without a version bump, provided the refusal is binary, reaches only an already-broken document, names the authored address and fix, and appears in `CHANGELOG.md`
+
+- Paths: `pages/docs/reference/stability.md` `src/bloomery/spec/common.py` `tests/unit/test_steps/test_lowering.py`
+- Consequence: Adding a name to `RESERVED_MEMBER_REASONS` ships in a minor with a Changed entry and a reason the refusal quotes, while any change that alters what a loading document means still mints a version
+
 ### S-0041/D-7 — `ASSUMED` (Deterministic union merge)
 
 A `_source` system column carries provenance. It is load-bearing rather than diagnostic: the collision audit reports which sources collided, and without it the report is unactionable on a multi-source entity.

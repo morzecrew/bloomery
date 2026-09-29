@@ -198,6 +198,64 @@ decisions:
       while `dependencies.yml` and the two-argument `ref()` name the alias, so dbt
       cannot resolve the dependency the emitted files declare. A name is identity,
       which D-2 says a bloomery project does not have — and a dbt project does.
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      A downstream project reads an imported entity and never extends it: an import
+      names nodes with no field list, a mapping targets only an entity the local model
+      declares, and a local entity of the imported name is refused as an `ImportCollision`,
+      so a field is added upstream and exported from there
+    paths:
+      - src/bloomery/spec/imports.py
+      - src/bloomery/guardrails/imports.py
+      - src/bloomery/resolve/refs.py
+      - tests/unit/test_guardrails/test_imports.py
+    consequence: >-
+      A downstream that needs another column on an imported entity asks the upstream
+      to add it, or models it on a local entity of a different name
+    rationale: >-
+      The alternatives rejected extension as a subclassing relationship yet left it
+      open, and the code closes it: `_check_mapping` resolves a mapping target against
+      the local entity model only, and `test_a_local_name_colliding_with_an_imported_one_is_refused`
+      pins the redeclaration as a collision
+    cites: [D-2, D-5]
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      A name two or more upstreams supply under one kind is an `ImportCollision`,
+      as a local-against-imported name is: `_claimed_twice` refuses it once per name,
+      naming every alias that supplies it, and `_bind_imports` binds it from none
+      of them
+    paths:
+      - src/bloomery/guardrails/imports.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_guardrails/test_imports.py
+    consequence: >-
+      A downstream importing one name from two upstreams is refused until it imports
+      that name from one of them, and three suppliers produce one refusal rather than
+      three
+    rationale: >-
+      The T-0061 self-audit measured two upstreams both exporting `gross_revenue`
+      compiling clean with every later reference going to whichever lookup ran first,
+      the local case's ambiguity made worse because each upstream's file is correct
+      on its own
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      The cross-boundary grain refusal belongs to the resolution phase, not the declaration
+      phase: once imported names resolve, `check_grain` reads an imported entity's
+      grain off the upstream's IR and refuses a fan-out across the boundary exactly
+      as within one project, and a grain neither project declares stays unknown
+    paths:
+      - src/bloomery/guardrails/grain.py
+      - tests/unit/test_guardrails/test_grain.py
+    consequence: >-
+      A derivation or metric over a coarser imported entity gets the single-project
+      `GrainMismatch`, and the declaration phase carries no grain refusal of its own
+    rationale: >-
+      The T-0061 log found the refusal had no reachable input before resolution, since
+      a mart naming an imported entity failed earlier as an unresolved reference,
+      so a guard written then could only be reddened by neutering the resolver
 invariants:
   - id: I-1
     statement: >-

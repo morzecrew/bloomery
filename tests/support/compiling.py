@@ -98,7 +98,7 @@ def spec_fixture_names() -> tuple[str, ...]:
 def fixture_sources(name: str) -> dict[str, str]:
     """The fixture's project documents (the catalog is loaded separately)."""
     return {
-        path.stem: path.read_text()
+        path.stem: path.read_text(encoding="utf-8")
         for path in sorted((FIXTURES / name).glob("*.yaml"))
         if path.stem != "catalog"
     }
@@ -107,7 +107,7 @@ def fixture_sources(name: str) -> dict[str, str]:
 def load_fixture(name: str) -> tuple[Project, Catalog | None]:
     project = load_project(fixture_sources(name))
     catalog_path = FIXTURES / name / "catalog.yaml"
-    catalog = load_catalog(catalog_path.read_text()) if catalog_path.exists() else None
+    catalog = load_catalog(catalog_path.read_text(encoding="utf-8")) if catalog_path.exists() else None
     return project, catalog
 
 
@@ -200,7 +200,7 @@ def assert_no_orphans(snapshot_dir: Path, paths: Sequence[str]) -> None:
     stayed in the corpus after it stopped.
     """
     on_disk = {
-        str(path.relative_to(snapshot_dir))
+        path.relative_to(snapshot_dir).as_posix()
         for path in snapshot_dir.rglob("*")
         if path.is_file()
     }

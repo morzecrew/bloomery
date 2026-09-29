@@ -41,6 +41,27 @@ A guard that judges a local declaration reads the composed view — this project
 - Consequence: A `secret` column an imported entity carries cannot reach a local published mart unrefused, a filter on a missing dimension of an imported metric is refused at the guardrail rather than at `mart_column_type` in both emitters, and an exposure may name what the project imported. Imported nodes are still not re-judged on their own account; what widens is the input the local judgement reads.
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0002/D-11 — `ASSUMED` (Multi-project composition)
+
+A downstream project reads an imported entity and never extends it: an import names nodes with no field list, a mapping targets only an entity the local model declares, and a local entity of the imported name is refused as an `ImportCollision`, so a field is added upstream and exported from there
+
+- Paths: `src/bloomery/spec/imports.py` `src/bloomery/guardrails/imports.py` `src/bloomery/resolve/refs.py` `tests/unit/test_guardrails/test_imports.py`
+- Consequence: A downstream that needs another column on an imported entity asks the upstream to add it, or models it on a local entity of a different name
+
+### S-0002/D-12 — `ASSUMED` (Multi-project composition)
+
+A name two or more upstreams supply under one kind is an `ImportCollision`, as a local-against-imported name is: `_claimed_twice` refuses it once per name, naming every alias that supplies it, and `_bind_imports` binds it from none of them
+
+- Paths: `src/bloomery/guardrails/imports.py` `src/bloomery/resolve/build.py` `tests/unit/test_guardrails/test_imports.py`
+- Consequence: A downstream importing one name from two upstreams is refused until it imports that name from one of them, and three suppliers produce one refusal rather than three
+
+### S-0002/D-13 — `ASSUMED` (Multi-project composition)
+
+The cross-boundary grain refusal belongs to the resolution phase, not the declaration phase: once imported names resolve, `check_grain` reads an imported entity's grain off the upstream's IR and refuses a fan-out across the boundary exactly as within one project, and a grain neither project declares stays unknown
+
+- Paths: `src/bloomery/guardrails/grain.py` `tests/unit/test_guardrails/test_grain.py`
+- Consequence: A derivation or metric over a coarser imported entity gets the single-project `GrainMismatch`, and the declaration phase carries no grain refusal of its own
+
 ### S-0005/D-3 — `LOCKED` (Semantic proof IR and closed-world checking)
 
 Guardrails are expressed as obligations before any is deleted, and the mart compiler keeps its aggregate error mechanism throughout while internally consuming shared semantic facts
@@ -160,6 +181,13 @@ Mart-level fan-out guard runs at compile time (_bloomery-changes.md D2, S-0027):
 Additivity extends with `NonAdditiveWithoutComponents` (a `non_additive` metric declared without a `RatioSpec` or equivalent additive decomposition — nothing to recompute from); `SemiAdditivePolicy(over, rule)` with `rule ∈ {last, first, avg, max, min}` replaces the bare `over:` annotation (_bloomery-changes.md D4). The query-time lowering of `rule` is S-0028's, not this stage's.
 
 - Paths: `src/bloomery/guardrails/additivity.py` `tests/fixtures/semi_additive_inventory/metrics.yaml` `tests/unit/test_guardrails/test_additivity.py`
+
+### S-0023/D-12 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
+
+Guardrails read the parsed expression with sqlglot's `find_all` over the node types they judge — `arithmetic.py` visits `exp.Add`, `exp.Sub`, `exp.Mul` and `exp.Div` and branches with `isinstance` — rather than a visitor class or a `match` statement. The `RECONCILE` audit selects rows where `<column> IS DISTINCT FROM <column>__direct`
+
+- Paths: `src/bloomery/guardrails/arithmetic.py` `src/bloomery/emit/lower/predicates.py` `tests/golden/test_sqlmesh_duckdb.py` `tests/unit/test_guardrails/test_conflict.py`
+- Consequence: A row where exactly one of the two paths is NULL counts as a disagreement, and changing the reconcile predicate moves the checked-in `path_conflict` audit goldens
 
 ### S-0026/D-9 — `ASSUMED` (Testing strategy and fixture corpus)
 
@@ -430,6 +458,13 @@ A `pii`/`secret` column reaching a relation that **admits a role its source enti
 - Paths: `pages/docs/how-to/annotate-a-spec.md` `src/bloomery/errors.py` `src/bloomery/evidence.py` `src/bloomery/guardrails/classification.py` `src/bloomery/guardrails/stage.py` `tests/unit/test_classification_guard.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0062/D-13 — `ASSUMED` (Ownership, classification and grants)
+
+`classification:` is a key on the entity model's `Field`, never on a mapping path. A merged entity's column carries one classification whatever its source paths, and `ColumnIR.classification` carries it unchanged to the guard and the targets
+
+- Paths: `src/bloomery/spec/entity.py` `src/bloomery/ir/nodes.py` `src/bloomery/guardrails/classification.py` `tests/unit/test_classification_guard.py`
+- Consequence: An author classifies a column once, where the field is declared, and two mappings feeding one field cannot give it two classifications
+
 ### S-0063/D-1 — `LOCKED` (Exposures and downstream consumers)
 
 Exposures are **declared**, never discovered. Discovery needs a network and credentials; S-0020 forbids both, and a compiler that reads a BI tool is a different program.
@@ -534,5 +569,19 @@ Follows from row 2, and stated separately because it is the thing an executor wi
 
 - Paths: `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/guardrails/evidence.py` `src/bloomery/semantic/proof.py` `src/bloomery/spec/entity.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0076/D-9 — `ASSUMED` (Declared source timezone)
+
+R018 decides a comparison against a literal instant over the IR expression: `_pinned_columns` walks a metric's whole `expr` tree for `=`, `!=`, `<`, `<=`, `>`, `>=` or `BETWEEN` whose operands hold an entity column beside a string literal or a literal cast to `TIMESTAMP`; a metric `filter` on an entity column is the same site
+
+- Paths: `src/bloomery/guardrails/zone.py` `tests/unit/test_guardrails/test_zone.py` `tests/fixtures/semantic_corpus/011-timezone-boundary/**`
+- Consequence: The rule's surface is the one the design claims, corpus case 011's zoneless arm is refused with `UndeclaredZone` at its comparison, and two columns compared with each other never fire
+
+### S-0076/D-10 — `ASSUMED` (Declared source timezone)
+
+R018 does not reach a timestamp parsed inside a catalog recipe: a recipe fills no transform chain, so the column's empty chain discharges it as never a wall clock and no `zone_in:` is asked of the mapping. `test_a_recipe_that_parses_a_timestamp_is_not_reached_by_r018` pins the hole, so closing it is a deliberate change
+
+- Paths: `src/bloomery/guardrails/zone.py` `tests/unit/test_guardrails/test_zone.py`
+- Consequence: A project whose recipe casts wall-clock text to a timestamp compiles without a zone refusal, and whoever closes the hole needs a declaration site on the catalog side first
 
 <!-- /torve:managed -->

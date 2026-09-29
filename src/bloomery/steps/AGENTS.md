@@ -74,4 +74,11 @@ Multi-output emission resolved — **supersedes the draft §10 entry and its exe
 
 - Paths: `src/bloomery/steps/splice.py`
 
+### S-0034/D-58 — `ASSUMED` (The step registry: referenced implementations)
+
+A `StepParameter` bounds its value with optional, inclusive `min` and `max`, both `Decimal`. A manifest whose `min` exceeds its `max` is refused at parse; a wired value outside the bounds, or not numeric while a bound is declared, is refused at compile with a `StepError`. The manifest's own `default` is not checked against the bounds
+
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_lowering.py` `tests/unit/test_steps/test_manifest_and_registry.py`
+- Consequence: A platform team states a parameter's range once and every tenant wiring that leaves it is refused before a run, while a default outside the range passes unchecked
+
 <!-- /torve:managed -->

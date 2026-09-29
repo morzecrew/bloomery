@@ -345,6 +345,8 @@ questions:
     text: >-
       Whether a node absent from every entry is an empty timeline or a refusal. `lineage()`
       refuses an unknown node, and the two should probably agree.
+    status: settled
+    settled_by: D-7
   - id: Q-3
     text: >-
       Whether the CLI command should accept a manifest file listing entries, for the

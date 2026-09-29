@@ -945,7 +945,7 @@ def _exposures_from(body: str) -> list[dict[str, object]]:
 
     sources = fixture_sources("ecom_basic")
     sources["exposures"] = body
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     artifacts = compile_project(
         load_project(sources), target=Target.DBT, dialect="postgres", catalog=catalog
     )

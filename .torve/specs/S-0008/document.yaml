@@ -470,14 +470,20 @@ questions:
       compile. That is a number obtainable in one instrumented run, and it settles
       D-7 for every site at once, including whether the unguarded ones need anything
       at all.
+    status: settled
+    settled_by: D-10
   - id: Q-2
     text: >-
       Do the composed-fragment sites re-parse text that a fragment validator cleared?
       The parse-door target's second shape assumes yes for `src/bloomery/quality/pattern.py`
       and `src/bloomery/resolve/build.py`. Reading them settles it, and a negative
       answer shrinks that target rather than removing it.
+    status: settled
+    settled_by: D-11
   - id: Q-3
     text: >-
       Does the lane want a seventh pytest marker? The six tiers are pytest markers
       and a libFuzzer target is not a pytest test, so a marker would cover only a
       replay test over the corpus. D-6 carries it.
+    status: settled
+    settled_by: D-6

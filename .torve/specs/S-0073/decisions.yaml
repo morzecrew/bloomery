@@ -46,3 +46,22 @@ decisions:
       block as printed over `ecom_basic` sources and asserts it compiles artifacts,
       so the page cannot drift from the API.
     fingerprint: 6106218cb122854d/202c11f3690cefb1
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      Comparing two instants is the how-to's framing, not `plan()`'s: the Compare
+      section of `reproduce-a-past-artifact-set.md` says `plan()` takes two IRs and
+      does not care where either came from, and `plan()`'s docstring states only the
+      diff contract
+    paths:
+      - pages/docs/how-to/reproduce-a-past-artifact-set.md
+      - src/bloomery/plan/diff.py
+    consequence: >-
+      A reader of the API reference learns what `plan()` diffs, and a reader arriving
+      with an incident learns from the how-to that two historical compiles need nothing
+      beyond it
+    rationale: >-
+      Settled at implementation: the how-to carries the sentence and the docstring
+      does not, which holds because where an IR's text came from is outside the library
+      (S-0073/D-1) and so is no part of the function's contract
+    cites: [D-1]

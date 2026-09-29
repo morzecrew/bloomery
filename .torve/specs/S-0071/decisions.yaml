@@ -78,3 +78,24 @@ decisions:
       where coverage or the additivity guardrail has already refused.
     paths: [src/bloomery/planner/semantic_plan.py]
     fingerprint: 3234bb4ae0485c21/483498c4fe039a93
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      No semantic-corpus case evidences the cumulative shape. R016 is evidenced by
+      plan-level tests: `test_a_cumulative_metric_states_its_window` asserts the `Window`
+      node, its frame and its proof, and `test_the_window_rule_and_the_rollup_refusal_agree`
+      ties R016's terminal half to the rollup lowering's refusal of a `cumulative:`
+      measure
+    paths:
+      - tests/unit/test_semantic/test_plan.py
+      - tests/fixtures/semantic_corpus/README.md
+      - src/bloomery/marts/rollup.py
+    consequence: >-
+      The corpus stays limited to cases where valid SQL returns a wrong number, and
+      a change to R016 or to the rollup refusal meets a unit test rather than a fixture
+    rationale: >-
+      A cumulative metric was answered correctly before `Window` existed, so a corpus
+      case written for it would be admitted for the wrong reason and dilute what the
+      corpus proves; execution departed from P3's plan to write one on that ground
+      (log T-0037)
+    cites: [D-5, S-0065/D-5]

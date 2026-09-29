@@ -38,10 +38,10 @@ FILTER_JSON = {
 def main() -> None:
     # The loaders are pure: they take YAML *strings*, never paths. Reading
     # files is the caller's job — the library performs no I/O.
-    catalog = load_catalog((HERE / "catalog.yaml").read_text())
+    catalog = load_catalog((HERE / "catalog.yaml").read_text(encoding="utf-8"))
     project = load_project(
         {
-            path.name: path.read_text()
+            path.name: path.read_text(encoding="utf-8")
             for path in sorted(HERE.glob("*.yaml"))
             if path.name != "catalog.yaml"
         }
@@ -53,7 +53,7 @@ def main() -> None:
     for artifact in artifacts:
         destination = OUT / artifact.path
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(artifact.content)
+        destination.write_text(artifact.content, encoding="utf-8")
         print(f"wrote {destination.relative_to(HERE)}")
 
     # Filters can arrive as JSON: parse_filter_json normalizes the

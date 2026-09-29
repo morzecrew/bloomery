@@ -31,7 +31,7 @@ CI = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 def load(path: Path) -> dict:
     """`on:` parses as the boolean `True` under YAML 1.1, which is why the
     trigger block is read through this rather than by its name."""
-    return yaml.safe_load(path.read_text())
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 @pytest.fixture

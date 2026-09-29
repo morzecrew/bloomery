@@ -85,3 +85,24 @@ decisions:
       naming a column absent from `old` that `old` does not already record, including
       `old is None`. Cost: leftover annotations become inert history instead of a
       forced cleanup.
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      `Change.subject` is `<kind>:<name>`, the kind one of `entity`, `field`, `metric`,
+      `mart`, `relationship`, `date_dimension`, `quality`, `dedupe`, `quarantine`,
+      `reconcile`, `freshness`, `step` or `rollup`; a `field:` subject names the column
+      alone and `Change.entity` carries its owner. `detail` is fixed wording written
+      in `plan/diff.py`, interpolating only names and values from the two IRs
+    paths:
+      - src/bloomery/plan/model.py
+      - src/bloomery/plan/diff.py
+      - tests/unit/test_plan/test_diff.py
+    consequence: >-
+      Plans stay byte-comparable across runs, and a newly diffable kind extends the
+      same `<kind>:<name>` grammar rather than inventing a second subject shape
+    rationale: >-
+      The `Change` docstring fixes the grammar and `test_entity_redefinition_is_breaking_at_the_entity_subject`
+      pins `entity:order_item` and `<attribute> changed` exactly; the docstring's
+      kind list predates `step`, `freshness` and `rollup`, which `diff.py` emits in
+      the same grammar
+    cites: [D-1, D-6]

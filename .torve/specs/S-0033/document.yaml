@@ -891,6 +891,8 @@ questions:
       Sampling for `pattern` on huge partitions — **lean no**: a probabilistic result
       in an otherwise exact system (for `unique` it is rejected outright — D5, Document
       5 §11.3).
+    status: settled
+    settled_by: D-97
   - id: Q-5
     text: >-
       ~~Cross-entity rules ("every customer has ≥1 order") — probably reconcile-style.~~

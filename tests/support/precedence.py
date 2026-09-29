@@ -200,7 +200,7 @@ def _sources(*, widened: bool) -> dict[str, str]:
 def project_ir(*, widened: bool = False) -> tuple[Project, ProjectIR]:
     """The fixture's project and IR, optionally with ``q_dup``'s set widened."""
     project = load_project(_sources(widened=widened))
-    catalog = load_catalog((FIXTURES / FIXTURE / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / FIXTURE / "catalog.yaml").read_text(encoding="utf-8"))
     return project, build_project_ir(project, catalog)
 
 

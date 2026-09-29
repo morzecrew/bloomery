@@ -115,3 +115,35 @@ decisions:
       accepted choice removes an entry; it does not, and the two-gap distinction D3
       draws is what makes the error visible.
     paths: [src/bloomery/evidence.py]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      `OpenDecision.blocks` names metrics only: every metric blocked on the decision,
+      directly or through a metric it requires, sorted and never empty. No mart is
+      named, and a canonical field no metric requires is not an open decision
+    paths: [src/bloomery/evidence.py, tests/unit/test_unresolved.py]
+    consequence: >-
+      A caller that wants to show the marts a decision affects derives them from the
+      blocked metrics, and a derived metric waiting on the decision is counted in
+      its cost
+    rationale: >-
+      The `blocks` comment calls it what lets a caller set a priority bloomery does
+      not, and `test_a_transitively_blocked_metric_is_in_blocks` requires it to be
+      the whole cost of leaving the decision open, a cost reachability already states
+      in metrics
+    cites: [D-7, D-9]
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      `UNLINKED` and `UNMAPPED` decisions share one collection, `SpecEvidence.unresolved`,
+      sorted by `canonical`; each `OpenDecision` carries a `gap: Gap` naming which
+      edit closes it, an entity-model edit or a mapping field
+    paths: [src/bloomery/evidence.py, tests/unit/test_unresolved.py]
+    consequence: >-
+      A mapping-only chooser filters on `gap` itself and leaves `UNLINKED` entries
+      standing, and the report makes no claim about which caller owns which entry
+    rationale: >-
+      Settled at implementation: one collection with a `gap` field is the weaker "same
+      worklist, different edit" claim the question prefers, and it holds because S-0047/D-10
+      already lets a mapping-only chooser terminate on the `UNMAPPED` subset
+    cites: [D-3, D-10]

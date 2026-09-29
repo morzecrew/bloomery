@@ -52,7 +52,7 @@ _ADVISORY_ROW = re.compile(r"^\|\s*`([a-z][a-z0-9_]+)`\s*\|", re.M)
 
 def documented_advisory_codes() -> set[str]:
     """Every advisory code named by a row of the reference's advisory table."""
-    return set(_ADVISORY_ROW.findall(ERRORS_PAGE.read_text()))
+    return set(_ADVISORY_ROW.findall(ERRORS_PAGE.read_text(encoding="utf-8")))
 
 
 #: A row of the reference's per-class table: ``| `FanoutRisk` | guardrails | … |``.
@@ -64,7 +64,7 @@ _TABLE_ROW = re.compile(r"^\|\s*`([A-Z][A-Za-z]+)`\s*\|", re.M)
 
 def documented_error_classes() -> set[str]:
     """Every error class named by a row of the reference's class table."""
-    return set(_TABLE_ROW.findall(ERRORS_PAGE.read_text()))
+    return set(_TABLE_ROW.findall(ERRORS_PAGE.read_text(encoding="utf-8")))
 
 
 def census_exempt_classes() -> set[str]:
@@ -81,7 +81,7 @@ def census_exempt_classes() -> set[str]:
     52 of them and asserting it separately measures nothing.
     """
     exempt = {"BloomeryError"}
-    for line in ERRORS_PAGE.read_text().splitlines():
+    for line in ERRORS_PAGE.read_text(encoding="utf-8").splitlines():
         match = _TABLE_ROW.match(line)
         if match and _NEVER_RAISED in line:
             exempt.add(match[1])

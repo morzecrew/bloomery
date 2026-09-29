@@ -350,8 +350,12 @@ questions:
       **Whether `imported.yaml` is one document or one per source model.** One is
       simpler and makes a large import a large diff; per-model matches how a Semantic
       Layer project is laid out. Implementation may settle it (D6).
+    status: settled
+    settled_by: D-6
   - id: Q-2
     text: >-
       **What `bloomery import` exits with when it refuses.** `check` has an exit contract
       (S-0057/phasing (P-1)) and the other commands do not; a writer command's contract
       is not obviously either. Settle it against what `check` prints today.
+    status: settled
+    settled_by: D-11

@@ -205,3 +205,5 @@ questions:
     text: >-
       GitHub org/repo slug (assumed `morzecrew/bloomery` for URLs; trivially fixable
       at push time).
+    status: settled
+    settled_by: D-13

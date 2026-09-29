@@ -336,3 +336,5 @@ questions:
       rule is additive to the schema but may cause a previously-compiling spec to
       be refused if it collides with a reserved name. Probably needs a "reserved names"
       note per kind.
+    status: settled
+    settled_by: D-11

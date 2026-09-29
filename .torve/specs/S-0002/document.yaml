@@ -298,6 +298,8 @@ questions:
     text: >-
       May a downstream project extend an imported entity — adding fields — or only
       read it? Extension makes the boundary a subclassing relationship.
+    status: settled
+    settled_by: D-11
   - id: Q-3
     text: >-
       Should `bloomery resolve` report imported-but-unused exports? It is the upstream's
@@ -307,12 +309,16 @@ questions:
       Accept or refuse the row execution proposed in `logs/T-0061.md`: a name supplied
       by two upstreams is a collision, proposed LOCKED. The guard already refuses
       it; the source document's text names only the local-against-imported case.
+    status: settled
+    settled_by: D-12
   - id: Q-5
     text: >-
       Accept or refuse the row execution proposed in `logs/T-0061.md`: grain conflict
       belongs to the resolution phase, proposed ASSUMED, because it has no reachable
       input until an imported entity is nameable by a mart. The phasing below already
       places it there; the row is what would make that a decision rather than an arrangement.
+    status: settled
+    settled_by: D-13
   - id: Q-6
     text: >-
       Accept or refuse the row execution proposed in `logs/T-0061.md`: the cycle refusal

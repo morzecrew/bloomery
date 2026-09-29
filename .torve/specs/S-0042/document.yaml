@@ -340,6 +340,8 @@ questions:
       **Is 0.1 the right number**, or is 0.0.x more honest for a first published artifact?
       0.1 is what every existing document says; changing it now would ripple through
       those pages for a gain in honesty that may not exist.
+    status: settled
+    settled_by: D-27
   - id: Q-3
     text: >-
       **Which promises bind at 0.1 and which at 1.0?** §5.5 says the stability page

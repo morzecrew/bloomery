@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T05:02:53Z'
+    title: Rows for what the implementation decided
+    changes:
+      - subject: D-13
+        field: text
+        after: >-
+          The repository slug is `morzecrew/bloomery`: `[project.urls]` in `pyproject.toml`,
+          `repo_url` in `pages/zensical.toml`, the README badges and the changelog
+          links all point at `https://github.com/morzecrew/bloomery`, the repository
+          the package is pushed to
+    md: |-
+      Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
+
+      - D-13 answers Q-1.

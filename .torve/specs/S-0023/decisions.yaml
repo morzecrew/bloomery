@@ -159,3 +159,26 @@ decisions:
       - src/bloomery/guardrails/additivity.py
       - tests/fixtures/semi_additive_inventory/metrics.yaml
       - tests/unit/test_guardrails/test_additivity.py
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      Guardrails read the parsed expression with sqlglot's `find_all` over the node
+      types they judge — `arithmetic.py` visits `exp.Add`, `exp.Sub`, `exp.Mul` and
+      `exp.Div` and branches with `isinstance` — rather than a visitor class or a
+      `match` statement. The `RECONCILE` audit selects rows where `<column> IS DISTINCT
+      FROM <column>__direct`
+    paths:
+      - src/bloomery/guardrails/arithmetic.py
+      - src/bloomery/emit/lower/predicates.py
+      - tests/golden/test_sqlmesh_duckdb.py
+      - tests/unit/test_guardrails/test_conflict.py
+    consequence: >-
+      A row where exactly one of the two paths is NULL counts as a disagreement, and
+      changing the reconcile predicate moves the checked-in `path_conflict` audit
+      goldens
+    rationale: >-
+      Settled at implementation: `find_all` yields exactly the binary nodes a unit,
+      tax or currency rule judges, and `audit_predicate` builds the SQLMesh violation
+      form and the dbt assertion form of the reconcile check side by side so the two
+      targets cannot drift
+    cites: [D-2, D-7]

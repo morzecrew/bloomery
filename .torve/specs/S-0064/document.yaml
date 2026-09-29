@@ -237,3 +237,5 @@ questions:
       catalog describes relations that exist; the mapping describes what reads them.
       This RFC puts it on the mapping because the threshold is a statement about the
       pipeline, not the table.
+    status: settled
+    settled_by: D-11

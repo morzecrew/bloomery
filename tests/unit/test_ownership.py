@@ -147,7 +147,7 @@ def test_the_annotation_moves_no_sql_anywhere_in_a_project(target: str) -> None:
     `owner:` key since S-0063, so "no artifact mentions an owner" is already
     false on this corpus and would pass for the wrong reason.
     """
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     annotated = dict(fixture_sources("ecom_basic"))
     plain = unannotated(annotated)
 
@@ -173,7 +173,7 @@ def test_the_annotation_removes_nothing(target: str) -> None:
     wrote, say. Every line of every artifact without the annotation must still
     be there with it.
     """
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     annotated = dict(fixture_sources("ecom_basic"))
     plain = unannotated(annotated)
 
@@ -218,7 +218,7 @@ def test_an_entity_with_no_quality_rules_still_gets_a_schema_file() -> None:
 
 
 def test_a_mart_owner_reaches_all_three_targets() -> None:
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     loaded = load_project(fixture_sources("ecom_basic"))
     declared = "analytics@example.com"
 
@@ -247,7 +247,7 @@ def test_a_mart_owner_reaches_all_three_targets() -> None:
 def test_a_metric_owner_reaches_cube_alone() -> None:
     """A metric has no SQLMesh model and no dbt schema entry of its own, so a
     Cube measure's `meta` is the only owner slot it has."""
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     loaded = load_project(fixture_sources("ecom_basic"))
     declared = "finance-reporting@example.com"
 
@@ -316,7 +316,7 @@ def test_an_owner_is_not_inherited_by_a_mart(): # noqa: ANN201
     sources["marts"] = _ANNOTATION_LINE.sub("", sources["marts"])
     assert sources["marts"] != fixture_sources("ecom_basic")["marts"]
 
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     ir = build_project_ir(load_project(sources), catalog)
 
     owned = next(e for e in ir.entities if e.name == "order")
@@ -335,7 +335,7 @@ def test_an_owner_is_not_merged_from_a_metric_template() -> None:
     """
     from bloomery.errors import SpecParseError
 
-    catalog_text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text().replace(
+    catalog_text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8").replace(
         "  gross_revenue:\n    requires: [unit_price, quantity]",
         "  gross_revenue:\n    owner: nobody\n    requires: [unit_price, quantity]",
         1,
@@ -466,7 +466,7 @@ def test_pii_and_secret_leave_cubes_api_surface_and_internal_does_not() -> None:
     from what Cube serves without removing it from the relation — and
     `internal` is deliberately still served, because "internal" is a statement
     about who should read a column, not one Cube can enforce."""
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     emitted = {
         a.path: a.content
         for a in compile_project(
@@ -499,7 +499,7 @@ def test_a_classification_does_not_remove_the_column_from_the_relation() -> None
     """`public: false` is Cube's API surface, not the warehouse. The column is
     still selected — a classification that dropped it would be masking, which
     §4 refuses in as many words."""
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     emitted = {
         a.path: a.content
         for a in compile_project(
@@ -725,7 +725,7 @@ def test_cube_refuses_grants_rather_than_dropping_them(node: str) -> None:
         sources["marts"] = sources["marts"].replace(
             "marts:\n  order_items:", "marts:\n  order_items:\n    grants: {select: [analyst]}", 1
         )
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
 
     with pytest.raises(UnsupportedByTarget, match="which Cube cannot apply"):
         compile_project(load_project(sources), target="cube", dialect="duckdb", catalog=catalog)

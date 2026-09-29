@@ -233,6 +233,8 @@ questions:
       Whether `requires_evidence` belongs on the mart, the exposure, or the project
       with per-consumer overrides. The exposure is the truest owner and the mart is
       where authors will look first.
+    status: settled
+    settled_by: D-6
   - id: Q-2
     text: >-
       Whether a fact declared in an imported project counts as `LOCKED` locally, or

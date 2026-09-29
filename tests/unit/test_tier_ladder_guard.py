@@ -25,7 +25,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 def markers() -> list[str]:
-    config = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     return config["tool"]["pytest"]["ini_options"]["markers"]
 
 
@@ -54,13 +54,13 @@ def test_the_selector_is_distinct_from_engine() -> None:
 def test_the_table_records_why() -> None:
     """The marker table is where a person running the suite reads the ladder, and
     a selector whose reason lives only in a decision row is a convention."""
-    config = (ROOT / "pyproject.toml").read_text()
+    config = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert "S-0012/D-9" in config, "the reason for the marker form is not beside it"
     assert "S-0012/D-1" in config, "a surrogate is evidence, never the oracle — say so"
 
 
 def test_the_tier_list_carries_the_same_distinction() -> None:
-    readme = (ROOT / "tests" / "README.md").read_text()
+    readme = (ROOT / "tests" / "README.md").read_text(encoding="utf-8")
     assert "`surrogate(<name>)`" in readme, "the tier list still has eight selectors"
     assert "never the oracle" in readme, (
         "the tier list names the rung without saying what a green one may not claim"

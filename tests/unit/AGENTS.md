@@ -26,7 +26,7 @@ Proof serialization is deterministic: canonical premise order, stable rule ident
 - Consequence: Equivalent authored ordering produces equivalent proof serialization, so a golden or a continuous-integration assertion over a derivation is a statement about the design rather than about the order a dictionary happened to iterate in
 - Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_premise_order_is_canonical_not_construction_order tests/unit/test_semantic/test_proof.py::test_serialization_carries_nothing_that_varies_between_processes -q` (shadow; runs as `decision:S-0005/D-6`, no log entry owed)
 
-### S-0006/D-4 — `ASSUMED` (Evidence-based semantic capability matrix)
+### S-0006/D-4 — `ASSUMED` (Evidence-based semantic capability matrix) — implementation: partial
 
 Rows are the cases of the semantic bug corpus under `tests/fixtures/semantic_corpus/`, not a separately invented taxonomy; a row the matrix needs and the corpus does not carry is a missing corpus case first
 
@@ -34,7 +34,7 @@ Rows are the cases of the semantic bug corpus under `tests/fixtures/semantic_cor
 - Consequence: Departing means the matrix needs a row no corpus case covers — in which case the case is what is missing, and it belongs in the corpus document before it belongs here
 - Check: `uv run pytest tests/unit/test_comparisons_floor.py::test_matrix_rows_are_the_corpus_cases -q` (shadow; runs as `decision:S-0006/D-4`, no log entry owed)
 
-### S-0006/D-10 — `ASSUMED` (Evidence-based semantic capability matrix)
+### S-0006/D-10 — `ASSUMED` (Evidence-based semantic capability matrix) — implementation: partial
 
 A cell returns to `UNKNOWN` when the version it pins stops matching what the reproduction resolves, or when its check date leaves a twelve-month window — and the rule is a gate, not a sentence
 
@@ -186,6 +186,13 @@ Version-drift canary `test_metricflow_api_surface` is mandatory — we depend on
 
 - Paths: `tests/unit/test_purity_guard.py`
 
+### S-0036/D-9 — `ASSUMED` (Lowering decomposition)
+
+Lowering has no `audits` stage: each audit is built beside the relation it guards, entity audits in `silver`, reconcile, coverage and mart-assert audits in `reconcile`, step audits in `emit/steps.py`, over shared predicates in `predicates`. No shared capability check exists; each emitter refuses what it cannot express per construct with `UnsupportedByTarget`
+
+- Paths: `src/bloomery/emit/lower/__init__.py` `src/bloomery/emit/base.py` `src/bloomery/emit/steps.py` `tests/unit/test_import_contracts.py`
+- Consequence: A new audit kind lands in the stage that builds its relation, and a target's refusal message stays specific to that target because nothing generic sits in front of it
+
 ### S-0037/D-1 — `ASSUMED` (Authoring ergonomics: schema export, CLI, fix suggestions)
 
 **The JSON Schema export ships first and is the highest-leverage item.** It is a day's work over `model_json_schema()` and serves four consumers at once — editor completion, control-plane form validation, drift-free reference docs, and constrained generation for machine-authored specs. The last is the one that changes a proposal loop's safety argument from a prompt instruction into a structural constraint.
@@ -282,6 +289,13 @@ Version-drift canary `test_metricflow_api_surface` is mandatory — we depend on
 
 - Paths: `tests/unit/test_evidence.py` `tests/unit/test_resolve/test_reach.py`
 
+### S-0039/D-12 — `ASSUMED` (`SpecEvidence`: spec analysis as a first-class output)
+
+`SpecEvidence` never carries compiled artifacts, even at `COMPLETE`. `MartSummary` holds only name, grain, measures, role-qualified dimensions and materialization, with no column count. `evaluate()` takes no `targets` parameter and stops before emission. `Stage` is public and an open enum: callers compare against `COMPLETE`, and adding or splitting a stage is not breaking
+
+- Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/build.py` `tests/unit/test_evidence.py`
+- Consequence: A caller wanting artifacts still calls `compile_project`, and target-specific refusals such as `UnsupportedByTarget` stay invisible to evidence until a consumer needs a target-dependent answer
+
 ### S-0040/D-1 — `LOCKED` (Temporal joins: SCD2 flattening and currency conversion)
 
 Flattening an entity with `scd: type2` into a mart is **refused** at compile time, not silently emitted and not silently filtered to the current version. The join has no validity predicate and the relation has one row per version, so the emitted mart multiplies the base grain while every guardrail passes. Consequence: the only shipped way to use a historical dimension in a mart is a `type1` current-view entity built from it, until §5.3 exists.
@@ -369,6 +383,20 @@ The changelog section is cut **before** the tag. `hatch-vcs` derives the version
 - Paths: `src/bloomery/evidence.py` `tests/unit/test_unresolved.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0047/D-11 — `ASSUMED` (The unresolved-work report)
+
+`OpenDecision.blocks` names metrics only: every metric blocked on the decision, directly or through a metric it requires, sorted and never empty. No mart is named, and a canonical field no metric requires is not an open decision
+
+- Paths: `src/bloomery/evidence.py` `tests/unit/test_unresolved.py`
+- Consequence: A caller that wants to show the marts a decision affects derives them from the blocked metrics, and a derived metric waiting on the decision is counted in its cost
+
+### S-0047/D-12 — `ASSUMED` (The unresolved-work report)
+
+`UNLINKED` and `UNMAPPED` decisions share one collection, `SpecEvidence.unresolved`, sorted by `canonical`; each `OpenDecision` carries a `gap: Gap` naming which edit closes it, an entity-model edit or a mapping field
+
+- Paths: `src/bloomery/evidence.py` `tests/unit/test_unresolved.py`
+- Consequence: A mapping-only chooser filters on `gap` itself and leaves `UNLINKED` entries standing, and the report makes no claim about which caller owns which entry
+
 ### S-0056/D-2 — `LOCKED` (Production-style semantic bug corpus)
 
 **Every case is hand-checkable — 3–20 rows, deterministic, order-independent.** A corpus case a reviewer cannot verify by eye is a test asserting whatever the implementation did on the day it was written, which is the failure mode this corpus is meant to catch in *other* people's pipelines.
@@ -437,6 +465,13 @@ A `pii`/`secret` column reaching a relation that **admits a role its source enti
 - Paths: `pages/docs/how-to/annotate-a-spec.md` `src/bloomery/errors.py` `src/bloomery/evidence.py` `src/bloomery/guardrails/classification.py` `src/bloomery/guardrails/stage.py` `tests/unit/test_classification_guard.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0062/D-13 — `ASSUMED` (Ownership, classification and grants)
+
+`classification:` is a key on the entity model's `Field`, never on a mapping path. A merged entity's column carries one classification whatever its source paths, and `ColumnIR.classification` carries it unchanged to the guard and the targets
+
+- Paths: `src/bloomery/spec/entity.py` `src/bloomery/ir/nodes.py` `src/bloomery/guardrails/classification.py` `tests/unit/test_classification_guard.py`
+- Consequence: An author classifies a column once, where the field is declared, and two mappings feeding one field cannot give it two classifications
+
 ### S-0066/D-7 — `ASSUMED` (Declared input currency for conversion)
 
 `currency_in:` lives on `SimpleFieldMapping` and `KeyField` only. `RecipeFieldMapping` and `MacroFieldMapping` carry no transform chain, so neither can hold a `convert` step or a conversion input to declare. A key keeps it because a decimal key is legal and `resolve.build` walks its chain.
@@ -448,5 +483,12 @@ A `pii`/`secret` column reaching a relation that **admits a role its source enti
 **Row 13's shape promise holds and its value promise does not; supersedes 13 on that half alone.** `facets` is present and is a tuple in every phase, so the JSON a consumer reads never changes shape — but it is never *empty*, because S-0069 row 10 makes an empty delta mean "not a change" and the row is not emitted. Row 13's first reading — a pure rename reported as a change carrying nothing — is the wrong answer to S-0069/tests (§6.) The absence half of row 13 is unchanged. See `logs/T-0045.md`.
 
 - Paths: `tests/unit/test_cli.py`
+
+### S-0075/D-11 — `ASSUMED` (Mechanical imports and per-relationship provenance)
+
+`bloomery import` shares every command's exit contract: `1` when it reads the artifact and refuses it, such as a semantic model it cannot map to an entity; `2` for a usage error, such as a malformed or repeated `--entity`; `0` when it prints a block, and when the project already states every relationship and it prints nothing
+
+- Paths: `src/bloomery/cli/__init__.py` `tests/unit/test_cli.py`
+- Consequence: A script can tell a wrong artifact from a wrong invocation, and an import that adds nothing reads as success rather than as a refusal to retry
 
 <!-- /torve:managed -->

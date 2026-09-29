@@ -139,6 +139,13 @@ bloomery emits `config.yaml` with `model_defaults` and **never** a `gateways:` b
 - Paths: `examples/targets/run.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/ir/nodes.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0061/D-8 — `ASSUMED` (The SQLMesh project file)
+
+The emitted `config.yaml` carries no `model_defaults.cron` and no emitted model sets a `cron`: `model_defaults` holds `dialect` and `start` only. The spec states no schedule, so the project runs at SQLMesh's own default cadence until the caller supplies one
+
+- Paths: `src/bloomery/emit/sqlmesh/__init__.py` `tests/unit/test_emit/test_sqlmesh.py`
+- Consequence: A caller who needs another cadence sets it outside the emitted file, as the gateway already is, and bloomery never asserts a schedule nobody gave it
+
 ### S-0062/D-8 — `ASSUMED` (Ownership, classification and grants)
 
 No spelling rule on `owner`. Every project spells this differently and a format check would refuse spellings correct for their reader.

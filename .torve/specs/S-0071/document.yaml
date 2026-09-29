@@ -419,6 +419,8 @@ questions:
     text: >-
       Whether per-measure restriction is a scope on `Filter` or on `Aggregate` (§5.5,
       D7).
+    status: settled
+    settled_by: D-7
   - id: Q-2
     text: >-
       Whether a `Window` output should be representable in a mart at all, or stays
@@ -432,8 +434,12 @@ questions:
       is a weaker kind of evidence than S-0056's cases usually carry. Whether that
       belongs in 0042 at all, or is a plan-level fixture of its own, is a question
       for whoever writes it.
+    status: settled
+    settled_by: D-9
   - id: Q-4
     text: >-
       Whether `_plannable` survives at all after this, or whether its four conditions
       become a dispatch to the node that states each shape. The second is the shape
       that cannot silently regrow a list of exclusions.
+    status: settled
+    settled_by: D-8
