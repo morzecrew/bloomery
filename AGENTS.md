@@ -206,6 +206,9 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 `<file>` and `torve spec tests S-NNNN/D-n` read the same corpus from the worktree.
 
 - `comparisons/` — 9 decision(s)
+- `comparisons/dbt/` — 0 decision(s)
+- `comparisons/metricflow/` — 0 decision(s)
+- `comparisons/sqlmesh/` — 0 decision(s)
 - `examples/` — 1 decision(s)
 - `examples/lakehouse/` — 8 decision(s)
 - `examples/retrieval/` — 0 decision(s)

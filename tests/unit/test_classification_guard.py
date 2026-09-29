@@ -58,7 +58,7 @@ def sources(
 
 
 def catalog():  # noqa: ANN201 — Catalog is a handle
-    return load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    return load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
 
 
 def build(**kwargs: object):  # noqa: ANN201 — ProjectIR
@@ -287,7 +287,7 @@ def test_a_rollups_grants_are_emitted_at_both_sql_targets() -> None:
         "    grants: {select: [analyst]}\n    keep: [order_customer_id, ordered_month]",
         1,
     )
-    rollup_catalog = load_catalog((FIXTURES / "rollup_mart" / "catalog.yaml").read_text())
+    rollup_catalog = load_catalog((FIXTURES / "rollup_mart" / "catalog.yaml").read_text(encoding="utf-8"))
     loaded = load_project(src)
 
     from bloomery import compile_project  # noqa: PLC0415 — one call site
@@ -324,7 +324,7 @@ def test_a_rollup_does_not_inherit_its_parents_grants() -> None:
     src["marts"] = src["marts"].replace(
         "  order_items:\n", "  order_items:\n    grants: {select: [analyst]}\n", 1
     )
-    rollup_catalog = load_catalog((FIXTURES / "rollup_mart" / "catalog.yaml").read_text())
+    rollup_catalog = load_catalog((FIXTURES / "rollup_mart" / "catalog.yaml").read_text(encoding="utf-8"))
 
     from bloomery import compile_project  # noqa: PLC0415 — one call site
 
@@ -452,7 +452,7 @@ def test_cube_refuses_a_granted_rollup() -> None:
         "    grants: {select: [analyst]}\n    keep: [order_customer_id, ordered_month]",
         1,
     )
-    rollup_catalog = load_catalog((FIXTURES / "rollup_mart" / "catalog.yaml").read_text())
+    rollup_catalog = load_catalog((FIXTURES / "rollup_mart" / "catalog.yaml").read_text(encoding="utf-8"))
 
     with pytest.raises(UnsupportedByTarget, match="rollup 'order_items_monthly'"):
         compile_project(

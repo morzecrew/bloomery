@@ -74,7 +74,7 @@ def _fenced(page: Path, title: str) -> str:
     pattern = re.compile(
         rf'```[a-z]* title="{re.escape(title)}"\n(?P<body>.*?)```', re.DOTALL
     )
-    matches = pattern.findall(page.read_text())
+    matches = pattern.findall(page.read_text(encoding="utf-8"))
     assert len(matches) == 1, f"{page.name}: expected one block titled {title!r}, found {len(matches)}"
     return str(matches[0])
 
@@ -99,7 +99,7 @@ def test_a_docs_snippet_matches_the_fixture_it_names(
     page: str, title: str, document: str
 ) -> None:
     assert _significant(_fenced(DOCS / page, title)) == _significant(
-        (FIXTURES / document).read_text()
+        (FIXTURES / document).read_text(encoding="utf-8")
     )
 
 
@@ -111,7 +111,7 @@ def test_the_pages_artifact_listing_is_what_the_compiler_emits() -> None:
     have concluded a step project emits no ordinary silver models. A retyped
     list drifts the same way a retyped snippet does.
     """
-    page = (DOCS / "how-to" / "resolve-identities.md").read_text()
+    page = (DOCS / "how-to" / "resolve-identities.md").read_text(encoding="utf-8")
     block = re.search(r"## What comes out\n\n```\n(?P<body>.*?)```", page, re.DOTALL)
     assert block is not None, "the page must still have a 'What comes out' block"
     listed = sorted(line.split()[0] for line in block["body"].splitlines() if line.strip())
@@ -125,7 +125,7 @@ def test_the_snippet_check_can_actually_fail() -> None:
     page, title, document = EXTRACTED[0]
     snippet = _significant(_fenced(DOCS / page, title))
     assert snippet, "the snippet must have significant lines"
-    assert snippet != _significant((FIXTURES / "minimal" / "mapping.yaml").read_text())
+    assert snippet != _significant((FIXTURES / "minimal" / "mapping.yaml").read_text(encoding="utf-8"))
 
 
 def test_every_extracted_page_and_document_exists() -> None:
@@ -283,7 +283,7 @@ def test_the_timeline_commands_shape_is_what_the_command_prints() -> None:
 
     assert code == 0
     out = printed.getvalue()
-    page = (DOCS / "how-to" / "trace-a-definition-over-time.md").read_text()
+    page = (DOCS / "how-to" / "trace-a-definition-over-time.md").read_text(encoding="utf-8")
 
     assert re.search(r"^metric\.gross_revenue {2}\(5 versions, 3 changes\)$", out, re.M)
     assert re.search(r"^ {2}\S+ {2}present$", out, re.M)

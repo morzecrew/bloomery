@@ -392,7 +392,7 @@ def test_every_docs_page_is_in_the_nav() -> None:
     project`), for the agent working there, and `pages/docs/` is governed like
     any other. It is never meant to be reachable from the site.
     """
-    nav = (ROOT / "pages" / "zensical.toml").read_text()
+    nav = (ROOT / "pages" / "zensical.toml").read_text(encoding="utf-8")
     listed = set(re.findall(r'"([^"]+\.md)"', nav))
     present = {
         page.relative_to(DOCS).as_posix()
@@ -434,7 +434,7 @@ def test_the_documented_evidence_refusal_quotes_the_template(name: str) -> None:
     from bloomery.guardrails import evidence  # noqa: PLC0415
 
     template = getattr(evidence, name)
-    page = " ".join((DOCS / "concepts" / "what-bloomery-proves.md").read_text().split())
+    page = " ".join((DOCS / "concepts" / "what-bloomery-proves.md").read_text(encoding="utf-8").split())
     segments = [
         " ".join(segment.split())
         for segment in re.split(r"\{\w+\}", template)
@@ -460,7 +460,7 @@ def test_the_documented_refusal_check_would_notice_a_restructure() -> None:
     """
     from bloomery.guardrails.evidence import MESSAGE  # noqa: PLC0415
 
-    page = " ".join((DOCS / "concepts" / "what-bloomery-proves.md").read_text().split())
+    page = " ".join((DOCS / "concepts" / "what-bloomery-proves.md").read_text(encoding="utf-8").split())
     restructured = MESSAGE.replace("rest on column", "depends on the column")
     segments = [
         " ".join(segment.split())
@@ -483,7 +483,7 @@ def test_every_claim_block_is_represented_in_the_table() -> None:
     missing: list[str] = []
     for page in sorted(DOCS.rglob("*.md")):
         rel = page.relative_to(DOCS).as_posix()
-        for block in _ADMONITION.finditer(page.read_text()):
+        for block in _ADMONITION.finditer(page.read_text(encoding="utf-8")):
             named = set(re.findall(r"`([A-Z][A-Za-z]+)`", block["body"])) & exported_error_classes()
             if not named:
                 missing.append(f"{rel}: !!! block {block['title']!r} names no error class")
@@ -567,8 +567,8 @@ def test_every_full_suite_invocation_asks_for_the_census() -> None:
     CI's own `pytest` lines (the test matrix and the OS smoke lane), which do
     not go through `just`.
     """
-    justfile = (ROOT / "justfile").read_text()
-    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+    justfile = (ROOT / "justfile").read_text(encoding="utf-8")
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     full_suite = [
         line
         for line in (*justfile.splitlines(), *ci.splitlines())
@@ -594,7 +594,7 @@ def test_every_census_exemption_is_declared_in_the_reference() -> None:
     """An exemption is an edit to the public page, not a list beside the gate.
     `BloomeryError` is the one structural exemption — it is the base every
     other row is a kind of."""
-    page = (DOCS / "reference" / "errors.md").read_text()
+    page = (DOCS / "reference" / "errors.md").read_text(encoding="utf-8")
     for name in sorted(census_exempt_classes() - {"BloomeryError"}):
         row = next(line for line in page.splitlines() if line.startswith(f"| `{name}` |"))
         assert "never raised by bloomery" in row
@@ -611,7 +611,7 @@ def test_every_repo_relative_path_cited_in_docs_resolves() -> None:
     broken = sorted(
         f"{page.relative_to(DOCS).as_posix()}: {cited}"
         for page in DOCS.rglob("*.md")
-        for cited in _REPO_PATH.findall(page.read_text())
+        for cited in _REPO_PATH.findall(page.read_text(encoding="utf-8"))
         if not (ROOT / cited.split("#")[0]).exists()
     )
     assert broken == []
@@ -634,7 +634,7 @@ def test_every_embedded_diagram_has_a_d2_source() -> None:
     missing = sorted(
         f"{page.relative_to(DOCS).as_posix()}: {theme}/{name}.svg"
         for page in DOCS.rglob("*.md")
-        for theme, name in _DIAGRAM.findall(page.read_text())
+        for theme, name in _DIAGRAM.findall(page.read_text(encoding="utf-8"))
         if name not in sources
     )
     assert missing == [], "embedded diagrams with no `pages/diagrams/<name>.d2` source"
@@ -667,7 +667,7 @@ def test_the_documented_target_boundary_names_every_shipped_target() -> None:
     checked.
     """
 
-    page = (DOCS / "concepts" / "what-bloomery-proves.md").read_text()
+    page = (DOCS / "concepts" / "what-bloomery-proves.md").read_text(encoding="utf-8")
     after = page[page.index('!!! quote "The target boundary"') :].splitlines()[1:]
     body = itertools.takewhile(lambda line: not line.strip() or line.startswith("    "), after)
     boundary = "\n".join(body).lower()

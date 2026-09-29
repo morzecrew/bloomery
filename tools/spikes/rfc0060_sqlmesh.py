@@ -31,8 +31,8 @@ def write(root, db, edit=None):
     for a in compile_fixture(FIXTURE):
         p = root / a.path
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(edit(a.path, a.content) if edit else a.content)
-    (root / "config.yaml").write_text(CONFIG % db)
+        p.write_text(edit(a.path, a.content) if edit else a.content, encoding="utf-8")
+    (root / "config.yaml").write_text(CONFIG % db, encoding="utf-8")
 
 def apply(root):
     ctx = Context(paths=root)

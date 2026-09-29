@@ -153,7 +153,7 @@ def _catalog_text_with_literal_slash() -> str:
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1] / "fixtures" / "ecom_basic" / "catalog.yaml"
-    text = root.read_text()
+    text = root.read_text(encoding="utf-8")
     assert "line_total / quantity" in text, "the recipe moved — repoint this test"
     return text.replace("line_total / quantity", "CONCAT(line_total, '/', quantity)")
 

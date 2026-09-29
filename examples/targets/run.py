@@ -172,10 +172,10 @@ REQUESTS = (
 
 
 def load_specs() -> tuple[Project, Catalog]:
-    catalog = load_catalog((SPECS / "catalog.yaml").read_text())
+    catalog = load_catalog((SPECS / "catalog.yaml").read_text(encoding="utf-8"))
     project = load_project(
         {
-            path.name: path.read_text()
+            path.name: path.read_text(encoding="utf-8")
             for path in sorted(SPECS.glob("*.yaml"))
             if path.name != "catalog.yaml"
         }
@@ -203,7 +203,7 @@ def emit(project: Project, catalog: Catalog, target: Target, into: Path) -> int:
     for artifact in artifacts:
         destination = into / artifact.path
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(artifact.content)
+        destination.write_text(artifact.content, encoding="utf-8")
     return len(artifacts)
 
 
@@ -262,7 +262,7 @@ def main() -> None:
     print("\n─── SQLMesh " + "─" * 55)
     sqlmesh_root = OUT / "sqlmesh"
     print(f"  compiled {emit(project, catalog, Target.SQLMESH, sqlmesh_root)} artifacts")
-    (sqlmesh_root / "config.yaml").write_text(SQLMESH_CONFIG.format(database=SQLMESH_DB))
+    (sqlmesh_root / "config.yaml").write_text(SQLMESH_CONFIG.format(database=SQLMESH_DB), encoding="utf-8")
     shell("sqlmesh", "plan", "--auto-apply", "--no-prompts", cwd=sqlmesh_root)
     from_sqlmesh = show(SQLMESH_DB, "gold.mart_orders, built by SQLMesh", MART)
 
@@ -272,7 +272,7 @@ def main() -> None:
     print("\n─── dbt " + "─" * 59)
     dbt_root = OUT / "dbt"
     print(f"  compiled {emit(project, catalog, Target.DBT, dbt_root)} artifacts")
-    (dbt_root / "profiles.yml").write_text(DBT_PROFILES.format(database=DBT_DB))
+    (dbt_root / "profiles.yml").write_text(DBT_PROFILES.format(database=DBT_DB), encoding="utf-8")
     shell(
         "dbt", "build", "--project-dir", str(dbt_root), "--profiles-dir", str(dbt_root),
         cwd=dbt_root,

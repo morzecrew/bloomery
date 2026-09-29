@@ -442,7 +442,7 @@ def test_a_converting_column_gets_no_implicit_coercible() -> None:
 
     fixtures = Path(__file__).parents[2] / "fixtures" / "currency_convert_per_row"
     sources = {
-        path.stem: path.read_text() for path in sorted(fixtures.glob("*.yaml"))
+        path.stem: path.read_text(encoding="utf-8") for path in sorted(fixtures.glob("*.yaml"))
         if path.stem != "catalog"
     }
     sources["mapping"] = sources["mapping"].replace(

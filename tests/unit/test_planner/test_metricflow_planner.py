@@ -805,7 +805,7 @@ def test_a_derived_metric_over_another_derived_metric_plans() -> None:
     root = pathlib.Path(bloomery.__file__).parent.parent.parent
     fixture = root / "tests" / "fixtures" / "period_over_period"
     sources = {
-        name: (fixture / f"{name}.yaml").read_text() for name in ("entity_model", "mapping")
+        name: (fixture / f"{name}.yaml").read_text(encoding="utf-8") for name in ("entity_model", "mapping")
     }
     sources["marts"] = """\
 marts_version: 1
@@ -837,7 +837,7 @@ metrics:
         b: {metric: inner}
 """
     ir = build_project_ir(
-        load_project(sources), catalog=load_catalog((fixture / "catalog.yaml").read_text())
+        load_project(sources), catalog=load_catalog((fixture / "catalog.yaml").read_text(encoding="utf-8"))
     )
 
     query = make_planner().plan(

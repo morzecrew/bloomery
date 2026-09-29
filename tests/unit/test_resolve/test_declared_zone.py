@@ -30,14 +30,14 @@ PARSED = 'booked_at: {from: "$.booked_at", transform: [{parse_ts: ISO8601}], zon
 
 def _sources() -> dict[str, str]:
     return {
-        path.stem: path.read_text()
+        path.stem: path.read_text(encoding="utf-8")
         for path in sorted(FIXTURE.glob("*.yaml"))
         if path.stem != "catalog"
     }
 
 
 def _catalog() -> Catalog:
-    return load_catalog((FIXTURE / "catalog.yaml").read_text())
+    return load_catalog((FIXTURE / "catalog.yaml").read_text(encoding="utf-8"))
 
 
 def _build(booked_at: str = PARSED):

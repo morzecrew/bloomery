@@ -97,7 +97,7 @@ def main() -> None:
     if not MANIFEST.exists():
         raise SystemExit("run examples/retrieval/run.py first — no manifest to consume")
 
-    manifest = json.loads(MANIFEST.read_text())
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     print(f"manifest version {manifest['retrieval_manifest_version']}")
 
     for name, profile in sorted(manifest["profiles"].items()):
