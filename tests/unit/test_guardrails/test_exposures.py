@@ -22,7 +22,7 @@ pytestmark = pytest.mark.unit
 def _compile(exposures: str, *, sources: dict[str, str] | None = None) -> None:
     documents = sources if sources is not None else fixture_sources("ecom_basic")
     documents["exposures"] = exposures
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     build_project_ir(load_project(documents), catalog=catalog)
 
 
@@ -126,7 +126,7 @@ def test_a_project_that_declares_nothing_says_so_rather_than_trailing_off() -> N
     with pytest.raises(GuardrailError) as caught:
         build_project_ir(
             load_project(sources),
-            catalog=load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text()),
+            catalog=load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")),
         )
 
     assert "Declared metrics: (none)" in str(caught.value)
@@ -139,5 +139,5 @@ def test_a_project_with_no_exposures_document_is_not_refused() -> None:
 
     sources = fixture_sources("ecom_basic")
     del sources["exposures"]
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     build_project_ir(load_project(sources), catalog=catalog)

@@ -32,14 +32,14 @@ def _sources() -> dict[str, str]:
     """The fixture's project documents (the catalog is loaded separately)."""
 
     return {
-        path.stem: path.read_text()
+        path.stem: path.read_text(encoding="utf-8")
         for path in sorted(FIXTURE.glob("*.yaml"))
         if path.stem != "catalog"
     }
 
 
 def _catalog() -> Catalog:
-    return load_catalog((FIXTURE / "catalog.yaml").read_text())
+    return load_catalog((FIXTURE / "catalog.yaml").read_text(encoding="utf-8"))
 
 
 def _build(mapping_step: str = STEP) -> None:
@@ -144,7 +144,7 @@ def test_a_column_the_catalog_gives_no_currency_converts_freely() -> None:
     converting column declares one (logs/T-0025.md, D-161).
     """
     sources = _sources()
-    catalog = (FIXTURE / "catalog.yaml").read_text().replace(
+    catalog = (FIXTURE / "catalog.yaml").read_text(encoding="utf-8").replace(
         '  amount_usd: {entity: payment, type: "decimal(12,4)", unit: currency, '
         "tax_basis: net, currency: USD}",
         '  amount_usd: {entity: payment, type: "decimal(12,4)", unit: currency, '
@@ -294,7 +294,7 @@ def test_a_recipe_anchor_is_refused_by_name() -> None:
         '  paid_at: {recipe: direct, from: {paid_at: "$.paid_at"}}\n',
     )
     catalog = load_catalog(
-        (FIXTURE / "catalog.yaml").read_text()
+        (FIXTURE / "catalog.yaml").read_text(encoding="utf-8")
         + "  paid_at:\n"
         "    entity: payment\n"
         "    type: date\n"

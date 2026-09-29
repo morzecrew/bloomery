@@ -47,7 +47,7 @@ def project_documents(**rewrite: str) -> dict[str, str]:
     for path in sorted(FIXTURE.glob("*.yaml")):
         if path.name == "catalog.yaml":
             continue
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         for key, value in rewrite.items():
             text = re.sub(rf"^{key}: 1$", f"{key}: {value}", text, flags=re.M)
         documents[path.name] = text
@@ -58,7 +58,7 @@ def test_the_fixture_loads_at_version_one() -> None:
     """The control. Every assertion below is only meaningful if the unmodified
     documents load — otherwise a refusal proves nothing about the version."""
     assert load_project(project_documents()) is not None
-    assert load_catalog((FIXTURE / "catalog.yaml").read_text()) is not None
+    assert load_catalog((FIXTURE / "catalog.yaml").read_text(encoding="utf-8")) is not None
 
 
 @pytest.mark.parametrize("key", PROJECT_VERSION_KEYS)
@@ -75,7 +75,7 @@ def test_the_catalog_refuses_a_version_it_does_not_implement(version: str) -> No
     text = re.sub(
         r"^catalog_version: 1$",
         f"catalog_version: {version}",
-        (FIXTURE / "catalog.yaml").read_text(),
+        (FIXTURE / "catalog.yaml").read_text(encoding="utf-8"),
         flags=re.M,
     )
     with pytest.raises(SpecParseError) as excinfo:
@@ -88,7 +88,7 @@ def test_a_step_document_refuses_a_version_it_does_not_implement() -> None:
     was right does not regress to match the four that were wrong."""
     steps = pathlib.Path(__file__).resolve().parents[2] / "fixtures" / "step_resolution"
     documents = {
-        path.name: re.sub(r"^steps_version: 1$", "steps_version: 2", path.read_text(), flags=re.M)
+        path.name: re.sub(r"^steps_version: 1$", "steps_version: 2", path.read_text(encoding="utf-8"), flags=re.M)
         for path in sorted(steps.glob("*.yaml"))
         if path.name != "catalog.yaml"
     }

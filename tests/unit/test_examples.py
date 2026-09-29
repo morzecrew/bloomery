@@ -41,6 +41,7 @@ would be two accounts of one stack, drifting.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -54,6 +55,8 @@ pytestmark = pytest.mark.unit
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = REPO_ROOT / "examples"
 EXAMPLE = EXAMPLES / "refusals"
+#: The examples print box-drawing and arrows; a Windows pipe defaults to cp1252.
+UTF8_ENV = {**os.environ, "PYTHONIOENCODING": "utf-8"}
 
 
 def run_example(name: str) -> subprocess.CompletedProcess[str]:
@@ -61,7 +64,8 @@ def run_example(name: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(  # noqa: S603 — a fixed path, no shell, no input
         [sys.executable, str(EXAMPLES / name / "run.py")],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        env=UTF8_ENV,
         cwd=REPO_ROOT,
         check=False,
     )
@@ -71,11 +75,11 @@ def load_example_specs(name: str) -> tuple[dict[str, str], Catalog]:
     """One example's `specs/` directory, split the way its own `run.py` splits it."""
     specs = EXAMPLES / name / "specs"
     documents = {
-        path.name: path.read_text()
+        path.name: path.read_text(encoding="utf-8")
         for path in sorted(specs.glob("*.yaml"))
         if path.name != "catalog.yaml"
     }
-    return documents, load_catalog((specs / "catalog.yaml").read_text())
+    return documents, load_catalog((specs / "catalog.yaml").read_text(encoding="utf-8"))
 
 
 def test_every_refusal_case_still_refuses() -> None:
@@ -105,7 +109,8 @@ def test_the_runner_counts_the_cases_it_actually_walks() -> None:
         for line in subprocess.run(  # noqa: S603 — a fixed path, no shell, no input
             [sys.executable, str(EXAMPLE / "run.py")],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            env=UTF8_ENV,
             cwd=REPO_ROOT,
             check=True,
         ).stdout.splitlines()
@@ -227,7 +232,7 @@ def test_the_retrieval_example_manifest_inlines_the_space_on_every_profile() -> 
     """
     assert run_example("retrieval").returncode == 0
 
-    manifest = json.loads((EXAMPLES / "retrieval" / "out" / "retrieval_manifest.json").read_text())
+    manifest = json.loads((EXAMPLES / "retrieval" / "out" / "retrieval_manifest.json").read_text(encoding="utf-8"))
     profiles = manifest["profiles"]
 
     assert manifest["retrieval_manifest_version"] == 1
@@ -267,7 +272,8 @@ def test_the_second_consumer_reads_the_manifest_and_reports_the_disagreements() 
     result = subprocess.run(  # noqa: S603 — a fixed path, no shell, no input
         [sys.executable, str(EXAMPLES / "retrieval" / "consume_store.py")],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        env=UTF8_ENV,
         cwd=REPO_ROOT,
         check=False,
     )

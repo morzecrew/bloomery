@@ -565,7 +565,7 @@ def test_the_labels_invert_exactly_what_the_graph_minted() -> None:
     sources["metrics"] = sources["metrics"].replace(
         "  gross_revenue:\n", "  gross_revenue:\n    id: mtr_7f3a9c\n", 1
     )
-    catalog_text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text().replace(
+    catalog_text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8").replace(
         "  unit_price:\n", "  unit_price:\n    id: cf_9b2e14\n", 1
     )
     project, catalog = load_project(sources), load_catalog(catalog_text)
@@ -592,7 +592,7 @@ def test_a_step_ref_is_labelled_by_its_ref() -> None:
         "  - use: resolve_customers@4\n", "  - use: resolve_customers@4\n    id: stp_44c1\n", 1
     )
     project = load_project(sources)
-    catalog_text = (FIXTURES / "identity_resolution" / "catalog.yaml").read_text()
+    catalog_text = (FIXTURES / "identity_resolution" / "catalog.yaml").read_text(encoding="utf-8")
 
     assert node_labels(project, load_catalog(catalog_text)) == {
         "step.stp_44c1": "step.resolve_customers"
@@ -630,7 +630,7 @@ metrics:
     expr: "quantity"
 """
     project = load_project(sources)
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
 
     # `gamma` keeps its label: `metric.gamma` names no node.
     assert node_labels(project, catalog) == {"metric.alpha": "metric.gamma"}
@@ -780,7 +780,7 @@ def test_a_canonical_id_is_substituted_and_its_references_follow() -> None:
     """
 
     project, _ = load_fixture("ecom_basic")
-    catalog_text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    catalog_text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")
     assert "  unit_price:\n" in catalog_text
     catalog = load_catalog(
         catalog_text.replace("  unit_price:\n", "  unit_price:\n    id: cnl_9b2\n", 1)
@@ -834,7 +834,7 @@ def test_a_step_output_link_reaches_the_canonical_field_by_id() -> None:
     """
 
     project, _ = load_fixture("identity_resolution")
-    catalog_text = (FIXTURES / "identity_resolution" / "catalog.yaml").read_text()
+    catalog_text = (FIXTURES / "identity_resolution" / "catalog.yaml").read_text(encoding="utf-8")
     assert "  customer_ref:\n" in catalog_text
     catalog = load_catalog(
         catalog_text.replace("  customer_ref:\n", "  customer_ref:\n    id: cnl_ref\n", 1)
@@ -919,7 +919,7 @@ exposures:
 
 def _importing_graph():
     project = load_project(dict(IMPORTING))
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     return build_graph(project, catalog, effective_metrics(project, catalog))
 
 
@@ -970,7 +970,7 @@ def test_an_imported_name_this_project_also_declares_is_the_local_node() -> None
         "imports_version: 1\nimports:\n  platform:\n    metrics: [review_count]\n"
     )
     project = load_project(documents)
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     graph = build_graph(project, catalog, effective_metrics(project, catalog))
 
     names = {node.name for node in graph.nodes}

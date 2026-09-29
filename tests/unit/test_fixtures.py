@@ -18,7 +18,7 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 def load_fixture_project(name: str) -> Project:
     sources = {
-        path.stem: path.read_text()
+        path.stem: path.read_text(encoding="utf-8")
         for path in sorted((FIXTURES / name).glob("*.yaml"))
         if path.stem != "catalog"
     }
@@ -55,7 +55,7 @@ def test_ecom_basic_loads_clean() -> None:
 
 
 def test_ecom_basic_catalog_loads_clean() -> None:
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     assert catalog.vertical == "ecom_retail"
     assert "unit_price" in catalog.canonical_fields
     recipes = catalog.canonical_fields["unit_price"].recipes
@@ -74,7 +74,7 @@ def test_fanout_trap_loads_clean() -> None:
     assert set(project.entity_model.entities) == {"order_item", "order"}
     (rel,) = project.entity_model.relationships
     assert rel.cardinality == "many_to_one"
-    catalog = load_catalog((FIXTURES / "fanout_trap" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "fanout_trap" / "catalog.yaml").read_text(encoding="utf-8"))
     assert catalog.canonical_fields["shipping_cost"].entity == "order"
     assert catalog.canonical_fields["landed_cost"].entity == "order_item"
     # The M5 mart-level trap: the order-grain measure on the item-grain mart.
@@ -265,9 +265,9 @@ def test_the_orphan_guard_catches_a_golden_nothing_emits(tmp_path: Path) -> None
     which is why this exists; a guard nobody exercises is the next seven.
     """
     (tmp_path / "models").mkdir()
-    (tmp_path / "models" / "kept.sql").write_text("SELECT 1\n")
+    (tmp_path / "models" / "kept.sql").write_text("SELECT 1\n", encoding="utf-8")
     assert_no_orphans(tmp_path, ["models/kept.sql"]) is None
 
-    (tmp_path / "models" / "ghost.sql").write_text("SELECT 2\n")
+    (tmp_path / "models" / "ghost.sql").write_text("SELECT 2\n", encoding="utf-8")
     with pytest.raises(AssertionError, match="models/ghost.sql"):
         assert_no_orphans(tmp_path, ["models/kept.sql"])

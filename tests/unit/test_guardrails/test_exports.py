@@ -24,7 +24,7 @@ pytestmark = pytest.mark.unit
 def _compile(exports: str, *, sources: dict[str, str] | None = None) -> None:
     documents = sources if sources is not None else fixture_sources("ecom_basic")
     documents["exports"] = exports
-    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
     build_project_ir(load_project(documents), catalog=catalog)
 
 

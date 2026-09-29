@@ -177,7 +177,7 @@ def test_compile_writes_the_artifacts_the_api_returns(
     assert code == EXIT_OK, err
     assert len(out.splitlines()) == len(expected)
     for artifact in expected:
-        assert (tmp_path / artifact.path).read_text() == artifact.content
+        assert (tmp_path / artifact.path).read_text(encoding="utf-8") == artifact.content
 
 
 def test_compile_without_out_emits_the_artifacts_as_json(
@@ -197,7 +197,7 @@ def test_schema_out_writes_one_file_per_kind(
 ) -> None:
     code, _out, err = run(capsys, "schema", "--out", str(tmp_path))
     assert code == EXIT_OK, err
-    written = {path.stem: json.loads(path.read_text()) for path in tmp_path.glob("*.json")}
+    written = {path.stem: json.loads(path.read_text(encoding="utf-8")) for path in tmp_path.glob("*.json")}
     assert written == {kind.value: schema for kind, schema in all_spec_schemas().items()}
 
 
@@ -401,7 +401,7 @@ def test_a_spec_refusal_exits_one_with_its_source_path(
 ) -> None:
     (tmp_path / "entity_model.yaml").write_text(
         "spec_version: 1\nentities:\n  e:\n    grain: g\n    key: [k]\n"
-        "    fields:\n      k: {type: nonsense}\n"
+        "    fields:\n      k: {type: nonsense}\n", encoding="utf-8"
     )
     code, _out, err = run(capsys, "resolve", str(tmp_path))
     assert code == EXIT_REFUSED
@@ -477,7 +477,7 @@ def test_a_bad_flag_is_reported_before_a_bad_spec(
     """Both are wrong; the invocation is the one the reader has to fix first —
     a refusal about a spec they cannot reach yet is not the next step. It is
     also the cheap check, and loading is the slow one."""
-    (tmp_path / "entity_model.yaml").write_text("spec_version: 1\nentities: {}\nbogus: 1\n")
+    (tmp_path / "entity_model.yaml").write_text("spec_version: 1\nentities: {}\nbogus: 1\n", encoding="utf-8")
     code, _out, err = run(
         capsys, "explain", str(tmp_path), "--metrics", "m", "--grain", "fortnight"
     )
@@ -655,9 +655,11 @@ def test_an_explicit_catalog_overrides_the_convention(tmp_path: Path) -> None:
     """Pointing several projects at one shared catalog is the case that needs
     the flag; the convention alone cannot express it."""
     shared = tmp_path / "shared.yaml"
-    shared.write_text((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    shared.write_text(
+        (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"), encoding="utf-8"
+    )
     sources, catalog = read_spec_directory(str(FIXTURES / "ecom_basic"), catalog=str(shared))
-    assert catalog == shared.read_text()
+    assert catalog == shared.read_text(encoding="utf-8")
     # The directory's own catalog.yaml is now an ordinary document, and
     # load_project refuses it by name with a message that says so — a loud
     # failure rather than two catalogs silently disagreeing.
@@ -848,10 +850,10 @@ def test_an_unreadable_document_is_a_usage_error(
 ) -> None:
     """The other half: `is_file()` says it is a file, and the read still fails.
     Skipped when the suite runs as root, for whom the mode bits do nothing."""
-    if os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
-        pytest.skip("root ignores the permission bits this test sets")
+    if sys.platform == "win32" or os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
+        pytest.skip("root, and Windows, ignore the permission bits this test sets")
     document = tmp_path / "entity_model.yaml"
-    document.write_text("spec_version: 1\nentities: {}\n")
+    document.write_text("spec_version: 1\nentities: {}\n", encoding="utf-8")
     document.chmod(0o000)
     try:
         code, _out, err = run(capsys, "resolve", str(tmp_path))
@@ -866,8 +868,8 @@ def test_an_unwritable_output_directory_is_a_usage_error(
 ) -> None:
     """`write_files` creates parents and writes; both can fail on a read-only
     destination, and neither failure was named."""
-    if os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
-        pytest.skip("root ignores the permission bits this test sets")
+    if sys.platform == "win32" or os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
+        pytest.skip("root, and Windows, ignore the permission bits this test sets")
     out = tmp_path / "out"
     out.mkdir(mode=0o500)
     try:
@@ -880,7 +882,7 @@ def test_an_unwritable_output_directory_is_a_usage_error(
 
 def test_write_files_creates_nested_parents(tmp_path: Path) -> None:
     written = write_files(str(tmp_path), {"models/gold/orders.sql": "SELECT 1\n"})
-    assert (tmp_path / "models" / "gold" / "orders.sql").read_text() == "SELECT 1\n"
+    assert (tmp_path / "models" / "gold" / "orders.sql").read_text(encoding="utf-8") == "SELECT 1\n"
     assert written == [str(tmp_path / "models" / "gold" / "orders.sql")]
 
 
@@ -894,11 +896,11 @@ def test_write_files_refuses_a_path_that_escapes_the_output_directory(tmp_path: 
 
 def test_an_unlistable_directory_is_a_usage_error(tmp_path: Path) -> None:
     """`is_dir()` says the path is a directory, not that it can be listed."""
-    if os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
-        pytest.skip("root ignores the permission bits this test sets")
+    if sys.platform == "win32" or os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
+        pytest.skip("root, and Windows, ignore the permission bits this test sets")
     directory = tmp_path / "specs"
     directory.mkdir(parents=True)
-    (directory / "entity_model.yaml").write_text("spec_version: 1\n")
+    (directory / "entity_model.yaml").write_text("spec_version: 1\n", encoding="utf-8")
     directory.chmod(0o000)
     try:
         with pytest.raises(CliIoError):
@@ -913,8 +915,8 @@ def test_an_explicit_catalog_inside_the_directory_is_not_also_a_document(
     """`--catalog` pointing at a file in the scanned directory: it has to come
     back as the catalog *and* leave the project, or `load_project` would refuse
     the document it was just handed separately."""
-    (tmp_path / "entity_model.yaml").write_text("spec_version: 1\n")
-    (tmp_path / "shared.yaml").write_text("catalog_version: 1\n")
+    (tmp_path / "entity_model.yaml").write_text("spec_version: 1\n", encoding="utf-8")
+    (tmp_path / "shared.yaml").write_text("catalog_version: 1\n", encoding="utf-8")
     sources, catalog = read_spec_directory(str(tmp_path), catalog=str(tmp_path / "shared.yaml"))
     assert catalog == "catalog_version: 1\n"
     assert set(sources) == {"entity_model"}
@@ -1250,7 +1252,7 @@ def test_an_ambiguous_node_id_is_refused_rather_than_resolved(
     exactly right.
     """
     for name, text in COLLIDING_ID_SOURCES.items():
-        (tmp_path / f"{name}.yaml").write_text(text)
+        (tmp_path / f"{name}.yaml").write_text(text, encoding="utf-8")
 
     code, _out, err = run(capsys, "lineage", str(tmp_path), "--node", "metric.revenue")
 
@@ -1430,7 +1432,7 @@ def test_a_project_with_an_empty_graph_refuses_readably(
         "    grain: one row per customer\n"
         "    key: [customer_id]\n"
         "    fields:\n"
-        "      customer_id: {type: string}\n"
+        "      customer_id: {type: string}\n", encoding="utf-8"
     )
     code, _out, err = run(capsys, "lineage", str(tmp_path), "--node", "customer.customer_id")
 
@@ -2068,12 +2070,12 @@ def _adopted(tmp_path: Path, *, metric: str = "gross_revenue", mint: str = "mtr_
     directory.mkdir(parents=True)
 
     for path in (FIXTURES / "ecom_basic").glob("*.yaml"):
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         if path.stem == "metrics":
             anchor = f"  {metric}:\n"
             assert anchor in text
             text = text.replace(anchor, f"{anchor}    id: {mint}\n", 1)
-        (directory / path.name).write_text(text)
+        (directory / path.name).write_text(text, encoding="utf-8")
 
     return str(directory)
 
@@ -2182,7 +2184,9 @@ def test_plan_prints_what_cited_a_renamed_node(
     target.mkdir()
     pattern = re.compile(r"\bgross_revenue\b")
     for path in Path(old).glob("*.yaml"):
-        (target / path.name).write_text(pattern.sub("revenue_gross", path.read_text()))
+        (target / path.name).write_text(
+            pattern.sub("revenue_gross", path.read_text(encoding="utf-8")), encoding="utf-8"
+        )
 
     code, out, err = run(capsys, "plan", old, str(target))
 
@@ -2420,7 +2424,7 @@ def test_timeline_reports_boundaries_in_version_order_not_node_order() -> None:
         if line.startswith("  ") and not line.startswith("   ") and " -> " in line
     ]
 
-    assert [line.split()[0].rsplit("/", 1)[-1] for line in boundaries] == [
+    assert [Path(line.split()[0]).name for line in boundaries] == [
         "evolution_v1",
         "evolution_v3",
         "evolution_v3",
@@ -2441,7 +2445,9 @@ def test_timeline_reads_one_catalog_for_every_version(
     test here (`logs/T-0046.md`).
     """
     shared = tmp_path / "shared.yaml"
-    shared.write_text((FIXTURES / "evolution_v1" / "catalog.yaml").read_text())
+    shared.write_text(
+        (FIXTURES / "evolution_v1" / "catalog.yaml").read_text(encoding="utf-8"), encoding="utf-8"
+    )
 
     stripped = []
     for step, source in enumerate(EVOLUTION[:2]):
@@ -2449,7 +2455,7 @@ def test_timeline_reads_one_catalog_for_every_version(
         into.mkdir()
         for document in Path(source).glob("*.yaml"):
             if document.name != "catalog.yaml":
-                (into / document.name).write_text(document.read_text())
+                (into / document.name).write_text(document.read_text(encoding="utf-8"), encoding="utf-8")
         stripped.append(str(into))
 
     code, out, err = run(capsys, "timeline", *stripped, "--node", "metric.gross_revenue")
@@ -2579,7 +2585,7 @@ def _manifest_file(tmp_path: Path, models: list[dict[str, object]]) -> str:
                 "saved_queries": [],
                 "semantic_version": None,
             }
-        )
+        ), encoding="utf-8"
     )
     return str(path)
 
@@ -2768,7 +2774,7 @@ def test_import_reports_a_bad_flag_even_when_the_specs_are_also_broken(
     artifact = _manifest_file(tmp_path, _PAIR)
     broken = tmp_path / "broken"
     broken.mkdir()
-    (broken / "entity_model.yaml").write_text("spec_version: 1\nentities: {\n")
+    (broken / "entity_model.yaml").write_text("spec_version: 1\nentities: {\n", encoding="utf-8")
 
     code, _out, err = run(
         capsys, "import", "metricflow", artifact, str(broken), "--entity", "oops"
@@ -2800,7 +2806,7 @@ def test_emit_ir_writes_the_ir_the_api_builds(
     project, catalog = load_fixture("ecom_basic")
     destination = _emit_ir(capsys, tmp_path)
 
-    assert destination.read_text() == ir_json(build_project_ir(project, catalog=catalog))
+    assert destination.read_text(encoding="utf-8") == ir_json(build_project_ir(project, catalog=catalog))
 
 
 def test_compile_reads_back_an_upstream_it_wrote_a_moment_earlier(
@@ -2817,7 +2823,7 @@ def test_compile_reads_back_an_upstream_it_wrote_a_moment_earlier(
         load_project(fixture_sources("cross_project/downstream")),
         target=Target.DBT,
         dialect="duckdb",
-        upstream={"platform": ir_from_json(written.read_text())},
+        upstream={"platform": ir_from_json(written.read_text(encoding="utf-8"))},
     )
 
     out_dir = tmp_path / "downstream"
@@ -2835,8 +2841,8 @@ def test_compile_reads_back_an_upstream_it_wrote_a_moment_earlier(
 
     assert code == EXIT_OK, err
     for artifact in expected:
-        assert (out_dir / artifact.path).read_text() == artifact.content
-    assert "ecom_platform" in (out_dir / "dependencies.yml").read_text()
+        assert (out_dir / artifact.path).read_text(encoding="utf-8") == artifact.content
+    assert "ecom_platform" in (out_dir / "dependencies.yml").read_text(encoding="utf-8")
 
 
 def test_the_same_project_without_the_upstream_is_refused(
