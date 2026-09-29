@@ -646,17 +646,23 @@ questions:
       and D8 leaves the spelling open. Reusing `unmapped:` is the obvious move but
       its current meaning is source-column-shaped, not entity-field-shaped, so the
       reuse may be a pun rather than a fit.
+    status: settled
+    settled_by: D-22
   - id: Q-2
     text: >-
       **Is `_source` the mapping's `source:` or the mapping document's name?** They
       differ when two mappings read one source relation. The source relation is the
       more useful provenance; the document name is the more useful diagnostic.
+    status: settled
+    settled_by: D-12
   - id: Q-3
     text: >-
       **Should the collision audit be emitted when the entity has only one mapping?**
       Emitting it unconditionally makes the artifact set uniform and costs a scan;
       emitting it only for merged entities makes the artifact set depend on mapping
       count. §5.4 assumes the latter.
+    status: settled
+    settled_by: D-34
   - id: Q-4
     text: >-
       **How does this interact with `scd: type2`?** A merged historical entity has
@@ -665,3 +671,5 @@ questions:
       current version only — which needs the validity columns S-0040/phase-2-the-as-of-join
       proposes and does not build. **Refusing the combination until then is the likely
       answer**, and it is not designed here.
+    status: settled
+    settled_by: D-23

@@ -206,3 +206,5 @@ questions:
     text: >-
       **Whether refusal messages change for requests that are already refused.** `UnreachableAtGrain`'s
       wording is a shipped surface; a refutation is a better message and a moved golden.
+    status: settled
+    settled_by: D-11

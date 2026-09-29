@@ -857,6 +857,8 @@ questions:
       repairs are visible in silver and **not** in `gold.mart_data_quality`, which
       has no `rows_repaired` measure — adding one changes the mart schema, and no
       demand has asked for it yet.
+    status: settled
+    settled_by: D-87
   - id: Q-2
     text: >-
       ~~**A `normalize`/`confusables` rule**~~ (added 2026-08-08, D26; **settled 2026-08-10,
@@ -869,6 +871,8 @@ questions:
       mark with no base (a fact about *position*). Neither is a gap a bigger character
       set would close; both would need a rule that reads a value's structure rather
       than its members.
+    status: settled
+    settled_by: D-86
   - id: Q-3
     text: >-
       ~~Mart-level rules ("no month has zero revenue") — reconcile-shaped or new surface?~~
@@ -880,6 +884,8 @@ questions:
       to it unless the aggregate is `count`. Detecting an absent period needs a join
       against the date spine — a coverage check with a different dependency, demand-gated
       like everything else here.
+    status: settled
+    settled_by: D-89
   - id: Q-4
     text: >-
       Sampling for `pattern` on huge partitions — **lean no**: a probabilistic result
@@ -900,3 +906,5 @@ questions:
     text: >-
       Step output concurrency — settled in S-0034 (two steps, one output: compile
       error).
+    status: settled
+    settled_by: S-0034/D-8

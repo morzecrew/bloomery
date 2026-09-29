@@ -290,3 +290,5 @@ questions:
       None. The one question that would be open — whether the payload format has to
       change — §5.3 answers with the no-shared-namespace argument, and it is a fact
       about how the payload is written and read rather than a choice.
+    status: settled
+    settled_by: D-4

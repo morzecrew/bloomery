@@ -265,3 +265,5 @@ questions:
       annotation. Resolved in favor of identity (§5.3 amendment, D8): identity is
       the stronger, property-tested invariant; staleness detection survives for genuinely
       dangling annotations.
+    status: settled
+    settled_by: D-8

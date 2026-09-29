@@ -165,7 +165,11 @@ questions:
       **Which test tier runs it.** Execution (DuckDB) covers most; cases 003 and 010
       may need the engine tier, which is Docker-gated and excluded from the default
       suite.
+    status: settled
+    settled_by: D-10
   - id: Q-2
     text: >-
       **Whether `bloomery/` holds specs or a recorded outcome**, which decides whether
       a case breaks when unrelated spec syntax changes.
+    status: settled
+    settled_by: D-9

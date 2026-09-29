@@ -444,6 +444,8 @@ questions:
       there are two, at the cost of losing dbt's native test output. Whoever builds
       this should confirm the readability claim against real `dbt test` output rather
       than take it from here.
+    status: settled
+    settled_by: D-4
   - id: Q-3
     text: >-
       **Where does the operator-contract sentence live?** It is a property of the

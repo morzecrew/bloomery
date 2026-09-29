@@ -208,3 +208,5 @@ questions:
     text: >-
       **Whether `Unit` moves from the column to the measure, or is read through it.**
       Both reach the same check; only one avoids two places to declare it.
+    status: settled
+    settled_by: D-12
