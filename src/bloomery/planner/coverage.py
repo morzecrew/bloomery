@@ -908,17 +908,19 @@ def _projected(ir: ProjectIR, name: str) -> Projected | None:
       carries it projects it under its own name.
 
     ``None`` for everything else, and the request then keeps the cross-grain
-    refusal it had. A **cumulative** metric is a window rather than a rollup;
-    a metric with its own ``filter`` narrows one branch and the composed
-    statement has no way to say that it did; and a derived input carrying a
-    time **offset** names a shifted grain no branch produced, so evaluating
-    the expression over the unshifted column would label the wrong number with
-    the right name (logs/T-0027.md, D-180).
+    refusal it had. A **cumulative** metric is a window rather than a rollup,
+    and a derived input carrying a time **offset** names a shifted grain no
+    branch produced, so evaluating the expression over the unshifted column
+    would label the wrong number with the right name (logs/T-0027.md, D-180).
+
+    A metric's own ``filter`` is admitted (S-0082/D-1): the branch that
+    carries it states it as a ``Filter`` scoped to that metric's measures, and
+    the branch request is unchanged because the manifest already holds it.
     """
 
     metric = next((candidate for candidate in ir.metrics if candidate.name == name), None)
 
-    if metric is None or metric.cumulative is not None or metric.filter:
+    if metric is None or metric.cumulative is not None:
         return None
 
     if metric.derived is not None:
@@ -1105,9 +1107,8 @@ def _composable(
       measure, or it decomposes into components the wrapper computes over
       (:func:`_projected`);
     * **every component is answered whole by one branch**, and is itself
-      additive, unrestricted and non-cumulative. A component's own restriction
-      would narrow one branch with nothing in the composed statement saying so,
-      which is P1's rule applied one level down.
+      additive and non-cumulative. A component's own restriction is admitted:
+      its branch scopes it to that component's measures (S-0082/D-1).
 
     The two halves of the second condition are not independent today, and the
     branch that says so is unreachable rather than merely untaken: a component
@@ -1134,7 +1135,7 @@ def _composable(
         for component in projection.components:
             metric = metrics_by_name.get(component)
 
-            if metric is None or metric.cumulative is not None or metric.filter:
+            if metric is None or metric.cumulative is not None:
                 return False
             if metric.additivity is not Additivity.ADDITIVE:
                 return False

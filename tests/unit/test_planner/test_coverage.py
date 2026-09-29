@@ -960,10 +960,10 @@ def test_every_held_back_class_declines_the_composed_path(
         resolve_branches(ir, MetricRequest(metrics=requested), naming=DefaultNaming())
 
 
-def test_a_metric_with_its_own_restriction_declines_the_composed_path() -> None:
-    """A per-measure filter narrows one branch, and the composed plan has no
-    node that says so — the branch's `Filter` would claim the restriction
-    applies to everything beneath it."""
+def test_a_metric_with_its_own_restriction_is_admitted_to_the_composed_path() -> None:
+    """A per-measure filter narrows one branch, and the branch's plan says so
+    with a `Filter` scoped to that metric's measures (S-0082/D-1) — so the
+    request composes rather than being refused."""
     ir = _variant(
         "cross_mart_branches",
         metrics=(
@@ -984,12 +984,16 @@ def test_a_metric_with_its_own_restriction_declines_the_composed_path() -> None:
         ),
     )
 
-    with pytest.raises(UnreachableAtGrain, match="different grains"):
-        resolve_branches(
-            ir,
-            MetricRequest(metrics=("shipping_count", "line_discount")),
-            naming=DefaultNaming(),
-        )
+    branches = resolve_branches(
+        ir,
+        MetricRequest(metrics=("shipping_count", "line_discount")),
+        naming=DefaultNaming(),
+    )
+
+    assert {branch.mart.name: branch.metrics for branch in branches} == {
+        "order_items": ("line_discount",),
+        "orders": ("shipping_count",),
+    }
 
 
 def test_a_restriction_reaches_every_branch_or_the_request_refuses() -> None:
@@ -1179,11 +1183,12 @@ def test_a_component_on_two_marts_is_refused_rather_than_placed_on_one() -> None
         coverage._home(ir, entries, "discount_per_order")  # noqa: SLF001
 
 
-def test_a_component_carrying_its_own_restriction_declines_the_composed_path() -> None:
+def test_a_component_carrying_its_own_restriction_is_admitted_to_the_composed_path() -> None:
     """P1 refused a *requested* metric with its own `filter:`, because a branch's
-    `Filter` node says one thing about every measure beneath it. A **component**
-    of a computed metric is aggregated by a branch in exactly the same way, and
-    the rule has to reach it there too.
+    `Filter` node said one thing about every measure beneath it. Filters are now
+    scoped to measures (S-0082/D-1), and a **component** of a computed metric is
+    aggregated by a branch in exactly the same way, so the admission reaches it
+    there too.
 
     Found by patch coverage rather than by the sabotage sweep: nothing mutated
     reached this line, and no request in the corpus builds a ratio over a
@@ -1214,12 +1219,16 @@ def test_a_component_carrying_its_own_restriction_declines_the_composed_path() -
         ),
     )
 
-    with pytest.raises(UnreachableAtGrain, match="different grains"):
-        resolve_branches(
-            ir,
-            MetricRequest(metrics=("discount_per_order",), dimensions=("tier",)),
-            naming=DefaultNaming(),
-        )
+    branches = resolve_branches(
+        ir,
+        MetricRequest(metrics=("discount_per_order",), dimensions=("tier",)),
+        naming=DefaultNaming(),
+    )
+
+    assert {branch.mart.name: branch.metrics for branch in branches} == {
+        "order_items": ("line_discount",),
+        "orders": ("shipping_count",),
+    }
 
 
 def test_one_dimension_named_by_both_a_filter_and_the_policy_is_anchored_once() -> None:

@@ -19,6 +19,7 @@ Lowering notes (S-0028/D-5 vocabulary, fixed strings the docs cite):
 
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING
 
 from bloomery.errors import PlannerError, guaranteed
@@ -307,15 +308,36 @@ def composed_clauses(request: MetricRequest) -> tuple[str, ...]:
 # ....................... #
 
 
-def composed_measure(metric: MetricIR) -> MeasureExplanation:
+def composed_measure(
+    metric: MetricIR, metrics_by_name: Mapping[str, MetricIR]
+) -> MeasureExplanation:
     """How a metric computed above the join was computed (S-0055/D-3).
 
     It is not any branch's measure, so no branch's explanation carries it —
     and both shapes reaching here, a ratio and an S-0050 ``derived:``
     metric, explain from their own decomposition rather than from a mart.
+
+    Its inputs' own restrictions are named on this column (S-0082/D-2): a
+    NULL here can be one a filter produced, and the note is how a reader
+    tells it from a group with no rows at all.
     """
 
-    return _measure_explanation(metric, None)
+    explained = _measure_explanation(metric, None)
+    ratio = metric.ratio
+    inputs = (
+        tuple(input_.metric for input_ in metric.derived.inputs)
+        if metric.derived is not None
+        else (ratio.numerator, ratio.denominator)
+        if ratio is not None
+        else ()
+    )
+    restriction = "".join(
+        f" ({name} {note.removeprefix(' (')}"
+        for name in dict.fromkeys(inputs)
+        if (note := _filter_note(metrics_by_name[name], None))
+    )
+
+    return dataclasses.replace(explained, note=explained.note + restriction)
 
 
 # ....................... #
