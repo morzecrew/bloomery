@@ -200,7 +200,7 @@ def assert_no_orphans(snapshot_dir: Path, paths: Sequence[str]) -> None:
     stayed in the corpus after it stopped.
     """
     on_disk = {
-        str(path.relative_to(snapshot_dir))
+        path.relative_to(snapshot_dir).as_posix()
         for path in snapshot_dir.rglob("*")
         if path.is_file()
     }

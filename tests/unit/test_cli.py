@@ -655,7 +655,9 @@ def test_an_explicit_catalog_overrides_the_convention(tmp_path: Path) -> None:
     """Pointing several projects at one shared catalog is the case that needs
     the flag; the convention alone cannot express it."""
     shared = tmp_path / "shared.yaml"
-    shared.write_text((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
+    shared.write_text(
+        (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"), encoding="utf-8"
+    )
     sources, catalog = read_spec_directory(str(FIXTURES / "ecom_basic"), catalog=str(shared))
     assert catalog == shared.read_text(encoding="utf-8")
     # The directory's own catalog.yaml is now an ordinary document, and
@@ -848,8 +850,8 @@ def test_an_unreadable_document_is_a_usage_error(
 ) -> None:
     """The other half: `is_file()` says it is a file, and the read still fails.
     Skipped when the suite runs as root, for whom the mode bits do nothing."""
-    if os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
-        pytest.skip("root ignores the permission bits this test sets")
+    if sys.platform == "win32" or os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
+        pytest.skip("root, and Windows, ignore the permission bits this test sets")
     document = tmp_path / "entity_model.yaml"
     document.write_text("spec_version: 1\nentities: {}\n", encoding="utf-8")
     document.chmod(0o000)
@@ -866,8 +868,8 @@ def test_an_unwritable_output_directory_is_a_usage_error(
 ) -> None:
     """`write_files` creates parents and writes; both can fail on a read-only
     destination, and neither failure was named."""
-    if os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
-        pytest.skip("root ignores the permission bits this test sets")
+    if sys.platform == "win32" or os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
+        pytest.skip("root, and Windows, ignore the permission bits this test sets")
     out = tmp_path / "out"
     out.mkdir(mode=0o500)
     try:
@@ -894,8 +896,8 @@ def test_write_files_refuses_a_path_that_escapes_the_output_directory(tmp_path: 
 
 def test_an_unlistable_directory_is_a_usage_error(tmp_path: Path) -> None:
     """`is_dir()` says the path is a directory, not that it can be listed."""
-    if os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
-        pytest.skip("root ignores the permission bits this test sets")
+    if sys.platform == "win32" or os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
+        pytest.skip("root, and Windows, ignore the permission bits this test sets")
     directory = tmp_path / "specs"
     directory.mkdir(parents=True)
     (directory / "entity_model.yaml").write_text("spec_version: 1\n", encoding="utf-8")
@@ -2182,7 +2184,9 @@ def test_plan_prints_what_cited_a_renamed_node(
     target.mkdir()
     pattern = re.compile(r"\bgross_revenue\b")
     for path in Path(old).glob("*.yaml"):
-        (target / path.name).write_text(pattern.sub("revenue_gross", path.read_text(encoding="utf-8")))
+        (target / path.name).write_text(
+            pattern.sub("revenue_gross", path.read_text(encoding="utf-8")), encoding="utf-8"
+        )
 
     code, out, err = run(capsys, "plan", old, str(target))
 
@@ -2420,7 +2424,7 @@ def test_timeline_reports_boundaries_in_version_order_not_node_order() -> None:
         if line.startswith("  ") and not line.startswith("   ") and " -> " in line
     ]
 
-    assert [line.split()[0].rsplit("/", 1)[-1] for line in boundaries] == [
+    assert [Path(line.split()[0]).name for line in boundaries] == [
         "evolution_v1",
         "evolution_v3",
         "evolution_v3",
@@ -2441,7 +2445,9 @@ def test_timeline_reads_one_catalog_for_every_version(
     test here (`logs/T-0046.md`).
     """
     shared = tmp_path / "shared.yaml"
-    shared.write_text((FIXTURES / "evolution_v1" / "catalog.yaml").read_text(encoding="utf-8"))
+    shared.write_text(
+        (FIXTURES / "evolution_v1" / "catalog.yaml").read_text(encoding="utf-8"), encoding="utf-8"
+    )
 
     stripped = []
     for step, source in enumerate(EVOLUTION[:2]):
@@ -2449,7 +2455,7 @@ def test_timeline_reads_one_catalog_for_every_version(
         into.mkdir()
         for document in Path(source).glob("*.yaml"):
             if document.name != "catalog.yaml":
-                (into / document.name).write_text(document.read_text(encoding="utf-8"))
+                (into / document.name).write_text(document.read_text(encoding="utf-8"), encoding="utf-8")
         stripped.append(str(into))
 
     code, out, err = run(capsys, "timeline", *stripped, "--node", "metric.gross_revenue")

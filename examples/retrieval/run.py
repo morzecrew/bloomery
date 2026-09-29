@@ -60,7 +60,7 @@ def main() -> None:
         destination = OUT / artifact.path
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(artifact.content, encoding="utf-8")
-        print(f"wrote {destination.relative_to(HERE)}")
+        print(f"wrote {destination.relative_to(HERE).as_posix()}")
 
     # What a runtime reads. Printed rather than only written, because the shape
     # is the example: profile -> relation, space, lexical side, fusion method,

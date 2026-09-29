@@ -81,7 +81,7 @@ class Entry:
         """Repo-relative where it can be — a key a reader can find — and the
         absolute path otherwise, since a root outside the tree is legal."""
         path = Path(self.path)
-        return str(path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path)
+        return (path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path).as_posix()
 
 
 # ....................... #

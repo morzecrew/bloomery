@@ -6,6 +6,7 @@ must be byte-identical."""
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -247,11 +248,12 @@ def run_with_hash_seed(seed: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-c", SCRIPT, str(FIXTURE_DIR)],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         check=False,
         env={
             "PYTHONHASHSEED": seed,
-            "PYTHONPATH": f"{REPO_ROOT / 'src'}:{REPO_ROOT / 'tests'}",
+            "PYTHONPATH": os.pathsep.join((str(REPO_ROOT / "src"), str(REPO_ROOT / "tests"))),
+            "PYTHONIOENCODING": "utf-8",
         },
         cwd=REPO_ROOT,
     )
@@ -311,10 +313,11 @@ def _run_listening(state: str, *, seed: str = "0") -> subprocess.CompletedProces
     return subprocess.run(
         [sys.executable, "-c", LISTENING_SCRIPT, str(FIXTURE_DIR), state],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         check=False,
         env={
-            "PYTHONPATH": f"{REPO_ROOT / 'src'}:{REPO_ROOT / 'tests'}",
+            "PYTHONPATH": os.pathsep.join((str(REPO_ROOT / "src"), str(REPO_ROOT / "tests"))),
+            "PYTHONIOENCODING": "utf-8",
             "PYTHONHASHSEED": seed,
         },
         cwd=REPO_ROOT,
@@ -325,10 +328,11 @@ def _run_framework(state: str, *, seed: str = "0") -> subprocess.CompletedProces
     return subprocess.run(
         [sys.executable, "-c", FRAMEWORK_SCRIPT, str(FIXTURE_DIR), state],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         check=False,
         env={
-            "PYTHONPATH": f"{REPO_ROOT / 'src'}:{REPO_ROOT / 'tests'}",
+            "PYTHONPATH": os.pathsep.join((str(REPO_ROOT / "src"), str(REPO_ROOT / "tests"))),
+            "PYTHONIOENCODING": "utf-8",
             "PYTHONHASHSEED": seed,
         },
         cwd=REPO_ROOT,

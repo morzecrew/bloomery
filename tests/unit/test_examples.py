@@ -41,6 +41,7 @@ would be two accounts of one stack, drifting.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -54,6 +55,8 @@ pytestmark = pytest.mark.unit
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = REPO_ROOT / "examples"
 EXAMPLE = EXAMPLES / "refusals"
+#: The examples print box-drawing and arrows; a Windows pipe defaults to cp1252.
+UTF8_ENV = {**os.environ, "PYTHONIOENCODING": "utf-8"}
 
 
 def run_example(name: str) -> subprocess.CompletedProcess[str]:
@@ -61,7 +64,8 @@ def run_example(name: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(  # noqa: S603 — a fixed path, no shell, no input
         [sys.executable, str(EXAMPLES / name / "run.py")],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        env=UTF8_ENV,
         cwd=REPO_ROOT,
         check=False,
     )
@@ -105,7 +109,8 @@ def test_the_runner_counts_the_cases_it_actually_walks() -> None:
         for line in subprocess.run(  # noqa: S603 — a fixed path, no shell, no input
             [sys.executable, str(EXAMPLE / "run.py")],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            env=UTF8_ENV,
             cwd=REPO_ROOT,
             check=True,
         ).stdout.splitlines()
@@ -267,7 +272,8 @@ def test_the_second_consumer_reads_the_manifest_and_reports_the_disagreements() 
     result = subprocess.run(  # noqa: S603 — a fixed path, no shell, no input
         [sys.executable, str(EXAMPLES / "retrieval" / "consume_store.py")],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        env=UTF8_ENV,
         cwd=REPO_ROOT,
         check=False,
     )

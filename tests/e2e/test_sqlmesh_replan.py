@@ -461,7 +461,7 @@ def _write_platform_steps(root: Path, fixture: str) -> None:
         package.mkdir(exist_ok=True)
         (package / "__init__.py").write_text("", encoding="utf-8")
         (package / "resolve_customers.py").write_text(
-            Path(support_identity.__file__).read_text(encoding="utf-8")
+            Path(support_identity.__file__).read_text(encoding="utf-8"), encoding="utf-8"
         )
         return
     if fixture != "step_resolution":
