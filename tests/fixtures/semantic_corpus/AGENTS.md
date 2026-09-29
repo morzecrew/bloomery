@@ -9,7 +9,7 @@ Capability grows monotonically — the safe queries of one release are a subset 
 - Paths: `src/bloomery/semantic/proof.py` `tests/fixtures/semantic_corpus/**` `CHANGELOG.md`
 - Consequence: A new rule ships with positive and adversarial tests showing the boundary it admits, so a reader can see what was widened; a project that compiled last release and refuses in this one is either a documented soundness fix or a defect, and the note is what tells them apart
 
-### S-0006/D-8 — `ASSUMED` (Evidence-based semantic capability matrix)
+### S-0006/D-8 — `ASSUMED` (Evidence-based semantic capability matrix) — implementation: partial
 
 Cube's pre-aggregation matching is a row this matrix owes, and by D-4 it is a case the semantic corpus must carry before the row can be measured
 
