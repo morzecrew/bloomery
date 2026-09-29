@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0196
+phase: 3
+base: 26b2dd61f1f7d34e29108d5c3874592e272a3ea2
+commit: bb39b33225f6d14149a053c2eb576e1548e5f8fb
+at: '2026-09-29T11:20:16Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-29T11:18:58Z'
+    claim: >-
+      Unreleased already carried the Z-to-NULL entry under Changed; added ISO8601_INSTANT
+      under Added in the same section, so both ship in one minor release
+    evidence: >-
+      CHANGELOG.md:10 — Added entry for ISO8601_INSTANT beside the existing Changed
+      entry
+    action: decided
