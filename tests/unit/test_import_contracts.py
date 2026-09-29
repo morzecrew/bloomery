@@ -80,12 +80,12 @@ def test_a_planted_violation_breaks_its_contract(
     contract: str, victim: str, planted: str
 ) -> None:
     path = ROOT / victim
-    original = path.read_text()
+    original = path.read_text(encoding="utf-8")
     backup = path.with_suffix(path.suffix + ".m16-backup")
     shutil.copy2(path, backup)
     try:
         # Append rather than prepend: a module docstring must stay first.
-        path.write_text(original + "\n" + planted)
+        path.write_text(original + "\n" + planted, encoding="utf-8")
         result = lint_imports()
         assert result.returncode != 0, f"{contract} did not fail on a planted violation"
         assert contract in result.stdout, (
@@ -93,4 +93,4 @@ def test_a_planted_violation_breaks_its_contract(
         )
     finally:
         shutil.move(str(backup), str(path))
-        assert path.read_text() == original
+        assert path.read_text(encoding="utf-8") == original

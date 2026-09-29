@@ -229,7 +229,7 @@ def _loop_sources() -> dict[str, str]:
 
 def _loop_catalog() -> Catalog:
     """`ecom_basic`'s catalog plus `net_revenue` and its two recipes."""
-    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")
     anchor = "\ncanonical_relationships:"
     assert anchor in text
     return load_catalog(text.replace(anchor, LOOP_CATALOG + anchor))
@@ -395,7 +395,7 @@ def test_two_fields_linking_one_canonical_name_the_first() -> None:
 
 def _catalog_without_cogs_recipes() -> Catalog:
     """`ecom_basic`'s catalog with `cogs` stripped of its one recipe."""
-    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")
     stripped = text.replace(
         """    recipes:
       - {id: direct, requires: [cogs]}""",

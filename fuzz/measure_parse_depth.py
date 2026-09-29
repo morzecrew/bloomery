@@ -123,7 +123,7 @@ def _projects() -> list[tuple[str, str, dict[str, str], str | None]]:
     roots += sorted(p for p in (ROOT / "tests" / "fixtures").iterdir() if p.is_dir())
     for directory in roots:
         documents = {
-            path.name: path.read_text()
+            path.name: path.read_text(encoding="utf-8")
             for path in sorted(directory.glob("*.yaml"))
             if path.name != "catalog.yaml"
         }
@@ -135,7 +135,7 @@ def _projects() -> list[tuple[str, str, dict[str, str], str | None]]:
                 str(directory.relative_to(ROOT)),
                 directory.name,
                 documents,
-                catalog.read_text() if catalog.exists() else None,
+                catalog.read_text(encoding="utf-8") if catalog.exists() else None,
             )
         )
     return found

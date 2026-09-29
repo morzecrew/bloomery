@@ -43,7 +43,7 @@ def _without_docstrings(source: str) -> str:
 def test_no_tenant_leaks_into_src() -> None:
     offenders: list[str] = []
     for path in sorted(PACKAGE_DIR.rglob("*.py")):
-        source = path.read_text()
+        source = path.read_text(encoding="utf-8")
         if WORD not in source.lower():
             continue
         if path.name == "naming.py":

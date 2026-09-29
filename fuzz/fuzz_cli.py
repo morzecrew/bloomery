@@ -111,7 +111,7 @@ def one_input(data: bytes) -> None:
     # arms of `main` call `silence_stdout`, which asks stdout for its
     # descriptor. The redirect is per execution so that the traceback atheris
     # prints for a finding still reaches a terminal.
-    with open(os.devnull, "w") as quiet:
+    with open(os.devnull, "w", encoding="utf-8") as quiet:
         with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
             code = main(argv)
 
@@ -129,7 +129,7 @@ def _check_prefixes() -> None:
     for prefix in PREFIXES:
         if not prefix:
             continue
-        with open(os.devnull, "w") as quiet:
+        with open(os.devnull, "w", encoding="utf-8") as quiet:
             with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
                 code = main(list(prefix))
         if code != EXIT_OK:

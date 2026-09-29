@@ -157,7 +157,7 @@ def _loaded_inside(caplog: pytest.LogCaptureFixture) -> tuple[object, object]:
     from support.compiling import fixture_sources
 
     directory = ROOT / "tests" / "fixtures" / "ecom_basic"
-    catalog = load_catalog((directory / "catalog.yaml").read_text())
+    catalog = load_catalog((directory / "catalog.yaml").read_text(encoding="utf-8"))
 
     with caplog.at_level(logging.INFO, logger="bloomery"):
         project = load_project(dict(fixture_sources("ecom_basic")))

@@ -40,7 +40,7 @@ def run(script: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 @pytest.fixture(scope="module")
 def batch_job() -> dict:
-    return yaml.safe_load(WORKFLOW.read_text())["jobs"]["batch"]
+    return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]["batch"]
 
 
 # ....................... #

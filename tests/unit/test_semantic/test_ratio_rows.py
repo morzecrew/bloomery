@@ -433,7 +433,7 @@ def test_two_restrictions_that_resolve_differently_still_disagree() -> None:
         "    filter:\n      - {dimension: customer_tier, op: eq, values: ['EU']}\n",
     )
     catalog = load_catalog(
-        (pathlib.Path("tests/fixtures/cross_mart_branches/catalog.yaml")).read_text()
+        (pathlib.Path("tests/fixtures/cross_mart_branches/catalog.yaml")).read_text(encoding="utf-8")
     )
     ir = _drafted(load_project(sources), catalog)
     (ratio,) = (metric for metric in ir.metrics if metric.ratio is not None)

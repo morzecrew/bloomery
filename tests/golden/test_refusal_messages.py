@@ -76,9 +76,9 @@ def test_fixture_refusal_text_golden(snapshot: Snapshot, name: str) -> None:
 def test_example_refusal_text_golden(snapshot: Snapshot, case: str) -> None:
     directory = CASES / case
     catalog_path = directory / "catalog.yaml"
-    catalog = load_catalog(catalog_path.read_text()) if catalog_path.exists() else None
+    catalog = load_catalog(catalog_path.read_text(encoding="utf-8")) if catalog_path.exists() else None
     documents = {
-        path.name: path.read_text()
+        path.name: path.read_text(encoding="utf-8")
         for path in sorted(directory.glob("*.yaml"))
         if path.name != "catalog.yaml"
     }

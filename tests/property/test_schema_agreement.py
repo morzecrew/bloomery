@@ -70,7 +70,7 @@ def _documents() -> list[tuple[str, SpecKind, dict[str, Any]]]:
     """Every fixture document, paired with the kind its version key names."""
     found: list[tuple[str, SpecKind, dict[str, Any]]] = []
     for path in sorted(FIXTURES.rglob("*.yaml")):
-        data: object = yaml.safe_load(path.read_text())
+        data: object = yaml.safe_load(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):  # pragma: no cover — every fixture is a mapping
             continue
         document: dict[str, Any] = data

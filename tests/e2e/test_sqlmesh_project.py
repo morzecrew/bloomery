@@ -46,7 +46,7 @@ def _write_project(root: pathlib.Path) -> list[str]:
     for artifact in compile_fixture(FIXTURE, dialect="duckdb"):
         path = root / artifact.path
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(artifact.content)
+        path.write_text(artifact.content, encoding="utf-8")
         paths.append(artifact.path)
     return paths
 

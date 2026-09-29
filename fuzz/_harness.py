@@ -51,14 +51,14 @@ def documents() -> dict[str, str]:
     """The five valid project documents, freshly read each call so a target
     that mutates one cannot leak the mutation into the next execution."""
     return {
-        path.name: path.read_text()
+        path.name: path.read_text(encoding="utf-8")
         for path in sorted(FIXTURES.glob("*.yaml"))
         if path.name != CATALOG
     }
 
 
 def catalog_text() -> str:
-    return (FIXTURES / CATALOG).read_text()
+    return (FIXTURES / CATALOG).read_text(encoding="utf-8")
 
 
 def fuzzed_sources(fdp: atheris.FuzzedDataProvider) -> tuple[dict[str, str], str]:

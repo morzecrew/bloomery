@@ -591,7 +591,7 @@ def test_dbt_reads_the_annotations_it_was_given(tmp_path: pathlib.Path) -> None:
         _write_project(root, fixture)
         assert _run(root, "parse").success
 
-        manifest = json.loads((root / "target" / "manifest.json").read_text())
+        manifest = json.loads((root / "target" / "manifest.json").read_text(encoding="utf-8"))
         nodes = manifest["nodes"]
 
         if "grants" in assertions:
