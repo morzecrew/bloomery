@@ -100,11 +100,12 @@ decisions:
       expressions it may not speak for is long enough that its coverage may not repay
       the maintenance
   - id: D-8
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Which physical timestamp type each logical type maps to, given `TIMESTAMP` and
-      `TIMESTAMP_NTZ` — establish it on the live lane, and pin the surrogate's ANSI
-      mode to the setting that matches whatever is chosen
+      A bloomery `timestamp` maps to `TIMESTAMP_NTZ` on Databricks, never `TIMESTAMP`,
+      and a neutral in-expression `CAST(x AS TIMESTAMP)` is rewritten to match. The
+      Spark surrogate session pins `spark.sql.ansi.enabled` to `true` and its timezone
+      to `UTC`.
     paths: [src/bloomery/dialects/**]
     consequence: >-
       The choice is constrained by this repository's zoneless-UTC invariant exactly
@@ -114,11 +115,12 @@ decisions:
       This design does not guess the mapping; the engine's own analyzer answers it
       at negligible cost, and a guessed table would be the kind of plausible wrong
       answer the golden tier freezes
+    fingerprint: e0f920dc9966f0a2/2e82f004f914921f
   - id: D-9
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether the port targets Databricks SQL only or claims generic Spark SQL as
-      well — decide it before the first golden artifact
+      The port targets Databricks SQL only and does not claim generic Spark SQL: the
+      dialect `name` and its `sqlglot_dialect` are both `databricks`.
     paths: [src/bloomery/dialects/**]
     consequence: >-
       The answer names the dialect and the emitted artifacts carry the name, so changing
@@ -126,6 +128,7 @@ decisions:
     rationale: >-
       The two are documented as differing in both directions, and one port cannot
       honestly be both without a capability split
+    fingerprint: 3925b9a5035a01c6/2e82f004f914921f
   - id: D-10
     grade: ASSUMED
     text: >-

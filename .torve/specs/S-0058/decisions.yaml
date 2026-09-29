@@ -50,17 +50,18 @@ decisions:
       support.** No universal "X cannot do Y". Not `LOCKED` here because S-0006/D-5
       already owns the rule; this row records that the docs are bound by it too.
   - id: D-6
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Whether determinism stays in the README's lead.** The current sentence leads
-      with byte-identical output — true today, checkable today, and the property users
-      have. §7's replacement leads with semantics and drops it. Both are honest; they
-      aim at different readers, and the decision belongs to whoever writes the sentence
-      when §2's capability actually lands.
+      Determinism stays in the README's lead. The bold description still promises
+      byte-identical SQLMesh, dbt and Cube artifacts; the preservation claim and §2's
+      semantic-plan sentence follow it in the body, added beside the lead rather than
+      substituted for it when `QueryPlan.semantic` became required.
+    fingerprint: 4f69f5279c74a23f/202c11f3690cefb1
   - id: D-7
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Who keeps §5's integration list current.** It goes stale the day a target
-      is added or dropped, and a stale boundary statement is a wrong claim about what
-      is and is not a correctness proof. Name an owner or a gate — a docs test asserting
-      the list against the registered targets would be the durable answer.
+      A docs test keeps §5's list current, not an owner. `test_the_documented_target_boundary_names_every_shipped_target`
+      fails when any `Target` value is missing from the "The target boundary" admonition
+      in `what-bloomery-proves.md`; the SQL dialects are named as a class and not
+      checked one by one.
+    fingerprint: 7c1995411207e959/202c11f3690cefb1

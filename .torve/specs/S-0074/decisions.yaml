@@ -46,14 +46,20 @@ decisions:
       nothing, so S-0073/D-2 is untouched.
     paths: [src/bloomery/cli/__init__.py]
   - id: D-7
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether an unknown node is an empty timeline or a refusal (§10), and whether
-      `lineage()`'s answer should change to match.
+      `timeline()` answers an unknown node with every entry absent and refuses nothing,
+      as `lineage()` already accepts a root outside its graph; `lineage()` is unchanged.
+      The `bloomery timeline` command refuses a node absent from every version with
+      `UnknownMember`, with no did-you-mean.
+    fingerprint: e76ac8e13d89155d/202c11f3690cefb1
   - id: D-8
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether the command accepts a manifest file for long histories (§10).
+      `bloomery timeline` takes no manifest file. Versions are positional `DIR` arguments
+      in the order given, and a shell glob supplies a long history. Reading a manifest
+      would make bloomery own what a history is, which S-0073/D-2 refuses.
+    fingerprint: fe3fc61cb16a057e/202c11f3690cefb1
   - id: D-9
     grade: ASSUMED
     text: >-

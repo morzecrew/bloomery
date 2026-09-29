@@ -149,9 +149,12 @@ decisions:
       name, so nothing is lost by refusing the enum member; a target member is a promise,
       and there is no run contract to make it against
   - id: D-11
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether a vector field may be declared on an entity or only on a mart
+      A vector field may be declared on an entity as well as on a mart. `vector(<scalar>,
+      <dimensions>)` is in the `TYPE_STRING_PATTERN` that every entity `Field.type`
+      reads, and a profile's `CorpusRelation` names either a `mart` or an `entity`.
+      On an entity, a vector arrives as a step's declared output.
     paths: [src/bloomery/spec/entity.py, src/bloomery/spec/marts.py]
     consequence: >-
       Confining it to marts keeps the new type out of the mapping and transform paths
@@ -161,10 +164,13 @@ decisions:
       Only marts are retrieval corpora in practice, but a type that cannot be declared
       where it is produced is a type declared twice; the executor decides against
       the code and logs the decision
+    fingerprint: 9c75a60a52d8382f/abd323801e0115d6
   - id: D-12
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether `distance` is a property of the semantic space or of the retrieval profile
+      `distance` is a property of the semantic space: `SemanticSpace.distance` is
+      one of `cosine`, `dot` or `l2`, `RetrievalProfile` has no distance field, and
+      every field claiming one space is scored the same way.
     paths: [src/bloomery/spec/**]
     consequence: >-
       Putting it on the space is the easier position to relax later, since moving
@@ -173,6 +179,7 @@ decisions:
       The space is a property of the model and the metric is a property of how it
       is served, and the same space is legitimately served under different metrics;
       the executor decides and logs which
+    fingerprint: a96e3bd55648d2a6/b148a8f6dfe768fa
   - id: D-13
     grade: ASSUMED
     text: >-

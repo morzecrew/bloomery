@@ -40,13 +40,13 @@ decisions:
       that set it would be the compiler holding an opinion about something outside
       the spec.
   - id: D-5
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      What to emit for a project with a partitioned entity and no catalog date dimension:
-      config with the key commented and the consequence named, no config at all, or
-      a refusal. §5.3 states all three and ranks none. The case is narrow — a partitioned
-      silver entity in a project with no marts — which is why it is delegated rather
-      than settled here.
+      A project that backfills by time and declares no catalog date dimension gets
+      no `config.yaml`. `_config_artifact` returns `None` rather than a file missing
+      `model_defaults.start`, because a config whose absent start lets `sqlmesh plan`
+      succeed over one day is worse than no config.
+    fingerprint: 470f9d5e7f3d4922/202c11f3690cefb1
   - id: D-6
     grade: ASSUMED
     text: >-

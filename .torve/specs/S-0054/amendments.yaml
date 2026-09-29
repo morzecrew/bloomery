@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: text
+        before: >-
+          **Whether `SemanticPlan` lowers to the existing `QueryPlan`, replaces it,
+          or sits beside it.** Three shapes with different migration costs and different
+          answers to "what does `bloomery plan` print". P1 exists partly to answer
+          this from contact with the code; log the decision with what P1 found.
+        after: >-
+          `SemanticPlan` sits beside `QueryPlan`'s shipped surfaces as the required
+          field `QueryPlan.semantic`; `sql`, `columns` and `explanation` are unchanged.
+          `bloomery plan` renders its evidence sections from `query.semantic` and
+          appends them after the SQL and the explanation.
+      - subject: D-7
+        field: fingerprint
+        after: d4e29852afb7992b/5dc05b016c966b08
+      - subject: D-8
+        field: superseded_by
+        after: S-0054/D-11
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-7: P1 chose 'beside' so that pinned goldens and the parity suite keep a stable reference. S-0071/D-1 later made the field always present. Evidence: src/bloomery/planner/result.py; src/bloomery/cli/__init__.py; tests/unit/test_semantic/test_plan.py::test_a_planned_request_carries_its_plan; .torve/specs/S-0070/decisions.yaml.
+
+      Answered by a later row, which the row now names:
+      - D-8 is answered by S-0054/D-11: The row marks itself superseded. The parity suite pins outcome and exception class, never wording, and D-11 makes a class change a parity event.

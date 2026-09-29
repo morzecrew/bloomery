@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-6
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-6
+        field: text
+        before: >-
+          Where the annotation lives: mart, exposure, or project with overrides (§10).
+        after: >-
+          `requires_evidence: locked | assumed` lives on a mart and on an exposure,
+          defaulting to `assumed`; there is no project-level setting or override.
+          An exposure's requirement applies to every mart and metric it names.
+      - subject: D-6
+        field: fingerprint
+        after: f8e22c7f5d2e2cf2/202c11f3690cefb1
+      - subject: D-8
+        field: superseded_by
+        after: S-0070/D-9
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-6: P2 put it on marts and P3 on exposures, both shipped; the project-with-overrides option was never built. Evidence: src/bloomery/spec/marts.py; src/bloomery/spec/exposures.py; requires_evidence appears in no other spec module; tests/unit/test_guardrails/test_evidence.py.
+
+      Answered by a later row, which the row now names:
+      - D-8 is answered by S-0070/D-9: The row is marked 'Superseded by 9'; D-9 grades `IMPORTED_VERIFIED` as `ASSUMED`.

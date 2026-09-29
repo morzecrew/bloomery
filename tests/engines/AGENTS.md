@@ -62,9 +62,9 @@ The emulator lane is pinned to an exact image tag and is never the authoritative
 - Consequence: `latest` is not a lane, because a tier whose engine version can change under it cannot tell a regression from an upgrade; and a green surrogate run may never be quoted as engine conformance, which is why the claim has to be kept out of the test's name rather than only out of its body
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0014/D-6 — `OPEN` (BigQuery dialect port)
+### S-0014/D-6 — `ASSUMED` (BigQuery dialect port)
 
-Whether the emulator lane runs on pull requests, and the executor decides it on measured runtime and on whether it catches anything rungs 1 through 3 miss
+The BigQuery emulator lane runs in `engine-e2e`'s `pytest -m surrogate` step on push, nightly, and on same-repo pull requests whose changes match the `engine` path filter. It is advisory, not part of `required-ci`. The four surrogate lanes together measured 1 min 3 s on 2026-09-28.
 
 - Paths: `tests/engines/test_bigquery_surrogate.py` `.github/workflows/ci.yml`
 - Consequence: It needs no credential, which makes it eligible where the other three ports' live lanes are not — and it is also the rung with the least authority, so a slot on every pull request buys time from every contributor for a signal that may be redundant

@@ -56,9 +56,9 @@ Whether a proof is retained after acceptance or discarded once the obligation cl
 - Paths: `src/bloomery/semantic/proof.py` `src/bloomery/semantic/closure.py` `src/bloomery/planner/semantic_plan.py`
 - Consequence: The answer decides whether a proof is a return value or an artifact, which is the difference between a compile that pays nothing for proofs nobody asked for and one that carries every derivation it built
 
-### S-0005/D-8 — `OPEN` (Semantic proof IR and closed-world checking)
+### S-0005/D-8 — `ASSUMED` (Semantic proof IR and closed-world checking)
 
-What happens to a rule identifier when a rule is split or subsumed. They become a public contract the moment continuous integration asserts on them, so decide the versioning discipline before the first identifier ships, since the choice is unmakeable afterwards
+Rule identifiers in `RULES` are append-only: an id is never reused or repointed. A split or a subsumption mints new ids. The old `Rule` keeps its entry, with `superseded_by` naming its replacements and its id listed in `SUPERSEDED`. `Proof` refuses any rule id that is not in `RULES`.
 
 - Paths: `src/bloomery/semantic/proof.py`
 - Consequence: A corpus case, a refusal code and a rendered derivation all name a rule identifier, so an identifier silently repointed changes what a pinned assertion means without changing the assertion
@@ -88,9 +88,9 @@ A dimension is not an entity. Modelling `city` and `state` as entities with a de
 - Consequence: The column-to-column determination needs its own fact and its own closure; the entity-keyed machinery is not extended to carry it, and a project with a five-level geography gains no entities
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0007/D-7 — `OPEN` (Dimension algebra)
+### S-0007/D-7 — `ASSUMED` (Dimension algebra)
 
-Whether R020 requires a determinant of every dropped dimension or merely proves more when one is present. Requiring refuses rollups that are legal today; proving more leaves them where they are and may be the honest answer. Decide with one real rollup corpus in hand
+R020 proves more and refuses nothing. `_coarsening` adds a determination premise where a dropped dimension determines a kept one and returns `None` otherwise, so a rollup with no determination reaching it gets the answer it had before R020 existed.
 
 - Paths: `src/bloomery/semantic/proof.py` `src/bloomery/semantic/rollup.py`
 - Consequence: The strict reading is a new refusal against projects that compile today; the permissive reading changes no existing verdict and only adds a proof where a determinant exists
@@ -276,9 +276,9 @@ Measure grain must strictly equal mart grain; coarser or finer is `GrainViolatio
 - Paths: `src/bloomery/planner/semantic_plan.py` `src/bloomery/semantic/plan.py` `src/bloomery/semantic/proof.py` `tests/unit/test_semantic/test_plan.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0055/D-8 — `OPEN` (Multi-grain aggregate-then-join query planning)
+### S-0055/D-8 — `ASSUMED` (Multi-grain aggregate-then-join query planning)
 
-**Whether `DistinctCount`, `Snapshot` and `SemiAdditive` enter branch planning at all in P1.** §8 gates them on their proof rules being independently sound. Decide per class, with the corpus case each one converts, rather than as a group.
+None of `distinct_count`, `semi_additive` and snapshot enters branch planning: a composed plan admits only components declaring `additivity: additive` with no `cumulative` and no `filter`; the first two decline with `UnreachableAtGrain`, directly and as a derived metric's component, and snapshot has no authored spelling (S-0053/D-11).
 
 - Paths: `src/bloomery/ir/nodes.py` `src/bloomery/planner/semantic_plan.py` `src/bloomery/semantic/rollup.py` `tests/fixtures/semantic_corpus/007-distinct-users-fanout/problem.md` `tests/fixtures/semantic_corpus/012-rollup-recounts-identities/problem.md` `tests/unit/test_planner/test_coverage.py`
 

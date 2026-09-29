@@ -56,9 +56,9 @@ Modules obtain their stage logger by the documented name literally — `bloomery
 - Consequence: The two idioms ship different stable sets, and `__name__` would make the documented names a strict subset of the real ones; tuning works either way through the hierarchy, so what differs is only which names are the promise
 - Check: `uv run pytest tests/unit/test_logging_posture.py -q` (shadow; runs as `decision:S-0004/D-13`, no log entry owed)
 
-### S-0008/D-7 — `OPEN` (Fuzzing the compile boundary)
+### S-0008/D-7 — `ASSUMED` (Fuzzing the compile boundary)
 
-Whether each of the two narrow-handler sites gains `RecursionError` or a depth limit raising a named error — decided per site from its reproduction, and logged either way
+Both narrow-handler sites widen the catch; neither adds a depth limit. `evidence._divides` catches `(SqlglotError, RecursionError)` and returns `False`. `resolve.steps._parse_body` catches the same pair and raises the existing `StepError`. No error class is added to `src/bloomery/errors.py`.
 
 - Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/steps.py`
 - Consequence: A depth limit raising a named error adds a class to `src/bloomery/errors.py` and an entry to `pages/docs/reference/errors.md`; widening the catch adds neither, and the two sites may legitimately get different answers
@@ -406,9 +406,9 @@ A builder is told its **input logical type**. `Builder` becomes `(input type, co
 - Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/resolution.py` `src/bloomery/spec/mapping.py` `src/bloomery/spec/project.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0049/D-7 — `OPEN` (Mapping identity)
+### S-0049/D-7 — `ASSUMED` (Mapping identity)
 
-**Whether `FieldProvenance` sorts by `(entity, field, mapping)` or `(entity, mapping, field)`.** §5.4 argues the first — a field's answers stay adjacent — but the second groups a reader's attention by document, which is what they will edit. Execution decides against the corpus, and logs it: whichever reads better on `multi_source`'s four collapsed facts is the answer, and that is a thing to look at rather than reason about.
+`Resolution.provenance` sorts `FieldProvenance` entries by `(entity, field, mapping)`. On `multi_source` this keeps a merged field's per-mapping answers, such as `order_line.quantity`'s two, next to each other.
 
 - Paths: `src/bloomery/resolve/resolution.py` `tests/unit/test_resolve/test_resolution.py`
 
@@ -501,9 +501,9 @@ An exposure naming an undeclared metric or mart is refused. An exposure pointing
 
 - Paths: `src/bloomery/resolve/build.py`
 
-### S-0067/D-6 — `OPEN` (Stable node identity across renames)
+### S-0067/D-6 — `ASSUMED` (Stable node identity across renames)
 
-Whether node identity is a write-once `id:` or a one-shot `renamed_from:` in S-0024/D-3's shape (§10). Recorded rather than assumed: the codebase already chose the second answer for fields, and a document that does not say why nodes differ is one that looks like it did not know.
+Node identity is a write-once optional `id:` on metrics, steps and canonical fields; `renamed_from:` stays field-level. Editing an `id:` is a delete and an add, and a timeline never carries one name across two different ids.
 
 - Paths: `src/bloomery/resolve/timeline.py` `tests/unit/test_resolve/test_timeline.py`
 

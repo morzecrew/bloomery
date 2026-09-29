@@ -264,12 +264,13 @@ decisions:
       is "append", and naming a neighbour dates the instruction
     check: uv run pytest tests/unit/test_advisories.py -q
   - id: D-16
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      What makes a quality rule "unstrengthened" — the vocabulary the second advisory
-      candidate names and this codebase does not have — is decided at implementation
-      against the `QualityRule` subclasses in `src/bloomery/spec/quality.py`, and
-      the decision is logged
+      No quality rule is advised as unstrengthened, and the unstrengthened-rule advisory
+      does not exist. The only rules provably vacuous from a declared type, `normalize`
+      and `charset` on a non-`string` column, are refused as a `SpecParseError` by
+      `_check_character_rules` in `load_project`, and `AdvisoryCode` carries only
+      `inexact_division` and `undeclared_audience`.
     paths: [src/bloomery/evidence.py]
     consequence: >-
       The advisory cannot be built before the term means something checkable, and
@@ -280,6 +281,7 @@ decisions:
       The readiness gate scoped this candidate out as under-specified rather than
       wrong; the question is a definition an executor can settle against twelve concrete
       rule classes, not an author-level design choice
+    fingerprint: fc85480bde866908/93d13834f72e5485
 invariants:
   - id: I-1
     statement: >-

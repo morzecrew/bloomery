@@ -120,9 +120,9 @@ A new field on `SpecEvidence` is appended after whatever field is last at the ti
 - Consequence: "Additive" holds positionally only for an appended field, and a field inserted earlier silently rebinds positional construction; a test that stops short of the insertion point passes in both worlds and pins nothing
 - Check: `uv run pytest tests/unit/test_advisories.py -q` (shadow; runs as `decision:S-0004/D-15`, no log entry owed)
 
-### S-0004/D-16 — `OPEN` (Observability: logging and a warnings channel)
+### S-0004/D-16 — `ASSUMED` (Observability: logging and a warnings channel)
 
-What makes a quality rule "unstrengthened" — the vocabulary the second advisory candidate names and this codebase does not have — is decided at implementation against the `QualityRule` subclasses in `src/bloomery/spec/quality.py`, and the decision is logged
+No quality rule is advised as unstrengthened, and the unstrengthened-rule advisory does not exist. The only rules provably vacuous from a declared type, `normalize` and `charset` on a non-`string` column, are refused as a `SpecParseError` by `_check_character_rules` in `load_project`, and `AdvisoryCode` carries only `inexact_division` and `undeclared_audience`.
 
 - Paths: `src/bloomery/evidence.py`
 - Consequence: The advisory cannot be built before the term means something checkable, and the definition chosen fixes both what the code reports and what its documentation row can say; getting it wrong produces an advisory that fires on correct specs, which D-7 forbids
@@ -135,9 +135,9 @@ Guardrails are expressed as obligations before any is deleted, and the mart comp
 - Consequence: A guardrail deleted in favour of a proof rule that turns out narrower is a silently accepted unsafe project; the parity assertions between a proof and the boolean answer it expresses are what make the two comparable, and they can only be written while both exist
 - Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_the_proof_agrees_with_the_answer_it_expresses -q` (shadow; runs as `decision:S-0005/D-3`, no log entry owed)
 
-### S-0008/D-7 — `OPEN` (Fuzzing the compile boundary)
+### S-0008/D-7 — `ASSUMED` (Fuzzing the compile boundary)
 
-Whether each of the two narrow-handler sites gains `RecursionError` or a depth limit raising a named error — decided per site from its reproduction, and logged either way
+Both narrow-handler sites widen the catch; neither adds a depth limit. `evidence._divides` catches `(SqlglotError, RecursionError)` and returns `False`. `resolve.steps._parse_body` catches the same pair and raises the existing `StepError`. No error class is added to `src/bloomery/errors.py`.
 
 - Paths: `src/bloomery/evidence.py` `src/bloomery/resolve/steps.py`
 - Consequence: A depth limit raising a named error adds a class to `src/bloomery/errors.py` and an entry to `pages/docs/reference/errors.md`; widening the catch adds neither, and the two sites may legitimately get different answers
@@ -658,9 +658,9 @@ An unprovable rollup is **refused**, never warned about. A rollup is read instea
 - Paths: `src/bloomery/cli/render.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/errors.py` `src/bloomery/evidence.py` `src/bloomery/guardrails/stage.py` `src/bloomery/marts/rollup.py` `src/bloomery/semantic/rollup.py` `tests/fixtures/semantic_corpus/012-rollup-recounts-identities/problem.md` `tests/unit/test_semantic/test_plan.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0066/D-7 — `OPEN` (Declared input currency for conversion)
+### S-0066/D-7 — `ASSUMED` (Declared input currency for conversion)
 
-**Whether `currency_in:` extends to `RecipeFieldMapping` and `MacroFieldMapping`.** This row assumed a recipe's chain can hold a conversion, and it cannot: a `Recipe` is `{id, requires, expr}` — a SQL expression over aliases, with no transform chain — and a macro's body is opaque SQL. Neither can carry a `convert` step, so neither can hold a conversion whose input would need declaring, and neither reaches the code that would ask. Answered "no" for both, and "yes" for `KeyField`, which this row did not think to ask about (see `logs/T-0025.md` (`logs/T-0025.md`), D158).
+`currency_in:` lives on `SimpleFieldMapping` and `KeyField` only. `RecipeFieldMapping` and `MacroFieldMapping` carry no transform chain, so neither can hold a `convert` step or a conversion input to declare. A key keeps it because a decimal key is legal and `resolve.build` walks its chain.
 
 - Paths: `src/bloomery/evidence.py` `tests/unit/test_evidence.py`
 

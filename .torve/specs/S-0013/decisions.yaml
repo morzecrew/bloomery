@@ -84,11 +84,12 @@ decisions:
       Row D5 of `rfcs/0047-snowflake-dialect.md`, `OPEN` there: the source deliberately
       delegates it to whoever builds both lanes
   - id: D-6
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      The concrete type map — which Snowflake type each bloomery logical type lowers
-      to, `VARIANT` and the decimal bounds included — is decided by whoever measures
-      it, under D-1's constraint
+      Snowflake's type map is `string` to `VARCHAR`, `int` to `NUMBER(38, 0)`, `decimal(p,
+      s)` to `DECIMAL(p, s)` (refused past 38 digits of precision), `bool` to `BOOLEAN`,
+      `date` to `DATE`, `timestamp` to `TIMESTAMP_NTZ`, and `variant` to `VARIANT`
+      instead of the base adapter's `JSON`.
     paths: [src/bloomery/dialects/**]
     consequence: >-
       `physical_type` is a one-way door once artifacts exist in the wild, so the table
@@ -99,6 +100,7 @@ decisions:
       Row D6 of `rfcs/0047-snowflake-dialect.md`, `OPEN` there. The source states
       plainly that it does not guess this table, and the reason is the one-way door
       rather than lack of interest
+    fingerprint: b2bef0d33d854288/2e82f004f914921f
   - id: D-7
     grade: ASSUMED
     text: >-

@@ -10,9 +10,9 @@ Nothing is inherited from the PostgreSQL or the Trino port without being measure
 - Consequence: A rewrite this port applies is a rewrite something measured on Snowflake asked for, so a copied `TO_UTF8`/`TO_HEX`/`LOWER` or a copied separator rewrite is a finding even when the tests are green; the reverse also holds, and a rewrite point Snowflake needs nothing for is answered by a capability flag or by nothing at all
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0014/D-7 — `OPEN` (BigQuery dialect port)
+### S-0014/D-7 — `ASSUMED` (BigQuery dialect port)
 
-The `NUMERIC` and `BIGNUMERIC` mapping for a declared `decimal(p, s)`, and which bounds a declared type may not exceed, decided against the declared-type conformance battery rather than from the documentation and recorded with the bounds
+A declared `decimal(p, s)` lowers to `NUMERIC(p, s)` where `s <= 9` and `p - s <= 29`, otherwise to `BIGNUMERIC(p, s)` where `s <= 38` and `p - s <= 38`. Past both bounds it is refused with `UnsupportedByTarget`, never widened.
 
 - Paths: `src/bloomery/dialects/bigquery.py` `tests/unit/test_dialects/test_bigquery.py`
 - Consequence: The two types have different precision and scale bounds and different division behaviour, and bloomery forbids floats in emission paths, so this mapping decides what a declared decimal can express at all on this engine

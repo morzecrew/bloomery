@@ -69,9 +69,9 @@ Capability grows monotonically — the safe queries of one release are a subset 
 - Paths: `src/bloomery/semantic/proof.py` `tests/fixtures/semantic_corpus/**` `CHANGELOG.md`
 - Consequence: A new rule ships with positive and adversarial tests showing the boundary it admits, so a reader can see what was widened; a project that compiled last release and refuses in this one is either a documented soundness fix or a defect, and the note is what tells them apart
 
-### S-0008/D-6 — `OPEN` (Fuzzing the compile boundary)
+### S-0008/D-6 — `ASSUMED` (Fuzzing the compile boundary)
 
-Whether the lane is a seventh pytest marker or a `just` lane outside pytest
+Fuzzing is a `just` lane (`fuzz`, `fuzz-repro`, `fuzz-min`), not a seventh pytest marker. A libFuzzer run is time-boxed rather than pass-or-fail, and the corpus under `fuzz/corpus/` is a gitignored build artifact, not a checked-in test input.
 
 - Paths: `justfile` `pyproject.toml`
 - Consequence: A marker would cover only a replay test over the corpus, so the choice decides whether the corpus is a checked-in test input or a build artifact
@@ -83,9 +83,9 @@ Coverage over the fuzz corpus is measured by a locally-runnable lane rather than
 - Paths: `justfile`
 - Consequence: The only signal separating "found nothing because the code is correct" from "found nothing because it never reached the code" runs when someone remembers, not on a schedule
 
-### S-0010/D-3 — `OPEN` (Generating from the spec schema)
+### S-0010/D-3 — `ASSUMED` (Generating from the spec schema)
 
-Whether the generator is `hypothesis-jsonschema`'s `from_schema()` or a hand-written strategy over the subset of JSON Schema bloomery emits is decided by execution, with the tiebreak being the fraction of generated documents that reach the resolver — never the dependency's release date
+The generator is a hand-written Hypothesis strategy over the exported JSON Schema subset, in `tests/support/schema_strategies.py`, not `hypothesis-jsonschema`'s `from_schema()`. Identifier positions draw from the shared `NAMES` pool so that references resolve, and `pyproject.toml` has no `hypothesis-jsonschema` entry.
 
 - Paths: `tests/property/**` `tests/support/**` `pyproject.toml`
 - Consequence: Adopting the dependency adds a `dev`-group entry to `pyproject.toml` carrying the same explanatory comment style `jsonschema` already has; declining it puts a maintained strategy in this repository instead. Either way the measured fraction is logged, so the choice is re-decidable on evidence rather than re-argued.
@@ -121,9 +121,9 @@ Rungs 1 to 3 are required on every pull request, rung 4 is per port, and rungs 5
 - Paths: `.github/workflows/ci.yml` `pyproject.toml` `justfile`
 - Consequence: The default lane stays offline and fast, and a port's authoritative evidence is gathered on `main` and on demand rather than per commit
 
-### S-0012/D-9 — `OPEN` (Validating a dialect port against an engine we cannot run)
+### S-0012/D-9 — `ASSUMED` (Validating a dialect port against an engine we cannot run)
 
-Whether `surrogate` is a new pytest marker or a parameter on `engine`; whoever adds the first surrogate lane decides and updates the marker table with the reason
+`surrogate(name)` is a pytest marker of its own, not a parameter on `engine`. `engine(name)` keeps meaning the real engine, so a CI log separates rung 4 from rungs 5–6, and the reason sits beside the entry in the `pyproject.toml` marker table.
 
 - Paths: `pyproject.toml`
 - Consequence: Either spelling satisfies D-2, and the parameter form keeps one selector for the whole matrix at the cost of a marker whose meaning depends on an argument
@@ -276,7 +276,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `tests/fixtures/semantic_corpus/009-null-denominator/bloomery/inclusive/` — 1 decision(s)
 - `tests/fixtures/semantic_corpus/010-many-to-many-bridge/` — 1 decision(s)
 - `tests/fixtures/semantic_corpus/010-many-to-many-bridge/expected/` — 1 decision(s)
-- `tests/fixtures/semantic_corpus/011-timezone-boundary/` — 4 decision(s)
+- `tests/fixtures/semantic_corpus/011-timezone-boundary/` — 3 decision(s)
 - `tests/fixtures/semantic_corpus/012-rollup-recounts-identities/` — 3 decision(s)
 - `tests/fixtures/semi_additive_inventory/` — 2 decision(s)
 - `tests/golden/` — 12 decision(s)

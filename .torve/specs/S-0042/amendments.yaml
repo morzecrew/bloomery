@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-5
+        field: superseded_by
+        after: S-0042/D-16
+      - subject: D-10
+        field: superseded_by
+        after: S-0042/D-23
+      - subject: D-11
+        field: superseded_by
+        after: S-0042/D-17
+      - subject: D-12
+        field: superseded_by
+        after: S-0042/D-18
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Answered by a later row, which the row now names:
+      - D-5 is answered by S-0042/D-16: D-16 records the measured per-package floors, each one notch below measurement.
+      - D-10 is answered by S-0042/D-23: D-23 states the 0.1-versus-1.0 split: spec YAML and artifacts bind fully now; the Python API binds as 'never silent' now and 'never outside a major' at 1.0.
+      - D-11 is answered by S-0042/D-17: D-17 answers it: the completeness trigger is admonition blocks (`!!! warning` / `!!! danger`), with the stated limit that plain prose is not caught.
+      - D-12 is answered by S-0042/D-18: D-18 answers it: `tests/bench/test_hydration.py` pins fixture, cold/warm, repetitions, statistic and ceiling.

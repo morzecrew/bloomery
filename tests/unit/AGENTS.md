@@ -356,9 +356,9 @@ The changelog section is cut **before** the tag. `hatch-vcs` derives the version
 
 - Paths: `src/bloomery/evidence.py` `tests/unit/test_unresolved.py`
 
-### S-0047/D-7 — `OPEN` (The unresolved-work report)
+### S-0047/D-7 — `ASSUMED` (The unresolved-work report)
 
-**Whether the human CLI table prints open decisions.** JSON gets them by construction. The table is a summary (S-0037/D-4), and this is either the most useful line `bloomery resolve` could print or the one that turns a summary into a dump. Whoever builds this decides and logs it.
+`bloomery resolve`'s human table prints an `Open decisions (N)` section with one row per decision: canonical, gap, target `entity.field`, the catalog's recipe ids in catalog order, and the metrics it blocks. Recipe alias slots (`requires`) stay out of the table and appear only in `--format json`.
 
 - Paths: `src/bloomery/cli/render.py` `tests/unit/test_cli.py`
 
@@ -437,9 +437,9 @@ A `pii`/`secret` column reaching a relation that **admits a role its source enti
 - Paths: `pages/docs/how-to/annotate-a-spec.md` `src/bloomery/errors.py` `src/bloomery/evidence.py` `src/bloomery/guardrails/classification.py` `src/bloomery/guardrails/stage.py` `tests/unit/test_classification_guard.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0066/D-7 — `OPEN` (Declared input currency for conversion)
+### S-0066/D-7 — `ASSUMED` (Declared input currency for conversion)
 
-**Whether `currency_in:` extends to `RecipeFieldMapping` and `MacroFieldMapping`.** This row assumed a recipe's chain can hold a conversion, and it cannot: a `Recipe` is `{id, requires, expr}` — a SQL expression over aliases, with no transform chain — and a macro's body is opaque SQL. Neither can carry a `convert` step, so neither can hold a conversion whose input would need declaring, and neither reaches the code that would ask. Answered "no" for both, and "yes" for `KeyField`, which this row did not think to ask about (see `logs/T-0025.md` (`logs/T-0025.md`), D158).
+`currency_in:` lives on `SimpleFieldMapping` and `KeyField` only. `RecipeFieldMapping` and `MacroFieldMapping` carry no transform chain, so neither can hold a `convert` step or a conversion input to declare. A key keeps it because a decimal key is legal and `resolve.build` walks its chain.
 
 - Paths: `src/bloomery/evidence.py` `tests/unit/test_evidence.py`
 
