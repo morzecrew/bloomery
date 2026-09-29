@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0082
+title: >-
+  A metric's own filter crosses into a composed plan
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0055, S-0071]
+informed_by: [S-0054, S-0077]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A request whose metrics live on different marts is planned as branches and composed (S-0055). A metric that carries its own `filter` is kept out of that path, and the request then fails with "metrics live on different grains", a message that never mentions the filter. The exclusion predates S-0071, which gave a `Filter` node the measures it restricts: a branch can now say that one metric is filtered and the others are not.
+
+  A metric's own filter is admitted into a composed plan. Each branch states it as a `Filter` scoped to that metric's measures, and MetricFlow renders it natively as the metric's definition already does. A request filter that only some branches carry stays refused, and the refusal now names the filter and the branches that lack it.
+motivation: >-
+  S-0055/Q-1 left cross-branch filter semantics to a document of their own; §6 refuses
+  rather than defines them. The reason for refusing a metric's own filter was that
+  a branch's `Filter` said one thing about every measure beneath it (T-0027). S-0071/D-7
+  removed that: `Filter.measures` scopes a restriction, and `planner/semantic_plan.py`
+  already emits scoped filters on the single-mart path. The composed path is the one
+  place still refusing, and it refuses with the wrong reason.
+current_state: >-
+  `planner/coverage.py::_projected` returns nothing for a metric with a `filter`,
+  and `_composable` requires every component unfiltered; such a request falls to `_split_refusal`,
+  which raises `UnreachableAtGrain` naming grains. Request filters and the row policy
+  must reach every branch by provenance (`_not_on_every_branch`). `semantic_plan.compose`
+  builds each branch through `build`, which emits `_scoped_filters`. A metric's filter
+  is a `where_sql_template` in the MetricFlow manifest, so the branch request needs
+  no change. R019 compares restrictions across marts for ratios only.
+goals: |-
+  - A request mixing a filtered metric and an unfiltered one across marts is planned, and its plan says which measure each filter restricts.
+  - A request the composed path still refuses says why, naming the filter.
+non_goals: |-
+  - A request filter carried by only some branches. S-0055/D-4's explicit partial result is its own design.
+  - Filters reachable only through a join a branch mart does not flatten (S-0055/D-10).
+design:
+  - key: admission
+    md: >-
+      `_projected` and `_composable` stop excluding a metric's own filter. The composed
+      plan carries the filter as a `Filter` whose `measures` are that metric's, per
+      branch, so the explanation says what it restricts; the branch request to MetricFlow
+      is unchanged, because the manifest already holds the filter as part of the metric.
+      A ratio is still gated by R019, and a `derived:` metric's inputs keep each its
+      own restriction, scoped the same way.
+  - key: the-domain
+    md: >-
+      The composed domain stays S-0055/D-18's union of branch keys. A group that exists
+      only in a branch the filtered metric does not own reads NULL for it, and the
+      explanation names the restriction per column.
+  - key: the-refusal
+    md: >-
+      A request refused because a request filter or the row policy does not reach
+      every branch names the filter and the branches that lack it, instead of falling
+      through to "different grains". The refusal class does not change.
+tests: |-
+  - The two coverage tests that pin the refusal (`test_a_metric_with_its_own_restriction_declines_the_composed_path`, `test_a_component_carrying_its_own_restriction_declines_the_composed_path`) become admissions, with the plan's scoped filters asserted.
+  - An engine-tier test composes a filtered and an unfiltered metric across two marts and checks the numbers.
+  - The parity generator gains a filtered cross-mart shape, and its baseline records the conversion.
+  - A request filter missing from one branch is refused, naming the filter and the branch.
+docs: >-
+  `concepts/wide-marts.md` and the planner how-to say a metric's own filter crosses
+  branches, and what still refuses.
+out_of_scope: |-
+  - Partial results for a request filter on some branches.
+  - R019-style checks for `derived:` inputs restricted differently.
+risks: |-
+  - Planner only: no IR, fingerprint or artifact moves, but the parity baseline changes class for the new shape, which is a licensed conversion (S-0054/D-11).
+  - The composed path with a filter is not yet exercised on the engine tier; phase 1's engine test is the first.
+alternatives:
+  - option: Keep refusing, with a truthful message
+    rejected_because: >-
+      the obstacle the refusal existed for is gone since S-0071, and the branch SQL
+      already renders the filter
+    cites: [S-0071/D-7]
+questions:
+  - id: Q-1
+    text: >-
+      Should a `derived:` metric whose inputs carry different restrictions be refused,
+      as R019 refuses the ratio case, on both the single-mart and the composed path?

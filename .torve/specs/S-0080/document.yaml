@@ -1,0 +1,109 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0080
+title: >-
+  A mart may read the current version of a type2 entity
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0040, S-0017]
+informed_by: [S-0027, S-0076]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A mart based on an `scd: type2` entity is refused as `HistoricalFanout` (S-0040/D-2), and nothing an author writes lifts the refusal. Its only way out today is a second, type1 entity built from the first, which needs a Tier-2 step because a mapping has no row filter. The commonest thing an author wants from a history table, the current version of each key, is one predicate away: `valid_to IS NULL`.
+
+  A mart declares `reading: current` on its base, and a flatten step may declare it on its `via:` in place of `as_of:`. The mart then reads only the current version of each key, so its grain is the entity's key again and every measure over it counts keys, not revisions. The default is unchanged: a type2 base with no reading is refused as it is today.
+motivation: >-
+  S-0040/Q-1 asked for this escape and guessed at a version-grained mart; the validity
+  columns it needed have since shipped as the shared IR constants `VALID_FROM` and
+  `VALID_TO`, and `emit/lower/silver.py` already writes the current predicate for
+  its own audits. The point-in-time half of the problem is built (`as_of:` on a flatten
+  `via:`, S-0040 §5.3); the current half is not, and the workaround costs a step and
+  a second relation per history table. S-0040's own alternatives rejected "filter
+  to current" as a default and kept it "available as something the author writes explicitly",
+  which is what this document gives.
+current_state: >-
+  `src/bloomery/marts/flatten.py` refuses a type2 base unconditionally at `marts.<m>.base`
+  with `HistoricalFanout`, whose fix text points at a type1 current-view entity. A
+  flatten hop onto a type2 entity is qualified through `semantic/historical.py::qualify_as_of`,
+  whose states are the one reading the mart guard and the closure share (S-0017/D-4).
+  `semantic/closure.py` gives a type2 entity no grain and `can_roll_up` refuses a
+  type2 source with `HISTORICAL_GRAIN`; S-0017/D-3 (LOCKED) closes the list of dependency
+  kinds. `MartJoinIR.as_of` carries the point-in-time anchor, and `emit/lower/predicates.py::as_of_conditions`
+  renders it. The IR version is 24.
+goals: |-
+  - An author can base a mart on the current version of a type2 entity, and flatten one, with one declared key.
+  - Every measure over such a mart counts keys, and the compiler can prove its grain.
+  - A type2 base with no declared reading is refused exactly as today.
+non_goals: |-
+  - A version-grained mart (one row per key per version). It needs grain vocabulary this compiler does not have.
+  - A mart read at a fixed instant. The anchor is the author's column on a flatten hop; a literal instant is a separate design.
+  - Closing keys deleted in the source. Whether a hard delete ends a version is the ingestion's, and neither target is configured to do it.
+design:
+  - key: the-reading
+    md: >-
+      A mart's `base` gains a sibling key, `reading: current`, and a flatten step's
+      `via:` gains the same key as an alternative to `as_of:`. It is a separate key,
+      not a sentinel value of `as_of:`, because `as_of:` names a column and a base
+      column named `current` would collide. `reading:` is refused on a non-historical
+      entity (there is only one version) and beside `as_of:` on the same hop (the
+      two readings contradict).
+  - key: what-it-lowers-to
+    md: >-
+      The current predicate is `valid_to IS NULL` over the shared `VALID_TO` column.
+      On the base it is a `WHERE` on the mart's select; on a flatten hop it joins
+      the join condition, the way `as_of_conditions` does. `emit/lower/silver.py::_current_version`
+      is lifted into `emit/lower/predicates.py` so the audit and the mart read one
+      definition. `MartIR` and `MartJoinIR` carry the reading, so `bloomery_ir_version`
+      moves to 25 and every fingerprint with it, once.
+  - key: materialization
+    md: >-
+      A mart that reads current versions is rebuilt whole. Under incremental materialization
+      an old partition keeps the version that was current when it was written, so
+      the mart would disagree with itself. A current-reading mart declared incremental
+      is refused, naming the reading and the materialization.
+  - key: the-grain
+    md: >-
+      `qualify_as_of` gains a `CURRENT` state, so the mart guard and the closure keep
+      one reading (S-0017/D-4). The closure gives a current-read type2 entity its
+      key's grain, which lets a rollup over the mart prove as it would over a type1
+      entity. That is a new dependency kind, and S-0017/D-3 closes the list of kinds:
+      phase 2 amends S-0017/D-3, which is LOCKED and so the owner's. Until phase 2
+      lands, a rollup over a current-reading mart is refused with `HISTORICAL_GRAIN`
+      as it is today, and the mart itself compiles.
+tests: |-
+  - A type2 base with `reading: current` compiles, and its select carries `valid_to IS NULL`; executed on DuckDB, a key with three versions counts once.
+  - A flatten `via:` with `reading: current` joins only current versions; `reading:` beside `as_of:` is refused, and on a type1 entity is refused.
+  - A current-reading mart declared incremental is refused.
+  - A type2 base with no reading is still refused as `HistoricalFanout` (`scd2_mart_refusal` keeps its golden).
+  - After phase 2, a rollup over a current-reading mart proves its grain.
+docs: >-
+  `concepts/wide-marts.md` gains the reading beside `as_of:`; `reference/errors.md`
+  names the two new refusals; `reference/spec-schemas.md` carries the key; the `HistoricalFanout`
+  fix text names `reading: current`.
+out_of_scope: |-
+  - Semantic corpus case 003's `unanchored` arm stays what it is: a flatten with no reading and no anchor is refused.
+  - A `reading:` on a mapping. The reading is a mart's choice about a history, not a property of the history.
+risks: |-
+  - The IR bump moves every golden's fingerprint header, as v7 and v24 did.
+  - A current reading hides history an author may have wanted; the refusal stays the default, so the choice is written.
+  - The grain proof waits on a LOCKED row's amendment; until then rollups over these marts are refused.
+alternatives:
+  - option: >-
+      `as_of: current` as a sentinel value of the existing key
+    rejected_because: >-
+      `as_of:` names a column of the base, and a column named `current` would silently
+      change meaning
+  - option: A version-grained mart, S-0040/Q-1's own guess
+    rejected_because: >-
+      a measure's grain must equal its mart's grain (S-0027/D-2), and the grain vocabulary
+      has no version component; it is a larger design with no user waiting on it
+    cites: [S-0027/D-2]
+questions:
+  - id: Q-1
+    text: >-
+      Should the `HistoricalFanout` fix text lead with `reading: current` and keep
+      the type1-entity route as the second option, or stay as it is until phase 2
+      lands?

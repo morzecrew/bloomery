@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A mart may declare `reading: current` on its base, and a flatten `via:` in place
+      of `as_of:`, to read only the current version (`valid_to IS NULL`) of an `scd:
+      type2` entity; it is refused on a non-historical entity and beside `as_of:`
+      on one hop, and a type2 base with no reading is refused as before
+    paths:
+      - src/bloomery/spec/marts.py
+      - src/bloomery/marts/flatten.py
+      - tests/unit/test_marts/test_flatten.py
+    consequence: >-
+      an author reaches the current version of a history table with one key, and the
+      refusal stays the default
+    rationale: >-
+      S-0040 kept filter-to-current available as something the author writes explicitly,
+      and the validity columns it needs have shipped
+    cites: [S-0040/D-2]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The current reading lowers to `valid_to IS NULL` over the shared `VALID_TO`
+      column — a `WHERE` on the base, a join condition on a flatten hop — from one
+      predicate the silver audits also read; `MartIR` and `MartJoinIR` carry it and
+      `bloomery_ir_version` moves to 25
+    paths:
+      - src/bloomery/emit/lower/predicates.py
+      - src/bloomery/emit/lower/marts.py
+      - src/bloomery/ir/nodes.py
+    consequence: >-
+      the mart and the audit cannot disagree about which version is current, and every
+      fingerprint moves once
+    rationale: >-
+      `_current_version` already writes this predicate for audits; a second definition
+      is a second thing to drift
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A mart that reads current versions is materialized whole; declaring it incremental
+      is refused
+    paths: [src/bloomery/marts/flatten.py, tests/unit/test_marts/test_flatten.py]
+    consequence: >-
+      no partition keeps a version that stopped being current after it was written
+    rationale: >-
+      an incremental mart over a moving current reading disagrees with itself across
+      partitions
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `qualify_as_of` gains a `CURRENT` state, and the closure gives a current-read
+      type2 entity its key's grain, so a rollup over a current-reading mart proves
+      as over a type1 entity; this is a new dependency kind and amends S-0017/D-3
+    paths:
+      - src/bloomery/semantic/historical.py
+      - src/bloomery/semantic/closure.py
+      - tests/unit/test_semantic/test_closure.py
+    consequence: >-
+      the mart guard and the closure keep one reading of a type2 hop (S-0017/D-4),
+      and rollups over these marts prove
+    rationale: >-
+      the current reading restores one row per key, which is exactly the grain the
+      entity key states
+    cites: [S-0017/D-3, S-0017/D-4]

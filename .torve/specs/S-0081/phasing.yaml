@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: A Z behind to_utc is NULL, not an hour wrong
+    intent: >-
+      `to_utc` swaps an ISO wall-clock marker in its operand for the zoned variant,
+      and `dialects/base.py`'s guard refuses `Z` for the zoned variant on every port.
+      `ecom_basic`'s goldens move; the changelog carries the migration note. Settles
+      D-1.
+    scope:
+      - src/bloomery/transforms/_builtins.py
+      - src/bloomery/dialects/base.py
+      - tests/unit/test_transforms/**
+      - tests/unit/test_dialects/**
+      - tests/execution/test_zoneless_utc.py
+      - tests/golden/**
+      - CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_transforms tests/unit/test_dialects tests/execution/test_zoneless_utc.py
+        tests/golden -q
+    character: structural
+  - phase: 2
+    title: The instant format, on every port
+    intent: >-
+      `ISO8601_INSTANT` and its marker; each port's spelling, measured on its engine
+      tier where one runs; R018 reads the format; resolve refuses `to_utc` after it
+      and a non-UTC `zone_in:` beside it; `%z`/`%Z` refused at parse. Settles D-2
+      and D-3.
+    scope:
+      - src/bloomery/transforms/_builtins.py
+      - src/bloomery/dialects/**
+      - src/bloomery/semantic/zone.py
+      - src/bloomery/guardrails/zone.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/**
+      - tests/engines/test_zoneless_utc.py
+      - tests/golden/**
+    acceptance:
+      - uv run pytest tests/unit -q
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: The docs name the instant format
+    intent: >-
+      `reference/transforms.md` gains `ISO8601_INSTANT`, the `Z` rule and the `%z`
+      refusal.
+    scope: [pages/docs/reference/transforms.md]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_docs_floor.py tests/unit/test_docs_snippets.py
+        -q
+    depends_on:
+      - 2
+    character: routine

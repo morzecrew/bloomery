@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A metric's own `filter` is admitted into a composed plan: each branch states
+      it as a `Filter` scoped to that metric's measures, and the branch request is
+      unchanged because the manifest already holds the filter; this amends S-0055/D-8's
+      "no `filter`" for composed components
+    paths:
+      - src/bloomery/planner/coverage.py
+      - src/bloomery/planner/semantic_plan.py
+      - tests/unit/test_planner/test_coverage.py
+    consequence: >-
+      a request mixing filtered and unfiltered metrics across marts is planned, and
+      its plan says what each filter restricts
+    rationale: >-
+      the refusal existed because a branch filter spoke for every measure beneath
+      it; S-0071/D-7 scoped filters to measures
+    cites: [S-0055/D-8, S-0071/D-7]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The composed domain stays the union of branch keys, and a group absent from
+      the filtered metric's branch reads NULL for that metric, with the restriction
+      named per column in the explanation
+    paths: [src/bloomery/planner/compose.py, src/bloomery/planner/explain.py]
+    consequence: >-
+      a reader can tell a NULL that means no rows from a NULL the filter produced
+    rationale: >-
+      S-0055/D-18 fixed the union domain for composed plans; a filter does not change
+      what a key is
+    cites: [S-0055/D-18]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A request refused because a request filter or the row policy does not reach
+      every branch names the filter and the branches that lack it
+    paths:
+      - src/bloomery/planner/coverage.py
+      - tests/unit/test_planner/test_coverage.py
+    consequence: >-
+      the refusal says what to change instead of blaming grains
+    rationale: >-
+      `_split_refusal` answered "different grains" for a request whose grains were
+      fine and whose filter was the problem
