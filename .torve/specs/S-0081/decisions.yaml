@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A `to_utc` whose operand is an ISO wall-clock parse makes the parse zoned: every
+      port's guard then reads a trailing `Z` as an offset and yields NULL, because
+      the chain has declared the text a wall clock in a named zone
+    paths:
+      - src/bloomery/transforms/_builtins.py
+      - src/bloomery/dialects/base.py
+      - tests/execution/test_zoneless_utc.py
+    consequence: >-
+      a UTC value is never shifted by a zone's offset a second time; it is NULL, which
+      a quality rule can see
+    rationale: >-
+      a `Z` row behind `to_utc: Europe/Paris` comes out an hour wrong today, silently,
+      on every port
+    cites: [S-0052/D-4]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `parse_ts: ISO8601_INSTANT` parses text carrying `Z` or a numeric offset to
+      the UTC instant on every port and yields NULL for zoneless text; R018 treats
+      it as never a wall clock, `to_utc` after it is refused at resolve, and `zone_in:`
+      beside it may only be `UTC`
+    paths:
+      - src/bloomery/transforms/_builtins.py
+      - src/bloomery/dialects/**
+      - src/bloomery/semantic/zone.py
+      - src/bloomery/resolve/build.py
+    consequence: >-
+      a source that stamps instants has a spelling, and the compiler refuses the double
+      conversion the type system cannot see
+    rationale: >-
+      S-0052 deferred the instant format with its mechanism recorded; Trino's session-zone
+      trap makes positive zone detection necessary
+    cites: [S-0052/D-4, S-0076/D-1]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A `parse_ts` format carrying a `%z` or `%Z` directive is refused at parse, naming
+      `ISO8601_INSTANT`; an escaped `%%z` or `%%Z` is literal text and is not refused
+    paths:
+      - src/bloomery/transforms/_builtins.py
+      - tests/unit/test_transforms/test_builtins.py
+    consequence: no format parses a zone and then drops it
+    rationale: >-
+      no port's handling of those directives is measured, and dropping a parsed zone
+      is the wrong-hour failure
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Phase 1 ships only beside phase 2, in one minor release whose changelog records
+      the `Z`-to-NULL change under Changed and `ISO8601_INSTANT` under Added; no 0.4.x
+      patch carries phase 1 alone
+    paths: [CHANGELOG.md]
+    consequence: >-
+      an author whose rows turn NULL finds, in the same release notes, the format
+      that parses them
+    rationale: >-
+      phase 1 alone replaces an hour-wrong value with NULL and leaves no spelling
+      for an instant, and while bloomery is 0.x a change to produced values is a minor
+      release, not a patch
+    cites: [D-1, D-2]

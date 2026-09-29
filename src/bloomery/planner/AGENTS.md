@@ -299,7 +299,7 @@ The planner has no `JsonDict` alias: `parse_filter_json`, `parse_sort_json` and 
 
 ### S-0055/D-8 — `ASSUMED` (Multi-grain aggregate-then-join query planning)
 
-None of `distinct_count`, `semi_additive` and snapshot enters branch planning: a composed plan admits only components declaring `additivity: additive` with no `cumulative` and no `filter`; the first two decline with `UnreachableAtGrain`, directly and as a derived metric's component, and snapshot has no authored spelling (S-0053/D-11).
+None of `distinct_count`, `semi_additive` and snapshot enters branch planning: a composed plan admits only components declaring `additivity: additive` with no `cumulative`, and a component's own `filter` enters as a `Filter` scoped to its measures; the first two decline with `UnreachableAtGrain`, directly and as a derived metric's component, and snapshot has no authored spelling (S-0053/D-11).
 
 - Paths: `src/bloomery/ir/nodes.py` `src/bloomery/planner/semantic_plan.py` `src/bloomery/semantic/rollup.py` `tests/fixtures/semantic_corpus/007-distinct-users-fanout/problem.md` `tests/fixtures/semantic_corpus/012-rollup-recounts-identities/problem.md` `tests/unit/test_planner/test_coverage.py`
 
@@ -361,6 +361,34 @@ None of `distinct_count`, `semi_additive` and snapshot enters branch planning: a
 `_plannable` is replaced by `_measures_are_embedded`, the precondition of R008 alone: every reduced number is a measure the mart embeds, at a statable additivity. Its other three exclusions became plan nodes, and `build` returns `None` only where coverage or the additivity guardrail has already refused.
 
 - Paths: `src/bloomery/planner/semantic_plan.py`
+
+### S-0082/D-1 — `ASSUMED` (A metric's own filter crosses into a composed plan) — implementation: none
+
+A metric's own `filter` is admitted into a composed plan: each branch states it as a `Filter` scoped to that metric's measures, and the branch request is unchanged because the manifest already holds the filter; this amends S-0055/D-8's "no `filter`" for composed components
+
+- Paths: `src/bloomery/planner/coverage.py` `src/bloomery/planner/semantic_plan.py` `tests/unit/test_planner/test_coverage.py`
+- Consequence: a request mixing filtered and unfiltered metrics across marts is planned, and its plan says what each filter restricts
+
+### S-0082/D-2 — `ASSUMED` (A metric's own filter crosses into a composed plan) — implementation: none
+
+The composed domain stays the union of branch keys, and a group absent from the filtered metric's branch reads NULL for that metric, with the restriction named per column in the explanation
+
+- Paths: `src/bloomery/planner/compose.py` `src/bloomery/planner/explain.py`
+- Consequence: a reader can tell a NULL that means no rows from a NULL the filter produced
+
+### S-0082/D-3 — `ASSUMED` (A metric's own filter crosses into a composed plan) — implementation: none
+
+A request refused because a request filter or the row policy does not reach every branch names the filter and the branches that lack it
+
+- Paths: `src/bloomery/planner/coverage.py` `tests/unit/test_planner/test_coverage.py`
+- Consequence: the refusal says what to change instead of blaming grains
+
+### S-0082/D-4 — `ASSUMED` (A metric's own filter crosses into a composed plan) — implementation: none
+
+A `derived:` metric whose inputs carry different restrictions — different own filters, or a filter on one input and none on another — is refused with R019's `operands_disagree` on the single-mart and the composed path alike, naming each input and its restriction
+
+- Paths: `src/bloomery/semantic/additivity.py` `src/bloomery/planner/compose.py`
+- Consequence: admitting a metric's own filter into a composed plan never lets a derived metric fold two row sets into one number, and a derived metric whose inputs agree composes as they do
 
 ## Invariants holding over `src/bloomery/planner/`
 

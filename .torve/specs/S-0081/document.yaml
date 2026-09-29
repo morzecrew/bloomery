@@ -1,0 +1,104 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0081
+title: >-
+  An instant is parsed as one, and a Z behind to_utc is not converted twice
+kind: design
+status: accepted
+implementation: none
+depends_on: [S-0052, S-0076]
+informed_by: [S-0044, S-0045]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  `parse_ts: ISO8601` reads text as a wall clock, and a shared guard turns text carrying a numeric offset into NULL on every port while keeping a trailing `Z`. Followed by `to_utc: Europe/Paris`, a `Z` value — already UTC — is converted a second time and comes out an hour wrong. `tests/fixtures/ecom_basic` has exactly that chain. And a source that stamps instants has no format that says so (S-0052/Q-1).
+
+  A `to_utc` after an ISO parse makes the parse zoned: `Z` is then read like any offset and becomes NULL, because the chain states the text is a wall clock. A new format, `ISO8601_INSTANT`, parses text carrying `Z` or an offset to the UTC instant, turns zoneless text into NULL, and is never a wall clock to R018; `to_utc` after it is refused. A `%z` or `%Z` in a `parse_ts` format is refused and points at the instant format.
+motivation: >-
+  S-0052 recorded both gaps and deferred them (§8, §9, Q-1). The first is a wrong
+  number, not a missing feature: a `Z` row behind `to_utc` is shifted by the zone's
+  offset on every port, silently. The second is the half of S-0052 an instant-stamping
+  source has no spelling for, so such a source is either mis-read as a wall clock
+  or needs a step.
+current_state: >-
+  `transforms/_builtins.py::parse_ts` lowers `ISO8601` to `CAST(BLM_ISO_TEXT(x) AS
+  TIMESTAMP)`; any other format is `StrToTime`. `dialects/base.py::_without_offset`
+  guards every port's replacement of the marker: text with `+` or `-` after position
+  11 is NULL, `Z` is kept (BigQuery trims it, because its `DATETIME` cast refuses
+  it). `to_utc` builds `AtTimeZone`, which each port normalises. `zone_in:` (S-0076)
+  is a shape check cross-checked against the chain's `to_utc` in `resolve/build.py`.
+  R018 (`semantic/zone.py`, `guardrails/zone.py`) treats any `parse_ts` as a wall
+  clock. `Z` is measured on PostgreSQL, Trino, DuckDB and Snowflake; not on Databricks
+  or Redshift.
+goals: |-
+  - A `Z` value behind `to_utc` is never converted twice.
+  - A source that stamps instants has a format that parses them, on every port.
+  - A format that would silently drop a zone is refused where it is written.
+non_goals: |-
+  - Guessing a zone for zoneless text under the instant format. It is NULL, the way offset text is NULL under the wall-clock format.
+  - Validating `zone_in:` against the zone database, which S-0076 promised and the shape check does not do; it is its own change.
+design:
+  - key: z-behind-to-utc
+    md: >-
+      `to_utc` inspects its operand: when it is an ISO wall-clock marker, it replaces
+      it with the zoned variant, `BLM_ISO_TEXT_ZONED`, which every port strips through
+      the same guard with `Z` added to the offsets it refuses. The chain has said
+      the text is a wall clock in a named zone, so a `Z` is a contradiction the row
+      cannot resolve, and NULL is what the guard already does for one. No IR version
+      moves; the expressions of projects with the chain change, so their fingerprints
+      do. The changelog says so, because rows that read correctly as `Z`-with-a-wrong-hour
+      become NULL, and the compiler cannot see the data.
+  - key: the-instant-format
+    md: >-
+      `parse_ts: ISO8601_INSTANT` lowers to a marker every port replaces with its
+      spelling of "parse this zoned text to the UTC instant, zoneless text to NULL".
+      Zoneless text needs positive detection of `Z` or an offset, because Trino's
+      `from_iso8601_timestamp` attaches the session zone to zoneless text (S-0052
+      §5.3). Candidate spellings are listed per port in the phase and measured on
+      each engine tier before they land. R018 reads the format: an instant parse is
+      never a wall clock and owes no zone. `to_utc` after it is refused at resolve,
+      since both sides are `TimestampType` and the type system cannot see the double
+      conversion; `zone_in:` beside it may only be `UTC`.
+  - key: strftime-zones
+    md: >-
+      A `parse_ts` format containing `%z` or `%Z` is refused at parse with a message
+      naming `ISO8601_INSTANT`. No port's `StrToTime` spelling of those directives
+      has been measured, and a format that parses the zone and then drops it is the
+      wrong-hour failure again.
+tests: |-
+  - `ISO8601` then `to_utc: Europe/Paris` over `2025-01-01T12:00:00Z` is NULL on every port with an engine tier; zoneless text converts as today.
+  - `ISO8601_INSTANT` over `Z`, `+02:00` and zoneless text gives 12:00 UTC, 10:00 UTC and NULL on PostgreSQL, Trino, DuckDB, Snowflake and BigQuery, and on Databricks and Redshift where their lanes run.
+  - `to_utc` after an instant parse is refused; `zone_in: Europe/Paris` beside one is refused.
+  - R018 does not ask an instant parse for a zone.
+  - `%z` in a format is refused.
+  - `%%z` in a format is literal text and parses; `%z` is refused.
+docs: >-
+  `reference/transforms.md` gains `ISO8601_INSTANT` and the `Z` rule; the changelog
+  carries the migration note.
+out_of_scope: |-
+  - `zone_in:` validation against the zone database.
+  - A per-port DialectFeature for the instant parse; a port that cannot spell it refuses by name.
+risks: |-
+  - Rows that were silently wrong become NULL on upgrade; only the changelog can warn.
+  - Two ports' `Z` handling is unmeasured until their lanes run.
+  - A spelling measured on one engine version may change on another; each engine tier pins its version.
+alternatives:
+  - option: Refuse `Z` everywhere under `ISO8601`
+    rejected_because: >-
+      S-0052/D-4 keeps `Z` legal until an instant format exists, and a `Z` value with
+      no `to_utc` behind it is read correctly today
+    cites: [S-0052/D-4]
+  - option: >-
+      Rewrite the chain in `resolve/build.py` instead of in `to_utc`
+    rejected_because: >-
+      the fact is local to the two transforms, and a resolve-time rewrite is a second
+      place that must know the marker's vocabulary
+questions:
+  - id: Q-1
+    text: >-
+      Should phase 1 ship alone as a 0.4.x patch, given it changes rows from wrong
+      to NULL, or wait for the instant format so an affected author has somewhere
+      to go?
+    status: settled
+    settled_by: D-4

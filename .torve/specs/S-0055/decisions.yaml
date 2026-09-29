@@ -77,9 +77,9 @@ decisions:
     text: >-
       None of `distinct_count`, `semi_additive` and snapshot enters branch planning:
       a composed plan admits only components declaring `additivity: additive` with
-      no `cumulative` and no `filter`; the first two decline with `UnreachableAtGrain`,
-      directly and as a derived metric's component, and snapshot has no authored spelling
-      (S-0053/D-11).
+      no `cumulative`, and a component's own `filter` enters as a `Filter` scoped
+      to its measures; the first two decline with `UnreachableAtGrain`, directly and
+      as a derived metric's component, and snapshot has no authored spelling (S-0053/D-11).
     paths:
       - src/bloomery/ir/nodes.py
       - src/bloomery/planner/semantic_plan.py
@@ -87,7 +87,7 @@ decisions:
       - tests/fixtures/semantic_corpus/007-distinct-users-fanout/problem.md
       - tests/fixtures/semantic_corpus/012-rollup-recounts-identities/problem.md
       - tests/unit/test_planner/test_coverage.py
-    fingerprint: 48201bde916e95c8/46f7e9b32cb139ca
+    fingerprint: b4fd048bd5936f02/46f7e9b32cb139ca
   - id: D-9
     grade: LOCKED
     text: >-

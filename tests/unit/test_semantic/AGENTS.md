@@ -105,4 +105,11 @@ No semantic-corpus case evidences the cumulative shape. R016 is evidenced by pla
 - Paths: `tests/unit/test_semantic/test_plan.py` `tests/fixtures/semantic_corpus/README.md` `src/bloomery/marts/rollup.py`
 - Consequence: The corpus stays limited to cases where valid SQL returns a wrong number, and a change to R016 or to the rollup refusal meets a unit test rather than a fixture
 
+### S-0080/D-4 — `ASSUMED` (A mart may read the current version of a type2 entity) — implementation: none
+
+`qualify_as_of` gains a `CURRENT` state, and the closure gives a current-read type2 entity its key's grain, so a rollup over a current-reading mart proves as over a type1 entity; this is a new dependency kind and amends S-0017/D-3
+
+- Paths: `src/bloomery/semantic/historical.py` `src/bloomery/semantic/closure.py` `tests/unit/test_semantic/test_closure.py`
+- Consequence: the mart guard and the closure keep one reading of a type2 hop (S-0017/D-4), and rollups over these marts prove
+
 <!-- /torve:managed -->

@@ -778,4 +778,11 @@ S-0068 is rejected, not deferred. An unscheduled design still shapes the documen
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/semantic/additivity.py` `src/bloomery/spec/quality.py` `tests/fixtures/semantic_corpus/008-ratio-rollup/**` `tests/fixtures/semantic_corpus/009-null-denominator/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0080/D-1 — `ASSUMED` (A mart may read the current version of a type2 entity) — implementation: none
+
+A mart may declare `reading: current` on its base, and a flatten `via:` in place of `as_of:`, to read only the current version (`valid_to IS NULL`) of an `scd: type2` entity; it is refused on a non-historical entity and beside `as_of:` on one hop, and a type2 base with no reading is refused as before
+
+- Paths: `src/bloomery/spec/marts.py` `src/bloomery/marts/flatten.py` `tests/unit/test_marts/test_flatten.py`
+- Consequence: an author reaches the current version of a history table with one key, and the refusal stays the default
+
 <!-- /torve:managed -->
