@@ -760,11 +760,17 @@ def prove_derived_rows(metric: MetricIR, project: ProjectIR) -> Proof | Refutati
     if metric.derived is None:  # pragma: no cover — the caller filters on `derived`
         raise ValueError("prove_derived_rows needs a derived metric")
 
-    inputs = [
-        found
-        for found in (_metric(project, input_.metric) for input_ in metric.derived.inputs)
-        if found is not None
-    ]
+    found = [_metric(project, input_.metric) for input_ in metric.derived.inputs]
+
+    if any(one is None for one in found):
+        # `prove_ratio_rows`' reason for a missing operand: R012 owns an input
+        # that names nothing, and a proof over the inputs that happen to exist
+        # would be a true-looking answer about a metric that does not.
+        raise ValueError(
+            "prove_derived_rows needs a derived metric whose inputs are declared metrics"
+        )
+
+    inputs = [one for one in found if one is not None]
     restrictions = {_restriction(input_, project) for input_ in inputs}
 
     if len(restrictions) > 1:

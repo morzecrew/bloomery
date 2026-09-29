@@ -10,6 +10,8 @@ without one would be the defect wearing a proof.
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
 import pathlib
@@ -25,6 +27,7 @@ from bloomery.semantic.additivity import (
     _REMOVING,
     RatioRowsRefusal,
     _dimension_source,
+    prove_derived_rows,
 )
 
 pytestmark = pytest.mark.unit
@@ -573,6 +576,38 @@ def test_a_denominator_with_no_measure_of_its_own_is_refused() -> None:
     assert refutation.reason == RatioRowsRefusal.UNDECLARED_ROWS.value
     # Named by the metric, because there is no column to name.
     assert "parcels_computed" in str(refutation.obligations[0].required)
+
+
+def test_a_derived_input_naming_no_metric_is_raised_rather_than_dropped() -> None:
+    """`build_project_ir` refuses an unknown input first, so only a hand-built
+    IR reaches here — and proving from the inputs that happen to exist would
+    answer for a metric that does not (bloomery #225, CodeRabbit)."""
+
+    metrics = METRICS.replace(
+        '  parcels:\n    grain: shipment\n    additivity: additive\n    agg: sum\n'
+        '    expr: "parcels"\n',
+        '  parcels:\n    grain: shipment\n    additivity: additive\n    agg: sum\n'
+        '    expr: "parcels"\n'
+        "  parcels_computed:\n    additivity: non_additive\n    derived:\n"
+        '      expr: "p * 1"\n      inputs:\n        p: {metric: parcels}\n',
+    )
+    ir = _drafted(
+        load_project(
+            {"entity_model": ENTITY_MODEL, "mapping": MAPPING, "marts": MARTS, "metrics": metrics}
+        )
+    )
+    computed = next(metric for metric in ir.metrics if metric.name == "parcels_computed")
+    assert computed.derived is not None
+    orphan = dataclasses.replace(
+        computed,
+        derived=dataclasses.replace(
+            computed.derived,
+            inputs=(dataclasses.replace(computed.derived.inputs[0], metric="nothing_by_this_name"),),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="inputs are declared metrics"):
+        prove_derived_rows(orphan, ir)
 
 
 def test_a_counted_expression_that_is_not_a_column_discharges_nothing() -> None:
