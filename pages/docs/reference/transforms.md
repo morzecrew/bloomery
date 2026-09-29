@@ -33,7 +33,7 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 | `to_int` | — | string, int, decimal, bool → int | `[to_int]` — cast to integer |
 | `to_decimal` | precision (int), scale (int) | string, int, decimal → decimal(p, s) | `[{to_decimal: [12, 2]}]` — cast with explicit shape |
 | `to_bool` | — | string, int, bool → bool | `[to_bool]` — cast to boolean |
-| `parse_ts` | format (str) | string → timestamp | `[{parse_ts: ISO8601}]` — parse a timestamp as a **local wall clock**; `ISO8601` means the engine's native parse, any other string is an explicit format. Text carrying a UTC offset is refused as NULL, and a parsed wall clock read for its *position* needs a declared zone — both below |
+| `parse_ts` | format (str) | string → timestamp | `[{parse_ts: ISO8601}]` — parse a timestamp as a **local wall clock**; `ISO8601` means the engine's native parse, `ISO8601_INSTANT` parses text that states its own offset to the UTC instant it names; any other string is an explicit format, which may not carry `%z` or `%Z`. Text carrying a UTC offset is refused as NULL, and a parsed wall clock read for its *position* needs a declared zone — both below |
 | `parse_date` | format (str) | string → date | `[{parse_date: ISO8601}]` — parse a date |
 | `to_utc` | zone (str) | timestamp → timestamp | `[{to_utc: Europe/Paris}]` — interpret a zoneless local timestamp in `zone`; the only door into the always-UTC timestamp type |
 
@@ -63,9 +63,44 @@ Two things it deliberately does **not** do:
 - **It does not convert.** Reading the offset would make one declaration mean a local
   clock on one row and an instant on the next, decided by the bytes. Normalise upstream,
   or state the zone once with `to_utc` on a source that has been normalised.
-- **It does not refuse `Z`.** `Z` names UTC, which is the zone the `timestamp` type is
-  already in, so nothing is lost by dropping it — where a numeric offset loses exactly
-  the difference between the wall clock and the instant.
+- **It does not refuse `Z` on a bare parse.** `Z` names UTC, which is the zone the
+  `timestamp` type is already in, so nothing is lost by dropping it — where a numeric
+  offset loses exactly the difference between the wall clock and the instant.
+
+**`Z` under `to_utc` is NULL.** `[{parse_ts: ISO8601}, {to_utc: Europe/Paris}]` declares
+the text a wall clock in Paris, so a trailing `Z` contradicts it exactly as `+01:00` does,
+and every engine yields NULL for it. Keeping the value would shift an instant already in
+UTC by Paris's offset a second time.
+
+### `ISO8601_INSTANT` — a source that stamps instants
+
+A source whose every timestamp carries `Z` or a numeric offset is writing instants, not
+wall clocks, and says so with `parse_ts: ISO8601_INSTANT`:
+
+```yaml
+# mapping.yaml
+event_at:
+  from: "$.event_at"
+  transform: [{parse_ts: ISO8601_INSTANT}]
+```
+
+`2026-01-06T12:00:00+01:00` becomes the instant `11:00` UTC, and `2026-01-06T11:00:00Z`
+the same instant, identically on DuckDB, PostgreSQL and Trino. Zoneless text is NULL
+under it — the mirror of `ISO8601`, where offset text is NULL — so one declaration never
+means a wall clock on one row and an instant on the next.
+
+The value is already UTC, so the compiler holds the chain to that:
+
+- **A `to_utc` after it is refused at resolve.** Both sides are `timestamp`, and the type
+  system cannot see the second conversion; the compiler can. Drop the `to_utc`, or parse
+  with `ISO8601` if the text is a wall clock without a zone.
+- **A `zone_in:` beside it may only be `UTC`.** Any other zone is refused at resolve, and
+  none is needed: an instant is never read as a wall clock, so no undeclared-zone check
+  fires on it.
+
+**A `parse_ts` format with `%z` or `%Z` is refused at parse**, naming `ISO8601_INSTANT`:
+no format parses a zone and then drops it. An escaped `%%z` or `%%Z` is literal text and
+is not refused.
 
 **On upgrade**, a source whose timestamps carry offsets produced plausible, wrong values
 before this landed and produces NULLs after it. That is the point of the change, and it

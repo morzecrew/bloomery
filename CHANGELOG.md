@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`parse_ts: ISO8601_INSTANT` parses text that states its own offset.** Text carrying
+  `Z` or a numeric offset becomes the UTC instant it names, identically on every port,
+  and zoneless text is NULL. The value is never a wall clock: a `to_utc` after it is
+  refused at resolve, and a `zone_in:` beside it may only be `UTC`. A `parse_ts` format
+  carrying `%z` or `%Z` is now refused at parse and names this format; an escaped `%%z`
+  is literal text and passes.
+
 ### Changed
 
 - **`to_utc` after `parse_ts: ISO8601` yields NULL for text ending in `Z`.** The chain
