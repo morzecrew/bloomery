@@ -110,6 +110,13 @@ Multi-output emission resolved — **supersedes the draft §10 entry and its exe
 
 - Paths: `src/bloomery/steps/registry.py` `tests/unit/test_steps/test_manifest_and_registry.py`
 
+### S-0034/D-57 — `ASSUMED` (The step registry: referenced implementations)
+
+A step input's `requires` is a lower bound the compile checks: when the wiring binds the input to an entity the project declares or to another step's output, every required column is one of that relation's columns — the entity's fields, or the output's `produces` — or the compile refuses with a `StepError` naming the step, the input, the relation and what is missing. A relation the project does not declare, and a reserved column name, are not checked
+
+- Paths: `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_lowering.py` `pages/docs/concepts/step-registry.md`
+- Consequence: a step that reads a column its bound relation lacks is refused at compile rather than failing at run time on the engine; a silver table kept outside bloomery still binds, unchecked
+
 ### S-0035/D-3 — `ASSUMED` (Public surface and stability policy)
 
 **`assert_step_contract` is promoted to `bloomery.steps.__all__`** and the generated wrapper's import rewritten to the shallow path. The module path was de-facto public API — imported by bloomery's own artifacts shipped into consumer repositories — with no declaration and no test protecting it. `bloomery.steps.contract` keeps working; this adds a supported path rather than removing an unsupported one. A golden assertion pins the emitted import line.

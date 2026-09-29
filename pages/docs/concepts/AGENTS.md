@@ -15,6 +15,13 @@ Additivity: `non_additive` metrics are never materialized as stored numbers (com
 
 - Paths: `pages/docs/concepts/guardrails.md` `src/bloomery/guardrails/additivity.py` `src/bloomery/planner/coverage.py` `tests/fixtures/semantic_corpus/002-average-of-averages/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/002-average-of-averages/problem.md` `tests/fixtures/semantic_corpus/005-semi-additive-balance/problem.md` `tests/unit/test_guardrails/test_additivity.py`
 
+### S-0034/D-57 — `ASSUMED` (The step registry: referenced implementations)
+
+A step input's `requires` is a lower bound the compile checks: when the wiring binds the input to an entity the project declares or to another step's output, every required column is one of that relation's columns — the entity's fields, or the output's `produces` — or the compile refuses with a `StepError` naming the step, the input, the relation and what is missing. A relation the project does not declare, and a reserved column name, are not checked
+
+- Paths: `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_lowering.py` `pages/docs/concepts/step-registry.md`
+- Consequence: a step that reads a column its bound relation lacks is refused at compile rather than failing at run time on the engine; a silver table kept outside bloomery still binds, unchecked
+
 ### S-0058/D-1 — `LOCKED` (Soundness positioning and the claims the docs may make)
 
 **The claim is preservation of declared semantics, never truth.** bloomery proves that what it emits and accepts preserves what it was told, under documented rules — not that the telling was right. Locked because every weaker phrasing of this ("correct analytics", "guaranteed correct metrics") is unfalsifiable and would be quoted back at the project the first time a wrong number came from a wrong declaration.

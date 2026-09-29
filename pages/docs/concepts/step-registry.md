@@ -58,6 +58,16 @@ lineage: coarse
 `grain` is prose for humans; `key` is the machine-readable half, and the
 difference matters — a grain sentence cannot be checked, a key can.
 
+An input's `requires` names the columns the step reads, and it is a lower bound
+the compile checks. When the wiring binds the input to an entity the project
+declares, or to another step's output, every required column has to be one of
+that relation's columns (the entity's fields, or the output's `produces`), or
+the compile refuses with a `StepError` naming the input and what is missing.
+Extra columns pass. Two things are not checked: a relation the project does not
+declare, such as a silver table kept outside bloomery, and a reserved column
+name like `_source_row_id`, whose presence depends on the relation's quality
+configuration.
+
 ## What a spec wires
 
 Wiring, and nothing else:

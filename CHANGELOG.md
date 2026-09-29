@@ -38,6 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A step input's `requires` is checked at compile.** When the wiring binds the input
+  to an entity the project declares, or to another step's output, every required column
+  has to be one of that relation's columns, or the compile refuses with a `StepError`
+  naming what is missing; the manifest had always said so and nothing read it. A silver
+  table kept outside bloomery, and a reserved column such as `_source_row_id`, are not
+  checked.
+
 - **`normalize` and `charset` accept `string` columns only.** On an `int`, `bool`,
   `date`, `timestamp` or `decimal` column they compiled to SQL that PostgreSQL, Trino and
   DuckDB refuse at execution; the declaration is now a `SpecParseError` at load, naming

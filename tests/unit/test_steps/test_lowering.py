@@ -723,3 +723,55 @@ def test_an_unreserved_produced_column_still_lowers() -> None:
     ir = build(outputs=_with_produced("confidence"))
     (entity,) = [e for e in ir.entities if e.name == "customer"]
     assert {column.name for column in entity.columns} == {"canonical_id", "confidence"}
+
+
+# ....................... #
+# An input's `requires` against the relation it binds (S-0034/D-57)
+
+
+def _bound_to_entity(email: bool, **manifest_overrides: object):  # noqa: ANN202 — ProjectIR
+    """The default wiring, with `silver.customer_raw` declared as an entity
+    that carries `email` or does not."""
+    entity_model = (
+        "spec_version: 1\nentities:\n  customer_raw:\n    grain: one row per source customer\n"
+        "    key: [source_id]\n    fields:\n      source_id: {type: string, required: true}\n"
+        + ("      email: {type: string}\n" if email else "")
+    )
+    mapping = (
+        "mapping_version: 1\ntarget: customer_raw\nsource: bronze.crm__customers\n"
+        'key:\n  source_id: {from: "$.source_id"}\n'
+        + ('fields:\n  email: {from: "$.email"}\n' if email else "fields: {}\n")
+    )
+    project = load_project({"entity_model": entity_model, "mapping": mapping, "steps": WIRING})
+    registry = StepRegistry({("resolve_customers", 3): manifest(**manifest_overrides)})
+    return build_project_ir(project, steps=registry)
+
+
+def test_a_required_column_the_bound_entity_lacks_is_refused() -> None:
+    """`requires` was documented as checked and read by nothing: a step whose
+    input needs `email` compiled against a relation with no `email`, and the
+    engine found it at run time."""
+    with pytest.raises(StepError, match=r"input 'raw' requires email, which 'silver.customer_raw'"):
+        _bound_to_entity(email=False)
+
+
+def test_a_bound_entity_carrying_every_required_column_is_accepted() -> None:
+    ir = _bound_to_entity(email=True)
+    assert ir.steps[0].inputs == (("raw", "silver.customer_raw"),)
+
+
+def test_a_reserved_column_in_requires_is_not_checked_against_fields() -> None:
+    """The generated and ingestion columns a silver relation carries depend on
+    its quality configuration, which is the lowering's; `requires` naming one
+    is not refused for its absence from the declared fields."""
+    ir = _bound_to_entity(
+        email=True,
+        inputs={"raw": {"grain": "customer_source_row", "requires": ["email", "_source_row_id"]}},
+    )
+    assert ir.steps
+
+
+def test_a_relation_the_project_does_not_declare_is_not_checked() -> None:
+    """A silver table kept outside bloomery is legal, and nothing here knows its
+    columns: the default wiring binds `silver.customer_raw` with no such entity."""
+    assert build().steps[0].inputs == (("raw", "silver.customer_raw"),)

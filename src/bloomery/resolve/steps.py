@@ -523,6 +523,72 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
 # ....................... #
 
 
+def _relation_columns(project: Project, registry: StepRegistry) -> dict[str, frozenset[str]]:
+    """The columns of every relation a step input can bind, by the bare name
+    the naming policy reads (S-0034/D-57): a declared entity's fields, and a
+    step output's ``produces``. A relation the project does not declare is
+    absent — a silver table kept outside bloomery is legal, and its columns
+    are nobody's to know here."""
+
+    columns = {
+        name: frozenset(entity.fields) for name, entity in project.entity_model.entities.items()
+    }
+
+    for wiring in project.steps.steps if project.steps is not None else ():
+        try:
+            manifest = registry.resolve(wiring.ref, wiring.version, source_path=_path(wiring))
+        except UnknownStep:
+            continue  # refused where the step itself is lowered
+
+        for name, relation in wiring.outputs.items():
+            output = manifest.outputs.get(name)
+
+            if output is not None:
+                columns[_emitted_name(relation)] = frozenset(output.produces)
+
+    return columns
+
+
+# ....................... #
+
+
+def _check_input_columns(
+    wiring: StepWiring, manifest: StepManifest, relations: dict[str, frozenset[str]]
+) -> list[BloomeryError]:
+    """Every column a step input ``requires`` is on the relation the wiring
+    binds, where the project knows that relation (S-0034/D-57).
+
+    ``requires`` is a lower bound: more columns pass, and a missing one is the
+    step reading a column that is not there, which the engine would find at
+    run time and this finds at compile. A reserved name is not checked: the
+    generated and ingestion columns a silver relation carries depend on its
+    quality configuration, which is the lowering's to decide.
+    """
+    errors: list[BloomeryError] = []
+
+    for name, bound in sorted(wiring.inputs.items()):
+        declared = manifest.inputs.get(name)
+        columns = relations.get(_emitted_name(bound))
+
+        if declared is None or columns is None:
+            continue  # an undeclared input is `_check_bindings`'s; an unknown relation passes
+
+        missing = sorted(set(declared.requires) - columns - set(RESERVED_MEMBER_REASONS))
+
+        if missing:
+            msg = (
+                f"step {wiring.use!r} input {name!r} requires {', '.join(missing)}, which "
+                f"{bound!r} does not carry; its columns: {', '.join(sorted(columns)) or '(none)'}. "
+                "Fix: bind a relation that carries them, or declare them on it"
+            )
+            errors.append(StepError(msg, source_path=_path(wiring)))
+
+    return errors
+
+
+# ....................... #
+
+
 def _check_reserved_columns(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryError]:
     """No output may produce a column whose name the spec layer reserves.
 
@@ -944,6 +1010,7 @@ def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tu
     errors: list[BloomeryError] = []
     steps: list[StepIR] = []
     claimed: list[tuple[str, str]] = []
+    relations = _relation_columns(project, registry)
 
     for wiring in project.steps.steps:
         try:
@@ -958,6 +1025,7 @@ def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tu
             *_check_scope(wiring, manifest),
             *_check_determinism(wiring, manifest),
             *_check_bindings(wiring, manifest),
+            *_check_input_columns(wiring, manifest, relations),
             *_check_parameters(wiring, manifest),
             *_check_body(wiring, manifest, body),
             *_check_canonical(wiring, manifest),
