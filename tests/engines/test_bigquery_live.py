@@ -457,7 +457,8 @@ def test_the_declared_decimal_rounds_at_its_declared_scale(
     `scale_overflow_rounds` carries ten fractional digits: that does not fail the
     cast, it *rounds* (`tests/fixtures/dirty/numerics.csv:19`), so the value it
     comes back as is what pins the scale the port actually gave the column —
-    which is the bound S-0014/D-7 is open on. `negative_zero` is the second
+    which is the bound S-0014/D-7 settles (`NUMERIC` within scale 9 and 29
+    integer digits, `BIGNUMERIC` past them). `negative_zero` is the second
     half: the sign must not survive a coercion to zero (S-0020), and it survives
     in the value's text long after it stops mattering to ``=``.
     """

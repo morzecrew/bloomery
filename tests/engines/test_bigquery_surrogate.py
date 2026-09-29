@@ -388,7 +388,7 @@ def test_the_mart_aggregates_its_decimals(
     ecom_run: Callable[[str], list[tuple[object, ...]]],
 ) -> None:
     """`unit_price` is `CAST(total / qty AS NUMERIC)` — a declared decimal, which
-    S-0014/D-7 is open on — and the sum is where a float would show up as a tail
+    S-0014/D-7 maps to `NUMERIC` or `BIGNUMERIC` by its bounds — and the sum is where a float would show up as a tail
     of digits nobody declared.
     """
     total = ecom_run("SELECT SUM(unit_price * quantity) FROM gold.mart_order_items")[0][0]
