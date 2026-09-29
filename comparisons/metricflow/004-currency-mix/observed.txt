@@ -1,0 +1,7 @@
+SemanticManifestValidator: 0 error(s), 0 warning(s)
+### total_usd_mixed
+  -> [(Decimal('157.5000'),)]
+### total_usd_converted
+  -> [(Decimal('172.5000'),)]
+### total_usd_mislabelled
+  -> [(None,)]

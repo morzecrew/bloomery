@@ -1,0 +1,46 @@
+SemanticManifestValidator: 0 error(s), 0 warning(s)
+### revenue
+  -> [(Decimal('150.00'),)]
+### revenue/promo__label
+  refused when planning: InvalidQueryException: Got error(s) during query resolution.
+
+Error #1:
+  Message:
+
+    The given input does not match any of the available group-by-items for
+    SimpleMetric('revenue'). Common issues are:
+
+      * Incorrect names.
+      * No valid join paths exist from the measure to the group-by-item.
+        (fan-out join support is pending).
+      * There are multiple matching join paths.
+        (disambiguation support is pending).
+
+    Suggestions:
+      ['order__placed_on__day', 'metric_time__day', 'order']
+
+  Query Input:
+
+    promo__label
+
+  Issue Location:
+
+    [Resolve Query(['revenue'])]
+      -> [Resolve SimpleMetric('revenue')]
+
+Error #2:
+  Message:
+
+    The order-by item 'promo__label' does not match exactly one of the query items.
+
+  Query Input:
+
+    promo__label
+
+  Issue Location:
+
+    [Resolve Query(['revenue'])]
+### revenue_bridged
+  -> [(Decimal('250.00'),)]
+### revenue_bridged/promo__label
+  -> [('loyalty', Decimal('100.00')), ('spring', Decimal('150.00'))]
