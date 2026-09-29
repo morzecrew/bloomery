@@ -1,0 +1,43 @@
+### sqlmesh info
+  Models: 4
+### sqlmesh plan --auto-apply --no-prompts
+  Virtual layer updated
+### sqlmesh audit
+  Found 0 audit(s).
+  Finished with 0 audit errors and 0 audits skipped.
+### sqlmesh rewrite metric:total_usd_mixed
+  SELECT
+    total_usd_mixed AS total_usd_mixed
+  FROM (
+    SELECT
+      SUM(silver__payments.amount_eur + silver__payments.fee_usd) AS total_usd_mixed
+    FROM silver.payments AS silver__payments
+  ) AS __table
+### metric total_usd_mixed
+  -> [(Decimal('157.5000'),)]
+### sqlmesh rewrite metric:total_usd_converted
+  SELECT
+    total_usd_converted AS total_usd_converted
+  FROM (
+    SELECT
+      SUM(silver__payments_usd.amount_usd + silver__payments_usd.fee_usd) AS total_usd_converted
+    FROM silver.payments_usd AS silver__payments_usd
+  ) AS __table
+### metric total_usd_converted
+  -> [(Decimal('172.5000'),)]
+### sqlmesh rewrite metric:total_usd_mislabelled
+  SELECT
+    total_usd_mislabelled AS total_usd_mislabelled
+  FROM (
+    SELECT
+      SUM(
+        silver__payments_usd_mislabelled.amount_usd + silver__payments_usd_mislabelled.fee_usd
+      ) AS total_usd_mislabelled
+    FROM silver.payments_usd_mislabelled AS silver__payments_usd_mislabelled
+  ) AS __table
+### metric total_usd_mislabelled
+  -> [(None,)]
+### probe total_usd_mixed.unit='USD'
+  Error: 1 validation error for MetricMeta: unit Extra inputs are not permitted [type=extra_forbidden, input_value=Literal(this='USD', is_string=True), input_type=Literal]
+### probe silver.payments.currency='EUR'
+  Error: Failed to load model from file '<scratch>/probe/models/payments.sql':: Invalid field name present in the MODEL block: 'currency' at '<scratch>/probe/models/payments.sql'

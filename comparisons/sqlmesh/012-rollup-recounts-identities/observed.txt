@@ -1,0 +1,53 @@
+### sqlmesh info
+  Models: 2
+### sqlmesh plan --auto-apply --no-prompts
+  Virtual layer updated
+### sqlmesh audit
+  Found 0 audit(s).
+  Finished with 0 audit errors and 0 audits skipped.
+### sqlmesh rewrite metric:buyers_rolled
+  SELECT
+    buyers_rolled AS buyers_rolled
+  FROM (
+    SELECT
+      SUM(silver__daily_sales.daily_buyers) AS buyers_rolled
+    FROM silver.daily_sales AS silver__daily_sales
+  ) AS __table
+### metric buyers_rolled
+  -> [(4,)]
+### sqlmesh rewrite metric:buyers
+  SELECT
+    buyers AS buyers
+  FROM (
+    SELECT
+      COUNT(DISTINCT silver__orders.customer_id) AS buyers
+    FROM silver.orders AS silver__orders
+  ) AS __table
+### metric buyers
+  -> [(3,)]
+### sqlmesh rewrite query:rolled
+  SELECT
+    buyers_rolled AS buyers_rolled,
+    revenue_rolled AS revenue_rolled
+  FROM (
+    SELECT
+      SUM(silver__daily_sales.daily_buyers) AS buyers_rolled,
+      SUM(silver__daily_sales.daily_revenue) AS revenue_rolled
+    FROM silver.daily_sales AS silver__daily_sales
+  ) AS __table
+### query rolled
+  -> [(4, Decimal('110.00'))]
+### sqlmesh rewrite query:detail
+  SELECT
+    buyers AS buyers,
+    revenue AS revenue
+  FROM (
+    SELECT
+      COUNT(DISTINCT silver__orders.customer_id) AS buyers,
+      SUM(silver__orders.amount) AS revenue
+    FROM silver.orders AS silver__orders
+  ) AS __table
+### query detail
+  -> [(3, Decimal('110.00'))]
+### probe silver.daily_sales.additive=false
+  Error: Failed to load model from file '<scratch>/probe/models/daily_sales.sql':: Invalid field name present in the MODEL block: 'additive' at '<scratch>/probe/models/daily_sales.sql'

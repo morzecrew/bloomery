@@ -1,0 +1,12 @@
+# The case's DuckDB file, loaded with its schema and rows by `run.py`.
+gateways:
+  duckdb:
+    connection:
+      type: duckdb
+      database: "{{ env_var('CORPUS_DUCKDB') }}"
+
+default_gateway: duckdb
+
+model_defaults:
+  dialect: duckdb
+  start: 2025-01-01
