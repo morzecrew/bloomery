@@ -2347,6 +2347,15 @@ bloomery, never in a spec:</p>
 </code></pre></div>
 <p><code>grain</code> is prose for humans; <code>key</code> is the machine-readable half, and the
 difference matters — a grain sentence cannot be checked, a key can.</p>
+<p>An input's <code>requires</code> names the columns the step reads, and it is a lower bound
+the compile checks. When the wiring binds the input to an entity the project
+declares, or to another step's output, every required column has to be one of
+that relation's columns (the entity's fields, or the output's <code>produces</code>), or
+the compile refuses with a <code>StepError</code> naming the input and what is missing.
+Extra columns pass. Two things are not checked: a relation the project does not
+declare, such as a silver table kept outside bloomery, and a reserved column
+name like <code>_source_row_id</code>, whose presence depends on the relation's quality
+configuration.</p>
 <h2 id="what-a-spec-wires">What a spec wires<a class="headerlink" href="#what-a-spec-wires" title="Permanent link">&para;</a></h2>
 <p>Wiring, and nothing else:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">steps_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
