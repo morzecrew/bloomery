@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-29
+
 ### Added
 
 - **`bloomery compile` composes projects from the command line.** `--emit-ir <path>`
@@ -2258,7 +2260,8 @@ artifacts explicitly **not** stable across bloomery versions.
 - Documentation: get-started, concepts, how-to guides for every target and the planner,
   full spec/transform/error/API/stability references, and a runnable `examples/quickstart/`.
 
-[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/morzecrew/bloomery/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/morzecrew/bloomery/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/morzecrew/bloomery/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/morzecrew/bloomery/releases/tag/v0.1.0
