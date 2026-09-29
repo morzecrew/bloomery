@@ -266,3 +266,5 @@ questions:
       asked whether that key was needed at all and execution refused a rollup named
       there with its own message. Once both are one node kind, refusing one of them
       needs a better reason than it has.
+    status: settled
+    settled_by: D-9

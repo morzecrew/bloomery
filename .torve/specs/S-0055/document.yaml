@@ -206,3 +206,5 @@ questions:
       §5's "defined explicitly" was asking for. The first is still a document of its
       own: P1 carries no filters at all, and §13a's P2 places one only where D12's
       identity test licenses it.
+    status: settled
+    settled_by: D-18

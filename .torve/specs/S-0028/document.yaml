@@ -354,6 +354,8 @@ questions:
     text: >-
       Exact input type: `plan()` accepts `ProjectIR | CompiledSemantic`; whether v0.1
       ships both or `CompiledSemantic` only is S-0029's call.
+    status: settled
+    settled_by: S-0031/D-1
   - id: Q-2
     text: >-
       `MeasureExplanation`'s exact fields — implementation settles; `render()` output

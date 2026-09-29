@@ -200,12 +200,18 @@ questions:
     text: >-
       Whether `--as-of` accepts a revision as well as an instant. A revision is unambiguous
       and an instant is what people have.
+    status: settled
+    settled_by: S-0073/D-2
   - id: Q-2
     text: >-
       What a fingerprint from a different compiler version should do under `--as-of`:
       refuse, warn, or produce and label. All three are defensible.
+    status: settled
+    settled_by: S-0073/D-2
   - id: Q-3
     text: >-
       Whether the git adapter shells out or uses a library. A subprocess inherits
       the ambient git configuration, which is environment the compiler's own rules
       forbid it to read.
+    status: settled
+    settled_by: S-0073/D-1

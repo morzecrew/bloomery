@@ -299,6 +299,8 @@ questions:
       `register_dialect`. The method document leaves it open for the corpus and this
       is the first port that forces an answer, since moving a shipped dialect between
       the two is a breaking change either way.
+    status: settled
+    settled_by: S-0012/D-8
   - id: Q-2
     text: >-
       Whether rung 4's surrogate claim is a new pytest marker or a parameter on the
@@ -306,3 +308,5 @@ questions:
       be named like an engine run — and only the spelling is open; whoever builds
       the emulator lane decides and updates the marker table in `pyproject.toml` with
       the reason.
+    status: settled
+    settled_by: S-0012/D-9

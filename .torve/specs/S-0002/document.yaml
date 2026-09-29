@@ -318,8 +318,12 @@ questions:
       Accept or refuse the row execution proposed in `logs/T-0061.md`: the cycle refusal
       is satisfied by construction for a fresh compile, proposed ASSUMED, and a stale
       cycle is out of reach until a project has an identity.
+    status: settled
+    settled_by: A-5
   - id: Q-7
     text: >-
       Accept or refuse the row execution proposed in `logs/T-0061.md`: the CLI cannot
       compile an importing project until an IR has a serialized form, proposed OPEN.
       The out-of-scope section names the gap; no row carries it.
+    status: settled
+    settled_by: A-5

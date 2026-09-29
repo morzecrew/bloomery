@@ -268,14 +268,20 @@ questions:
       cannot appear** — a mart pre-filtered so no zero-denominator row reaches it.
       The premise is discharged by the relation rather than the declaration, and whether
       the proof can see that depends on how much the flattener records.
+    status: settled
+    settled_by: D-8
   - id: Q-2
     text: >-
       Whether the second leg (`operands restricted identically`) should be its own
       rule with its own number. It catches a different bug, it is much cheaper, and
       it could land a phase earlier — against which, one rule that says "a ratio is
       over one row set" is one thing to learn rather than two.
+    status: settled
+    settled_by: D-4
   - id: Q-3
     text: >-
       What `includes_zero_denominator: true` means on a ratio whose denominator has
       **no** zero rows. Harmless, or a declaration that should itself be refused as
       unnecessary? The second is tidier and adds a refusal nobody benefits from.
+    status: settled
+    settled_by: D-9

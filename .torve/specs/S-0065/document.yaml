@@ -226,9 +226,13 @@ questions:
       Whether a rollup is a `mart` with a `rollup_of` key or a distinct spec kind.
       The former reuses everything; the latter stops a rollup being mistaken for a
       mart in every place that iterates marts.
+    status: settled
+    settled_by: D-9
   - id: Q-2
     text: >-
       Whether rollups may chain — a monthly rollup of a daily rollup. The obligation
       composes in principle; whether the proof does is S-0005's question. Both settled
       at the moment §12 named — rows 9 and 10. The questions stay written: what each
       one weighed is why its row reads the way it does.
+    status: settled
+    settled_by: D-10

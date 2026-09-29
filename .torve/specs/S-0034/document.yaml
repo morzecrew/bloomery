@@ -362,3 +362,5 @@ questions:
       substitution~~ — **settled 2026-08-09 by D47: sqlglot placeholders.** Left open,
       it was not a choice pending a decision but a silent hole: nothing substituted,
       and nothing refused a body that expected it.
+    status: settled
+    settled_by: D-47

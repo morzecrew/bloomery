@@ -203,8 +203,12 @@ questions:
     text: >-
       **Whether `check` is a new command or `resolve` grown an exit-code contract.**
       The surfaces overlap; two commands that mostly agree is its own defect.
+    status: settled
+    settled_by: D-7
   - id: Q-2
     text: >-
       **What "requested semantic obligations" counts before the planner exists.**
       §3's fifth line has no denominator until S-0054 lands, and a count nobody can
       reproduce is a vanity total by another name.
+    status: settled
+    settled_by: D-8
