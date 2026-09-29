@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`bloomery compile` composes projects from the command line.** `--emit-ir <path>`
+  also writes the compiled IR to that path as canonical JSON, and `--upstream
+  <alias>=<path>` (repeatable) reads one back per alias and hands it to the compile, as
+  `compile_project(upstream=...)` does from Python. A project with an imports document
+  was refused at the command line with `UnknownUpstream` before. The path is yours to
+  give: no discovery and no registry. `bloomery.ir.ir_json` and `ir_from_json` are the
+  file form, and the loader refuses an IR from another `bloomery_ir_version`.
+
+- **Import cycles are refused, across any number of projects.** A project that both
+  imports and exports must name itself on its exports document (`NamelessImporter`
+  otherwise), because that name is what survives recompilation. An upstream whose
+  ancestry carries the importer's own name is refused as `ImportCycle`, and the message
+  names the chain alias by alias. Decide which project owns the shared concept.
+
+- **Retrieval fusion states its constants, and the lexical side its analyser.** `fusion:`
+  takes `k` (default 60) and `depth` (default 100), and the retrieval manifest carries
+  the effective values, so two consumers of one profile rank alike. A lexical side may
+  declare an `analyser` (`{family, model}`, compared for equality and never resolved), and
+  a profile whose analyser differs from its corpus relation's is refused. The additions
+  are additive: the manifest version does not move.
+
+- **A metric filter can compare two dimension columns.** `column:` in place of `values:`,
+  with `=` or `!=`, admits the filter only when R021 proves the two columns are roles of
+  the same dimension (`role_of:`); the proof joins the plan and `bloomery explain` shows
+  it. Two columns with no declared roles, or roles of different dimensions, are refused
+  with R021's remediation, and a target that cannot spell the predicate refuses it by name.
+
+### Changed
+
+- **`normalize` and `charset` accept `string` columns only.** On an `int`, `bool`,
+  `date`, `timestamp` or `decimal` column they compiled to SQL that PostgreSQL, Trino and
+  DuckDB refuse at execution; the declaration is now a `SpecParseError` at load, naming
+  the field and its type. A project that declared one there has to move it to a text
+  column or drop it.
+
+- **`bloomery_ir_version` is 24 (it was 22 in 0.3.0).** An IR records its upstreams'
+  ancestry, and a metric filter its compared column, so every fingerprint moves once.
+  An IR written by 0.3.0 is refused by `plan()` and `ir_from_json` with the version
+  mismatch message; recompile the project.
+
+- **The MetricFlow manifest follows MetricFlow 0.213.0.** `minor_version` is `213`, and
+  metrics and semantic-model entries carry the `datatype` key the newer schema adds, as
+  `null` where bloomery states none.
+
 ## [0.3.0] - 2026-09-27
 
 ### Added
