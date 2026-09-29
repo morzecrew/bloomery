@@ -180,9 +180,9 @@ R020 stays permissive. A rollup with nothing declared reaching it is answered ex
 - Paths: `src/bloomery/marts/rollup.py`
 - Consequence: The wiring is unobservable in every existing fixture, which is why the new fixture is the only end-to-end evidence and why it is not optional. Departing — making a determinant of every dropped dimension required — is a new refusal against every project in the corpus, and it is S-0007/D-7's to reopen, not this document's
 
-### S-0079/D-11 — `OPEN` (Determinations reach the IR and the rollup lowering)
+### S-0079/D-11 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
 
-Where `_determinations` lives. It is stated here as a private helper in `src/bloomery/marts/rollup.py`, beside its only caller; it could as well be a function on the IR that `lower_rollups` imports, if a second consumer appears while the phase is being built. The executor decides against the shape of both and logs it
+`_determinations` is a private helper in `src/bloomery/marts/rollup.py`, beside its only caller `lower_rollups`, deriving the mart-namespace mapping at the call and storing nothing. No second consumer appeared during the build, so it did not move onto the IR.
 
 - Paths: `src/bloomery/marts/rollup.py`
 - Consequence: Either placement satisfies D-4, since neither stores anything. Moving it out of the lowering module is what would make a second caller cheap, and a second caller is what would make the move necessary

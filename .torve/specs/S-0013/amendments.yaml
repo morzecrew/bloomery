@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-6
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-6
+        field: text
+        before: >-
+          The concrete type map — which Snowflake type each bloomery logical type
+          lowers to, `VARIANT` and the decimal bounds included — is decided by whoever
+          measures it, under D-1's constraint
+        after: >-
+          Snowflake's type map is `string` to `VARCHAR`, `int` to `NUMBER(38, 0)`,
+          `decimal(p, s)` to `DECIMAL(p, s)` (refused past 38 digits of precision),
+          `bool` to `BOOLEAN`, `date` to `DATE`, `timestamp` to `TIMESTAMP_NTZ`, and
+          `variant` to `VARIANT` instead of the base adapter's `JSON`.
+      - subject: D-6
+        field: fingerprint
+        after: b2bef0d33d854288/2e82f004f914921f
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-6: The map is fixed and shipped. The declared-against-produced measurement on a live account has not been recorded: tests/support/type_conformance.py leaves KNOWN['snowflake'] empty 'because nothing has been measured'. The row's 'from measurements' provenance is therefore still owed. Evidence: src/bloomery/dialects/snowflake.py; tests/unit/test_dialects/test_snowflake.py::test_physical_type_for_every_logical_type.

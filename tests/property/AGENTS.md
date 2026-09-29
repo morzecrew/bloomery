@@ -18,9 +18,9 @@ The generated-document strategy and its assertions extend `tests/property/test_s
 - Consequence: The existing corpus strategy stays beside the generated one in the same module, because a corpus of real documentation examples asserts something a generator does not — that the spelling the docs teach is accepted; shared generator helpers may live elsewhere under `tests/`, but nothing that asserts agreement may
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0010/D-3 — `OPEN` (Generating from the spec schema)
+### S-0010/D-3 — `ASSUMED` (Generating from the spec schema)
 
-Whether the generator is `hypothesis-jsonschema`'s `from_schema()` or a hand-written strategy over the subset of JSON Schema bloomery emits is decided by execution, with the tiebreak being the fraction of generated documents that reach the resolver — never the dependency's release date
+The generator is a hand-written Hypothesis strategy over the exported JSON Schema subset, in `tests/support/schema_strategies.py`, not `hypothesis-jsonschema`'s `from_schema()`. Identifier positions draw from the shared `NAMES` pool so that references resolve, and `pyproject.toml` has no `hypothesis-jsonschema` entry.
 
 - Paths: `tests/property/**` `tests/support/**` `pyproject.toml`
 - Consequence: Adopting the dependency adds a `dev`-group entry to `pyproject.toml` carrying the same explanatory comment style `jsonschema` already has; declining it puts a maintained strategy in this repository instead. Either way the measured fraction is logged, so the choice is re-decidable on evidence rather than re-argued.
@@ -32,9 +32,9 @@ Only one direction of agreement is asserted — what the parser refuses, the sch
 - Paths: `tests/property/test_schema_agreement.py`
 - Consequence: The float `tolerance` and the free-string metric `agg` stay asserted as expected divergences at the bottom of that module, so closing one turns the suite red and forces the note to be removed rather than left lying; a new divergence is named in the same place rather than fixed under this document
 
-### S-0010/D-5 — `OPEN` (Generating from the spec schema)
+### S-0010/D-5 — `ASSUMED` (Generating from the spec schema)
 
-What would move this work to a fuzz target after all is stated by execution, the candidate signal being guardrail branches reached materially faster under coverage feedback than under generation
+Generation stays in the property tier. The one signal that would reopen D-1's seam is a coverage-guided fuzzer reaching guardrail branches materially faster than generation's measured baseline: 14 of 200 entity-model draws and 21 of 300 project draws refused at a guardrail. No coverage-guided comparison has been measured.
 
 - Paths: `tests/property/**`
 - Consequence: The row is discharged with whatever was measured — including "no evidence either way" — rather than left implicitly open, so D-1's seam is reopened on a number instead of on an impression

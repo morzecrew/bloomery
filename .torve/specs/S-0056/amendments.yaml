@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-7
+        field: superseded_by
+        after: S-0056/D-10
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Answered by a later row, which the row now names:
+      - D-7 is answered by S-0056/D-10: D-10 answers it: the whole corpus runs in the default suite on the execution tier, and each case records its tier where it lives.

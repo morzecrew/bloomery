@@ -39,6 +39,10 @@ decisions:
       The how-to shows both a git recipe and a query-shaped one. Showing only git
       would re-introduce, in prose, the assumption the rejection removes.
   - id: D-6
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether the how-to's recipe ships as a runnable example (§10).
+      The how-to's recipe does not ship as a separate example; the suite executes
+      its `reproduce.py` block. `test_the_reproduce_recipe_actually_runs` runs the
+      block as printed over `ecom_basic` sources and asserts it compiles artifacts,
+      so the page cannot drift from the API.
+    fingerprint: 6106218cb122854d/202c11f3690cefb1

@@ -68,17 +68,15 @@ decisions:
       both at once would decide S-0047's contract inside a document about nouns.
     paths: [src/bloomery/evidence.py]
   - id: D-7
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **Whether `FieldProvenance` sorts by `(entity, field, mapping)` or `(entity,
-      mapping, field)`.** §5.4 argues the first — a field's answers stay adjacent
-      — but the second groups a reader's attention by document, which is what they
-      will edit. Execution decides against the corpus, and logs it: whichever reads
-      better on `multi_source`'s four collapsed facts is the answer, and that is a
-      thing to look at rather than reason about.
+      `Resolution.provenance` sorts `FieldProvenance` entries by `(entity, field,
+      mapping)`. On `multi_source` this keeps a merged field's per-mapping answers,
+      such as `order_line.quantity`'s two, next to each other.
     paths:
       - src/bloomery/resolve/resolution.py
       - tests/unit/test_resolve/test_resolution.py
+    fingerprint: 9ad24fc3029e800c/71ac8146a93fd817
   - id: D-8
     grade: ASSUMED
     text: >-

@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-7
+        field: superseded_by
+        after: S-0055/D-11
+      - subject: D-8
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-8
+        field: text
+        before: >-
+          **Whether `DistinctCount`, `Snapshot` and `SemiAdditive` enter branch planning
+          at all in P1.** §8 gates them on their proof rules being independently sound.
+          Decide per class, with the corpus case each one converts, rather than as
+          a group.
+        after: >-
+          None of `distinct_count`, `semi_additive` and snapshot enters branch planning:
+          a composed plan admits only components declaring `additivity: additive`
+          with no `cumulative` and no `filter`; the first two decline with `UnreachableAtGrain`,
+          directly and as a derived metric's component, and snapshot has no authored
+          spelling (S-0053/D-11).
+      - subject: D-8
+        field: fingerprint
+        after: 48201bde916e95c8/46f7e9b32cb139ca
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-8: The classes were decided one at a time, as the row asked (the test docstring cites logs/T-0027.md log decision 183 and T-0028). Corpus case 007 is the one the distinct-count member converts. Evidence: src/bloomery/planner/coverage.py; src/bloomery/planner/semantic_plan.py; src/bloomery/ir/nodes.py; src/bloomery/spec/common.py.
+
+      Answered by a later row, which the row now names:
+      - D-7 is answered by S-0055/D-11: D-11 closes it: measures partition by owning mart through `measure_owners`, inheriting the cheapest-`cost_hint`-then-lexicographic tie-break.

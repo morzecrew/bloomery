@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-3
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-3
+        field: text
+        before: >-
+          Whether the generator is `hypothesis-jsonschema`'s `from_schema()` or a
+          hand-written strategy over the subset of JSON Schema bloomery emits is decided
+          by execution, with the tiebreak being the fraction of generated documents
+          that reach the resolver — never the dependency's release date
+        after: >-
+          The generator is a hand-written Hypothesis strategy over the exported JSON
+          Schema subset, in `tests/support/schema_strategies.py`, not `hypothesis-jsonschema`'s
+          `from_schema()`. Identifier positions draw from the shared `NAMES` pool
+          so that references resolve, and `pyproject.toml` has no `hypothesis-jsonschema`
+          entry.
+      - subject: D-3
+        field: fingerprint
+        after: ad439a890fe0e0bd/afc1fbd4ed865c98
+      - subject: D-5
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-5
+        field: text
+        before: >-
+          What would move this work to a fuzz target after all is stated by execution,
+          the candidate signal being guardrail branches reached materially faster
+          under coverage feedback than under generation
+        after: >-
+          Generation stays in the property tier. The one signal that would reopen
+          D-1's seam is a coverage-guided fuzzer reaching guardrail branches materially
+          faster than generation's measured baseline: 14 of 200 entity-model draws
+          and 21 of 300 project draws refused at a guardrail. No coverage-guided comparison
+          has been measured.
+      - subject: D-5
+        field: fingerprint
+        after: 403c7689886195be/5919043a349d646f
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-3: The row's tiebreak was measured (hand-written reached the resolver 111/400, from_schema 37/400), and the dependency was declined. Evidence: tests/support/schema_strategies.py; pyproject.toml; tests/property/test_schema_agreement.py::test_the_measured_reach_of_the_generated_documents; tests/property/test_schema_agreement.py::test_independently_drawn_documents_never_get_past_the_resolver.
+      - D-5: The row asked for the obligation to be discharged with whatever was measured, including 'no evidence either way'. The tests record the baseline and the reopening condition. Evidence: tests/property/test_schema_agreement.py; .torve/specs/S-0010/execution/T-0035-1-20260921T172809Z.yaml, T-0036-1-20260921T181347Z.yaml.

@@ -8,12 +8,6 @@
 
 - Paths: `tests/fixtures/semantic_corpus/007-distinct-users-fanout/problem.md` `tests/fixtures/semantic_corpus/009-null-denominator/problem.md` `tests/fixtures/semantic_corpus/011-timezone-boundary/problem.md`
 
-### S-0056/D-7 — `OPEN` (Production-style semantic bug corpus)
-
-*Superseded by D10.* **Which tier runs the corpus.** Execution (DuckDB) covers most cases; the SCD2 and timezone cases may need the Docker-gated engine tier, which is excluded from the default suite — and a corpus that does not run by default is a corpus that rots. Decide per case, and if any case cannot run in the default suite, say so where the case lives.
-
-- Paths: `tests/fixtures/semantic_corpus/011-timezone-boundary/problem.md`
-
 ### S-0076/D-1 — `LOCKED` (Declared source timezone)
 
 **A zone is declared, never inferred.** Not from the column name, not from a project default, not from the values. An inferred zone is indistinguishable from a declared one once written down, and the failure it produces is a five-hour shift with full compiler blessing. Locked because every cheaper alternative is a way of making the wrong answer easier to reach than today.

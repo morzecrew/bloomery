@@ -57,6 +57,7 @@ decisions:
       construction.** §10's first question: the relation may already exclude zero
       rows, and whether the proof can see that depends on what the flattener records.
       The executor decides against the IR as it stands and logs it.
+    superseded_by: D-8
   - id: D-7
     grade: OPEN
     text: >-
@@ -64,6 +65,7 @@ decisions:
       that cannot be zero is refused.** Tidier, and a refusal that helps nobody. Decide
       when writing the message; the deciding fact is whether the rule can tell "cannot
       be zero" from "not declared" without a second premise.
+    superseded_by: D-9
   - id: D-8
     grade: ASSUMED
     text: >-
@@ -97,15 +99,13 @@ decisions:
       as assumed" risk is answered by moving the normalisation into the rule — see
       `logs/T-0063.md` (unlisted, 15:12Z).
   - id: D-11
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      **A corpus expectation may name the result it returns.** §6's third arm is accepted
-      *and* returns the number the corpus pins as naive, which the harness could not
-      express: `Outcome.ACCEPTED` mapped to "correct" and that mapping was the whole
-      vocabulary. An expectation now carries an optional `answer:`, defaulting to
-      its outcome's mapping. Without it the arm this RFC argues hardest for cannot
-      be written down, because until case 009 no case had two right answers — see
-      `logs/T-0063.md` (unlisted, 15:13Z).
+      A corpus expectation may name the result it returns. `Expectation.answer` is
+      optional and defaults to its outcome's mapping, `ACCEPTED` to `correct` and
+      `UNGUARDED` to `naive`; case 009's `inclusive` arm is accepted and pins `answer:
+      naive`.
+    fingerprint: d0f53010152dfd88/202c11f3690cefb1
   - id: D-12
     grade: ASSUMED
     text: >-

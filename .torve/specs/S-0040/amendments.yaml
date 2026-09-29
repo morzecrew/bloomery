@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-8
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-8
+        field: text
+        before: >-
+          The as-of anchor's spelling and location. §5.3 proposes `as_of:` on the
+          `flatten` entry; a mart-level default and a relationship-level declaration
+          are both defensible. Whoever builds Phase 2 decides and logs it. It must
+          be **declared** either way — inference is closed by S-0038.
+        after: >-
+          The as-of anchor is `as_of:` on the mart's `flatten` `via:` step (`ViaStep.as_of`),
+          naming a date or timestamp column of the base entity. It is required to
+          flatten an `scd: type2` entity; an anchor on a non-historical entity or
+          naming a non-temporal or unknown column is refused as `HistoricalFanout`.
+          It is declared, never inferred.
+      - subject: D-8
+        field: fingerprint
+        after: 31b6586c8aceda68/a30689e072bba212
+      - subject: D-10
+        field: superseded_by
+        after: S-0040/D-15
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-8: Phase 2's as-of join landed with the anchor per flatten step, the spelling §5.3 proposed; the ViaStep docstring gives the reason (two historical dimensions in one mart can be read as of different dates). Evidence: src/bloomery/spec/marts.py; src/bloomery/marts/flatten.py; tests/fixtures/scd2_as_of/marts.yaml; tests/unit/test_marts/test_flatten.py::test_an_anchor_lifts_the_historical_refusal.
+
+      Answered by a later row, which the row now names:
+      - D-10 is answered by S-0040/D-15: D-15 answers it: `convert` is refused, not removed from the whitelist. `convert` has since gained a real lowering (tests/execution/test_currency_convert.py), so it stays registered either way.

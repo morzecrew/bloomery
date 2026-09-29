@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-6
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-6
+        field: text
+        before: >-
+          **Whether determinism stays in the README's lead.** The current sentence
+          leads with byte-identical output — true today, checkable today, and the
+          property users have. §7's replacement leads with semantics and drops it.
+          Both are honest; they aim at different readers, and the decision belongs
+          to whoever writes the sentence when §2's capability actually lands.
+        after: >-
+          Determinism stays in the README's lead. The bold description still promises
+          byte-identical SQLMesh, dbt and Cube artifacts; the preservation claim and
+          §2's semantic-plan sentence follow it in the body, added beside the lead
+          rather than substituted for it when `QueryPlan.semantic` became required.
+      - subject: D-6
+        field: fingerprint
+        after: 4f69f5279c74a23f/202c11f3690cefb1
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: text
+        before: >-
+          **Who keeps §5's integration list current.** It goes stale the day a target
+          is added or dropped, and a stale boundary statement is a wrong claim about
+          what is and is not a correctness proof. Name an owner or a gate — a docs
+          test asserting the list against the registered targets would be the durable
+          answer.
+        after: >-
+          A docs test keeps §5's list current, not an owner. `test_the_documented_target_boundary_names_every_shipped_target`
+          fails when any `Target` value is missing from the "The target boundary"
+          admonition in `what-bloomery-proves.md`; the SQL dialects are named as a
+          class and not checked one by one.
+      - subject: D-7
+        field: fingerprint
+        after: 7c1995411207e959/202c11f3690cefb1
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-6: The row handed the choice to whoever wrote the sentence when §2 landed; #99 landed it (`semantic: SemanticPlan` is now required) and kept the determinism lead. Settled by README content only; no test pins the lead. Evidence: README.md; src/bloomery/planner/result.py; commit 38dd7a6a.
+      - D-7: The row named a docs gate as the durable answer and that gate exists, scoped to the admonition rather than the whole section. Evidence: tests/unit/test_docs_floor.py; pages/docs/concepts/what-bloomery-proves.md.

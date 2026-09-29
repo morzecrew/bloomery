@@ -45,9 +45,9 @@ Arithmetic transforms **narrow their own result** to the type they declare, rath
 
 - Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py`
 
-### S-0046/D-5 — `OPEN` (Transform types the engine agrees with)
+### S-0046/D-5 — `ASSUMED` (Transform types the engine agrees with)
 
-Whether `to_bool`/`to_int` across the boolean boundary get a PostgreSQL spelling (`x::int::boolean`) or a refusal. A spelling is cheap; a refusal is honest about `to_bool` over an arbitrary integer having no agreed meaning.
+`to_bool` over an integer is spelled, not refused, and spelled once in the builder as `x <> 0`, the non-zero-is-true meaning DuckDB and Trino already agree on; `to_int` over a boolean builds `CAST(CAST(x AS INT) AS BIGINT)`. No engine-specific spelling exists.
 
 - Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py`
 

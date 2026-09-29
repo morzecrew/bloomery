@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-6
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-6
+        field: text
+        before: >-
+          Whether the lane is a seventh pytest marker or a `just` lane outside pytest
+        after: >-
+          Fuzzing is a `just` lane (`fuzz`, `fuzz-repro`, `fuzz-min`), not a seventh
+          pytest marker. A libFuzzer run is time-boxed rather than pass-or-fail, and
+          the corpus under `fuzz/corpus/` is a gitignored build artifact, not a checked-in
+          test input.
+      - subject: D-6
+        field: fingerprint
+        after: 5c5bad0d3bb39dc0/a3aa81dd2fde5bd5
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: text
+        before: >-
+          Whether each of the two narrow-handler sites gains `RecursionError` or a
+          depth limit raising a named error — decided per site from its reproduction,
+          and logged either way
+        after: >-
+          Both narrow-handler sites widen the catch; neither adds a depth limit. `evidence._divides`
+          catches `(SqlglotError, RecursionError)` and returns `False`. `resolve.steps._parse_body`
+          catches the same pair and returns it as the existing `StepError`, which
+          `lower_steps` raises with the others it collects. No error class is added
+          to `src/bloomery/errors.py`.
+      - subject: D-7
+        field: fingerprint
+        after: e5a99b73ffc94643/afba915b48d717ab
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-6: The justfile states the choice and the reason, and the marker table has no fuzz entry. Evidence: justfile:126-160; .gitignore:257-263; pyproject.toml; .torve/specs/S-0008/execution/T-0008-2-20260919T030230Z.yaml.
+      - D-7: Each site was decided separately in T-0008, and both came out the same way. Evidence: src/bloomery/evidence.py; src/bloomery/resolve/steps.py; tests/unit/test_steps/test_lowering.py::test_a_body_too_deep_to_parse_is_a_step_error_not_a_recursion_error; tests/unit/test_evidence.py::test_an_expression_too_deep_for_this_stack_is_not_a_raw_recursion_error.

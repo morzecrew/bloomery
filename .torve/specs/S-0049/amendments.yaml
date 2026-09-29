@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: text
+        before: >-
+          **Whether `FieldProvenance` sorts by `(entity, field, mapping)` or `(entity,
+          mapping, field)`.** §5.4 argues the first — a field's answers stay adjacent
+          — but the second groups a reader's attention by document, which is what
+          they will edit. Execution decides against the corpus, and logs it: whichever
+          reads better on `multi_source`'s four collapsed facts is the answer, and
+          that is a thing to look at rather than reason about.
+        after: >-
+          `Resolution.provenance` sorts `FieldProvenance` entries by `(entity, field,
+          mapping)`. On `multi_source` this keeps a merged field's per-mapping answers,
+          such as `order_line.quantity`'s two, next to each other.
+      - subject: D-7
+        field: fingerprint
+        after: 9ad24fc3029e800c/71ac8146a93fd817
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-7: Decided against the corpus as the row asked; `(entity, mapping, field)` was rejected because it separates a merged field's rows. Evidence: src/bloomery/resolve/resolution.py; tests/unit/test_resolve/test_resolution.py::test_ecom_basic_provenance.

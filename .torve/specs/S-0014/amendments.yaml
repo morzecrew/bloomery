@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-6
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-6
+        field: text
+        before: >-
+          Whether the emulator lane runs on pull requests, and the executor decides
+          it on measured runtime and on whether it catches anything rungs 1 through
+          3 miss
+        after: >-
+          The BigQuery emulator lane runs in `engine-e2e`'s `pytest -m surrogate`
+          step on push, nightly, and on same-repo pull requests whose changes match
+          the `engine` path filter. It is advisory, not part of `required-ci`. The
+          four surrogate lanes together measured 1 min 3 s on 2026-09-28.
+      - subject: D-6
+        field: fingerprint
+        after: c8dfe21d3938f40b/1a4cb56b01cfedb5
+      - subject: D-6
+        field: rationale
+        before: >-
+          Left open by row D6 of `rfcs/0048-bigquery-dialect.md`, and left open here:
+          the answer is a measurement nobody has taken, not an argument
+        after: >-
+          The row's two inputs were measured: a push run on `main` put the four surrogate
+          lanes at 1 min 3 s (2026-09-28), and the lane caught value defects rungs
+          1 to 3 missed (#191, #192), so #201 moved it onto pull requests that touch
+          engine code
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: text
+        before: >-
+          The `NUMERIC` and `BIGNUMERIC` mapping for a declared `decimal(p, s)`, and
+          which bounds a declared type may not exceed, decided against the declared-type
+          conformance battery rather than from the documentation and recorded with
+          the bounds
+        after: >-
+          A declared `decimal(p, s)` lowers to `NUMERIC(p, s)` where `s <= 9` and
+          `p - s <= 29`, otherwise to `BIGNUMERIC(p, s)` where `s <= 38` and `p -
+          s <= 38`. Past both bounds it is refused with `UnsupportedByTarget`, never
+          widened.
+      - subject: D-7
+        field: fingerprint
+        after: 56bc4f95955adaa9/ed17ed407aa88fdd
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-6: #201 measured the runtime and promoted the lane to engine PRs, which answers both of the row's inputs. The stale half-comment at ci.yml ('Not on pull requests yet (S-0014/D-6)…') was left behind by that diff and now contradicts the step. Evidence: .github/workflows/ci.yml.
+      - D-7: The mapping was decided against the declared-type battery at the unit rung and corrected once. Comments in the live and surrogate lanes (test_bigquery_live.py, test_bigquery_surrogate.py) still describe the row as open, so those docstrings are stale. Evidence: src/bloomery/dialects/bigquery.py; tests/unit/test_dialects/test_bigquery.py::test_a_declared_decimal_lands_on_the_type_its_bounds_allow; tests/unit/test_dialects/test_bigquery.py::test_a_decimal_past_both_bounds_is_refused_rather_than_widened.

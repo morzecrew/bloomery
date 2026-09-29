@@ -65,8 +65,10 @@ decisions:
       candidates; whoever builds this decides and logs the decision, or defers it
       explicitly.
   - id: D-9
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether `depends_on.marts` should now admit a rollup. The refusal that exists
-      was written when a rollup was not a node; if it stays, it needs its reason restated
-      in the new world.
+      `depends_on.marts` still refuses a rollup, with its own message. Now that a
+      rollup is a `mart` node, the reason is that admitting one is a grammar change
+      with two more legs, the dbt emitter's `ref()` and `plan()`'s `mart:` change
+      subject; widening one of the three reports a dependency clean.
+    fingerprint: dc8ed81988f31a07/202c11f3690cefb1

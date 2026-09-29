@@ -46,6 +46,74 @@ amendments:
       one, their tests, the semantic corpus and the goldens the IR move re-blesses.
       Phase 4's scope names its files: a pack outlined over a thousand is a prompt
       no model takes
+  - id: A-4
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-6
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-6
+        field: text
+        before: >-
+          Whether `determines:` lives on the entity model or on the catalog's canonical
+          field. A determination is a property of values rather than of a feed, which
+          argues for the catalog; the entity model is where fields are otherwise described.
+          The executor decides against the shape of both and logs it
+        after: >-
+          `determines:` lives on the entity model's `Field`, is declared on the determinant
+          and names only that entity's own fields. `Entity._determination_is_declared_and_acyclic`
+          refuses a dangling name or a cycle. The catalog's `CanonicalField` carries
+          no determination.
+      - subject: D-6
+        field: fingerprint
+        after: 99e6053de3cbd3fc/f5f918abf91ead43
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: text
+        before: >-
+          Whether R020 requires a determinant of every dropped dimension or merely
+          proves more when one is present. Requiring refuses rollups that are legal
+          today; proving more leaves them where they are and may be the honest answer.
+          Decide with one real rollup corpus in hand
+        after: >-
+          R020 proves more and refuses nothing. `_coarsening` adds a determination
+          premise only when every dropped dimension determines, through the declared
+          closure, at least one kept dimension, and returns `None` otherwise, so a
+          rollup that is not a coarsening gets the answer it had before R020 existed.
+      - subject: D-7
+        field: fingerprint
+        after: 54ae4e210ba7892a/282fe1c4605e79f0
+      - subject: D-8
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-8
+        field: text
+        before: >-
+          Whether `same_as:` is needed at all. The in-project case is derivable from
+          `role_of:` and the cross-project case has no consumer until multi-project
+          composition reaches its emitted-reference phase. If both hold, this relation
+          is not built
+        after: >-
+          `same_as:` is not built. Within one project, two `role_of:` steps already
+          say that two roles share a value set, and R021 reads them through `prove_comparable`.
+          Across projects the relation has no consumer until a reference is emitted
+          over the boundary, so it is retired rather than pending.
+      - subject: D-8
+        field: fingerprint
+        after: 4dba1cb037d2739a/7e461ba64cce9065
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-6: Execution decided the entity model (T-0004), and S-0079 builds on that placement while noting that the row was never amended. S-0079/Q-2 asks the owner to close it. Evidence: src/bloomery/spec/entity.py; src/bloomery/spec/catalog.py; tests/unit/test_spec/test_entity.py::test_determines_naming_a_field_the_entity_does_not_declare_is_refused.
+      - D-7: Execution took the permissive reading (T-0004), and S-0079/D-7 carries it forward while leaving any reopening to this row. Evidence: src/bloomery/semantic/rollup.py; tests/unit/test_semantic/test_rollup.py::test_a_rollup_that_merely_drops_proves_exactly_what_it_proved_before; .torve/specs/S-0079/decisions.yaml.
+      - D-8: Phase 3's `same_as:` was never landed. The retirement is recorded where an author would reach for the key. Evidence: src/bloomery/spec/marts.py; src/bloomery/semantic/proof.py; CHANGELOG.md; .torve/specs/S-0007/execution/T-0006-2-20260919T011616Z.yaml.
 editorial:
   - subject: D-9
     field: text

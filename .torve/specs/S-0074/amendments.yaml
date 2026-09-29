@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: text
+        before: >-
+          Whether an unknown node is an empty timeline or a refusal (§10), and whether
+          `lineage()`'s answer should change to match.
+        after: >-
+          `timeline()` answers an unknown node with every entry absent and refuses
+          nothing, as `lineage()` already accepts a root outside its graph; `lineage()`
+          is unchanged. The `bloomery timeline` command refuses a node absent from
+          every version with `UnknownMember`, with no did-you-mean.
+      - subject: D-7
+        field: fingerprint
+        after: e76ac8e13d89155d/202c11f3690cefb1
+      - subject: D-8
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-8
+        field: text
+        before: >-
+          Whether the command accepts a manifest file for long histories (§10).
+        after: >-
+          `bloomery timeline` takes no manifest file. Versions are positional `DIR`
+          arguments in the order given, and a shell glob supplies a long history.
+          Reading a manifest would make bloomery own what a history is, which S-0073/D-2
+          refuses.
+      - subject: D-8
+        field: fingerprint
+        after: fe3fc61cb16a057e/202c11f3690cefb1
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-7: Both halves are answered: the library returns an all-absent timeline, the CLI refuses, and `lineage()` did not change because it never refused. Evidence: tests/unit/test_resolve/test_timeline.py; src/bloomery/resolve/lineage.py; src/bloomery/cli/__init__.py; tests/unit/test_cli.py.
+      - D-8: Decided in T-0046 and visible in the parser; no test pins the absence of a manifest option. Evidence: src/bloomery/cli/__init__.py; logs/T-0046.md at 7343f67e^.

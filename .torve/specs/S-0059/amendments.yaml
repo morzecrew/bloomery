@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:32:04Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-5
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-5
+        field: text
+        before: >-
+          The manifest's artifact path — `semantic_manifest.json` at the root, or
+          under a namespace. Settled by execution; §10 states the case for the root.
+        after: >-
+          The MetricFlow target emits its one artifact at the root as `semantic_manifest.json`
+          (`MANIFEST_PATH`), not under a namespace: a MetricFlow project holds a single
+          top-level manifest, and nothing else in the emitted tree competes for the
+          name.
+      - subject: D-5
+        field: fingerprint
+        after: d591c75fd23aa129/50afc454fdf8b7ce
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-5: The constant's comment cites S-0059/D-5 and the test pins the single root path. Evidence: src/bloomery/emit/metricflow/__init__.py; tests/unit/test_emit/test_metricflow.py.
