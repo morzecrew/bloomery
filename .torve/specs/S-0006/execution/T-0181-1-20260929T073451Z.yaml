@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0181
+phase: 4
+base: e99f208063dae59a5fde44a5aba38e8790e6a756
+commit: d7872f8bc335ebb81928eff03beca7abc5bb74a0
+at: '2026-09-29T07:34:51Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: LOCKED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-29T07:20:40Z'
+    claim: >-
+      Every observation in the seven new dbt bundles comes from running commands.txt
+      against dbt Core 1.12.3 on 2026-09-29; observed.txt is that stdout verbatim
+      and each README states only what it shows. No cell was left unrun, so none needed
+      an UNKNOWN; MATRIX.md is untouched and phase 7 fills it from these files.
+    evidence: >-
+      comparisons/dbt/004-currency-mix/observed.txt:10-11 — dbt's own parser refusing
+      the invented currency key, recorded from the run rather than asserted; the other
+      six observed.txt files reproduce under the task's diff loop
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-29T07:20:40Z'
+    claim: >-
+      All seven bundles live in this repository at comparisons/dbt/<case>/ beside
+      the existing five, read the case's schema/ and data/ in place through run.py,
+      and carry no fetch at run time: no packages.yml, no dbt deps, no hosted feature.
+    evidence: >-
+      comparisons/dbt/003-scd2-unqualified-join/commands.txt:1-4 — run.py pointed
+      at the corpus case directory and the in-repo bundle; dbt build/list/compile
+      only
+    action: decided
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-29T07:20:40Z'
+    claim: >-
+      Each new README pins dbt Core 1.12.3, dbt-duckdb 1.11.0, DuckDB 1.5.5, the check
+      date and the feature set, and states that it says nothing about dbt-metricflow
+      or the hosted Semantic Layer, which were not run.
+    evidence: >-
+      comparisons/dbt/001-order-shipping-fanout/observed.txt:1-3 — the build summary
+      the README's version and feature-set pin describes
+    action: decided

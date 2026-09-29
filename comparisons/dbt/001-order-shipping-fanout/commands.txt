@@ -1,0 +1,4 @@
+uv run python comparisons/dbt/run.py \
+    tests/fixtures/semantic_corpus/001-order-shipping-fanout \
+    comparisons/dbt/001-order-shipping-fanout \
+    shipping_total_naive shipping_total_correct

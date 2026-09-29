@@ -1,0 +1,6 @@
+uv run python comparisons/sqlmesh/run.py \
+    tests/fixtures/semantic_corpus/006-two-grains-one-request \
+    comparisons/sqlmesh/006-two-grains-one-request \
+    --query "shipping_and_discount=SELECT METRIC(shipping_total), METRIC(discount_total) FROM __semantic.__table" \
+    --query "shipping_and_discount_by_order=SELECT order_id, METRIC(shipping_total), METRIC(discount_total) FROM __semantic.__table GROUP BY order_id ORDER BY order_id" \
+    shipping_total discount_total

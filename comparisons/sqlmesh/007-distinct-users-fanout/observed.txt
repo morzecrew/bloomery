@@ -1,0 +1,45 @@
+### sqlmesh info
+  Models: 2
+### sqlmesh plan --auto-apply --no-prompts
+  Virtual layer updated
+### sqlmesh audit
+  Found 0 audit(s).
+  Finished with 0 audit errors and 0 audits skipped.
+### sqlmesh rewrite metric:active_users_summed
+  SELECT
+    active_users_summed AS active_users_summed
+  FROM (
+    SELECT
+      SUM(silver__daily_users.daily_users) AS active_users_summed
+    FROM silver.daily_users AS silver__daily_users
+  ) AS __table
+### metric active_users_summed
+  -> [(4,)]
+### sqlmesh rewrite metric:active_users
+  SELECT
+    active_users AS active_users
+  FROM (
+    SELECT
+      COUNT(DISTINCT silver__sessions.user_id) AS active_users
+    FROM silver.sessions AS silver__sessions
+  ) AS __table
+### metric active_users
+  -> [(3,)]
+### sqlmesh rewrite query:active_users_by_day
+  SELECT
+    __table.session_day AS session_day,
+    active_users AS active_users
+  FROM (
+    SELECT
+      silver__sessions.session_day,
+      COUNT(DISTINCT silver__sessions.user_id) AS active_users
+    FROM silver.sessions AS silver__sessions
+    GROUP BY
+      silver__sessions.session_day
+  ) AS __table
+  ORDER BY
+    session_day
+### query active_users_by_day
+  -> [(datetime.date(2025, 1, 1), 2), (datetime.date(2025, 1, 2), 2)]
+### probe silver.daily_users.additive=false
+  Error: Failed to load model from file '<scratch>/probe/models/daily_users.sql':: Invalid field name present in the MODEL block: 'additive' at '<scratch>/probe/models/daily_users.sql'

@@ -1,0 +1,5 @@
+uv run python comparisons/metricflow/run.py \
+    tests/fixtures/semantic_corpus/012-rollup-recounts-identities \
+    comparisons/metricflow/012-rollup-recounts-identities \
+    buyers,revenue buyers,revenue/metric_time__month \
+    buyers_rolled,revenue_rolled buyers_rolled,revenue_rolled/metric_time__month

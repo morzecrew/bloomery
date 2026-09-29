@@ -1,0 +1,72 @@
+### sqlmesh info
+  Models: 4
+### sqlmesh plan --auto-apply --no-prompts
+  Virtual layer updated
+### sqlmesh audit
+  Found 0 audit(s).
+  Finished with 0 audit errors and 0 audits skipped.
+### sqlmesh rewrite metric:revenue
+  SELECT
+    revenue AS revenue
+  FROM (
+    SELECT
+      SUM(silver__orders.amount) AS revenue
+    FROM silver.orders AS silver__orders
+  ) AS __table
+### metric revenue
+  -> [(Decimal('300.0000'),)]
+### sqlmesh rewrite query:revenue_by_tier
+  SELECT
+    __table.tier AS tier,
+    revenue AS revenue
+  FROM (
+    SELECT
+      silver__tier_versions.tier,
+      SUM(silver__orders.amount) AS revenue
+    FROM silver.orders AS silver__orders
+    LEFT JOIN silver.tier_versions AS silver__tier_versions
+      ON silver__orders.customer_id = (customer_id, valid_from)
+    GROUP BY
+      silver__tier_versions.tier
+  ) AS __table
+  ORDER BY
+    tier
+### query revenue_by_tier
+  refused: BinderException: Binder Error: Ambiguous reference to column name "customer_id" (use: "silver__orders.customer_id" or "silver__tier_versions.customer_id")
+
+LINE 10:     ON silver__orders.customer_id = (customer_id, valid_from)
+                                              ^
+### sqlmesh rewrite query:revenue_by_history_tier
+  SELECT
+    __table.history_tier AS history_tier,
+    revenue AS revenue
+  FROM (
+    SELECT
+      silver__tier_history.history_tier,
+      SUM(silver__orders.amount) AS revenue
+    FROM silver.orders AS silver__orders
+    LEFT JOIN silver.tier_history AS silver__tier_history
+      ON silver__orders.customer_id = silver__tier_history.customer_id
+    GROUP BY
+      silver__tier_history.history_tier
+  ) AS __table
+  ORDER BY
+    history_tier
+### query revenue_by_history_tier
+  -> [('bronze', Decimal('300.0000')), ('gold', Decimal('300.0000'))]
+### sqlmesh rewrite query:revenue_by_tier_as_of
+  SELECT
+    __table.tier_at_order AS tier_at_order,
+    revenue_as_of AS revenue_as_of
+  FROM (
+    SELECT
+      silver__orders_as_of.tier_at_order,
+      SUM(silver__orders_as_of.amount) AS revenue_as_of
+    FROM silver.orders_as_of AS silver__orders_as_of
+    GROUP BY
+      silver__orders_as_of.tier_at_order
+  ) AS __table
+  ORDER BY
+    tier_at_order
+### query revenue_by_tier_as_of
+  -> [('bronze', Decimal('100.0000')), ('gold', Decimal('200.0000'))]

@@ -1,0 +1,78 @@
+semantic_model:
+  name: orders
+  node_relation:
+    alias: corpus__orders
+    schema_name: bronze
+    relation_name: bronze.corpus__orders
+  entities:
+    - name: order
+      type: primary
+      expr: order_id
+    - name: customer
+      type: foreign
+      expr: customer_id
+    - name: versioned_customer
+      type: foreign
+      expr: customer_id
+  dimensions:
+    - name: created_at
+      type: time
+      expr: CAST(created_at AS TIMESTAMP)
+      type_params:
+        time_granularity: day
+  measures:
+    - name: amount
+      agg: sum
+      expr: amount
+      agg_time_dimension: created_at
+---
+semantic_model:
+  name: customer_tier_by_key
+  node_relation:
+    alias: customer_tier
+    schema_name: silver
+    relation_name: silver.customer_tier
+  entities:
+    - name: customer
+      type: primary
+      expr: customer_id
+  dimensions:
+    - name: tier
+      type: categorical
+      expr: tier
+---
+semantic_model:
+  name: customer_tier_versions
+  node_relation:
+    alias: customer_tier
+    schema_name: silver
+    relation_name: silver.customer_tier
+  primary_entity: customer_version
+  entities:
+    - name: versioned_customer
+      type: natural
+      expr: customer_id
+  dimensions:
+    - name: tier
+      type: categorical
+      expr: tier
+    - name: valid_from
+      type: time
+      expr: valid_from
+      type_params:
+        time_granularity: day
+        validity_params:
+          is_start: true
+    - name: valid_to
+      type: time
+      expr: valid_to
+      type_params:
+        time_granularity: day
+        validity_params:
+          is_end: true
+---
+metric:
+  name: revenue
+  type: simple
+  type_params:
+    measure: amount

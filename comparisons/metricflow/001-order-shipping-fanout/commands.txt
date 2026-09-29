@@ -1,0 +1,6 @@
+uv run python comparisons/metricflow/run.py \
+    tests/fixtures/semantic_corpus/001-order-shipping-fanout \
+    comparisons/metricflow/001-order-shipping-fanout \
+    shipping_total shipping_total/order_line__line_no \
+    shipping_total_by_line landed_total_by_line \
+    landed_total_derived landed_total_derived/order_line__line_no

@@ -1,0 +1,96 @@
+semantic_model:
+  name: orders
+  node_relation:
+    alias: corpus__orders
+    schema_name: bronze
+    relation_name: bronze.corpus__orders
+  entities:
+    - name: order
+      type: primary
+      expr: order_id
+  dimensions:
+    - name: placed_on
+      type: time
+      expr: placed_on
+      type_params:
+        time_granularity: day
+  measures:
+    - name: revenue
+      agg: sum
+      expr: revenue
+      agg_time_dimension: placed_on
+---
+semantic_model:
+  name: promos
+  node_relation:
+    alias: corpus__promos
+    schema_name: bronze
+    relation_name: bronze.corpus__promos
+  entities:
+    - name: promo
+      type: primary
+      expr: promo_id
+  dimensions:
+    - name: label
+      type: categorical
+      expr: label
+---
+semantic_model:
+  name: order_promos
+  node_relation:
+    alias: corpus__order_promos
+    schema_name: bronze
+    relation_name: bronze.corpus__order_promos
+  entities:
+    - name: order_promo
+      type: primary
+      expr: order_id || '-' || promo_id
+    - name: order
+      type: foreign
+      expr: order_id
+    - name: promo
+      type: foreign
+      expr: promo_id
+  dimensions:
+    - name: applied_on
+      type: time
+      expr: applied_on
+      type_params:
+        time_granularity: day
+---
+semantic_model:
+  name: order_promos_wide
+  node_relation:
+    alias: order_promos_wide
+    schema_name: bronze
+    relation_name: bronze.order_promos_wide
+  entities:
+    - name: order_promo_wide
+      type: primary
+      expr: order_id || '-' || promo_id
+    - name: promo
+      type: foreign
+      expr: promo_id
+  dimensions:
+    - name: applied_on
+      type: time
+      expr: applied_on
+      type_params:
+        time_granularity: day
+  measures:
+    - name: revenue_on_bridge
+      agg: sum
+      expr: revenue
+      agg_time_dimension: applied_on
+---
+metric:
+  name: revenue
+  type: simple
+  type_params:
+    measure: revenue
+---
+metric:
+  name: revenue_bridged
+  type: simple
+  type_params:
+    measure: revenue_on_bridge

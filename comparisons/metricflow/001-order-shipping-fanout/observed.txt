@@ -1,0 +1,88 @@
+SemanticManifestValidator: 0 error(s), 0 warning(s)
+### shipping_total
+  -> [(Decimal('9.0000'),)]
+### shipping_total/order_line__line_no
+  refused when planning: InvalidQueryException: Got error(s) during query resolution.
+
+Error #1:
+  Message:
+
+    The given input does not match any of the available group-by-items for
+    SimpleMetric('shipping_total'). Common issues are:
+
+      * Incorrect names.
+      * No valid join paths exist from the measure to the group-by-item.
+        (fan-out join support is pending).
+      * There are multiple matching join paths.
+        (disambiguation support is pending).
+
+    Suggestions:
+      ['order__created_at__day', 'order', 'metric_time__day']
+
+  Query Input:
+
+    order_line__line_no
+
+  Issue Location:
+
+    [Resolve Query(['shipping_total'])]
+      -> [Resolve SimpleMetric('shipping_total')]
+
+Error #2:
+  Message:
+
+    The order-by item 'order_line__line_no' does not match exactly one of the query items.
+
+  Query Input:
+
+    order_line__line_no
+
+  Issue Location:
+
+    [Resolve Query(['shipping_total'])]
+### shipping_total_by_line
+  -> [(Decimal('27.0000'),)]
+### landed_total_by_line
+  -> [(Decimal('57.0000'),)]
+### landed_total_derived
+  -> [(Decimal('39.0000'),)]
+### landed_total_derived/order_line__line_no
+  refused when planning: InvalidQueryException: Got error(s) during query resolution.
+
+Error #1:
+  Message:
+
+    The given input does not match any of the available group-by-items for
+    SimpleMetric('shipping_total'). Common issues are:
+
+      * Incorrect names.
+      * No valid join paths exist from the measure to the group-by-item.
+        (fan-out join support is pending).
+      * There are multiple matching join paths.
+        (disambiguation support is pending).
+
+    Suggestions:
+      ['order__created_at__day', 'order', 'metric_time__day']
+
+  Query Input:
+
+    order_line__line_no
+
+  Issue Location:
+
+    [Resolve Query(['landed_total_derived'])]
+      -> [Resolve ComplexMetric('landed_total_derived')]
+        -> [Resolve SimpleMetric('shipping_total')]
+
+Error #2:
+  Message:
+
+    The order-by item 'order_line__line_no' does not match exactly one of the query items.
+
+  Query Input:
+
+    order_line__line_no
+
+  Issue Location:
+
+    [Resolve Query(['landed_total_derived'])]

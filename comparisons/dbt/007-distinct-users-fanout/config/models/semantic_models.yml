@@ -1,0 +1,52 @@
+version: 2
+
+semantic_models:
+  - name: sessions
+    model: ref('sessions')
+    entities:
+      - name: session
+        type: primary
+        expr: session_id
+    dimensions:
+      - name: session_day
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: active_users
+        agg: count_distinct
+        expr: user_id
+        agg_time_dimension: session_day
+
+  # The per-day count declared as a column to sum: the naive reading, stated in
+  # the vocabulary rather than only in SQL.
+  - name: daily_active_users
+    model: ref('daily_active_users')
+    entities:
+      - name: activity_day
+        type: primary
+        expr: session_day
+    dimensions:
+      - name: activity_date
+        type: time
+        expr: session_day
+        type_params:
+          time_granularity: day
+    measures:
+      - name: daily_users_summed
+        agg: sum
+        expr: daily_users
+        agg_time_dimension: activity_date
+
+metrics:
+  - name: active_users
+    label: Active users
+    type: simple
+    type_params:
+      measure: active_users
+
+  - name: active_users_summed
+    label: Active users (daily counts summed)
+    type: simple
+    type_params:
+      measure: daily_users_summed

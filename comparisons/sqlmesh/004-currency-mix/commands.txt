@@ -1,0 +1,6 @@
+uv run python comparisons/sqlmesh/run.py \
+    tests/fixtures/semantic_corpus/004-currency-mix \
+    comparisons/sqlmesh/004-currency-mix \
+    --probe "total_usd_mixed.unit='USD'" \
+    --probe "silver.payments.currency='EUR'" \
+    total_usd_mixed total_usd_converted total_usd_mislabelled

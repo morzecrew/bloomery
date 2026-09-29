@@ -1,0 +1,4 @@
+name: corpus_006_two_grains_one_request
+version: "1.0.0"
+profile: corpus
+model-paths: ["models"]

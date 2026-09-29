@@ -1,0 +1,4 @@
+uv run python comparisons/dbt/run.py \
+    tests/fixtures/semantic_corpus/006-two-grains-one-request \
+    comparisons/dbt/006-two-grains-one-request \
+    two_grains_joined two_grains_composed

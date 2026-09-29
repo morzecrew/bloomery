@@ -6,13 +6,18 @@ DDL the way its documentation describes and the only thing borrowed from this
 repository is the case's data.
 
     python comparisons/sqlmesh/run.py <case-dir> <bundle-dir> \
-        [--probe <ddl-name>.<key>=<value>] <metric>...
+        [--probe <ddl-name>.<key>=<value>] [--query <label>=<sql>] <metric>...
 
 Prints what `sqlmesh info` and `sqlmesh plan` made of the project, what
 `sqlmesh audit` did with the audits it declares, the SQL `sqlmesh rewrite`
 renders for each metric named on the command line, the number that SQL returns
 against the case's rows, and — where a bundle asks for one — what SQLMesh's
 loader does with an invented key on one of its DDL blocks.
+
+A metric named on its own is asked for as `SELECT METRIC(x) FROM
+__semantic.__table`, with no GROUP BY. A question that needs more — a
+breakdown, or two metrics in one request — is passed whole as `--query
+<label>=<sql>`, and is rendered and executed the same way under its label.
 
 The project is copied to a scratch directory before anything runs, because
 SQLMesh writes `.cache/` and `logs/` beside the configuration it is pointed at
@@ -126,11 +131,38 @@ def probe(project: pathlib.Path, spec: str) -> None:
     )
 
 
+def ask(
+    label: str,
+    query: str,
+    *,
+    project: pathlib.Path,
+    env: dict[str, str],
+    con: duckdb.DuckDBPyConnection,
+) -> None:
+    """What `sqlmesh rewrite` renders for one request, and what that returns."""
+
+    kind, _, name = label.partition(":")
+    rendered = sqlmesh("rewrite", query, project=project, env=env)
+    print(f"### sqlmesh rewrite {label}")
+    for line in rendered.splitlines():
+        print(f"  {line}")
+    print(f"### {kind} {name}")
+    try:
+        print(f"  -> {con.execute(rendered).fetchall()}")
+    except Exception as exc:  # the refusal is the measurement
+        print(f"  refused: {type(exc).__name__}: {exc}")
+
+
 def main() -> int:
     case, bundle = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
-    rest, probes, metrics = iter(sys.argv[3:]), [], []
+    rest, probes, queries, metrics = iter(sys.argv[3:]), [], [], []
     for arg in rest:
-        (probes if arg == "--probe" else metrics).append(next(rest) if arg == "--probe" else arg)
+        if arg == "--probe":
+            probes.append(next(rest))
+        elif arg == "--query":
+            queries.append(next(rest).partition("="))
+        else:
+            metrics.append(arg)
 
     with tempfile.TemporaryDirectory() as tmp:
         scratch = pathlib.Path(tmp)
@@ -153,7 +185,9 @@ def main() -> int:
         print("### sqlmesh plan --auto-apply --no-prompts")
         for line in planned.splitlines():
             if "audits failed" in line or "audit warning" in line:
-                print(f"  {line.strip()}")
+                # The elapsed time closing the line is the one thing that
+                # differs between two runs of the same project.
+                print(f"  {re.sub(r'\s+[0-9.]+s$', '', line.strip())}")
         print(f"  {verdict(planned)}")
 
         audited = sqlmesh("audit", project=project, env=env)
@@ -164,20 +198,10 @@ def main() -> int:
 
         con = duckdb.connect(str(database), read_only=True)
         for metric in metrics:
-            rendered = sqlmesh(
-                "rewrite",
-                f"SELECT METRIC({metric}) FROM __semantic.__table",
-                project=project,
-                env=env,
-            )
-            print(f"### sqlmesh rewrite metric:{metric}")
-            for line in rendered.splitlines():
-                print(f"  {line}")
-            print(f"### metric {metric}")
-            try:
-                print(f"  -> {con.execute(rendered).fetchall()}")
-            except Exception as exc:  # the refusal is the measurement
-                print(f"  refused: {type(exc).__name__}: {exc}")
+            query = f"SELECT METRIC({metric}) FROM __semantic.__table"
+            ask(f"metric:{metric}", query, project=project, env=env, con=con)
+        for label, _, query in queries:
+            ask(f"query:{label}", query, project=project, env=env, con=con)
         con.close()
 
         for spec in probes:

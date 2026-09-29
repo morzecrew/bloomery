@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: bronze
+    schema: bronze
+    tables:
+      - name: corpus__orders
+      - name: corpus__promos
+      - name: corpus__order_promos

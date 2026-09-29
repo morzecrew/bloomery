@@ -1,0 +1,108 @@
+semantic_model:
+  name: orders
+  node_relation:
+    alias: corpus__orders
+    schema_name: bronze
+    relation_name: bronze.corpus__orders
+  entities:
+    - name: order
+      type: primary
+      expr: order_id
+  dimensions:
+    - name: created_at
+      type: time
+      expr: CAST(created_at AS TIMESTAMP)
+      type_params:
+        time_granularity: day
+  measures:
+    - name: shipping
+      agg: sum
+      expr: shipping
+      agg_time_dimension: created_at
+---
+semantic_model:
+  name: order_items
+  node_relation:
+    alias: corpus__order_items
+    schema_name: bronze
+    relation_name: bronze.corpus__order_items
+  entities:
+    - name: order_line
+      type: primary
+      expr: order_id || '-' || CAST(line_no AS VARCHAR)
+    - name: order
+      type: foreign
+      expr: order_id
+  dimensions:
+    - name: created_at
+      type: time
+      expr: CAST(created_at AS TIMESTAMP)
+      type_params:
+        time_granularity: day
+    - name: line_no
+      type: categorical
+      expr: line_no
+  measures:
+    - name: unit_price
+      agg: sum
+      expr: unit_price
+      agg_time_dimension: created_at
+---
+semantic_model:
+  name: order_items_wide
+  node_relation:
+    alias: order_items_wide
+    schema_name: bronze
+    relation_name: bronze.order_items_wide
+  entities:
+    - name: wide_line
+      type: primary
+      expr: order_id || '-' || CAST(line_no AS VARCHAR)
+  dimensions:
+    - name: created_at
+      type: time
+      expr: CAST(created_at AS TIMESTAMP)
+      type_params:
+        time_granularity: day
+  measures:
+    - name: shipping_on_lines
+      agg: sum
+      expr: shipping
+      agg_time_dimension: created_at
+    - name: landed_cost_on_lines
+      agg: sum
+      expr: unit_price + shipping
+      agg_time_dimension: created_at
+---
+metric:
+  name: shipping_total
+  type: simple
+  type_params:
+    measure: shipping
+---
+metric:
+  name: unit_price_total
+  type: simple
+  type_params:
+    measure: unit_price
+---
+metric:
+  name: shipping_total_by_line
+  type: simple
+  type_params:
+    measure: shipping_on_lines
+---
+metric:
+  name: landed_total_by_line
+  type: simple
+  type_params:
+    measure: landed_cost_on_lines
+---
+metric:
+  name: landed_total_derived
+  type: derived
+  type_params:
+    expr: unit_price_total + shipping_total
+    metrics:
+      - name: unit_price_total
+      - name: shipping_total

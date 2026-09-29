@@ -1,0 +1,9 @@
+project_configuration:
+  time_spines:
+    - node_relation:
+        alias: dim_date
+        schema_name: bronze
+        relation_name: bronze.dim_date
+      primary_column:
+        name: date_day
+        time_granularity: day

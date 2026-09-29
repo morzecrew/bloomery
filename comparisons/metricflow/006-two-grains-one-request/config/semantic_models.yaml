@@ -1,0 +1,58 @@
+semantic_model:
+  name: orders
+  node_relation:
+    alias: corpus__orders
+    schema_name: bronze
+    relation_name: bronze.corpus__orders
+  entities:
+    - name: sales_order
+      type: primary
+      expr: order_id
+  dimensions:
+    - name: created_at
+      type: time
+      expr: CAST(created_at AS TIMESTAMP)
+      type_params:
+        time_granularity: day
+  measures:
+    - name: shipping
+      agg: sum
+      expr: shipping
+      agg_time_dimension: created_at
+---
+semantic_model:
+  name: order_items
+  node_relation:
+    alias: corpus__order_items
+    schema_name: bronze
+    relation_name: bronze.corpus__order_items
+  entities:
+    - name: order_line
+      type: primary
+      expr: order_id || '-' || CAST(line_no AS VARCHAR)
+    - name: sales_order
+      type: foreign
+      expr: order_id
+  dimensions:
+    - name: created_at
+      type: time
+      expr: CAST(created_at AS TIMESTAMP)
+      type_params:
+        time_granularity: day
+  measures:
+    - name: discount
+      agg: sum
+      expr: discount
+      agg_time_dimension: created_at
+---
+metric:
+  name: shipping_total
+  type: simple
+  type_params:
+    measure: shipping
+---
+metric:
+  name: discount_total
+  type: simple
+  type_params:
+    measure: discount

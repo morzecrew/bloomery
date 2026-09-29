@@ -1,0 +1,57 @@
+version: 2
+
+semantic_models:
+  - name: orders
+    model: ref('orders')
+    entities:
+      - name: order
+        type: primary
+        expr: order_id
+      - name: customer
+        type: foreign
+        expr: customer_id
+    dimensions:
+      - name: created_at
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: revenue
+        agg: sum
+        expr: amount
+        agg_time_dimension: created_at
+
+  # The type-2 dimension, declared the way the semantic vocabulary states one: a
+  # `natural` entity on the business key and a validity window over two time
+  # dimensions. This is the fact the unanchored join ignores.
+  - name: customer_tier
+    model: ref('customer_tier')
+    # A version row has no key of its own, and a semantic model with dimensions
+    # must name a primary entity; this is the field for that.
+    primary_entity: customer_tier_version
+    entities:
+      - name: customer
+        type: natural
+        expr: customer_id
+    dimensions:
+      - name: tier
+        type: categorical
+      - name: valid_from
+        type: time
+        type_params:
+          time_granularity: day
+          validity_params:
+            is_start: true
+      - name: valid_to
+        type: time
+        type_params:
+          time_granularity: day
+          validity_params:
+            is_end: true
+
+metrics:
+  - name: revenue
+    label: Revenue
+    type: simple
+    type_params:
+      measure: revenue

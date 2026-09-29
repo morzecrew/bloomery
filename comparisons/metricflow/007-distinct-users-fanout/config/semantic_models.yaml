@@ -1,0 +1,55 @@
+semantic_model:
+  name: sessions
+  node_relation:
+    alias: corpus__sessions
+    schema_name: bronze
+    relation_name: bronze.corpus__sessions
+  entities:
+    - name: session
+      type: primary
+      expr: session_id
+  dimensions:
+    - name: session_day
+      type: time
+      expr: session_day
+      type_params:
+        time_granularity: day
+  measures:
+    - name: distinct_users
+      agg: count_distinct
+      expr: user_id
+      agg_time_dimension: session_day
+---
+semantic_model:
+  name: daily_active_users
+  node_relation:
+    alias: daily_active_users
+    schema_name: bronze
+    relation_name: bronze.daily_active_users
+  entities:
+    - name: active_day
+      type: primary
+      expr: session_day
+  dimensions:
+    - name: session_day
+      type: time
+      expr: session_day
+      type_params:
+        time_granularity: day
+  measures:
+    - name: daily_users
+      agg: sum
+      expr: daily_users
+      agg_time_dimension: session_day
+---
+metric:
+  name: active_users
+  type: simple
+  type_params:
+    measure: distinct_users
+---
+metric:
+  name: active_users_summed_daily
+  type: simple
+  type_params:
+    measure: daily_users

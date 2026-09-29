@@ -1,0 +1,8 @@
+corpus:
+  target: duck
+  outputs:
+    duck:
+      type: duckdb
+      # The case's schema and rows, loaded by `run.py` into a scratch file.
+      path: "{{ env_var('CORPUS_DUCKDB') }}"
+      schema: bronze

@@ -4,10 +4,19 @@ No bloomery import, on purpose: the column measures what MetricFlow does for a
 MetricFlow user, so the manifest is authored as YAML the way its documentation
 describes and the only thing borrowed from this repository is the case's data.
 
-    python comparisons/metricflow/run.py <case-dir> <bundle-dir> <metric>...
+    python comparisons/metricflow/run.py <case-dir> <bundle-dir> <request>...
 
-Prints MetricFlow's own validation verdict for the manifest, then per metric the
-number the rendered SQL returns against the case's rows, or the refusal.
+A request is `metric[,metric...][/group-by[,group-by...]]`: one or more metrics
+asked for together, optionally grouped, and ordered by the group-by so the rows
+come back the same way every run. A plain metric name is a one-metric,
+ungrouped request.
+
+Prints MetricFlow's own validation verdict for the manifest, then per request
+the rows the rendered SQL returns against the case's rows, or the refusal.
+
+A bundle whose case needs a relation the case does not create — a view, a
+pre-aggregate somebody built — carries it as `config/setup.sql`, run after the
+case's own rows.
 """
 
 from __future__ import annotations
@@ -60,12 +69,16 @@ class RenderOnlySqlClient(SqlClient):
         return f"${bind_parameter_key}"
 
 
-def load(case: pathlib.Path) -> duckdb.DuckDBPyConnection:
-    """The case's own schema and rows, plus the time spine MetricFlow wants."""
+def load(case: pathlib.Path, bundle: pathlib.Path) -> duckdb.DuckDBPyConnection:
+    """The case's own schema and rows, the bundle's setup if it has one, plus
+    the time spine MetricFlow wants."""
     con = duckdb.connect(":memory:")
     con.execute("CREATE SCHEMA bronze")
     con.execute((case / "schema" / "schema.sql").read_text(encoding="utf-8"))
     con.execute((case / "data" / "rows.sql").read_text(encoding="utf-8"))
+    setup = bundle / "config" / "setup.sql"
+    if setup.exists():
+        con.execute(setup.read_text(encoding="utf-8"))
     con.execute(
         "CREATE TABLE bronze.dim_date AS SELECT CAST(range AS DATE) AS date_day "
         "FROM range(DATE '2025-01-01', DATE '2025-04-01', INTERVAL 1 DAY)"
@@ -74,8 +87,8 @@ def load(case: pathlib.Path) -> duckdb.DuckDBPyConnection:
 
 
 def main() -> int:
-    case, bundle, metrics = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3:]
-    con = load(case)
+    case, bundle, requests = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3:]
+    con = load(case, bundle)
 
     manifest = parse_directory_of_yaml_files_to_semantic_manifest(
         str(bundle / "config")
@@ -93,10 +106,18 @@ def main() -> int:
         sql_client=RenderOnlySqlClient(),
     )
 
-    for metric in metrics:
-        print(f"### {metric}")
+    for request in requests:
+        print(f"### {request}")
+        metrics, _, group_by = request.partition("/")
+        groups = group_by.split(",") if group_by else []
         try:
-            result = engine.explain(MetricFlowQueryRequest.create(metric_names=[metric]))
+            result = engine.explain(
+                MetricFlowQueryRequest.create(
+                    metric_names=metrics.split(","),
+                    group_by_names=groups or None,
+                    order_by_names=groups or None,
+                )
+            )
         except Exception as exc:  # the refusal is the measurement
             print(f"  refused when planning: {type(exc).__name__}: {exc}")
             continue

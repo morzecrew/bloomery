@@ -1,0 +1,11 @@
+### dbt build
+  Found 5 models, 2 sources, 2 metrics, 500 macros, 2 semantic models
+  Done. PASS=5 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=5
+### dbt compile --select metric:discount_total
+  Nothing to do. Try checking your model configs and model specification args
+### dbt compile --select metric:shipping_total
+  Nothing to do. Try checking your model configs and model specification args
+### model two_grains_joined
+  -> [(Decimal('36.0000'), Decimal('6.0000'))]
+### model two_grains_composed
+  -> [(Decimal('16.0000'), Decimal('6.0000'))]

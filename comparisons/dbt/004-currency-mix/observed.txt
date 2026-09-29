@@ -1,0 +1,11 @@
+### dbt build
+  Found 4 models, 2 sources, 1 metric, 500 macros, 1 semantic model
+  Done. PASS=4 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=4
+### dbt compile --select metric:total_usd_naive
+  Nothing to do. Try checking your model configs and model specification args
+### model total_usd_mixed
+  -> [(Decimal('157.5000'),)]
+### model total_usd_converted
+  -> [(Decimal('172.5000'),)]
+### probe semantic_models.0.measures.0.currency=EUR
+  Parsing Error: at path ['measures'][0]: Additional properties are not allowed ('currency' was unexpected)
