@@ -364,6 +364,16 @@ def test_to_utc_after_an_instant_parse_is_refused() -> None:
         )
 
 
+def test_to_utc_after_a_later_wall_clock_parse_is_that_parse_s_conversion() -> None:
+    """A `parse_ts` after the instant starts a new value: the `to_utc` behind
+    it converts that wall clock, not the instant (bloomery #227, CodeAnt)."""
+
+    _build(
+        'booked_at: {from: "$.booked_at", transform: [{parse_ts: ISO8601_INSTANT}, '
+        "to_string, {parse_ts: ISO8601}, {to_utc: Europe/Paris}]}"
+    )
+
+
 def test_a_non_utc_zone_beside_an_instant_parse_is_refused() -> None:
     with pytest.raises(ResolutionError, match="zone_in: 'Europe/Paris'"):
         _build(

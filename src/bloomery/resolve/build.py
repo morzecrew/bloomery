@@ -30,6 +30,7 @@ shadows and lowered ``assert:`` audits.
 
 from __future__ import annotations
 
+import itertools
 import logging
 import re
 
@@ -1083,7 +1084,17 @@ def _zone_declaration(
     ]
 
     if any(parses):
-        after = source.transform[parses.index(True) + 1 :]
+        # A later `parse_ts` starts a new value, so a `to_utc` past it converts
+        # that parse's text, not the instant: only the steps up to the next
+        # parse act on the instant.
+        after = [
+            step
+            for start, instant in enumerate(parses)
+            if instant
+            for step in itertools.takewhile(
+                lambda step: step.name != "parse_ts", source.transform[start + 1 :]
+            )
+        ]
 
         if any(step.name == "to_utc" for step in after):
             msg = (
