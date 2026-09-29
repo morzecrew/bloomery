@@ -14,6 +14,7 @@ from bloomery.errors import (
     AmbiguousDimension,
     InvalidRequest,
     PlannerError,
+    RatioOperandsDisagree,
     UnknownMember,
     UnreachableAtGrain,
 )
@@ -1427,3 +1428,75 @@ def test_two_branches_reading_one_bucket_the_same_way_is_not_a_collision() -> No
             ),
             naming=DefaultNaming(),
         )
+
+
+# ....................... #
+# A derived metric's inputs are about one row set (S-0082/D-4)
+
+
+def _with_an_eu_count(*derived: str) -> ProjectIR:
+    """`cross_mart_branches` plus `eu_shipping_count`, the orders count
+    restricted to one region, and the derived metrics given over it."""
+
+    return _variant(
+        "cross_mart_branches",
+        marts=("    measures: [shipping_count]", "    measures: [shipping_count, eu_shipping_count]"),
+        metrics=(
+            "metrics:\n",
+            "metrics:\n  eu_shipping_count:\n    grain: order\n    additivity: additive\n"
+            '    agg: count\n    expr: "order_id"\n'
+            "    filter:\n      - {dimension: region, op: eq, values: ['EU']}\n"
+            + "".join(derived),
+        ),
+    )
+
+
+_OUTSIDE_EU = (
+    "  orders_outside_eu:\n    additivity: non_additive\n    derived:\n"
+    '      expr: "orders - eu"\n      inputs:\n'
+    "        orders: {metric: shipping_count}\n        eu: {metric: eu_shipping_count}\n"
+)
+_DISCOUNT_LESS_EU = (
+    "  discount_less_eu_orders:\n    additivity: non_additive\n    derived:\n"
+    '      expr: "discount - eu"\n      inputs:\n'
+    "        discount: {metric: line_discount}\n        eu: {metric: eu_shipping_count}\n"
+)
+
+
+def test_a_derived_metric_over_differently_restricted_inputs_is_refused_on_one_mart() -> None:
+    ir = _with_an_eu_count(_OUTSIDE_EU)
+    request = MetricRequest(metrics=("orders_outside_eu",))
+
+    for refuse in (
+        lambda: resolve_branches(ir, request, naming=NAMING),
+        lambda: _check(ir, request),
+    ):
+        with pytest.raises(RatioOperandsDisagree) as refused:
+            refuse()
+
+        message = str(refused.value)
+        assert "operands_disagree" in message
+        assert "eu_shipping_count is restricted by region eq ['EU']" in message
+        assert "shipping_count is restricted by nothing" in message
+
+
+def test_a_derived_metric_over_differently_restricted_inputs_is_refused_when_composed() -> None:
+    ir = _with_an_eu_count(_DISCOUNT_LESS_EU)
+
+    with pytest.raises(RatioOperandsDisagree, match="operands_disagree") as refused:
+        resolve_branches(
+            ir, MetricRequest(metrics=("discount_less_eu_orders",)), naming=NAMING
+        )
+
+    assert "line_discount is restricted by nothing" in str(refused.value)
+
+
+def test_a_derived_metric_whose_inputs_agree_still_composes() -> None:
+    ir = _with_an_eu_count(_OUTSIDE_EU)
+
+    branches = resolve_branches(
+        ir, MetricRequest(metrics=("discount_less_orders",)), naming=NAMING
+    )
+
+    assert len(branches) == 2
+    assert _check(ir, MetricRequest(metrics=("shipping_count", "eu_shipping_count"))) == "orders"

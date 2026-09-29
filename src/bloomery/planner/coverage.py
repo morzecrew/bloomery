@@ -36,6 +36,7 @@ from bloomery.errors import (
     InvalidRequest,
     MartCoverage,
     PlannerError,
+    RatioOperandsDisagree,
     UnknownMember,
     UnreachableAtGrain,
     guaranteed,
@@ -46,6 +47,7 @@ from bloomery.planner.explain import _human_predicate
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import TimeGrain, clause_predicates
 from bloomery.semantic import Proof, RefusalReason, grain_of, prove_rollup
+from bloomery.semantic.additivity import prove_derived_rows
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -333,6 +335,7 @@ def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) 
     """One mart carrying every required measure, or ``UnreachableAtGrain``
     with the per-metric grain/mart table (S-0028/algorithm-and-refusals)."""
     entries = _owner_entries(ir, request, naming)
+    _one_row_set(ir, request)
 
     if len({owner.name for _grain, owner in entries.values()}) > 1:
         raise _split_refusal(entries, naming)
@@ -1266,6 +1269,45 @@ def _one_dimension(name: str, resolved: Sequence[tuple[MartIR, ResolvedDimension
 # ....................... #
 
 
+def _one_row_set(ir: ProjectIR, request: MetricRequest) -> None:
+    """Refuse a requested ``derived:`` metric — or one beneath it — whose
+    inputs are restricted differently (S-0082/D-4, R019's `operands_disagree`).
+
+    Asked by :func:`_covering_mart` and by :func:`resolve_branches` before it
+    composes, so the single-mart and the composed path refuse one metric the
+    same way: admitting a metric's own filter into a
+    composed plan (S-0082/D-1) must not let a derived metric fold two row sets
+    into one number.
+    """
+
+    metrics_by_name = {metric.name: metric for metric in ir.metrics}
+    pending = list(request.metrics)
+    seen: set[str] = set()
+
+    while pending:
+        metric = metrics_by_name.get(pending.pop())
+
+        if metric is None or metric.name in seen or metric.derived is None:
+            continue
+        seen.add(metric.name)
+        pending.extend(input_.metric for input_ in metric.derived.inputs)
+        answer = prove_derived_rows(metric, ir)
+
+        if isinstance(answer, Proof):
+            continue
+
+        (obligation,) = answer.obligations
+        msg = (
+            f"derived metric {metric.name!r}: {obligation.found} (R019 "
+            f"{answer.reason}) — required: {obligation.required}. "
+            f"Fix: {answer.remediation}"
+        )
+        raise RatioOperandsDisagree(msg)
+
+
+# ....................... #
+
+
 def resolve_branches(
     ir: ProjectIR,
     request: MetricRequest,
@@ -1297,6 +1339,8 @@ def resolve_branches(
 
     if len({owner.name for _grain, owner in entries.values()}) == 1:
         return (resolve_request(ir, request, naming=naming, policy=policy),)
+
+    _one_row_set(ir, request)
 
     if not _composable(ir, request, entries):
         raise _split_refusal(entries, naming)
