@@ -211,7 +211,6 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `examples/retrieval/` — 0 decision(s)
 - `examples/targets/` — 2 decision(s)
 - `fuzz/` — 9 decision(s)
-- `logs/` — 1 decision(s)
 - `pages/` — 2 decision(s)
 - `pages/docs/` — 1 decision(s)
 - `pages/docs/concepts/` — 8 decision(s)
