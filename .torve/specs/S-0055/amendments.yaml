@@ -35,3 +35,34 @@ amendments:
 
       Answered by a later row, which the row now names:
       - D-7 is answered by S-0055/D-11: D-11 closes it: measures partition by owning mart through `measure_owners`, inheriting the cheapest-`cost_hint`-then-lexicographic tie-break.
+  - id: A-2
+    at: '2026-09-29T08:29:49Z'
+    title: >-
+      Amended by S-0082: a metric's own filter composes
+    changes:
+      - subject: D-8
+        field: text
+        before: >-
+          None of `distinct_count`, `semi_additive` and snapshot enters branch planning:
+          a composed plan admits only components declaring `additivity: additive`
+          with no `cumulative` and no `filter`; the first two decline with `UnreachableAtGrain`,
+          directly and as a derived metric's component, and snapshot has no authored
+          spelling (S-0053/D-11).
+        after: >-
+          None of `distinct_count`, `semi_additive` and snapshot enters branch planning:
+          a composed plan admits only components declaring `additivity: additive`
+          with no `cumulative`, and a component's own `filter` enters as a `Filter`
+          scoped to its measures; the first two decline with `UnreachableAtGrain`,
+          directly and as a derived metric's component, and snapshot has no authored
+          spelling (S-0053/D-11).
+      - subject: D-8
+        field: fingerprint
+        before: 48201bde916e95c8/46f7e9b32cb139ca
+        after: b4fd048bd5936f02/46f7e9b32cb139ca
+    md: >-
+      The owner accepted S-0082, which lifts this row's "no `filter`" for composed
+      components: a metric's own filter is stated per branch as a `Filter` scoped
+      to that metric's measures (S-0082/D-1), and a derived metric whose inputs disagree
+      on their restrictions is refused (S-0082/D-4). S-0082 phases 1 and 4 implement
+      it; until they land a filtered component is refused from a composed plan as
+      before.

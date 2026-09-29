@@ -195,6 +195,13 @@ the `rfcs` directory (since retired), its index and register, the checker and th
 - Consequence: One corpus, one checker
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0081/D-4 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice) — implementation: none
+
+Phase 1 ships only beside phase 2, in one minor release whose changelog records the `Z`-to-NULL change under Changed and `ISO8601_INSTANT` under Added; no 0.4.x patch carries phase 1 alone
+
+- Paths: `CHANGELOG.md`
+- Consequence: an author whose rows turn NULL finds, in the same release notes, the format that parses them
+
 <!-- /torve:managed -->
 
 <!-- torve:managed root index — rendered from the corpus; do not edit by hand -->
@@ -222,32 +229,32 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `pages/docs/reference/` — 7 decision(s)
 - `src/bloomery/` — 106 decision(s)
 - `src/bloomery/cli/` — 45 decision(s)
-- `src/bloomery/dialects/` — 49 decision(s)
+- `src/bloomery/dialects/` — 51 decision(s)
 - `src/bloomery/emit/` — 17 decision(s)
 - `src/bloomery/emit/cube/` — 18 decision(s)
 - `src/bloomery/emit/dbt/` — 52 decision(s)
-- `src/bloomery/emit/lower/` — 74 decision(s)
+- `src/bloomery/emit/lower/` — 75 decision(s)
 - `src/bloomery/emit/metricflow/` — 17 decision(s)
 - `src/bloomery/emit/sqlmesh/` — 24 decision(s)
 - `src/bloomery/guardrails/` — 88 decision(s)
-- `src/bloomery/ir/` — 80 decision(s)
-- `src/bloomery/marts/` — 31 decision(s)
+- `src/bloomery/ir/` — 81 decision(s)
+- `src/bloomery/marts/` — 34 decision(s)
 - `src/bloomery/plan/` — 30 decision(s)
-- `src/bloomery/planner/` — 55 decision(s)
+- `src/bloomery/planner/` — 59 decision(s)
 - `src/bloomery/quality/` — 37 decision(s)
-- `src/bloomery/resolve/` — 100 decision(s)
+- `src/bloomery/resolve/` — 101 decision(s)
 - `src/bloomery/runtime/` — 15 decision(s)
-- `src/bloomery/semantic/` — 63 decision(s)
-- `src/bloomery/spec/` — 117 decision(s)
+- `src/bloomery/semantic/` — 66 decision(s)
+- `src/bloomery/spec/` — 118 decision(s)
 - `src/bloomery/steps/` — 13 decision(s)
-- `src/bloomery/transforms/` — 32 decision(s)
+- `src/bloomery/transforms/` — 35 decision(s)
 - `src/bloomery/typing/` — 8 decision(s)
 - `tests/` — 2 decision(s)
 - `tests/bench/` — 2 decision(s)
 - `tests/e2e/` — 28 decision(s)
 - `tests/engines/` — 31 decision(s)
 - `tests/equivalence/` — 1 decision(s)
-- `tests/execution/` — 48 decision(s)
+- `tests/execution/` — 49 decision(s)
 - `tests/fixtures/` — 2 decision(s)
 - `tests/fixtures/coarsening_rollup/` — 1 decision(s)
 - `tests/fixtures/coverage_check/` — 1 decision(s)
@@ -303,7 +310,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `tests/fixtures/semantic_corpus/011-timezone-boundary/` — 4 decision(s)
 - `tests/fixtures/semantic_corpus/012-rollup-recounts-identities/` — 3 decision(s)
 - `tests/fixtures/semi_additive_inventory/` — 2 decision(s)
-- `tests/golden/` — 14 decision(s)
+- `tests/golden/` — 15 decision(s)
 - `tests/golden/coarsening_rollup/` — 1 decision(s)
 - `tests/golden/ecom_basic/` — 1 decision(s)
 - `tests/golden/identity_resolution/` — 1 decision(s)
@@ -329,16 +336,16 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `tests/unit/test_emit/` — 48 decision(s)
 - `tests/unit/test_guardrails/` — 55 decision(s)
 - `tests/unit/test_ir/` — 9 decision(s)
-- `tests/unit/test_marts/` — 9 decision(s)
+- `tests/unit/test_marts/` — 11 decision(s)
 - `tests/unit/test_plan/` — 14 decision(s)
-- `tests/unit/test_planner/` — 29 decision(s)
+- `tests/unit/test_planner/` — 31 decision(s)
 - `tests/unit/test_quality/` — 17 decision(s)
 - `tests/unit/test_resolve/` — 45 decision(s)
 - `tests/unit/test_runtime/` — 6 decision(s)
-- `tests/unit/test_semantic/` — 15 decision(s)
+- `tests/unit/test_semantic/` — 16 decision(s)
 - `tests/unit/test_spec/` — 32 decision(s)
 - `tests/unit/test_steps/` — 28 decision(s)
-- `tests/unit/test_transforms/` — 9 decision(s)
+- `tests/unit/test_transforms/` — 10 decision(s)
 - `tests/unit/test_typing/` — 1 decision(s)
 - `tools/spikes/` — 2 decision(s)
 

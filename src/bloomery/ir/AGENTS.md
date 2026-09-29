@@ -355,7 +355,7 @@ Until this lands, the divergence is **documented, not refused**. (d) is the S-00
 
 ### S-0055/D-8 — `ASSUMED` (Multi-grain aggregate-then-join query planning)
 
-None of `distinct_count`, `semi_additive` and snapshot enters branch planning: a composed plan admits only components declaring `additivity: additive` with no `cumulative` and no `filter`; the first two decline with `UnreachableAtGrain`, directly and as a derived metric's component, and snapshot has no authored spelling (S-0053/D-11).
+None of `distinct_count`, `semi_additive` and snapshot enters branch planning: a composed plan admits only components declaring `additivity: additive` with no `cumulative`, and a component's own `filter` enters as a `Filter` scoped to its measures; the first two decline with `UnreachableAtGrain`, directly and as a derived metric's component, and snapshot has no authored spelling (S-0053/D-11).
 
 - Paths: `src/bloomery/ir/nodes.py` `src/bloomery/planner/semantic_plan.py` `src/bloomery/semantic/rollup.py` `tests/fixtures/semantic_corpus/007-distinct-users-fanout/problem.md` `tests/fixtures/semantic_corpus/012-rollup-recounts-identities/problem.md` `tests/unit/test_planner/test_coverage.py`
 
@@ -531,6 +531,13 @@ Whether the mart-namespace determination is also worth carrying onto `MartColumn
 
 - Paths: `src/bloomery/ir/nodes.py` `tests/unit/test_ir/test_nodes.py`
 - Consequence: An IR stamped 20 or later carries `role_of`; one stamped 19 may or may not, so an IR serialized between the two landings is the one pair `plan()`'s version check cannot tell apart
+
+### S-0080/D-2 — `ASSUMED` (A mart may read the current version of a type2 entity) — implementation: none
+
+The current reading lowers to `valid_to IS NULL` over the shared `VALID_TO` column — a `WHERE` on the base, a join condition on a flatten hop — from one predicate the silver audits also read; `MartIR` and `MartJoinIR` carry it and `bloomery_ir_version` moves to 25
+
+- Paths: `src/bloomery/emit/lower/predicates.py` `src/bloomery/emit/lower/marts.py` `src/bloomery/ir/nodes.py`
+- Consequence: the mart and the audit cannot disagree about which version is current, and every fingerprint moves once
 
 ## Invariants holding over `src/bloomery/ir/`
 

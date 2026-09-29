@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      A mart reads the current version of a type2 entity
+    intent: >-
+      `reading: current` on a mart's base and on a flatten `via:`, validated in `marts/flatten.py`
+      (refused on a non-historical entity, beside `as_of:`, and on an incremental
+      mart), carried on `MartIR`/`MartJoinIR` (IR version 25), lowered to `valid_to
+      IS NULL` through a predicate lifted from `emit/lower/silver.py` into `emit/lower/predicates.py`.
+      A new fixture with a three-version key executes on DuckDB and counts it once;
+      `scd2_mart_refusal` still refuses. Goldens move for the IR version. Settles
+      D-1, D-2 and D-3.
+    scope:
+      - src/bloomery/spec/marts.py
+      - src/bloomery/marts/flatten.py
+      - src/bloomery/ir/**
+      - src/bloomery/emit/lower/**
+      - src/bloomery/semantic/historical.py
+      - tests/unit/test_marts/**
+      - tests/execution/test_as_of_join.py
+      - tests/fixtures/scd2_current/**
+      - tests/golden/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_marts tests/execution/test_as_of_join.py tests/golden
+        -q
+    character: structural
+  - phase: 2
+    title: >-
+      The closure proves a current-reading mart's grain
+    intent: >-
+      `qualify_as_of`'s `CURRENT` state reaches the closure, which gives a current-read
+      type2 entity its key's grain, and `can_roll_up` proves a rollup over such a
+      mart. The `HistoricalFanout` fix text then leads with the current reading, and
+      its refusal goldens move with it. Implements S-0017/A-1, the owner's amendment
+      of D-3. Settles D-4 and D-5.
+    scope:
+      - src/bloomery/semantic/**
+      - tests/unit/test_semantic/**
+      - src/bloomery/marts/flatten.py
+      - tests/unit/test_guardrails/test_stage.py
+      - tests/golden/refusals/**
+    acceptance:
+      - uv run pytest tests/unit/test_semantic -q
+      - >-
+        uv run pytest tests/golden/test_refusal_messages.py tests/unit/test_guardrails/test_stage.py
+        tests/unit/test_examples.py -q
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: The docs name the reading
+    intent: >-
+      `concepts/wide-marts.md`, `reference/errors.md` and `reference/spec-schemas.md`
+      carry `reading: current`, its two refusals and its materialization rule.
+    scope:
+      - pages/docs/concepts/wide-marts.md
+      - pages/docs/reference/errors.md
+      - pages/docs/reference/spec-schemas.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_docs_floor.py tests/unit/test_docs_snippets.py
+        -q
+    depends_on:
+      - 1
+    character: routine
