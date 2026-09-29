@@ -840,5 +840,15 @@ def test_the_mart_guard_admits_a_current_reading_through_the_shared_fact() -> No
     assert _historical_leaf(step, ORDER_TIER, {"customer_tier": CUSTOMER_TIER}, ORDER, "p") == []
 
 
+def test_an_entity_read_current_and_as_of_in_one_context_is_refused() -> None:
+    """A key that identifies a row everywhere beside a hop that picks a
+    version by anchor would give a rollup through the hop two derivations
+    (bloomery #226, CodeRabbit)."""
+    mixed = RollupContext(anchors=(("order_tier", "placed_at"),), current=("customer_tier",))
+
+    with pytest.raises(InvariantViolated, match="two readings of one entity"):
+        dependencies(project((ORDER, CUSTOMER_TIER), (ORDER_TIER,)), mixed)
+
+
 def test_a_current_context_is_canonical() -> None:
     assert RollupContext(current=("b", "a", "b")).current == ("a", "b")

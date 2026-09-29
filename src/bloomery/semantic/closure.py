@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final
 
+from bloomery.errors import InvariantViolated
 from bloomery.ir import Cardinality, SCDKind
 from bloomery.semantic.historical import AsOfState, qualify_as_of
 from bloomery.semantic.nodes import (
@@ -199,6 +200,18 @@ def dependencies(
             )
 
             anchor = context.anchor(rel.name)
+            if anchor is not None and target.name in context.current:
+                # Two readings of one entity: its key would identify a row
+                # everywhere while this hop picks a version by the anchor, and
+                # a rollup through the hop would see both derivations. Refused
+                # for the reason a hop anchored twice is (RollupContext).
+                msg = (
+                    f"{target.name!r} is read at its current version and as of "
+                    f"{anchor!r} through relationship {rel.name!r} — two readings of one "
+                    "entity in one context. Fix: build one context per reading"
+                )
+                raise InvariantViolated(msg)
+
             state = qualify_as_of(
                 reading=reading,
                 target=target,
