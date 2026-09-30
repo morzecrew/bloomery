@@ -2,6 +2,9 @@
 id: S-0067
 title: Stable node identity across renames
 kind: design
+change:
+  type: feat
+  scope: cli
 status: accepted
 implementation: complete
 depends_on: []

@@ -2,6 +2,9 @@
 id: S-0052
 title: The offset-bearing timestamp
 kind: design
+change:
+  type: feat
+  scope: dialects
 status: accepted
 implementation: complete
 depends_on: []

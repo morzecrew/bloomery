@@ -2,6 +2,9 @@
 id: S-0070
 title: Consumer-declared evidence strictness
 kind: design
+change:
+  type: feat
+  scope: semantic
 status: accepted
 implementation: complete
 depends_on: []

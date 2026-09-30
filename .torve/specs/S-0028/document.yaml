@@ -2,6 +2,9 @@
 id: S-0028
 title: 'Native planner: MetricRequest → QueryPlan'
 kind: design
+change:
+  type: feat
+  scope: planner
 status: accepted
 implementation: complete
 depends_on: []

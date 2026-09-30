@@ -2,6 +2,9 @@
 id: S-0027
 title: Marts and role-playing dimensions
 kind: design
+change:
+  type: feat
+  scope: marts
 status: accepted
 implementation: complete
 depends_on: []

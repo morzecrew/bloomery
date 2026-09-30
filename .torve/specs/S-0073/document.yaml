@@ -2,6 +2,9 @@
 id: S-0073
 title: Caller-assembled spec history
 kind: design
+change:
+  type: feat
+  scope: cli
 status: accepted
 implementation: complete
 depends_on: []

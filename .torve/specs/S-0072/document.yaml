@@ -2,6 +2,9 @@
 id: S-0072
 title: Marts in the lineage graph
 kind: design
+change:
+  type: feat
+  scope: resolve
 status: accepted
 implementation: complete
 depends_on: []

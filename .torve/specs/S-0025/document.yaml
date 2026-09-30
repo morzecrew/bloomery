@@ -2,6 +2,9 @@
 id: S-0025
 title: 'Ports and emitters: targets, dialects, naming'
 kind: design
+change:
+  type: feat
+  scope: emit
 status: accepted
 implementation: complete
 depends_on: []

@@ -3,6 +3,8 @@ id: S-0058
 title: >-
   Soundness positioning and the claims the docs may make
 kind: design
+change:
+  type: docs
 status: accepted
 implementation: complete
 depends_on: []

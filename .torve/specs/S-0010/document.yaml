@@ -2,6 +2,9 @@
 id: S-0010
 title: Generating from the spec schema
 kind: design
+change:
+  type: test
+  scope: spec
 status: accepted
 implementation: complete
 depends_on: []

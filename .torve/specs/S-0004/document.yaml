@@ -2,6 +2,9 @@
 id: S-0004
 title: 'Observability: logging and a warnings channel'
 kind: design
+change:
+  type: feat
+  scope: evidence
 status: accepted
 implementation: complete
 depends_on: []

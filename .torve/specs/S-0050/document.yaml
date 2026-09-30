@@ -3,6 +3,9 @@ id: S-0050
 title: >-
   Metrics over time: derived metrics, offsets, cumulative windows, metric filters
 kind: design
+change:
+  type: feat
+  scope: semantic
 status: accepted
 implementation: complete
 depends_on: []

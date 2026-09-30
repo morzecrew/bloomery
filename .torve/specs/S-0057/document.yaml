@@ -3,6 +3,9 @@ id: S-0057
 title: >-
   `bloomery check` and imported semantic provenance
 kind: design
+change:
+  type: feat
+  scope: cli
 status: accepted
 implementation: complete
 depends_on: []

@@ -2,6 +2,9 @@
 id: S-0049
 title: Mapping identity
 kind: design
+change:
+  type: feat
+  scope: spec
 status: accepted
 implementation: complete
 depends_on: []

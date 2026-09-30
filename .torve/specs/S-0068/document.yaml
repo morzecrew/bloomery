@@ -2,6 +2,9 @@
 id: S-0068
 title: As-of compile over spec history
 kind: design
+change:
+  type: feat
+  scope: cli
 status: accepted
 implementation: complete
 depends_on: []

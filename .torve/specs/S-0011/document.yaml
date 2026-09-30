@@ -2,6 +2,9 @@
 id: S-0011
 title: Retrieval semantics
 kind: design
+change:
+  type: feat
+  scope: emit
 status: accepted
 implementation: complete
 depends_on: []

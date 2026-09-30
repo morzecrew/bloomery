@@ -3,6 +3,9 @@ id: S-0023
 title: >-
   Guardrails: refusing plausible-but-wrong arithmetic
 kind: design
+change:
+  type: feat
+  scope: guardrails
 status: accepted
 implementation: complete
 depends_on: []

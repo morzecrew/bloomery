@@ -2,6 +2,9 @@
 id: S-0042
 title: v0.1.0 release readiness
 kind: design
+change:
+  type: chore
+  scope: release
 status: accepted
 implementation: complete
 depends_on: []

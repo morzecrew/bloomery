@@ -2,6 +2,9 @@
 id: S-0056
 title: Production-style semantic bug corpus
 kind: design
+change:
+  type: test
+  scope: corpus
 status: accepted
 implementation: complete
 depends_on: []

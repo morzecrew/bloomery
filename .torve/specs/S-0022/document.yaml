@@ -3,6 +3,9 @@ id: S-0022
 title: >-
   Resolution: dependency DAG, recipes, reachability
 kind: design
+change:
+  type: feat
+  scope: resolve
 status: accepted
 implementation: complete
 depends_on: []

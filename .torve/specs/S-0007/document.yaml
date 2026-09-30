@@ -2,6 +2,9 @@
 id: S-0007
 title: Dimension algebra
 kind: design
+change:
+  type: feat
+  scope: semantic
 status: accepted
 implementation: complete
 depends_on: []

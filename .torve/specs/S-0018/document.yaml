@@ -3,6 +3,8 @@ id: S-0018
 title: >-
   Project foundations: packaging, tooling, CI, docs
 kind: design
+change:
+  type: build
 status: accepted
 implementation: complete
 depends_on: []

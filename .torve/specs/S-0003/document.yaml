@@ -2,6 +2,9 @@
 id: S-0003
 title: Replay on a historical entity
 kind: design
+change:
+  type: feat
+  scope: emit
 status: accepted
 implementation: complete
 depends_on: []

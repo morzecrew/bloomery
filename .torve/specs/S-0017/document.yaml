@@ -2,6 +2,9 @@
 id: S-0017
 title: Semantic grain model and functional dependencies
 kind: design
+change:
+  type: feat
+  scope: semantic
 status: accepted
 implementation: complete
 depends_on: []

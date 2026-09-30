@@ -2,6 +2,9 @@
 id: S-0009
 title: Continuous fuzzing in CI
 kind: design
+change:
+  type: ci
+  scope: fuzz
 status: accepted
 implementation: complete
 depends_on: []

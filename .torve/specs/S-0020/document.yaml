@@ -3,6 +3,9 @@ id: S-0020
 title: >-
   Intermediate representation and determinism contract
 kind: design
+change:
+  type: feat
+  scope: ir
 status: accepted
 implementation: complete
 depends_on: []

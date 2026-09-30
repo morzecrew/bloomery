@@ -3,6 +3,9 @@ id: S-0033
 title: >-
   Data quality: declarative cleansing, dispositions, quarantine
 kind: design
+change:
+  type: feat
+  scope: quality
 status: accepted
 implementation: complete
 depends_on: []
