@@ -57,7 +57,7 @@ A step input's `requires` is a lower bound the compile checks: when the wiring b
 - Paths: `pages/docs/concepts/what-bloomery-proves.md` `src/bloomery/guardrails/evidence.py` `tests/unit/test_guardrails/test_evidence.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0083/D-5 — `ASSUMED` (A declared key is checked) — implementation: none
+### S-0083/D-5 — `ASSUMED` (A declared key is checked)
 
 The claims page says a declared key is a `LOCKED` premise that the build checks, and the data quality page lists the generated audit and how `dedupe` removes it
 
