@@ -538,6 +538,27 @@ def granted(target: str, select: str = "[analyst]") -> dict[str, str]:
     }
 
 
+def sqlmesh_model(artifacts: dict[str, str], path: str):
+    """A model as SQLMesh's own reader loads it, with the audit definitions it
+    names — every model without `dedupe` names its key audit (S-0083)."""
+    from sqlglot import parse
+    from sqlmesh.core.audit import load_audit
+    from sqlmesh.core.dialect import parse as parse_sqlmesh
+    from sqlmesh.core.model import load_sql_based_model
+
+    # An audit body addresses `@this_model`, which only SQLMesh's parser reads.
+    audits = [
+        load_audit(parse_sqlmesh(content, default_dialect="duckdb"), dialect="duckdb")
+        for name, content in artifacts.items()
+        if name.startswith("audits/")
+    ]
+    return load_sql_based_model(
+        parse(artifacts[path], read="duckdb"),
+        dialect="duckdb",
+        audit_definitions={audit.name: audit for audit in audits},
+    )
+
+
 def test_grants_reach_sqlmesh_in_a_form_sqlmesh_reads_back() -> None:
     """Asserted by loading the emitted block through SQLMesh rather than by
     matching text.
@@ -547,11 +568,7 @@ def test_grants_reach_sqlmesh_in_a_form_sqlmesh_reads_back() -> None:
     is a SQLGlot parse error before SQLMesh ever sees it. A text assertion
     would have passed on the broken spelling.
     """
-    from sqlglot import parse
-    from sqlmesh.core.model import load_sql_based_model
-
-    content = granted("sqlmesh", "[analyst, \"role o'brien\"]")["models/silver/event.sql"]
-    model = load_sql_based_model(parse(content, read="duckdb"), dialect="duckdb")
+    model = sqlmesh_model(granted("sqlmesh", "[analyst, \"role o'brien\"]"), "models/silver/event.sql")
     assert model.grants == {"select": ["analyst", "role o'brien"]}
 
 
@@ -569,16 +586,10 @@ def test_an_empty_grant_list_is_not_an_absent_block() -> None:
     artifacts have to keep them apart, and SQLMesh's own reader is what says
     whether they do: `{}` for an empty grant against `None` for absence.
     """
-    from sqlglot import parse
-    from sqlmesh.core.model import load_sql_based_model
-
-    empty = granted("sqlmesh", "[]")["models/silver/event.sql"]
-    assert load_sql_based_model(parse(empty, read="duckdb"), dialect="duckdb").grants == {
+    assert sqlmesh_model(granted("sqlmesh", "[]"), "models/silver/event.sql").grants == {
         "select": []
     }
-
-    absent = artifacts("sqlmesh", owner=None)["models/silver/event.sql"]
-    assert load_sql_based_model(parse(absent, read="duckdb"), dialect="duckdb").grants is None
+    assert sqlmesh_model(artifacts("sqlmesh", owner=None), "models/silver/event.sql").grants is None
 
     assert yaml.safe_load(granted("dbt", "[]")["models/schema.yml"])["models"] == [
         {"name": "event", "config": {"grants": {"select": []}}}

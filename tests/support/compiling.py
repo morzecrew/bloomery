@@ -10,6 +10,7 @@ from pathlib import Path
 
 from bloomery import Target, compile_project, load_catalog, load_project
 from bloomery.emit import EmittedArtifact
+from bloomery.emit.sqlmesh import WHOLE_MODEL
 from bloomery.spec import Catalog, Project
 from support.steps import registry_for
 
@@ -142,7 +143,11 @@ def expand_engine_macros(sql: str) -> str:
     is deliberately a *literal*: substituting a clock call would make the
     materialized rows depend on when the suite ran.
     """
-    return sql.replace("@execution_ds", f"'{EXECUTION_DATE}'")
+    # The run-scoped key audit (S-0083/D-6) counts the run's keys against the
+    # whole table, which SQLMesh names through `@resolve_template`. A harness
+    # has no interval, so the run is the whole table: the template becomes
+    # `@this_model`, which every caller binds to the audited relation.
+    return sql.replace("@execution_ds", f"'{EXECUTION_DATE}'").replace(WHOLE_MODEL, "@this_model")
 
 
 _ENVELOPE = re.compile(r"\A(?:\s*--[^\n]*\n)*\s*(?:MODEL|AUDIT)\s*\(")

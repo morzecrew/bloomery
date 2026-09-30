@@ -206,7 +206,12 @@ def test_dbt_emits_each_assertion_as_a_singular_test() -> None:
     )
     artifacts = compile_project(project, target=Target.DBT, dialect="duckdb")
     tests = {a.path: a for a in artifacts if a.path.startswith("tests/")}
-    assert set(tests) == {"tests/lines_q_positive.sql", "tests/lines_q_present.sql"}
+    # Beside the entity's generated key audit (S-0083), asserted in the emit tests.
+    assert set(tests) == {
+        "tests/lines_q_positive.sql",
+        "tests/lines_q_present.sql",
+        "tests/order_item_key_unique.sql",
+    }
     assert "{{ config(severity='error') }}" in tests["tests/lines_q_positive.sql"].content
     assert "{{ config(severity='warn') }}" in tests["tests/lines_q_present.sql"].content
     # The mart is reached by reference, which is what orders the test after it.

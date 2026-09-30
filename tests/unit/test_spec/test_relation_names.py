@@ -92,6 +92,6 @@ def test_a_field_name_was_never_the_problem() -> None:
         target=Target.SQLMESH,
         dialect="duckdb",
     )
-    body = next(a.content for a in artifacts if a.path.endswith(".sql"))
+    body = next(a.content for a in artifacts if a.path.startswith("models/"))
     # Quoted, with the inner quote doubled — the identifier cannot break out.
     assert '"amt"") OR 1=1 --"' in body

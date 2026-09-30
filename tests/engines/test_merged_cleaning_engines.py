@@ -349,7 +349,7 @@ def _audit_body(name: str, dialect: str, relation: str) -> str:
         if a.path == f"audits/{name}.sql"
     )
     body = artifact.content[artifact.content.index(");") + 2 :]
-    return expand_engine_macros(body.replace("@this_model", relation)).strip()
+    return expand_engine_macros(body).replace("@this_model", relation).strip()
 
 
 def check_audit(

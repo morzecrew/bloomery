@@ -30,6 +30,7 @@ from pathlib import PurePosixPath
 import psycopg
 import pytest
 import trino
+from bloomery.emit import ArtifactKind
 from support.compiling import compile_fixture, extract_select
 from support.planning import fixture_ir, make_planner
 from testcontainers.community.postgres import PostgresContainer
@@ -243,7 +244,11 @@ def postgres() -> Iterator[Callable[[str], list[tuple[object, ...]]]]:
                 "INSERT INTO bronze.shop__sales VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", SALES
             )
         for artifact in sorted(
-            (a for a in compile_fixture(FIXTURE, dialect="postgres") if a.path.endswith(".sql")),
+            (
+                a
+                for a in compile_fixture(FIXTURE, dialect="postgres")
+                if a.kind is ArtifactKind.MODEL and a.path.endswith(".sql")
+            ),
             key=lambda a: PurePosixPath(a.path).parent.name != "silver",
         ):
             path = PurePosixPath(artifact.path)
@@ -299,7 +304,11 @@ def trino_engine() -> Iterator[Callable[[str], list[tuple[object, ...]]]]:
             + ", ".join("(" + ", ".join(f"'{value}'" for value in row) + ")" for row in SALES)
         )
         for artifact in sorted(
-            (a for a in compile_fixture(FIXTURE, dialect="trino") if a.path.endswith(".sql")),
+            (
+                a
+                for a in compile_fixture(FIXTURE, dialect="trino")
+                if a.kind is ArtifactKind.MODEL and a.path.endswith(".sql")
+            ),
             key=lambda a: PurePosixPath(a.path).parent.name != "silver",
         ):
             path = PurePosixPath(artifact.path)
