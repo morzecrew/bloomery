@@ -310,7 +310,7 @@ Under per-row conversion, a currency code the rate relation has no row for conve
 - Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/transforms/registry.py` `tests/execution/test_currency_convert.py`
 - Consequence: A payment in an unrecognised currency still counts as a row with a NULL amount, and rejecting it is a rule the author writes rather than a default
 
-### S-0081/D-1 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice) — implementation: none
+### S-0081/D-1 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice)
 
 A `to_utc` whose operand is an ISO wall-clock parse makes the parse zoned: every port's guard then reads a trailing `Z` as an offset and yields NULL, because the chain has declared the text a wall clock in a named zone
 

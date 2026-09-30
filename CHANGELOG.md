@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A mart can read the current version of a type2 entity.** `reading: current` on a
+  mart's `base`, or on a flatten step's `via:` in place of `as_of:`, reads only the rows
+  whose `valid_to` is NULL, so the mart's grain is the entity key again and its measures
+  count keys, not revisions. A rollup over such a mart proves as one over a type1 entity
+  would (S-0017/A-1, A-2). The reading is refused on a non-historical entity, beside
+  `as_of:` on the same hop, and on an incremental mart; a type2 base with no reading is
+  refused as before, and the `HistoricalFanout` fix text now names the current reading
+  first.
+- **A metric's own `filter` composes across marts.** A request whose metrics live on
+  different marts now admits a metric carrying its own filter: each branch states it as a
+  `Filter` scoped to that metric's measures, and a group the filtered metric's branch
+  lacks reads NULL for that metric. A request filter or row policy that does not reach
+  every branch is still refused, and the refusal now names the filter and the branches
+  that lack it.
+- **The capability matrix measures dbt Core, MetricFlow and SQLMesh on every corpus
+  case.** `comparisons/` gains a reproduction bundle per system for the seven cases that
+  had none, and `comparisons/MATRIX.md` reads its cells from those bundles alone.
 - **`parse_ts: ISO8601_INSTANT` parses text that states its own offset.** Text carrying
   `Z` or a numeric offset becomes the UTC instant it names, identically on every port,
   and zoneless text is NULL. The value is never a wall clock: a `to_utc` after it is
@@ -18,6 +35,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A `derived:` metric whose inputs are restricted differently is refused.** Inputs
+  carrying different filters, or a filter on one and none on another, fold rows about
+  different things into one number; R019 refuses the case as it already refused a ratio
+  (`operands_disagree`), on the single-mart and the composed path, naming each input and
+  its restriction. **Migration:** restrict every input the same way, or none.
+- **`bloomery_ir_version` is 25 (it was 24 in 0.4.0).** `MartIR` and `MartJoinIR` carry
+  the current reading; every compiled artifact's fingerprint header moves.
 - **`to_utc` after `parse_ts: ISO8601` yields NULL for text ending in `Z`.** The chain
   declares the text a wall clock in the named zone, so a `Z` contradicts it exactly as
   `+01:00` does, and every port now refuses it the same way rather than shifting a UTC

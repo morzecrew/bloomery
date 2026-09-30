@@ -362,28 +362,28 @@ None of `distinct_count`, `semi_additive` and snapshot enters branch planning: a
 
 - Paths: `src/bloomery/planner/semantic_plan.py`
 
-### S-0082/D-1 — `ASSUMED` (A metric's own filter crosses into a composed plan) — implementation: none
+### S-0082/D-1 — `ASSUMED` (A metric's own filter crosses into a composed plan)
 
 A metric's own `filter` is admitted into a composed plan: each branch states it as a `Filter` scoped to that metric's measures, and the branch request is unchanged because the manifest already holds the filter; this amends S-0055/D-8's "no `filter`" for composed components
 
 - Paths: `src/bloomery/planner/coverage.py` `src/bloomery/planner/semantic_plan.py` `tests/unit/test_planner/test_coverage.py`
 - Consequence: a request mixing filtered and unfiltered metrics across marts is planned, and its plan says what each filter restricts
 
-### S-0082/D-2 — `ASSUMED` (A metric's own filter crosses into a composed plan) — implementation: none
+### S-0082/D-2 — `ASSUMED` (A metric's own filter crosses into a composed plan)
 
 The composed domain stays the union of branch keys, and a group absent from the filtered metric's branch reads NULL for that metric, with the restriction named per column in the explanation
 
 - Paths: `src/bloomery/planner/compose.py` `src/bloomery/planner/explain.py`
 - Consequence: a reader can tell a NULL that means no rows from a NULL the filter produced
 
-### S-0082/D-3 — `ASSUMED` (A metric's own filter crosses into a composed plan) — implementation: none
+### S-0082/D-3 — `ASSUMED` (A metric's own filter crosses into a composed plan)
 
 A request refused because a request filter or the row policy does not reach every branch names the filter and the branches that lack it
 
 - Paths: `src/bloomery/planner/coverage.py` `tests/unit/test_planner/test_coverage.py`
 - Consequence: the refusal says what to change instead of blaming grains
 
-### S-0082/D-4 — `ASSUMED` (A metric's own filter crosses into a composed plan) — implementation: none
+### S-0082/D-4 — `ASSUMED` (A metric's own filter crosses into a composed plan)
 
 A `derived:` metric whose inputs carry different restrictions — different own filters, or a filter on one input and none on another — is refused with R019's `operands_disagree` on the single-mart and the composed path alike, naming each input and its restriction
 

@@ -26,7 +26,7 @@ Proof serialization is deterministic: canonical premise order, stable rule ident
 - Consequence: Equivalent authored ordering produces equivalent proof serialization, so a golden or a continuous-integration assertion over a derivation is a statement about the design rather than about the order a dictionary happened to iterate in
 - Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_premise_order_is_canonical_not_construction_order tests/unit/test_semantic/test_proof.py::test_serialization_carries_nothing_that_varies_between_processes -q` (shadow; runs as `decision:S-0005/D-6`, no log entry owed)
 
-### S-0006/D-4 — `ASSUMED` (Evidence-based semantic capability matrix) — implementation: partial
+### S-0006/D-4 — `ASSUMED` (Evidence-based semantic capability matrix)
 
 Rows are the cases of the semantic bug corpus under `tests/fixtures/semantic_corpus/`, not a separately invented taxonomy; a row the matrix needs and the corpus does not carry is a missing corpus case first
 
@@ -34,7 +34,7 @@ Rows are the cases of the semantic bug corpus under `tests/fixtures/semantic_cor
 - Consequence: Departing means the matrix needs a row no corpus case covers — in which case the case is what is missing, and it belongs in the corpus document before it belongs here
 - Check: `uv run pytest tests/unit/test_comparisons_floor.py::test_matrix_rows_are_the_corpus_cases -q` (shadow; runs as `decision:S-0006/D-4`, no log entry owed)
 
-### S-0006/D-10 — `ASSUMED` (Evidence-based semantic capability matrix) — implementation: partial
+### S-0006/D-10 — `ASSUMED` (Evidence-based semantic capability matrix)
 
 A cell returns to `UNKNOWN` when the version it pins stops matching what the reproduction resolves, or when its check date leaves a twelve-month window — and the rule is a gate, not a sentence
 

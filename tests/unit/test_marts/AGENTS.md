@@ -60,14 +60,14 @@ A mart dimension's `ref.qualified` equals its `column` for every column `_mart_i
 - Paths: `src/bloomery/marts/flatten.py` `src/bloomery/marts/rollup.py` `tests/unit/test_marts/test_flatten.py` `tests/property/test_metricflow_properties.py`
 - Consequence: A future role that made the two names differ fails the flatten test and the MetricFlow round-trip property rather than silently dropping an R020 proof
 
-### S-0080/D-1 — `ASSUMED` (A mart may read the current version of a type2 entity) — implementation: none
+### S-0080/D-1 — `ASSUMED` (A mart may read the current version of a type2 entity)
 
 A mart may declare `reading: current` on its base, and a flatten `via:` in place of `as_of:`, to read only the current version (`valid_to IS NULL`) of an `scd: type2` entity; it is refused on a non-historical entity and beside `as_of:` on one hop, and a type2 base with no reading is refused as before
 
 - Paths: `src/bloomery/spec/marts.py` `src/bloomery/marts/flatten.py` `tests/unit/test_marts/test_flatten.py`
 - Consequence: an author reaches the current version of a history table with one key, and the refusal stays the default
 
-### S-0080/D-3 — `ASSUMED` (A mart may read the current version of a type2 entity) — implementation: none
+### S-0080/D-3 — `ASSUMED` (A mart may read the current version of a type2 entity)
 
 A mart that reads current versions is materialized whole; declaring it incremental is refused
 
