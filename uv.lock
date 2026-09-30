@@ -2962,7 +2962,7 @@ wheels = [
 [[package]]
 name = "torve"
 version = "0.1.0"
-source = { git = "https://github.com/morzecrew/torve?branch=main#ba062e273ac6493e21df5b1723d3744d15f4559d" }
+source = { git = "https://github.com/morzecrew/torve?branch=main#850d1d035fa34514dcce388ab5f3a7edfa0b199b" }
 dependencies = [
     { name = "attrs", marker = "python_full_version >= '3.13'" },
     { name = "forze", marker = "python_full_version >= '3.13'" },
