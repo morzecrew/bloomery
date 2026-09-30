@@ -4,7 +4,7 @@ MODEL (
   name silver.order_line,
   kind FULL,
   grain (order_id, line_no),
-  audits (order_line_source_collision)
+  audits (order_line_source_collision, order_line_key_unique)
 );
 
 SELECT

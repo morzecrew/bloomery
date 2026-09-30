@@ -4,7 +4,7 @@ MODEL (
   name silver.order_item,
   kind FULL,
   grain (order_id, line_no),
-  audits (not_null(columns := (order_date)))
+  audits (order_item_key_unique, not_null(columns := (order_date)))
 );
 
 SELECT

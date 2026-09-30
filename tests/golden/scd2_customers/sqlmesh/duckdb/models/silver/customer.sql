@@ -4,7 +4,7 @@ MODEL (
   name silver.customer,
   kind SCD_TYPE_2_BY_COLUMN (unique_key (customer_id), columns *, valid_from_name valid_from, valid_to_name valid_to),
   grain (customer_id),
-  audits (accepted_values(column := segment, is_in := ('business', 'consumer')), not_null(columns := (email)))
+  audits (customer_key_unique, accepted_values(column := segment, is_in := ('business', 'consumer')), not_null(columns := (email)))
 );
 
 SELECT

@@ -3,7 +3,8 @@
 MODEL (
   name silver.order,
   kind FULL,
-  grain (order_id)
+  grain (order_id),
+  audits (order_key_unique)
 );
 
 SELECT

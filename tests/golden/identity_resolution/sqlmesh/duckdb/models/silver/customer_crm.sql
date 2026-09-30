@@ -3,7 +3,8 @@
 MODEL (
   name silver.customer_crm,
   kind FULL,
-  grain (source_system, source_id)
+  grain (source_system, source_id),
+  audits (customer_crm_key_unique)
 );
 
 SELECT

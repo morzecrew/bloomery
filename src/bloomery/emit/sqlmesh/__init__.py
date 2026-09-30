@@ -50,6 +50,7 @@ context belongs to the engine, and bloomery reads no clock (S-0020).
 from __future__ import annotations
 
 import jinja2
+from sqlglot import exp
 
 from bloomery.emit.base import (
     ArtifactKind,
@@ -89,6 +90,7 @@ from bloomery.emit.lower import (
     rollup_select,
     text_literal,
 )
+from bloomery.emit.lower.silver import THIS_MODEL, key_unique_audit, key_unique_audit_select
 from bloomery.emit.steps import step_artifacts
 from bloomery.errors import UnsupportedByTarget, guaranteed
 from bloomery.ir import (
@@ -114,6 +116,7 @@ from bloomery.typing import DateType, LogicalType, TimestampType
 # ----------------------- #
 
 __all__ = [
+    "WHOLE_MODEL",
     "SQLMeshEmitter",
 ]
 
@@ -828,6 +831,22 @@ def _entity_audits(entity: EntityIR, ctx: EmitContext) -> tuple[str, tuple[Emitt
     entries.extend(quality_entries)
     artifacts.extend(quality_artifacts)
 
+    if key_unique_audit(entity):
+        name = f"{entity.name}_key_unique"
+        entries.append(name)
+        content = _SELECT_AUDIT_ENVELOPE.render(
+            fingerprint=ctx.fingerprint,
+            name=name,
+            select=ctx.dialect.render(_key_unique_select(entity)),
+        )
+        artifacts.append(
+            EmittedArtifact.create(
+                path=f"audits/{name}.sql",
+                content=content.rstrip("\n") + "\n",
+                kind=ArtifactKind.AUDIT,
+            )
+        )
+
     for audit in entity.audits:
         if audit.kind == "not_null":
             entries.append(f"not_null(columns := ({audit.column}))")
@@ -850,6 +869,27 @@ def _entity_audits(entity: EntityIR, ctx: EmitContext) -> tuple[str, tuple[Emitt
             )
 
     return ", ".join(entries), tuple(artifacts)
+
+
+# ....................... #
+
+
+#: The audited model's physical table, unfiltered. In an audit on an
+#: ``INCREMENTAL_BY_TIME_RANGE`` model ``@this_model`` is a subquery over the
+#: run's interval, and the template resolves against the table beneath it.
+WHOLE_MODEL = "@resolve_template('@{catalog_name}.@{schema_name}.@{table_name}', 'table')"
+
+
+def _key_unique_select(entity: EntityIR) -> exp.Select:
+    """The key audit, scoped on a time-range model to the keys the run wrote in
+    ``@start_ds``..``@end_ds`` and counted against the whole model; every
+    other kind reads the whole model through ``@this_model`` (S-0083/D-6)."""
+    if entity.scd is not SCDKind.TYPE2 and (
+        entity.materialization is Materialization.INCREMENTAL_BY_PARTITION
+    ):
+        return key_unique_audit_select(entity, relation=WHOLE_MODEL, written=THIS_MODEL)
+
+    return key_unique_audit_select(entity)
 
 
 # ....................... #

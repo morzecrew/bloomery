@@ -34,7 +34,9 @@ DISAGREEING = CONSISTENT + ", ('sys', 's4', 'never_minted', 'fuzzy')"
 
 def _audit_sql() -> str:
     audit = next(
-        a for a in compile_fixture("step_resolution") if a.path.startswith("audits/")
+        a
+        for a in compile_fixture("step_resolution")
+        if a.path == "audits/step_customer_xref_canonical_id_references_customer.sql"
     )
     return extract_select(audit.content)
 

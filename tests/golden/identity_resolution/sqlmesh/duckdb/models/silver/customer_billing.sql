@@ -3,7 +3,8 @@
 MODEL (
   name silver.customer_billing,
   kind FULL,
-  grain (source_system, source_id)
+  grain (source_system, source_id),
+  audits (customer_billing_key_unique)
 );
 
 SELECT

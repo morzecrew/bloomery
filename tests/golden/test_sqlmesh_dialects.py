@@ -12,6 +12,7 @@ import pytest
 import sqlglot
 from pytest_snapshot.plugin import Snapshot
 
+from bloomery.emit.sqlmesh import WHOLE_MODEL
 from support.compiling import assert_no_orphans, compile_fixture, extract_select
 
 pytestmark = pytest.mark.golden
@@ -23,13 +24,18 @@ GOLDEN = Path(__file__).resolve().parent
 #: reserved-word quoting); the remaining fixtures stay duckdb-only — their
 #: rendering surface is covered by these cells (S-0026/golden-workflow).
 EXPECTED_PATHS = {
-    "minimal": ["config.yaml", "models/silver/event.sql"],
+    "minimal": [
+        "audits/event_key_unique.sql",
+        "config.yaml",
+        "models/silver/event.sql",
+    ],
     # S-0041: the union merge brings two constructs nothing else here emits —
     # `UNION ALL` between branches, and the typed `NULL` that fills a column one
     # mapping does not map. Both are rendered by the dialect port, and a
     # duckdb-only cell would leave the port's claim unproven for exactly the
     # SQL this feature added.
     "multi_source": [
+        "audits/order_line_key_unique.sql",
         "audits/order_line_source_collision.sql",
         "config.yaml",
         "models/silver/order_line.sql",
@@ -53,6 +59,8 @@ EXPECTED_PATHS = {
         "replay/order_line.sql",
     ],
     "ecom_basic": [
+        "audits/order_item_key_unique.sql",
+        "audits/order_key_unique.sql",
         "config.yaml",
         "models/gold/dim_date.sql",
         "models/gold/mart_order_items.sql",
@@ -60,6 +68,7 @@ EXPECTED_PATHS = {
         "models/silver/order_item.sql",
     ],
     "role_playing_dates": [
+        "audits/order_key_unique.sql",
         "config.yaml",
         "models/gold/dim_date.sql",
         "models/gold/mart_orders.sql",
@@ -106,7 +115,10 @@ def test_snowflake_renderings_are_snowflake_syntax(fixture_name: str) -> None:
         if not artifact.path.endswith(".sql"):
             continue
 
-        statements = sqlglot.parse(extract_select(artifact.content), read="snowflake")
+        # The unfiltered-model macro is SQLMesh's grammar too, and a macro call
+        # in FROM is none of Snowflake's; it stands for a table (S-0083/D-6).
+        select = extract_select(artifact.content).replace(WHOLE_MODEL, "whole_model")
+        statements = sqlglot.parse(select, read="snowflake")
         assert statements, f"{fixture_name}/{artifact.path}: no statement to check"
 
         if "/replay/" in artifact.path:

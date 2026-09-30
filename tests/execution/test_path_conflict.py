@@ -44,7 +44,7 @@ def test_both_columns_execute_and_the_audit_finds_the_disagreement(
     _seed(conn)
     artifacts = compile_fixture("path_conflict")
     model = next(a for a in artifacts if a.kind is ArtifactKind.MODEL)
-    audit = next(a for a in artifacts if a.kind is ArtifactKind.AUDIT)
+    audit = next(a for a in artifacts if a.path == "audits/item_net_price_reconcile.sql")
 
     conn.execute(f"CREATE TABLE silver.item AS {extract_select(model.content)}")
     rows = conn.execute(

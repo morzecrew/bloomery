@@ -22,6 +22,8 @@ EXPECTED_PATHS = {
     # three targets, and the SQL is the assertion that nothing about a
     # coarsening reaches the artifact — the premise is discharged at compile.
     "coarsening_rollup": [
+        "audits/address_key_unique.sql",
+        "audits/order_key_unique.sql",
         "config.yaml",
         "models/gold/dim_date.sql",
         "models/gold/mart_orders.sql",
@@ -39,6 +41,8 @@ EXPECTED_PATHS = {
     # derived model, which is D5's whole claim about the SQL: what makes it a
     # rollup is the obligation discharged at compile, not anything here.
     "rollup_mart": [
+        "audits/order_item_key_unique.sql",
+        "audits/order_key_unique.sql",
         "config.yaml",
         "models/gold/dim_date.sql",
         "models/gold/mart_order_items.sql",
@@ -47,6 +51,7 @@ EXPECTED_PATHS = {
         "models/silver/order_item.sql",
     ],
     "step_resolution": [
+        "audits/customer_raw_key_unique.sql",
         "audits/step_customer_xref_canonical_id_references_customer.sql",
         "config.yaml",
         "models/silver/customer.py",
@@ -59,6 +64,8 @@ EXPECTED_PATHS = {
     # `on_fail: fail` attached to a step output, and a mart over the
     # step-produced entity — the D49 `canonical:` link's whole reason to exist.
     "identity_resolution": [
+        "audits/customer_billing_key_unique.sql",
+        "audits/customer_crm_key_unique.sql",
         "audits/step_customer_confidence_is_high.sql",
         "audits/step_customer_xref_canonical_id_references_customer.sql",
         "config.yaml",
@@ -69,12 +76,17 @@ EXPECTED_PATHS = {
         "models/silver/customer_crm.sql",
         "models/silver/customer_xref.py",
     ],
-    "minimal": ["config.yaml", "models/silver/event.sql"],
+    "minimal": [
+        "audits/event_key_unique.sql",
+        "config.yaml",
+        "models/silver/event.sql",
+    ],
     # S-0041/what-is-refused-at-run-time, S-0041/D-5: the union merge's one generated artifact beyond the
     # model — the blocking audit that establishes what compilation cannot, that
     # the sources' key sets are disjoint. It is here rather than under a
     # `_quality_*` name because it guards the *merge*, not the quality system.
     "multi_source": [
+        "audits/order_line_key_unique.sql",
         "audits/order_line_source_collision.sql",
         "config.yaml",
         "models/silver/order_line.sql",
@@ -97,6 +109,8 @@ EXPECTED_PATHS = {
         "replay/order_line.sql",
     ],
     "ecom_basic": [
+        "audits/order_item_key_unique.sql",
+        "audits/order_key_unique.sql",
         "config.yaml",
         "models/gold/dim_date.sql",
         "models/gold/mart_order_items.sql",
@@ -104,6 +118,7 @@ EXPECTED_PATHS = {
         "models/silver/order_item.sql",
     ],
     "path_conflict": [
+        "audits/item_key_unique.sql",
         "audits/item_net_price_reconcile.sql",
         "config.yaml",
         "models/silver/item.sql",
@@ -114,18 +129,24 @@ EXPECTED_PATHS = {
     # arm reading *that* arm's own path — the fan-out D28 refused while a
     # single shadow stood for every source.
     "path_conflict_merged": [
+        "audits/item_key_unique.sql",
         "audits/item_net_price_reconcile.sql",
         "audits/item_source_collision.sql",
         "config.yaml",
         "models/silver/item.sql",
     ],
     "role_playing_dates": [
+        "audits/order_key_unique.sql",
         "config.yaml",
         "models/gold/dim_date.sql",
         "models/gold/mart_orders.sql",
         "models/silver/order.sql",
     ],
-    "scd2_customers": ["config.yaml", "models/silver/customer.sql"],
+    "scd2_customers": [
+        "audits/customer_key_unique.sql",
+        "config.yaml",
+        "models/silver/customer.sql",
+    ],
     # The quality-carrying fixture (S-0033): the entity model gains the
     # generated blocking audit on the ingestion metadata (D21) and one audit
     # per ``on_fail: fail`` rule, plus the reject model the quarantine
