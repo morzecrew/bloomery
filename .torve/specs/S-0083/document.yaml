@@ -1,0 +1,103 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0083
+title: A declared key is checked
+kind: design
+change:
+  type: feat
+  scope: emit
+status: accepted
+implementation: none
+depends_on: [S-0017, S-0033, S-0080]
+informed_by: [S-0058, S-0070]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  The grain closure proves rollups from declared entity keys: a key determines its entity's columns (S-0017/D-3), and since S-0080 a type2 entity read at its current version is admitted at its key's grain. Nothing checks that the data agrees. A table that holds two rows for one key, or a type2 relation with two current versions of one key, turns every rollup the compiler proved over it into a plausible wrong number, the failure the proofs exist to prevent.
+
+  Every entity whose key nothing enforces gets one generated, blocking audit: no two rows share the declared key, among the current versions on a type2 entity and among all rows otherwise. An entity that declares `dedupe` guarantees one row per key by construction and gets no audit. The declared key stays what it is on the claims page, a `LOCKED` premise, and the build now checks it.
+motivation: >-
+  Raised by the review of bloomery #228 (S-0080's close-out): `closure.py` admits
+  the key grain of a current-read type2 entity while the mart filters only `valid_to
+  IS NULL`, and no blocking audit covers duplicate keys. The same gap is older and
+  wider: the closure has always trusted a type1 entity's declared key, and a generated
+  project audits uniqueness only by `_source_row_id` (the D21 metadata audit) and
+  never by the entity key. `ecom_basic`'s silver models carry `not_null` audits and
+  nothing else. A dbt project's most common test is `unique` on its primary key; bloomery
+  knows the key and generates none.
+current_state: >-
+  `emit/sqlmesh/__init__.py::_entity_audits` and its dbt counterpart generate, per
+  entity, a source collision audit (merged entities), an ingestion-metadata audit
+  (entities with dedupe or quarantine), a conservation audit (entities with a reject
+  table) and one audit per `on_fail: fail` rule; all block the run. Entity-level `dedupe`
+  lowers to `ROW_NUMBER() OVER (PARTITION BY <entity key>)` and keeps one row per
+  key. The `unique` quality rule is per field and per partition slice (S-0033/D-5),
+  and leaves cross-partition duplicates to dedupe by its own statement. `emit/lower/predicates.py::current_version`
+  is the one `valid_to IS NULL` predicate the silver audits and S-0080's marts share.
+goals: |-
+  - A build whose data breaks a declared key stops before anything reads it.
+  - Type2 entities are checked over their current versions, with the predicate S-0080's marts use.
+  - An entity whose key is enforced by construction pays no audit.
+  - The claims page says the declared key is checked.
+non_goals: |-
+  - Checking relationship cardinality in the data. That is a different premise and a different audit.
+  - A new IR field. The audit is derived at emit time from the key, the `scd` kind and `dedupe`, all already in the IR, so `bloomery_ir_version` does not move.
+design:
+  - key: the-audit
+    md: >-
+      `<entity>_key_unique` returns the key values held by more than one row: `SELECT
+      <key> FROM <model> [WHERE valid_to IS NULL] GROUP BY <key> HAVING COUNT(*) >
+      1`. On SQLMesh it is a generated audit like the metadata audit; on dbt, a generated
+      singular test beside the others. It is emitted for every entity with a declared
+      key and no `dedupe`, and it blocks the run as every generated audit does.
+  - key: what-enforces-a-key
+    md: >-
+      `dedupe` partitions by the entity key and keeps one row per key, so an entity
+      that declares it cannot hold a duplicate and gets no audit. The `unique` rule
+      does not count: it runs per field and per partition slice, and cross-partition
+      duplicates are dedupe's by S-0033/D-5. An incremental merge on the key upserts,
+      but a batch that delivers one key twice is engine-dependent, so it does not
+      count either.
+tests: |-
+  - An entity with a declared key and no `dedupe` emits `<entity>_key_unique` on both targets; one with `dedupe` emits none.
+  - On a type2 entity the audit reads `valid_to IS NULL` through `current_version`.
+  - Executed on DuckDB: two rows sharing a key fail the build; two versions of one key with one current pass.
+  - Goldens gain the audit, and nothing else moves.
+  - A SQLMesh `incremental_by_partition` entity's audit reads only the run's range of the time column joined back to the whole model; `full`, `incremental_by_key`, `scd: type2` and every dbt entity's audit reads the whole model.
+docs: >-
+  `concepts/what-bloomery-proves.md` says a declared key is a `LOCKED` premise the
+  build checks; `concepts/data-quality.md` lists the generated audit and how `dedupe`
+  removes it.
+out_of_scope: >-
+  - A run-scoped audit on dbt, which has no run window in a test (D-6).
+risks: |-
+  - A fixture or example whose data repeats a key fails its execution tier. That is a finding in the fixture, fixed there, not a reason to weaken the audit.
+  - On SQLMesh, history written before the audit existed is never inside a run's range, so the run-scoped audit does not re-check it; the changelog's upgrade note says to run the audit's query once over the whole model.
+  - dbt's incremental entities pay the whole-model scan every run (D-6).
+alternatives:
+  - option: >-
+      Grade the key `ASSUMED` in evidence instead of auditing it
+    rejected_because: >-
+      the author did declare it, which is what `LOCKED` means; the gap is that nothing
+      checks the data, and a grade cannot stop a build
+  - option: >-
+      Refuse at compile an entity with a key and no `dedupe`
+    rejected_because: >-
+      most sources are unique per key and correct; refusing them would force a dedupe
+      nobody needs, while an audit costs one scan and stops only real duplicates
+questions:
+  - id: Q-1
+    text: >-
+      Blocking only, or a per-entity `warn`? The draft is blocking only: an author
+      who knows the source repeats keys declares `dedupe`, which also says which duplicate
+      survives.
+    status: settled
+    settled_by: D-1
+  - id: Q-2
+    text: >-
+      Should an incremental entity's audit read only the keys this run wrote, to bound
+      the scan? The draft reads the whole model: correct in every case, and the cost
+      has not been measured.
+    status: settled
+    settled_by: D-6

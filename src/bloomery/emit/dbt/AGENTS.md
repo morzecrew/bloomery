@@ -340,4 +340,18 @@ Durations reuse `quarantine.retention`'s grammar and validator. One spelling of 
 
 - Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/spec/quality.py` `tests/fixtures/quality_precedence/mapping_codes.yaml`
 
+### S-0083/D-1 — `ASSUMED` (A declared key is checked) — implementation: none
+
+Every entity with a declared key and no `dedupe` gets one generated, blocking audit, `<entity>_key_unique`: no two rows share the key, among the current versions on an `scd: type2` entity and among all rows otherwise
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/dbt/__init__.py`
+- Consequence: a build whose data breaks a declared key stops before a mart or a rollup reads it
+
+### S-0083/D-4 — `ASSUMED` (A declared key is checked) — implementation: none
+
+The audit is derived at emit time from the key, the `scd` kind and `dedupe` already in the IR; `bloomery_ir_version` does not move
+
+- Paths: `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/dbt/__init__.py`
+- Consequence: no fingerprint moves for the IR's sake; goldens change only by the new audit
+
 <!-- /torve:managed -->
