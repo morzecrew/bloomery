@@ -2359,13 +2359,22 @@ explanation prints a <code>branch:</code> line per mart:</p>
 <p>Filters, the row policy, <code>order_by</code> and <code>limit</code> all work on such a request. A filter and
 the policy are placed on <strong>every</strong> branch in that branch's own spelling of the dimension;
 one a branch cannot evaluate refuses the whole request, because a restriction applied to
-half the answer returns a number rather than an error. The ordering and the limit apply to
-the joined result, so a limit is a limit on rows you get back and not on rows one branch
-contributed.</p>
+half the answer returns a number rather than an error. The refusal names the filter or
+policy and the marts that cannot apply it:</p>
+<div class="highlight"><pre><span></span><code>filter `region = 'EU'` does not reach every branch: customers cannot apply it.
+</code></pre></div>
+<p>The ordering and the limit apply to the joined result, so a limit is a limit on rows you
+get back and not on rows one branch contributed.</p>
+<p>A metric's own <code>filter:</code> is admitted: it restricts only its own measure, on the branch
+that owns it, and that measure's line in the explanation says so —
+<code>[additive — COUNT (restricted to region eq ['EU'])]</code>. A group the filter leaves empty
+reads NULL for that metric while other branches still report it.</p>
 <p>A metric whose components span the marts — a ratio, or a <code>derived:</code> expression — is
-computed once above the join, over operands each branch aggregated. Two shapes stay
-refused: a component that itself needs two marts, and a derived input read at a time
-offset.</p>
+computed once above the join, over operands each branch aggregated, with its inputs' own
+filters named on its column. Three shapes stay refused: a component that itself needs
+two marts, a derived input read at a time offset, and a <code>derived:</code> metric whose inputs
+are restricted differently (<code>RatioOperandsDisagree</code>, R019 <code>operands_disagree</code>, naming
+each input and its restriction) — refused on a single mart too.</p>
 <p>Where it cannot prove a request safe, it refuses with the conflict named — including the
 case where both marts carry a column of the same name and mean different things by it. See
 <a href="../../concepts/wide-marts/#cross-grain-requests-are-aggregated-first-or-refused">wide-marts</a>.</p>
