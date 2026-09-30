@@ -15,7 +15,10 @@ decisions:
       it
     rationale: >-
       the closure proves rollups from declared keys, so an unchecked key is an unchecked
-      premise under every proof built on it
+      premise under every proof built on it; blocking only, with no `warn`, because
+      a build that carried on would publish marts whose rollups are reported proved
+      on a premise the data breaks — an author whose source repeats keys declares
+      `dedupe`, and a project upgrading onto the audit is told so by the changelog
     cites: [S-0017/D-3, S-0080/D-4]
   - id: D-2
     grade: ASSUMED
