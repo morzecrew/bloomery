@@ -19,7 +19,7 @@ from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
 from bloomery.errors import UnsupportedByTarget, guaranteed
-from bloomery.ir import AuditIR, EntityIR, MartIR, MetricFilterIR
+from bloomery.ir import VALID_TO, AuditIR, EntityIR, MartIR, MetricFilterIR
 from bloomery.transforms import neutral_type
 from bloomery.typing import (
     DateType,
@@ -236,6 +236,17 @@ def as_of_conditions(
         exp.GTE(this=anchor.copy(), expression=exp.column(valid_from, table=table)),
         cast("Expression", open_ended),
     ]
+
+
+def current_version(*, table: str | None = None) -> Expression:
+    """``valid_to IS NULL``: the current version of an ``scd: type2`` relation.
+
+    One predicate for the silver audits that scope to the current version and
+    the mart that reads only it (S-0080/D-2), so the two cannot disagree about
+    which version is current. ``table`` qualifies the column when the caller
+    reads more than one relation.
+    """
+    return exp.Is(this=exp.column(VALID_TO, table=table), expression=exp.null())
 
 
 # ....................... #

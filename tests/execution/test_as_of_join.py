@@ -174,3 +174,66 @@ def test_the_ordered_date_role_still_buckets(warehouse: duckdb.DuckDBPyConnectio
         ("o2", datetime.date(2024, 9, 1)),
         ("o3", datetime.date(2024, 7, 1)),
     ]
+
+
+# ....................... #
+# The current reading (S-0080/D-1, S-0080/D-2): `valid_to IS NULL` on a mart's
+# base and on a flatten hop, executed over a key with three versions.
+
+CURRENT_FIXTURE = "scd2_current"
+
+#: ``c1`` changed segment twice, so the relation holds three rows for it; only
+#: the last is current.
+CURRENT_VERSIONS = [
+    ("c1", "smb", "2023-01-15", "2023-01-15", "2024-02-01"),
+    ("c1", "mid", "2023-01-15", "2024-02-01", "2024-06-01"),
+    ("c1", "enterprise", "2023-01-15", "2024-06-01", None),
+    ("c2", "smb", "2023-05-02", "2023-05-02", None),
+]
+
+
+@pytest.fixture(scope="module")
+def current_warehouse() -> Iterator[duckdb.DuckDBPyConnection]:
+    conn = duckdb.connect()
+    conn.execute("CREATE SCHEMA silver")
+    conn.execute("CREATE SCHEMA gold")
+    conn.execute(
+        "CREATE TABLE silver.customer (customer_id VARCHAR, segment VARCHAR, "
+        "signed_up_at TIMESTAMP, valid_from TIMESTAMP, valid_to TIMESTAMP)"
+    )
+    conn.executemany("INSERT INTO silver.customer VALUES (?, ?, ?, ?, ?)", CURRENT_VERSIONS)
+    conn.execute(
+        "CREATE TABLE silver.\"order\" (order_id VARCHAR, customer_id VARCHAR, "
+        "amount DECIMAL(12, 4), order_date DATE)"
+    )
+    conn.executemany('INSERT INTO silver."order" VALUES (?, ?, ?, ?)', ORDERS)
+
+    for artifact in compile_fixture(CURRENT_FIXTURE, dialect="duckdb"):
+        for mart in ("mart_customers", "mart_orders"):
+            if artifact.path.endswith(f"{mart}.sql"):
+                conn.execute(f"CREATE TABLE gold.{mart} AS {extract_select(artifact.content)}")
+    yield conn
+    conn.close()
+
+
+def test_a_current_base_counts_a_three_version_key_once(
+    current_warehouse: duckdb.DuckDBPyConnection,
+) -> None:
+    rows = current_warehouse.execute(
+        "SELECT customer_id, segment FROM gold.mart_customers ORDER BY customer_id"
+    ).fetchall()
+
+    assert rows == [("c1", "enterprise"), ("c2", "smb")]
+
+
+def test_a_current_hop_keeps_the_base_grain_and_reads_the_current_version(
+    current_warehouse: duckdb.DuckDBPyConnection,
+) -> None:
+    rows = current_warehouse.execute(
+        "SELECT order_id, customer_segment FROM gold.mart_orders ORDER BY order_id"
+    ).fetchall()
+    assert rows == [("o1", "enterprise"), ("o2", "enterprise"), ("o3", "smb")]
+
+    total = current_warehouse.execute("SELECT SUM(amount) FROM gold.mart_orders").fetchone()
+    assert total is not None
+    assert total[0] == Decimal("390.0000")

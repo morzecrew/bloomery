@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final
 
+from bloomery.errors import InvariantViolated
 from bloomery.ir import Cardinality, SCDKind
 from bloomery.semantic.historical import AsOfState, qualify_as_of
 from bloomery.semantic.nodes import (
@@ -83,7 +84,7 @@ __all__ = [
 MAX_DERIVATIONS = 2
 
 
-def _entity_grain(entity: EntityIR) -> GrainRef | None:
+def _entity_grain(entity: EntityIR, current: tuple[str, ...] = ()) -> GrainRef | None:
     """The grain of an entity, or ``None`` where its declared key does not
     identify one of its rows.
 
@@ -99,8 +100,13 @@ def _entity_grain(entity: EntityIR) -> GrainRef | None:
       entity, read here about the entity rather than about a join onto it
       (S-0017 (§5.3), S-0017/D-4). A historical row is reached by an anchored hop, in
       :func:`dependencies`, and by nothing else.
+
+    Unless it is read at its **current version** — named in ``current``, the
+    context's reading. ``valid_to IS NULL`` leaves one version per key, so the
+    key identifies a row again: the fifth fact S-0017/A-1 admits into D-3,
+    and S-0080/D-4's. With no current reading the refusal above stands.
     """
-    if not entity.key or entity.scd is SCDKind.TYPE2:
+    if not entity.key or (entity.scd is SCDKind.TYPE2 and entity.name not in current):
         return None
 
     return grain_of(entity.name, entity.key)
@@ -151,7 +157,7 @@ def dependencies(
     blocked: list[BlockedEdge] = []
 
     for entity in project.entities:
-        grain = _entity_grain(entity)
+        grain = _entity_grain(entity, context.current)
         if grain is None:
             continue
         found.extend(
@@ -177,7 +183,7 @@ def dependencies(
 
         for inverse, basis in _admitted_directions(rel):
             reading, target = (to_entity, from_entity) if inverse else (from_entity, to_entity)
-            grain = _entity_grain(reading)
+            grain = _entity_grain(reading, context.current)
             if grain is None:
                 continue
 
@@ -194,7 +200,24 @@ def dependencies(
             )
 
             anchor = context.anchor(rel.name)
-            state = qualify_as_of(reading=reading, target=target, as_of=anchor)
+            if anchor is not None and target.name in context.current:
+                # Two readings of one entity: its key would identify a row
+                # everywhere while this hop picks a version by the anchor, and
+                # a rollup through the hop would see both derivations. Refused
+                # for the reason a hop anchored twice is (RollupContext).
+                msg = (
+                    f"{target.name!r} is read at its current version and as of "
+                    f"{anchor!r} through relationship {rel.name!r} — two readings of one "
+                    "entity in one context. Fix: build one context per reading"
+                )
+                raise InvariantViolated(msg)
+
+            state = qualify_as_of(
+                reading=reading,
+                target=target,
+                as_of=anchor,
+                current=target.name in context.current,
+            )
             if state is AsOfState.CURRENT:
                 as_of = None
             elif state is AsOfState.QUALIFIED:
@@ -494,9 +517,12 @@ def can_roll_up(
     # Source only. A rollup *to* a historical grain is a real question that an
     # anchored hop answers; a rollup *from* one is not, because the declared
     # key names a set of versions and there is no single row for a value to
-    # have originated at.
+    # have originated at. A current reading names one row per key, so an
+    # entity read that way is not historical here (S-0080/D-4).
     historical = tuple(
-        ref for ref in source.determinants if entities[ref.entity].scd is SCDKind.TYPE2
+        ref
+        for ref in source.determinants
+        if entities[ref.entity].scd is SCDKind.TYPE2 and ref.entity not in context.current
     )
     if historical:
         return RollupRefusal(source, target, RefusalReason.HISTORICAL_GRAIN, unreached=historical)

@@ -186,7 +186,7 @@ A cardinality-expanding refusal is classified by undirected connectivity over th
 
 ### S-0017/D-16 — `LOCKED` (Semantic grain model and functional dependencies)
 
-A versioned entity's declared key does not identify one of its rows, so it contributes no entity-key dependency, and a rollup *out of* such a grain is refused; a historical row is reached by an anchored hop and by nothing else, which is why the as-of basis determines the whole target row rather than only the joined key
+A versioned entity's declared key does not identify one of its rows, so it contributes no entity-key dependency, and a rollup *out of* such a grain is refused; a historical row is reached by an anchored hop and by nothing else, which is why the as-of basis determines the whole target row rather than only the joined key — except where a mart reads the entity at its current version (`reading: current`, S-0080/D-1), which holds one row per key: the key then identifies that row, and the entity's key grain proves as a type1 entity's does
 
 - Paths: `src/bloomery/semantic/closure.py` `src/bloomery/semantic/nodes.py`
 - Consequence: Without it a versioned entity's key reads as determining every historical column it carries, with an empty derivation, and every rollup built on that is a number computed over however many versions a key happens to have

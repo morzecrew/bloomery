@@ -1,0 +1,22 @@
+# The current reading (S-0080/D-1): a historical entity read at its current
+# version (`valid_to IS NULL`), on a mart's base and on a flatten hop.
+#
+# `customers` is based on the type2 entity itself — refused without the
+# reading (S-0040/D-2), because it would count revisions. `orders` flattens it
+# with `reading: current` in place of `as_of:`, so every order carries the
+# customer's segment as it is now.
+#
+# Both read current versions, so both are materialized whole (S-0080/D-3).
+marts_version: 1
+marts:
+  customers:
+    grain: customer
+    base: customer
+    reading: current
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {via: order_of_customer, prefix: customer_, reading: current}
+      - {date: order_date, role: ordered}
+    measures: [revenue]

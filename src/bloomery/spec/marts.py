@@ -80,6 +80,10 @@ class ViaStep(SpecModel):
     via: str
     prefix: str = Field(min_length=1)
     as_of: str | None = None
+    #: ``current`` reads only the current version (``valid_to IS NULL``) of an
+    #: ``scd: type2`` entity, in place of an anchor (S-0080/D-1). Refused on a
+    #: non-historical entity and beside ``as_of``.
+    reading: Literal["current"] | None = None
     role_of: MemberName | None = None
 
 
@@ -193,6 +197,9 @@ class Mart(SpecModel):
 
     grain: str
     base: str
+    #: ``current`` reads only the current version of an ``scd: type2`` base
+    #: (S-0080/D-1); a type2 base without it is refused as before.
+    reading: Literal["current"] | None = None
     flatten: tuple[FlattenStep, ...] = ()
     measures: tuple[str, ...] = ()
     #: The weakest evidence this consumer accepts under its measures

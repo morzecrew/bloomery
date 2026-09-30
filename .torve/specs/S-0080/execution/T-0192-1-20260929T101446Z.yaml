@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0192
+phase: 2
+base: 0d277ec24730dcce9e42450985dc5c90ec1bd69a
+commit: 265dcb46ac34a565d7fd80f1de3aac788d3b590c
+at: '2026-09-29T10:14:46Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-29T10:12:20Z'
+    claim: >-
+      qualify_as_of reuses its existing CURRENT state via a current= flag rather than
+      a new enum member; the closure reads current-read entities from a new entity-level
+      RollupContext.current, gives them their key's grain as an ENTITY_KEY (R001)
+      fact, and exempts them from HISTORICAL_GRAIN. No fifth DependencyBasis, because
+      S-0017/D-20 (LOCKED) fixes the basis at four members
+    evidence: >-
+      src/bloomery/semantic/historical.py:91 — CURRENT returned for a type2 target
+      read current; src/bloomery/semantic/closure.py:108 gives it its key's grain,
+      closure.py:512 lifts HISTORICAL_GRAIN, nodes.py:353 carries the reading
+    action: decided
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-09-29T10:12:20Z'
+    claim: >-
+      Both HistoricalFanout fix texts now lead with reading: current, anchor and type1
+      routes after; scd2 goldens and test_stage's count assertions move with them
+    evidence: >-
+      src/bloomery/marts/flatten.py:174-184 — the two fix texts; tests/golden/refusals/scd2_mart_refusal.txt:5
+      carries the base text
+    action: decided
+  - decision: S-0040/D-1
+    grade: LOCKED
+    at: '2026-09-29T10:12:20Z'
+    claim: >-
+      An unanchored, non-current type2 flatten is still refused; only the fix text
+      changed, and a current-read hop is admitted through qualify_as_of's CURRENT
+    evidence: >-
+      src/bloomery/marts/flatten.py:239 — the hop dispatches through qualify_as_of
+      with the reading; tests/golden/refusals/example-scd2-flatten.txt:3 still refuses
+    action: decided
+  - decision: S-0040/D-2
+    grade: LOCKED
+    at: '2026-09-29T10:12:20Z'
+    claim: >-
+      A type2 base without reading: current is still refused; only its fix text now
+      leads with the current reading
+    evidence: >-
+      src/bloomery/marts/flatten.py:180-184 — the base fix text; tests/golden/refusals/scd2_mart_refusal.txt:5
+      still refuses
+    action: decided
+  - decision: S-0017/D-16
+    grade: LOCKED
+    class: spec-gap
+    at: '2026-09-29T10:12:20Z'
+    claim: >-
+      A type2 entity with no current reading still contributes no entity-key dependency
+      and a rollup out of it is still refused HISTORICAL_GRAIN; only one named in
+      RollupContext.current, which S-0017/A-1 admits into D-3, reaches its key's grain
+    evidence: >-
+      src/bloomery/semantic/closure.py:108 — the refusal holds unless the entity is
+      read current; tests/unit/test_semantic/test_closure.py:330 still passes unchanged
+    action: decided
+    proposal: >-
+      amend D-16 as A-1 amended D-3: a historical row is reached by an anchored hop,
+      or by the entity read at its current version, and by nothing else
