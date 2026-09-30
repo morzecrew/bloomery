@@ -14,6 +14,7 @@ from bloomery.errors import (
     AmbiguousDimension,
     InvalidRequest,
     PlannerError,
+    RatioOperandsDisagree,
     UnknownMember,
     UnreachableAtGrain,
 )
@@ -960,10 +961,10 @@ def test_every_held_back_class_declines_the_composed_path(
         resolve_branches(ir, MetricRequest(metrics=requested), naming=DefaultNaming())
 
 
-def test_a_metric_with_its_own_restriction_declines_the_composed_path() -> None:
-    """A per-measure filter narrows one branch, and the composed plan has no
-    node that says so — the branch's `Filter` would claim the restriction
-    applies to everything beneath it."""
+def test_a_metric_with_its_own_restriction_is_admitted_to_the_composed_path() -> None:
+    """A per-measure filter narrows one branch, and the branch's plan says so
+    with a `Filter` scoped to that metric's measures (S-0082/D-1) — so the
+    request composes rather than being refused."""
     ir = _variant(
         "cross_mart_branches",
         metrics=(
@@ -984,12 +985,16 @@ def test_a_metric_with_its_own_restriction_declines_the_composed_path() -> None:
         ),
     )
 
-    with pytest.raises(UnreachableAtGrain, match="different grains"):
-        resolve_branches(
-            ir,
-            MetricRequest(metrics=("shipping_count", "line_discount")),
-            naming=DefaultNaming(),
-        )
+    branches = resolve_branches(
+        ir,
+        MetricRequest(metrics=("shipping_count", "line_discount")),
+        naming=DefaultNaming(),
+    )
+
+    assert {branch.mart.name: branch.metrics for branch in branches} == {
+        "order_items": ("line_discount",),
+        "orders": ("shipping_count",),
+    }
 
 
 def test_a_restriction_reaches_every_branch_or_the_request_refuses() -> None:
@@ -1067,6 +1072,46 @@ def test_a_row_policy_reaches_every_branch_or_the_request_refuses() -> None:
             naming=DefaultNaming(),
             policy=policy,
         )
+
+
+@pytest.mark.parametrize(
+    ("filters", "policy", "named"),
+    [
+        (
+            (Predicate(dimension="region", op=Op.EQ, values=("EU",)),),
+            None,
+            "filter `region = 'EU'` does not reach every branch: customers cannot apply it",
+        ),
+        (
+            (),
+            RowPolicy(dimension="region", op=Op.IN, value=("EU", "US")),
+            "row policy `region in ('EU', 'US')` does not reach every branch: "
+            "customers cannot apply it",
+        ),
+    ],
+)
+def test_a_restriction_missing_from_a_branch_names_itself_and_the_branch(
+    filters: tuple[Predicate, ...], policy: RowPolicy | None, named: str
+) -> None:
+    """S-0082/D-3: the refusal says which restriction and which branches lack it,
+    rather than blaming grains — the author's fix is to drop that filter or
+    widen that mart."""
+    ir = fixture_ir("cross_mart_branches")
+
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        resolve_branches(
+            ir,
+            MetricRequest(
+                metrics=("customer_count", "shipping_count"),
+                dimensions=("tier",),
+                filters=filters,
+            ),
+            naming=DefaultNaming(),
+            policy=policy,
+        )
+
+    assert named in str(excinfo.value)
+    assert "grain" not in str(excinfo.value)
 
 
 def test_a_third_marts_naming_does_not_decide_what_the_request_meant() -> None:
@@ -1179,11 +1224,12 @@ def test_a_component_on_two_marts_is_refused_rather_than_placed_on_one() -> None
         coverage._home(ir, entries, "discount_per_order")  # noqa: SLF001
 
 
-def test_a_component_carrying_its_own_restriction_declines_the_composed_path() -> None:
+def test_a_component_carrying_its_own_restriction_is_admitted_to_the_composed_path() -> None:
     """P1 refused a *requested* metric with its own `filter:`, because a branch's
-    `Filter` node says one thing about every measure beneath it. A **component**
-    of a computed metric is aggregated by a branch in exactly the same way, and
-    the rule has to reach it there too.
+    `Filter` node said one thing about every measure beneath it. Filters are now
+    scoped to measures (S-0082/D-1), and a **component** of a computed metric is
+    aggregated by a branch in exactly the same way, so the admission reaches it
+    there too.
 
     Found by patch coverage rather than by the sabotage sweep: nothing mutated
     reached this line, and no request in the corpus builds a ratio over a
@@ -1214,12 +1260,16 @@ def test_a_component_carrying_its_own_restriction_declines_the_composed_path() -
         ),
     )
 
-    with pytest.raises(UnreachableAtGrain, match="different grains"):
-        resolve_branches(
-            ir,
-            MetricRequest(metrics=("discount_per_order",), dimensions=("tier",)),
-            naming=DefaultNaming(),
-        )
+    branches = resolve_branches(
+        ir,
+        MetricRequest(metrics=("discount_per_order",), dimensions=("tier",)),
+        naming=DefaultNaming(),
+    )
+
+    assert {branch.mart.name: branch.metrics for branch in branches} == {
+        "order_items": ("line_discount",),
+        "orders": ("shipping_count",),
+    }
 
 
 def test_one_dimension_named_by_both_a_filter_and_the_policy_is_anchored_once() -> None:
@@ -1378,3 +1428,75 @@ def test_two_branches_reading_one_bucket_the_same_way_is_not_a_collision() -> No
             ),
             naming=DefaultNaming(),
         )
+
+
+# ....................... #
+# A derived metric's inputs are about one row set (S-0082/D-4)
+
+
+def _with_an_eu_count(*derived: str) -> ProjectIR:
+    """`cross_mart_branches` plus `eu_shipping_count`, the orders count
+    restricted to one region, and the derived metrics given over it."""
+
+    return _variant(
+        "cross_mart_branches",
+        marts=("    measures: [shipping_count]", "    measures: [shipping_count, eu_shipping_count]"),
+        metrics=(
+            "metrics:\n",
+            "metrics:\n  eu_shipping_count:\n    grain: order\n    additivity: additive\n"
+            '    agg: count\n    expr: "order_id"\n'
+            "    filter:\n      - {dimension: region, op: eq, values: ['EU']}\n"
+            + "".join(derived),
+        ),
+    )
+
+
+_OUTSIDE_EU = (
+    "  orders_outside_eu:\n    additivity: non_additive\n    derived:\n"
+    '      expr: "orders - eu"\n      inputs:\n'
+    "        orders: {metric: shipping_count}\n        eu: {metric: eu_shipping_count}\n"
+)
+_DISCOUNT_LESS_EU = (
+    "  discount_less_eu_orders:\n    additivity: non_additive\n    derived:\n"
+    '      expr: "discount - eu"\n      inputs:\n'
+    "        discount: {metric: line_discount}\n        eu: {metric: eu_shipping_count}\n"
+)
+
+
+def test_a_derived_metric_over_differently_restricted_inputs_is_refused_on_one_mart() -> None:
+    ir = _with_an_eu_count(_OUTSIDE_EU)
+    request = MetricRequest(metrics=("orders_outside_eu",))
+
+    for refuse in (
+        lambda: resolve_branches(ir, request, naming=NAMING),
+        lambda: _check(ir, request),
+    ):
+        with pytest.raises(RatioOperandsDisagree) as refused:
+            refuse()
+
+        message = str(refused.value)
+        assert "operands_disagree" in message
+        assert "eu_shipping_count is restricted by region eq ['EU']" in message
+        assert "shipping_count is restricted by nothing" in message
+
+
+def test_a_derived_metric_over_differently_restricted_inputs_is_refused_when_composed() -> None:
+    ir = _with_an_eu_count(_DISCOUNT_LESS_EU)
+
+    with pytest.raises(RatioOperandsDisagree, match="operands_disagree") as refused:
+        resolve_branches(
+            ir, MetricRequest(metrics=("discount_less_eu_orders",)), naming=NAMING
+        )
+
+    assert "line_discount is restricted by nothing" in str(refused.value)
+
+
+def test_a_derived_metric_whose_inputs_agree_still_composes() -> None:
+    ir = _with_an_eu_count(_OUTSIDE_EU)
+
+    branches = resolve_branches(
+        ir, MetricRequest(metrics=("discount_less_orders",)), naming=NAMING
+    )
+
+    assert len(branches) == 2
+    assert _check(ir, MetricRequest(metrics=("shipping_count", "eu_shipping_count"))) == "orders"

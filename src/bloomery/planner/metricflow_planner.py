@@ -387,7 +387,7 @@ class MetricFlowPlanner:
             per_branch,
             order=request.metrics,
             computed=tuple(
-                explain.composed_measure(metrics_by_name[measure.name])
+                explain.composed_measure(metrics_by_name[measure.name], metrics_by_name)
                 for measure in measures
                 if measure.expr is not None
             ),

@@ -1,0 +1,167 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0205
+base: 73e52efc583a7a9a55002bd25e195a384891d1ca
+commit: 4589a0b280ee53cc88cc8ae0f85316ed13546635
+at: '2026-09-29T10:49:09Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0023/D-6
+    grade: ASSUMED
+  - id: S-0027/D-4
+    grade: ASSUMED
+  - id: S-0028/D-5
+    grade: ASSUMED
+  - id: S-0028/D-6
+    grade: ASSUMED
+  - id: S-0030/D-6
+    grade: ASSUMED
+  - id: S-0035/D-4
+    grade: ASSUMED
+  - id: S-0054/D-1
+    grade: LOCKED
+  - id: S-0054/D-3
+    grade: LOCKED
+  - id: S-0054/D-11
+    grade: LOCKED
+  - id: S-0055/D-3
+    grade: LOCKED
+  - id: S-0055/D-4
+    grade: ASSUMED
+  - id: S-0055/D-5
+    grade: ASSUMED
+  - id: S-0055/D-9
+    grade: LOCKED
+  - id: S-0055/D-11
+    grade: LOCKED
+  - id: S-0055/D-12
+    grade: LOCKED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-09-29T10:14:24Z'
+    claim: >-
+      review claim holds: coverage.py imports explain's underscore-private _human_predicate,
+      the only cross-module use; making it public needs an edit to src/bloomery/planner/explain.py,
+      which this task's scope does not allow, and copying the helper into coverage.py
+      would fork the predicate wording between refusal and explanation
+    evidence: >-
+      src/bloomery/planner/coverage.py:46 — imports _human_predicate; src/bloomery/planner/explain.py:247
+      defines it outside explain's __all__ (explain.py:46-49); coverage.py:1033 is
+      the only use
+    action: halted
+    proposal: >-
+      re-mint with scope allowing src/bloomery/planner/explain.py: rename _human_predicate
+      to human_predicate, add it to explain.__all__, update explain.py:277,441 and
+      coverage.py:46,1033
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-09-29T10:19:34Z'
+    attempt: 2
+    claim: >-
+      The review claim holds: coverage.py imports explain's underscore-private _human_predicate,
+      and it is the only cross-module import of it in src/. The fix belongs in explain.py
+      (make the renderer public and export it); this scope allows only coverage.py
+      and the task log, so it cannot be made here. No public explain function renders
+      a single Predicate, and copying the renderer into coverage.py would create a
+      second prose renderer that can drift from the explanation's wording, which is
+      worse than the private import.
+    evidence: >-
+      src/bloomery/planner/coverage.py:46 — from bloomery.planner.explain import _human_predicate,
+      used at coverage.py:1033; the definition is src/bloomery/planner/explain.py:247
+      and it is absent from explain's __all__ at explain.py:46
+    action: halted
+    proposal: >-
+      Amend T-0205 scope to allow src/bloomery/planner/explain.py: rename _human_predicate
+      to human_predicate, add it to explain.__all__, update explain's internal callers
+      (explain.py:277, explain.py:441) and the import at coverage.py:46 and call at
+      coverage.py:1033.
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-09-29T10:37:04Z'
+    attempt: 3
+    claim: >-
+      rename-only change (explain._human_predicate made public as human_predicate);
+      no driver, SDK or dependency enters src/bloomery
+    evidence: >-
+      src/bloomery/planner/coverage.py:46 — only import changed is the in-package
+      explain helper
+    action: decided
+  - decision: S-0054/D-1
+    grade: LOCKED
+    at: '2026-09-29T10:37:04Z'
+    attempt: 3
+    claim: >-
+      rename-only; representation safety and answerability logic untouched
+    evidence: >-
+      src/bloomery/planner/explain.py:248 — function body unchanged, only its name
+      is public now
+    action: decided
+  - decision: S-0054/D-3
+    grade: LOCKED
+    at: '2026-09-29T10:37:04Z'
+    attempt: 3
+    claim: >-
+      rename-only; mart contract and grain equality untouched in coverage.py
+    evidence: >-
+      src/bloomery/planner/coverage.py:46 — import of the public name replaces the
+      private one; no rule changed
+    action: decided
+  - decision: S-0054/D-11
+    grade: LOCKED
+    at: '2026-09-29T10:37:04Z'
+    attempt: 3
+    claim: >-
+      no refusal changes exception class; refusal message text is identical
+    evidence: >-
+      src/bloomery/planner/coverage.py:1033 — same call, public name, same output
+    action: decided
+  - decision: S-0055/D-3
+    grade: LOCKED
+    at: '2026-09-29T10:37:04Z'
+    attempt: 3
+    claim: >-
+      derived-metric evaluation after operand rollup untouched
+    evidence: >-
+      src/bloomery/planner/explain.py:248 — prose renderer only; no plan or evaluation
+      logic changed
+    action: decided
+  - decision: S-0055/D-9
+    grade: LOCKED
+    at: '2026-09-29T10:37:04Z'
+    attempt: 3
+    claim: branch-join route untouched
+    evidence: >-
+      src/bloomery/planner/coverage.py:46 — import rename only
+    action: decided
+  - decision: S-0055/D-11
+    grade: LOCKED
+    at: '2026-09-29T10:37:04Z'
+    attempt: 3
+    claim: measure partition by measure_owners untouched
+    evidence: >-
+      src/bloomery/planner/coverage.py:46 — import rename only
+    action: decided
+  - decision: S-0055/D-12
+    grade: LOCKED
+    at: '2026-09-29T10:37:04Z'
+    attempt: 3
+    claim: >-
+      dimension identity by provenance triple untouched
+    evidence: >-
+      src/bloomery/planner/explain.py:248 — prose renderer only; _same_source and
+      key logic unchanged
+    action: decided
