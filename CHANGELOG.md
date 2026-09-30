@@ -18,9 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entity on dbt, audits the whole model.
 
   **Upgrade note.** A source that repeats keys now stops the build: declare `dedupe:` on
-  the entity or fix the source. On SQLMesh the audit's query runs once over the whole
-  model on the first run after upgrading, so history written before the audit existed is
-  covered too.
+  the entity or fix the source. History written before the audit existed is not re-checked
+  by a scheduled run: `sqlmesh run` audits only the range it builds, and adding an audit is
+  a metadata-only change that `sqlmesh plan` checks over the plan's own start..end range. To
+  cover it, run the audit's query once over the whole model after upgrading, or deploy the
+  upgrade with a `plan` whose range spans the history.
 
 ## [0.5.0] - 2026-09-30
 
