@@ -1,0 +1,94 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0222
+phase: 1
+base: 38d092f3851db1c9fe17b2e0dd3abd2699649066
+commit: a3608d8a29420b7663537a0b107f4e55c427c879
+at: '2026-09-30T15:24:57Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-09-30T15:19:03Z'
+    claim: >-
+      every entity with a declared key and no dedupe gets a blocking <entity>_key_unique
+      audit on both targets, built once in silver.py
+    evidence: >-
+      src/bloomery/emit/lower/silver.py:1801-1867 — key_unique_audit and key_unique_audit_select;
+      src/bloomery/emit/sqlmesh/__init__.py:834 and src/bloomery/emit/dbt/__init__.py:960
+      attach it
+    action: decided
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-09-30T15:19:03Z'
+    claim: >-
+      dedupe alone suppresses the audit; unique rules and incremental merges do not
+    evidence: >-
+      src/bloomery/emit/lower/silver.py:1811 — bool(entity.key) and entity.dedupe
+      is None
+    action: decided
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-09-30T15:19:03Z'
+    claim: >-
+      on scd type2 the count reads the current version through predicates.current_version,
+      via the existing silver._current_version wrapper
+    evidence: >-
+      src/bloomery/emit/lower/silver.py:1843 — _current_version(entity, table=_ENTITY_ALIAS)
+      returns predicates.current_version on TYPE2
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-30T15:19:03Z'
+    claim: >-
+      derived at emit time from key, scd and dedupe already in the IR; no IR change,
+      bloomery_ir_version untouched; goldens change only by the new audit files and
+      audits entries
+    evidence: >-
+      src/bloomery/emit/lower/silver.py:1801 — reads only EntityIR.key, .dedupe and
+      .scd
+    action: decided
+  - decision: D-6
+    grade: ASSUMED
+    kind: departed
+    at: '2026-09-30T15:19:03Z'
+    claim: >-
+      the window is not spelled with @start_ds/@end_ds: in an audit on an INCREMENTAL_BY_TIME_RANGE
+      model the pinned SQLMesh already renders @this_model as the physical table filtered
+      to the run's interval on the time column, typed to that column; a literal @start_ds
+      BETWEEN would drop all but midnight of the last day on a timestamp column. Keys
+      come from @this_model and are counted against the unfiltered table via @resolve_template(...,
+      'table'); every other kind and every dbt entity reads the whole model
+    evidence: >-
+      .venv/lib/python3.13/site-packages/sqlmesh/core/model/definition.py:504-540
+      — this_model is a subquery filtered by time_column.between(start, end) in render_audit_query;
+      src/bloomery/emit/sqlmesh/__init__.py:880-892 is the emitted form
+    action: departed
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-30T15:19:11Z'
+    claim: >-
+      the contract does not say whether rows with a NULL key part share a key; the
+      audit groups by the key as written, so two rows with the same NULL key part
+      collide and fire. Null keys are the not_null/coercible rules' subject, and no
+      fixture run by the suite reaches silver with one
+    evidence: >-
+      src/bloomery/emit/lower/silver.py:1836-1842 — plain GROUP BY over entity.key,
+      no IS NOT NULL filter
+    action: decided
+    proposal: >-
+      ASSUMED — the key audit groups NULL key parts together; a row with a null key
+      part is reported by the key audit as well as by any not_null rule

@@ -3,7 +3,8 @@
 MODEL (
   name silver.address,
   kind FULL,
-  grain (address_id)
+  grain (address_id),
+  audits (address_key_unique)
 );
 
 SELECT

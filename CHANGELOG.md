@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A declared key is checked, not only trusted.** Every entity with a `key:` and no
+  `dedupe:` gets a generated blocking audit, `<entity>_key_unique`: no two rows share the
+  key, among the current versions on an `scd: type2` entity and among all rows otherwise.
+  `dedupe:` enforces the key by construction and removes the audit; a `unique` rule or an
+  incremental merge does not. On SQLMesh an `incremental_by_partition` entity checks only
+  the run's own range of keys against the whole model; every other entity, and every
+  entity on dbt, audits the whole model.
+
+  **Upgrade note.** A source that repeats keys now stops the build: declare `dedupe:` on
+  the entity or fix the source. History written before the audit existed is not re-checked
+  by a scheduled run: `sqlmesh run` audits only the range it builds, and adding an audit is
+  a metadata-only change that `sqlmesh plan` checks over the plan's own start..end range. To
+  cover it, run the audit's query once over the whole model after upgrading, or deploy the
+  upgrade with a `plan` whose range spans the history.
+
 ## [0.5.0] - 2026-09-30
 
 ### Added

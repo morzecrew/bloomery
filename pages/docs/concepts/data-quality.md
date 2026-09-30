@@ -164,6 +164,24 @@ which is why they are asserted at run time rather than refused at compile time.
     here only because it is the other generated check that can stop a run, and a reader
     cataloguing those should not have to find it by accident.
 
+!!! note "The declared key is audited too"
+
+    Every entity with a declared `key:` and no `dedupe:` carries a generated blocking
+    audit, `<entity>_key_unique`, which stops the run if two rows share the key — among
+    the current versions (`valid_to` is NULL) on an `scd: type2` entity, the same current
+    version a mart's `reading: current` reads, and among all rows otherwise. It is how the
+    [key the proofs rest on](what-bloomery-proves.md) is checked rather than only trusted.
+
+    **`dedupe:` removes it.** Dedupe keeps one row per key by construction, so an entity
+    declaring it pays no scan. Nothing else counts: a `unique` rule on the key field does
+    not, and neither does an incremental merge. To silence the audit, declare `dedupe:` or
+    fix the source.
+
+    On SQLMesh, an `incremental_by_partition` entity checks only the keys in the run's
+    `@start_ds`..`@end_ds` range against the whole model, so a daily run pays for its own
+    keys. Every other entity — `full`, `incremental_by_key`, `scd: type2`, and every entity
+    emitted to dbt — audits the whole model.
+
 Dedupe's order is total by construction: the recency field descending, then each
 tie-break column, then the stable `_source_row_id` — with `NULLS LAST` pinned on every
 sort key. No two rows can compare equal, so the winner is a function of the data rather

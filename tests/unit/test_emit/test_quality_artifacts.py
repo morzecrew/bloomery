@@ -77,7 +77,7 @@ def test_a_quality_free_entity_gets_the_constants_and_no_extra_nesting() -> None
     """The empty collection is what a clean row carries, so the specialization
     is the general form evaluated at compile — and a quality-free golden gains
     two projections, not a subquery."""
-    artifact = next(a for a in compile_fixture("minimal") if a.path.endswith(".sql"))
+    artifact = next(a for a in compile_fixture("minimal") if a.path.startswith("models/"))
     body = extract_select(artifact.content)
     assert f"CAST([] AS TEXT[]) AS {FLAGS_COLUMN}" in body
     assert f"TRUE AS {OK_COLUMN}" in body
@@ -399,8 +399,9 @@ def test_the_generated_audits_count_current_versions_on_a_historical_entity() ->
     a second version the expected outcome rather than an eventual one.
     """
     artifacts = compile_fixture("scd2_replay", dialect="duckdb")
+    # `order` is type 1, so its key audit reads every row it has.
     bodies = {
-        a.path: a.content for a in artifacts if a.path.startswith("audits/")
+        a.path: a.content for a in artifacts if a.path.startswith("audits/customer_")
     }
     assert bodies, sorted(a.path for a in artifacts)
 

@@ -33,6 +33,8 @@ EXPECTED_PATHS = {
         "models/silver/address.sql",
         "models/silver/order.sql",
         "models/sources.yml",
+        "tests/address_key_unique.sql",
+        "tests/order_key_unique.sql",
     ],
     # S-0063/tests: `models/exposures.yml` is here and nowhere else in this
     # table, which is the assertion that matters — a project declaring no
@@ -48,6 +50,8 @@ EXPECTED_PATHS = {
         "models/silver/order.sql",
         "models/silver/order_item.sql",
         "models/sources.yml",
+        "tests/order_item_key_unique.sql",
+        "tests/order_key_unique.sql",
     ],
     # S-0043/tests: the fixture S-0041/phasing (P-1) built and could only emit to
     # SQLMesh. The collision audit landing on both targets is the assertion
@@ -58,6 +62,7 @@ EXPECTED_PATHS = {
         "macros/generate_schema_name.sql",
         "models/silver/order_line.sql",
         "models/sources.yml",
+        "tests/order_line_key_unique.sql",
         "tests/order_line_source_collision.sql",
     ],
     # S-0060/tests: the one fixture that carries all four artifact families this
@@ -91,8 +96,10 @@ EXPECTED_PATHS = {
         "tests/q_code_code_fail_unique.sql",
         "tests/q_code_conservation.sql",
         "tests/q_code_ingestion_metadata.sql",
+        "tests/q_code_key_unique.sql",
         "tests/q_dup_conservation.sql",
         "tests/q_dup_ingestion_metadata.sql",
+        "tests/q_dup_key_unique.sql",
         "tests/q_dup_note_coercible.sql",
         "tests/q_line_amount_range_min.sql",
         "tests/q_line_conservation.sql",
@@ -112,6 +119,8 @@ EXPECTED_PATHS = {
         "models/silver/order.sql",
         "models/silver/order_item.sql",
         "models/sources.yml",
+        "tests/order_item_key_unique.sql",
+        "tests/order_key_unique.sql",
     ],
     "scd2_customers": [
         "dbt_project.yml",
@@ -119,6 +128,7 @@ EXPECTED_PATHS = {
         "models/schema.yml",
         "models/sources.yml",
         "snapshots/customer_snapshot.sql",
+        "tests/customer_key_unique.sql",
     ],
 }
 

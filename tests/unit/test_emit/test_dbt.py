@@ -545,7 +545,10 @@ def test_a_tier_one_macro_step_contributes_no_singular_test() -> None:
         body=SqlExpr("LOWER(x)"),
     )
     artifacts = DbtEmitter().emit(ProjectIR(entities=(_entity(),), steps=(macro,)), _ctx())
-    assert not [a for a in artifacts if a.path.startswith("tests/")]
+    # The entity's own key audit (S-0083/D-1) is the one singular test present.
+    assert [a.path for a in artifacts if a.path.startswith("tests/")] == [
+        "tests/item_key_unique.sql"
+    ]
 
 
 def test_the_emitted_project_carries_the_operator_contract() -> None:
@@ -627,7 +630,7 @@ def test_dbt_and_sqlmesh_emit_identical_selects(dialect: str) -> None:
     dbt = {
         a.path: a
         for a in compile_fixture("ecom_basic", target=Target.DBT, dialect=dialect)
-        if a.path.endswith(".sql") and not a.path.startswith("macros/")
+        if a.path.endswith(".sql") and not a.path.startswith(("macros/", "tests/"))
     }
     assert set(sqlmesh) == set(dbt)  # every model path exists on both targets
     for path, sqlmesh_artifact in sqlmesh.items():
@@ -702,8 +705,15 @@ def test_an_entity_fail_audit_lowers_even_though_no_spec_reaches_it() -> None:
 #: normalize away: SQLMesh writes ``@this_model`` and dbt writes a ``ref()``,
 #: and everything else about the two bodies must be the same query.
 _AUDIT_FIXTURES = {
-    "multi_source": {"order_line_source_collision": "order_line"},
-    "coverage_check": {"every_customer_has_an_order_coverage": "order"},
+    "multi_source": {
+        "order_line_source_collision": "order_line",
+        "order_line_key_unique": "order_line",
+    },
+    "coverage_check": {
+        "every_customer_has_an_order_coverage": "order",
+        "customer_key_unique": "customer",
+        "order_key_unique": "order",
+    },
 }
 
 

@@ -4,7 +4,8 @@ MODEL (
   name silver.order,
   kind FULL,
   owner 'commerce-platform@example.com',
-  grain (order_id)
+  grain (order_id),
+  audits (order_key_unique)
 );
 
 SELECT

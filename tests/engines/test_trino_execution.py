@@ -31,6 +31,7 @@ import pytest
 import trino
 from testcontainers.community.trino import TrinoContainer
 
+from bloomery.emit import ArtifactKind
 from support.compiling import compile_fixture, extract_select
 
 pytestmark = pytest.mark.engine("trino")
@@ -92,7 +93,11 @@ def seeded() -> Iterator[trino.dbapi.Connection]:
         )
         # Silver before gold: mart SELECTs read the silver relations.
         artifacts = sorted(
-            (a for a in compile_fixture("ecom_basic", dialect="trino") if a.path.endswith(".sql")),
+            (
+                a
+                for a in compile_fixture("ecom_basic", dialect="trino")
+                if a.kind is ArtifactKind.MODEL and a.path.endswith(".sql")
+            ),
             key=lambda a: PurePosixPath(a.path).parent.name != "silver",
         )
         for artifact in artifacts:

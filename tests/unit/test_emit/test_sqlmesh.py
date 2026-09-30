@@ -51,6 +51,8 @@ def test_artifacts_are_sorted_by_path() -> None:
     paths = [a.path for a in artifacts]
     assert paths == sorted(paths)
     assert paths == [
+        "audits/order_item_key_unique.sql",
+        "audits/order_key_unique.sql",
         "config.yaml",
         "models/gold/dim_date.sql",
         "models/gold/mart_order_items.sql",
@@ -137,7 +139,7 @@ key:
             target=Target.SQLMESH,
             dialect="duckdb",
         )
-        if a.path.endswith(".sql")
+        if a.path.startswith("models/")
     )
     assert "kind INCREMENTAL_BY_UNIQUE_KEY (unique_key (event_id, kind))," in artifact.content
 
@@ -170,15 +172,19 @@ fields:
 def _compile_partitioned(first: str, second: str) -> str:
     from bloomery import load_project
 
-    (artifact,) = compile_project(
-        load_project(
-            {
-                "entity_model": _PARTITIONED_MODEL.format(first=first, second=second),
-                "mapping": _PARTITIONED_MAPPING,
-            }
-        ),
-        target=Target.SQLMESH,
-        dialect="duckdb",
+    (artifact,) = (
+        a
+        for a in compile_project(
+            load_project(
+                {
+                    "entity_model": _PARTITIONED_MODEL.format(first=first, second=second),
+                    "mapping": _PARTITIONED_MAPPING,
+                }
+            ),
+            target=Target.SQLMESH,
+            dialect="duckdb",
+        )
+        if a.path.startswith("models/")
     )
     return artifact.content
 
@@ -388,19 +394,25 @@ def _audited_entity(*audits: AuditIR) -> EntityIR:
 
 
 def _emit(*audits: AuditIR) -> tuple[str, dict[str, str]]:
-    """The MODEL artifact content plus {path: content} of the audit artifacts."""
+    """The MODEL artifact content plus {path: content} of the audit artifacts
+    the declared asserts produced — the key audit every entity carries
+    (S-0083/D-1) is left out."""
     ctx = EmitContext(
         dialect=get_dialect("duckdb"), naming=DefaultNaming(), fingerprint="blm1:test"
     )
     artifacts = SQLMeshEmitter().emit(ProjectIR(entities=(_audited_entity(*audits),)), ctx)
     model = next(a for a in artifacts if a.kind is ArtifactKind.MODEL)
-    audits_by_path = {a.path: a.content for a in artifacts if a.kind is ArtifactKind.AUDIT}
+    audits_by_path = {
+        a.path: a.content
+        for a in artifacts
+        if a.kind is ArtifactKind.AUDIT and a.path != "audits/item_key_unique.sql"
+    }
     return model.content, audits_by_path
 
 
 def test_not_null_lowers_builtin_style_into_the_model_block() -> None:
     model, custom = _emit(AuditIR(kind="not_null", column="item_id"))
-    assert "audits (not_null(columns := (item_id)))" in model
+    assert "audits (item_key_unique, not_null(columns := (item_id)))" in model
     assert custom == {}
 
 
@@ -420,7 +432,7 @@ def test_min_max_lower_as_custom_audit_artifacts() -> None:
         AuditIR(kind="min", column="amount", params=(("value", "0"),)),
         AuditIR(kind="max", column="qty", params=(("value", "10"),)),
     )
-    assert "audits (item_qty_max, item_amount_min)" in model
+    assert "audits (item_key_unique, item_qty_max, item_amount_min)" in model
     assert "SELECT * FROM @this_model WHERE amount < 0" in custom["audits/item_amount_min.sql"]
     assert "SELECT * FROM @this_model WHERE qty > 10" in custom["audits/item_qty_max.sql"]
     assert "AUDIT (\n  name item_amount_min\n);" in custom["audits/item_amount_min.sql"]
@@ -447,7 +459,7 @@ def test_reconcile_lowers_as_an_is_distinct_from_audit() -> None:
     model, custom = _emit(
         AuditIR(kind="reconcile", column="net_price", params=(("shadow", "net_price__direct"),))
     )
-    assert "audits (item_net_price_reconcile)" in model
+    assert "audits (item_key_unique, item_net_price_reconcile)" in model
     content = custom["audits/item_net_price_reconcile.sql"]
     assert "WHERE net_price IS DISTINCT FROM net_price__direct" in content
 
@@ -463,6 +475,7 @@ def test_audit_artifacts_sort_before_models_and_end_in_one_newline() -> None:
     artifacts = SQLMeshEmitter().emit(ProjectIR(entities=(entity,)), ctx)
     assert [a.path for a in artifacts] == [
         "audits/item_amount_min.sql",
+        "audits/item_key_unique.sql",
         "config.yaml",
         "models/silver/item.sql",
     ]
@@ -472,8 +485,9 @@ def test_audit_artifacts_sort_before_models_and_end_in_one_newline() -> None:
 
 
 def test_entities_without_audits_render_no_audits_property() -> None:
+    # The declared key is the one audit left (S-0083/D-1).
     model, custom = _emit()
-    assert "audits" not in model
+    assert "audits (item_key_unique)" in model
     assert custom == {}
 
 

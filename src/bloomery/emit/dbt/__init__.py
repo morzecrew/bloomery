@@ -158,6 +158,7 @@ from bloomery.emit.lower import (
     replay_statements,
     rollup_select,
 )
+from bloomery.emit.lower.silver import key_unique_audit, key_unique_audit_select
 from bloomery.emit.steps import (
     consistency_audits,
     quality_audits,
@@ -951,6 +952,18 @@ def _entity_test_artifacts(
                 # Blocking, as it is on SQLMesh: a bronze row in neither side of
                 # the split has been silently dropped, which is the failure this
                 # package exists to make impossible.
+                blocking=True,
+                ctx=ctx,
+            )
+        )
+
+    if key_unique_audit(entity):
+        artifacts.append(
+            _singular_test(
+                name=f"{entity.name}_key_unique",
+                # The whole model on every materialization (S-0083/D-6): no
+                # dbt incremental strategy hands a test the run's window.
+                select=_render(key_unique_audit_select(entity, relation=relation), references, ctx),
                 blocking=True,
                 ctx=ctx,
             )

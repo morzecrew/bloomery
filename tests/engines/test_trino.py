@@ -34,7 +34,7 @@ from bloomery.dialects import TrinoDialect
 from bloomery.resolve.build import _try_cast_shape
 from bloomery.transforms import DEFAULT_REGISTRY
 import trino
-from support.compiling import compile_fixture, extract_select
+from support.compiling import compile_fixture, expand_engine_macros, extract_select
 from testcontainers.community.trino import TrinoContainer
 
 from bloomery.dialects import get_dialect
@@ -308,7 +308,7 @@ def _assert_body(name: str, table: str) -> str:
         for a in compile_fixture("quality_precedence", dialect="trino")
         if a.path == f"audits/{name}.sql"
     )
-    return artifact.content.partition(");")[2].strip().replace("@this_model", table)
+    return expand_engine_macros(artifact.content.partition(");")[2].strip()).replace("@this_model", table)
 
 
 def test_the_grouped_assertion_reports_only_the_offending_group(

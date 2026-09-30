@@ -189,7 +189,9 @@ def test_dbt_emits_the_check_as_a_singular_test() -> None:
     """
     project, catalog = load_fixture(FIXTURE)
     artifacts = compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
-    (test,) = [a for a in artifacts if a.path.startswith("tests/")]
+    (test,) = [
+        a for a in artifacts if a.path.startswith("tests/") and not a.path.endswith("_key_unique.sql")
+    ]
     assert test.path == "tests/every_customer_has_an_order_coverage.sql"
     assert "{{ ref('customer') }}" in test.content
     assert "{{ ref('order') }}" in test.content

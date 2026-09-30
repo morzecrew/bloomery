@@ -241,6 +241,14 @@ the compiler believes a dependency *from your own specs* is something an author 
 follows necessarily from one — an entity's key determining its own columns is the second
 kind. That refusal is waiting for a weaker premise the compile path does not yet mint.
 
+**A declared key is a `LOCKED` premise, and the build checks it.** Every proof that a
+mart holds one row per key rests on the entity's `key:` meaning what it says — and that is
+a property of the data, which no compiler can see. So the premise is not only trusted: an
+entity with a declared key and no `dedupe:` carries a generated blocking audit,
+`<entity>_key_unique`, that stops the run if two rows share the key. A build whose data
+breaks the premise stops before a mart or a rollup reads it. See
+[Data quality](data-quality.md) for what the audit reads and how `dedupe:` removes it.
+
 **A premise from another project's artifacts does reach it.** A relationship carrying
 `imported_from:` was read out of an artifact rather than written here, so it grades
 `ASSUMED` however ordinary its cardinality — and a strict mart whose columns are carried

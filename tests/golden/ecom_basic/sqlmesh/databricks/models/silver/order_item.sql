@@ -5,7 +5,7 @@ MODEL (
   kind INCREMENTAL_BY_TIME_RANGE (time_column order_date),
   grain (order_id, line_no),
   partitioned_by (days(order_date)),
-  audits (not_null(columns := (order_date)))
+  audits (order_item_key_unique, not_null(columns := (order_date)))
 );
 
 SELECT

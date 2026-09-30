@@ -4,7 +4,8 @@ MODEL (
   name silver.event,
   kind FULL,
   grants ("select" = ('analyst', 'reverse_etl')),
-  grain (event_id)
+  grain (event_id),
+  audits (event_key_unique)
 );
 
 SELECT

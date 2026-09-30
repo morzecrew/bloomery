@@ -1791,6 +1791,94 @@ def collision_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
 # ....................... #
 
 
+#: The column the key-uniqueness audit projects its per-key row count under.
+KEY_COUNT_COLUMN = "key_rows"
+
+#: The alias the windowed key audit reads the rows the run wrote under.
+_WRITTEN_ALIAS = "_written"
+
+
+def key_unique_audit(entity: EntityIR) -> bool:
+    """Whether the entity's ``<entity>_key_unique`` audit is emitted (S-0083/D-1, S-0083/D-2).
+
+    Every entity with a declared key, except one declaring ``dedupe``: that is
+    the one declaration that enforces the key by construction, so the scan
+    would check what the ``QUALIFY`` already guarantees. A ``unique`` rule does
+    not count, and neither does an incremental merge — a merge keeps the key
+    unique against the target, not within the batch it writes.
+    """
+
+    return bool(entity.key) and entity.dedupe is None
+
+
+def _same_key_part(column: str) -> Expression:
+    """``written.c = entity.c OR (written.c IS NULL AND entity.c IS NULL)``."""
+    written, entity = (
+        exp.column(column, table=_WRITTEN_ALIAS),
+        exp.column(column, table=_ENTITY_ALIAS),
+    )
+    both_null = exp.and_(
+        exp.Is(this=written.copy(), expression=exp.null()),
+        exp.Is(this=entity.copy(), expression=exp.null()),
+    )
+    return exp.paren(exp.or_(exp.EQ(this=written, expression=entity), exp.paren(both_null)))
+
+
+def key_unique_audit_select(
+    entity: EntityIR, *, relation: str = THIS_MODEL, written: str | None = None
+) -> exp.Select:
+    """The declared key as a blocking audit (S-0083/D-1)::
+
+        SELECT <key…>, COUNT(*) AS key_rows
+        FROM <relation>
+        [WHERE valid_to IS NULL]
+        GROUP BY <key…>
+        HAVING COUNT(*) > 1
+
+    On ``scd: type2`` a row is a version, and two versions of one key are the
+    history the framework keeps — so the count reads the current version, the
+    predicate S-0080's marts read (S-0083/D-3).
+
+    ``written`` scopes the check to the keys found in that relation, still
+    counted against all of ``relation`` (S-0083/D-6): a SQLMesh audit on an
+    ``INCREMENTAL_BY_TIME_RANGE`` model receives ``@this_model`` already
+    filtered to the run's interval, which is exactly the rows the run wrote.
+    """
+    key = [exp.column(column, table=_ENTITY_ALIAS) for column in entity.key]
+    count = exp.Count(this=exp.Star())
+    select = (
+        exp.Select()
+        .select(*key, cast("Expression", exp.alias_(count, KEY_COUNT_COLUMN)))
+        .from_(_this_model(alias=_ENTITY_ALIAS, relation=relation))
+        .group_by(*(column.copy() for column in key))
+        .having(exp.GT(this=count.copy(), expression=exp.Literal.number(1)))
+    )
+    current = _current_version(entity, table=_ENTITY_ALIAS)
+
+    if current is not None:
+        select = select.where(current)
+
+    if written is not None:
+        # Null-safe, because the whole-model count groups a NULL key part with
+        # its equals and `=` would drop that key from the run's scope (bloomery
+        # #233 review): both paths have to agree on what one key is. Spelled
+        # out rather than `IS NOT DISTINCT FROM`, which not every port reads.
+        matches = conjunction([_same_key_part(column) for column in entity.key])
+        select = select.where(
+            exp.Exists(
+                this=exp.Select()
+                .select(exp.Literal.number(1))
+                .from_(_this_model(alias=_WRITTEN_ALIAS, relation=written))
+                .where(matches)
+            )
+        )
+
+    return select
+
+
+# ....................... #
+
+
 def conservation_audit(entity: EntityIR) -> bool:
     """Whether the conservation audit can be emitted for this entity.
 
