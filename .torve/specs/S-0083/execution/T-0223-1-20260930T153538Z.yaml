@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0223
+phase: 2
+base: c1549950f18d965fe6e32ff48bd5817de3f2f88b
+commit: dfc6c2a59884cf316bb9e9450dc82de17f51edeb
+at: '2026-09-30T15:35:38Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+entries:
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-09-30T15:27:44Z'
+    claim: >-
+      claims page states the declared key is a LOCKED premise the build checks; data
+      quality page lists <entity>_key_unique and that dedupe removes it
+    evidence: >-
+      pages/docs/concepts/what-bloomery-proves.md:212-218 — the key paragraph; pages/docs/concepts/data-quality.md:167-176
+      lists the audit
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-09-30T15:27:45Z'
+    claim: >-
+      acceptance fails on a page outside scope: the resolve-identities 'What comes
+      out' listing lacks the new audits/customer_billing_key_unique.sql and audits/customer_crm_key_unique.sql,
+      and scope.allow does not name that page
+    evidence: >-
+      pages/docs/how-to/resolve-identities.md:105-115 — listing checked by tests/unit/test_docs_snippets.py:106-118,
+      which fails with 'audits/customer_billing_key_unique.sql' missing
+    action: halted
+    proposal: >-
+      add pages/docs/how-to/resolve-identities.md to T-0223 scope.allow (or a follow-up
+      task) to list both key_unique audits and reword 'The second audit' to name the
+      step reference audit
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-09-30T15:29:33Z'
+    attempt: 2
+    claim: >-
+      claims page states the declared key is a LOCKED premise the build checks; data
+      quality page lists <entity>_key_unique and how dedupe removes it; changelog
+      Unreleased carries the audit and its upgrade note
+    evidence: >-
+      pages/docs/concepts/what-bloomery-proves.md:212-217 — the claim; pages/docs/concepts/data-quality.md:167-175
+      lists the audit; CHANGELOG.md:12-22 is the Added entry and upgrade note
+    action: decided
+    proposal: none — D-5 stands as written
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-09-30T15:29:33Z'
+    attempt: 2
+    claim: >-
+      acceptance cannot pass inside this scope: the generated key audits now appear
+      in the identity_resolution compile output, and the how-to page's complete 'What
+      comes out' listing, which a test compares against that output, omits them; the
+      page is not in scope.allow and the test may not be edited
+    evidence: >-
+      tests/unit/test_docs_snippets.py:106-118 — compares pages/docs/how-to/resolve-identities.md
+      'What comes out' against compile_fixture('identity_resolution'); the compiler
+      emits audits/customer_billing_key_unique.sql and one more key audit the page
+      does not list
+    action: halted
+    proposal: >-
+      add pages/docs/how-to/resolve-identities.md to T-0223 scope.allow so its 'What
+      comes out' listing can gain the generated <entity>_key_unique audits
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-09-30T15:33:44Z'
+    attempt: 3
+    claim: >-
+      claims page states the declared key is a LOCKED premise the build checks; data
+      quality page lists <entity>_key_unique and how dedupe removes it; resolve-identities
+      listing gains the two emitted key audits
+    evidence: >-
+      pages/docs/concepts/what-bloomery-proves.md:244 — the claim paragraph; pages/docs/concepts/data-quality.md:167
+      is the audit note
+    action: decided
