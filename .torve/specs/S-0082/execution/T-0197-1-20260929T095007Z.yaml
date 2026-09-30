@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0197
+phase: 1
+base: d13676f1f3135f504a3ef0fe6955614eb5776e24
+commit: 5cef72bad05271070485f97a839223c38a4af426
+at: '2026-09-29T09:50:07Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-09-29T09:46:45Z'
+    claim: >-
+      a metric's own filter is admitted by _projected and _composable; each branch's
+      plan already scopes it through semantic_plan.build's _scoped_filters, so semantic_plan.py
+      needed no change and the branch request is unchanged
+    evidence: >-
+      src/bloomery/planner/coverage.py:923 — the filter guard is gone here and at
+      coverage.py:1138; semantic_plan.py:718 scopes the Filter per branch
+    action: decided
+    proposal: none — implemented as written
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-09-29T09:46:45Z'
+    claim: >-
+      the union key domain is unchanged; a stored filtered metric already names its
+      restriction in its own note, and a metric computed above the join now names
+      each input's restriction in its note
+    evidence: >-
+      src/bloomery/planner/explain.py:311 — composed_measure appends each input's
+      restriction; tests/engines/test_branch_join_engines.py:398 pins NULL for groups
+      absent from the filtered branch
+    action: decided
+    proposal: none — implemented as written
+  - decision: D-4
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-09-29T09:46:45Z'
+    claim: >-
+      not implemented here: the refusal belongs in src/bloomery/semantic/additivity.py,
+      which is outside this task's scope, and this task settles D-1 and D-2 only.
+      The composed path now answers a derived metric with disagreeing input restrictions,
+      just as the single-mart path already does; ratios stay refused at compile by
+      R019
+    evidence: >-
+      src/bloomery/semantic/additivity.py:620 — R019 compares restrictions for a ratio's
+      operands only; no derived-input check exists
+    action: departed
+    proposal: >-
+      a follow-up task scoped to src/bloomery/semantic/additivity.py implements D-4
+      for both paths
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-29T09:46:45Z'
+    claim: >-
+      no fixture has a filtered metric in a multi-mart project and tests/fixtures
+      is out of scope, so the parity generator adds the restriction to the IR (is_null
+      false on the first column of the metric's own mart); the 8 new rows were recorded
+      with their merge-base outcome, and 7 of them convert UnreachableAtGrain to accepted
+    evidence: >-
+      tests/unit/test_planner/test_parity.py:239 — _restricted builds the variant
+      IR and its shapes
+    action: decided
+    proposal: >-
+      ASSUMED — parity shapes that no fixture carries are synthesised in IR rather
+      than added as fixtures

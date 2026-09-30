@@ -68,13 +68,14 @@ does.
 
 from __future__ import annotations
 
+import dataclasses
 import itertools
 import pathlib
 from collections import Counter
 
 import pytest
 from bloomery import MetricRequest, Op, Predicate
-from bloomery.ir import ProjectIR
+from bloomery.ir import MetricFilterIR, ProjectIR
 from support.compiling import spec_fixture_names
 from support.planning import fixture_ir, make_planner
 
@@ -235,6 +236,53 @@ def _cross_mart(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...], tuple[st
     return shapes
 
 
+def _restricted(
+    ir: ProjectIR,
+) -> tuple[ProjectIR, list[tuple[str, str, tuple[str, ...], tuple[str, ...], tuple[Predicate, ...]]]]:
+    """The cross-mart pairs again, with the first metric of each pair carrying
+    **its own** restriction and the second carrying none (S-0082/D-1).
+
+    The shape no fixture has: the only filtered metrics in the corpus live on a
+    single-mart project, so without this the generator is blind to the half of
+    S-0055/A-2 that admits a restricted component. Written into the IR rather
+    than a fixture, for the reason :func:`support.planning.variant_ir` gives —
+    a new fixture would move rows for reasons unrelated to what they assert.
+    `is_null` on the metric's own mart's first column, as the not-null shape
+    above does, so one restriction reaches every column type.
+    """
+    carrying = [mart for mart in sorted(ir.marts, key=lambda m: m.name) if mart.measures]
+    shapes: list[tuple[str, str, tuple[str, ...], tuple[str, ...], tuple[Predicate, ...]]] = []
+    restrictions: dict[str, str] = {}
+
+    for left, right in itertools.combinations(carrying, 2):
+        if not left.dimensions:
+            continue
+
+        metrics = (sorted(left.measures)[0], sorted(right.measures)[0])
+        restrictions.setdefault(metrics[0], sorted(d.column for d in left.dimensions)[0])
+        shapes.append(
+            (f"{left.name}+{right.name}", f"{'+'.join(metrics)}|restricted:{metrics[0]}", (), metrics, ())
+        )
+
+    restricted = dataclasses.replace(
+        ir,
+        metrics=tuple(
+            dataclasses.replace(
+                metric,
+                filter=(
+                    *metric.filter,
+                    MetricFilterIR(dimension=restrictions[metric.name], op="is_null", values=(False,)),
+                ),
+            )
+            if metric.name in restrictions
+            else metric
+            for metric in ir.metrics
+        ),
+    )
+
+    return restricted, shapes
+
+
 def _outcomes() -> dict[str, str]:
     """Each request's outcome: ``accepted``, or the refusal's class name.
 
@@ -258,15 +306,16 @@ def _outcomes() -> dict[str, str]:
         if not any(mart.measures for mart in ir.marts):
             continue
 
-        for mart, measure, dimensions, metrics, filters in _requests(ir):
-            request = MetricRequest(metrics=metrics, dimensions=dimensions, filters=filters)
-            try:
-                planner.plan(ir, request, dialect="duckdb")
-                outcome = "accepted"
-            except Exception as error:  # noqa: BLE001 — the class *is* the assertion
-                outcome = type(error).__name__
+        for asked, shapes in ((ir, _requests(ir)), _restricted(ir)):
+            for mart, measure, dimensions, metrics, filters in shapes:
+                request = MetricRequest(metrics=metrics, dimensions=dimensions, filters=filters)
+                try:
+                    planner.plan(asked, request, dialect="duckdb")
+                    outcome = "accepted"
+                except Exception as error:  # noqa: BLE001 — the class *is* the assertion
+                    outcome = type(error).__name__
 
-            results[f"{name}|{mart}|{measure}|{','.join(dimensions)}"] = outcome
+                results[f"{name}|{mart}|{measure}|{','.join(dimensions)}"] = outcome
 
     return results
 
@@ -314,11 +363,14 @@ def test_the_corpus_is_the_size_it_claims_to_be() -> None:
     baseline rather than regenerated into it: a fixture that does not exist at
     the merge base has no merge-base outcome to contradict, and regenerating
     the whole file would have erased the sixteen conversions below, which are
-    the only thing it is kept for."""
+    the only thing it is kept for.
+
+    And by 8 when :func:`_restricted` gave the generator a metric carrying its
+    own restriction (S-0082/D-1), recorded with their merge-base outcome."""
     outcomes = _outcomes()
 
     assert len(outcomes) == len(_baseline())
-    assert len(outcomes) == 1231
+    assert len(outcomes) == 1239
 
 
 #: What S-0055/phasing (P-2) licenses, as moves rather than as a list of keys: the rule
@@ -336,8 +388,12 @@ def test_the_corpus_is_the_size_it_claims_to_be() -> None:
 #: move for the grouped form of that request; this is its filtered form, and
 #: the underlying divergence is a defect of the mart-to-manifest lowering
 #: (logs/T-0026.md, D-170).
+#:
+#: S-0055/A-2 (S-0082/D-1) adds seven to the first: a cross-mart request one of
+#: whose metrics carries its own restriction. The eighth such row stays refused
+#: for a semi-additive measure, which the composed path still holds back.
 CONVERSIONS = {
-    ("UnreachableAtGrain", "accepted"): 15,
+    ("UnreachableAtGrain", "accepted"): 22,
     ("UnreachableAtGrain", "UnknownMember"): 1,
 }
 
@@ -348,8 +404,9 @@ CONVERSIONS = {
 #: computed metrics — a ratio and an authored expression whose components live
 #: on different marts (logs/T-0027.md, D-179). Nothing single-mart moves: a
 #: filter on one mart was always placeable, and P2 changes only where a
-#: restriction has more than one branch to reach.
-CONVERTED = 16
+#: restriction has more than one branch to reach. The other seven are the
+#: restricted-metric pairs :func:`_restricted` asks.
+CONVERTED = 23
 
 
 def _unlicensed(

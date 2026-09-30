@@ -31,6 +31,7 @@ cross_mart_branches|customers+order_items|customer_count+line_discount|not-null:
 cross_mart_branches|customers+order_items|customer_count+line_discount|not-null:week|	UnreachableAtGrain
 cross_mart_branches|customers+order_items|customer_count+line_discount|not-null:year|	UnreachableAtGrain
 cross_mart_branches|customers+order_items|customer_count+line_discount|quarter	UnreachableAtGrain
+cross_mart_branches|customers+order_items|customer_count+line_discount|restricted:customer_count|	UnreachableAtGrain
 cross_mart_branches|customers+order_items|customer_count+line_discount|signed_up	accepted
 cross_mart_branches|customers+order_items|customer_count+line_discount|tier	accepted
 cross_mart_branches|customers+order_items|customer_count+line_discount|week	UnreachableAtGrain
@@ -48,6 +49,7 @@ cross_mart_branches|customers+orders|customer_count+shipping_count|not-null:tier
 cross_mart_branches|customers+orders|customer_count+shipping_count|not-null:week|	UnreachableAtGrain
 cross_mart_branches|customers+orders|customer_count+shipping_count|not-null:year|	UnreachableAtGrain
 cross_mart_branches|customers+orders|customer_count+shipping_count|quarter	UnreachableAtGrain
+cross_mart_branches|customers+orders|customer_count+shipping_count|restricted:customer_count|	UnreachableAtGrain
 cross_mart_branches|customers+orders|customer_count+shipping_count|signed_up	accepted
 cross_mart_branches|customers+orders|customer_count+shipping_count|tier	accepted
 cross_mart_branches|customers+orders|customer_count+shipping_count|week	UnreachableAtGrain
@@ -125,6 +127,7 @@ cross_mart_branches|order_items+orders|line_discount+shipping_count|order_order_
 cross_mart_branches|order_items+orders|line_discount+shipping_count|order_order_id	accepted
 cross_mart_branches|order_items+orders|line_discount+shipping_count|order_region	accepted
 cross_mart_branches|order_items+orders|line_discount+shipping_count|quarter	UnreachableAtGrain
+cross_mart_branches|order_items+orders|line_discount+shipping_count|restricted:line_discount|	UnreachableAtGrain
 cross_mart_branches|order_items+orders|line_discount+shipping_count|week	UnreachableAtGrain
 cross_mart_branches|order_items+orders|line_discount+shipping_count|year	UnreachableAtGrain
 cross_mart_branches|order_items|line_discount|	accepted
@@ -312,6 +315,7 @@ multi_mart_refusal|order_items+orders|line_discount+shipping_cost|not-null:week|
 multi_mart_refusal|order_items+orders|line_discount+shipping_cost|not-null:year|	UnreachableAtGrain
 multi_mart_refusal|order_items+orders|line_discount+shipping_cost|order_id	UnreachableAtGrain
 multi_mart_refusal|order_items+orders|line_discount+shipping_cost|quarter	UnreachableAtGrain
+multi_mart_refusal|order_items+orders|line_discount+shipping_cost|restricted:line_discount|	UnreachableAtGrain
 multi_mart_refusal|order_items+orders|line_discount+shipping_cost|week	UnreachableAtGrain
 multi_mart_refusal|order_items+orders|line_discount+shipping_cost|year	UnreachableAtGrain
 multi_mart_refusal|order_items|line_discount|	accepted
@@ -580,6 +584,7 @@ quality_precedence|data_quality+lines|quality_rows_deduped+line_amount_total|not
 quality_precedence|data_quality+lines|quality_rows_deduped+line_amount_total|not-null:week|	UnreachableAtGrain
 quality_precedence|data_quality+lines|quality_rows_deduped+line_amount_total|not-null:year|	UnreachableAtGrain
 quality_precedence|data_quality+lines|quality_rows_deduped+line_amount_total|quarter	UnreachableAtGrain
+quality_precedence|data_quality+lines|quality_rows_deduped+line_amount_total|restricted:quality_rows_deduped|	UnreachableAtGrain
 quality_precedence|data_quality+lines|quality_rows_deduped+line_amount_total|rows_deduped	UnreachableAtGrain
 quality_precedence|data_quality+lines|quality_rows_deduped+line_amount_total|rows_evaluated	UnreachableAtGrain
 quality_precedence|data_quality+lines|quality_rows_deduped+line_amount_total|rows_failed	UnreachableAtGrain
@@ -811,6 +816,7 @@ scd2_replay|data_quality+orders|quality_rows_deduped+revenue|not-null:run_id|	Un
 scd2_replay|data_quality+orders|quality_rows_deduped+revenue|not-null:week|	UnreachableAtGrain
 scd2_replay|data_quality+orders|quality_rows_deduped+revenue|not-null:year|	UnreachableAtGrain
 scd2_replay|data_quality+orders|quality_rows_deduped+revenue|quarter	UnreachableAtGrain
+scd2_replay|data_quality+orders|quality_rows_deduped+revenue|restricted:quality_rows_deduped|	UnreachableAtGrain
 scd2_replay|data_quality+orders|quality_rows_deduped+revenue|rows_deduped	UnreachableAtGrain
 scd2_replay|data_quality+orders|quality_rows_deduped+revenue|rows_evaluated	UnreachableAtGrain
 scd2_replay|data_quality+orders|quality_rows_deduped+revenue|rows_failed	UnreachableAtGrain
@@ -997,6 +1003,7 @@ semi_additive_inventory|data_quality+inventory|quality_rows_deduped+stock_on_han
 semi_additive_inventory|data_quality+inventory|quality_rows_deduped+stock_on_hand|not-null:week|	UnreachableAtGrain
 semi_additive_inventory|data_quality+inventory|quality_rows_deduped+stock_on_hand|not-null:year|	UnreachableAtGrain
 semi_additive_inventory|data_quality+inventory|quality_rows_deduped+stock_on_hand|quarter	UnreachableAtGrain
+semi_additive_inventory|data_quality+inventory|quality_rows_deduped+stock_on_hand|restricted:quality_rows_deduped|	UnreachableAtGrain
 semi_additive_inventory|data_quality+inventory|quality_rows_deduped+stock_on_hand|rows_deduped	UnreachableAtGrain
 semi_additive_inventory|data_quality+inventory|quality_rows_deduped+stock_on_hand|rows_evaluated	UnreachableAtGrain
 semi_additive_inventory|data_quality+inventory|quality_rows_deduped+stock_on_hand|rows_failed	UnreachableAtGrain
@@ -1163,6 +1170,7 @@ unflattened_hop|order_items+orders|line_discount+shipping_count|not-null:week|	U
 unflattened_hop|order_items+orders|line_discount+shipping_count|not-null:year|	UnreachableAtGrain
 unflattened_hop|order_items+orders|line_discount+shipping_count|order_id	UnreachableAtGrain
 unflattened_hop|order_items+orders|line_discount+shipping_count|quarter	UnreachableAtGrain
+unflattened_hop|order_items+orders|line_discount+shipping_count|restricted:line_discount|	UnreachableAtGrain
 unflattened_hop|order_items+orders|line_discount+shipping_count|week	UnreachableAtGrain
 unflattened_hop|order_items+orders|line_discount+shipping_count|year	UnreachableAtGrain
 unflattened_hop|order_items|line_discount|	accepted
