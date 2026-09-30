@@ -461,7 +461,7 @@ The grades are a total function of `Provenance` and every member maps to exactly
 
 ### S-0081/D-2 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice)
 
-`parse_ts: ISO8601_INSTANT` parses text carrying `Z` or a numeric offset to the UTC instant on every port and yields NULL for zoneless text; R018 treats it as never a wall clock, `to_utc` after it is refused at resolve, and `zone_in:` beside it may only be `UTC`
+`parse_ts: ISO8601_INSTANT` parses text carrying `Z` or a numeric offset to the UTC instant on every port and yields NULL for zoneless text. While it is the value — until a later `parse_ts` in the chain re-reads it — R018 treats it as never a wall clock, a `to_utc` is refused at resolve, and `zone_in:` may only be `UTC`; a chain is judged by its last `parse_ts`
 
 - Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/dialects/**` `src/bloomery/semantic/zone.py` `src/bloomery/resolve/build.py`
 - Consequence: a source that stamps instants has a spelling, and the compiler refuses the double conversion the type system cannot see
