@@ -173,6 +173,9 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     # A mart.
     ("MartIR", "grain"): Facet.GRAIN,
     ("MartIR", "dimensions"): Facet.GRAIN,
+    # `reading: current` turns a mart over versions into one over keys: the rows
+    # it describes change, which is the grain (S-0080/D-1).
+    ("MartIR", "reading"): Facet.GRAIN,
     ("MartIR", "base"): Facet.INPUTS,
     ("MartIR", "columns"): Facet.INPUTS,
     ("MartIR", "measures"): Facet.INPUTS,

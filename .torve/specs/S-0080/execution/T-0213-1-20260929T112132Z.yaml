@@ -1,0 +1,123 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0213
+base: f83e1390ff967e97795e667b732886994cccbd0b
+at: '2026-09-29T11:21:32Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: S-0005/D-1
+    grade: LOCKED
+  - id: S-0005/D-2
+    grade: LOCKED
+  - id: S-0005/D-3
+    grade: LOCKED
+  - id: S-0005/D-7
+    grade: OPEN
+  - id: S-0007/D-1
+    grade: LOCKED
+  - id: S-0007/D-3
+    grade: LOCKED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0017/D-2
+    grade: LOCKED
+  - id: S-0017/D-3
+    grade: LOCKED
+  - id: S-0017/D-5
+    grade: ASSUMED
+  - id: S-0017/D-6
+    grade: ASSUMED
+  - id: S-0017/D-7
+    grade: LOCKED
+  - id: S-0017/D-9
+    grade: LOCKED
+  - id: S-0017/D-12
+    grade: ASSUMED
+  - id: S-0017/D-14
+    grade: ASSUMED
+  - id: S-0017/D-15
+    grade: ASSUMED
+  - id: S-0017/D-16
+    grade: LOCKED
+  - id: S-0017/D-18
+    grade: ASSUMED
+entries:
+  - decision: S-0017/D-16
+    grade: LOCKED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-29T10:49:57Z'
+    claim: >-
+      Review claim holds: the closure admits a type2 entity named in RollupContext.current
+      at its key's grain and lets a rollup out of it prove, against the unamended
+      LOCKED D-16 text (no entity-key dependency for a versioned key; rollup out of
+      it refused; historical row reached by an anchored hop and nothing else). S-0017/A-1
+      amended D-3 only, so the corpus now carries two LOCKED rows that disagree; reverting
+      closure.py would satisfy D-16 and break amended D-3 and S-0080/D-4, so neither
+      code edit is correct and the repair is an amendment
+    evidence: >-
+      src/bloomery/semantic/closure.py:108 — _entity_grain returns a key grain for
+      an SCDKind.TYPE2 entity named in current; src/bloomery/semantic/closure.py:509-515
+      exempts it from the HISTORICAL_GRAIN refusal; .torve/specs/S-0017/amendments.yaml:6
+      lists D-3 as A-1's only subject
+    action: halted
+    proposal: >-
+      amend S-0017/D-16 as A-1 amended D-3: a versioned entity's key contributes no
+      entity-key dependency unless the entity is read at its current version (valid_to
+      IS NULL), and a historical row is reached by an anchored hop, or by the entity
+      read at its current version, and by nothing else — the proposal T-0192 logged
+      but never had accepted
+  - decision: S-0017/D-16
+    grade: LOCKED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-29T10:55:33Z'
+    attempt: 2
+    claim: >-
+      Attempt 2 re-checked the tree and the review claim still holds: the closure
+      gives a type2 entity read at its current version its key's grain and lets a
+      rollup out of it prove, which the unamended LOCKED D-16 text forbids. Reverting
+      closure.py would break amended S-0017/D-3 and S-0080/D-4, and keeping it breaks
+      D-16. No edit inside this scope resolves that, so this attempt halts with no
+      source change. Attempt 1 was convicted of empty-diff for the same correct halt.
+    evidence: >-
+      src/bloomery/semantic/closure.py:108 — _entity_grain returns a key grain for
+      an SCDKind.TYPE2 entity named in current; closure.py:512 exempts it from HISTORICAL_GRAIN;
+      .torve/specs/S-0017/amendments.yaml:6 names D-3 as A-1's only subject
+    action: halted
+    proposal: >-
+      amend S-0017/D-16 as A-1 amended D-3: a versioned entity's key contributes no
+      entity-key dependency unless the entity is read at its current version (valid_to
+      IS NULL), and a historical row is reached by an anchored hop, or by that current
+      reading, and by nothing else
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-29T11:04:30Z'
+    attempt: 3
+    claim: >-
+      The review's premise no longer holds: S-0017/D-16 is not unamended. S-0017/A-2
+      (owner-approved 2026-09-29, after this review round) amends D-16 with the exact
+      exception the closure implements — a type2 entity read at its current version
+      holds one row per key, so its key grain proves as a type1 entity's does. closure.py:108
+      (_entity_grain admitting a TYPE2 entity named in current) and closure.py:512
+      (dropping it from the HISTORICAL_GRAIN refusal) match amended D-16 and amended
+      D-3 (A-1). No code change made.
+    evidence: >-
+      .torve/specs/S-0017/amendments.yaml:30-58 — A-2 changes D-16's text to add 'except
+      where a mart reads the entity at its current version (reading: current, S-0080/D-1)
+      ... the entity's key grain proves as a type1 entity's does'; src/bloomery/semantic/closure.py:108
+      and :512 implement that exception
+    action: decided
+    proposal: >-
+      No change needed: the matching D-16 amendment the reviewer asked for has landed
+      as S-0017/A-2; resolve the thread citing it

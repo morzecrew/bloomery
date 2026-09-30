@@ -27,3 +27,36 @@ amendments:
       of fact. The row stays LOCKED. S-0080/D-4 states the change and S-0080 phase
       2 implements it; until that phase lands the closure refuses such a rollup with
       `HISTORICAL_GRAIN`, as before.
+  - id: A-2
+    at: '2026-09-29T11:02:52Z'
+    title: >-
+      Amended by S-0080: the current version of a versioned entity
+    changes:
+      - subject: D-16
+        field: text
+        before: >-
+          A versioned entity's declared key does not identify one of its rows, so
+          it contributes no entity-key dependency, and a rollup *out of* such a grain
+          is refused; a historical row is reached by an anchored hop and by nothing
+          else, which is why the as-of basis determines the whole target row rather
+          than only the joined key
+        after: >-
+          A versioned entity's declared key does not identify one of its rows, so
+          it contributes no entity-key dependency, and a rollup *out of* such a grain
+          is refused; a historical row is reached by an anchored hop and by nothing
+          else, which is why the as-of basis determines the whole target row rather
+          than only the joined key — except where a mart reads the entity at its current
+          version (`reading: current`, S-0080/D-1), which holds one row per key: the
+          key then identifies that row, and the entity's key grain proves as a type1
+          entity's does
+      - subject: D-16
+        field: fingerprint
+        after: ba42185ba4e6096c/6033eb69ed6b77e3
+    md: >-
+      The owner approved this change to a LOCKED row on 2026-09-29, after the review
+      of S-0080 phase 2 (round T-0213) found D-16 stating from the entity's side the
+      rule A-1 had changed on D-3. Its reason still holds for every reading but one:
+      a relation filtered to `valid_to IS NULL` holds one row per key, so the key
+      identifies a row again and a rollup out of that grain is no longer a number
+      over however many versions a key has. The row stays LOCKED. S-0080/D-4 states
+      the change and S-0080 phase 2 implements it.

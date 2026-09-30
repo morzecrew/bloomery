@@ -136,6 +136,19 @@
           "title": "Partition By",
           "type": "array"
         },
+        "reading": {
+          "anyOf": [
+            {
+              "const": "current",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reading"
+        },
         "requires_evidence": {
           "default": "assumed",
           "enum": [
@@ -338,6 +351,19 @@
           "minLength": 1,
           "title": "Prefix",
           "type": "string"
+        },
+        "reading": {
+          "anyOf": [
+            {
+              "const": "current",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reading"
         },
         "role_of": {
           "anyOf": [

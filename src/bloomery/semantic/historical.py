@@ -48,8 +48,10 @@ class AsOfState(StrEnum):
     name one that is temporal.
     """
 
-    #: Target is not historical and no anchor was given — an ordinary equality
-    #: join, which is every join over a non-``type2`` entity.
+    #: One row per key on the target and no anchor: an ordinary equality join.
+    #: Every join over a non-``type2`` entity, and one over a ``type2`` entity
+    #: read at its current version (S-0080/D-4), whose ``valid_to IS NULL``
+    #: leaves one version per key.
     CURRENT = "current"
     #: Target is ``type2`` and a temporal anchor on the reading entity narrows
     #: it to one version. The as-of join.
@@ -69,18 +71,24 @@ class AsOfState(StrEnum):
 # ....................... #
 
 
-def qualify_as_of(*, reading: EntityIR, target: EntityIR, as_of: str | None) -> AsOfState:
+def qualify_as_of(
+    *, reading: EntityIR, target: EntityIR, as_of: str | None, current: bool = False
+) -> AsOfState:
     """Classify a join from ``reading`` onto ``target`` under ``as_of``.
 
     ``reading`` is the side the anchor is read from — the mart's base entity
     for a ``via:`` step, the determinant's entity for a functional dependency.
     Total: every pairing of historical-ness and anchor lands on exactly one
     :class:`AsOfState`.
+
+    ``current`` says ``target`` is read at its current version (S-0080/D-4).
+    It stands in for the anchor, so it is read only where none was given: an
+    anchor beside it is a pairing the mart guard refuses before asking here.
     """
     historical = target.scd is SCDKind.TYPE2
 
     if as_of is None:
-        return AsOfState.UNANCHORED if historical else AsOfState.CURRENT
+        return AsOfState.UNANCHORED if historical and not current else AsOfState.CURRENT
 
     if not historical:
         return AsOfState.ANCHOR_ON_CURRENT

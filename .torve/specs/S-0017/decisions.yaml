@@ -230,7 +230,10 @@ decisions:
       A versioned entity's declared key does not identify one of its rows, so it contributes
       no entity-key dependency, and a rollup *out of* such a grain is refused; a historical
       row is reached by an anchored hop and by nothing else, which is why the as-of
-      basis determines the whole target row rather than only the joined key
+      basis determines the whole target row rather than only the joined key — except
+      where a mart reads the entity at its current version (`reading: current`, S-0080/D-1),
+      which holds one row per key: the key then identifies that row, and the entity's
+      key grain proves as a type1 entity's does
     paths: [src/bloomery/semantic/closure.py, src/bloomery/semantic/nodes.py]
     consequence: >-
       Without it a versioned entity's key reads as determining every historical column
@@ -243,6 +246,7 @@ decisions:
       what D-4 asks for. Locked for D-2's reason: it is a false proof, and a plausible
       wrong number is the failure this sequence exists to prevent. Proposed by execution,
       see `logs/T-0017.md`, entry 094
+    fingerprint: ba42185ba4e6096c/6033eb69ed6b77e3
   - id: D-17
     grade: ASSUMED
     text: >-

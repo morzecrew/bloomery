@@ -62,7 +62,7 @@ decisions:
     rationale: >-
       the current reading restores one row per key, which is exactly the grain the
       entity key states
-    cites: [S-0017/D-3, S-0017/D-4]
+    cites: [S-0017/D-3, S-0017/D-4, S-0017/D-16]
   - id: D-5
     grade: ASSUMED
     text: >-

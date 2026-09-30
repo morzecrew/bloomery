@@ -19,11 +19,10 @@ from sqlglot import exp, jsonpath
 from sqlglot.expressions.core import Expression
 
 from bloomery.dialects import DialectFeature
-from bloomery.emit.lower.predicates import as_of_conditions
+from bloomery.emit.lower.predicates import as_of_conditions, current_version
 from bloomery.errors import EmitError, UnsupportedByTarget, guaranteed
 from bloomery.ir import (
     SOURCE_COLUMN,
-    VALID_TO,
     EntityIR,
     FxRatesIR,
     Layer,
@@ -1860,7 +1859,7 @@ def _current_version(entity: EntityIR, *, table: str | None = None) -> Expressio
     if entity.scd is not SCDKind.TYPE2:
         return None
 
-    return exp.Is(this=exp.column(VALID_TO, table=table), expression=exp.null())
+    return current_version(table=table)
 
 
 # ....................... #

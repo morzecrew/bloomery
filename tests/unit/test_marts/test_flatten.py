@@ -1261,3 +1261,72 @@ marts:
         ("billing_", "party"),
         ("shipping_", "party"),
     ]
+
+
+# ....................... #
+# The current reading (S-0080/D-1, S-0080/D-3) — `reading: current` in place of
+# an anchor on a type2 hop, and in place of the refusal on a type2 base.
+
+
+def test_a_type2_base_read_current_lowers_and_carries_the_reading() -> None:
+    lowering = _historical("order", _ORDERS_BASE.replace("base: order\n", "base: order\n    reading: current\n"))
+    assert lowering.violations == ()
+    (mart,) = lowering.marts
+    assert mart.reading == "current"
+
+
+def test_a_type2_hop_read_current_lowers_and_carries_the_reading() -> None:
+    marts = _CHAIN_TO_CUSTOMER.replace("prefix: customer_}", "prefix: customer_, reading: current}")
+    lowering = _historical("customer", marts)
+    assert lowering.violations == ()
+    (mart,) = lowering.marts
+    assert [j.reading for j in mart.joins] == [None, "current"]
+    assert mart.reading is None
+
+
+def test_reading_current_on_a_type1_base_is_refused() -> None:
+    marts = _ORDERS_BASE.replace("base: order\n", "base: order\n    reading: current\n")
+    (violation,) = _violations(marts)
+    assert isinstance(violation, HistoricalFanout)
+    assert violation.source_path == "marts: marts.orders.reading"
+    assert "is not scd: type2" in str(violation)
+
+
+def test_reading_current_on_a_type1_hop_is_refused() -> None:
+    marts = _CHAIN_TO_CUSTOMER.replace("prefix: customer_}", "prefix: customer_, reading: current}")
+    (violation,) = _violations(marts)
+    assert isinstance(violation, HistoricalFanout)
+    assert violation.source_path == "marts: marts.items.flatten[1].via"
+    assert "is not scd: type2" in str(violation)
+
+
+def test_reading_current_beside_an_anchor_is_refused() -> None:
+    marts = _CHAIN_TO_CUSTOMER.replace(
+        "prefix: customer_}", "prefix: customer_, as_of: order_date, reading: current}"
+    )
+    lowering = _historical("customer", marts)
+    assert lowering.marts == ()
+    (violation,) = lowering.violations
+    assert isinstance(violation, HistoricalFanout)
+    assert "both reading: current and as_of" in str(violation)
+
+
+def test_a_current_reading_mart_declared_incremental_is_refused() -> None:
+    marts = _ORDERS_BASE.replace(
+        "base: order\n", "base: order\n    reading: current\n    materialization: incremental_by_key\n"
+    )
+    lowering = _historical("order", marts)
+    assert lowering.marts == ()
+    (violation,) = lowering.violations
+    assert violation.source_path == "marts: marts.orders.materialization"
+    assert "reads current versions" in str(violation)
+
+
+def test_a_current_reading_hop_in_an_incremental_mart_is_refused() -> None:
+    """A current hop alone makes the mart read current versions (S-0080/D-3)."""
+    marts = _CHAIN_TO_CUSTOMER.replace(
+        "prefix: customer_}", "prefix: customer_, reading: current}"
+    )
+    lowering = _historical("customer", marts + "    materialization: incremental_by_partition\n")
+    assert lowering.marts == ()
+    assert [v.source_path for v in lowering.violations] == ["marts: marts.items.materialization"]

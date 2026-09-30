@@ -1,0 +1,130 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0191
+phase: 1
+base: d13676f1f3135f504a3ef0fe6955614eb5776e24
+commit: 3858d5db5b774affc269c6d81bb79e8b4e987cc8
+at: '2026-09-29T10:00:52Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-09-29T09:43:45Z'
+    claim: >-
+      reading: current on the base and on a via step, refused on a non-type2 entity
+      and beside as_of; a type2 base without it is refused as before. Settled in flatten.py,
+      not qualify_as_of, since the CURRENT state there is D-4 and outside this task
+    evidence: >-
+      src/bloomery/marts/flatten.py:213-233 — the hop checks; src/bloomery/marts/flatten.py:760-767
+      is the base check and :784 keeps the S-0040/D-2 refusal for a type2 base with
+      no reading
+    action: decided
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-09-29T09:43:45Z'
+    claim: >-
+      one current_version predicate in predicates.py, read by silver._current_version
+      and by mart_select as a WHERE on the base and a LEFT JOIN condition on the hop;
+      MartIR/MartJoinIR carry reading, IR version 25
+    evidence: >-
+      src/bloomery/emit/lower/predicates.py:241 — the predicate; src/bloomery/emit/lower/marts.py:121-131
+      reads it; src/bloomery/ir/nodes.py:1788 is the version
+    action: decided
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-09-29T09:43:45Z'
+    claim: >-
+      a mart reading current on its base or any hop is refused unless it resolves
+      to full materialization, which also refuses the partitioned default of incremental_by_partition
+    evidence: >-
+      src/bloomery/marts/flatten.py:769-782 — the refusal
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-29T09:43:46Z'
+    claim: >-
+      the IR version bump D-2 requires breaks an existing test outside this scope,
+      which pins the version at 24; it is not run by the acceptance and cannot be
+      edited here
+    evidence: >-
+      tests/unit/test_ir/test_nodes.py:101 — assert ProjectIR().bloomery_ir_version
+      == 24
+    action: decided
+    proposal: >-
+      a follow-up task licensed to edit tests/unit/test_ir/test_nodes.py moves the
+      literal to 25; future IR-version rows should name that file in scope
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-29T09:50:14Z'
+    claim: >-
+      MartIR.reading (D-2) has no facet, so the resolve layer's completeness checks
+      fail across every mart fixture (16 tests under tests/unit/test_resolve); the
+      one-line fix is in src/bloomery/resolve/facets.py, outside this scope, and not
+      run by the acceptance
+    evidence: >-
+      src/bloomery/resolve/facets.py:173-185 — the MartIR facet table, with no reading
+      row; the joins row at :179 is the neighbour it belongs beside
+    action: decided
+    proposal: >-
+      a follow-up task scoped to src/bloomery/resolve/facets.py adds ("MartIR", "reading"):
+      Facet.INPUTS
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-29T09:50:14Z'
+    claim: >-
+      the new scd2_current fixture grows the planner parity corpus by 7 requests (1213
+      -> 1220 in outcomes; its baseline file does not carry them), which tests/unit/test_planner/test_parity.py
+      pins; that file and its baseline are outside this scope and not run by the acceptance
+    evidence: >-
+      tests/unit/test_planner/test_parity.py:319-320 — the size and baseline pins
+    action: decided
+    proposal: >-
+      a follow-up task scoped to test_parity.py and its baseline appends the scd2_current
+      rows and moves the pin, as coarsening_rollup did
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-29T09:50:28Z'
+    claim: >-
+      correction to the earlier parity entry: scd2_current grows the parity corpus
+      by 18 requests (1213 -> 1231), not 7
+    evidence: >-
+      `uv run pytest tests/unit/test_planner/test_parity.py -k size` — AssertionError:
+      assert 1231 == 1213
+    action: decided
+    proposal: >-
+      the follow-up appends 18 scd2_current rows to the parity baseline and moves
+      the pin at tests/unit/test_planner/test_parity.py:320 to 1231
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-29T09:51:12Z'
+    claim: >-
+      torve spec project also writes the root index line for the new fixture directory;
+      the root AGENTS.md is outside this scope, so the line was removed and only the
+      in-scope tests/fixtures/scd2_current/AGENTS.md is kept
+    evidence: >-
+      AGENTS.md:282-283 — the scd2_as_of and scd2_mart_refusal index lines, between
+      which the projection writes the scd2_current line
+    action: decided
+    proposal: >-
+      re-run torve spec project on landing, or allow the root AGENTS.md index in any
+      scope that adds a directory

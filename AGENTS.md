@@ -280,6 +280,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `tests/fixtures/quality_precedence/` — 7 decision(s)
 - `tests/fixtures/role_playing_dates/` — 1 decision(s)
 - `tests/fixtures/scd2_as_of/` — 1 decision(s)
+- `tests/fixtures/scd2_current/` — 0 decision(s)
 - `tests/fixtures/scd2_mart_refusal/` — 2 decision(s)
 - `tests/fixtures/scd2_replay/` — 1 decision(s)
 - `tests/fixtures/semantic_corpus/` — 5 decision(s)

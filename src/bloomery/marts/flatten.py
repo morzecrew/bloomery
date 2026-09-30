@@ -166,13 +166,20 @@ def _grain_prose(entity_name: str, entities: dict[str, EntityIR]) -> str:
 #: relation holding one per version — is untouched by any predicate. Telling a
 #: base-side author to add an `as_of:` would route them to a clause with
 #: nowhere to go.
+#:
+#: Both lead with the current reading (S-0080/D-5), which each side has. It
+#: leads only now that the closure proves a rollup over a current-reading mart
+#: (S-0080/D-4) — before, it sent the author from this refusal into
+#: `HISTORICAL_GRAIN`.
 _HISTORICAL_FLATTEN_FIX = (
-    "Fix: declare an anchor — as_of: <a date or timestamp column of the base> — "
+    "Fix: declare reading: current on the via: step to read each key's current "
+    "version, or declare an anchor — as_of: <a date or timestamp column of the base> — "
     "to read the dimension as of that instant, or declare the entity scd: type1"
 )
 
 _HISTORICAL_BASE_FIX = (
-    "Fix: declare the entity scd: type1, or build a type1 current-view entity "
+    "Fix: declare reading: current on the mart to read each key's current version, "
+    "or declare the entity scd: type1, or build a type1 current-view entity "
     "from it and base the mart on that"
 )
 
@@ -207,7 +214,30 @@ def _historical_leaf(
     if to_entity is None:
         return []
 
-    match qualify_as_of(reading=base, target=to_entity, as_of=step.as_of):
+    # S-0080/D-1: the current reading replaces the anchor on a type2 hop. The
+    # two pairings it refuses are worded here; the one it admits is
+    # `qualify_as_of`'s CURRENT, the state the closure reads (S-0080/D-4).
+    if step.reading == "current":
+        if step.as_of is not None:
+            msg = (
+                f"flatten step declares both reading: current and as_of: {step.as_of!r} — "
+                "one reads the version current now, the other the version current at the "
+                "anchor, and a hop reads one version (S-0080/D-1). Fix: drop one of them"
+            )
+            return [HistoricalFanout(msg, source_path=step_path)]
+
+        if to_entity.scd is not SCDKind.TYPE2:
+            msg = (
+                f"flatten step declares reading: current, but {rel.to_entity!r} is not "
+                "scd: type2 — it holds one row per key, so there is no current version to "
+                "choose and no valid_to column to read it by (S-0080/D-1). Fix: drop the "
+                "reading, or declare the entity scd: type2"
+            )
+            return [HistoricalFanout(msg, source_path=step_path)]
+
+    match qualify_as_of(
+        reading=base, target=to_entity, as_of=step.as_of, current=step.reading == "current"
+    ):
         case AsOfState.CURRENT | AsOfState.QUALIFIED:
             return []
 
@@ -345,6 +375,7 @@ def _flatten_via(
             on=tuple((f"{from_prefix}{from_col}", to_col) for from_col, to_col in rel.via),
             as_of=step.as_of,
             role_of=step.role_of,
+            reading=step.reading,
         )
     )
     violations: list[GuardrailError] = []
@@ -639,6 +670,7 @@ def _mart_ir(name: str, mart: Mart, state: _Flatten) -> MartIR:
         cost_hint=mart.cost_hint,
         owner=mart.owner,
         grants=GrantsIR(select=mart.grants.select) if mart.grants is not None else None,
+        reading=mart.reading,
     )
 
 
@@ -732,7 +764,31 @@ def _lower_mart(
 
     violations: list[GuardrailError] = []
 
-    if base.scd is SCDKind.TYPE2:
+    if mart.reading == "current" and base.scd is not SCDKind.TYPE2:
+        msg = (
+            f"mart declares reading: current, but its base {mart.base!r} is not scd: type2 — "
+            "it holds one row per key, so there is no current version to choose and no "
+            "valid_to column to read it by (S-0080/D-1). Fix: drop the reading, or declare "
+            "the entity scd: type2"
+        )
+        violations.append(HistoricalFanout(msg, source_path=f"{path}.reading"))
+
+    reads_current = mart.reading == "current" or any(
+        isinstance(step, ViaStep) and step.reading == "current" for step in mart.flatten
+    )
+
+    if reads_current and _materialization(mart) is not Materialization.FULL:
+        # S-0080/D-3: a version stops being current after the partition that
+        # holds it was written, and no incremental run revisits that partition.
+        msg = (
+            f"mart reads current versions but materializes {_materialization(mart).value} — "
+            "a version that stops being current after its partition is written stays in "
+            "the mart, so the mart would keep reading it as current (S-0080/D-3). Fix: "
+            "declare materialization: full"
+        )
+        violations.append(GuardrailError(msg, source_path=f"{path}.materialization"))
+
+    if base.scd is SCDKind.TYPE2 and mart.reading != "current":
         # S-0040/D-2. Nothing is multiplied here — there is no join — but the
         # mart declares one row per entity while the relation holds one per
         # entity per version, so every measure over it counts revisions rather
