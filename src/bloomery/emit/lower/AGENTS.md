@@ -495,4 +495,32 @@ The current reading lowers to `valid_to IS NULL` over the shared `VALID_TO` colu
 - Paths: `src/bloomery/emit/lower/predicates.py` `src/bloomery/emit/lower/marts.py` `src/bloomery/ir/nodes.py`
 - Consequence: the mart and the audit cannot disagree about which version is current, and every fingerprint moves once
 
+### S-0083/D-1 — `ASSUMED` (A declared key is checked) — implementation: none
+
+Every entity with a declared key and no `dedupe` gets one generated, blocking audit, `<entity>_key_unique`: no two rows share the key, among the current versions on an `scd: type2` entity and among all rows otherwise
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/dbt/__init__.py`
+- Consequence: a build whose data breaks a declared key stops before a mart or a rollup reads it
+
+### S-0083/D-2 — `ASSUMED` (A declared key is checked) — implementation: none
+
+`dedupe` is the one declaration that enforces a key by construction, and an entity declaring it gets no key audit; a `unique` rule does not count, and neither does an incremental merge
+
+- Paths: `src/bloomery/emit/lower/silver.py`
+- Consequence: an author who already guarantees the key pays no scan, and one who does not is checked
+
+### S-0083/D-3 — `ASSUMED` (A declared key is checked) — implementation: none
+
+On a type2 entity the audit reads the current version through `emit/lower/predicates.py::current_version`, the predicate S-0080's marts read
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/lower/predicates.py`
+- Consequence: the audit and the mart agree on which version is current by construction
+
+### S-0083/D-6 — `ASSUMED` (A declared key is checked) — implementation: none
+
+On an incremental entity emitted to SQLMesh the audit checks only the keys the run wrote — the rows in the run's `@start_ds`..`@end_ds` range of the model's time column — against the whole model; a full-refresh entity, and every entity emitted to dbt, audits the whole model
+
+- Paths: `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/lower/silver.py`
+- Consequence: a daily run pays for its own keys rather than for the whole history, and dbt's incremental entities pay the whole-model scan until a project needs otherwise
+
 <!-- /torve:managed -->

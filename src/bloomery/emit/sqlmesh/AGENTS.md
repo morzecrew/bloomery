@@ -159,4 +159,25 @@ An unprovable rollup is **refused**, never warned about. A rollup is read instea
 - Paths: `src/bloomery/cli/render.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/errors.py` `src/bloomery/evidence.py` `src/bloomery/guardrails/stage.py` `src/bloomery/marts/rollup.py` `src/bloomery/semantic/rollup.py` `tests/fixtures/semantic_corpus/012-rollup-recounts-identities/problem.md` `tests/unit/test_semantic/test_plan.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0083/D-1 — `ASSUMED` (A declared key is checked) — implementation: none
+
+Every entity with a declared key and no `dedupe` gets one generated, blocking audit, `<entity>_key_unique`: no two rows share the key, among the current versions on an `scd: type2` entity and among all rows otherwise
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/dbt/__init__.py`
+- Consequence: a build whose data breaks a declared key stops before a mart or a rollup reads it
+
+### S-0083/D-4 — `ASSUMED` (A declared key is checked) — implementation: none
+
+The audit is derived at emit time from the key, the `scd` kind and `dedupe` already in the IR; `bloomery_ir_version` does not move
+
+- Paths: `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/dbt/__init__.py`
+- Consequence: no fingerprint moves for the IR's sake; goldens change only by the new audit
+
+### S-0083/D-6 — `ASSUMED` (A declared key is checked) — implementation: none
+
+On an incremental entity emitted to SQLMesh the audit checks only the keys the run wrote — the rows in the run's `@start_ds`..`@end_ds` range of the model's time column — against the whole model; a full-refresh entity, and every entity emitted to dbt, audits the whole model
+
+- Paths: `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/lower/silver.py`
+- Consequence: a daily run pays for its own keys rather than for the whole history, and dbt's incremental entities pay the whole-model scan until a project needs otherwise
+
 <!-- /torve:managed -->
