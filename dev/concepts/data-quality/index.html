@@ -2385,6 +2385,22 @@ its vocabulary: a merged entity carries no <code>quality:</code> rules at all fo
 here only because it is the other generated check that can stop a run, and a reader
 cataloguing those should not have to find it by accident.</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">The declared key is audited too</p>
+<p>Every entity with a declared <code>key:</code> and no <code>dedupe:</code> carries a generated blocking
+audit, <code>&lt;entity&gt;_key_unique</code>, which stops the run if two rows share the key — among
+the current versions (<code>valid_to</code> is NULL) on an <code>scd: type2</code> entity, the same current
+version a mart's <code>reading: current</code> reads, and among all rows otherwise. It is how the
+<a href="../what-bloomery-proves/">key the proofs rest on</a> is checked rather than only trusted.</p>
+<p><strong><code>dedupe:</code> removes it.</strong> Dedupe keeps one row per key by construction, so an entity
+declaring it pays no scan. Nothing else counts: a <code>unique</code> rule on the key field does
+not, and neither does an incremental merge. To silence the audit, declare <code>dedupe:</code> or
+fix the source.</p>
+<p>On SQLMesh, an <code>incremental_by_partition</code> entity checks only the keys in the run's
+<code>@start_ds</code>..<code>@end_ds</code> range against the whole model, so a daily run pays for its own
+keys. Every other entity — <code>full</code>, <code>incremental_by_key</code>, <code>scd: type2</code>, and every entity
+emitted to dbt — audits the whole model.</p>
+</div>
 <p>Dedupe's order is total by construction: the recency field descending, then each
 tie-break column, then the stable <code>_source_row_id</code> — with <code>NULLS LAST</code> pinned on every
 sort key. No two rows can compare equal, so the winner is a function of the data rather

@@ -2178,6 +2178,8 @@ those, and the platform owns them.</p>
 <h2 id="what-comes-out">What comes out<a class="headerlink" href="#what-comes-out" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>audits/step_customer_confidence_is_high.sql
 audits/step_customer_xref_canonical_id_references_customer.sql
+audits/customer_crm_key_unique.sql   ← no two rows of a mapped source share its key
+audits/customer_billing_key_unique.sql
 config.yaml                          ← the project file SQLMesh reads first
 models/silver/customer_crm.sql       ← the two mapped sources, ordinary silver models
 models/silver/customer_billing.sql
@@ -2186,7 +2188,7 @@ models/silver/customer_xref.py
 models/gold/mart_customers.sql       ← an ordinary mart over the resolved entity
 models/gold/dim_date.sql
 </code></pre></div>
-<p>The second audit is the one worth understanding. The manifest declares
+<p>The step's second audit is the one worth understanding. The manifest declares
 <code>references: {canonical_id: customer}</code> between the two outputs, and each output is emitted
 as its own model — so the step runs twice, and a step <em>misdeclared</em> as <code>pure</code> could produce
 a <code>customer_xref</code> naming ids the <code>customer</code> execution never minted. No run-to-run gate can

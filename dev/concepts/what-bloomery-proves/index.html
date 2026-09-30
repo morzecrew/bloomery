@@ -2389,6 +2389,13 @@ author wrote (S-0070/the-grades-and-what-they-project-from). Fix: declare the re
 the compiler believes a dependency <em>from your own specs</em> is something an author declared or
 follows necessarily from one — an entity's key determining its own columns is the second
 kind. That refusal is waiting for a weaker premise the compile path does not yet mint.</p>
+<p><strong>A declared key is a <code>LOCKED</code> premise, and the build checks it.</strong> Every proof that a
+mart holds one row per key rests on the entity's <code>key:</code> meaning what it says — and that is
+a property of the data, which no compiler can see. So the premise is not only trusted: an
+entity with a declared key and no <code>dedupe:</code> carries a generated blocking audit,
+<code>&lt;entity&gt;_key_unique</code>, that stops the run if two rows share the key. A build whose data
+breaks the premise stops before a mart or a rollup reads it. See
+<a href="../data-quality/">Data quality</a> for what the audit reads and how <code>dedupe:</code> removes it.</p>
 <p><strong>A premise from another project's artifacts does reach it.</strong> A relationship carrying
 <code>imported_from:</code> was read out of an artifact rather than written here, so it grades
 <code>ASSUMED</code> however ordinary its cardinality — and a strict mart whose columns are carried
