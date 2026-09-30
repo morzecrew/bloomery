@@ -2,6 +2,9 @@
 id: S-0032
 title: 'Query vocabulary: filters, sort, pagination'
 kind: design
+change:
+  type: feat
+  scope: planner
 status: accepted
 implementation: complete
 depends_on: []

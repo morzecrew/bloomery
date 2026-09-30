@@ -2,6 +2,9 @@
 id: S-0044
 title: ISO 8601 timestamps across dialects
 kind: design
+change:
+  type: fix
+  scope: dialects
 status: accepted
 implementation: complete
 depends_on: []

@@ -3,6 +3,9 @@ id: S-0037
 title: >-
   Authoring ergonomics: schema export, CLI, fix suggestions
 kind: design
+change:
+  type: feat
+  scope: cli
 status: accepted
 implementation: complete
 depends_on: []

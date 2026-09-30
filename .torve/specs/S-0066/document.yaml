@@ -2,6 +2,9 @@
 id: S-0066
 title: Declared input currency for conversion
 kind: design
+change:
+  type: feat
+  scope: resolve
 status: accepted
 implementation: complete
 depends_on: []

@@ -2,6 +2,9 @@
 id: S-0053
 title: Measure semantic types and additivity algebra
 kind: design
+change:
+  type: feat
+  scope: semantic
 status: accepted
 implementation: complete
 depends_on: []

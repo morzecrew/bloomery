@@ -3,6 +3,8 @@ id: S-0038
 title: >-
   Capability boundaries: identity resolution, dialects, closed questions
 kind: design
+change:
+  type: feat
 status: accepted
 implementation: complete
 depends_on: []

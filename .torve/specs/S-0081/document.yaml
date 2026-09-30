@@ -3,6 +3,9 @@ id: S-0081
 title: >-
   An instant is parsed as one, and a Z behind to_utc is not converted twice
 kind: design
+change:
+  type: fix
+  scope: transforms
 status: accepted
 implementation: none
 depends_on: [S-0052, S-0076]

@@ -3,6 +3,9 @@ id: S-0039
 title: >-
   `SpecEvidence`: spec analysis as a first-class output
 kind: design
+change:
+  type: feat
+  scope: evidence
 status: accepted
 implementation: complete
 depends_on: []

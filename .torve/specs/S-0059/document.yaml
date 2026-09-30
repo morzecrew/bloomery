@@ -2,6 +2,8 @@
 id: S-0059
 title: Loose ends inside shipped subsystems
 kind: design
+change:
+  type: fix
 status: accepted
 implementation: complete
 depends_on: []

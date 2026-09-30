@@ -2,6 +2,9 @@
 id: S-0071
 title: Completing the semantic plan
 kind: design
+change:
+  type: feat
+  scope: planner
 status: accepted
 implementation: complete
 depends_on: []

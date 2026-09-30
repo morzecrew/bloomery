@@ -2,6 +2,9 @@
 id: S-0063
 title: Exposures and downstream consumers
 kind: design
+change:
+  type: feat
+  scope: emit
 status: accepted
 implementation: complete
 depends_on: []

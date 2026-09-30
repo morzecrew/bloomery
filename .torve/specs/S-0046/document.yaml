@@ -2,6 +2,9 @@
 id: S-0046
 title: Transform types the engine agrees with
 kind: design
+change:
+  type: fix
+  scope: transforms
 status: accepted
 implementation: complete
 depends_on: []

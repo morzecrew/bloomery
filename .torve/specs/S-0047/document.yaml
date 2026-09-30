@@ -2,6 +2,9 @@
 id: S-0047
 title: The unresolved-work report
 kind: design
+change:
+  type: feat
+  scope: evidence
 status: accepted
 implementation: complete
 depends_on: []

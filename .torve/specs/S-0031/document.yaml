@@ -2,6 +2,9 @@
 id: S-0031
 title: Hydration and caching of the planner artifact
 kind: design
+change:
+  type: feat
+  scope: runtime
 status: accepted
 implementation: complete
 depends_on: []

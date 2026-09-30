@@ -2,6 +2,9 @@
 id: S-0060
 title: dbt as a complete quality target
 kind: design
+change:
+  type: feat
+  scope: quality
 status: accepted
 implementation: complete
 depends_on: []

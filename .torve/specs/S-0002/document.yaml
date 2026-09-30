@@ -2,6 +2,9 @@
 id: S-0002
 title: Multi-project composition
 kind: design
+change:
+  type: feat
+  scope: resolve
 status: accepted
 implementation: complete
 depends_on: []

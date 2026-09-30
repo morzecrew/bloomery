@@ -2,6 +2,9 @@
 id: S-0065
 title: Rollup marts and pre-aggregations
 kind: design
+change:
+  type: feat
+  scope: emit
 status: accepted
 implementation: complete
 depends_on: []
