@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The key audit, on both targets
+    intent: >-
+      `silver.py` builds the key-uniqueness select for an entity with a declared key
+      and no `dedupe`, reading `current_version` on type2; `_entity_audits` and the
+      dbt emitter emit it as `<entity>_key_unique` beside the generated audits. An
+      execution test on DuckDB fails a build with a repeated key and passes two versions
+      with one current. Goldens gain the audit. A fixture whose data repeats a key
+      is fixed in the fixture. Settles D-1 to D-4.
+    scope:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/emit/lower/predicates.py
+      - src/bloomery/emit/sqlmesh/**
+      - src/bloomery/emit/dbt/**
+      - tests/unit/test_emit/**
+      - tests/golden/**
+      - tests/execution/**
+      - tests/fixtures/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_emit tests/golden tests/execution -q
+    character: structural
+  - phase: 2
+    title: The docs say the key is checked
+    intent: >-
+      `what-bloomery-proves.md` says the declared key is a `LOCKED` premise the build
+      checks; `data-quality.md` lists `<entity>_key_unique` and how `dedupe` removes
+      it. Settles D-5.
+    scope:
+      - pages/docs/concepts/what-bloomery-proves.md
+      - pages/docs/concepts/data-quality.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_docs_floor.py tests/unit/test_docs_snippets.py
+        -q
+    depends_on:
+      - 1
+    character: routine

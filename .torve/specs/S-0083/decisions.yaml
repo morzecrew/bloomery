@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      Every entity with a declared key and no `dedupe` gets one generated, blocking
+      audit, `<entity>_key_unique`: no two rows share the key, among the current versions
+      on an `scd: type2` entity and among all rows otherwise
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - src/bloomery/emit/dbt/__init__.py
+    consequence: >-
+      a build whose data breaks a declared key stops before a mart or a rollup reads
+      it
+    rationale: >-
+      the closure proves rollups from declared keys, so an unchecked key is an unchecked
+      premise under every proof built on it
+    cites: [S-0017/D-3, S-0080/D-4]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `dedupe` is the one declaration that enforces a key by construction, and an
+      entity declaring it gets no key audit; a `unique` rule does not count, and neither
+      does an incremental merge
+    paths: [src/bloomery/emit/lower/silver.py]
+    consequence: >-
+      an author who already guarantees the key pays no scan, and one who does not
+      is checked
+    rationale: >-
+      dedupe partitions by the entity key; `unique` is per partition slice (S-0033/D-5),
+      and a merge's handling of one key delivered twice depends on the engine
+    cites: [S-0033/D-5]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      On a type2 entity the audit reads the current version through `emit/lower/predicates.py::current_version`,
+      the predicate S-0080's marts read
+    paths:
+      - src/bloomery/emit/lower/silver.py
+      - src/bloomery/emit/lower/predicates.py
+    consequence: >-
+      the audit and the mart agree on which version is current by construction
+    rationale: >-
+      two readings of `current` would let the audit pass on data the mart reads wrongly
+    cites: [S-0080/D-2]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The audit is derived at emit time from the key, the `scd` kind and `dedupe`
+      already in the IR; `bloomery_ir_version` does not move
+    paths:
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - src/bloomery/emit/dbt/__init__.py
+    consequence: >-
+      no fingerprint moves for the IR's sake; goldens change only by the new audit
+    rationale: >-
+      every fact the audit needs is already carried, and an IR bump would move every
+      artifact for nothing
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The claims page says a declared key is a `LOCKED` premise that the build checks,
+      and the data quality page lists the generated audit and how `dedupe` removes
+      it
+    paths:
+      - pages/docs/concepts/what-bloomery-proves.md
+      - pages/docs/concepts/data-quality.md
+    consequence: >-
+      a reader learns the key is checked, not only trusted
+    rationale: >-
+      S-0058 lets the docs claim only what the build does
+    cites: [S-0058/D-1]
