@@ -176,13 +176,35 @@ restricted number beside an unrestricted one at the same key. An **ordering** an
 **limit** apply to the joined result, never inside a branch, so they need no rule: a
 limit inside a branch would answer from a prefix of that branch.
 
+A metric's **own** `filter:` is different, and composes. It restricts one measure by
+declaration rather than the whole request, so it rides the branch that owns that
+measure and no other: `eu_order_count` beside an unfiltered `line_discount` is planned,
+and the explanation says what the filter restricts on that measure's line —
+`[additive — COUNT (restricted to region eq ['EU'])]`. The joined domain is still every
+key any branch produced, so a group the filter emptied reads NULL for that metric; the
+restriction named on the column is how a reader tells that NULL from a group with no
+rows at all.
+
 A metric whose own components live on different marts — a ratio, or a `derived:`
 expression — is answered too. Each component is aggregated by the mart that owns it and
 the expression is evaluated once, over the join. `revenue / quantity` across two marts
 is `SUM(revenue) / SUM(quantity)` at the requested grain, which is not the same number
-as a row-level `revenue / quantity` summed afterwards. Two shapes stay refused: a
-component that itself needs two marts, and an input read at a time offset, which names
-a grain no branch produced.
+as a row-level `revenue / quantity` summed afterwards. Its inputs' own filters are named
+on its column, as above. Three shapes stay refused: a component that itself needs two
+marts, an input read at a time offset, which names a grain no branch produced, and a
+`derived:` metric whose inputs are restricted differently — two different own filters,
+or a filter on one input and none on another. That last one is refused on one mart as
+well as across two, because one number folded from two row sets is about neither:
+
+```
+RatioOperandsDisagree: derived metric 'orders_outside_eu': eu_shipping_count is
+restricted by region eq ['EU'], shipping_count is restricted by nothing (R019
+operands_disagree) — required: eu_shipping_count and shipping_count restricted to one
+row set. Fix: restrict every input the same way, or none
+```
+
+A `derived:` metric whose inputs agree — all unfiltered, or all under the same filter —
+composes as they do.
 
 Where any of that fails, the request is refused with the conflict named:
 
@@ -206,12 +228,14 @@ and they do not mean the same column by it:
   when they share a name.
 ```
 
-And a filter no branch pair can agree on says which mart is missing it, because the fix
-is a mart change rather than a request change:
+And a request filter or row policy that does not reach every branch names itself and
+the branches that lack it, because the fix is a mart change rather than a request
+change:
 
 ```
-UnreachableAtGrain: filter dimension 'region' is not carried by every mart this request
-needs:
+UnreachableAtGrain: filter `region = 'EU'` does not reach every branch: customers cannot
+apply it.
+  filter dimension 'region' is not carried by every mart this request needs:
   customers            → not carried
   orders               → region
   A restriction placed on some branches and not others narrows one measure and not the

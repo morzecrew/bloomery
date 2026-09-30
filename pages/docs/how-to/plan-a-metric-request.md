@@ -214,14 +214,27 @@ shipping_count, line_discount
 Filters, the row policy, `order_by` and `limit` all work on such a request. A filter and
 the policy are placed on **every** branch in that branch's own spelling of the dimension;
 one a branch cannot evaluate refuses the whole request, because a restriction applied to
-half the answer returns a number rather than an error. The ordering and the limit apply to
-the joined result, so a limit is a limit on rows you get back and not on rows one branch
-contributed.
+half the answer returns a number rather than an error. The refusal names the filter or
+policy and the marts that cannot apply it:
+
+```text
+filter `region = 'EU'` does not reach every branch: customers cannot apply it.
+```
+
+The ordering and the limit apply to the joined result, so a limit is a limit on rows you
+get back and not on rows one branch contributed.
+
+A metric's own `filter:` is admitted: it restricts only its own measure, on the branch
+that owns it, and that measure's line in the explanation says so —
+`[additive — COUNT (restricted to region eq ['EU'])]`. A group the filter leaves empty
+reads NULL for that metric while other branches still report it.
 
 A metric whose components span the marts — a ratio, or a `derived:` expression — is
-computed once above the join, over operands each branch aggregated. Two shapes stay
-refused: a component that itself needs two marts, and a derived input read at a time
-offset.
+computed once above the join, over operands each branch aggregated, with its inputs' own
+filters named on its column. Three shapes stay refused: a component that itself needs
+two marts, a derived input read at a time offset, and a `derived:` metric whose inputs
+are restricted differently (`RatioOperandsDisagree`, R019 `operands_disagree`, naming
+each input and its restriction) — refused on a single mart too.
 
 Where it cannot prove a request safe, it refuses with the conflict named — including the
 case where both marts carry a column of the same name and mean different things by it. See

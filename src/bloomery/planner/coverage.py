@@ -36,15 +36,18 @@ from bloomery.errors import (
     InvalidRequest,
     MartCoverage,
     PlannerError,
+    RatioOperandsDisagree,
     UnknownMember,
     UnreachableAtGrain,
     guaranteed,
 )
 from bloomery.ir import COMPUTED, Additivity, Cardinality, Layer, SqlExpr
 from bloomery.marts import DATE_BUCKETS
+from bloomery.planner.explain import human_predicate
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import TimeGrain, clause_predicates
 from bloomery.semantic import Proof, RefusalReason, grain_of, prove_rollup
+from bloomery.semantic.additivity import prove_derived_rows
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -52,7 +55,7 @@ if TYPE_CHECKING:
     from bloomery.ir import MartIR, MetricIR, ProjectIR
     from bloomery.naming import NamingPolicy
     from bloomery.planner.policy import RowPolicy
-    from bloomery.planner.request import MetricRequest
+    from bloomery.planner.request import MetricRequest, Predicate
 
 # ----------------------- #
 
@@ -332,6 +335,7 @@ def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) 
     """One mart carrying every required measure, or ``UnreachableAtGrain``
     with the per-metric grain/mart table (S-0028/algorithm-and-refusals)."""
     entries = _owner_entries(ir, request, naming)
+    _one_row_set(ir, request)
 
     if len({owner.name for _grain, owner in entries.values()}) > 1:
         raise _split_refusal(entries, naming)
@@ -908,17 +912,19 @@ def _projected(ir: ProjectIR, name: str) -> Projected | None:
       carries it projects it under its own name.
 
     ``None`` for everything else, and the request then keeps the cross-grain
-    refusal it had. A **cumulative** metric is a window rather than a rollup;
-    a metric with its own ``filter`` narrows one branch and the composed
-    statement has no way to say that it did; and a derived input carrying a
-    time **offset** names a shifted grain no branch produced, so evaluating
-    the expression over the unshifted column would label the wrong number with
-    the right name (logs/T-0027.md, D-180).
+    refusal it had. A **cumulative** metric is a window rather than a rollup,
+    and a derived input carrying a time **offset** names a shifted grain no
+    branch produced, so evaluating the expression over the unshifted column
+    would label the wrong number with the right name (logs/T-0027.md, D-180).
+
+    A metric's own ``filter`` is admitted (S-0082/D-1): the branch that
+    carries it states it as a ``Filter`` scoped to that metric's measures, and
+    the branch request is unchanged because the manifest already holds it.
     """
 
     metric = next((candidate for candidate in ir.metrics if candidate.name == name), None)
 
-    if metric is None or metric.cumulative is not None or metric.filter:
+    if metric is None or metric.cumulative is not None:
         return None
 
     if metric.derived is not None:
@@ -991,7 +997,7 @@ def _homes(
 
 
 def _not_on_every_branch(
-    ir: ProjectIR, name: str, marts: Sequence[MartIR], *, kind: str
+    ir: ProjectIR, restriction: Predicate, marts: Sequence[MartIR], *, kind: str
 ) -> UnreachableAtGrain:
     """The refusal for a restriction one branch can evaluate and another cannot
     (S-0055/D-4, S-0055/D-5; logs/T-0027.md, D-176).
@@ -1002,32 +1008,31 @@ def _not_on_every_branch(
     applied throughout. So the whole request refuses, and the message names
     every branch and what it has, because the fix is a mart change rather than
     a request change.
+
+    The restriction itself leads, and the branches without it are named apart
+    from the table (S-0082/D-3): the author reads which filter to drop or which
+    mart to widen, rather than a grain comparison that was never the problem.
     """
 
+    name = restriction.dimension
     candidates = _candidate_triples(ir, name)
     width = max(len(mart.name) for mart in marts)
-    listed = "\n".join(
-        f"  {mart.name:<{width}} → "
-        + (
-            local
-            if (
-                local := next(
-                    (
-                        found
-                        for triple in candidates
-                        if (found := _column_with(mart, triple)) is not None
-                    ),
-                    None,
-                )
-            )
-            is not None
-            else "not carried"
+    local = {
+        mart.name: next(
+            (found for triple in candidates if (found := _column_with(mart, triple)) is not None),
+            None,
         )
         for mart in marts
+    }
+    lacking = ", ".join(mart.name for mart in marts if local[mart.name] is None)
+    listed = "\n".join(
+        f"  {mart.name:<{width}} → {local[mart.name] or 'not carried'}" for mart in marts
     )
 
     msg = (
-        f"{kind} dimension {name!r} is not carried by every mart this request needs:\n"
+        f"{kind} `{human_predicate(restriction, name)}` does not reach every branch: "
+        f"{lacking} cannot apply it.\n"
+        f"  {kind} dimension {name!r} is not carried by every mart this request needs:\n"
         f"{listed}\n"
         "  A restriction placed on some branches and not others narrows one measure and "
         "not the other, and the join reports the two side by side as though one "
@@ -1042,7 +1047,7 @@ def _not_on_every_branch(
 
 
 def _restricted_dimensions(
-    ir: ProjectIR, name: str, marts: Sequence[MartIR], *, kind: str
+    ir: ProjectIR, restriction: Predicate, marts: Sequence[MartIR], *, kind: str
 ) -> list[tuple[MartIR, ResolvedDimension]]:
     """Each branch's own column for one restriction, when no single provenance
     anchors it — or the refusal that says why there is none.
@@ -1069,6 +1074,7 @@ def _restricted_dimensions(
     fire at all.
     """
 
+    name = restriction.dimension
     resolved: list[tuple[MartIR, ResolvedDimension]] = []
 
     for mart in marts:
@@ -1077,7 +1083,7 @@ def _restricted_dimensions(
         except AmbiguousDimension:
             raise
         except PlannerError:
-            raise _not_on_every_branch(ir, name, marts, kind=kind) from None
+            raise _not_on_every_branch(ir, restriction, marts, kind=kind) from None
 
     _one_dimension(name, resolved)
 
@@ -1105,9 +1111,8 @@ def _composable(
       measure, or it decomposes into components the wrapper computes over
       (:func:`_projected`);
     * **every component is answered whole by one branch**, and is itself
-      additive, unrestricted and non-cumulative. A component's own restriction
-      would narrow one branch with nothing in the composed statement saying so,
-      which is P1's rule applied one level down.
+      additive and non-cumulative. A component's own restriction is admitted:
+      its branch scopes it to that component's measures (S-0082/D-1).
 
     The two halves of the second condition are not independent today, and the
     branch that says so is unreachable rather than merely untaken: a component
@@ -1134,7 +1139,7 @@ def _composable(
         for component in projection.components:
             metric = metrics_by_name.get(component)
 
-            if metric is None or metric.cumulative is not None or metric.filter:
+            if metric is None or metric.cumulative is not None:
                 return False
             if metric.additivity is not Additivity.ADDITIVE:
                 return False
@@ -1264,6 +1269,45 @@ def _one_dimension(name: str, resolved: Sequence[tuple[MartIR, ResolvedDimension
 # ....................... #
 
 
+def _one_row_set(ir: ProjectIR, request: MetricRequest) -> None:
+    """Refuse a requested ``derived:`` metric — or one beneath it — whose
+    inputs are restricted differently (S-0082/D-4, R019's `operands_disagree`).
+
+    Asked by :func:`_covering_mart` and by :func:`resolve_branches` before it
+    composes, so the single-mart and the composed path refuse one metric the
+    same way: admitting a metric's own filter into a
+    composed plan (S-0082/D-1) must not let a derived metric fold two row sets
+    into one number.
+    """
+
+    metrics_by_name = {metric.name: metric for metric in ir.metrics}
+    pending = list(request.metrics)
+    seen: set[str] = set()
+
+    while pending:
+        metric = metrics_by_name.get(pending.pop())
+
+        if metric is None or metric.name in seen or metric.derived is None:
+            continue
+        seen.add(metric.name)
+        pending.extend(input_.metric for input_ in metric.derived.inputs)
+        answer = prove_derived_rows(metric, ir)
+
+        if isinstance(answer, Proof):
+            continue
+
+        (obligation,) = answer.obligations
+        msg = (
+            f"derived metric {metric.name!r}: {obligation.found} (R019 "
+            f"{answer.reason}) — required: {obligation.required}. "
+            f"Fix: {answer.remediation}"
+        )
+        raise RatioOperandsDisagree(msg)
+
+
+# ....................... #
+
+
 def resolve_branches(
     ir: ProjectIR,
     request: MetricRequest,
@@ -1295,6 +1339,8 @@ def resolve_branches(
 
     if len({owner.name for _grain, owner in entries.values()}) == 1:
         return (resolve_request(ir, request, naming=naming, policy=policy),)
+
+    _one_row_set(ir, request)
 
     if not _composable(ir, request, entries):
         raise _split_refusal(entries, naming)
@@ -1328,14 +1374,16 @@ def resolve_branches(
     # filter placed elsewhere, it is a request with no consistent meaning.
     restrictions: dict[str, dict[str, ResolvedDimension]] = {}
 
-    for kind, name in [
+    for kind, restriction in [
         *(
-            ("filter", predicate.dimension)
+            ("filter", predicate)
             for clause in request.filters
             for predicate in clause_predicates(clause)
         ),
-        *((("row policy", policy.dimension),) if policy is not None else ()),
+        *((("row policy", policy.as_clause()),) if policy is not None else ()),
     ]:
+        name = restriction.dimension
+
         if name in restrictions:
             # A repeat, not a conflict: both routes below are pure in their
             # arguments, so the second lookup would return the first's answer.
@@ -1360,7 +1408,7 @@ def resolve_branches(
             if target is not None
             else {
                 mart.name: dimension
-                for mart, dimension in _restricted_dimensions(ir, name, ordered, kind=kind)
+                for mart, dimension in _restricted_dimensions(ir, restriction, ordered, kind=kind)
             }
         )
 

@@ -868,3 +868,74 @@ def test_a_column_filter_plans_and_explains_its_warrant() -> None:
         "billing_region eq column shipping_region [R021: billing_region is a role of "
         "address.region, shipping_region is a role of address.region]"
     ) in plan.explanation.render()
+
+
+# ....................... #
+# S-0082/D-1, D-2: a metric's own filter on the composed path.
+
+
+_RESTRICTED = (
+    (
+        "  shipping_count:\n    grain: order\n",
+        "  shipping_count:\n    grain: order\n"
+        "    filter:\n      - {dimension: region, op: eq, values: ['EU']}\n",
+    ),
+    (
+        "  line_discount:\n    grain: order_item\n",
+        "  line_discount:\n    grain: order_item\n"
+        "    filter:\n      - {dimension: order_region, op: eq, values: ['EU']}\n",
+    ),
+)
+
+
+def test_a_filtered_metric_composes_with_its_filter_scoped_in_its_branch() -> None:
+    """Each branch states the metric's own restriction as a `Filter` scoped to
+    that metric's measures, and the unfiltered branch states none (S-0082/D-1);
+    the column carrying the restriction says so (D-2)."""
+    from bloomery.semantic.plan import JoinAggregates
+
+    ir = variant_ir(
+        "cross_mart_branches",
+        metrics=(
+            '    expr: "customer_id"\n',
+            '    expr: "customer_id"\n'
+            "    filter:\n      - {dimension: tier, op: eq, values: ['gold']}\n",
+        ),
+    )
+    plan = make_planner().plan(
+        ir,
+        MetricRequest(metrics=("customer_count", "shipping_count"), dimensions=("tier",)),
+        dialect="duckdb",
+    )
+
+    assert plan.marts == ("customers", "orders")
+    assert plan.semantic is not None
+    (join,) = [node for node in plan.semantic.nodes if isinstance(node, JoinAggregates)]
+    scoped = {
+        [node for node in branch.plan.nodes if isinstance(node, Scan)][0].relation: [
+            (node.predicates, node.measures)
+            for node in branch.plan.nodes
+            if isinstance(node, Filter) and node.measures
+        ]
+        for branch in join.branches
+    }
+
+    assert scoped == {"customers": [(("tier = 'gold'",), ("customer_count",))], "orders": []}
+    notes = {measure.name: measure.note for measure in plan.explanation.measures}
+    assert "restricted to tier eq ['gold']" in notes["customer_count"]
+    assert "restricted" not in notes["shipping_count"]
+
+
+def test_a_computed_metric_names_its_inputs_restriction() -> None:
+    """A ratio over restricted operands is computed above the join, so no
+    branch's explanation carries it — its own note names what each input was
+    restricted to (S-0082/D-2)."""
+    plan = make_planner().plan(
+        variant_ir("cross_mart_branches", metrics=_RESTRICTED),
+        MetricRequest(metrics=("discount_per_order",), dimensions=("tier",)),
+        dialect="duckdb",
+    )
+    (measure,) = plan.explanation.measures
+
+    assert "(line_discount restricted to order_region eq ['EU'])" in measure.note
+    assert "(shipping_count restricted to region eq ['EU'])" in measure.note

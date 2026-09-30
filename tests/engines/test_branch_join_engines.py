@@ -370,3 +370,66 @@ def test_trino_divides_after_the_aggregate(trino_db: trino.dbapi.Connection) -> 
     cursor.execute(_ratio("trino"))
 
     assert _as_ratio([tuple(row) for row in cursor.fetchall()]) == RATIO
+
+
+# ....................... #
+# S-0055/A-2 (S-0082/D-1, D-2): a metric's own filter on one branch.
+
+
+def _filtered(dialect: str) -> str:
+    """`shipping_total` restricted to orders shipping at least 5, the way a
+    metric's own `filter:` narrows its branch; `discount_total` unrestricted."""
+
+    branches = _branches()
+    branches[0] = Branch(
+        sql=(
+            "SELECT region AS o_region, SUM(shipping) AS shipping_total "
+            "FROM cmb_orders WHERE shipping >= 5 GROUP BY region"
+        ),
+        keys=("o_region",),
+    )
+
+    return compose(branches, keys=("region",), measures=_MEASURES, dialect=get_dialect(dialect))
+
+
+#: Only EU orders ship at least 5, so the filtered branch has one group. The
+#: domain stays the union of both branches' keys (D-2): UK and the NULL region
+#: keep their discount, and read NULL for the restricted metric.
+FILTERED = {"EU": (14, 5), "UK": (None, 4), None: (None, 8)}
+
+
+def _as_filtered(rows: list[tuple[object, ...]]) -> dict[object, tuple[int | None, ...]]:
+    return {
+        row[0]: tuple(None if value is None else int(value) for value in row[1:3])
+        for row in rows
+    }
+
+
+def test_duckdb_keeps_every_group_when_one_metric_is_filtered() -> None:
+    connection = _duckdb()
+
+    try:
+        rows = connection.execute(_filtered("duckdb")).fetchall()
+    finally:
+        connection.close()
+
+    assert _as_filtered(rows) == FILTERED
+
+
+@pytest.mark.engine("postgres")
+def test_postgres_keeps_every_group_when_one_metric_is_filtered(
+    postgres: psycopg.Connection,
+) -> None:
+    rows = postgres.execute(_filtered("postgres")).fetchall()
+
+    assert _as_filtered([tuple(row) for row in rows]) == FILTERED
+
+
+@pytest.mark.engine("trino")
+def test_trino_keeps_every_group_when_one_metric_is_filtered(
+    trino_db: trino.dbapi.Connection,
+) -> None:
+    cursor = trino_db.cursor()
+    cursor.execute(_filtered("trino"))
+
+    assert _as_filtered([tuple(row) for row in cursor.fetchall()]) == FILTERED

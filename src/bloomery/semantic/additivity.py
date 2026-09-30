@@ -51,6 +51,7 @@ if TYPE_CHECKING:
 __all__ = [
     "RatioRowsRefusal",
     "prove_additive_rollup",
+    "prove_derived_rows",
     "prove_ratio_reconstruction",
     "prove_ratio_rows",
 ]
@@ -733,6 +734,74 @@ def prove_ratio_rows(metric: MetricIR, project: ProjectIR) -> Proof | Refutation
             ),
         ),
     )
+
+
+# ....................... #
+
+
+def prove_derived_rows(metric: MetricIR, project: ProjectIR) -> Proof | Refutation:
+    """Whether a ``derived:`` metric's inputs are about one row set — R019's
+    first leg, asked of every input rather than of two operands (S-0082/D-4).
+
+    A derived metric folds its inputs into one number, which has one row set to
+    explain; inputs restricted differently — two filters, or a filter on one
+    and none on another — make that number a sum or quotient of quantities
+    about different things, whatever the expression. The second leg is not
+    asked: a derived expression need not divide, so there is no denominator
+    whose zeros to account for.
+
+    Each input is compared by its own restriction only. ponytail: a derived
+    input over a filtered derived input is compared by the outer input's own
+    `filter:`; recurse into inputs when nested restrictions are authored.
+    """
+
+    judgement = _rows_judgement(metric.name)
+
+    if metric.derived is None:  # pragma: no cover — the caller filters on `derived`
+        raise ValueError("prove_derived_rows needs a derived metric")
+
+    found = [_metric(project, input_.metric) for input_ in metric.derived.inputs]
+
+    if any(one is None for one in found):
+        # `prove_ratio_rows`' reason for a missing operand: R012 owns an input
+        # that names nothing, and a proof over the inputs that happen to exist
+        # would be a true-looking answer about a metric that does not.
+        raise ValueError(
+            "prove_derived_rows needs a derived metric whose inputs are declared metrics"
+        )
+
+    inputs = [one for one in found if one is not None]
+    restrictions = {_restriction(input_, project) for input_ in inputs}
+
+    if len(restrictions) > 1:
+        names = " and ".join(sorted({input_.name for input_ in inputs}))
+
+        return Refutation(
+            reason=RatioRowsRefusal.OPERANDS_DISAGREE.value,
+            judgement=judgement,
+            obligations=(
+                Obligation(
+                    required=f"{names} restricted to one row set",
+                    found=", ".join(
+                        f"{input_.name} is restricted by {_rendered(input_)}"
+                        for input_ in sorted(inputs, key=lambda one: one.name)
+                    ),
+                ),
+            ),
+            remediation=(
+                "restrict every input the same way, or none — one number folded from "
+                "quantities about different row sets is not about any of them"
+            ),
+            rejected=(
+                SemanticFact(
+                    source=f"metric:{metric.name}",
+                    provenance=Provenance.DECLARED,
+                    statement=f"{metric.name} folds {names}, which are about different rows",
+                ),
+            ),
+        )
+
+    return _rows_proof(metric, f"every input of {metric.name} is restricted the same way")
 
 
 # ....................... #
