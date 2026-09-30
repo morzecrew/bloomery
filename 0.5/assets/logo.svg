@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="bloomery">
+  <title>bloomery</title>
+  <!--
+    A bloomery is a shaft furnace: ore goes in the top, a bloom of worked iron
+    comes out of the arch at the bottom. The mark is that arch standing on its
+    hearth, with the bloom glowing in the mouth.
+
+    Two colours and four shapes, deliberately. The mark sits at ~24px in the
+    site header and in a browser tab, where anything finer disappears; the
+    hearth bar is load-bearing rather than decorative, because the arch alone
+    reads as a horseshoe magnet.
+
+    Ember (#E8621F) clears 3:1 against both the light page and the steel
+    header, so one asset serves both without a light/dark pair.
+  -->
+  <path fill-rule="evenodd" clip-rule="evenodd" fill="#E8621F"
+        d="M2.8 26 V14.5 A13.2 13.2 0 0 1 29.2 14.5 V26 H21.6 V14.5 A5.6 5.6 0 0 0 10.4 14.5 V26 Z"/>
+  <rect x="1.5" y="26" width="29" height="4" rx="2" fill="#E8621F"/>
+  <circle cx="16" cy="21.3" r="3.5" fill="#F5A623"/>
+</svg>
