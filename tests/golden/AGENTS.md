@@ -93,7 +93,7 @@ The end-to-end proof is one **new** golden fixture, `coarsening_rollup`, registe
 - Paths: `tests/fixtures/coarsening_rollup/**` `tests/golden/coarsening_rollup/**` `tests/golden/test_cube.py` `tests/golden/test_dbt_postgres.py` `tests/golden/test_sqlmesh_duckdb.py`
 - Consequence: `rollup_mart` keeps answering the measure question alone, so a future diff in either fixture says which question moved. It also keeps the two phases' golden directories disjoint — the first phase's regeneration and the second phase's new artifacts are never the same file
 
-### S-0080/D-5 — `ASSUMED` (A mart may read the current version of a type2 entity) — implementation: none
+### S-0080/D-5 — `ASSUMED` (A mart may read the current version of a type2 entity)
 
 The `HistoricalFanout` fix text leads with the current reading from phase 2 on — `reading: current` on the base, or on the flatten step's `via:` — and keeps the anchor and the type1 routes after it; phase 1 leaves the text as it stands
 

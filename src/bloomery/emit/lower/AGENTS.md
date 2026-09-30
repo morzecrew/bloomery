@@ -488,7 +488,7 @@ No spelling rule on `owner`. Every project spells this differently and a format 
 - Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/resolve/build.py` `tests/unit/test_resolve/test_currency_convert.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0080/D-2 — `ASSUMED` (A mart may read the current version of a type2 entity) — implementation: none
+### S-0080/D-2 — `ASSUMED` (A mart may read the current version of a type2 entity)
 
 The current reading lowers to `valid_to IS NULL` over the shared `VALID_TO` column — a `WHERE` on the base, a join condition on a flatten hop — from one predicate the silver audits also read; `MartIR` and `MartJoinIR` carry it and `bloomery_ir_version` moves to 25
 

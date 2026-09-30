@@ -2,7 +2,7 @@
 
 ## Decisions governing `pages/docs/`
 
-### S-0006/D-5 — `ASSUMED` (Evidence-based semantic capability matrix) — implementation: partial
+### S-0006/D-5 — `ASSUMED` (Evidence-based semantic capability matrix)
 
 Documentation may state only what a checked-in reproduction supports, and a comparative sentence points at the `sources.md` and `observed.txt` of the bundle behind it
 

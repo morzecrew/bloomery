@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-30T08:44:02Z'
+    title: The instant's rules end at the next parse
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          `parse_ts: ISO8601_INSTANT` parses text carrying `Z` or a numeric offset
+          to the UTC instant on every port and yields NULL for zoneless text; R018
+          treats it as never a wall clock, `to_utc` after it is refused at resolve,
+          and `zone_in:` beside it may only be `UTC`
+        after: >-
+          `parse_ts: ISO8601_INSTANT` parses text carrying `Z` or a numeric offset
+          to the UTC instant on every port and yields NULL for zoneless text. While
+          it is the value — until a later `parse_ts` in the chain re-reads it — R018
+          treats it as never a wall clock, a `to_utc` is refused at resolve, and `zone_in:`
+          may only be `UTC`; a chain is judged by its last `parse_ts`
+      - subject: D-2
+        field: fingerprint
+        after: c51c201dab7dcba8/577f44f3465445c6
+    md: >-
+      Review of #227 found three checks that read every `parse_ts` in a chain when
+      only the last one makes the value (fixed at 6f01a6b6 and fd1d9aa3): a `to_utc`
+      past a later wall-clock parse converts that parse's text, not the instant, and
+      a `zone_in:` then describes that wall clock. D-2 now says so, as the bloomery
+      #228 review asked; the behaviour is the one those commits shipped.

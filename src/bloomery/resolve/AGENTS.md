@@ -662,9 +662,9 @@ A determination is a **stored** fact. `ColumnIR` gains `determines: tuple[str, .
 - Consequence: S-0017/D-9 keeps the grain model out of the IR because a grain is computed from `EntityIR.key`, which the IR holds; that reasoning does not reach a determination and may not be cited to keep one out. The IR stores what an author wrote and derives what follows from it, which is the line D-4 stands on the other side of
 - Check: `uv run pytest tests/unit/test_resolve/test_build.py -q` (shadow; runs as `decision:S-0079/D-1`, no log entry owed)
 
-### S-0081/D-2 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice) — implementation: none
+### S-0081/D-2 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice)
 
-`parse_ts: ISO8601_INSTANT` parses text carrying `Z` or a numeric offset to the UTC instant on every port and yields NULL for zoneless text; R018 treats it as never a wall clock, `to_utc` after it is refused at resolve, and `zone_in:` beside it may only be `UTC`
+`parse_ts: ISO8601_INSTANT` parses text carrying `Z` or a numeric offset to the UTC instant on every port and yields NULL for zoneless text. While it is the value — until a later `parse_ts` in the chain re-reads it — R018 treats it as never a wall clock, a `to_utc` is refused at resolve, and `zone_in:` may only be `UTC`; a chain is judged by its last `parse_ts`
 
 - Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/dialects/**` `src/bloomery/semantic/zone.py` `src/bloomery/resolve/build.py`
 - Consequence: a source that stamps instants has a spelling, and the compiler refuses the double conversion the type system cannot see
