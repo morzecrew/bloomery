@@ -21,9 +21,10 @@ decisions:
     grade: ASSUMED
     text: >-
       `parse_ts: ISO8601_INSTANT` parses text carrying `Z` or a numeric offset to
-      the UTC instant on every port and yields NULL for zoneless text; R018 treats
-      it as never a wall clock, `to_utc` after it is refused at resolve, and `zone_in:`
-      beside it may only be `UTC`
+      the UTC instant on every port and yields NULL for zoneless text. While it is
+      the value — until a later `parse_ts` in the chain re-reads it — R018 treats
+      it as never a wall clock, a `to_utc` is refused at resolve, and `zone_in:` may
+      only be `UTC`; a chain is judged by its last `parse_ts`
     paths:
       - src/bloomery/transforms/_builtins.py
       - src/bloomery/dialects/**
@@ -36,6 +37,7 @@ decisions:
       S-0052 deferred the instant format with its mechanism recorded; Trino's session-zone
       trap makes positive zone detection necessary
     cites: [S-0052/D-4, S-0076/D-1]
+    fingerprint: c51c201dab7dcba8/577f44f3465445c6
   - id: D-3
     grade: ASSUMED
     text: >-
