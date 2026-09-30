@@ -64,15 +64,17 @@ tests: |-
   - On a type2 entity the audit reads `valid_to IS NULL` through `current_version`.
   - Executed on DuckDB: two rows sharing a key fail the build; two versions of one key with one current pass.
   - Goldens gain the audit, and nothing else moves.
+  - A SQLMesh incremental entity's audit reads only the run's range of the time column joined back to the whole model; a full-refresh entity's and every dbt entity's read the whole model.
 docs: >-
   `concepts/what-bloomery-proves.md` says a declared key is a `LOCKED` premise the
   build checks; `concepts/data-quality.md` lists the generated audit and how `dedupe`
   removes it.
 out_of_scope: >-
-  - Auditing only the keys an incremental run touched (Q-2).
+  - A run-scoped audit on dbt, which has no run window in a test (D-6).
 risks: |-
   - A fixture or example whose data repeats a key fails its execution tier. That is a finding in the fixture, fixed there, not a reason to weaken the audit.
-  - A full scan of the entity per run on large tables; bounded by Q-2 if it matters.
+  - On SQLMesh, history written before the audit existed is never inside a run's range, so the run-scoped audit does not re-check it; the changelog's upgrade note says to run the audit's query once over the whole model.
+  - dbt's incremental entities pay the whole-model scan every run (D-6).
 alternatives:
   - option: >-
       Grade the key `ASSUMED` in evidence instead of auditing it
@@ -97,3 +99,5 @@ questions:
       Should an incremental entity's audit read only the keys this run wrote, to bound
       the scan? The draft reads the whole model: correct in every case, and the cost
       has not been measured.
+    status: settled
+    settled_by: D-6

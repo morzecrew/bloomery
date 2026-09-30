@@ -74,3 +74,26 @@ decisions:
     rationale: >-
       S-0058 lets the docs claim only what the build does
     cites: [S-0058/D-1]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      On an incremental entity emitted to SQLMesh the audit checks only the keys the
+      run wrote — the rows in the run's `@start_ds`..`@end_ds` range of the model's
+      time column — against the whole model; a full-refresh entity, and every entity
+      emitted to dbt, audits the whole model
+    paths:
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - src/bloomery/emit/lower/silver.py
+    consequence: >-
+      a daily run pays for its own keys rather than for the whole history, and dbt's
+      incremental entities pay the whole-model scan until a project needs otherwise
+    rationale: >-
+      Measured 2026-09-30 on bloomery's generated `silver.order_item`: over a full
+      build the audit is 14–15% of the build on DuckDB (10M, 50M rows) and 19–29%
+      on PostgreSQL 16 (5M, 20M); on a daily incremental run of 20M rows with a 1%
+      slice, PostgreSQL built the slice in 6.05s, the whole-model audit took 9.95s
+      and the run-scoped one 2.41s (2.15s indexed). Scoping is sound because a new
+      duplicate must involve a key the run wrote, earlier runs having checked the
+      rest. A dbt test has no notion of the run's window, so dbt cannot scope without
+      run metadata not every entity carries
+    cites: [D-1]

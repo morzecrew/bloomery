@@ -5,10 +5,12 @@ phasing:
     intent: >-
       `silver.py` builds the key-uniqueness select for an entity with a declared key
       and no `dedupe`, reading `current_version` on type2; `_entity_audits` and the
-      dbt emitter emit it as `<entity>_key_unique` beside the generated audits. An
-      execution test on DuckDB fails a build with a repeated key and passes two versions
-      with one current. Goldens gain the audit. A fixture whose data repeats a key
-      is fixed in the fixture. Settles D-1 to D-4.
+      dbt emitter emit it as `<entity>_key_unique` beside the generated audits, scoped
+      on a SQLMesh incremental entity to the keys the run wrote in `@start_ds`..`@end_ds`
+      and whole-model everywhere else. An execution test on DuckDB fails a build with
+      a repeated key and passes two versions with one current. Goldens gain the audit.
+      A fixture whose data repeats a key is fixed in the fixture. Settles D-1 to D-4
+      and D-6.
     scope:
       - src/bloomery/emit/lower/silver.py
       - src/bloomery/emit/lower/predicates.py
@@ -27,10 +29,14 @@ phasing:
     intent: >-
       `what-bloomery-proves.md` says the declared key is a `LOCKED` premise the build
       checks; `data-quality.md` lists `<entity>_key_unique` and how `dedupe` removes
-      it. Settles D-5.
+      it. The changelog's Unreleased section adds the audit under Added, with the
+      upgrade note: a source that repeats keys now stops the build (declare `dedupe`
+      or fix the source), and on SQLMesh the audit's query runs once over the whole
+      model to cover history written before it. Settles D-5.
     scope:
       - pages/docs/concepts/what-bloomery-proves.md
       - pages/docs/concepts/data-quality.md
+      - CHANGELOG.md
     acceptance:
       - >-
         uv run pytest tests/unit/test_docs_floor.py tests/unit/test_docs_snippets.py
