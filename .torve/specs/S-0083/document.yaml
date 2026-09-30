@@ -64,7 +64,7 @@ tests: |-
   - On a type2 entity the audit reads `valid_to IS NULL` through `current_version`.
   - Executed on DuckDB: two rows sharing a key fail the build; two versions of one key with one current pass.
   - Goldens gain the audit, and nothing else moves.
-  - A SQLMesh incremental entity's audit reads only the run's range of the time column joined back to the whole model; a full-refresh entity's and every dbt entity's read the whole model.
+  - A SQLMesh `incremental_by_partition` entity's audit reads only the run's range of the time column joined back to the whole model; `full`, `incremental_by_key`, `scd: type2` and every dbt entity's audit reads the whole model.
 docs: >-
   `concepts/what-bloomery-proves.md` says a declared key is a `LOCKED` premise the
   build checks; `concepts/data-quality.md` lists the generated audit and how `dedupe`

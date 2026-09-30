@@ -6,11 +6,11 @@ phasing:
       `silver.py` builds the key-uniqueness select for an entity with a declared key
       and no `dedupe`, reading `current_version` on type2; `_entity_audits` and the
       dbt emitter emit it as `<entity>_key_unique` beside the generated audits, scoped
-      on a SQLMesh incremental entity to the keys the run wrote in `@start_ds`..`@end_ds`
-      and whole-model everywhere else. An execution test on DuckDB fails a build with
-      a repeated key and passes two versions with one current. Goldens gain the audit.
-      A fixture whose data repeats a key is fixed in the fixture. Settles D-1 to D-4
-      and D-6.
+      on a SQLMesh `incremental_by_partition` entity to the keys the run wrote in
+      `@start_ds`..`@end_ds` and whole-model everywhere else. An execution test on
+      DuckDB fails a build with a repeated key and passes two versions with one current.
+      Goldens gain the audit. A fixture whose data repeats a key is fixed in the fixture.
+      Settles D-1 to D-4 and D-6.
     scope:
       - src/bloomery/emit/lower/silver.py
       - src/bloomery/emit/lower/predicates.py

@@ -77,10 +77,11 @@ decisions:
   - id: D-6
     grade: ASSUMED
     text: >-
-      On an incremental entity emitted to SQLMesh the audit checks only the keys the
-      run wrote — the rows in the run's `@start_ds`..`@end_ds` range of the model's
-      time column — against the whole model; a full-refresh entity, and every entity
-      emitted to dbt, audits the whole model
+      On an `incremental_by_partition` entity emitted to SQLMesh (`INCREMENTAL_BY_TIME_RANGE`)
+      the audit checks only the keys in the run's `@start_ds`..`@end_ds` range of
+      the model's time column against the whole model; a `full` entity, an `incremental_by_key`
+      entity (`INCREMENTAL_BY_UNIQUE_KEY`, whose writes no window bounds), an `scd:
+      type2` entity and every entity emitted to dbt audit the whole model
     paths:
       - src/bloomery/emit/sqlmesh/__init__.py
       - src/bloomery/emit/lower/silver.py
@@ -95,5 +96,8 @@ decisions:
       and the run-scoped one 2.41s (2.15s indexed). Scoping is sound because a new
       duplicate must involve a key the run wrote, earlier runs having checked the
       rest. A dbt test has no notion of the run's window, so dbt cannot scope without
-      run metadata not every entity carries
+      run metadata not every entity carries; the range is the run's write set only
+      where SQLMesh confines a run's writes to it, which is the time-range kind —
+      a key-incremental run can write a late or back-dated key outside any window
+      (bloomery #231 review)
     cites: [D-1]

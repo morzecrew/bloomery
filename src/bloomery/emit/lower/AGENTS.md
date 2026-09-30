@@ -518,7 +518,7 @@ On a type2 entity the audit reads the current version through `emit/lower/predic
 
 ### S-0083/D-6 — `ASSUMED` (A declared key is checked) — implementation: none
 
-On an incremental entity emitted to SQLMesh the audit checks only the keys the run wrote — the rows in the run's `@start_ds`..`@end_ds` range of the model's time column — against the whole model; a full-refresh entity, and every entity emitted to dbt, audits the whole model
+On an `incremental_by_partition` entity emitted to SQLMesh (`INCREMENTAL_BY_TIME_RANGE`) the audit checks only the keys in the run's `@start_ds`..`@end_ds` range of the model's time column against the whole model; a `full` entity, an `incremental_by_key` entity (`INCREMENTAL_BY_UNIQUE_KEY`, whose writes no window bounds), an `scd: type2` entity and every entity emitted to dbt audit the whole model
 
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/lower/silver.py`
 - Consequence: a daily run pays for its own keys rather than for the whole history, and dbt's incremental entities pay the whole-model scan until a project needs otherwise
