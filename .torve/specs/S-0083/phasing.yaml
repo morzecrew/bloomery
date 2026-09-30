@@ -32,11 +32,14 @@ phasing:
       it. The changelog's Unreleased section adds the audit under Added, with the
       upgrade note: a source that repeats keys now stops the build (declare `dedupe`
       or fix the source), and on SQLMesh the audit's query runs once over the whole
-      model to cover history written before it. Settles D-5.
+      model to cover history written before it. `how-to/resolve-identities.md`'s "What
+      comes out" listing, which a test compares with the compiled `identity_resolution`
+      output, names the generated key audits. Settles D-5.
     scope:
       - pages/docs/concepts/what-bloomery-proves.md
       - pages/docs/concepts/data-quality.md
       - CHANGELOG.md
+      - pages/docs/how-to/resolve-identities.md
     acceptance:
       - >-
         uv run pytest tests/unit/test_docs_floor.py tests/unit/test_docs_snippets.py
