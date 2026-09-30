@@ -105,6 +105,8 @@ Four things are doing work:
 ```
 audits/step_customer_confidence_is_high.sql
 audits/step_customer_xref_canonical_id_references_customer.sql
+audits/customer_crm_key_unique.sql   ← no two rows of a mapped source share its key
+audits/customer_billing_key_unique.sql
 config.yaml                          ← the project file SQLMesh reads first
 models/silver/customer_crm.sql       ← the two mapped sources, ordinary silver models
 models/silver/customer_billing.sql
@@ -114,7 +116,7 @@ models/gold/mart_customers.sql       ← an ordinary mart over the resolved enti
 models/gold/dim_date.sql
 ```
 
-The second audit is the one worth understanding. The manifest declares
+The step's second audit is the one worth understanding. The manifest declares
 `references: {canonical_id: customer}` between the two outputs, and each output is emitted
 as its own model — so the step runs twice, and a step *misdeclared* as `pure` could produce
 a `customer_xref` naming ids the `customer` execution never minted. No run-to-run gate can
