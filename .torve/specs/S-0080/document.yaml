@@ -4,7 +4,7 @@ title: >-
   A mart may read the current version of a type2 entity
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0040, S-0017]
 informed_by: [S-0027, S-0076]
 supersedes: []

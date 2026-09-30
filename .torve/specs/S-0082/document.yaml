@@ -4,7 +4,7 @@ title: >-
   A metric's own filter crosses into a composed plan
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0055, S-0071]
 informed_by: [S-0054, S-0077]
 supersedes: []

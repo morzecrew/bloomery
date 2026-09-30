@@ -195,7 +195,7 @@ the `rfcs` directory (since retired), its index and register, the checker and th
 - Consequence: One corpus, one checker
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0081/D-4 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice) — implementation: none
+### S-0081/D-4 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice)
 
 Phase 1 ships only beside phase 2, in one minor release whose changelog records the `Z`-to-NULL change under Changed and `ISO8601_INSTANT` under Added; no 0.4.x patch carries phase 1 alone
 

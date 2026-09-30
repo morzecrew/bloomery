@@ -532,7 +532,7 @@ Whether the mart-namespace determination is also worth carrying onto `MartColumn
 - Paths: `src/bloomery/ir/nodes.py` `tests/unit/test_ir/test_nodes.py`
 - Consequence: An IR stamped 20 or later carries `role_of`; one stamped 19 may or may not, so an IR serialized between the two landings is the one pair `plan()`'s version check cannot tell apart
 
-### S-0080/D-2 — `ASSUMED` (A mart may read the current version of a type2 entity) — implementation: none
+### S-0080/D-2 — `ASSUMED` (A mart may read the current version of a type2 entity)
 
 The current reading lowers to `valid_to IS NULL` over the shared `VALID_TO` column — a `WHERE` on the base, a join condition on a flatten hop — from one predicate the silver audits also read; `MartIR` and `MartJoinIR` carry it and `bloomery_ir_version` moves to 25
 
