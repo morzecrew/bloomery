@@ -229,7 +229,16 @@ class SnowflakeDialect(SQLGlotDialect):
                 ),
             )
 
-        rewritten = strip_iso_text(node.copy(), space_separated)
+        def instant(aware: exp.Cast) -> Expression:
+            # The *two*-argument `CONVERT_TIMEZONE` is right here, where it is
+            # wrong for `utc` above: its operand is a TIMESTAMP_TZ that already
+            # carries the text's zone, so no session zone is consulted, and the
+            # cast keeps the UTC wall clock it lands on (S-0081/D-2).
+            aware.set("this", space_separated(aware.this))
+            in_utc = exp.func("CONVERT_TIMEZONE", exp.Literal.string("UTC"), aware)
+            return exp.cast(in_utc, exp.DataType.build("TIMESTAMP"))
+
+        rewritten = strip_iso_text(node.copy(), space_separated, instant=instant)
         rewritten = utc_from_zone(rewritten, utc)
         rewritten = rewritten.transform(_utc_current_timestamp)
         rewritten = rewritten.transform(_zoneless_parse)

@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0217
+base: 26b2dd61f1f7d34e29108d5c3874592e272a3ea2
+commit: e1f0ade9fd5bd8b053ac5c4a9cd5303212eb13a4
+at: '2026-09-29T11:38:53Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: S-0012/D-1
+    grade: LOCKED
+  - id: S-0012/D-2
+    grade: LOCKED
+  - id: S-0012/D-3
+    grade: LOCKED
+  - id: S-0012/D-6
+    grade: ASSUMED
+  - id: S-0013/D-3
+    grade: ASSUMED
+  - id: S-0013/D-4
+    grade: ASSUMED
+  - id: S-0013/D-5
+    grade: OPEN
+  - id: S-0052/D-5
+    grade: ASSUMED
+entries:
+  - decision: S-0012/D-1
+    grade: LOCKED
+    at: '2026-09-29T11:22:01Z'
+    claim: >-
+      the new ISO8601_INSTANT tests run the real PostgreSQL and Trino engines under
+      the engine marker; no surrogate lane is added or quoted as conformance
+    evidence: >-
+      tests/engines/test_zoneless_utc.py:197 — postgres test; the trino twin is at
+      line 306
+    action: decided
+  - decision: S-0012/D-2
+    grade: LOCKED
+    at: '2026-09-29T11:22:01Z'
+    claim: >-
+      both new tests carry engine(name) over Docker plus the real engine, never the
+      surrogate marker
+    evidence: >-
+      tests/engines/test_zoneless_utc.py:196 — @pytest.mark.engine("postgres")
+    action: decided
+  - decision: S-0012/D-3
+    grade: LOCKED
+    at: '2026-09-29T11:22:01Z'
+    claim: >-
+      no cloud port compile lane is touched; the change adds execution tests to the
+      existing Docker tier only
+    evidence: >-
+      tests/engines/test_zoneless_utc.py:306 — only postgres and trino tests added
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-29T11:22:01Z'
+    claim: >-
+      partly holds: fixed for PostgreSQL and Trino in this file. The Spark/BigQuery/Snowflake/Redshift
+      part is not fixable here: those lanes live in their own surrogate modules outside
+      this task's scope, and under S-0012/D-1 a surrogate green cannot verify a port's
+      per-engine claim anyway, so this file cannot close that gap
+    evidence: >-
+      `ls tests/engines` — test_bigquery_surrogate.py, test_databricks_surrogate.py,
+      test_snowflake_surrogate.py, test_redshift_surrogate.py are separate modules;
+      scope allows only tests/engines/test_zoneless_utc.py
+    action: decided
+    proposal: >-
+      a follow-up task scoped to tests/engines/test_*_surrogate.py and tests/support/**
+      adds the INSTANT_TEXTS table to each surrogate lane as evidence, and each cloud
+      port's authoritative rung measures it before the port is called validated

@@ -72,10 +72,22 @@ ISO_TEXTS = (
     ("2026-01-06T12:00:00-05:00", None),
 )
 
+#: S-0081/D-2's table for ``parse_ts: ISO8601_INSTANT``: the UTC instant for
+#: text that states its zone, ``None`` for text that does not. Both offset
+#: signs again, and a lowercase ``z`` beside the ``T``, because the port
+#: upper-cases the text before its zone-aware cast reads it.
+INSTANT_TEXTS = (
+    ("2026-01-06T12:00:00Z", NOON),
+    ("2026-01-06t12:00:00z", NOON),
+    ("2026-01-06 12:00:00+01:00", datetime(2026, 1, 6, 11, 0)),
+    ("2026-01-06T12:00:00-05:00", datetime(2026, 1, 6, 17, 0)),
+    ("2026-01-06T12:00:00", None),
+)
 
-def _iso_parse_sql(port_name: str, column: str) -> str:
-    """``parse_ts: ISO8601`` as it is emitted, guard included."""
-    built = DEFAULT_REGISTRY["parse_ts"].builder(exp.column(column), "ISO8601")
+
+def _iso_parse_sql(port_name: str, column: str, fmt: str = "ISO8601") -> str:
+    """``parse_ts: ISO8601`` (or ``fmt``) as it is emitted, guard included."""
+    built = DEFAULT_REGISTRY["parse_ts"].builder(exp.column(column), fmt)
     return get_dialect(port_name).render(canon(built).ast())
 
 
@@ -181,6 +193,26 @@ def test_postgres_refuses_an_offset_and_keeps_every_other_iso_form(
     assert seen == dict(ISO_TEXTS)
 
 
+@pytest.mark.engine("postgres")
+def test_postgres_instant_parse_lands_on_utc_under_any_session(
+    postgres: psycopg.Connection,
+) -> None:
+    """S-0081/D-2 on PostgreSQL: ``Z`` and an offset give the UTC instant
+    whichever zone the session is in, and zoneless text is NULL."""
+    expression = _iso_parse_sql("postgres", "written", "ISO8601_INSTANT")
+    for session in SESSIONS:
+        postgres.execute(f"SET TIME ZONE '{session}'")
+        seen = {}
+        for text, _ in INSTANT_TEXTS:
+            # Inlined for the same `'%+%'` reason as the table above.
+            row = postgres.execute(
+                f"SELECT ({expression}) FROM (SELECT CAST('{text}' AS TEXT) AS written) s"
+            ).fetchone()
+            assert row is not None
+            seen[text] = row[0]
+        assert seen == dict(INSTANT_TEXTS), f"under session {session}"
+
+
 # ....................... #
 # Trino
 
@@ -268,3 +300,21 @@ def test_trino_refuses_an_offset_and_keeps_every_other_iso_form(
         trino_cursor.execute(f"SELECT ({expression}) FROM (SELECT '{text}' AS written)")
         seen[text] = trino_cursor.fetchall()[0][0]
     assert seen == dict(ISO_TEXTS)
+
+
+@pytest.mark.engine("trino")
+def test_trino_instant_parse_lands_on_utc_under_any_session(
+    trino_cursor: trino.dbapi.Cursor,
+) -> None:
+    """S-0081/D-2 on Trino, where the zone-aware cast reads the space-separated
+    rewrite and ``at_timezone`` moves the instant to UTC before the zone is
+    dropped — under any session zone."""
+    expression = _iso_parse_sql("trino", "written", "ISO8601_INSTANT")
+    for session in SESSIONS:
+        trino_cursor.execute(f"SET TIME ZONE '{session}'")
+        trino_cursor.fetchall()
+        seen = {}
+        for text, _ in INSTANT_TEXTS:
+            trino_cursor.execute(f"SELECT ({expression}) FROM (SELECT '{text}' AS written)")
+            seen[text] = trino_cursor.fetchall()[0][0]
+        assert seen == dict(INSTANT_TEXTS), f"under session {session}"

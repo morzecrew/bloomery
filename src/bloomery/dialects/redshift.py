@@ -151,7 +151,7 @@ class RedshiftDialect(SQLGlotDialect):
         """
 
         rewritten = capture_group(node.copy())
-        rewritten = strip_iso_text(rewritten, lambda text: text)
+        rewritten = strip_iso_text(rewritten, lambda text: text, instant=_instant)
         rewritten = utc_from_zone(rewritten, _convert_timezone)
         rewritten = rewritten.transform(zoneless_parse)
         rewritten = rewritten.transform(ends_with_as_right)
@@ -254,6 +254,23 @@ def _convert_timezone(at_zone: Expression) -> Expression:
             at_zone.this.copy(),
         ),
     )
+
+
+# ....................... #
+
+
+def _instant(aware: exp.Cast) -> Expression:
+    """``TIMEZONE('UTC', CAST(text AS TIMESTAMPTZ))`` (S-0081/D-2).
+
+    Redshift documents ``TIMEZONE(zone, timestamptz)`` as returning the
+    ``TIMESTAMP`` that instant reads in *zone*, which is the zoneless UTC value
+    wanted. ``CONVERT_TIMEZONE`` documents only a ``TIMESTAMP`` operand, so a
+    ``TIMESTAMPTZ`` handed to it goes through an implicit conversion Redshift
+    does not specify — and one through the session zone would land the session
+    wall clock instead of the instant (bloomery #227, CodeRabbit).
+    """
+
+    return exp.Anonymous(this="TIMEZONE", expressions=[exp.Literal.string("UTC"), aware])
 
 
 # ....................... #

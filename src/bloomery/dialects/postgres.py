@@ -15,6 +15,7 @@ from bloomery.dialects.base import (
     capture_group,
     strip_iso_text,
     utc_from_zone,
+    utc_instant,
 )
 from bloomery.typing import (
     BoolType,
@@ -119,7 +120,7 @@ class PostgresDialect(SQLGlotDialect):
         # spell `regexp_substr` at all; the base render applies it again, and
         # a tree that already names a group is untouched.
         rewritten = capture_group(node.copy())
-        rewritten = strip_iso_text(rewritten, lambda text: text)
+        rewritten = strip_iso_text(rewritten, lambda text: text, instant=utc_instant)
         rewritten = utc_from_zone(rewritten, utc)
         rewritten = rewritten.transform(zoneless_parse)
         rewritten = rewritten.transform(_pg_text_functions)

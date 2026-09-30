@@ -137,3 +137,29 @@ def test_the_offset_guard_plans_over_a_bronze_column_that_is_not_text() -> None:
         assert str(row[0]) == "2026-01-06 09:00:00"
     finally:
         conn.close()
+
+
+def test_a_zulu_marker_under_to_utc_is_refused_as_null() -> None:
+    """S-0081/D-1: once ``to_utc`` names the text's zone, a trailing ``Z``
+    contradicts it like any offset. Converting it would shift a UTC value by
+    Berlin's offset a second time; NULL is what a quality rule can see.
+
+    Both directions, as above: the zoneless spelling still converts.
+    """
+    parsed = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("written"), "ISO8601")
+    built = DEFAULT_REGISTRY["to_utc"].builder(parsed, ZONE)
+    expression = get_dialect("duckdb").render(canon(built).ast())
+    conn = duckdb.connect()
+    try:
+        seen = {}
+        for text in ("2026-01-06T23:30:00", "2026-01-06T23:30:00Z", "2026-01-06T23:30:00z"):
+            row = conn.execute(
+                f"SELECT CAST(({expression}) AS VARCHAR) FROM (SELECT '{text}' AS written)"  # noqa: S608 — literals are ours
+            ).fetchone()
+            assert row is not None
+            seen[text] = row[0]
+        assert seen["2026-01-06T23:30:00"].startswith("2026-01-06 22:30:00")
+        assert seen["2026-01-06T23:30:00Z"] is None
+        assert seen["2026-01-06T23:30:00z"] is None
+    finally:
+        conn.close()

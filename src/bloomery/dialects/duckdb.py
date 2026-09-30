@@ -13,6 +13,7 @@ from bloomery.dialects.base import (
     space_separated,
     strip_iso_text,
     utc_from_zone,
+    utc_instant,
 )
 from bloomery.typing import (
     BoolType,
@@ -72,7 +73,7 @@ class DuckDBDialect(SQLGlotDialect):
             # the UTC wall clock, identically under any session (S-0045/the-fix-and-why-it-is-not-a-choice).
             return exp.AtTimeZone(this=interpretation, zone=exp.Literal.string("UTC"))
 
-        rewritten = strip_iso_text(node.copy(), space_separated)
+        rewritten = strip_iso_text(node.copy(), space_separated, instant=utc_instant)
         rewritten = utc_from_zone(rewritten, utc)
         rewritten = rewritten.transform(_nfc_normalize)
         return super().render(rewritten)

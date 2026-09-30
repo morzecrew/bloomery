@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0195
+phase: 2
+base: 6ae70d35d0648fbac9d2172b6e166748a55f87d7
+commit: 832516200d6b8baf5dc1aa58623b72f476550c3e
+at: '2026-09-29T10:32:18Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-09-29T10:24:41Z'
+    claim: >-
+      ISO8601_INSTANT lowers to CAST(BLM_ISO_INSTANT_TEXT(x) AS TIMESTAMP); strip_iso_text
+      replaces the whole cast via a per-port instant spelling (zone-aware cast of
+      the upper-cased text, moved to zoneless UTC) inside a positive Z/offset guard,
+      so zoneless text is NULL; a port passing no spelling leaves the marker for render
+      to refuse by name. Only DuckDB was measured (Z->12:00, +02:00->10:00, zoneless->NULL
+      under UTC, Asia/Tokyo, America/New_York, plain and TRY_CAST); Postgres, Trino,
+      Snowflake, BigQuery, Databricks and Redshift spellings are unmeasured because
+      no engine tier runs in this sandbox
+    evidence: >-
+      src/bloomery/dialects/base.py:113-135 — _with_zone guard; strip_iso_text instant
+      branch at base.py:216-226; tests/unit/test_dialects/test_base.py test_the_instant_parse_lands_on_utc_on_duckdb
+      is the measurement
+    action: decided
+    notes: >-
+      tests/engines/test_zoneless_utc.py gained no instant cases: the engine tier
+      cannot run here, and the phase names measurement on each tier before landing.
+      That is owed before release.
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-09-29T10:24:41Z'
+    claim: >-
+      resolve refuses to_utc after an ISO8601_INSTANT parse and any non-UTC zone_in
+      beside one, in _zone_declaration ahead of the zone_in=None early return; R018
+      reads only a non-instant parse_ts as a wall clock
+    evidence: >-
+      src/bloomery/resolve/build.py:1080-1105 — the two instant refusals; src/bloomery/guardrails/zone.py:104-108
+      is R018's wall-clock reading
+    action: decided
+    notes: >-
+      no separate change to semantic/zone.py was needed: prove_zone already states
+      an unparsed reading as never a wall clock
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-09-29T10:24:41Z'
+    claim: >-
+      %z/%Z refused through parse_ts's output-type function, which runs at the typecheck
+      stage with source paths, rather than in the builder that only runs at lowering;
+      the regex skips an escaped %%z/%%Z
+    evidence: >-
+      src/bloomery/transforms/_builtins.py:512-530 — _zoneless_format
+    action: decided
+    notes: >-
+      typecheck is the earliest stage that sees a transform's arguments; the spec
+      parser is outside this scope

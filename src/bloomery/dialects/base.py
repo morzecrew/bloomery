@@ -17,7 +17,12 @@ from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
 from bloomery.errors import UnsupportedByTarget
-from bloomery.transforms import DIVIDE_MARKER, ISO_TEXT_MARKER
+from bloomery.transforms import (
+    DIVIDE_MARKER,
+    ISO_INSTANT_TEXT_MARKER,
+    ISO_TEXT_MARKER,
+    ISO_ZONED_TEXT_MARKER,
+)
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -37,6 +42,7 @@ __all__ = [
     "space_separated",
     "strip_iso_text",
     "utc_from_zone",
+    "utc_instant",
     "capture_group",
     "DialectPort",
     "SQLGlotDialect",
@@ -48,8 +54,15 @@ __all__ = [
 #: every ``+`` or ``-`` inside it belongs to a UTC offset (S-0052/D-5).
 _OFFSET_WINDOW = 11
 
+#: Both spellings of the ISO-text marker: a bare parse, and one ``to_utc`` has
+#: zoned (S-0081/D-1).
+_ISO_MARKERS = frozenset({ISO_TEXT_MARKER, ISO_ZONED_TEXT_MARKER})
 
-def _without_offset(text: Expression, parsed: Expression) -> Expression:
+#: Every marker a port must replace before SQL generation.
+_ALL_ISO_MARKERS = _ISO_MARKERS | {ISO_INSTANT_TEXT_MARKER}
+
+
+def _without_offset(text: Expression, parsed: Expression, *, zoned: bool = False) -> Expression:
     """``parsed``, or NULL when ``text`` carries a numeric UTC offset.
 
     ``parse_ts: ISO8601`` reads a *local wall clock*, and ``to_utc`` is the only
@@ -70,7 +83,10 @@ def _without_offset(text: Expression, parsed: Expression) -> Expression:
 
     A ``Z`` suffix is deliberately **not** refused. It names UTC, which is the
     zone the target type is already in, so truncating it loses nothing — where
-    a numeric offset loses exactly the difference (S-0052/D-4).
+    a numeric offset loses exactly the difference (S-0052/D-4). Unless
+    ``zoned``: a ``to_utc`` after the parse has declared the text a wall clock
+    in a named zone, and a ``Z`` then contradicts it like any offset, so it is
+    refused too rather than shifted by the zone a second time (S-0081/D-1).
 
     The window is taken over an explicit ``VARCHAR`` cast for the reason the
     Trino port already casts before its own ``replace``: the marker is text in
@@ -90,7 +106,36 @@ def _without_offset(text: Expression, parsed: Expression) -> Expression:
         exp.Like(this=window, expression=exp.Literal.string("%+%")),
         exp.Like(this=window.copy(), expression=exp.Literal.string("%-%")),
     )
+    if zoned:
+        offset_bearing = exp.or_(
+            offset_bearing,
+            exp.Like(this=exp.Upper(this=window.copy()), expression=exp.Literal.string("%Z%")),
+        )
     return exp.Case(ifs=[exp.If(this=offset_bearing, true=exp.null())], default=parsed)
+
+
+def _with_zone(text: Expression, parsed: Expression) -> Expression:
+    """``parsed``, or NULL when ``text`` names no zone — the instant format's
+    guard, the inverse of :func:`_without_offset` (S-0081/D-2).
+
+    Detection is positive, a ``Z`` or a sign past the date, rather than left to
+    the engine: Trino attaches the *session* zone to zoneless text it is asked
+    to read as an instant (S-0052), so the same row would store a different
+    instant depending on who ran it.
+    """
+    window = exp.Upper(
+        this=exp.Substring(
+            this=exp.cast(text, exp.DataType.build("VARCHAR")),
+            start=exp.Literal.number(_OFFSET_WINDOW),
+        )
+    )
+    zone_bearing = exp.or_(
+        *(
+            exp.Like(this=window.copy(), expression=exp.Literal.string(pattern))
+            for pattern in ("%+%", "%-%", "%Z%")
+        )
+    )
+    return exp.Case(ifs=[exp.If(this=zone_bearing, true=parsed)])
 
 
 # ....................... #
@@ -137,7 +182,12 @@ def space_separated(text: Expression) -> Expression:
 # ....................... #
 
 
-def strip_iso_text(node: Expression, spelling: Callable[[Expression], Expression]) -> Expression:
+def strip_iso_text(
+    node: Expression,
+    spelling: Callable[[Expression], Expression],
+    *,
+    instant: Callable[[exp.Cast], Expression] | None = None,
+) -> Expression:
     """Replace every ISO-text marker in ``node`` with ``spelling(inner)``.
 
     ``parse_ts: ISO8601`` wraps the text it is about to cast in
@@ -158,12 +208,32 @@ def strip_iso_text(node: Expression, spelling: Callable[[Expression], Expression
     offset-bearing text lands on every port at once — including one written
     later, which inherits it by satisfying the "must call this" rule rather
     than by remembering a second one (S-0052/D-3).
+
+    ``instant`` is the port's spelling of an ``ISO8601_INSTANT`` parse
+    (S-0081/D-2): handed the parse's own ``CAST`` or ``TRY_CAST`` — its text
+    upper-cased, so a lowercase ``t`` or ``z`` reads as the ISO forms, and its
+    type the zone-aware ``TIMESTAMPTZ`` — it returns that instant as a zoneless
+    UTC timestamp. Zoneless text is NULL around it on every port. A port that
+    passes none leaves the marker for :meth:`SQLGlotDialect.render` to refuse.
     """
 
     def replace(child: Expression) -> Expression:
-        if isinstance(child, exp.Anonymous) and child.name.upper() == ISO_TEXT_MARKER:
+        if (
+            instant is not None
+            and isinstance(child, exp.Cast)
+            and isinstance(child.this, exp.Anonymous)
+            and child.this.name.upper() == ISO_INSTANT_TEXT_MARKER
+        ):
+            text = child.this.expressions[0]
+            aware = type(child)(
+                this=exp.Upper(this=text.copy()), to=exp.DataType.build("TIMESTAMPTZ")
+            )
+            return _with_zone(text.copy(), instant(aware))
+
+        if isinstance(child, exp.Anonymous) and child.name.upper() in _ISO_MARKERS:
             text = child.expressions[0]
-            return _without_offset(text.copy(), spelling(text))
+            zoned = child.name.upper() == ISO_ZONED_TEXT_MARKER
+            return _without_offset(text.copy(), spelling(text), zoned=zoned)
 
         return child
 
@@ -195,6 +265,20 @@ def utc_from_zone(node: Expression, to_utc: Callable[[Expression], Expression]) 
         return to_utc(child) if isinstance(child, exp.AtTimeZone) else child
 
     return node.transform(replace)
+
+
+# ....................... #
+
+
+def utc_instant(aware: Expression) -> Expression:
+    """``CAST(timezone('UTC', aware) AS TIMESTAMP)``: a zone-aware instant as a
+    zoneless UTC timestamp, the spelling :meth:`SQLGlotDialect.utc_now` uses and
+    for its reason — a function rather than :class:`exp.AtTimeZone`, which
+    :func:`utc_from_zone` would rewrite as a wall clock being given its zone."""
+
+    return exp.cast(
+        exp.func("timezone", exp.Literal.string("UTC"), aware), exp.DataType.build("TIMESTAMP")
+    )
 
 
 # ....................... #
@@ -451,7 +535,7 @@ class SQLGlotDialect:
             (
                 child
                 for child in node.find_all(exp.Anonymous)
-                if child.name.upper() == ISO_TEXT_MARKER
+                if child.name.upper() in _ALL_ISO_MARKERS
             ),
             None,
         )
@@ -459,7 +543,7 @@ class SQLGlotDialect:
         if surviving is not None:
             msg = (
                 f"dialect {self.name!r} rendered an ISO 8601 parse without deciding what "
-                f"its engine needs: the {ISO_TEXT_MARKER} marker reached SQL generation "
+                f"its engine needs: the {surviving.name} marker reached SQL generation "
                 "(S-0044). Engines disagree about what their own casts accept — "
                 "DuckDB and PostgreSQL take the 'T' separator, Trino returns NULL for it "
                 "— so the choice cannot be defaulted without risking silently NULL data. "

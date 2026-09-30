@@ -337,3 +337,59 @@ def test_the_two_utc_spellings_agree_with_each_other(declared: str, converted: s
     )
 
     assert _zone_of(ir) == declared
+
+
+# ....................... #
+# S-0081/D-2: an instant parse is already UTC
+
+
+@pytest.mark.parametrize("zone", [None, "UTC", "Etc/UTC"])
+def test_an_instant_parse_builds_with_no_zone_or_utc(zone: str | None) -> None:
+    declared = f", zone_in: {zone}" if zone else ""
+    ir = _build(
+        f'booked_at: {{from: "$.booked_at", transform: [{{parse_ts: ISO8601_INSTANT}}]{declared}}}'
+    )
+
+    assert _zone_of(ir) == zone
+
+
+def test_to_utc_after_an_instant_parse_is_refused() -> None:
+    """Both sides are `timestamp`, so the type system cannot see the second
+    conversion; this is the only place that can."""
+
+    with pytest.raises(ResolutionError, match="to_utc after parse_ts: ISO8601_INSTANT"):
+        _build(
+            'booked_at: {from: "$.booked_at", '
+            "transform: [{parse_ts: ISO8601_INSTANT}, {to_utc: Europe/Paris}]}"
+        )
+
+
+def test_to_utc_after_a_later_wall_clock_parse_is_that_parse_s_conversion() -> None:
+    """A `parse_ts` after the instant starts a new value: the `to_utc` behind
+    it converts that wall clock, not the instant (bloomery #227, CodeAnt)."""
+
+    _build(
+        'booked_at: {from: "$.booked_at", transform: [{parse_ts: ISO8601_INSTANT}, '
+        "to_string, {parse_ts: ISO8601}, {to_utc: Europe/Paris}]}"
+    )
+
+
+def test_a_zone_declared_for_a_later_wall_clock_parse_is_that_parse_s() -> None:
+    """`zone_in:` describes the value the chain ends with; after a later
+    `parse_ts: ISO8601` that is a wall clock, not the instant (bloomery #227)."""
+
+    ir = _build(
+        'booked_at: {from: "$.booked_at", transform: [{parse_ts: ISO8601_INSTANT}, '
+        "to_string, {parse_ts: ISO8601}, {to_utc: America/New_York}], "
+        "zone_in: America/New_York}"
+    )
+
+    assert _zone_of(ir) == "America/New_York"
+
+
+def test_a_non_utc_zone_beside_an_instant_parse_is_refused() -> None:
+    with pytest.raises(ResolutionError, match="zone_in: 'Europe/Paris'"):
+        _build(
+            'booked_at: {from: "$.booked_at", '
+            "transform: [{parse_ts: ISO8601_INSTANT}], zone_in: Europe/Paris}"
+        )

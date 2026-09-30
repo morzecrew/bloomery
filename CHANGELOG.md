@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`parse_ts: ISO8601_INSTANT` parses text that states its own offset.** Text carrying
+  `Z` or a numeric offset becomes the UTC instant it names, identically on every port,
+  and zoneless text is NULL. The value is never a wall clock: a `to_utc` after it is
+  refused at resolve, and a `zone_in:` beside it may only be `UTC`. A `parse_ts` format
+  carrying `%z` or `%Z` is now refused at parse and names this format; an escaped `%%z`
+  is literal text and passes.
+
+### Changed
+
+- **`to_utc` after `parse_ts: ISO8601` yields NULL for text ending in `Z`.** The chain
+  declares the text a wall clock in the named zone, so a `Z` contradicts it exactly as
+  `+01:00` does, and every port now refuses it the same way rather than shifting a UTC
+  value by the zone's offset a second time. A bare `parse_ts: ISO8601` still reads `Z`
+  as UTC. **Migration:** a source that stamps instants should parse them with
+  `parse_ts: ISO8601_INSTANT`, released beside this change, and drop the `to_utc`; the
+  NULL rows are visible to the `coercible` rule and the reject table meanwhile.
+  `ecom_basic`'s compiled output moves by the added guard.
+
 ## [0.4.0] - 2026-09-29
 
 ### Added

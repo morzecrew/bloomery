@@ -1,0 +1,141 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0219
+base: ce7ac4a576dddb1984fd69e21784b914e88e10d3
+at: '2026-09-29T11:39:23Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: S-0002/D-2
+    grade: LOCKED
+  - id: S-0002/D-12
+    grade: ASSUMED
+  - id: S-0003/D-2
+    grade: LOCKED
+  - id: S-0003/D-7
+    grade: ASSUMED
+  - id: S-0003/D-11
+    grade: ASSUMED
+  - id: S-0004/D-2
+    grade: LOCKED
+  - id: S-0004/D-4
+    grade: ASSUMED
+  - id: S-0004/D-13
+    grade: ASSUMED
+  - id: S-0008/D-11
+    grade: ASSUMED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0019/D-6
+    grade: ASSUMED
+  - id: S-0019/D-7
+    grade: ASSUMED
+  - id: S-0020/D-2
+    grade: ASSUMED
+  - id: S-0020/D-4
+    grade: ASSUMED
+  - id: S-0023/D-2
+    grade: ASSUMED
+  - id: S-0023/D-4
+    grade: ASSUMED
+  - id: S-0023/D-7
+    grade: ASSUMED
+  - id: S-0023/D-9
+    grade: ASSUMED
+  - id: S-0023/D-10
+    grade: ASSUMED
+  - id: S-0025/D-13
+    grade: ASSUMED
+  - id: S-0027/D-6
+    grade: ASSUMED
+  - id: S-0033/D-6
+    grade: ASSUMED
+  - id: S-0033/D-10
+    grade: ASSUMED
+  - id: S-0033/D-21
+    grade: ASSUMED
+  - id: S-0033/D-23
+    grade: ASSUMED
+  - id: S-0033/D-87
+    grade: ASSUMED
+  - id: S-0033/D-95
+    grade: ASSUMED
+  - id: S-0034/D-50
+    grade: ASSUMED
+  - id: S-0034/D-51
+    grade: ASSUMED
+  - id: S-0034/D-54
+    grade: ASSUMED
+  - id: S-0039/D-3
+    grade: ASSUMED
+  - id: S-0039/D-5
+    grade: ASSUMED
+  - id: S-0039/D-12
+    grade: ASSUMED
+  - id: S-0040/D-4
+    grade: LOCKED
+  - id: S-0041/D-1
+    grade: LOCKED
+  - id: S-0041/D-4
+    grade: LOCKED
+  - id: S-0041/D-12
+    grade: LOCKED
+  - id: S-0041/D-23
+    grade: ASSUMED
+  - id: S-0041/D-26
+    grade: ASSUMED
+  - id: S-0041/D-32
+    grade: LOCKED
+  - id: S-0041/D-33
+    grade: LOCKED
+  - id: S-0041/D-36
+    grade: ASSUMED
+  - id: S-0046/D-1
+    grade: ASSUMED
+  - id: S-0050/D-1
+    grade: LOCKED
+  - id: S-0066/D-1
+    grade: LOCKED
+  - id: S-0066/D-2
+    grade: LOCKED
+  - id: S-0066/D-3
+    grade: LOCKED
+  - id: S-0066/D-6
+    grade: ASSUMED
+  - id: S-0068/D-1
+    grade: LOCKED
+  - id: S-0068/D-2
+    grade: LOCKED
+  - id: S-0068/D-3
+    grade: LOCKED
+  - id: S-0068/D-6
+    grade: LOCKED
+  - id: S-0079/D-1
+    grade: LOCKED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-29T11:25:54Z'
+    claim: >-
+      Claim rejected: parse_ts ISO8601_INSTANT, to_string, a second parse_ts, then
+      to_utc is not a false positive. to_string of the UTC instant renders UTC wall-clock
+      text, so the re-parse yields a UTC wall clock and a to_utc from any other zone
+      shifts the instant a second time — the double conversion S-0081/D-2 refuses.
+      D-2 states literally that to_utc after an ISO8601_INSTANT parse is refused at
+      resolve; the check over every later link conforms to it. No change made.
+    evidence: >-
+      src/bloomery/resolve/build.py:1085-1095 — any to_utc after the instant parse
+      is refused, as S-0081/D-2 specifies; src/bloomery/transforms/_builtins.py:372
+      shows to_string renders the instant as text, carrying its UTC value into the
+      re-parse
+    action: decided
+    proposal: >-
+      Amend S-0081/D-2 only if a round-trip through text with to_utc: UTC must be
+      admitted; otherwise none needed
