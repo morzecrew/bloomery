@@ -1811,6 +1811,19 @@ def key_unique_audit(entity: EntityIR) -> bool:
     return bool(entity.key) and entity.dedupe is None
 
 
+def _same_key_part(column: str) -> Expression:
+    """``written.c = entity.c OR (written.c IS NULL AND entity.c IS NULL)``."""
+    written, entity = (
+        exp.column(column, table=_WRITTEN_ALIAS),
+        exp.column(column, table=_ENTITY_ALIAS),
+    )
+    both_null = exp.and_(
+        exp.Is(this=written.copy(), expression=exp.null()),
+        exp.Is(this=entity.copy(), expression=exp.null()),
+    )
+    return exp.paren(exp.or_(exp.EQ(this=written, expression=entity), exp.paren(both_null)))
+
+
 def key_unique_audit_select(
     entity: EntityIR, *, relation: str = THIS_MODEL, written: str | None = None
 ) -> exp.Select:
@@ -1846,15 +1859,11 @@ def key_unique_audit_select(
         select = select.where(current)
 
     if written is not None:
-        matches = conjunction(
-            [
-                exp.EQ(
-                    this=exp.column(column, table=_WRITTEN_ALIAS),
-                    expression=exp.column(column, table=_ENTITY_ALIAS),
-                )
-                for column in entity.key
-            ]
-        )
+        # Null-safe, because the whole-model count groups a NULL key part with
+        # its equals and `=` would drop that key from the run's scope (bloomery
+        # #233 review): both paths have to agree on what one key is. Spelled
+        # out rather than `IS NOT DISTINCT FROM`, which not every port reads.
+        matches = conjunction([_same_key_part(column) for column in entity.key])
         select = select.where(
             exp.Exists(
                 this=exp.Select()

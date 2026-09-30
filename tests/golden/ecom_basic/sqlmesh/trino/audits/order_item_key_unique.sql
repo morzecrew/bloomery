@@ -15,7 +15,18 @@ WHERE
       1
     FROM @this_model AS _written
     WHERE
-      _written.order_id = _entity.order_id AND _written.line_no = _entity.line_no
+      (
+        _written.order_id = _entity.order_id
+        OR (
+          _written.order_id IS NULL AND _entity.order_id IS NULL
+        )
+      )
+      AND (
+        _written.line_no = _entity.line_no
+        OR (
+          _written.line_no IS NULL AND _entity.line_no IS NULL
+        )
+      )
   )
 GROUP BY
   _entity.order_id,

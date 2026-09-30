@@ -140,3 +140,36 @@ def test_a_partitioned_run_checks_its_own_keys_against_the_whole_model() -> None
         assert conn.execute(_windowed_body()).fetchall() == [("e1", 2)]
     finally:
         conn.close()
+
+
+def test_a_null_key_part_is_one_key_in_the_run_as_in_the_whole_model() -> None:
+    """The whole-model count groups a NULL key part with its equals, so the
+    run's scope has to match it too: `=` never does, and a key repeated across
+    partitions with a NULL part escaped the windowed audit (bloomery #233)."""
+    model = _PARTITIONED_MODEL.replace("key: [event_id]", "key: [event_id, region]").replace(
+        "      event_date: {type: date}\n",
+        "      event_date: {type: date}\n      region: {type: string}\n",
+    )
+    mapping = _PARTITIONED_MAPPING.replace(
+        '  event_id: {from: "$.id", transform: [to_string]}\n',
+        '  event_id: {from: "$.id", transform: [to_string]}\n'
+        '  region: {from: "$.region", transform: [to_string]}\n',
+    )
+    project = load_project({"entity_model": model, "mapping": mapping})
+    artifact = next(
+        a
+        for a in compile_project(project, target=Target.SQLMESH, dialect="duckdb")
+        if a.path == "audits/event_key_unique.sql"
+    )
+    body = artifact.content.partition(");")[2]
+    body = body.replace(WHOLE_MODEL, "silver.event").replace("@this_model", _WINDOW)
+    conn = duckdb.connect()
+    conn.execute("CREATE SCHEMA silver")
+    conn.execute("CREATE TABLE silver.event (event_id VARCHAR, region VARCHAR, event_date DATE)")
+    conn.execute(
+        "INSERT INTO silver.event VALUES ('e3', NULL, '2024-01-01'), ('e3', NULL, '2024-01-02')"
+    )
+    try:
+        assert conn.execute(body).fetchall() == [("e3", None, 2)]
+    finally:
+        conn.close()
