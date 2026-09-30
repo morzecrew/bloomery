@@ -4726,6 +4726,12 @@ quotes it.</p>
 <td>The fact the mart is built from</td>
 </tr>
 <tr>
+<td><code>reading</code></td>
+<td><code>current</code></td>
+<td>on an <code>scd: type2</code> base</td>
+<td>Reads only the base's current version (<code>WHERE valid_to IS NULL</code>). Required to base a mart on a historical entity, refused on any other; the mart must then be <code>materialization: full</code></td>
+</tr>
+<tr>
 <td><code>flatten</code></td>
 <td>list of flatten steps</td>
 <td>no (<code>[]</code>)</td>
@@ -4835,6 +4841,7 @@ is what it is on every other target too.</p>
 <div class="highlight"><pre><span></span><code><span class="nt">flatten</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">via</span><span class="p">:</span><span class="w"> </span><span class="nv">item_of_order</span><span class="p p-Indicator">,</span><span class="nt"> prefix</span><span class="p">:</span><span class="w"> </span><span class="nv">order_</span><span class="p p-Indicator">}</span><span class="w">    </span><span class="c1"># flatten a relationship</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">via</span><span class="p">:</span><span class="w"> </span><span class="nv">order_of_customer</span><span class="p p-Indicator">,</span><span class="nt"> prefix</span><span class="p">:</span><span class="w"> </span><span class="nv">customer_</span><span class="p p-Indicator">,</span><span class="nt"> as_of</span><span class="p">:</span><span class="w"> </span><span class="nv">order_date</span><span class="p p-Indicator">}</span><span class="w">  </span><span class="c1"># ... as of a date</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">via</span><span class="p">:</span><span class="w"> </span><span class="nv">order_of_customer</span><span class="p p-Indicator">,</span><span class="nt"> prefix</span><span class="p">:</span><span class="w"> </span><span class="nv">customer_now_</span><span class="p p-Indicator">,</span><span class="nt"> reading</span><span class="p">:</span><span class="w"> </span><span class="nv">current</span><span class="p p-Indicator">}</span><span class="w">  </span><span class="c1"># ... or as it is now</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">date</span><span class="p">:</span><span class="w"> </span><span class="nv">order_date</span><span class="p p-Indicator">,</span><span class="nt"> role</span><span class="p">:</span><span class="w"> </span><span class="nv">ordered</span><span class="p p-Indicator">}</span><span class="w">       </span><span class="c1"># declare a date role</span>
 </code></pre></div>
 <table>
@@ -4866,8 +4873,15 @@ is what it is on every other target too.</p>
 <td>via</td>
 <td><code>as_of</code></td>
 <td>base date/timestamp column</td>
-<td>on <code>scd: type2</code></td>
-<td>The anchor: the instant the joined entity is read as of. Required to flatten a historical dimension, refused on any other</td>
+<td>on <code>scd: type2</code>, unless <code>reading</code></td>
+<td>The anchor: the instant the joined entity is read as of. A historical dimension needs it or <code>reading: current</code>; refused on any other, and beside <code>reading</code></td>
+</tr>
+<tr>
+<td>via</td>
+<td><code>reading</code></td>
+<td><code>current</code></td>
+<td>no</td>
+<td>Reads only the joined entity's current version (<code>valid_to IS NULL</code> in the join condition) in place of an anchor. Refused on a non-historical entity and beside <code>as_of</code>; the mart must then be <code>materialization: full</code></td>
 </tr>
 <tr>
 <td>date</td>

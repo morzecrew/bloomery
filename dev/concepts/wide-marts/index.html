@@ -896,10 +896,32 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#a-base-cannot-be-historical" class="md-nav__link">
+  <a href="#reading-the-current-version" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        A <code>base:</code> cannot be historical
+        Reading the current version
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-base-is-historical-only-when-read-current" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A <code>base:</code> is historical only when read current
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-current-reading-mart-is-built-whole" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A current-reading mart is built whole
       </span>
     </span>
   </a>
@@ -1991,10 +2013,32 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#a-base-cannot-be-historical" class="md-nav__link">
+  <a href="#reading-the-current-version" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        A <code>base:</code> cannot be historical
+        Reading the current version
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-base-is-historical-only-when-read-current" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A <code>base:</code> is historical only when read current
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-current-reading-mart-is-built-whole" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A current-reading mart is built whole
       </span>
     </span>
   </a>
@@ -2227,12 +2271,50 @@ current-view one, so a mart whose whole purpose is point-in-time attribution ret
 today's segment for a two-year-old order.</p>
 <p>An <code>as_of</code> on a dimension that is <em>not</em> <code>scd: type2</code> is refused too: there is no version
 to choose between, and the validity columns it would join against do not exist.</p>
-<h3 id="a-base-cannot-be-historical">A <code>base:</code> cannot be historical<a class="headerlink" href="#a-base-cannot-be-historical" title="Permanent link">&para;</a></h3>
-<p>A mart <strong>based</strong> on a <code>type2</code> entity is still refused, and an anchor cannot rescue it.
-There is no join to qualify. The mart declares one row per entity while the relation
-holds one per entity per version, so a <code>count</code> returns revisions — a grain lie no
-predicate addresses. Base the mart on a <code>type1</code> current-view entity built from the
-historical one.</p>
+<h3 id="reading-the-current-version">Reading the current version<a class="headerlink" href="#reading-the-current-version" title="Permanent link">&para;</a></h3>
+<p>When the question is about the dimension as it is <em>now</em>, declare that instead of an
+anchor:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">flatten</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">via</span><span class="p">:</span><span class="w"> </span><span class="nv">order_of_customer</span><span class="p p-Indicator">,</span><span class="nt"> prefix</span><span class="p">:</span><span class="w"> </span><span class="nv">customer_</span><span class="p p-Indicator">,</span><span class="nt"> reading</span><span class="p">:</span><span class="w"> </span><span class="nv">current</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p><code>reading: current</code> reads only the current version — <code>valid_to IS NULL</code> — and it is a
+declaration, not a default: omit both keys and the flatten is still <code>HistoricalFanout</code>.
+On a flatten hop the predicate joins the <code>ON</code> clause, not a <code>WHERE</code>, so an order whose
+customer has no current version keeps its row with NULL customer columns:</p>
+<div class="highlight"><pre><span></span><code><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">silver</span><span class="p">.</span><span class="n">customer</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">customer_</span>
+<span class="w">  </span><span class="k">ON</span><span class="w">  </span><span class="ss">"order"</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">customer_</span><span class="p">.</span><span class="n">customer_id</span>
+<span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">customer_</span><span class="p">.</span><span class="n">valid_to</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span>
+</code></pre></div>
+<p>It is the same predicate the silver audits scope to the current version with, so a mart
+and an audit cannot disagree about which version is current.</p>
+<p>Two declarations of it are refused as <code>HistoricalFanout</code>:</p>
+<ul>
+<li><strong><code>reading: current</code> on an entity that is not <code>scd: type2</code>.</strong> It holds one row per
+  key, so there is no current version to choose and no <code>valid_to</code> column to read.</li>
+<li><strong><code>reading: current</code> beside <code>as_of:</code> on one step.</strong> One reads the version current now,
+  the other the version current at the anchor, and a hop reads one version.</li>
+</ul>
+<h3 id="a-base-is-historical-only-when-read-current">A <code>base:</code> is historical only when read current<a class="headerlink" href="#a-base-is-historical-only-when-read-current" title="Permanent link">&para;</a></h3>
+<p>A mart <strong>based</strong> on a <code>type2</code> entity is refused, and an anchor cannot rescue it. There
+is no join to qualify. The mart declares one row per entity while the relation holds one
+per entity per version, so a <code>count</code> returns revisions — a grain lie no join predicate
+addresses. Declare <code>reading: current</code> on the mart and the base is filtered to one row
+per key:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">marts</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">customer_current</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer</span>
+<span class="w">    </span><span class="nt">base</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer</span>
+<span class="w">    </span><span class="nt">reading</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">current</span>
+</code></pre></div>
+<p>which lowers to <code>WHERE customer.valid_to IS NULL</code>. The other route is unchanged: base
+the mart on a <code>type1</code> current-view entity built from the historical one.</p>
+<h3 id="a-current-reading-mart-is-built-whole">A current-reading mart is built whole<a class="headerlink" href="#a-current-reading-mart-is-built-whole" title="Permanent link">&para;</a></h3>
+<p>A mart that reads current versions — on its base or on any flatten step — must be
+<code>materialization: full</code>; declaring it incremental is refused. A version stops being
+current after the partition holding it was written, and no incremental run revisits that
+partition, so the mart would keep reading it as current. A mart with a <code>partition_by</code>
+defaults to <code>incremental_by_partition</code>, so a partitioned current-reading mart has to
+say <code>materialization: full</code> explicitly.</p>
 <p><code>scd: type2</code> itself is unchanged. It remains fully supported as a silver target on both
 SQLMesh and dbt.</p>
 <h2 id="role-playing-dimensions">Role-playing dimensions<a class="headerlink" href="#role-playing-dimensions" title="Permanent link">&para;</a></h2>
