@@ -223,10 +223,12 @@ decisions:
       is the existing place a dialect says what it can do, and an engine-tier test
       is where the claim stops being a citation. **Answered:** `tests/engines/test_branch_join_engines.py`
       executes the composed statement on all three, and the first thing it found was
-      that the D13 spelling does not run on PostgreSQL at all — see D18.
+      that a full outer join on `IS NOT DISTINCT FROM`, the spelling D13 chose, does
+      not run on PostgreSQL at all — see D18.
     paths:
       - src/bloomery/planner/compose.py
       - tests/engines/test_branch_join_engines.py
+    fingerprint: 502b92294c9ae674/1b88cbb5982e4aa9
   - id: D-18
     grade: LOCKED
     text: >-

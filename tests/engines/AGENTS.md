@@ -47,9 +47,9 @@ Both emulators carry the `surrogate` marker, distinct from `engine`, and neither
 - Paths: `tests/engines/**` `pyproject.toml`
 - Consequence: `engine("snowflake")` over an emulator is the claim made in the one place it is invisible — a test name in a CI log — so the tier table grows a rung rather than reusing one, and a green surrogate lane can never be quoted as engine conformance
 
-### S-0013/D-5 — `ASSUMED` (Snowflake dialect port)
+### S-0013/D-5 — `OPEN` (Snowflake dialect port)
 
-No LocalStack lane for Snowflake is built or maintained. The OSS emulator is the only surrogate lane, for rendering evidence, and found zero bloomery defects over the corpus; execution evidence comes from the live lane. The emulator comparison never ran, because S-0013/D-7's credential rule kept LocalStack out.
+Whether the LocalStack lane is maintained at all is decided from the defects each emulator found that the other missed, after one port's worth of work, and not before
 
 - Paths: `tests/engines/**` `tests/support/**`
 - Consequence: Two emulators is two maintenance surfaces, two pinned versions and two sets of documented gaps to know; whoever runs both counts what each caught and records the count, and a decision taken before that evidence exists is the thing this row refuses
@@ -206,7 +206,7 @@ The check exists, and it is a **conformance battery at the engine tiers over the
 
 ### S-0055/D-17 — `ASSUMED` (Multi-grain aggregate-then-join query planning)
 
-**`IS NOT DISTINCT FROM` is a declared `DialectFeature`, proven in the engine tier, not asserted from documentation.** It was executed on DuckDB and read about for Postgres and Trino; a planner that composes a join for three dialects on two readings is asserting a capability it has not seen. The feature enum is the existing place a dialect says what it can do, and an engine-tier test is where the claim stops being a citation. **Answered:** `tests/engines/test_branch_join_engines.py` executes the composed statement on all three, and the first thing it found was that the D13 spelling does not run on PostgreSQL at all — see D18.
+**`IS NOT DISTINCT FROM` is a declared `DialectFeature`, proven in the engine tier, not asserted from documentation.** It was executed on DuckDB and read about for Postgres and Trino; a planner that composes a join for three dialects on two readings is asserting a capability it has not seen. The feature enum is the existing place a dialect says what it can do, and an engine-tier test is where the claim stops being a citation. **Answered:** `tests/engines/test_branch_join_engines.py` executes the composed statement on all three, and the first thing it found was that a full outer join on `IS NOT DISTINCT FROM`, the spelling D13 chose, does not run on PostgreSQL at all — see D18.
 
 - Paths: `src/bloomery/planner/compose.py` `tests/engines/test_branch_join_engines.py`
 

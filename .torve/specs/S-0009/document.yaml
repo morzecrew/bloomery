@@ -259,8 +259,6 @@ questions:
       Does `actions/cache` hold a fuzzing corpus comfortably? The bounds look ample
       on paper; nobody has run it here. One month of nightly runs answers it, and
       D-3 pre-commits the response either way.
-    status: settled
-    settled_by: D-3
   - id: Q-2
     text: >-
       What cadence does the replay job want? Weekly is a guess. Its runtime grows

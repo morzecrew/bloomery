@@ -84,7 +84,7 @@ amendments:
           to its entity column beside date roles and literal comparisons, and R004's
           as-of proof carries no zone premise.
     md: |-
-      Open questions and OPEN rows this document still carried, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+      What this document still left open, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
 
       - D-11 answers Q-1. Evidence: src/bloomery/guardrails/zone.py; tests/unit/test_guardrails/test_zone.py.
       - Q-3 is answered by S-0076/D-7: S-0076/D-7 answers it directly: a step output needs no zone declaration, and a zone surface on `steps:` is left to S-0034.

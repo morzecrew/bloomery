@@ -55,6 +55,6 @@ amendments:
     at: '2026-10-01T05:21:50Z'
     title: What the code and later rows already answered
     md: |-
-      Open questions and OPEN rows this document still carried, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+      What this document still left open, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
 
       - Q-3 is answered by S-0048/D-5: S-0048/D-5 keeps acyclicity a precondition and names the departure as a caller that wants to walk a cyclic graph to see the cycle, which is this question; none has appeared.

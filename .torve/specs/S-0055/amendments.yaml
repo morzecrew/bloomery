@@ -73,9 +73,35 @@ amendments:
       - subject: D-13
         field: superseded_by
         after: S-0055/D-18
+      - subject: D-17
+        field: text
+        before: >-
+          **`IS NOT DISTINCT FROM` is a declared `DialectFeature`, proven in the engine
+          tier, not asserted from documentation.** It was executed on DuckDB and read
+          about for Postgres and Trino; a planner that composes a join for three dialects
+          on two readings is asserting a capability it has not seen. The feature enum
+          is the existing place a dialect says what it can do, and an engine-tier
+          test is where the claim stops being a citation. **Answered:** `tests/engines/test_branch_join_engines.py`
+          executes the composed statement on all three, and the first thing it found
+          was that the D13 spelling does not run on PostgreSQL at all — see D18.
+        after: >-
+          **`IS NOT DISTINCT FROM` is a declared `DialectFeature`, proven in the engine
+          tier, not asserted from documentation.** It was executed on DuckDB and read
+          about for Postgres and Trino; a planner that composes a join for three dialects
+          on two readings is asserting a capability it has not seen. The feature enum
+          is the existing place a dialect says what it can do, and an engine-tier
+          test is where the claim stops being a citation. **Answered:** `tests/engines/test_branch_join_engines.py`
+          executes the composed statement on all three, and the first thing it found
+          was that a full outer join on `IS NOT DISTINCT FROM`, the spelling D13 chose,
+          does not run on PostgreSQL at all — see D18.
+      - subject: D-17
+        field: fingerprint
+        before: null
+        after: 502b92294c9ae674/1b88cbb5982e4aa9
     md: |-
-      Open questions and OPEN rows this document still carried, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+      What this document still left open, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
 
-      - D-13 is answered by S-0055/D-18: EXTRA, not in the input list: the row's text opens '(superseded by D18.)' but `superseded_by` is unset.
+      - D-13 is superseded by S-0055/D-18: the row's text already opened '(superseded by D18.)', but `superseded_by` was unset.
+      - D-17 named 'the D13 spelling', which the rendered rows no longer show once D-13 is superseded; it now names the spelling.
       - Q-1 is answered by S-0082/D-1: S-0082 is the document of its own the question deferred to (its motivation cites S-0055/Q-1): S-0082/D-1 admits a metric's own filter scoped to its measures, and S-0082/D-3 keeps a request filter missing from a branch refused; S-0055/D-12 is dimension identity and does not answer it.
       - Q-2 is answered by S-0055/D-18: S-0055/D-13 answered it and is itself superseded by S-0055/D-18, the live LOCKED row that fixes one null-safe composition for every dialect.

@@ -136,6 +136,6 @@ amendments:
         field: superseded_by
         after: S-0079/D-11
     md: |-
-      Open questions and OPEN rows this document still carried, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+      What this document still left open, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
 
       - D-10 is answered by S-0079/D-11: S-0079/D-11 records the decision D-10 asked to be logged: the mart-namespace mapping is derived at the call and stored nowhere, because no second consumer appeared, so `MartColumnIR` gains nothing.

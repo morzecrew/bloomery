@@ -100,7 +100,10 @@ metrics_version: 1    # metric set
 marts_version: 1      # mart set
 steps_version: 1      # step set
 exposures_version: 1  # exposure set
+exports_version: 1    # export set
+imports_version: 1    # import set
 catalog_version: 1    # catalog
+retrieval_version: 1  # retrieval
 ```
 
 The key is required. A document without one cannot be identified, and bloomery refuses it

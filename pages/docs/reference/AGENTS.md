@@ -15,7 +15,7 @@ The advisory vocabulary is a closed enum with no free-text constructor, and ever
 The retrieval kind carries the same spec-YAML promise as every kind from its first release, with no pre-adoption carve-out: `retrieval_version` is `1`, changes within it are additive, as phase 4's `fusion.k`, `fusion.depth` and `analyser` were, and a breaking change mints `retrieval_version: 2`, per S-0042/D-23.
 
 - Paths: `src/bloomery/spec/retrieval.py` `pages/docs/reference/stability.md`
-- Consequence: a retrieval spec written against 0.3.0 keeps compiling under the same promise as every other kind
+- Consequence: a retrieval spec written against 0.3.0 keeps compiling under the same promise as every other kind, the two refusals the stability page names included
 
 ### S-0033/D-30 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 

@@ -23,7 +23,7 @@ summary: |
   frozen `Advisory` value on `SpecEvidence.advisories`, sorted and deduplicated under a
   declared key. `warnings.warn` appears once in the library, under `BloomeryDeprecationWarning`,
   and nowhere else. Most of this landed; what is left is one more advisory code, the CLI's
-  verbosity flag, and three questions this document does not settle.
+  verbosity flag, and two questions this document does not settle.
 motivation: |
   Three gaps the production-readiness audit of 2026-09-01 named, each of which costs
   something measurable today.

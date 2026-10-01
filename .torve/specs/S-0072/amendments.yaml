@@ -50,7 +50,7 @@ amendments:
         field: fingerprint
         after: fa4079bc7ece79e9/202c11f3690cefb1
     md: |-
-      Open questions and OPEN rows this document still carried, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+      What this document still left open, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
 
       - D-8: settled by what the code does. The row allowed an explicit deferral, and the implementation shipped the mart node kind with no date-dimension node, as the document's non-goals said. Evidence: src/bloomery/resolve/graph.py; src/bloomery/resolve/build.py; .torve/specs/S-0072/document.yaml.
       - Q-1 is answered by S-0072/D-8: S-0072/D-8 is this question's row and is settled in this batch (apply that edit first), recording that `dim_date` gets no node.

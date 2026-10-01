@@ -316,8 +316,6 @@ questions:
       a deep guardrail faster is an empirical question nobody here has measured. The
       reach fraction, compared against the fuzz targets on the same corpus, is the
       measurement.
-    status: settled
-    settled_by: D-5
   - id: Q-2
     text: >-
       How much of the emitted JSON Schema vocabulary needs support? The schemas are

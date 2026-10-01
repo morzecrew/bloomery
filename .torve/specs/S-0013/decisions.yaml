@@ -69,12 +69,11 @@ decisions:
       already requires it; the source records it again because Snowflake is the port
       where the local story is good enough to tempt an exception
   - id: D-5
-    grade: ASSUMED
+    grade: OPEN
     text: >-
-      No LocalStack lane for Snowflake is built or maintained. The OSS emulator is
-      the only surrogate lane, for rendering evidence, and found zero bloomery defects
-      over the corpus; execution evidence comes from the live lane. The emulator comparison
-      never ran, because S-0013/D-7's credential rule kept LocalStack out.
+      Whether the LocalStack lane is maintained at all is decided from the defects
+      each emulator found that the other missed, after one port's worth of work, and
+      not before
     paths: [tests/engines/**, tests/support/**]
     consequence: >-
       Two emulators is two maintenance surfaces, two pinned versions and two sets
@@ -84,7 +83,6 @@ decisions:
     rationale: >-
       Row D5 of `rfcs/0047-snowflake-dialect.md`, `OPEN` there: the source deliberately
       delegates it to whoever builds both lanes
-    fingerprint: e6f0f4a8a577a47b/3219bf6e328021fa
   - id: D-6
     grade: ASSUMED
     text: >-

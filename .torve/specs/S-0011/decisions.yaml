@@ -203,7 +203,7 @@ decisions:
     paths: [src/bloomery/spec/retrieval.py, pages/docs/reference/stability.md]
     consequence: >-
       a retrieval spec written against 0.3.0 keeps compiling under the same promise
-      as every other kind
+      as every other kind, the two refusals the stability page names included
     rationale: >-
       The kind shipped in 0.3.0 under the general promise and its first change after
       release was kept additive so the version did not move, which is the answer in

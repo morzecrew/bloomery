@@ -147,8 +147,7 @@ decisions:
     text: >-
       `all_spec_schemas()` returns one standalone schema per kind, never a bundle;
       `bloomery explain` takes `--policy 'dimension op value'`, parsed into a `RowPolicy`;
-      no schema is published to Schema Store while the spec schema is unstable; and
-      `--format json` is the API's own value (S-0037/D-4), never a platform ledger's
+      and `--format json` is the API's own value (S-0037/D-4), never a platform ledger's
       shape.
     paths:
       - src/bloomery/schema.py
@@ -159,4 +158,4 @@ decisions:
       is stated on the command line
     rationale: >-
       The code answers sub-questions 1 and 2 in docstrings that cite them, and keeps
-      3 deferred and 4 uncoupled as the question leaned.
+      4 uncoupled as the question leaned. Sub-question 3 is carried on as Q-2.
