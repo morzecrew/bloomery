@@ -405,7 +405,14 @@ def test_every_docs_page_is_in_the_nav() -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["MESSAGE", "IMPORTED_MESSAGE", "EXPOSURE_MESSAGE", "EXPOSURE_IMPORTED_MESSAGE"]
+    "name",
+    [
+        "MESSAGE",
+        "IMPORTED_MESSAGE",
+        "EXPOSURE_MESSAGE",
+        "EXPOSURE_IMPORTED_MESSAGE",
+        "BOUNDARY_MESSAGE",
+    ],
 )
 def test_the_documented_evidence_refusal_quotes_the_template(name: str) -> None:
     """A documented message is a hand-copy of a string that lives in `src`, and
