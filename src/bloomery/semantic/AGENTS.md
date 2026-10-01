@@ -391,7 +391,7 @@ The grades are a total function of `Provenance` and every member maps to exactly
 
 ### S-0070/D-9 — `LOCKED` (Consumer-declared evidence strictness)
 
-**`IMPORTED_VERIFIED` grades `ASSUMED`, following §5.1's table — supersedes 8.** The question a strict consumer asks is "did a human *here* write this down", and an exact read of another project's artifact answers no however exact the rule was. Locked by the owner on 2026-10-01 without waiting for a proof node to carry that provenance (D-18): the evidence guard already gives a hop S-0075's `imported_from` marks this grade, and S-0085's project boundary gives an upstream fact the same (S-0085/D-7). S-0002 asks the same question from the other direction (§10). Added by execution 2026-09-09 — see `logs/T-0031.md` (`logs/T-0031.md`) (D8, attempt 1).
+**`IMPORTED_VERIFIED` grades `ASSUMED`, following §5.1's table — supersedes 8.** The question a strict consumer asks is "did a human *here* write this down", and an exact read of another project's artifact answers no however exact the rule was. Locked by the owner on 2026-10-01 without waiting for a proof node to carry that provenance (D-18): the evidence guard already grades a hop that S-0075's `imported_from` marks as ASSUMED, and S-0085's project boundary grades an upstream fact the same way (S-0085/D-7). S-0002 asks the same question from the other direction (§10). Added by execution 2026-09-09 — see `logs/T-0031.md` (`logs/T-0031.md`) (D8, attempt 1).
 
 - Paths: `src/bloomery/semantic/proof.py` `src/bloomery/guardrails/evidence.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
@@ -489,7 +489,7 @@ A `derived:` metric whose inputs carry different restrictions — different own 
 
 ### S-0085/D-7 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
 
-This boundary stores no provenance; it grades an upstream fact ASSUMED from `ProjectIR.upstream` (S-0085/D-5), the grade S-0070/D-9 gives `IMPORTED_VERIFIED`. The evidence guard already grades a hop S-0075's `imported_from` marks with that same grade, though no proof node carries the provenance itself (S-0070/D-18). S-0070/D-9's answer is therefore what a strict consumer meets on both routes, and the owner locked it on 2026-10-01.
+This boundary stores no provenance; it grades an upstream fact ASSUMED from `ProjectIR.upstream` (S-0085/D-5), the grade S-0070/D-9 gives `IMPORTED_VERIFIED`. The evidence guard already grades a hop that S-0075's `imported_from` marks with that same grade, though no proof node carries the provenance itself (S-0070/D-18). S-0070/D-9's answer is therefore what a strict consumer meets on both routes, and the owner locked it on 2026-10-01.
 
 - Paths: `src/bloomery/guardrails/evidence.py` `src/bloomery/semantic/proof.py`
 - Consequence: the grade an imported fact gets is settled before the first strict consumer relies on it

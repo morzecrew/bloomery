@@ -4,10 +4,11 @@ phasing:
     title: The dbt replay refuses another compile
     intent: >-
       `dbt_project.yml` carries `bloomery_fingerprint`, and the replay macro refuses
-      before BEGIN on a mismatch; the guard does not use the `{% set statement_` prefix
-      the property test splits on; SQLMesh replay bytes stay. The docs name the rebuild
-      order. Goldens move for the dbt project files and replay macros. Settles D-1,
-      D-2, D-4 and D-6. The how-to also says to compile into a clean directory.
+      before its first statement on a mismatch; the guard does not use the `{% set
+      statement_` prefix the property test splits on; SQLMesh replay bytes stay. The
+      docs name the rebuild order. Goldens move for the dbt project files and replay
+      macros. Settles D-1, D-2, D-4 and D-6. The how-to also says to compile into
+      a clean directory.
     scope:
       - src/bloomery/emit/dbt/__init__.py
       - pages/docs/how-to/emit-dbt.md
@@ -27,9 +28,9 @@ phasing:
       The dbt replay refuses a relation missing a column it writes
     intent: >-
       Measure `adapter.get_columns_in_relation(ref())` on the oldest and newest dbt-core
-      bloomery supports, then check before BEGIN that the entity and its reject table
-      carry every column the statements write, case-insensitively, refusing with the
-      missing names and the rebuild. Settles D-3 and D-5.
+      bloomery supports, then check before its first statement that the entity and
+      its reject table carry every column the statements write, case-insensitively,
+      refusing with the missing names and the rebuild. Settles D-3 and D-5.
     scope:
       - src/bloomery/emit/dbt/__init__.py
       - src/bloomery/emit/lower/silver.py
