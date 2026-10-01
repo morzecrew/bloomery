@@ -1867,6 +1867,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#s-0086d-6-assumed-a-replay-runs-only-against-the-project-it-was-compiled-with-implementation-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0086/D-6 — <code>ASSUMED</code> (A replay runs only against the project it was compiled with) — implementation: none
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#s-0086d-8-assumed-a-replay-runs-only-against-the-project-it-was-compiled-with-implementation-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0086/D-8 — <code>ASSUMED</code> (A replay runs only against the project it was compiled with) — implementation: none
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1942,6 +1964,18 @@
 <ul>
 <li>Paths: <code>pages/docs/how-to/reproduce-a-past-artifact-set.md</code> <code>src/bloomery/plan/diff.py</code></li>
 <li>Consequence: A reader of the API reference learns what <code>plan()</code> diffs, and a reader arriving with an incident learns from the how-to that two historical compiles need nothing beyond it</li>
+</ul>
+<h3 id="s-0086d-6-assumed-a-replay-runs-only-against-the-project-it-was-compiled-with-implementation-none">S-0086/D-6 — <code>ASSUMED</code> (A replay runs only against the project it was compiled with) — implementation: none<a class="headerlink" href="#s-0086d-6-assumed-a-replay-runs-only-against-the-project-it-was-compiled-with-implementation-none" title="Permanent link">&para;</a></h3>
+<p><code>how-to/emit-dbt.md</code> names rebuilding the entity and its reject table from the same checkout before a replay, and what the guard refuses</p>
+<ul>
+<li>Paths: <code>pages/docs/how-to/emit-dbt.md</code></li>
+<li>Consequence: the documented order matches what the guard enforces</li>
+</ul>
+<h3 id="s-0086d-8-assumed-a-replay-runs-only-against-the-project-it-was-compiled-with-implementation-none">S-0086/D-8 — <code>ASSUMED</code> (A replay runs only against the project it was compiled with) — implementation: none<a class="headerlink" href="#s-0086d-8-assumed-a-replay-runs-only-against-the-project-it-was-compiled-with-implementation-none" title="Permanent link">&para;</a></h3>
+<p><code>--out</code> deletes nothing; <code>how-to/emit-dbt.md</code> says to compile into a clean directory, and a left-over replay macro is what S-0086/D-2 refuses.</p>
+<ul>
+<li>Paths: <code>pages/docs/how-to/emit-dbt.md</code></li>
+<li>Consequence: a hand-written file beside the emitted project is never removed by a compile</li>
 </ul>
 <!-- /torve:managed -->
 
