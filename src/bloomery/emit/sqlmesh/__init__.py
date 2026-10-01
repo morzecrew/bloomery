@@ -136,7 +136,8 @@ _ENVELOPE = jinja2.Template(
 -- fingerprint: {{ fingerprint }}
 MODEL (
   name {{ name }},
-  kind {{ kind }},{% if owner %}
+  kind {{ kind }},{% if interval_unit %}
+  interval_unit {{ interval_unit }},{% endif %}{% if owner %}
   owner {{ owner }},{% endif %}{% if grants %}
   grants ({{ grants }}),{% endif %}
   grain ({{ grain }}){% if depends_on %},
@@ -392,7 +393,12 @@ def _kind_clause(entity: EntityIR) -> str:
 
     if entity.materialization is Materialization.INCREMENTAL_BY_PARTITION:
         declared = {column.name: column.type for column in entity.columns}
-        return _time_range_kind(f"entity {entity.name!r}", entity.partition_by, declared)
+        kind = _time_range_kind(f"entity {entity.name!r}", entity.partition_by, declared)
+        if entity.arrival_lag_hours is None:
+            return kind
+        # S-0087/D-5: the lag in whole days, rounded up, against the daily
+        # interval the envelope pins — so an operator's cron cannot shrink it.
+        return f"{kind[:-1]}, lookback {-(-entity.arrival_lag_hours // 24)})"
 
     return "FULL"
 
@@ -1160,6 +1166,7 @@ class SQLMeshEmitter:
                 fingerprint=ctx.fingerprint,
                 name=f"{namespace}.{relation}",
                 kind=_kind_clause(entity),
+                interval_unit="'day'" if entity.arrival_lag_hours is not None else None,
                 grain=", ".join(entity.key),
                 # A coverage audit names two relations, and SQLMesh does not
                 # rewrite model references inside an AUDIT body (D29) — so both

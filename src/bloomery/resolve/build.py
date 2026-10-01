@@ -128,6 +128,7 @@ from bloomery.spec.mapping import (
 )
 from bloomery.spec.metrics import parse_time_window
 from bloomery.spec.project import Project
+from bloomery.spec.quality import duration_hours
 from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 from bloomery.steps.splice import parameter_literal, placeholders, splice
 from bloomery.transforms import (
@@ -1465,6 +1466,9 @@ def _build_entity(
         ),
         dedupe=lower_dedupe(entity),
         quarantine=lower_quarantine(entity),
+        arrival_lag_hours=(
+            duration_hours(entity.arrival_lag) if entity.arrival_lag is not None else None
+        ),
     )
 
 

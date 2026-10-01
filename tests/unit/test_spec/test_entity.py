@@ -324,3 +324,52 @@ def test_a_field_determining_itself_is_the_same_refusal() -> None:
             "    fields:\n      k: {type: string, determines: [k]}\n"
         )
     assert "k -> k" in str(excinfo.value)
+
+
+_LAGGED = """
+spec_version: 1
+entities:
+  event:
+    grain: one row per event
+    key: [event_id]
+    {shape}
+    arrival_lag: {lag}
+    fields:
+      event_id: {{type: string, required: true}}
+      event_date: {{type: date}}
+"""
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "partition_by: [event_date]",
+        "partition_by: [event_date]\n    materialization: incremental_by_partition",
+    ],
+)
+def test_arrival_lag_parses_on_a_type1_incremental_by_partition_entity(shape: str) -> None:
+    """S-0087/D-5: declared or derived from ``partition_by``, the same rule."""
+    model = parse(_LAGGED.format(shape=shape, lag="30h"))
+    assert model.entities["event"].arrival_lag == "30h"
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "materialization: full",
+        "materialization: incremental_by_key",
+        "scd: type1",
+        "partition_by: [event_date]\n    scd: type2",
+    ],
+)
+def test_arrival_lag_is_refused_where_it_would_reach_no_model(shape: str) -> None:
+    """S-0087/D-5: a type 2 entity included — its SCD kind replaces the
+    time-range kind."""
+    with pytest.raises(SpecParseError, match="arrival_lag"):
+        parse(_LAGGED.format(shape=shape, lag="2d"))
+
+
+@pytest.mark.parametrize("lag", ["0d", "2m", "1y", "1.5d"])
+def test_arrival_lag_is_in_the_retention_grammar(lag: str) -> None:
+    with pytest.raises(SpecParseError):
+        parse(_LAGGED.format(shape="partition_by: [event_date]", lag=lag))

@@ -227,6 +227,7 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("EntityIR", "quarantine"): Facet.QUALITY,
     ("EntityIR", "materialization"): Facet.STORAGE,
     ("EntityIR", "partition_by"): Facet.STORAGE,
+    ("EntityIR", "arrival_lag_hours"): Facet.STORAGE,
     ("EntityIR", "owner"): Facet.METADATA,
     ("EntityIR", "grants"): Facet.ACCESS,
     # An entity field: the schema half.

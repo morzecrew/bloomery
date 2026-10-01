@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A late row reaches SQLMesh.** An `incremental_by_partition` entity at `scd: type1` may
+  declare `arrival_lag:` (`30h`, `2d`, `1w`). Its SQLMesh model pins `interval_unit 'day'`
+  and sets `lookback` to the lag in whole days, rounded up, so a row that lands after its
+  interval ran is loaded on a later run. A cron more frequent than daily on such a model is
+  refused by SQLMesh unless the caller also sets `allow_partials`. Declared on any other
+  entity, a type 2 entity included, it is refused. dbt emits nothing for it. A project that
+  declares no lag compiles as before, apart from the fingerprint header.
+
 - **A declared key is checked, not only trusted.** Every entity with a `key:` and no
   `dedupe:` gets a generated blocking audit, `<entity>_key_unique`: no two rows share the
   key, among the current versions on an `scd: type2` entity and among all rows otherwise.

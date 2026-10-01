@@ -877,6 +877,10 @@ class EntityIR:
     #: Who may read this relation (S-0062/grants), or ``None`` for "bloomery
     #: has no opinion and the warehouse's grants stand" (D6).
     grants: GrantsIR | None = None
+    #: How late a row may land after its interval ran, in hours (S-0087/D-5),
+    #: or ``None`` for no lag declared. Only an ``incremental_by_partition``
+    #: type 1 entity carries one; SQLMesh reads it as ``lookback`` in days.
+    arrival_lag_hours: int | None = None
 
 
 # ....................... #
