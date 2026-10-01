@@ -3,10 +3,7 @@ strict duplicate-key-rejecting YAML loader."""
 
 from __future__ import annotations
 
-import gc
-
 import pytest
-from pydantic import ValidationError
 
 from bloomery.errors import SpecParseError
 from bloomery.spec.common import (
@@ -177,9 +174,10 @@ class _Refused(SpecModel):
 
 def test_a_refused_document_leaves_no_validation_error_alive() -> None:
     """Raised inside the `except`, every refusal held its `ValidationError` as
-    context, so refusing specs by the thousand grew memory (S-0088/D-1)."""
-    for _ in range(100):
-        with pytest.raises(SpecParseError):
-            validate_document(_Refused, {"count": "x"}, document="d")
-    gc.collect()
-    assert not [o for o in gc.get_objects() if isinstance(o, ValidationError)]
+    context, so refusing specs by the thousand grew memory (S-0088/D-1).
+    Asserted on the refusal's own chain rather than by scanning the heap, which
+    any other test or library holding a `ValidationError` would turn red."""
+    with pytest.raises(SpecParseError) as excinfo:
+        validate_document(_Refused, {"count": "x"}, document="d")
+    assert excinfo.value.__context__ is None
+    assert excinfo.value.__cause__ is None
