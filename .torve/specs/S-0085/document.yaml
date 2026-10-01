@@ -70,7 +70,11 @@ questions:
       Should the naming check land now rather than at the trigger D-6 names? It costs
       an IR version bump that moves every golden, against a mismatch only a Python
       caller can produce today.
+    status: settled
+    settled_by: D-6
   - id: Q-2
     text: >-
       Is the boundary a producer of S-0070's IMPORTED_VERIFIED grade, which would
       fire S-0070/D-9's revisit, and should S-0070/D-9 be locked now?
+    status: settled
+    settled_by: D-7

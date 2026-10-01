@@ -54,7 +54,9 @@ decisions:
     text: >-
       A dependent at `on_missing: unknown_member` or `flag` of an entity in `replay_scope`
       is named in `backfill_scope`; rows bronze no longer holds keep their rewrite
-      or flag
+      or flag; no reserved column keeps the original key, and the documented remedy
+      for such a child is re-ingesting its rows into bronze or setting the parent's
+      coverage to warn
     paths: [src/bloomery/plan/diff.py]
     consequence: >-
       children still in bronze's window are re-judged against the returned parent
@@ -67,7 +69,7 @@ decisions:
     text: >-
       Replaying an entity whose routing reads another entity is the documented fix
       for a late parent, and is safe to run every cycle; bloomery does not schedule
-      it
+      it, and the plan carries no field marking a replay as standing
     paths: [pages/docs/concepts/data-quality.md]
     consequence: >-
       a late parent and a quarantined one recover the same way

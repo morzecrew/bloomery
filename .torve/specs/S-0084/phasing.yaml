@@ -7,7 +7,8 @@ phasing:
       first, and names `unknown_member` and `flag` dependents in `backfill_scope`;
       the CLI renders both. An execution test replays the `dirty_corpus` scenario
       by editing its spec text in the test. The docs say what the cascade does and
-      its limit. No emitted SQL changes. Settles D-1 to D-6.
+      its limit. No emitted SQL changes. Settles D-1 to D-6. The quality docs name
+      the remedy for a child whose rows bronze no longer holds.
     scope:
       - src/bloomery/plan/diff.py
       - src/bloomery/plan/model.py

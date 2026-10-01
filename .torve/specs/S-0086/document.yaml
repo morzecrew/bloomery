@@ -79,8 +79,12 @@ questions:
       each built entity's fingerprint, which the macro compares against? It is the
       only guard that catches a stale checkout whose own compile is self-consistent,
       and it would be the first artifact writing state no model owns.
+    status: settled
+    settled_by: D-7
   - id: Q-2
     text: >-
       Should `--out` delete files an earlier compile wrote and this one did not? Left-over
       replay macros and models are what D-2 catches; deleting needs a record of earlier
       writes and could remove hand-written files.
+    status: settled
+    settled_by: D-8

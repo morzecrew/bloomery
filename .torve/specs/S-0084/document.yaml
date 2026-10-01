@@ -80,7 +80,11 @@ questions:
       window keeps its rewrite? The alternative is a reserved column keeping the original
       foreign key, so a replay can restore it; it is the only way a blocking coverage
       check on such a parent ever clears, and it changes emitted SQL on both targets.
+    status: settled
+    settled_by: D-5
   - id: Q-2
     text: >-
       Should the plan mark these entities' replay as standing, a field a scheduler
       reads to run it every cycle, or is the documentation enough?
+    status: settled
+    settled_by: D-6

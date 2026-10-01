@@ -56,6 +56,8 @@ questions:
       A row that lands after its SQLMesh interval ran is never loaded: lookback defaults
       to zero and the time column is business time. Should an entity declare an arrival
       lag that becomes `lookback`?
+    status: settled
+    settled_by: D-5
   - id: Q-2
     text: >-
       A `months(...)` or `years(...)` partition with SQLMesh's default daily interval

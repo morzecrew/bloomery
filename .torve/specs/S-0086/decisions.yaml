@@ -69,3 +69,28 @@ decisions:
       the documented order matches what the guard enforces
     rationale: >-
       the current example rebuilds only the reject table
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      bloomery writes no ledger into the warehouse: a stale checkout whose own compile
+      is self-consistent is an operator error, and S-0086/D-6's documentation is its
+      guard.
+    paths: [src/bloomery/emit/dbt/__init__.py]
+    consequence: >-
+      every relation bloomery emits is owned by a model, and the replay guards read
+      only what the compile and the relations already carry
+    rationale: >-
+      D-2 and D-3 catch the mismatches a compile can see; a ledger would be the first
+      state no model owns, with its own permissions and a design per target, for the
+      one case they cannot see.
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      `--out` deletes nothing; `how-to/emit-dbt.md` says to compile into a clean directory,
+      and a left-over replay macro is what S-0086/D-2 refuses.
+    paths: [pages/docs/how-to/emit-dbt.md]
+    consequence: >-
+      a hand-written file beside the emitted project is never removed by a compile
+    rationale: >-
+      Deleting needs a record of earlier writes and can remove files bloomery did
+      not write; the case it would clean up is already refused.

@@ -535,6 +535,13 @@ The refusal names how the fact was obtained and what to write instead. A message
 - Paths: `src/bloomery/errors.py` `src/bloomery/guardrails/evidence.py` `src/bloomery/guardrails/stage.py` `src/bloomery/semantic/proof.py` `tests/unit/test_guardrails/test_evidence.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0070/D-9 — `LOCKED` (Consumer-declared evidence strictness)
+
+**`IMPORTED_VERIFIED` grades `ASSUMED`, following §5.1's table — supersedes 8.** The question a strict consumer asks is "did a human *here* write this down", and an exact read of another project's artifact answers no however exact the rule was. Locked by the owner on 2026-10-01: S-0075's importer produces that provenance, and S-0085's project boundary grades upstream facts the same way (S-0085/D-7); S-0002 asks the same question from the other direction (§10). Added by execution 2026-09-09 — see `logs/T-0031.md` (`logs/T-0031.md`) (D8, attempt 1).
+
+- Paths: `src/bloomery/semantic/proof.py` `src/bloomery/guardrails/evidence.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0072/D-3 — `LOCKED` (Marts in the lineage graph)
 
 Follows from row 2, and stated separately because it is the thing an executor will be tempted to add: **no per-column `entity_field → mart` edge**. The consequence is stated in §9 and not mitigated: a mart dimension no metric reads is not reached by a downstream walk.

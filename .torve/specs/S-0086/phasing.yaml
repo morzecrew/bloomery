@@ -7,7 +7,7 @@ phasing:
       before BEGIN on a mismatch; the guard does not use the `{% set statement_` prefix
       the property test splits on; SQLMesh replay bytes stay. The docs name the rebuild
       order. Goldens move for the dbt project files and replay macros. Settles D-1,
-      D-2, D-4 and D-6.
+      D-2, D-4 and D-6. The how-to also says to compile into a clean directory.
     scope:
       - src/bloomery/emit/dbt/__init__.py
       - pages/docs/how-to/emit-dbt.md

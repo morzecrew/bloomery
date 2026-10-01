@@ -389,6 +389,13 @@ The grades are a total function of `Provenance` and every member maps to exactly
 - Paths: `src/bloomery/semantic/proof.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0070/D-9 — `LOCKED` (Consumer-declared evidence strictness)
+
+**`IMPORTED_VERIFIED` grades `ASSUMED`, following §5.1's table — supersedes 8.** The question a strict consumer asks is "did a human *here* write this down", and an exact read of another project's artifact answers no however exact the rule was. Locked by the owner on 2026-10-01: S-0075's importer produces that provenance, and S-0085's project boundary grades upstream facts the same way (S-0085/D-7); S-0002 asks the same question from the other direction (§10). Added by execution 2026-09-09 — see `logs/T-0031.md` (`logs/T-0031.md`) (D8, attempt 1).
+
+- Paths: `src/bloomery/semantic/proof.py` `src/bloomery/guardrails/evidence.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0075/D-2 — `LOCKED` (Mechanical imports and per-relationship provenance)
 
 **A dbt `relationships` test alone imports nothing.** It asserts every value exists in a target column and says nothing about the target being unique, so reading it as `many_to_one` invents the cardinality that makes the edge determine anything — S-0057/D-3's failure, by its own example. `many_to_one` from dbt requires the `relationships` test *and* a `unique`/`primary_key` on the named target. Locked because the tempting version of this importer is the one that skips the second test, and it would be indistinguishable in review from the correct one. Proposed by execution — see `logs/T-0053.md` (`logs/T-0053.md`) (D3, attempt 1).
