@@ -69,8 +69,26 @@ amendments:
           run compiles every seed project for three targets and three dialects in
           each of three processes (hash seed 0, hash seed 1, reversed order), measured
           at 1m24s on a developer machine when the corpus held 66 projects.
+      - subject: D-9
+        field: text
+        before: null
+        after: >-
+          Corpus eviction is answered first by cache hygiene: every `setup-uv` step
+          prunes its cache before saving and saves only on `main`. The dedicated corpus
+          repository stays D-3's departure if a scheduled run still restores an empty
+          corpus.
+      - subject: D-10
+        field: text
+        before: null
+        after: >-
+          A failed scheduled fuzz run opens one issue per failed target, or comments
+          on the open one, linking the run and its crash artifacts. The filing job
+          runs after the fuzzing, on the schedule only, and is the only job that may
+          write issues.
     md: |-
       What this document still left open, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
 
       - D-8 answers Q-2. Evidence: .github/workflows/fuzz.yaml; tests/unit/test_fuzz_workflows.py.
       - Q-1 stays open, and the evidence so far answers it no. The scheduled runs of 2026-09-21 and 2026-09-28 both saved every target's corpus, yet the 2026-09-28 run restored 0 entries: the week-old corpus had been evicted. The repository's cache holds eight uv entries of about 2 GB each, and a corpus touched once a week is first in line for GitHub's eviction, both for entries unused for seven days and for the least recently used past the size limit. That is the eviction S-0009/D-3 names as its departure condition; choosing the departure is the owner's call.
+      - D-9 answers Q-1, as the owner decided.
+      - D-10 answers Q-3, as the owner decided.

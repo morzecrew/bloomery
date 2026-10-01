@@ -413,6 +413,13 @@ Determinism tiers: `pure` (freely backfillable) | `seeded` (seed required in the
 - Paths: `src/bloomery/schema.py` `src/bloomery/cli/__init__.py` `src/bloomery/cli/serialize.py`
 - Consequence: an editor or CI validates one kind's YAML on its own, and an explanation policy is stated on the command line
 
+### S-0037/D-14 — `ASSUMED` (Authoring ergonomics: schema export, CLI, fix suggestions)
+
+No schema is published to Schema Store. Editors map the schemas `all_spec_schemas()` writes through a `# yaml-language-server: $schema=` line or their own setting; a distinctive file suffix for spec documents would reopen this.
+
+- Paths: `src/bloomery/schema.py`
+- Consequence: no editor claims an unrelated `metrics.yaml` or `catalog.yaml` as a bloomery document
+
 ### S-0039/D-1 — `ASSUMED` (`SpecEvidence`: spec analysis as a first-class output)
 
 **`evaluate(project) -> SpecEvidence` is added**, composing `build_project_ir` → `resolve` and the batched refusal stages under one call and one frozen return type. It adds no analysis bloomery does not already perform; the contribution is naming the concept and stopping its discard at the exception boundary.

@@ -118,3 +118,32 @@ decisions:
       The replay job has no event guard, so it rides every path-filtered pull request
       as well as the weekly schedule, which answers the cadence question more often
       than weekly.
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      Corpus eviction is answered first by cache hygiene: every `setup-uv` step prunes
+      its cache before saving and saves only on `main`. The dedicated corpus repository
+      stays D-3's departure if a scheduled run still restores an empty corpus.
+    paths: [.github/workflows/**]
+    consequence: >-
+      the corpus, a few dozen kilobytes per target, is no longer the least recently
+      used entry behind unpruned uv caches, and the count before fuzzing is the check
+    rationale: >-
+      The 2026-09-28 run restored 0 entries after 2026-09-21 saved them, while the
+      repository's cache held eight unpruned uv entries of about 2 GB each, several
+      saved by pull requests. Shrinking those is cheaper than a repository that needs
+      a write credential.
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      A failed scheduled fuzz run opens one issue per failed target, or comments on
+      the open one, linking the run and its crash artifacts. The filing job runs after
+      the fuzzing, on the schedule only, and is the only job that may write issues.
+    paths: [.github/workflows/fuzz.yaml]
+    consequence: >-
+      a finding reaches someone who reads issues, and fuzzed code never shares a job
+      with a token that can write
+    rationale: >-
+      The scheduled runs of 2026-09-21 and 2026-09-28 went red with uncaught exceptions
+      in `cli` and `parse_doors` and an out-of-memory in `parse_doors`, and nobody
+      read them for ten days: a red scheduled job notifies no one who acts.

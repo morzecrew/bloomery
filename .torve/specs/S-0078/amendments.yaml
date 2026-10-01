@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-01T06:07:08Z'
+    title: What the owner decided on 2026-10-01
+    changes:
+      - subject: D-9
+        field: text
+        after: >-
+          The vendored `rfc-writer` skill is removed; the historical `tasks/*.json`
+          are already gone. New design goes through `torve spec`, and no RFC is written
+          in the retired format.
+    md: |-
+      What the owner decided on 2026-10-01 for questions this document still left open. The owner's merge is the acceptance, and LOCKED stays the owner's act.
+
+      - D-9 answers Q-2, as the owner decided.

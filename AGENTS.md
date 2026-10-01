@@ -195,6 +195,13 @@ the `rfcs` directory (since retired), its index and register, the checker and th
 - Consequence: One corpus, one checker
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0078/D-9 — `ASSUMED` (The RFC corpus retired into documents)
+
+The vendored `rfc-writer` skill is removed; the historical `tasks/*.json` are already gone. New design goes through `torve spec`, and no RFC is written in the retired format.
+
+- Paths: `.agents/skills/**` `skills-lock.json`
+- Consequence: no agent is taught to write a document in the grammar this corpus retired
+
 ### S-0081/D-4 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice)
 
 Phase 1 ships only beside phase 2, in one minor release whose changelog records the `Z`-to-NULL change under Changed and `ISO8601_INSTANT` under Added; no 0.4.x patch carries phase 1 alone
@@ -227,7 +234,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `pages/docs/contributing/` — 0 decision(s)
 - `pages/docs/how-to/` — 7 decision(s)
 - `pages/docs/reference/` — 8 decision(s)
-- `src/bloomery/` — 107 decision(s)
+- `src/bloomery/` — 108 decision(s)
 - `src/bloomery/cli/` — 46 decision(s)
 - `src/bloomery/dialects/` — 50 decision(s)
 - `src/bloomery/emit/` — 17 decision(s)
@@ -244,7 +251,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/bloomery/quality/` — 37 decision(s)
 - `src/bloomery/resolve/` — 101 decision(s)
 - `src/bloomery/runtime/` — 15 decision(s)
-- `src/bloomery/semantic/` — 66 decision(s)
+- `src/bloomery/semantic/` — 67 decision(s)
 - `src/bloomery/spec/` — 119 decision(s)
 - `src/bloomery/steps/` — 13 decision(s)
 - `src/bloomery/transforms/` — 35 decision(s)

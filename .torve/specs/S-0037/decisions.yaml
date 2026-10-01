@@ -159,3 +159,18 @@ decisions:
     rationale: >-
       The code answers sub-questions 1 and 2 in docstrings that cite them, and keeps
       4 uncoupled as the question leaned. Sub-question 3 is carried on as Q-2.
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      No schema is published to Schema Store. Editors map the schemas `all_spec_schemas()`
+      writes through a `# yaml-language-server: $schema=` line or their own setting;
+      a distinctive file suffix for spec documents would reopen this.
+    paths: [src/bloomery/schema.py]
+    consequence: >-
+      no editor claims an unrelated `metrics.yaml` or `catalog.yaml` as a bloomery
+      document
+    rationale: >-
+      Schema Store matches by file name, and bloomery's file names are either free,
+      as `mapping_orders.yaml` is, or generic, as `metrics.yaml`, `catalog.yaml` and
+      `marts.yaml` are; the kind is the version key inside the file, which Schema
+      Store cannot read.

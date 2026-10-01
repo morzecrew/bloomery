@@ -259,6 +259,8 @@ questions:
       Does `actions/cache` hold a fuzzing corpus comfortably? The bounds look ample
       on paper; nobody has run it here. One month of nightly runs answers it, and
       D-3 pre-commits the response either way.
+    status: settled
+    settled_by: D-9
   - id: Q-2
     text: >-
       What cadence does the replay job want? Weekly is a guess. Its runtime grows
@@ -270,3 +272,5 @@ questions:
       Where does a finding get reported? A failed scheduled job notifies whoever owns
       the repository and nobody else. Whether that is enough, or whether it wants
       an issue, is unsettled — and deliberately not answered by filing one automatically.
+    status: settled
+    settled_by: D-10

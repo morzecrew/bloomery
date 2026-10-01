@@ -211,6 +211,20 @@ decisions:
       document owes the property test in its own tests. The paths name where such
       a pass would land and where the branch join's existing authorization already
       lives; no pass exists today, so the lock convicts the first one written
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      The core contract names six rules. Explicit unit conversion is not minted while
+      the spec language declares no unit; a spec language that gains units brings
+      the rule with it.
+    paths: [src/bloomery/semantic/**]
+    consequence: >-
+      the six minted rules are the whole contract, and no fixture exists to complete
+      a list
+    rationale: >-
+      Nothing in the spec language declares a unit and no corpus case names the rule,
+      so building it would be a fixture written for a rule rather than a rule written
+      for a failure, which D-5 exists to catch. S-0066 keeps unit conversion a non-goal.
 invariants:
   - id: I-1
     statement: >-

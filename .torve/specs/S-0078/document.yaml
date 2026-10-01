@@ -138,3 +138,5 @@ questions:
     text: >-
       Whether the historical `tasks/*.json` and the vendored `rfc-writer` skill go
       in a later change
+    status: settled
+    settled_by: D-9
