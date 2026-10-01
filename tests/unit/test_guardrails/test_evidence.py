@@ -17,7 +17,7 @@ import dataclasses
 import pytest
 
 from bloomery import build_project_ir, load_catalog, load_project
-from bloomery.errors import GuardrailError, InsufficientEvidence, SpecParseError
+from bloomery.errors import GuardrailError, InsufficientEvidence, MissingReference, SpecParseError
 from bloomery.ir import project_fingerprint
 from bloomery.guardrails import evidence as guard
 from bloomery.semantic import (
@@ -1005,3 +1005,31 @@ def test_a_dangling_mart_name_stays_leafless_with_an_upstream_bound() -> None:
     from bloomery.ir.nodes import with_imported  # noqa: PLC0415
 
     assert guard.check_evidence(strict, with_imported(draft)) == []
+
+
+
+def test_a_local_metric_cannot_read_an_imported_one_so_the_boundary_needs_no_walk() -> None:
+    """S-0085/D-3 checks the metrics a mart lists and not their dependencies,
+    which is complete only while a local derived metric cannot read an
+    imported one. Pinned: the day composition admits it, this fails, and the
+    boundary has to follow `MetricIR.depends_on` to the imported fact."""
+    metrics = """
+metrics_version: 1
+metrics:
+  revenue_doubled:
+    description: Twice the platform's gross revenue
+    additivity: non_additive
+    derived:
+      expr: "revenue * 2"
+      inputs:
+        revenue: {metric: gross_revenue}
+"""
+    mart = _downstream_mart("locked").replace("measures: [gross_revenue]", "measures: [revenue_doubled]")
+    upstream, catalog = _upstream()
+
+    with pytest.raises(MissingReference, match="derived metric reads unknown metric 'gross_revenue'"):
+        build_project_ir(
+            load_project({**_DOWNSTREAM, "marts": mart, "metrics": metrics}),
+            catalog,
+            upstream={"platform": upstream},
+        )
