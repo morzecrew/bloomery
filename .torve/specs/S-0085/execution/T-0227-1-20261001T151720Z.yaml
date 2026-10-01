@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0227
+phase: 1
+base: 462766669e16630ab93b13fdfe2c412a14deb89c
+commit: 1cd0e1478b96e92017d2c77895acdf65d0ccc322
+at: '2026-10-01T15:17:20Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-10-01T15:14:56Z'
+    claim: >-
+      check_evidence now receives with_imported(draft), so strict consumers of imported
+      marts, bases and metrics are walked
+    evidence: >-
+      src/bloomery/guardrails/stage.py:191 — composed view passed to check_evidence
+    action: decided
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-10-01T15:14:56Z'
+    claim: >-
+      every node bound from an upstream is a sub-LOCKED fact for a strict consumer,
+      regardless of upstream grade; laundering test covers it
+    evidence: >-
+      src/bloomery/guardrails/evidence.py:327-352 — _boundary lists the upstream nodes
+      a mart rests on
+    action: decided
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-10-01T15:14:56Z'
+    claim: >-
+      an imported metric a strict local mart lists is reported as its own boundary
+      leaf
+    evidence: >-
+      src/bloomery/guardrails/evidence.py:348 — imported measures join the boundary
+      set
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-10-01T15:14:56Z'
+    claim: >-
+      one BOUNDARY_MESSAGE template for both consumers names alias and fingerprint
+      with the two remedies; docs quote it and the docs-floor parametrize list includes
+      it
+    evidence: >-
+      src/bloomery/guardrails/evidence.py:142-148 — the template; pages/docs/concepts/what-bloomery-proves.md:283
+      quotes it
+    action: decided
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-10-01T15:14:56Z'
+    claim: >-
+      boundary map derived per call from ProjectIR.upstream; no IR node changed and
+      goldens unchanged
+    evidence: >-
+      src/bloomery/guardrails/evidence.py:311-324 — _bound reads draft.upstream only
+    action: decided
+  - decision: D-7
+    grade: ASSUMED
+    at: '2026-10-01T15:14:56Z'
+    claim: >-
+      no provenance stored; the boundary grade comes from ProjectIR.upstream alone,
+      matching D-5
+    evidence: >-
+      src/bloomery/guardrails/evidence.py:311-324 — _bound is the only source of the
+      boundary grade
+    action: decided
