@@ -22,7 +22,7 @@ implement is **refused**, never read as one it does.
 | Grammar | Rule | Examples |
 |---|---|---|
 | Type string | `string`, `int`, `bool`, `date`, `timestamp`, `variant`, `decimal(p, s)`, or `vector(scalar, dimensions)` | `decimal(12,4)`, `vector(float32, 1536)` |
-| Partition spec | A bare column, or `fn(column)` with `fn` ∈ `days`/`months`/`years`/`hours` | `days(order_date)` |
+| Partition spec | A bare column, or `fn(column)` with `fn` ∈ `days`/`months`/`years`/`hours` | `days(order_date)` — on Trino emitted as `day(order_date)`; a Trino Hive catalog takes no transform, so partition by a `date` column there |
 | Source path | JSONPath-lite: `$` followed by dotted identifiers only | `$.customer.id` |
 | Currency code | Three uppercase letters (ISO 4217) | `EUR` |
 | Zone name | An IANA name: a letter-led segment, optionally `/`-joined up to three deep. Checked for shape, never against a zone database — the engine is the authority for a zone that reaches SQL | `America/New_York` |

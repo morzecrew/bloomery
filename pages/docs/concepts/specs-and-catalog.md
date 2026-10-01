@@ -98,6 +98,12 @@ field count toward metric reachability ("this tenant can have `gross_revenue` be
 without a `canonical:` link is tenant-native: legal, queryable, but invisible to
 catalog-derived metrics and metadata-free (`unknown`) in monetary arithmetic.
 
+`partition_by: [days(order_date)]` is spelled in the spec's plural grammar on every
+target; on Trino it reaches SQLMesh as `day(order_date)`, the Iceberg connector's
+spelling. A Trino **Hive** catalog takes no transform at all and refuses the model
+before it writes: there, partition by a `date` column (`partition_by: [order_date]`)
+instead of a transform.
+
 ## Mapping: the recorded decision
 
 A Mapping describes how one bronze source becomes one entity — key extraction, field

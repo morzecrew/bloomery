@@ -123,6 +123,17 @@ class TrinoDialect(SQLGlotDialect):
 
     # ....................... #
 
+    def partition_transform(self, transform: str) -> str:
+        """``day``, ``month``, ``year`` or ``hour`` — the Iceberg connector's
+        singular spelling of the spec's plural transform (S-0087/D-8).
+
+        Trino's Iceberg catalog refuses ``days(col)``; its Hive catalog takes
+        no transform at all, which is a docs matter, not a spelling.
+        """
+        return transform.removesuffix("s")
+
+    # ....................... #
+
     def text_sha256(self, value: Expression) -> Expression:
         """``LOWER(TO_HEX(SHA256(TO_UTF8(…))))``.
 

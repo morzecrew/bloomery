@@ -220,3 +220,12 @@ def test_the_rewrite_survives_an_operand_that_is_not_text() -> None:
         to=exp.DataType.build("TIMESTAMP"),
     )
     assert "CAST(_ingested_at AS VARCHAR)" in DIALECT.render(node)
+
+
+@pytest.mark.parametrize(
+    ("transform", "spelled"),
+    [("days", "day"), ("months", "month"), ("years", "year"), ("hours", "hour")],
+)
+def test_partition_transform_is_the_connectors_singular(transform: str, spelled: str) -> None:
+    """S-0087/D-8: Trino's Iceberg connector refuses the spec's plural."""
+    assert DIALECT.partition_transform(transform) == spelled

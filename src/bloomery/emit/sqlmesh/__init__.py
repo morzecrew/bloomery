@@ -439,9 +439,13 @@ def _time_range_kind(
 # ....................... #
 
 
-def _partitioned_by(specs: tuple[PartitionSpec, ...]) -> str:
+def _partitioned_by(specs: tuple[PartitionSpec, ...], ctx: EmitContext) -> str:
+    # An optional port member (S-0087/D-8): a port that does not spell the
+    # transform its own way takes the spec's plural grammar as written.
+    spell = getattr(ctx.dialect, "partition_transform", lambda transform: transform)
     return ", ".join(
-        f"{spec.transform}({spec.column})" if spec.transform else spec.column for spec in specs
+        f"{spell(spec.transform)}({spec.column})" if spec.transform else spec.column
+        for spec in specs
     )
 
 
@@ -524,7 +528,7 @@ def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArti
         name=f"{namespace}.{relation}",
         kind=_mart_kind_clause(mart, base),
         grain=", ".join(base.key),
-        partitioned_by=_partitioned_by(mart.partition_by),
+        partitioned_by=_partitioned_by(mart.partition_by, ctx),
         # A bare AUDIT block loads as a *model* audit and runs only where a
         # model's ``audits`` names it, so the assertions have to be listed here
         # or they would ship as artifacts nothing ever executes.
@@ -567,7 +571,7 @@ def _rollup_artifact(rollup: RollupIR, ir: ProjectIR, ctx: EmitContext) -> Emitt
         name=f"{namespace}.{relation}",
         kind=_rollup_kind_clause(rollup, parent),
         grain=", ".join(rollup.keep),
-        partitioned_by=_partitioned_by(rollup.partition_by),
+        partitioned_by=_partitioned_by(rollup.partition_by, ctx),
         audits="",
         owner=_owner_clause(None, ctx),
         grants=_grants_clause(rollup.grants, ctx),
@@ -1175,7 +1179,7 @@ class SQLMeshEmitter:
                 depends_on=", ".join(
                     ".".join(ctx.naming.relation(name, Layer.SILVER)) for name in coverage_reads
                 ),
-                partitioned_by=_partitioned_by(entity.partition_by),
+                partitioned_by=_partitioned_by(entity.partition_by, ctx),
                 audits=", ".join(filter(None, (audits, *coverage))),
                 owner=_owner_clause(entity.owner, ctx),
                 grants=_grants_clause(entity.grants, ctx),

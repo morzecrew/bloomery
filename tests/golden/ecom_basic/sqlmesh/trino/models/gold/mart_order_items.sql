@@ -5,7 +5,7 @@ MODEL (
   kind INCREMENTAL_BY_TIME_RANGE (time_column ordered_day),
   owner 'analytics@example.com',
   grain (order_id, line_no),
-  partitioned_by (days(ordered_day))
+  partitioned_by (day(ordered_day))
 );
 
 SELECT
