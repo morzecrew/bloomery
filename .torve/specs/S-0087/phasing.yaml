@@ -27,9 +27,11 @@ phasing:
       `Entity` gains an optional `arrival_lag` in the retention grammar, refused off
       `incremental_by_partition`; the SQLMesh model pins `interval_unit 'day'` and
       carries `lookback` as the lag in whole days, rounded up, and a test shows an
-      `@hourly` cron on such a model refused by SQLMesh; no lag, no change to any
-      emitted golden, while the entity-model schema golden gains the field. The spec
-      reference and the changelog name it. Settles D-5.
+      `@hourly` cron on such a model refused by SQLMesh; `EntityIR` gains the lag
+      in hours, lowered in `resolve/build.py`, which moves the fingerprint header
+      of every emitted golden; beyond that header, no lag changes no golden, and the
+      entity-model schema golden gains the field. The spec reference and the changelog
+      name it. Settles D-5.
     scope:
       - src/bloomery/spec/entity.py
       - src/bloomery/emit/sqlmesh/__init__.py
@@ -38,9 +40,13 @@ phasing:
       - tests/golden/**
       - pages/docs/reference/**
       - CHANGELOG.md
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_resolve/**
     acceptance:
       - >-
-        uv run pytest tests/unit/test_spec tests/unit/test_emit tests/golden -q
+        uv run pytest tests/unit/test_spec tests/unit/test_emit tests/unit/test_resolve
+        tests/golden -q
     depends_on:
       - 1
     character: routine
