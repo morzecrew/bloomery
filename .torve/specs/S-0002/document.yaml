@@ -297,6 +297,8 @@ questions:
     text: >-
       Should the upstream IR carry the naming policy it was compiled under, so a mismatch
       between two composing projects is a refusal rather than a run-time surprise?
+    status: settled
+    settled_by: S-0085/D-6
   - id: Q-2
     text: >-
       May a downstream project extend an imported entity — adding fields — or only

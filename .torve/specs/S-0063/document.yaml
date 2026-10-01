@@ -219,6 +219,8 @@ questions:
       are close — both name metrics and dimensions — but a saved query is a *request*
       and an exposure is a *consumer*, and conflating them would make the manifest
       claim someone runs a query nobody wrote.
+    status: settled
+    settled_by: S-0087/D-3
   - id: Q-2
     text: >-
       Whether `depends_on.marts` is needed at all, or whether an exposure should depend

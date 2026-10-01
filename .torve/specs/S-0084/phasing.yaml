@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: Replaying a parent names its children
+    intent: >-
+      `plan()` extends `replay_scope` to quarantining dependents, ordered parents
+      first, and names `unknown_member` and `flag` dependents in `backfill_scope`;
+      the CLI renders both. An execution test replays the `dirty_corpus` scenario
+      by editing its spec text in the test. The docs say what the cascade does and
+      its limit. No emitted SQL changes. Settles D-1 to D-6. The quality docs name
+      the remedy for a child whose rows bronze no longer holds.
+    scope:
+      - src/bloomery/plan/diff.py
+      - src/bloomery/plan/model.py
+      - src/bloomery/cli/render.py
+      - pages/docs/concepts/data-quality.md
+      - pages/docs/how-to/add-quality-rules.md
+      - pages/docs/reference/api.md
+      - tests/unit/test_plan/**
+      - tests/property/test_plan_properties.py
+      - tests/unit/test_cli.py
+      - tests/execution/test_quarantine_replay.py
+      - tests/unit/test_docs_floor.py
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_plan tests/property/test_plan_properties.py
+        tests/unit/test_cli.py tests/execution/test_quarantine_replay.py tests/unit/test_docs_floor.py
+        -q
+      - uv run pytest tests/golden -q
+    character: structural

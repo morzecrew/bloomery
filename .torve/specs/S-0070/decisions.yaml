@@ -64,15 +64,19 @@ decisions:
       consumer means is the question.
     superseded_by: D-9
   - id: D-9
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       **`IMPORTED_VERIFIED` grades `ASSUMED`, following §5.1's table — supersedes
       8.** The question a strict consumer asks is "did a human *here* write this down",
       and an exact read of another project's artifact answers no however exact the
-      rule was. Not `LOCKED` because nothing yet produces that provenance — S-0057/phasing
-      (P-2) would — so the choice was made where it was unobservable, and S-0002 asks
-      the same question from the other direction (§10). Added by execution 2026-09-09
-      — see `logs/T-0031.md` (`logs/T-0031.md`) (D8, attempt 1).
+      rule was. Locked by the owner on 2026-10-01 without waiting for a proof node
+      to carry that provenance (D-18): the evidence guard already grades a hop that
+      S-0075's `imported_from` marks as ASSUMED, and S-0085's project boundary grades
+      an upstream fact the same way (S-0085/D-7). S-0002 asks the same question from
+      the other direction (§10). Added by execution 2026-09-09 — see `logs/T-0031.md`
+      (`logs/T-0031.md`) (D8, attempt 1).
+    paths: [src/bloomery/semantic/proof.py, src/bloomery/guardrails/evidence.py]
+    fingerprint: df14bb58a97e06bc/2906c2411d857822
   - id: D-10
     grade: ASSUMED
     text: >-

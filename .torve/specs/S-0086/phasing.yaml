@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The dbt replay refuses another compile
+    intent: >-
+      `dbt_project.yml` carries `bloomery_fingerprint`, and the replay macro refuses
+      before its first statement on a mismatch; the guard does not use the `{% set
+      statement_` prefix the property test splits on; SQLMesh replay bytes stay. The
+      docs name the rebuild order. Goldens move for the dbt project files and replay
+      macros. Settles D-1, D-2, D-4 and D-6. The how-to also says to compile into
+      a clean directory.
+    scope:
+      - src/bloomery/emit/dbt/__init__.py
+      - pages/docs/how-to/emit-dbt.md
+      - tests/golden/**
+      - tests/unit/test_emit/**
+      - tests/property/test_compile_properties.py
+      - tests/e2e/test_dbt_quality.py
+      - examples/targets/out/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_emit tests/property/test_compile_properties.py
+        tests/golden -q
+      - uv run pytest tests/e2e/test_dbt_quality.py -q
+    character: structural
+  - phase: 2
+    title: >-
+      The dbt replay refuses a relation missing a column it writes
+    intent: >-
+      Measure `adapter.get_columns_in_relation(ref())` on the oldest and newest dbt-core
+      bloomery supports, then check before its first statement that the entity and
+      its reject table carry every column the statements write, case-insensitively,
+      refusing with the missing names and the rebuild. Settles D-3 and D-5.
+    scope:
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/emit/lower/silver.py
+      - tests/golden/**
+      - tests/unit/test_emit/**
+      - tests/e2e/test_dbt_quality.py
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_emit tests/golden -q
+      - uv run pytest tests/e2e/test_dbt_quality.py -q
+    depends_on:
+      - 1
+    character: structural

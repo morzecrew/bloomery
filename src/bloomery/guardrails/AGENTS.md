@@ -535,6 +535,13 @@ The refusal names how the fact was obtained and what to write instead. A message
 - Paths: `src/bloomery/errors.py` `src/bloomery/guardrails/evidence.py` `src/bloomery/guardrails/stage.py` `src/bloomery/semantic/proof.py` `tests/unit/test_guardrails/test_evidence.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0070/D-9 — `LOCKED` (Consumer-declared evidence strictness)
+
+**`IMPORTED_VERIFIED` grades `ASSUMED`, following §5.1's table — supersedes 8.** The question a strict consumer asks is "did a human *here* write this down", and an exact read of another project's artifact answers no however exact the rule was. Locked by the owner on 2026-10-01 without waiting for a proof node to carry that provenance (D-18): the evidence guard already grades a hop that S-0075's `imported_from` marks as ASSUMED, and S-0085's project boundary grades an upstream fact the same way (S-0085/D-7). S-0002 asks the same question from the other direction (§10). Added by execution 2026-09-09 — see `logs/T-0031.md` (`logs/T-0031.md`) (D8, attempt 1).
+
+- Paths: `src/bloomery/semantic/proof.py` `src/bloomery/guardrails/evidence.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0072/D-3 — `LOCKED` (Marts in the lineage graph)
 
 Follows from row 2, and stated separately because it is the thing an executor will be tempted to add: **no per-column `entity_field → mart` edge**. The consequence is stated in §9 and not mitigated: a mart dimension no metric reads is not reached by a downstream walk.
@@ -590,5 +597,47 @@ The as-of anchor is R018's to refuse, not a premise R004 gains: R018's demand in
 
 - Paths: `src/bloomery/guardrails/zone.py`
 - Consequence: a join anchored on a zoneless timestamp is refused where the zone matters, by the rule that owns zones
+
+### S-0085/D-1 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+`check_evidence` reads the composed view, so a strict local mart over an imported base, a strict exposure naming an imported mart, and an imported metric a strict consumer names are all walked
+
+- Paths: `src/bloomery/guardrails/stage.py` `src/bloomery/guardrails/evidence.py`
+- Consequence: no strict consumer of an imported node passes ungraded
+
+### S-0085/D-2 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+A fact bound from an upstream project grades ASSUMED, however the upstream obtained it; this answers S-0070/Q-2 by S-0070/D-9's 'here'
+
+- Paths: `src/bloomery/guardrails/evidence.py`
+- Consequence: an upstream's weak fact cannot become strong by crossing the boundary
+
+### S-0085/D-3 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+An imported metric a strict local mart lists counts as a fact below LOCKED
+
+- Paths: `src/bloomery/guardrails/evidence.py`
+- Consequence: the additivity of a metric defined elsewhere is graded like any other imported fact
+
+### S-0085/D-4 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+A boundary refusal has its own template naming the alias and the upstream fingerprint, with the remedy to set `requires_evidence: assumed` or carry the requirement on the upstream's mart, never to author it here
+
+- Paths: `src/bloomery/guardrails/evidence.py` `pages/docs/concepts/what-bloomery-proves.md`
+- Consequence: the author is told the two things they can actually do
+
+### S-0085/D-5 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+The boundary grade is derived from `ProjectIR.upstream` and never stored on an IR node
+
+- Paths: `src/bloomery/guardrails/evidence.py`
+- Consequence: no IR shape, version or fingerprint moves
+
+### S-0085/D-7 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+This boundary stores no provenance; it grades an upstream fact ASSUMED from `ProjectIR.upstream` (S-0085/D-5), the grade S-0070/D-9 gives `IMPORTED_VERIFIED`. The evidence guard already grades a hop that S-0075's `imported_from` marks with that same grade, though no proof node carries the provenance itself (S-0070/D-18). S-0070/D-9's answer is therefore what a strict consumer meets on both routes, and the owner locked it on 2026-10-01.
+
+- Paths: `src/bloomery/guardrails/evidence.py` `src/bloomery/semantic/proof.py`
+- Consequence: the grade an imported fact gets is settled before the first strict consumer relies on it
 
 <!-- /torve:managed -->

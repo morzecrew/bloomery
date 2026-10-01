@@ -231,6 +231,8 @@ questions:
       Whether `fingerprint` should have an id-only variant that a rename does not
       move, for the callers that want to know whether the *semantics* changed rather
       than the bytes.
+    status: settled
+    settled_by: S-0086/D-5
   - id: Q-3
     text: >-
       Whether a write-once `id:` or a one-shot `renamed_from:` is the right shape

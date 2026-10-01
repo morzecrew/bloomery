@@ -243,3 +243,5 @@ questions:
       Whether a fact declared in an imported project counts as `LOCKED` locally, or
       drops a grade on crossing a project boundary under S-0002 — the same question
       D8 asks of `IMPORTED_VERIFIED`, arriving from the other direction.
+    status: settled
+    settled_by: S-0085/D-2

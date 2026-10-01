@@ -280,3 +280,5 @@ questions:
       has a wrong-answer mode of its own. It probably does not: a wrong cadence is
       late, not incorrect. Recorded because that reasoning is exactly the reasoning
       M4 falsified once already.
+    status: settled
+    settled_by: S-0087/D-2

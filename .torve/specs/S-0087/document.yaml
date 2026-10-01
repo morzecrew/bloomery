@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0087
+title: >-
+  What each emitter carries of the facts a spec declares
+kind: design
+change:
+  type: feat
+  scope: emit
+status: accepted
+implementation: none
+depends_on: [S-0061, S-0062, S-0063, S-0064]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  Four questions asked whether an emitter should carry a fact its target can hold. Checked against the pinned dbt-core 1.12.3, metricflow 0.213.0 and sqlmesh 0.236.2, one is a gap: a mart's and a metric's `owner` never reach the MetricFlow manifest, whose slot is `config.meta`, not the `owners` list the docs claim. The other three are recorded no's: an unstated SQLMesh cron makes a project late, never wrong; an exposure is a consumer, not a saved query; and a freshness `filter:` only saves scan time on a partition column no spec declares.
+
+  Settling the cron question surfaced two that are not about cron: a row arriving after its interval ran is never loaded, which an optional `arrival_lag` answers, and a daily interval over a monthly partition might overwrite the month, which a measurement on Trino found it does not.
+motivation: >-
+  S-0061/Q-2, S-0062/Q-2, S-0063/Q-1 and S-0064/Q-1, grouped by the triage of 2026-10-01
+  as small target-local calls.
+current_state: >-
+  `emit/metricflow/__init__.py` passes `config=None` to every semantic model and metric,
+  while the IR carries `owner` on marts and metrics and the dbt, SQLMesh and Cube
+  emitters write it. `emit/sqlmesh/__init__.py::_config_artifact` writes `dialect`
+  and `start`. The MetricFlow manifest carries no saved queries. `spec/mapping.py`'s
+  `Freshness` has `warn_after` and `error_after`. `how-to/annotate-a-spec.md` says
+  an owner becomes a MetricFlow `owners` list, which the pinned version does not have.
+goals: |-
+  - An owner declared on a mart or metric reaches MetricFlow.
+  - Each no is a row, so the next reader does not re-ask.
+non_goals: |
+  - **A schedule.** No `cron` is emitted anywhere (D-2); a cadence is the operator's.
+  - **A saved query per exposure.** An exposure stays a consumer (D-3).
+  - **A freshness filter.** It changes scan time, never the answer (D-4).
+  - **A coarser interval unit.** The measurement found no overwrite to prevent (D-6).
+  - **Late arrivals on dbt.** Its incremental entity already re-merges its whole select (D-5).
+design:
+  - key: owner-in-metricflow
+    md: >-
+      MetricFlow 0.213.0's semantic model and metric take `config: {meta: {...}}`
+      and nothing named `owners`. A mart's owner reaches its semantic model and a
+      metric's owner its metric as `config.meta.owner`, the spelling dbt's `meta.owner`
+      already uses; with no owner, `config` stays null. An entity has no MetricFlow
+      node to carry one.
+tests: |-
+  - A mart owner and a metric owner appear as `config.meta.owner` in the manifest; a node without one keeps `config: null`.
+  - The manifest's `saved_queries` is empty for a project with exposures.
+  - The canary asserts `config` among the fields the emitter populates.
+docs: >-
+  `how-to/annotate-a-spec.md` says MetricFlow carries the owner as `config.meta.owner`.
+out_of_scope: ''
+risks: >-
+  - `test_a_metric_owner_reaches_cube_alone` stays green while its claim turns false;
+  it is rewritten, not left.
+questions:
+  - id: Q-1
+    text: >-
+      A row that lands after its SQLMesh interval ran is never loaded: lookback defaults
+      to zero and the time column is business time. Should an entity declare an arrival
+      lag that becomes `lookback`?
+    status: settled
+    settled_by: D-5
+  - id: Q-2
+    text: >-
+      A `months(...)` or `years(...)` partition with SQLMesh's default daily interval
+      may let one day's run overwrite the whole partition on a Hive catalog. Measure
+      first; if it reproduces, derive `interval_unit` from the partition transform?
+    status: settled
+    settled_by: D-6
+  - id: Q-3
+    text: >-
+      Do BigQuery and Databricks accept the plural transforms bloomery hands SQLMesh?
+      Both emit `days(...)` as Trino did, and neither has been run on a live account;
+      their live lanes answer it.

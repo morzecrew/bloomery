@@ -389,6 +389,13 @@ The grades are a total function of `Provenance` and every member maps to exactly
 - Paths: `src/bloomery/semantic/proof.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0070/D-9 — `LOCKED` (Consumer-declared evidence strictness)
+
+**`IMPORTED_VERIFIED` grades `ASSUMED`, following §5.1's table — supersedes 8.** The question a strict consumer asks is "did a human *here* write this down", and an exact read of another project's artifact answers no however exact the rule was. Locked by the owner on 2026-10-01 without waiting for a proof node to carry that provenance (D-18): the evidence guard already grades a hop that S-0075's `imported_from` marks as ASSUMED, and S-0085's project boundary grades an upstream fact the same way (S-0085/D-7). S-0002 asks the same question from the other direction (§10). Added by execution 2026-09-09 — see `logs/T-0031.md` (`logs/T-0031.md`) (D8, attempt 1).
+
+- Paths: `src/bloomery/semantic/proof.py` `src/bloomery/guardrails/evidence.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0075/D-2 — `LOCKED` (Mechanical imports and per-relationship provenance)
 
 **A dbt `relationships` test alone imports nothing.** It asserts every value exists in a target column and says nothing about the target being unique, so reading it as `many_to_one` invents the cardinality that makes the edge determine anything — S-0057/D-3's failure, by its own example. `many_to_one` from dbt requires the `relationships` test *and* a `unique`/`primary_key` on the named target. Locked because the tempting version of this importer is the one that skips the second test, and it would be indistinguishable in review from the correct one. Proposed by execution — see `logs/T-0053.md` (`logs/T-0053.md`) (D3, attempt 1).
@@ -479,6 +486,13 @@ A `derived:` metric whose inputs carry different restrictions — different own 
 
 - Paths: `src/bloomery/semantic/additivity.py` `src/bloomery/planner/compose.py`
 - Consequence: admitting a metric's own filter into a composed plan never lets a derived metric fold two row sets into one number, and a derived metric whose inputs agree composes as they do
+
+### S-0085/D-7 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+This boundary stores no provenance; it grades an upstream fact ASSUMED from `ProjectIR.upstream` (S-0085/D-5), the grade S-0070/D-9 gives `IMPORTED_VERIFIED`. The evidence guard already grades a hop that S-0075's `imported_from` marks with that same grade, though no proof node carries the provenance itself (S-0070/D-18). S-0070/D-9's answer is therefore what a strict consumer meets on both routes, and the owner locked it on 2026-10-01.
+
+- Paths: `src/bloomery/guardrails/evidence.py` `src/bloomery/semantic/proof.py`
+- Consequence: the grade an imported fact gets is settled before the first strict consumer relies on it
 
 ## Invariants holding over `src/bloomery/semantic/`
 

@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The owner reaches MetricFlow
+    intent: >-
+      `_semantic_model` and `_metric` build `config.meta.owner` when an owner is set;
+      the canary asserts `config`; a test pins `saved_queries` empty for a project
+      with exposures; the MetricFlow goldens and the corpus hash move; `annotate-a-spec.md`
+      loses the false `owners` claim and the changelog notes the change. Settles D-1
+      and records D-2 to D-4.
+    scope:
+      - src/bloomery/emit/metricflow/__init__.py
+      - tests/unit/test_ownership.py
+      - tests/unit/test_metricflow_canary.py
+      - tests/unit/test_emit/test_metricflow.py
+      - tests/golden/**
+      - pages/docs/how-to/annotate-a-spec.md
+      - CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_ownership.py tests/unit/test_metricflow_canary.py
+        tests/unit/test_emit/test_metricflow.py tests/golden -q
+    character: routine
+  - phase: 2
+    title: A late row reaches SQLMesh
+    intent: >-
+      `Entity` gains an optional `arrival_lag` in the retention grammar, refused off
+      `incremental_by_partition`; the SQLMesh model pins `interval_unit 'day'` and
+      carries `lookback` as the lag in whole days, rounded up, and a test shows an
+      `@hourly` cron on such a model refused by SQLMesh; no lag, no change to any
+      emitted golden, while the entity-model schema golden gains the field. The spec
+      reference and the changelog name it. Settles D-5.
+    scope:
+      - src/bloomery/spec/entity.py
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - tests/unit/test_spec/**
+      - tests/unit/test_emit/**
+      - tests/golden/**
+      - pages/docs/reference/**
+      - CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_spec tests/unit/test_emit tests/golden -q
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: A partition transform builds on Trino
+    intent: >-
+      The Trino dialect port spells a partition transform in the singular, `day`,
+      `month`, `year` or `hour`, and the SQLMesh emitter asks the port for it; every
+      other dialect keeps its output. A unit test pins the Trino spelling for all
+      four transforms, the Trino goldens move, and the partitioning docs say a Hive
+      catalog takes a date column, not a transform. Settles D-8.
+    scope:
+      - src/bloomery/dialects/**
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - tests/unit/test_dialects/**
+      - tests/unit/test_emit/**
+      - tests/golden/**
+      - pages/docs/concepts/specs-and-catalog.md
+      - pages/docs/reference/spec-schemas.md
+      - CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_dialects tests/unit/test_emit tests/golden -q
+    depends_on:
+      - 2
+    character: routine

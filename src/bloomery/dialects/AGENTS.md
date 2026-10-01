@@ -339,4 +339,11 @@ A `to_utc` whose operand is an ISO wall-clock parse makes the parse zoned: every
 - Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/dialects/**` `src/bloomery/semantic/zone.py` `src/bloomery/resolve/build.py`
 - Consequence: a source that stamps instants has a spelling, and the compiler refuses the double conversion the type system cannot see
 
+### S-0087/D-8 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+
+On Trino, a partition transform reaches the SQLMesh model in the connector's singular spelling, `day`, `month`, `year` or `hour`; the spec keeps its plural grammar. A Hive catalog takes no transform at all, and the docs say to partition by a date column there.
+
+- Paths: `src/bloomery/dialects/trino.py` `src/bloomery/emit/sqlmesh/__init__.py`
+- Consequence: once phase 3 lands, a transform-partitioned model builds on a Trino Iceberg catalog; today that catalog refuses every transform bloomery emits
+
 <!-- /torve:managed -->

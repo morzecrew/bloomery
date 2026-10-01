@@ -354,4 +354,39 @@ The audit is derived at emit time from the key, the `scd` kind and `dedupe` alre
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/dbt/__init__.py`
 - Consequence: no fingerprint moves for the IR's sake; goldens change only by the new audit
 
+### S-0086/D-1 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: none
+
+A replay guard compares the macro with the project it was compiled with or the relations that are built, never with the spec that quarantined a row
+
+- Paths: `src/bloomery/emit/dbt/__init__.py`
+- Consequence: replaying after a spec change, which is replay's purpose, is never refused
+
+### S-0086/D-2 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: none
+
+`dbt_project.yml` carries `vars: {bloomery_fingerprint: <project fingerprint>}`, and the dbt replay macro refuses before its first statement when the var differs from the fingerprint it was emitted under
+
+- Paths: `src/bloomery/emit/dbt/__init__.py`
+- Consequence: a replay left over from another compile, or run against a project compiled elsewhere, refuses instead of writing
+
+### S-0086/D-3 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: none
+
+Before its first statement the dbt replay macro checks that the entity and its reject table carry every column the statements write, and refuses, naming the missing columns and the rebuild that adds them
+
+- Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/silver.py`
+- Consequence: a reject table missing a column the macro writes is refused before a statement commits, including on Databricks; one that has every column passes whatever its age
+
+### S-0086/D-7 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: none
+
+bloomery writes no ledger into the warehouse: a stale checkout whose own compile is self-consistent is an operator error, and S-0086/D-6's documentation is its guard.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py`
+- Consequence: every relation bloomery emits is owned by a model, and the replay guards read only what the compile and the relations already carry
+
+### S-0087/D-4 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+
+`freshness:` carries no `filter:`; a filter would have to name a bronze partition column no spec declares, and one that excluded the newest load would change the answer, so leaving it out costs scan time and never a wrong freshness; this answers S-0064/Q-1
+
+- Paths: `src/bloomery/spec/mapping.py` `src/bloomery/emit/dbt/__init__.py`
+- Consequence: no unchecked SQL fragment enters dbt's freshness query
+
 <!-- /torve:managed -->

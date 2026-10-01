@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-01T09:28:03Z'
+    title: Q-2 measured
+    md: >-
+      Q-2 was measured by hand on 2026-10-01 (Trino 483, a Hive 4 metastore, MinIO,
+      SQLMesh 0.236.2) and the owner decided on the result. D-6 now records it and
+      settles Q-2: no overwrite, so no interval-unit change. The same run found that
+      Trino's Iceberg connector refuses every plural transform bloomery emits, while
+      its Hive connector refuses any transform; D-8 and phase 3 fix the spelling,
+      and Q-3 asks the same of BigQuery and Databricks.
