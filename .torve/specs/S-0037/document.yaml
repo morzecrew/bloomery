@@ -356,3 +356,13 @@ questions:
       stores? Aligning them would let the CLI produce a ledger-ready artifact; it
       would also couple a library output shape to a platform concern. Leaning: no
       — the platform maps it.
+    status: settled
+    settled_by: D-13
+  - id: Q-2
+    text: >-
+      Should the per-kind JSON Schemas be published to Schema Store? It would give
+      editor completion with zero user configuration. Q-1 deferred this until the
+      spec schema was stable, and the stability page now calls spec YAML fully binding,
+      so that condition may have been met.
+    status: settled
+    settled_by: D-14

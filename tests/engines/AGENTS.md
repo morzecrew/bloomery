@@ -206,7 +206,7 @@ The check exists, and it is a **conformance battery at the engine tiers over the
 
 ### S-0055/D-17 — `ASSUMED` (Multi-grain aggregate-then-join query planning)
 
-**`IS NOT DISTINCT FROM` is a declared `DialectFeature`, proven in the engine tier, not asserted from documentation.** It was executed on DuckDB and read about for Postgres and Trino; a planner that composes a join for three dialects on two readings is asserting a capability it has not seen. The feature enum is the existing place a dialect says what it can do, and an engine-tier test is where the claim stops being a citation. **Answered:** `tests/engines/test_branch_join_engines.py` executes the composed statement on all three, and the first thing it found was that the D13 spelling does not run on PostgreSQL at all — see D18.
+**`IS NOT DISTINCT FROM` is a declared `DialectFeature`, proven in the engine tier, not asserted from documentation.** It was executed on DuckDB and read about for Postgres and Trino; a planner that composes a join for three dialects on two readings is asserting a capability it has not seen. The feature enum is the existing place a dialect says what it can do, and an engine-tier test is where the claim stops being a citation. **Answered:** `tests/engines/test_branch_join_engines.py` executes the composed statement on all three, and the first thing it found was that a full outer join on `IS NOT DISTINCT FROM`, the spelling D13 chose, does not run on PostgreSQL at all — see D18.
 
 - Paths: `src/bloomery/planner/compose.py` `tests/engines/test_branch_join_engines.py`
 

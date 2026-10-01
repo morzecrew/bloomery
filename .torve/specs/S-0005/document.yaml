@@ -297,3 +297,5 @@ questions:
       to catch, so building it to complete the list would be a fixture written for
       a rule rather than a rule written for a failure. Either the spec language gains
       units and the rule follows, or the core contract names six rules and says why.
+    status: settled
+    settled_by: D-10

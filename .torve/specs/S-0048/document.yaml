@@ -528,3 +528,5 @@ questions:
       depends on cycles having raised. D5 states the precondition; whether a caller
       ever wants to violate it — to *see* a cycle rather than be refused by it — is
       unknown and would need a cycle-safe walk.
+    status: settled
+    settled_by: D-5

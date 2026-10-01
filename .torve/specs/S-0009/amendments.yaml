@@ -56,3 +56,45 @@ amendments:
 
       Settled by the implementation:
       - D-5: The policy and the promotion condition are in the tree and pinned by tests. The promotion itself is a future act that the condition governs, and it has not happened. Evidence: .github/workflows/fuzz.yaml; tests/unit/test_fuzz_workflows.py::test_the_pull_request_job_is_non_blocking; tests/unit/test_fuzz_workflows.py::test_no_fuzz_job_is_part_of_the_required_check; .torve/specs/S-0009/execution/T-0015-1-20260919T104650Z.yaml.
+  - id: A-3
+    at: '2026-10-01T05:21:50Z'
+    title: What the code and later rows already answered
+    changes:
+      - subject: D-8
+        field: text
+        after: >-
+          The replay job runs on every pull request touching `src/**`, `fuzz/**`,
+          `examples/**`, `tests/fixtures/**` or `.github/workflows/fuzz.yaml`, on
+          the weekly Monday schedule and on dispatch, under a 30-minute ceiling; one
+          run compiles every seed project for three targets and three dialects in
+          each of three processes (hash seed 0, hash seed 1, reversed order), measured
+          at 1m24s on a developer machine when the corpus held 66 projects.
+      - subject: D-9
+        field: text
+        after: >-
+          Corpus eviction is answered first by cache hygiene: every `setup-uv` step
+          prunes its cache before saving and saves only on `main`. The dedicated corpus
+          repository stays D-3's departure if a scheduled run still restores an empty
+          corpus.
+      - subject: D-10
+        field: text
+        after: >-
+          A failed scheduled fuzz run opens one issue per failed target, or comments
+          on the open one, linking the run and its crash artifacts. The filing job
+          runs after the fuzzing, on the schedule only, and is the only job that may
+          write issues.
+      - subject: D-11
+        field: text
+        before: null
+        after: >-
+          The batch runs weekly, on Mondays at 04:00 UTC and on dispatch, not nightly
+          as the design first wrote.
+    md: |-
+      What this document still left open, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+
+      - D-8 answers Q-2. Evidence: .github/workflows/fuzz.yaml; tests/unit/test_fuzz_workflows.py.
+      - Q-1 stays open, and the evidence so far answers it no. The scheduled runs of 2026-09-21 and 2026-09-28 both saved every target's corpus, yet the 2026-09-28 run restored 0 entries: the week-old corpus had been evicted. On 2026-10-01 the cache API reported eight uv entries of about 2 GB each, 16.5 GB in all against the 10 GB budget, so eviction was running, and a corpus touched once a week is the least recently used entry it reaches. That is the eviction S-0009/D-3 names as its departure condition; choosing the departure is the owner's call.
+      - D-9 answers Q-1, as the owner decided.
+      - D-10 answers Q-3, as the owner decided.
+      - The out-of-scope note on automatic issue filing becomes a note on triage: D-10 files, and a person still decides what a finding means.
+      - D-11 records the weekly cadence the workflow chose, and the summary and goals now say weekly. Evidence: .github/workflows/fuzz.yaml.

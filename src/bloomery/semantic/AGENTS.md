@@ -64,6 +64,13 @@ Rule identifiers in `RULES` are append-only: an id is never reused or repointed.
 - Consequence: A corpus case, a refusal code and a rendered derivation all name a rule identifier, so an identifier silently repointed changes what a pinned assertion means without changing the assertion
 - Check: `uv run pytest tests/unit/test_semantic/test_proof.py::test_a_superseded_rule_keeps_its_entry -q` (shadow; runs as `decision:S-0005/D-8`, no log entry owed)
 
+### S-0005/D-10 — `ASSUMED` (Semantic proof IR and closed-world checking)
+
+Of the seven rules the design names, the six that are minted are the core contract. Explicit unit conversion is not minted while the spec language declares no unit; a spec language that gains units brings the rule with it.
+
+- Paths: `src/bloomery/semantic/**`
+- Consequence: the six minted rules are the whole contract, and no fixture exists to complete a list
+
 ### S-0007/D-1 — `LOCKED` (Dimension algebra)
 
 Every relation is declared, never inferred — not from column names, not from cardinality, not from the data. One `GROUP BY` would answer `determines:` exactly, and from a single load of a source that has no counterexample yet; an inference cannot be told from a declaration once written down

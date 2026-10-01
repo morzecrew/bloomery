@@ -23,7 +23,7 @@ summary: |
   frozen `Advisory` value on `SpecEvidence.advisories`, sorted and deduplicated under a
   declared key. `warnings.warn` appears once in the library, under `BloomeryDeprecationWarning`,
   and nowhere else. Most of this landed; what is left is one more advisory code, the CLI's
-  verbosity flag, and three questions this document does not settle.
+  verbosity flag, and two questions this document does not settle.
 motivation: |
   Three gaps the production-readiness audit of 2026-09-01 named, each of which costs
   something measurable today.
@@ -414,6 +414,8 @@ questions:
       Does `bloomery.runtime` record at INFO or only at DEBUG? A hydration miss is
       per-request telemetry and INFO may be too chatty for a hot service; the bench
       lane should measure it before the level is fixed. D-14 ships DEBUG in the meantime.
+    status: settled
+    settled_by: D-14
   - id: Q-3
     text: >-
       Does the CLI's `--verbose` flag belong to this design or to an amendment of

@@ -23,7 +23,7 @@ summary: |
   and atheris 3.1.0 ships no cp311 wheel and no source distribution — so the container path
   needs a hand-maintained CPython build from day one. The corpus lives in `actions/cache`,
   seeded from `examples/**` and `tests/fixtures/**` so its floor tracks the examples rather
-  than drifting from them. Three jobs: a nightly batch matrixed over `PYTHONHASHSEED`, a
+  than drifting from them. Three jobs: a weekly batch matrixed over `PYTHONHASHSEED`, a
   weekly replay job that verifies rather than explores, and a short non-blocking PR job.
   ClusterFuzzLite is the demand-gated upgrade, priced here and not taken now.
 motivation: |
@@ -78,7 +78,7 @@ current_state: |
 goals: |
   - Persist the corpus between runs, so week two is better than week one.
   - Test the determinism claim across processes and hash seeds, at corpus scale.
-  - Keep the nightly cost inside a public repository's free runner budget, well clear of
+  - Keep the weekly cost inside a public repository's free runner budget, well clear of
     the six-hour job cap.
   - Report findings somewhere a person actually reads.
   - Depend on nothing whose breakage silently produces a green check.
@@ -183,8 +183,9 @@ out_of_scope: |
   - **Schema-directed generation.** `rfcs/0073-generating-from-the-spec-schema.md`.
   - **Fuzzing the container-backed examples.** A container per execution destroys
     throughput; the execution and e2e tiers own engines actually running.
-  - **Automatic issue filing from findings.** Triage is a person's job, and a bot that files
-    a duplicate crash nightly is how the finding stream gets muted.
+  - **Triage.** What a finding means is a person's call. D-10 files one issue per failed target
+    and comments on it while it stays open, because a bot that files a duplicate crash every
+    week is how the finding stream gets muted.
   - **Any change under `src/bloomery/`.** This document adds workflows and a corpus store
     and changes no shipped code and no target.
 risks: |
@@ -259,12 +260,18 @@ questions:
       Does `actions/cache` hold a fuzzing corpus comfortably? The bounds look ample
       on paper; nobody has run it here. One month of nightly runs answers it, and
       D-3 pre-commits the response either way.
+    status: settled
+    settled_by: D-9
   - id: Q-2
     text: >-
       What cadence does the replay job want? Weekly is a guess. Its runtime grows
       with the corpus, and the first month's numbers settle it.
+    status: settled
+    settled_by: D-8
   - id: Q-3
     text: >-
       Where does a finding get reported? A failed scheduled job notifies whoever owns
       the repository and nobody else. Whether that is enough, or whether it wants
       an issue, is unsettled — and deliberately not answered by filing one automatically.
+    status: settled
+    settled_by: D-10

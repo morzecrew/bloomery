@@ -395,6 +395,8 @@ questions:
       If a real consumer asks, the answer is likely a mart-level declaration that
       the grain includes the version — which needs the validity columns from §5.3
       and so is Phase 2 anyway.
+    status: settled
+    settled_by: S-0080/D-1
   - id: Q-2
     text: >-
       **Where does the anchor live** — on the `flatten` entry, on the mart, or on

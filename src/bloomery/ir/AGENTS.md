@@ -518,13 +518,6 @@ A determination is a **stored** fact. `ColumnIR` gains `determines: tuple[str, .
 - Paths: `src/bloomery/ir/nodes.py`
 - Consequence: A merge shadow and a step output carry no determination, and that is the answer rather than an omission: a shadow is a second projection of a column that already carries the declaration, and a step output has no entity-model field to read one from. Neither file is in either phase's scope, and neither needs to be
 
-### S-0079/D-10 — `OPEN` (Determinations reach the IR and the rollup lowering)
-
-Whether the mart-namespace determination is also worth carrying onto `MartColumnIR` for the spec differ's impact report. This document stores it only on `ColumnIR` and derives the rest; the impact report S-0007 names has not been designed, and the shape it wants is not knowable yet. The executor adds nothing for it here and logs the decision if building proves otherwise
-
-- Paths: `src/bloomery/ir/nodes.py`
-- Consequence: Answering it later is additive and costs another version bump; answering it now would store a derived fact against D-4 on the strength of a consumer nobody has written
-
 ### S-0079/D-12 — `ASSUMED` (Determinations reach the IR and the rollup lowering)
 
 `bloomery_ir_version` 20 absorbs both shape changes: S-0007 added `role_of` to `MartColumnIR` and `MartJoinIR` while the version stayed 19, and this document's 19 → 20, which `ProjectIR`'s docstring records for `determines`, is the bump that covers it. `role_of` gets no bump of its own
