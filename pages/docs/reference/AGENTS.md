@@ -10,6 +10,13 @@ The advisory vocabulary is a closed enum with no free-text constructor, and ever
 - Consequence: Adding an advisory is a reviewed change that lands its documentation row with it; a documented code no path can construct fails the census, which is what blocks the deprecated-spelling advisory until a spelling is actually deprecated
 - Check: `uv run pytest tests/unit/test_docs_floor.py -q` (shadow; runs as `decision:S-0004/D-10`, no log entry owed)
 
+### S-0011/D-14 — `ASSUMED` (Retrieval semantics)
+
+The retrieval kind carries the same spec-YAML promise as every kind from its first release, with no pre-adoption carve-out: `retrieval_version` is `1`, changes within it are additive, as phase 4's `fusion.k`, `fusion.depth` and `analyser` were, and a breaking change mints `retrieval_version: 2`, per S-0042/D-23.
+
+- Paths: `src/bloomery/spec/retrieval.py` `pages/docs/reference/stability.md`
+- Consequence: a retrieval spec written against 0.3.0 keeps compiling under the same promise as every other kind
+
 ### S-0033/D-30 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 *(2026-08-08, M12; closed by D84)* **Postgres cannot host quality-carrying entities.** `coercible` needs a real NULL-on-failure cast (`DialectFeature.TRY_CAST`); sqlglot renders `TRY_CAST` on Postgres as a plain `CAST`, which aborts the run instead of marking the row, so the dialect declares the feature gap and compiling a quality-carrying entity for it raises `UnsupportedByTarget` — loud, never a silent degradation into an aborted run. Consequence for §6's dialect matrix: there is no Postgres dirty-corpus tier to add until either sqlglot renders a real `TRY_CAST` or the lowering grows a per-type `CASE`-based fallback whose semantics are proven equal to `TRY_CAST`'s on the corpus. Named as the escape hatch, not built.

@@ -128,3 +128,14 @@ amendments:
 
       - D-12 answers Q-1.
       - D-13 answers Q-3.
+  - id: A-4
+    at: '2026-10-01T05:21:50Z'
+    title: What the code and later rows already answered
+    changes:
+      - subject: D-10
+        field: superseded_by
+        after: S-0079/D-11
+    md: |-
+      Open questions and OPEN rows this document still carried, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+
+      - D-10 is answered by S-0079/D-11: S-0079/D-11 records the decision D-10 asked to be logged: the mart-namespace mapping is derived at the call and stored nowhere, because no second consumer appeared, so `MartColumnIR` gains nothing.

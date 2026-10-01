@@ -142,3 +142,21 @@ decisions:
       than no guard. The import direction is enforced separately, at package granularity,
       because it answers a different question.
     paths: [src/bloomery/cli/io.py, tests/unit/test_purity_guard.py]
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      `all_spec_schemas()` returns one standalone schema per kind, never a bundle;
+      `bloomery explain` takes `--policy 'dimension op value'`, parsed into a `RowPolicy`;
+      no schema is published to Schema Store while the spec schema is unstable; and
+      `--format json` is the API's own value (S-0037/D-4), never a platform ledger's
+      shape.
+    paths:
+      - src/bloomery/schema.py
+      - src/bloomery/cli/__init__.py
+      - src/bloomery/cli/serialize.py
+    consequence: >-
+      an editor or CI validates one kind's YAML on its own, and an explanation policy
+      is stated on the command line
+    rationale: >-
+      The code answers sub-questions 1 and 2 in docstrings that cite them, and keeps
+      3 deferred and 4 uncoupled as the question leaned.

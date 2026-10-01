@@ -356,3 +356,5 @@ questions:
       stores? Aligning them would let the CLI produce a ledger-ready artifact; it
       would also couple a library output shape to a platform concern. Leaning: no
       — the platform maps it.
+    status: settled
+    settled_by: D-13

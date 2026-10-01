@@ -66,3 +66,16 @@ amendments:
       on their restrictions is refused (S-0082/D-4). S-0082 phases 1 and 4 implement
       it; until they land a filtered component is refused from a composed plan as
       before.
+  - id: A-3
+    at: '2026-10-01T05:21:50Z'
+    title: What the code and later rows already answered
+    changes:
+      - subject: D-13
+        field: superseded_by
+        after: S-0055/D-18
+    md: |-
+      Open questions and OPEN rows this document still carried, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+
+      - D-13 is answered by S-0055/D-18: EXTRA, not in the input list: the row's text opens '(superseded by D18.)' but `superseded_by` is unset.
+      - Q-1 is answered by S-0082/D-1: S-0082 is the document of its own the question deferred to (its motivation cites S-0055/Q-1): S-0082/D-1 admits a metric's own filter scoped to its measures, and S-0082/D-3 keeps a request filter missing from a branch refused; S-0055/D-12 is dimension identity and does not answer it.
+      - Q-2 is answered by S-0055/D-18: S-0055/D-13 answered it and is itself superseded by S-0055/D-18, the live LOCKED row that fixes one null-safe composition for every dialect.

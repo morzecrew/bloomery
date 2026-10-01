@@ -56,3 +56,19 @@ amendments:
 
       Settled by the implementation:
       - D-5: The policy and the promotion condition are in the tree and pinned by tests. The promotion itself is a future act that the condition governs, and it has not happened. Evidence: .github/workflows/fuzz.yaml; tests/unit/test_fuzz_workflows.py::test_the_pull_request_job_is_non_blocking; tests/unit/test_fuzz_workflows.py::test_no_fuzz_job_is_part_of_the_required_check; .torve/specs/S-0009/execution/T-0015-1-20260919T104650Z.yaml.
+  - id: A-3
+    at: '2026-10-01T05:21:50Z'
+    title: What the code and later rows already answered
+    changes:
+      - subject: D-8
+        field: text
+        after: >-
+          The replay job runs on every pull request touching `src/**`, `fuzz/**`,
+          `examples/**` or `tests/fixtures/**`, on the weekly Monday schedule and
+          on dispatch, under a 30-minute ceiling; one run is 594 compiles, measured
+          at 1m24s on a developer machine.
+    md: |-
+      Open questions and OPEN rows this document still carried, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+
+      - D-8 answers Q-2. Evidence: .github/workflows/fuzz.yaml; tests/unit/test_fuzz_workflows.py.
+      - Q-1 is answered by S-0009/D-3: The question says S-0009/D-3 pre-commits the response either way: the corpus lives in `actions/cache` keyed per target, with a dedicated corpus repository as the stated departure if eviction or size bites.

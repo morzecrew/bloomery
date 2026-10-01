@@ -101,3 +101,18 @@ decisions:
     rationale: >-
       Depart if generation proves slower than the run it seeds
     fingerprint: 624d932148915dee/35e999ccc3b36d89
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      The replay job runs on every pull request touching `src/**`, `fuzz/**`, `examples/**`
+      or `tests/fixtures/**`, on the weekly Monday schedule and on dispatch, under
+      a 30-minute ceiling; one run is 594 compiles, measured at 1m24s on a developer
+      machine.
+    paths: [.github/workflows/fuzz.yaml]
+    consequence: >-
+      a change to the code or the corpus is replayed before it merges, and the weekly
+      run catches drift between changes
+    rationale: >-
+      The replay job has no event guard, so it rides every path-filtered pull request
+      as well as the weekly schedule, which answers the cadence question more often
+      than weekly.

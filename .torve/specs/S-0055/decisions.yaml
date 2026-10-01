@@ -177,6 +177,7 @@ decisions:
       - src/bloomery/dialects/base.py
       - src/bloomery/planner/compose.py
       - tests/unit/test_planner/test_compose.py
+    superseded_by: D-18
   - id: D-14
     grade: ASSUMED
     text: >-

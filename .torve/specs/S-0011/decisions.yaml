@@ -193,6 +193,21 @@ decisions:
       The evidence module is everything knowable about a spec without touching data,
       and there is no surface anywhere for supplying a measurement; the source proposal's
       quality rules would apply equally to every existing column
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      The retrieval kind carries the same spec-YAML promise as every kind from its
+      first release, with no pre-adoption carve-out: `retrieval_version` is `1`, changes
+      within it are additive, as phase 4's `fusion.k`, `fusion.depth` and `analyser`
+      were, and a breaking change mints `retrieval_version: 2`, per S-0042/D-23.
+    paths: [src/bloomery/spec/retrieval.py, pages/docs/reference/stability.md]
+    consequence: >-
+      a retrieval spec written against 0.3.0 keeps compiling under the same promise
+      as every other kind
+    rationale: >-
+      The kind shipped in 0.3.0 under the general promise and its first change after
+      release was kept additive so the version did not move, which is the answer in
+      practice.
 invariants:
   - id: I-1
     statement: >-

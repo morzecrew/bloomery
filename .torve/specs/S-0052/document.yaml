@@ -266,3 +266,5 @@ questions:
       None blocking. §8's format name and §9's `Z`-plus-`to_utc` case are both deliberately
       deferred with their mechanisms recorded, and neither changes the guard this
       RFC ships.
+    status: settled
+    settled_by: S-0081/D-2

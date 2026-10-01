@@ -57,3 +57,20 @@ amendments:
       Settled by the implementation:
       - D-11: Execution decided the question in T-0084, and the spec models implement the answer. Evidence: src/bloomery/spec/common.py; src/bloomery/spec/entity.py; src/bloomery/spec/retrieval.py; tests/unit/test_guardrails/test_retrieval.py.
       - D-12: Execution decided the question in T-0084, taking the row's own argument that a later move from space to profile is additive. Evidence: src/bloomery/spec/retrieval.py; tests/unit/test_spec/test_retrieval.py::test_the_worked_document_parses_with_distance_on_the_space.
+  - id: A-3
+    at: '2026-10-01T05:21:50Z'
+    title: What the code and later rows already answered
+    changes:
+      - subject: D-14
+        field: text
+        after: >-
+          The retrieval kind carries the same spec-YAML promise as every kind from
+          its first release, with no pre-adoption carve-out: `retrieval_version` is
+          `1`, changes within it are additive, as phase 4's `fusion.k`, `fusion.depth`
+          and `analyser` were, and a breaking change mints `retrieval_version: 2`,
+          per S-0042/D-23.
+    md: |-
+      Open questions and OPEN rows this document still carried, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+
+      - D-14 answers Q-2. Evidence: src/bloomery/spec/retrieval.py; .torve/specs/S-0011/phasing.yaml; pages/docs/concepts/retrieval.md; CHANGELOG.md.
+      - Q-1 is answered by S-0011/D-1: The document says building phase 1 is answering Q-1 the second way, and the owner accepted it and every phase landed, so retrieval ships as its own spec kind per S-0011/D-1.

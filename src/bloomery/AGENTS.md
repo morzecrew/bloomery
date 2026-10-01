@@ -406,6 +406,13 @@ Determinism tiers: `pure` (freely backfillable) | `seeded` (seed required in the
 
 - Paths: `src/bloomery/__init__.py` `src/bloomery/errors.py` `tests/unit/test_error_suggestions.py`
 
+### S-0037/D-13 — `ASSUMED` (Authoring ergonomics: schema export, CLI, fix suggestions)
+
+`all_spec_schemas()` returns one standalone schema per kind, never a bundle; `bloomery explain` takes `--policy 'dimension op value'`, parsed into a `RowPolicy`; no schema is published to Schema Store while the spec schema is unstable; and `--format json` is the API's own value (S-0037/D-4), never a platform ledger's shape.
+
+- Paths: `src/bloomery/schema.py` `src/bloomery/cli/__init__.py` `src/bloomery/cli/serialize.py`
+- Consequence: an editor or CI validates one kind's YAML on its own, and an explanation policy is stated on the command line
+
 ### S-0039/D-1 — `ASSUMED` (`SpecEvidence`: spec analysis as a first-class output)
 
 **`evaluate(project) -> SpecEvidence` is added**, composing `build_project_ir` → `resolve` and the batched refusal stages under one call and one frozen return type. It adds no analysis bloomery does not already perform; the contribution is naming the concept and stopping its discard at the exception boundary.

@@ -51,3 +51,10 @@ amendments:
       Settled by the implementation:
       - D-4: Merged was chosen over a pair. A stale comment at lineage.py still says the coercion 'refuses "both"', which is no longer true. Evidence: src/bloomery/resolve/lineage.py; tests/unit/test_resolve/test_lineage.py::test_both_is_the_union_of_the_two_walks.
       - D-8: P1 built the Node-only signature and the retired log recorded it as D8's answer. `timeline()` accepts a string, but it spans versions and is S-0069's surface, not this one. Evidence: src/bloomery/resolve/lineage.py; src/bloomery/cli/__init__.py; tests/unit/test_cli.py::test_lineage_suggestions_are_bounded_and_deterministic.
+  - id: A-2
+    at: '2026-10-01T05:21:50Z'
+    title: What the code and later rows already answered
+    md: |-
+      Open questions and OPEN rows this document still carried, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+
+      - Q-3 is answered by S-0048/D-5: S-0048/D-5 keeps acyclicity a precondition and names the departure as a caller that wants to walk a cyclic graph to see the cycle, which is this question; none has appeared.

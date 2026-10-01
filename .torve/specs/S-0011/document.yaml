@@ -396,8 +396,12 @@ questions:
       respectable; if it is the first, the correct outcome is to refuse this document
       and keep retrieval semantics downstream, where a runtime that already knows
       its own vector store can enforce them.
+    status: settled
+    settled_by: D-1
   - id: Q-2
     text: >-
       What does a spec-version bump mean for a kind nobody has adopted yet? The stability
       promise is written for kinds in use; this kind starts with no users, and saying
       so before the first release is cheaper than discovering the promise applies.
+    status: settled
+    settled_by: D-14

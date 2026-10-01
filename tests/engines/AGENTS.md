@@ -47,9 +47,9 @@ Both emulators carry the `surrogate` marker, distinct from `engine`, and neither
 - Paths: `tests/engines/**` `pyproject.toml`
 - Consequence: `engine("snowflake")` over an emulator is the claim made in the one place it is invisible — a test name in a CI log — so the tier table grows a rung rather than reusing one, and a green surrogate lane can never be quoted as engine conformance
 
-### S-0013/D-5 — `OPEN` (Snowflake dialect port)
+### S-0013/D-5 — `ASSUMED` (Snowflake dialect port)
 
-Whether the LocalStack lane is maintained at all is decided from the defects each emulator found that the other missed, after one port's worth of work, and not before
+No LocalStack lane for Snowflake is built or maintained. The OSS emulator is the only surrogate lane, for rendering evidence, and found zero bloomery defects over the corpus; execution evidence comes from the live lane. The emulator comparison never ran, because S-0013/D-7's credential rule kept LocalStack out.
 
 - Paths: `tests/engines/**` `tests/support/**`
 - Consequence: Two emulators is two maintenance surfaces, two pinned versions and two sets of documented gaps to know; whoever runs both counts what each caught and records the count, and a decision taken before that evidence exists is the thing this row refuses

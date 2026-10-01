@@ -170,6 +170,13 @@ A vector field may be declared on an entity as well as on a mart. `vector(<scala
 - Paths: `src/bloomery/spec/**`
 - Consequence: Putting it on the space is the easier position to relax later, since moving a field from the space to the profile is additive and the reverse is not
 
+### S-0011/D-14 — `ASSUMED` (Retrieval semantics)
+
+The retrieval kind carries the same spec-YAML promise as every kind from its first release, with no pre-adoption carve-out: `retrieval_version` is `1`, changes within it are additive, as phase 4's `fusion.k`, `fusion.depth` and `analyser` were, and a breaking change mints `retrieval_version: 2`, per S-0042/D-23.
+
+- Paths: `src/bloomery/spec/retrieval.py` `pages/docs/reference/stability.md`
+- Consequence: a retrieval spec written against 0.3.0 keeps compiling under the same promise as every other kind
+
 ### S-0019/D-2 — `ASSUMED` (Spec layer and error model)
 
 Loaders are pure text-in: `load_catalog(text)`, `load_project(sources: Mapping[str, str])`. No path/file API will be added to the core package — I/O belongs to callers.

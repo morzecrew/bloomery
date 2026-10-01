@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-01T05:21:50Z'
+    title: What the code and later rows already answered
+    changes:
+      - subject: D-13
+        field: text
+        after: >-
+          `all_spec_schemas()` returns one standalone schema per kind, never a bundle;
+          `bloomery explain` takes `--policy 'dimension op value'`, parsed into a
+          `RowPolicy`; no schema is published to Schema Store while the spec schema
+          is unstable; and `--format json` is the API's own value (S-0037/D-4), never
+          a platform ledger's shape.
+    md: |-
+      Open questions and OPEN rows this document still carried, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+
+      - D-13 answers Q-1. Evidence: src/bloomery/schema.py; src/bloomery/cli/__init__.py; src/bloomery/cli/serialize.py.

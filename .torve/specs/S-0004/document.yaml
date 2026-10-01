@@ -414,6 +414,8 @@ questions:
       Does `bloomery.runtime` record at INFO or only at DEBUG? A hydration miss is
       per-request telemetry and INFO may be too chatty for a hot service; the bench
       lane should measure it before the level is fixed. D-14 ships DEBUG in the meantime.
+    status: settled
+    settled_by: D-14
   - id: Q-3
     text: >-
       Does the CLI's `--verbose` flag belong to this design or to an amendment of
