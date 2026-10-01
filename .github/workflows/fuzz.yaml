@@ -432,7 +432,11 @@ jobs:
             sort -u |
             while read -r target; do
               title="Fuzz finding: $target"
-              body="The scheduled fuzz run $RUN_URL failed on \`$target\`. The run's log and its \`fuzz-crashes-$target-*\` artifacts hold the reproducer."
+              if [ "$target" = replay ]; then
+                body="The scheduled fuzz run $RUN_URL failed its cross-process determinism replay. The replay job's log names the artifacts that differed."
+              else
+                body="The scheduled fuzz run $RUN_URL failed on \`$target\`. The run's log and its \`fuzz-crashes-$target-*\` artifacts hold the reproducer."
+              fi
               number=$(gh issue list --state open --limit 200 --json number,title \
                 --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)
               if [ -n "$number" ]; then
