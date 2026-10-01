@@ -73,6 +73,8 @@ jobs:
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
+          prune-cache: true
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
           cache-dependency-glob: |
             uv.lock
             pyproject.toml
@@ -124,6 +126,8 @@ jobs:
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
+          prune-cache: true
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
           cache-dependency-glob: |
             uv.lock
             pyproject.toml

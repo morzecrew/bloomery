@@ -199,3 +199,18 @@ def test_the_replay_job_still_leads(workflow: dict) -> None:
 
     assert jobs[0] == "replay"
     assert jobs.index("replay") < jobs.index("pr")
+
+
+
+def test_no_uv_cache_crowds_out_the_corpus() -> None:
+    """S-0009/D-9. Unpruned uv caches of about 2 GB each, several saved by pull
+    requests, evicted the week-old corpus before the next Monday read it. Every
+    cached `setup-uv` step prunes before saving and saves only on `main`."""
+    for path in sorted((REPO_ROOT / ".github" / "workflows").glob("*.y*ml")):
+        for job in load(path)["jobs"].values():
+            for step in job.get("steps", []):
+                options = step.get("with", {})
+                if "setup-uv" not in step.get("uses", "") or options.get("enable-cache") is False:
+                    continue
+                assert options.get("prune-cache") is True, path.name
+                assert options.get("save-cache") == "${{ github.ref == 'refs/heads/main' }}", path.name
