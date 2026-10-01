@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0085
+title: >-
+  A fact from an upstream project grades as imported
+kind: design
+change:
+  type: fix
+  scope: guardrails
+status: draft
+implementation: none
+depends_on: [S-0002, S-0070]
+informed_by: [S-0075]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  Evidence grading reads the local draft, so a fact that reaches a downstream project from an upstream is never graded at all: a strict local mart over an imported base, or a strict exposure naming an imported mart, passes `requires_evidence: locked` silently. Worse, an upstream whose own `locked` mart refuses a fact it read from a manifest can be imported into a downstream whose `locked` mart over the same entity compiles clean: the boundary launders the grade.
+
+  Evidence reads the composed view, and every fact bound from an upstream grades ASSUMED, the grade S-0070 gives a fact nobody here wrote down. A strict consumer of an imported node is refused with its own message, naming the alias and the upstream fingerprint, and the remedy to relax the requirement or carry it on the upstream's mart. Nothing in the IR changes and no golden moves. The naming-policy half of S-0002/Q-1 stays an advisory until something other than Python can select a policy.
+motivation: >-
+  S-0070/Q-2 asked how an upstream fact grades downstream; S-0002/Q-1 asked whether
+  composed projects are checked for one naming policy. Both were confirmed by probe
+  on 2026-10-01: the grade is never computed, and a mismatched policy compiles both
+  sides with equal fingerprints.
+current_state: >-
+  `guardrails/stage.py` passes the local draft to `check_evidence`, not `with_imported(draft)`;
+  `guardrails/evidence.py::_weak_columns` returns nothing for a base it cannot find,
+  on the assumption the mart failed to flatten. `imported_from:` never reaches the
+  IR. `NamingPolicy` is applied only at emit (`compile.py`), `build_project_ir` never
+  sees it, `project_fingerprint` does not cover it, and the CLI never passes one.
+goals: |-
+  - A strict consumer of an imported fact is judged, not waved through.
+  - An upstream's weak fact never grades stronger downstream.
+  - No IR change, no fingerprint move.
+non_goals: |-
+  - Carrying the upstream's own per-fact grades across the boundary; it needs provenance on IR nodes, which S-0075/D-3 forbids.
+  - Recording the naming policy in the IR (D-6).
+design:
+  - key: the-boundary-grade
+    md: >-
+      `check_evidence` reads the composed view, as S-0002/D-9 already requires of
+      a guard judging a local declaration that can name an imported node. A fact whose
+      node was bound from an upstream — an imported entity's key, an imported mart's
+      measures, an imported metric's additivity — grades ASSUMED, derived from `ProjectIR.upstream`
+      and never stored on a node. A strict consumer of one is refused by its own template,
+      naming the alias and the upstream fingerprint and offering the two remedies
+      an author here can take.
+tests: |-
+  - A `locked` mart over an imported base, and a `locked` exposure naming an imported mart, are refused with the boundary template; `assumed` compiles.
+  - The laundering scenario: an upstream refusing its own `locked` mart, imported, refuses downstream too.
+  - A dangling mart name still gets no evidence leaf, and no golden moves.
+docs: >-
+  `concepts/what-bloomery-proves.md` says an imported fact grades ASSUMED downstream
+  and quotes the boundary refusal.
+out_of_scope: ''
+risks: |-
+  - A `locked` mart over any imported base can never pass downstream; the remedy is to relax it or move the requirement upstream, which the owner accepts by accepting this document.
+  - Reading the composed view without the boundary grade would turn 'never graded' into an explicit LOCKED, so D-1 and D-2 land together.
+alternatives:
+  - option: Carry the upstream's own grade for each fact
+    rejected_because: >-
+      it needs provenance on IR nodes, which S-0075/D-3 forbids, and an IR bump
+  - option: Let upstream facts count as LOCKED
+    rejected_because: >-
+      it contradicts S-0070/D-9 and keeps the laundering the probe showed
+questions:
+  - id: Q-1
+    text: >-
+      Should the naming check land now rather than at the trigger D-6 names? It costs
+      an IR version bump that moves every golden, against a mismatch only a Python
+      caller can produce today.
+  - id: Q-2
+    text: >-
+      Is the boundary a producer of S-0070's IMPORTED_VERIFIED grade, which would
+      fire S-0070/D-9's revisit, and should S-0070/D-9 be locked now?

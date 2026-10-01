@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A replay guard compares the macro with the project it was compiled with or the
+      relations that are built, never with the spec that quarantined a row
+    paths: [src/bloomery/emit/dbt/__init__.py]
+    consequence: >-
+      replaying after a spec change, which is replay's purpose, is never refused
+    rationale: >-
+      S-0033's replay re-runs the current mapping by design, and the tests replay
+      after widening a rule
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `dbt_project.yml` carries `vars: {bloomery_fingerprint: <project fingerprint>}`,
+      and the dbt replay macro refuses before BEGIN when the var differs from the
+      fingerprint it was emitted under
+    paths: [src/bloomery/emit/dbt/__init__.py]
+    consequence: >-
+      a replay left over from another compile, or run against a project compiled elsewhere,
+      refuses instead of writing
+    rationale: >-
+      the byte fingerprint is exact between files one compile wrote together, and
+      a refusal is cheap to clear by recompiling
+    cites: [S-0060/D-3, S-0025/D-4]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Before BEGIN the dbt replay macro checks that the entity and its reject table
+      carry every column the statements write, and refuses naming the missing columns
+      and the rebuild that adds them
+    paths: [src/bloomery/emit/dbt/__init__.py, src/bloomery/emit/lower/silver.py]
+    consequence: >-
+      a reject table a version behind the macro is refused before a statement commits,
+      including on Databricks
+    rationale: >-
+      without a transaction a half-applied replay is the state S-0060/D-14 exists
+      to prevent
+    cites: [S-0060/D-14]
+  - id: D-4
+    grade: ASSUMED
+    text: SQLMesh's replay script is unchanged
+    paths: [src/bloomery/emit/sqlmesh/__init__.py]
+    consequence: no SQLMesh golden moves
+    rationale: >-
+      a script the caller runs has nothing at run time to compare against
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      No id-only fingerprint is introduced; if a guard ever needs a narrower scope
+      it is a new entity fingerprint beside an unchanged `project_fingerprint`; this
+      answers S-0067/Q-2 for replay
+    paths: [src/bloomery/ir/fingerprint.py]
+    consequence: >-
+      the project fingerprint keeps every meaning it has
+    rationale: >-
+      S-0067's ids cover no entity, and a downstream fingerprint includes its upstream's
+      whole (S-0002/D-3)
+    cites: [S-0002/D-3, S-0067/D-1]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `how-to/emit-dbt.md` names rebuilding the entity and its reject table from the
+      same checkout before a replay, and what the guard refuses
+    paths: [pages/docs/how-to/emit-dbt.md]
+    consequence: >-
+      the documented order matches what the guard enforces
+    rationale: >-
+      the current example rebuilds only the reject table

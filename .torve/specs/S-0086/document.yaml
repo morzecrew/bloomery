@@ -1,0 +1,86 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0086
+title: >-
+  A replay runs only against the project it was compiled with
+kind: design
+change:
+  type: fix
+  scope: emit
+status: draft
+implementation: none
+depends_on: [S-0060, S-0033]
+informed_by: [S-0067, S-0025]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  Replay re-runs the current mapping over quarantined rows, and running it after the spec changed is what it is for. The hazard is a replay macro that does not match what is built: an operator running it from a stale checkout admits rows the deployed spec rejects and stamps them resolved for good, and on Databricks, with no transaction, a reject table one version behind the macro leaves a row admitted and unresolved. Every replay carries the project fingerprint in a header nobody compares.
+
+  On dbt, `dbt_project.yml` carries the project fingerprint as a var, and the replay macro refuses before it begins when the two differ, and refuses when the entity or its reject table lacks a column the statements write. A guard never compares against the spec that quarantined a row, which would refuse the designed path. SQLMesh's replay is a script the caller runs and stays as it is.
+motivation: >-
+  S-0060/Q-1 asked whether replay should check the fingerprint it carries; S-0067/Q-2
+  asked for an id-only fingerprint. Research on 2026-10-01 found the question framed
+  against the wrong thing: the spec moving since quarantine is replay's purpose, and
+  the risk is the build and the macro disagreeing.
+current_state: >-
+  `emit/lower/silver.py::replay_statements` emits three statements per entity; dbt
+  wraps them in `macros/replay_<entity>.sql` with BEGIN/COMMIT (none on Databricks)
+  and SQLMesh in `replay/<entity>.sql`. Both carry `-- fingerprint:` and nothing compares
+  it. `project_fingerprint` covers the whole IR, descriptions and upstreams included.
+  `cli/io.py::write_files` never deletes, so an old replay macro survives a rename.
+  `how-to/emit-dbt.md` says rebuild first but its example rebuilds only the reject
+  table.
+goals: |-
+  - A dbt replay refuses to run from a compile other than the one the project was built with.
+  - It refuses before it writes when a relation lacks a column it writes.
+  - The designed path, replaying after a spec change, is untouched.
+non_goals: |-
+  - A guard on SQLMesh, whose replay is a script with nothing to compare against at run time.
+  - An id-only fingerprint (D-5).
+design:
+  - key: the-guard
+    md: >-
+      Before BEGIN, the macro compares `var('bloomery_fingerprint')` — written into
+      `dbt_project.yml` by the same compile — with the fingerprint it was emitted
+      under, and checks with `adapter.get_columns_in_relation` that the entity and
+      its reject table carry every column the statements write. Either mismatch raises
+      a compiler error naming what differs and the fix, `dbt build -s <entity> <entity>__reject`
+      from the same checkout. The byte fingerprint is exact here: every compile rewrites
+      every file, so the two differ only when one is left over or the project was
+      compiled elsewhere.
+tests: |-
+  - A mismatched `bloomery_fingerprint` var makes the replay refuse and write nothing.
+  - A reject table missing a written column refuses, naming it.
+  - Replaying after a widened spec still admits the row (the designed path).
+  - SQLMesh replay bytes do not move.
+docs: >-
+  `how-to/emit-dbt.md` names rebuilding the entity and its reject table from the same
+  checkout, and what the guard refuses.
+out_of_scope: ''
+risks: |-
+  - The stale-checkout scenario is caught only where that checkout's compile also wrote the project file the run reads; a ledger in the warehouse would catch every case (Q-1).
+  - `--vars` can override the guard; that is a deliberate act.
+  - Column names come back upper-case on Snowflake; the comparison is case-insensitive.
+  - Whether SQLMesh's replay runs against a real SQLMesh warehouse at all, since SQLMesh publishes `silver.<entity>` as a view, is unsettled and comes before any SQLMesh guard.
+alternatives:
+  - option: >-
+      Refuse a replay when the spec changed since the rows were quarantined
+    rejected_because: >-
+      it refuses replay's designed use, replaying after a relaxed rule
+  - option: Warn instead of refusing
+    rejected_because: >-
+      a log line in a run-operation scrolls past while the write commits, and every
+      remedy is cheap
+questions:
+  - id: Q-1
+    text: >-
+      Is a bloomery-written ledger in the warehouse acceptable — a post-hook stamping
+      each built entity's fingerprint, which the macro compares against? It is the
+      only guard that catches a stale checkout whose own compile is self-consistent,
+      and it would be the first artifact writing state no model owns.
+  - id: Q-2
+    text: >-
+      Should `--out` delete files an earlier compile wrote and this one did not? Left-over
+      replay macros and models are what D-2 catches; deleting needs a record of earlier
+      writes and could remove hand-written files.

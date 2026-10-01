@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A `referential` verdict reads only the parent's admitted silver rows; the probe
+      never reads a reject table, so a parent that is quarantined, late or not yet
+      replayed counts as absent
+    paths: [src/bloomery/emit/lower/silver.py, src/bloomery/quality/predicates.py]
+    consequence: >-
+      the verdict is a fact about silver, which is what every mart and metric reads
+    rationale: >-
+      a reject table is not a semantic input (S-0033/D-12) and an upstream's stays
+      upstream (S-0002/D-5)
+    cites: [S-0033/D-12, S-0002/D-5]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `coverage:` counts admitted rows on both sides and has no 'exists' form; S-0033/Q-5's
+      literal question is answered as correct for 'has an order', and S-0033/D-90
+      stands
+    paths: [src/bloomery/emit/lower/reconcile.py]
+    consequence: >-
+      a coverage failure means the silver data lacks the children, which is what a
+      consumer of silver sees
+    rationale: >-
+      counting rows a mart cannot read would make coverage pass on data no query returns
+    cites: [S-0033/D-90]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `replay_scope` names every entity whose `referential` rule at `on_missing: quarantine`
+      reaches, directly or through a chain, an entity already in scope
+    paths: [src/bloomery/plan/diff.py, src/bloomery/plan/model.py]
+    consequence: >-
+      a parent that comes back brings back the children it held
+    rationale: >-
+      re-evaluating a child re-runs the probe, so its existing replay is the whole
+      mechanism; S-0033/D-52 names an entity where rows can come back, and these can
+    cites: [S-0033/D-52]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `replay_scope` is ordered parents first, topologically with ties broken by name
+    paths: [src/bloomery/plan/diff.py]
+    consequence: >-
+      a caller running the scope in order replays a child after its parent's rows
+      are admitted
+    rationale: >-
+      a child replayed before its parent stays held, so the order is the cascade's
+      correctness
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      A dependent at `on_missing: unknown_member` or `flag` of an entity in `replay_scope`
+      is named in `backfill_scope`; rows bronze no longer holds keep their rewrite
+      or flag
+    paths: [src/bloomery/plan/diff.py]
+    consequence: >-
+      children still in bronze's window are re-judged against the returned parent
+    rationale: >-
+      those dispositions keep no reject row to replay; the limit is theirs and the
+      docs say so
+    cites: [S-0033/D-6]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Replaying an entity whose routing reads another entity is the documented fix
+      for a late parent, and is safe to run every cycle; bloomery does not schedule
+      it
+    paths: [pages/docs/concepts/data-quality.md]
+    consequence: >-
+      a late parent and a quarantined one recover the same way
+    rationale: >-
+      replay is idempotent (S-0033/D-22) and bloomery executes nothing (S-0033/D-10)
+    cites: [S-0033/D-22, S-0033/D-10]

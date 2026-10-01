@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A mart's owner reaches its MetricFlow semantic model and a metric's owner its
+      metric, both as `config.meta.owner`; with no owner `config` stays null, and
+      an entity has no MetricFlow node to carry one; this answers S-0062/Q-2
+    paths: [src/bloomery/emit/metricflow/__init__.py, tests/unit/test_ownership.py]
+    consequence: >-
+      the fourth target carries the owner the other three already do
+    rationale: >-
+      `config.meta` is the slot the pinned MetricFlow offers; `owners` does not exist
+      in it
+    cites: [S-0062/D-2]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      No `cron` is emitted, in `model_defaults` or on any model; an unstated cron
+      makes a project late, never wrong, because it moves when an interval closes
+      and not which rows the interval holds; this answers S-0061/Q-2
+    paths:
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - tests/unit/test_emit/test_sqlmesh.py
+    consequence: >-
+      cadence stays the caller's, outside a file every compile rewrites
+    rationale: >-
+      a cron written by bloomery would be overwritten by the next compile, the trap
+      S-0061 names
+    cites: [S-0061/D-8]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      An exposure emits no MetricFlow `saved_query`, and this is not a refusal: a
+      saved query is a request and an exposure a consumer, with no group-by, no slot
+      for a mart, and metrics the manifest may lack; this answers S-0063/Q-1
+    paths:
+      - src/bloomery/emit/metricflow/__init__.py
+      - tests/unit/test_emit/test_metricflow.py
+    consequence: the manifest holds only queries someone wrote
+    rationale: >-
+      `ecom_basic`'s own exposures cannot be carried faithfully: one names a metric
+      the manifest omits and one names only marts
+    cites: [S-0063/D-4]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `freshness:` carries no `filter:`; a filter only shrinks the rows the freshness
+      query scans, so leaving it out costs scan time and never correctness, and its
+      benefit rests on a bronze partition column no spec declares; this answers S-0064/Q-1
+    paths: [src/bloomery/spec/mapping.py, src/bloomery/emit/dbt/__init__.py]
+    consequence: >-
+      no unchecked SQL fragment enters dbt's freshness query
+    rationale: >-
+      the stake is cost, measurable before it is designed
+    cites: [S-0064/D-8]

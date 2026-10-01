@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `check_evidence` reads the composed view, so a strict local mart over an imported
+      base, a strict exposure naming an imported mart, and an imported metric a strict
+      consumer names are all walked
+    paths: [src/bloomery/guardrails/stage.py, src/bloomery/guardrails/evidence.py]
+    consequence: >-
+      no strict consumer of an imported node passes ungraded
+    rationale: >-
+      S-0002/D-9 requires a guard judging a local declaration that can name an imported
+      node to read the composed view
+    cites: [S-0002/D-9]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A fact bound from an upstream project grades ASSUMED, however the upstream obtained
+      it; this answers S-0070/Q-2 by S-0070/D-9's 'here'
+    paths: [src/bloomery/guardrails/evidence.py]
+    consequence: >-
+      an upstream's weak fact cannot become strong by crossing the boundary
+    rationale: >-
+      the grade asks whether a human here wrote it down, and nobody here did
+    cites: [S-0070/D-9]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      An imported metric a strict local mart lists counts as a fact below LOCKED
+    paths: [src/bloomery/guardrails/evidence.py]
+    consequence: >-
+      the additivity of a metric defined elsewhere is graded like any other imported
+      fact
+    rationale: >-
+      the module's premise that additivity is always declared here no longer holds
+      once metrics cross
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A boundary refusal has its own template naming the alias and the upstream fingerprint,
+      with the remedy to set `requires_evidence: assumed` or carry the requirement
+      on the upstream's mart, never to author it here
+    paths:
+      - src/bloomery/guardrails/evidence.py
+      - pages/docs/concepts/what-bloomery-proves.md
+    consequence: >-
+      the author is told the two things they can actually do
+    rationale: >-
+      every refusal names a remedy (S-0070/D-4), and a downstream cannot redeclare
+      an imported node (S-0002/D-11)
+    cites: [S-0070/D-4, S-0002/D-11]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The boundary grade is derived from `ProjectIR.upstream` and never stored on
+      an IR node
+    paths: [src/bloomery/guardrails/evidence.py]
+    consequence: no IR shape, version or fingerprint moves
+    rationale: >-
+      a grade is never a field (S-0070/D-11) and no node gains provenance (S-0075/D-3)
+    cites: [S-0070/D-11, S-0075/D-3]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The IR records no naming policy, and S-0002/D-7 stays a documented advisory
+      until a surface other than Python can select a policy; then the IR records each
+      export's resolved relation and the emit seam refuses a mismatch; this answers
+      S-0002/Q-1
+    paths: [src/bloomery/compile.py, src/bloomery/naming.py]
+    consequence: >-
+      no IR bump for a mismatch only a Python caller can make today
+    rationale: >-
+      recording the policy makes every IR per-tenant and moves every fingerprint,
+      for an exposure the CLI cannot reach
+    cites: [S-0002/D-7]

@@ -1,0 +1,86 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0084
+title: A replayed parent brings its children back
+kind: design
+change:
+  type: fix
+  scope: plan
+status: draft
+implementation: none
+depends_on: [S-0033, S-0060]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A `referential` rule judges a child against its parent's silver rows, so a parent routed to quarantine is absent and its children are orphans: rewritten to `__unknown__`, quarantined or flagged by `on_missing`. When the parent's own rule is relaxed and the parent is replayed, nothing asks for the children: `plan()` names only the entity whose rule moved. Reproduced on DuckDB over `dirty_corpus`, the child stays `__unknown__` with its foreign key lost, its routed twin stays unresolved, and a blocking `coverage:` check on the parent fails every run from then on.
+
+  `plan()` extends the replay to the parent's dependents: an entity whose `referential` rule at `on_missing: quarantine` reaches an entity in `replay_scope` is named too, parents first, and one at `unknown_member` or `flag` is named in `backfill_scope`. No emitted SQL changes; the replay each entity already has is what brings its children back.
+motivation: >-
+  S-0033/Q-5 asked what happens to the children of a quarantined parent, and S-0033/D-90
+  names the gap in coverage. The triage of 2026-10-01 ranked it first because it is
+  a silent wrong answer in the shipped quality system, and the same shape follows
+  any parent that simply arrives late.
+current_state: >-
+  `emit/lower/silver.py::_with_probes` LEFT JOINs the parent's silver relation on
+  both targets and `quality/predicates.py::_referential` calls a child an orphan when
+  the join finds nothing. `emit/lower/reconcile.py::coverage_audit_select` reports
+  parents in silver with fewer than `min` children in silver. `plan/diff.py::_replay`
+  names an entity only when its own quarantine rule was relaxed (S-0033/D-52), and
+  neither `replay_scope` nor `backfill_scope` reaches a dependent. Replaying a child
+  already works, because its re-evaluation re-runs the probe; nothing asks for it.
+goals: |-
+  - A parent that comes back brings back the children it orphaned, through the replay each already has.
+  - The plan says which entities to replay and in which order.
+  - No emitted SQL changes, and no golden moves.
+non_goals: |-
+  - Reading a reject table from silver (S-0033/D-12).
+  - Scheduling replay; bloomery executes nothing (S-0033/D-10).
+design:
+  - key: the-cascade
+    md: >-
+      `replay_scope` grows to its dependents: any entity whose `referential` rule
+      at `on_missing: quarantine` points, directly or through a chain, at an entity
+      already in scope is named, ordered parents first (topologically, ties by name).
+      A dependent at `unknown_member` or `flag` is named in `backfill_scope`: its
+      rows in bronze's window are rebuilt, and rows bronze no longer holds keep their
+      rewrite or flag, the documented limit of choosing those dispositions over `quarantine`.
+      A child's replay runs after its parent's rows are admitted: after the parent's
+      replay for type 1, after the next run for type 2.
+tests: |-
+  - Relaxing a parent's rule names its quarantining child in `replay_scope` after the parent, and its `unknown_member` child in `backfill_scope`.
+  - Tightening a rule names no dependent.
+  - Executed over `dirty_corpus` (spec text edited in the test): after the parent's replay and then the child's, the routed child is admitted and resolved.
+docs: >-
+  `concepts/data-quality.md` and `how-to/add-quality-rules.md` say that replaying
+  a parent names its children, in which order, and the limit for `unknown_member`
+  and `flag`.
+out_of_scope: ''
+risks: |-
+  - Ordering is the caller's; a child replayed too early stays held, harmlessly, until the next replay.
+  - A blocking `coverage:` check on a parent fails runs between the parent's replay and the child's.
+  - A parent replayed in an upstream project is invisible to a downstream plan (S-0002/D-5).
+  - Found beside this and not settled here: a replayed row in a `full` entity disappears on that entity's next build once bronze has aged it out.
+alternatives:
+  - option: >-
+      Count a parent held in the reject table as present
+    rejected_because: >-
+      it makes a reject table a silver input (S-0033/D-12), cannot see an upstream
+      parent (S-0002/D-5), and admits a child no mart can join to
+  - option: >-
+      Hold a child with its quarantined parent whatever its `on_missing` says
+    rejected_because: >-
+      it breaks `unknown_member`'s promise to keep totals (S-0033/D-6) and forces
+      a reject table onto entities whose specs compile today
+questions:
+  - id: Q-1
+    text: >-
+      Is the limit acceptable, that an `unknown_member` or `flag` child outside bronze's
+      window keeps its rewrite? The alternative is a reserved column keeping the original
+      foreign key, so a replay can restore it; it is the only way a blocking coverage
+      check on such a parent ever clears, and it changes emitted SQL on both targets.
+  - id: Q-2
+    text: >-
+      Should the plan mark these entities' replay as standing, a field a scheduler
+      reads to run it every cycle, or is the documentation enough?
