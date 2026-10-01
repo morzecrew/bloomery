@@ -1,0 +1,152 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0231
+phase: 2
+base: 49c3164ab0b25693d26ac3a883b65ffd9d780597
+commit: 79b11d0211a29ccb8c17321823c505d7c019706a
+at: '2026-10-01T23:20:48Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-01T16:21:20Z'
+    claim: >-
+      the SQLMesh emitter reads only EntityIR, never spec models, so arrival_lag cannot
+      reach the model's interval_unit/lookback without a field on EntityIR and its
+      lowering in resolve/build.py; both files are outside scope.allow, so every working
+      implementation fails the blocking scope gate
+    evidence: >-
+      src/bloomery/resolve/build.py:1438-1470 — the only place a spec Entity becomes
+      an EntityIR, outside scope; src/bloomery/ir/nodes.py:825 defines EntityIR with
+      no carrier for the lag, also outside scope; pyproject.toml:461-467 forbids emitters
+      importing the spec layer
+    action: halted
+    proposal: >-
+      amend T-0231 scope.allow to add src/bloomery/ir/nodes.py, src/bloomery/resolve/build.py
+      and tests/unit/test_resolve/** (EntityIR gains arrival_lag_hours: int | None
+      = None, appended with a default; build.py lowers it with duration_hours), then
+      re-mint
+  - decision: D-5
+    grade: ASSUMED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-01T16:23:09Z'
+    attempt: 2
+    claim: >-
+      attempt 1's halt still stands and the contract is unchanged; in addition, the
+      only route for arrival_lag to reach the SQLMesh model is a new EntityIR field,
+      and the canonical encoder writes every dataclass field name, so that field moves
+      the fingerprint header stamped into every emitted golden even when no lag is
+      declared - contradicting 'no lag, no change to any emitted golden'
+    evidence: >-
+      src/bloomery/ir/nodes.py:1735-1760 — a defaulted field addition moves every
+      project's fingerprint by design; tests/golden/minimal/sqlmesh/duckdb/models/silver/event.sql:2
+      is one such header; src/bloomery/resolve/build.py:1438 is the out-of-scope lowering
+    action: halted
+    proposal: >-
+      amend T-0231: add src/bloomery/ir/nodes.py, src/bloomery/resolve/build.py and
+      tests/unit/test_resolve/** to scope.allow, and replace 'no change to any emitted
+      golden' with 'no change to any emitted golden beyond the fingerprint header,
+      which moves with the IR version bump'; then re-mint
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-01T23:05:38Z'
+    attempt: 3
+    claim: >-
+      the contract requires EntityIR to gain the lag, but every EntityIR field must
+      be classified in src/bloomery/resolve/facets.py, which scope.allow does not
+      name; the acceptance command cannot pass without editing it
+    evidence: >-
+      tests/unit/test_resolve/test_facets.py:120-138 — enumerates every EntityIR field
+      against _FACETS in src/bloomery/resolve/facets.py:218-231; with the IR field
+      added it fails with ['arrival_lag_hours'] == [], and with a one-line facets
+      entry the acceptance runs 1442 passed
+    action: halted
+    proposal: >-
+      amend T-0231 scope.allow to add src/bloomery/resolve/facets.py and its row ("EntityIR",
+      "arrival_lag_hours"): Facet.STORAGE; the rest of the diff is in the tree and
+      green under that line
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-01T23:05:38Z'
+    attempt: 3
+    claim: >-
+      arrival_lag is refused on an scd type2 entity even when partitioned: its SCD
+      kind supersedes INCREMENTAL_BY_TIME_RANGE, so the lag would reach no model and
+      be dropped silently
+    evidence: >-
+      src/bloomery/emit/sqlmesh/__init__.py:375-388 — the type2 branch returns before
+      the time-range kind; src/bloomery/spec/entity.py:184 is the refusal
+    action: decided
+    proposal: >-
+      D-5 says 'materialized incremental_by_partition'; add 'and scd type1' to the
+      row
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-01T23:09:32Z'
+    attempt: 4
+    claim: >-
+      contract unchanged since attempt 3's halt: EntityIR must gain arrival_lag_hours,
+      every EntityIR field must be classified in src/bloomery/resolve/facets.py, and
+      scope.allow still does not name that file; the only in-scope routes are weakening
+      test_facets.py or hiding the lag inside partition_by, a per-partition-entry
+      tuple it does not belong to
+    evidence: >-
+      `uv run pytest tests/unit/test_resolve/test_facets.py -q` — 3 failed, 76 passed:
+      test_every_field_of_every_comparable_record_has_a_facet[EntityIR] and the identity_resolution/step_resolution
+      corpus flattenings; src/bloomery/resolve/facets.py:218-231 is the EntityIR table
+    action: halted
+    proposal: >-
+      amend T-0231 scope.allow to add src/bloomery/resolve/facets.py with the row
+      ("EntityIR", "arrival_lag_hours"): Facet.STORAGE, then re-mint; the rest of
+      the diff is in the tree
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-10-01T23:17:01Z'
+    attempt: 3
+    claim: >-
+      built as written: arrival_lag parsed in the retention grammar and refused off
+      type1 incremental_by_partition; SQLMesh gets interval_unit 'day' and lookback
+      ceil(hours/24); unset emits neither; a test shows SQLMesh refusing an @hourly
+      cron without allow_partials
+    evidence: >-
+      src/bloomery/emit/sqlmesh/__init__.py:394-401 — lookback in whole days rounded
+      up; src/bloomery/spec/entity.py holds the refusal
+    action: decided
+    proposal: none — the row stands as written
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-01T23:17:01Z'
+    attempt: 3
+    claim: >-
+      EntityIR.arrival_lag_hours needed a facet in the total facet table; placed in
+      STORAGE beside materialization and partition_by, since it changes how the relation
+      is loaded and not what rows it describes
+    evidence: >-
+      src/bloomery/resolve/facets.py:230 — the new facet row
+    action: decided
+    proposal: >-
+      ASSUMED — an entity's arrival lag is a STORAGE facet, beside materialization
+      and partition_by
