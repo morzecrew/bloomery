@@ -217,4 +217,11 @@ A dependent at `on_missing: unknown_member` or `flag` of an entity in `replay_sc
 - Paths: `src/bloomery/plan/diff.py`
 - Consequence: children still in bronze's window are re-judged against the returned parent
 
+### S-0086/D-10 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: none
+
+`bloomery plan` names the dbt full refresh beside every change that adds or drops a field of an incremental entity, so the operator reads it in the plan rather than from a failed run; the change keeps its class, and SQLMesh's output is unchanged.
+
+- Paths: `src/bloomery/plan/diff.py` `src/bloomery/cli/render.py`
+- Consequence: an ADDITIVE field on dbt costs a full refresh, and the plan says so before it is applied
+
 <!-- /torve:managed -->

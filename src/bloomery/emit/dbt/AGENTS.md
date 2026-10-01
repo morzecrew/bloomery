@@ -382,6 +382,13 @@ bloomery writes no ledger into the warehouse: a stale checkout whose own compile
 - Paths: `src/bloomery/emit/dbt/__init__.py`
 - Consequence: every relation bloomery emits is owned by a model, and the replay guards read only what the compile and the relations already carry
 
+### S-0086/D-9 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: none
+
+Every incremental model the dbt emitter writes, an entity's and its reject table's, carries `on_schema_change='fail'`: a changed column set fails the run instead of leaving the table without the column, and the fix is `dbt build --full-refresh -s <entity> <entity>__reject`, which recomputes history as SQLMesh's rebuild does and loses resolved reject rows, as the how-to says.
+
+- Paths: `src/bloomery/emit/dbt/__init__.py`
+- Consequence: a field added to an incremental entity can never be silently missing from its dbt table, and dbt and SQLMesh agree on the history of the new column once the refresh runs
+
 ### S-0087/D-4 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
 
 `freshness:` carries no `filter:`; a filter would have to name a bronze partition column no spec declares, and one that excluded the newest load would change the answer, so leaving it out costs scan time and never a wrong freshness; this answers S-0064/Q-1

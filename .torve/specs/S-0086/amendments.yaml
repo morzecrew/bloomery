@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-01T14:57:49Z'
+    title: The owner settles Q-3
+    changes:
+      - subject: D-9
+        field: text
+        after: >-
+          Every incremental model the dbt emitter writes, an entity's and its reject
+          table's, carries `on_schema_change='fail'`: a changed column set fails the
+          run instead of leaving the table without the column, and the fix is `dbt
+          build --full-refresh -s <entity> <entity>__reject`, which recomputes history
+          as SQLMesh's rebuild does and loses resolved reject rows, as the how-to
+          says.
+      - subject: D-10
+        field: text
+        after: >-
+          `bloomery plan` names the dbt full refresh beside every change that adds
+          or drops a field of an incremental entity, so the operator reads it in the
+          plan rather than from a failed run; the change keeps its class, and SQLMesh's
+          output is unchanged.
+    md: >-
+      The owner answered Q-3 on 2026-10-01: incremental dbt models fail on a schema
+      change (D-9), and the plan names the full refresh that fixes it (D-10). Phase
+      3 builds both. Of the four modes dbt offers, `ignore` drops a new column silently,
+      `append_new_columns` and `sync_all_columns` give it NULL history where SQLMesh
+      recomputes it, and `fail` alone keeps the targets agreeing.
