@@ -283,7 +283,7 @@ on a relationship you authored silently lowers that relationship's grade.
 **A fact from an upstream project grades `ASSUMED` here.** An entity, mart or metric this
 project imports was proven, or not, where it was authored — and however strong it was
 there, it was not written here. So a strict mart over an imported base, a strict mart
-listing an imported metric, and a strict exposure reading an imported mart are each
+listing an imported metric, and a strict exposure reading an imported mart or metric are each
 refused, naming the alias and the upstream's fingerprint:
 
 ```

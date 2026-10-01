@@ -550,5 +550,25 @@ def check_evidence(project: Project, draft: ProjectIR) -> list[GuardrailError]:
                         source_path=f"exposures: exposures.{name}.requires_evidence",
                     )
                 )
+        # An imported metric no mart in the view lists reaches no mart walk
+        # above, so the exposure rests on it directly (S-0085/D-1). One that a
+        # mart does list is named by that mart's boundary, or by the mart's own
+        # requirement, and is not repeated here.
+        listed = {measure for mart in draft.marts for measure in mart.measures}
+        for metric in sorted(set(exposure.depends_on.metrics) - listed):
+            if ("metric", metric) not in bound:
+                continue
+            alias, fingerprint = bound["metric", metric]
+            errors.append(
+                InsufficientEvidence(
+                    BOUNDARY_MESSAGE.format(
+                        consumer=f"exposure {name!r}",
+                        node=f"metric {metric!r}",
+                        alias=repr(alias),
+                        fingerprint=fingerprint,
+                    ),
+                    source_path=f"exposures: exposures.{name}.requires_evidence",
+                )
+            )
 
     return errors
