@@ -727,6 +727,13 @@ The refusal names how the fact was obtained and what to write instead. A message
 - Paths: `src/bloomery/cli/__init__.py` `src/bloomery/imports.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0085/D-6 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+The IR records no naming policy, and S-0002/D-7 stays a documented advisory until a surface other than Python can select a policy; then the IR records each export's resolved relation and the emit seam refuses a mismatch; this answers S-0002/Q-1
+
+- Paths: `src/bloomery/compile.py` `src/bloomery/naming.py`
+- Consequence: no IR bump for a mismatch only a Python caller can make today
+
 ## Invariants holding over `src/bloomery/`
 
 - **S-0004/I-1**: Compiling the corpus with a capturing handler at DEBUG on the `bloomery` logger and with no handler at all produces byte-identical artifacts, and the listening run demonstrably captured records

@@ -260,3 +260,5 @@ questions:
       Whether `owner` should also reach the MetricFlow manifest, which has an `owners`
       list on a semantic model. Probably yes; deferred because the manifest's shape
       is S-0030's.
+    status: settled
+    settled_by: S-0087/D-1

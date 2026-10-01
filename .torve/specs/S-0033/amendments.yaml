@@ -41,3 +41,10 @@ amendments:
       Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
 
       - D-97 answers Q-4.
+  - id: A-4
+    at: '2026-10-01T09:04:35Z'
+    title: Settled by S-0084
+    md: >-
+      S-0084, accepted by the owner on 2026-10-01, answers Q-5 in S-0084/D-2: a parent
+      that is quarantined, late or not yet replayed counts as absent, `coverage:`
+      counts admitted rows on both sides, and D90 stands.

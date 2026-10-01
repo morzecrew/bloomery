@@ -487,6 +487,13 @@ A `derived:` metric whose inputs carry different restrictions — different own 
 - Paths: `src/bloomery/semantic/additivity.py` `src/bloomery/planner/compose.py`
 - Consequence: admitting a metric's own filter into a composed plan never lets a derived metric fold two row sets into one number, and a derived metric whose inputs agree composes as they do
 
+### S-0085/D-7 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+This boundary stores no provenance; it grades an upstream fact ASSUMED from `ProjectIR.upstream` (S-0085/D-5), the grade S-0070/D-9 gives `IMPORTED_VERIFIED`, which S-0075's importer already produces. S-0070/D-9's answer is observable on both paths and holds, and the owner locked it on 2026-10-01.
+
+- Paths: `src/bloomery/guardrails/evidence.py` `src/bloomery/semantic/proof.py`
+- Consequence: the grade an imported fact gets is settled before the first strict consumer relies on it
+
 ## Invariants holding over `src/bloomery/semantic/`
 
 - **S-0005/I-1**: The same specs produce byte-identical proof and semantic-plan serializations across processes and hash seeds

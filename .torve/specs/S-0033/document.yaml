@@ -907,6 +907,8 @@ questions:
       row that was itself quarantined — a customer held back by its own rules looks
       absent to it, which is correct for "has an order" and would be wrong for a check
       phrased "exists".
+    status: settled
+    settled_by: S-0084/D-2
   - id: Q-6
     text: >-
       Step output concurrency — settled in S-0034 (two steps, one output: compile

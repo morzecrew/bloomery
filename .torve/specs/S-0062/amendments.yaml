@@ -15,3 +15,10 @@ amendments:
       Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
 
       - D-13 answers Q-1.
+  - id: A-2
+    at: '2026-10-01T09:04:35Z'
+    title: Settled by S-0087
+    md: >-
+      S-0087, accepted by the owner on 2026-10-01, answers Q-2 in S-0087/D-1: a mart's
+      and a metric's owner reach MetricFlow as `config.meta.owner`, since the pinned
+      manifest has no `owners` list.

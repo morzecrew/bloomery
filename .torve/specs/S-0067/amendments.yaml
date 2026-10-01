@@ -44,3 +44,10 @@ amendments:
       Settled by the implementation:
       - D-4: Execution settled it in T-0032, and the document's own status line says 'partial adoption allowed with only a collision refused'. Evidence: src/bloomery/spec/project.py; tests/unit/test_spec/test_metrics.py.
       - D-6: Execution chose the write-once `id:` (T-0032), and the timeline code and test enforce the delete-and-add reading. Evidence: src/bloomery/spec/metrics.py; src/bloomery/spec/steps.py; src/bloomery/spec/catalog.py; src/bloomery/spec/entity.py.
+  - id: A-2
+    at: '2026-10-01T09:04:35Z'
+    title: Settled by S-0086
+    md: >-
+      S-0086, accepted by the owner on 2026-10-01, answers Q-2 in S-0086/D-5: no id-only
+      fingerprint; a guard that needs a narrower scope gets a new entity fingerprint
+      beside an unchanged `project_fingerprint`.

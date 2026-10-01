@@ -64,4 +64,18 @@ The claims page says a declared key is a `LOCKED` premise that the build checks,
 - Paths: `pages/docs/concepts/what-bloomery-proves.md` `pages/docs/concepts/data-quality.md`
 - Consequence: a reader learns the key is checked, not only trusted
 
+### S-0084/D-6 — `ASSUMED` (A replayed parent brings its children back) — implementation: none
+
+Replaying an entity whose routing reads another entity is the documented fix for a late parent, and is safe to run every cycle; bloomery does not schedule it, and the plan carries no field marking a replay as standing
+
+- Paths: `pages/docs/concepts/data-quality.md`
+- Consequence: a late parent and a quarantined one recover the same way
+
+### S-0085/D-4 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+A boundary refusal has its own template naming the alias and the upstream fingerprint, with the remedy to set `requires_evidence: assumed` or carry the requirement on the upstream's mart, never to author it here
+
+- Paths: `src/bloomery/guardrails/evidence.py` `pages/docs/concepts/what-bloomery-proves.md`
+- Consequence: the author is told the two things they can actually do
+
 <!-- /torve:managed -->

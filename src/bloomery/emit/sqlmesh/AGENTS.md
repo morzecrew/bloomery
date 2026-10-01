@@ -180,4 +180,32 @@ On an `incremental_by_partition` entity emitted to SQLMesh (`INCREMENTAL_BY_TIME
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/lower/silver.py`
 - Consequence: a daily run pays for its own keys rather than for the whole history, and dbt's incremental entities pay the whole-model scan until a project needs otherwise
 
+### S-0086/D-4 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: none
+
+SQLMesh's replay script is unchanged
+
+- Paths: `src/bloomery/emit/sqlmesh/__init__.py`
+- Consequence: no SQLMesh golden moves
+
+### S-0087/D-2 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+
+No `cron` is emitted, in `model_defaults` or on any model; an unstated cron makes a project late, never wrong, because it moves when an interval closes and not which rows the interval holds; this answers S-0061/Q-2
+
+- Paths: `src/bloomery/emit/sqlmesh/__init__.py` `tests/unit/test_emit/test_sqlmesh.py`
+- Consequence: cadence stays the caller's, outside a file every compile rewrites
+
+### S-0087/D-5 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+
+An entity materialized `incremental_by_partition` may declare `arrival_lag`, a duration in `quarantine.retention`'s grammar; SQLMesh's `lookback` is that lag in whole intervals, rounded up, and unset it emits nothing. Declared on any other entity it is refused. dbt carries nothing: its incremental entity merges its whole select on the key every run, so a late row already lands.
+
+- Paths: `src/bloomery/spec/entity.py` `src/bloomery/emit/sqlmesh/__init__.py`
+- Consequence: a row that lands after its interval ran is loaded on a later run instead of never, and a project that declares no lag compiles byte for byte as before
+
+### S-0087/D-6 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+
+Whether a `months(...)` or `years(...)` partition under SQLMesh's default daily interval overwrites a whole partition is measured on the Trino lane before any emitter change; Q-2 stays open until the measurement is recorded.
+
+- Paths: `src/bloomery/emit/sqlmesh/__init__.py`
+- Consequence: the interval unit changes only on evidence, and a null result closes the question without code
+
 <!-- /torve:managed -->

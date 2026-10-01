@@ -233,4 +233,11 @@ bloomery **declares** freshness and never measures it. The threshold is emitted;
 - Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/quality/reject.py` `src/bloomery/spec/catalog.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0084/D-1 — `ASSUMED` (A replayed parent brings its children back) — implementation: none
+
+A `referential` verdict reads only the parent's admitted silver rows; the probe never reads a reject table, so a parent that is quarantined, late or not yet replayed counts as absent
+
+- Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/quality/predicates.py`
+- Consequence: the verdict is a fact about silver, which is what every mart and metric reads
+
 <!-- /torve:managed -->

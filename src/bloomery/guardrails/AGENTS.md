@@ -598,4 +598,46 @@ The as-of anchor is R018's to refuse, not a premise R004 gains: R018's demand in
 - Paths: `src/bloomery/guardrails/zone.py`
 - Consequence: a join anchored on a zoneless timestamp is refused where the zone matters, by the rule that owns zones
 
+### S-0085/D-1 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+`check_evidence` reads the composed view, so a strict local mart over an imported base, a strict exposure naming an imported mart, and an imported metric a strict consumer names are all walked
+
+- Paths: `src/bloomery/guardrails/stage.py` `src/bloomery/guardrails/evidence.py`
+- Consequence: no strict consumer of an imported node passes ungraded
+
+### S-0085/D-2 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+A fact bound from an upstream project grades ASSUMED, however the upstream obtained it; this answers S-0070/Q-2 by S-0070/D-9's 'here'
+
+- Paths: `src/bloomery/guardrails/evidence.py`
+- Consequence: an upstream's weak fact cannot become strong by crossing the boundary
+
+### S-0085/D-3 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+An imported metric a strict local mart lists counts as a fact below LOCKED
+
+- Paths: `src/bloomery/guardrails/evidence.py`
+- Consequence: the additivity of a metric defined elsewhere is graded like any other imported fact
+
+### S-0085/D-4 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+A boundary refusal has its own template naming the alias and the upstream fingerprint, with the remedy to set `requires_evidence: assumed` or carry the requirement on the upstream's mart, never to author it here
+
+- Paths: `src/bloomery/guardrails/evidence.py` `pages/docs/concepts/what-bloomery-proves.md`
+- Consequence: the author is told the two things they can actually do
+
+### S-0085/D-5 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+The boundary grade is derived from `ProjectIR.upstream` and never stored on an IR node
+
+- Paths: `src/bloomery/guardrails/evidence.py`
+- Consequence: no IR shape, version or fingerprint moves
+
+### S-0085/D-7 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+
+This boundary stores no provenance; it grades an upstream fact ASSUMED from `ProjectIR.upstream` (S-0085/D-5), the grade S-0070/D-9 gives `IMPORTED_VERIFIED`, which S-0075's importer already produces. S-0070/D-9's answer is observable on both paths and holds, and the owner locked it on 2026-10-01.
+
+- Paths: `src/bloomery/guardrails/evidence.py` `src/bloomery/semantic/proof.py`
+- Consequence: the grade an imported fact gets is settled before the first strict consumer relies on it
+
 <!-- /torve:managed -->

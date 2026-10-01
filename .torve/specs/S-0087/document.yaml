@@ -6,7 +6,7 @@ kind: design
 change:
   type: feat
   scope: emit
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0061, S-0062, S-0063, S-0064]
 informed_by: []
@@ -31,7 +31,12 @@ current_state: >-
 goals: |-
   - An owner declared on a mart or metric reaches MetricFlow.
   - Each no is a row, so the next reader does not re-ask.
-non_goals: ''
+non_goals: |
+  - **A schedule.** No `cron` is emitted anywhere (D-2); a cadence is the operator's.
+  - **A saved query per exposure.** An exposure stays a consumer (D-3).
+  - **A freshness filter.** It changes scan time, never the answer (D-4).
+  - **A coarser interval unit before the measurement.** Q-2 is measured first (D-6).
+  - **Late arrivals on dbt.** Its incremental entity already re-merges its whole select (D-5).
 design:
   - key: owner-in-metricflow
     md: >-

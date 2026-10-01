@@ -234,6 +234,8 @@ questions:
       Whether `filter:` (dbt's freshness filter, for partitioned sources where the
       max scan is expensive) belongs here. It is a performance escape hatch and carries
       a SQL fragment, which is a category bloomery admits reluctantly.
+    status: settled
+    settled_by: S-0087/D-4
   - id: Q-2
     text: >-
       Whether freshness belongs on the *source relation* or on the *catalog*. The

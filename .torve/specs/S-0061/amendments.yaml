@@ -44,3 +44,9 @@ amendments:
       Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
 
       - D-8 answers Q-2 in part; the question stays open.
+  - id: A-3
+    at: '2026-10-01T09:04:35Z'
+    title: Settled by S-0087
+    md: >-
+      S-0087, accepted by the owner on 2026-10-01, answers Q-2 in S-0087/D-2: no `cron`
+      is emitted, because an unstated cron makes a project late, never wrong.

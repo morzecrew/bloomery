@@ -71,3 +71,10 @@ amendments:
       project boundary grades upstream facts the same way (S-0085/D-7), so the reason
       the text gave for not locking it is replaced. The row gains the paths that hold
       the grade, which a lock needs.
+  - id: A-3
+    at: '2026-10-01T09:04:35Z'
+    title: Settled by S-0085
+    md: >-
+      S-0085, accepted by the owner on 2026-10-01, answers Q-2 in S-0085/D-2: a fact
+      bound from an upstream project grades ASSUMED however the upstream obtained
+      it.

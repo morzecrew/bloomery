@@ -6,7 +6,7 @@ kind: design
 change:
   type: fix
   scope: emit
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0060, S-0033]
 informed_by: [S-0067, S-0025]
