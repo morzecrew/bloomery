@@ -806,4 +806,32 @@ An entity materialized `incremental_by_partition` may declare `arrival_lag`, a d
 - Paths: `src/bloomery/spec/entity.py` `src/bloomery/emit/sqlmesh/__init__.py`
 - Consequence: a row that lands after its interval ran is loaded on a later run instead of never, and a project that declares no lag compiles byte for byte as before
 
+### S-0088/D-1 — `ASSUMED` (The fuzz lane's first findings are closed) — implementation: none
+
+`validate_document` raises its `SpecParseError` after the `except` block, never inside it, so a refused document leaves nothing alive.
+
+- Paths: `src/bloomery/spec/common.py`
+- Consequence: a fuzzer, a service or a test session that refuses specs by the thousand keeps flat memory
+
+### S-0088/D-2 — `ASSUMED` (The fuzz lane's first findings are closed) — implementation: none
+
+`_parses_as_sql` refuses a text whose expression parse differs from its statement parse, with the existing statement message.
+
+- Paths: `src/bloomery/spec/common.py`
+- Consequence: a text the validator admits renders as itself, and `WHILE*2` is refused at load instead of reaching emit as an empty expression
+
+### S-0088/D-3 — `ASSUMED` (The fuzz lane's first findings are closed) — implementation: none
+
+Authored SQL text nests at most 32 levels: `_parses_as_sql` and `resolve/steps.py::_parse_body` measure the parsed tree's depth with an iterative walk and refuse deeper text, as `SpecParseError` and `StepError`. This supersedes S-0008/D-10's fix owed at `_parse_sql` and S-0008/D-7's "no depth limit"; S-0008/D-7's widened catches stay behind the cap.
+
+- Paths: `src/bloomery/spec/common.py` `src/bloomery/resolve/steps.py`
+- Consequence: no admitted text can overflow the stack at any site that parses it again, and a new re-parse site needs no guard of its own
+
+### S-0088/D-6 — `ASSUMED` (The fuzz lane's first findings are closed) — implementation: none
+
+`_parses_as_sql` refuses a text sqlglot can parse only as a `Command`, its fallback for syntax it does not support, with the existing statement message.
+
+- Paths: `src/bloomery/spec/common.py`
+- Consequence: `IF a` and its kind are refused at load instead of being spliced into SQL verbatim
+
 <!-- /torve:managed -->

@@ -314,4 +314,11 @@ The CLI command takes spec directories positionally, like `plan`. It resolves no
 - Paths: `src/bloomery/cli/__init__.py` `tests/unit/test_cli.py`
 - Consequence: A script can tell a wrong artifact from a wrong invocation, and an import that adds nothing reads as success rather than as a refusal to retry
 
+### S-0088/D-4 — `ASSUMED` (The fuzz lane's first findings are closed) — implementation: none
+
+A `--catalog` path the OS refuses to stat exits 2, as #174 made a specs path do, and a test pins it.
+
+- Paths: `src/bloomery/cli/io.py` `tests/unit/test_cli.py`
+- Consequence: the 2026-09-21 `cli` crash has a regression test, not only a fix
+
 <!-- /torve:managed -->

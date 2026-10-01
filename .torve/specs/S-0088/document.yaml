@@ -1,0 +1,108 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0088
+title: The fuzz lane's first findings are closed
+kind: design
+change:
+  type: fix
+  scope: spec
+status: accepted
+implementation: none
+depends_on: [S-0008, S-0009]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  The scheduled fuzz runs of 2026-09-21 and 2026-09-28 went red in four jobs with four causes, and nobody read them for ten days. Three are open: a refused spec leaks its whole validation graph, which grew `parse_doors` past the 2 GB limit; `WHILE*2` passes the SQL-text validator and reaches emit as an empty expression; and text nested 51 deep passes the validator and overflows the stack at any site that re-parses it a few frames deeper. The fourth, a `--catalog` path the OS refuses to stat, was fixed by #174 but has no test.
+
+  `validate_document` raises after its `except` block, `_parses_as_sql` refuses a text whose expression and statement parses disagree, and authored SQL text nests at most 32 levels, checked at the two doors every text passes. `parse_doors` rejoins the pull-request job after one green weekly batch.
+motivation: >-
+  S-0009/D-10 files these findings as issues from now on; these are the ones filed
+  by hand. Two of them are not fuzzer-only: the leak hits any long-running caller
+  that refuses specs, and the statement hole lets a spec author ship a metric that
+  renders as nothing.
+current_state: >-
+  `spec/common.py::validate_document` raises its batched `SpecParseError` inside `except
+  PydanticValidationError`. `_parses_as_sql` refuses a `Block` and parses the text
+  again `into=exp.Condition`, discarding the result. `resolve/steps.py::_parse_body`
+  and `evidence._divides` catch `RecursionError` (S-0008/D-7), while `guardrails/arithmetic.py`,
+  `guardrails/grain.py`, `resolve/build.py`, `resolve/marts.py`, `quality` and `ir/nodes.py::_parse_sql`
+  re-parse authored text unguarded. `cli/io.py` guards `Path.is_file()` since #174,
+  whose test covers only the directory path. `parse_doors` is out of the pull-request
+  fuzz matrix on S-0008/D-10's known finding.
+goals: |-
+  - A refused document leaves nothing alive once it is dropped.
+  - Every authored SQL text the validator admits is one expression that renders as itself.
+  - No admitted text can overflow the stack at any site that parses it again.
+  - Each finding is closed by a test in `tests/`, as S-0008/D-4 requires.
+non_goals: |-
+  - A guard at every re-parse site; the doors close them all.
+  - Raising the interpreter's recursion limit, which moves the band without closing it.
+  - Collecting garbage in the fuzz harness, which would hide the leak from the one caller that found it.
+design:
+  - key: the-leak
+    md: >-
+      pydantic-core's `ValidationError` keeps the validator's handled exception, with
+      its traceback and frames, through a reference the cycle collector cannot see.
+      Raised inside `except`, the new `SpecParseError` carries that error as its context,
+      so the cycle never becomes garbage: 1000 refusals leave 1000 `ValidationError`
+      objects alive after `gc.collect()`, and 0 when the raise moves after the block.
+      Under atheris `parse_doors` grew from 130 MB to 1.2 GB in 16,384 executions;
+      with the fix it went from 119 MB to 132 MB. The fix is to build the collected
+      errors inside `except` and raise after it.
+  - key: the-statement-hole
+    md: >-
+      A bare `parse_one('WHILE*2')` returns a `WhileBlock` that renders as an empty
+      string. It is not a `Block`, so the statement check passes it, and the `Condition`
+      parse reads `WHILE` as a column, so that passes too. `resolve/build.py` then
+      canonicalises the empty render into `SqlExpr('')`, and `guardrails/arithmetic.py`
+      fails on it. Keeping the `Condition` parse and refusing when it differs from
+      the statement parse closes the hole with the message the check already has.
+      A sqlglot `Command`, its fallback for syntax it does not support, is refused
+      the same way: `IF a` parses as the same `Command` both ways, so the comparison
+      alone would pass it.
+  - key: the-nesting-cap
+    md: >-
+      sqlglot spends about 20 stack frames per nesting level, so text the validator
+      parses at a shallow stack can overflow a site that parses it again a few frames
+      deeper. That band is about one level wide and sits near 51 levels. At least
+      seven sites re-parse authored text without a guard. S-0008/D-7 widened two catches
+      and S-0008/D-10 left a third site owing a fix; a cap at the doors closes every
+      site at once. The doors are `_parses_as_sql`, which every spec field of SQL
+      text passes, and `_parse_body`, which every step body passes. 32 levels is about
+      640 frames, far from the limit at every measured site.
+tests: |-
+  - After N refusals of a SQL-text field and `gc.collect()`, no `pydantic_core.ValidationError` survives (D-1).
+  - `WHILE*2` and `IF a` join `test_a_statement_is_refused` (D-2, D-6).
+  - Text nested 32 levels loads and 33 is refused, at `_parses_as_sql` and at a step body (D-3).
+  - `--catalog` naming a 300-character file exits 2 with "not a file" (D-4).
+  - The `band-*` seeds of `parse_doors` are refused at load instead of reaching a re-parse site.
+docs: ''
+out_of_scope: ''
+risks: |-
+  - **A real spec nests deeper than 32.** Measured at 5 today; the refusal names the limit and the depth, so it is loud and the cap is one constant.
+  - **A refusal message changes for text that used to pass.** `WHILE*2` and `IF a` never compiled to anything meaningful, so nothing that worked stops working.
+  - **The leak test is sensitive to pydantic-core.** It counts surviving objects rather than bytes, so a pydantic upgrade that frees the cycle on its own keeps it green rather than flaky.
+alternatives:
+  - option: A guard at every re-parse site.
+    rejected_because: >-
+      Seven sites today, and the next one written would not know it owes one.
+  - option: A higher recursion limit.
+    rejected_because: >-
+      The band moves with the limit and stays one level wide.
+questions:
+  - id: Q-1
+    text: >-
+      Is 32 levels the right cap? The phase measures the deepest nesting in `examples/`
+      and `tests/fixtures/` and records it; a real spec nesting near the cap would
+      argue for a higher one.
+    status: settled
+    settled_by: D-3
+  - id: Q-2
+    text: >-
+      `IF a` passes the validator as a sqlglot `Command` and is spliced into SQL.
+      It does not crash, but it is the same family as `WHILE*2`. Should a `Command`
+      be refused too?
+    status: settled
+    settled_by: D-6

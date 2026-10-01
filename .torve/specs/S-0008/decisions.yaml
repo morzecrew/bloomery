@@ -95,10 +95,12 @@ decisions:
   - id: D-7
     grade: ASSUMED
     text: >-
-      Both narrow-handler sites widen the catch; neither adds a depth limit. `evidence._divides`
-      catches `(SqlglotError, RecursionError)` and returns `False`. `resolve.steps._parse_body`
-      catches the same pair and returns it as the existing `StepError`, which `lower_steps`
-      raises with the others it collects. No error class is added to `src/bloomery/errors.py`.
+      Both narrow-handler sites widen the catch. `evidence._divides` catches `(SqlglotError,
+      RecursionError)` and returns `False`. `resolve.steps._parse_body` catches the
+      same pair and returns it as the existing `StepError`, which `lower_steps` raises
+      with the others it collects. No error class is added to `src/bloomery/errors.py`.
+      S-0088/D-3 later caps nesting at `_parses_as_sql` and `_parse_body`; these catches
+      stay behind the cap.
     paths: [src/bloomery/evidence.py, src/bloomery/resolve/steps.py]
     consequence: >-
       A depth limit raising a named error adds a class to `src/bloomery/errors.py`
@@ -111,7 +113,7 @@ decisions:
       the fix is hygiene. `src/bloomery/evidence.py` reads an authored `Project` and
       `src/bloomery/resolve/steps.py` reads a registry declared trusted input, so
       the argument does not transfer between them
-    fingerprint: e5a99b73ffc94643/afba915b48d717ab
+    fingerprint: f8503bcf3b629c9b/afba915b48d717ab
   - id: D-8
     grade: ASSUMED
     text: >-
@@ -166,6 +168,7 @@ decisions:
       on HEAD finds every fixture parse site within 17 frames of the stack, where
       the accepted nesting stays at 50 levels, the same as at the validator
     cites: [D-7, S-0009/D-5]
+    superseded_by: S-0088/D-3
   - id: D-11
     grade: ASSUMED
     text: >-

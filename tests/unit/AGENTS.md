@@ -498,4 +498,11 @@ A mart's owner reaches its MetricFlow semantic model and a metric's owner its me
 - Paths: `src/bloomery/emit/metricflow/__init__.py` `tests/unit/test_ownership.py`
 - Consequence: the fourth target carries the owner the other three already do
 
+### S-0088/D-4 — `ASSUMED` (The fuzz lane's first findings are closed) — implementation: none
+
+A `--catalog` path the OS refuses to stat exits 2, as #174 made a specs path do, and a test pins it.
+
+- Paths: `src/bloomery/cli/io.py` `tests/unit/test_cli.py`
+- Consequence: the 2026-09-21 `cli` crash has a regression test, not only a fix
+
 <!-- /torve:managed -->

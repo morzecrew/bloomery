@@ -70,3 +70,35 @@ amendments:
 
       - D-10 answers Q-1.
       - D-11 answers Q-2.
+  - id: A-3
+    at: '2026-10-01T14:33:39Z'
+    title: S-0088 caps the nesting
+    changes:
+      - subject: D-7
+        field: text
+        before: >-
+          Both narrow-handler sites widen the catch; neither adds a depth limit. `evidence._divides`
+          catches `(SqlglotError, RecursionError)` and returns `False`. `resolve.steps._parse_body`
+          catches the same pair and returns it as the existing `StepError`, which
+          `lower_steps` raises with the others it collects. No error class is added
+          to `src/bloomery/errors.py`.
+        after: >-
+          Both narrow-handler sites widen the catch. `evidence._divides` catches `(SqlglotError,
+          RecursionError)` and returns `False`. `resolve.steps._parse_body` catches
+          the same pair and returns it as the existing `StepError`, which `lower_steps`
+          raises with the others it collects. No error class is added to `src/bloomery/errors.py`.
+          S-0088/D-3 later caps nesting at `_parses_as_sql` and `_parse_body`; these
+          catches stay behind the cap.
+      - subject: D-7
+        field: fingerprint
+        before: e5a99b73ffc94643/afba915b48d717ab
+        after: f8503bcf3b629c9b/afba915b48d717ab
+      - subject: D-10
+        field: superseded_by
+        after: S-0088/D-3
+    md: >-
+      S-0088, accepted by the owner on 2026-10-01, caps authored SQL nesting at 32
+      levels at the two doors every text passes (S-0088/D-3). D-10's fix owed at `_parse_sql`
+      is superseded: with the cap, no admitted text reaches a depth where a re-parse
+      site overflows. D-7 keeps its widened catches, which stay behind the cap, and
+      loses only its "neither adds a depth limit".

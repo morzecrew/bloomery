@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The doors refuse what crashed the fuzzer
+    intent: >-
+      `validate_document` raises after its `except`; `_parses_as_sql` compares its
+      two parses and refuses a `Command`; both doors cap nesting at 32 through one
+      shared depth function. Tests: no `ValidationError` survives N refusals and `gc.collect()`;
+      `WHILE*2` and `IF a` join `test_a_statement_is_refused`; 32 levels load and
+      33 are refused at each door; `--catalog` with a 300-character name exits 2.
+      The `band-*` seeds stay as inputs the cap now refuses at load, and the target's
+      docstring says so and drops the deferred finding. Settles D-1 to D-4 and D-6.
+    scope:
+      - src/bloomery/spec/common.py
+      - src/bloomery/resolve/steps.py
+      - tests/unit/test_spec/**
+      - tests/unit/test_resolve/**
+      - tests/unit/test_cli.py
+      - tests/unit/test_fuzz_corpus.py
+      - fuzz/fuzz_parse_doors.py
+      - CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_spec tests/unit/test_resolve tests/unit/test_cli.py
+        tests/unit/test_fuzz_corpus.py -q
+    character: routine
