@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `validate_document` raises its `SpecParseError` after the `except` block, never
+      inside it, so a refused document leaves nothing alive.
+    paths: [src/bloomery/spec/common.py]
+    consequence: >-
+      a fuzzer, a service or a test session that refuses specs by the thousand keeps
+      flat memory
+    rationale: >-
+      Raised inside `except`, every refusal from a custom validator kept its whole
+      graph alive through pydantic-core's ValidationError; measured at 1000 of 1000
+      surviving `gc.collect()`, and 0 when raised after.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `_parses_as_sql` refuses a text whose expression parse differs from its statement
+      parse, with the existing statement message.
+    paths: [src/bloomery/spec/common.py]
+    consequence: >-
+      a text the validator admits renders as itself, and `WHILE*2` is refused at load
+      instead of reaching emit as an empty expression
+    rationale: >-
+      The `Condition` parse was computed and discarded; comparing it is the whole
+      fix.
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Authored SQL text nests at most 32 levels: `_parses_as_sql` and `resolve/steps.py::_parse_body`
+      measure the parsed tree's depth with an iterative walk and refuse deeper text,
+      as `SpecParseError` and `StepError`. This supersedes S-0008/D-10's fix owed
+      at `_parse_sql` and S-0008/D-7's "no depth limit"; S-0008/D-7's widened catches
+      stay behind the cap.
+    paths: [src/bloomery/spec/common.py, src/bloomery/resolve/steps.py]
+    consequence: >-
+      no admitted text can overflow the stack at any site that parses it again, and
+      a new re-parse site needs no guard of its own
+    rationale: >-
+      Seven unguarded re-parse sites each sit a few frames deeper than the validator;
+      one cap at the two doors closes them all, where a guard per site would need
+      seven and the eighth would forget it. Measured on 2026-10-01: the deepest authored
+      SQL text across `examples/`, `tests/fixtures/` and the golden specs is 5 levels
+      of tree depth, and the crash input is 52; 32 leaves six times the deepest real
+      text and twenty levels below the overflow.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A `--catalog` path the OS refuses to stat exits 2, as #174 made a specs path
+      do, and a test pins it.
+    paths: [src/bloomery/cli/io.py, tests/unit/test_cli.py]
+    consequence: >-
+      the 2026-09-21 `cli` crash has a regression test, not only a fix
+    rationale: >-
+      #174 fixed `cli/io.py` and tested the directory path; the catalog file path
+      that crashed has no test.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      `parse_doors` rejoins the pull-request fuzz matrix after one weekly batch on
+      this fix runs green, and stays out until then.
+    paths: [.github/workflows/fuzz.yaml]
+    consequence: >-
+      the pull-request job never goes red on a known finding, and the target returns
+      on evidence
+    rationale: >-
+      One clean 240-second local run after the fix is weak evidence; the weekly batch
+      fuzzes the target for thirty minutes across three hash seeds.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `_parses_as_sql` refuses a text sqlglot can parse only as a `Command`, its fallback
+      for syntax it does not support, with the existing statement message.
+    paths: [src/bloomery/spec/common.py]
+    consequence: >-
+      `IF a` and its kind are refused at load instead of being spliced into SQL verbatim
+    rationale: >-
+      D-2's comparison does not catch it: both parses of `IF a` return the same `Command`,
+      so they agree. A `Command` is text sqlglot gave up on, which is never one expression.

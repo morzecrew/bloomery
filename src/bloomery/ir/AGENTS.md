@@ -25,13 +25,6 @@ An upstream's dbt project name is part of what it exports: `exports.yaml` carrie
 - Paths: `src/bloomery/spec/marts.py` `src/bloomery/ir/nodes.py`
 - Consequence: Existing projects with `flatten: [{date: …, role: …}]` compile unchanged and the general role is additive beside them; departing means absorbing dates into the general vocabulary, which touches every existing project
 
-### S-0008/D-10 — `ASSUMED` (Fuzzing the compile boundary)
-
-One chain is known to turn the stack-position band into an escape: a step body `resolve.steps._parse_body` accepts is re-parsed at emit through `SqlExpr.ast` by `ir.nodes._parse_sql`, which catches nothing, and raises `RecursionError`. It is the `parse_doors` target's deferred open finding, and that target stays out of the pull-request fuzz matrix until fixed
-
-- Paths: `src/bloomery/ir/nodes.py` `fuzz/fuzz_parse_doors.py` `.github/workflows/fuzz.yaml` `fuzz/measure_parse_depth.py`
-- Consequence: `_parse_sql` is the one parse site that owes a fix, and until it lands a `parse_doors` crash there reads as the known finding while any other crash is new
-
 ### S-0011/D-3 — `LOCKED` (Retrieval semantics)
 
 A vector's scalar type is a type name and its dimension an int; no float value enters the IR or any emission path, and this design takes no exemption from the float ban
