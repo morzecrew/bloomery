@@ -415,7 +415,7 @@ Determinism tiers: `pure` (freely backfillable) | `seeded` (seed required in the
 
 ### S-0037/D-14 — `ASSUMED` (Authoring ergonomics: schema export, CLI, fix suggestions)
 
-No schema is published to Schema Store. Editors map the schemas `all_spec_schemas()` writes through a `# yaml-language-server: $schema=` line or their own setting; a distinctive file suffix for spec documents would reopen this.
+No schema is published to Schema Store. Editors map the schemas `all_spec_schemas()` returns, which `bloomery schema --out` writes one file per kind, through a `# yaml-language-server: $schema=` line or their own setting; a distinctive file suffix for spec documents would reopen this.
 
 - Paths: `src/bloomery/schema.py`
 - Consequence: no editor claims an unrelated `metrics.yaml` or `catalog.yaml` as a bloomery document

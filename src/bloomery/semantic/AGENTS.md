@@ -66,7 +66,7 @@ Rule identifiers in `RULES` are append-only: an id is never reused or repointed.
 
 ### S-0005/D-10 — `ASSUMED` (Semantic proof IR and closed-world checking)
 
-The core contract names six rules. Explicit unit conversion is not minted while the spec language declares no unit; a spec language that gains units brings the rule with it.
+Of the seven rules the design names, the six that are minted are the core contract. Explicit unit conversion is not minted while the spec language declares no unit; a spec language that gains units brings the rule with it.
 
 - Paths: `src/bloomery/semantic/**`
 - Consequence: the six minted rules are the whole contract, and no fixture exists to complete a list

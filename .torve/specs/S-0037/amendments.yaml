@@ -13,11 +13,11 @@ amendments:
           a platform ledger's shape.
       - subject: D-14
         field: text
-        before: null
         after: >-
           No schema is published to Schema Store. Editors map the schemas `all_spec_schemas()`
-          writes through a `# yaml-language-server: $schema=` line or their own setting;
-          a distinctive file suffix for spec documents would reopen this.
+          returns, which `bloomery schema --out` writes one file per kind, through
+          a `# yaml-language-server: $schema=` line or their own setting; a distinctive
+          file suffix for spec documents would reopen this.
     md: |-
       What this document still left open, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
 

@@ -183,8 +183,9 @@ out_of_scope: |
   - **Schema-directed generation.** `rfcs/0073-generating-from-the-spec-schema.md`.
   - **Fuzzing the container-backed examples.** A container per execution destroys
     throughput; the execution and e2e tiers own engines actually running.
-  - **Automatic issue filing from findings.** Triage is a person's job, and a bot that files
-    a duplicate crash nightly is how the finding stream gets muted.
+  - **Triage.** What a finding means is a person's call. D-10 files one issue per failed target
+    and comments on it while it stays open, because a bot that files a duplicate crash every
+    week is how the finding stream gets muted.
   - **Any change under `src/bloomery/`.** This document adds workflows and a corpus store
     and changes no shipped code and no target.
 risks: |
