@@ -1802,6 +1802,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#s-0011d-14-assumed-retrieval-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0011/D-14 — <code>ASSUMED</code> (Retrieval semantics)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1909,6 +1920,12 @@
 <li>Paths: <code>src/bloomery/evidence.py</code> <code>pages/docs/reference/errors.md</code> <code>tests/unit/test_docs_floor.py</code></li>
 <li>Consequence: Adding an advisory is a reviewed change that lands its documentation row with it; a documented code no path can construct fails the census, which is what blocks the deprecated-spelling advisory until a spelling is actually deprecated</li>
 <li>Check: <code>uv run pytest tests/unit/test_docs_floor.py -q</code> (shadow; runs as <code>decision:S-0004/D-10</code>, no log entry owed)</li>
+</ul>
+<h3 id="s-0011d-14-assumed-retrieval-semantics">S-0011/D-14 — <code>ASSUMED</code> (Retrieval semantics)<a class="headerlink" href="#s-0011d-14-assumed-retrieval-semantics" title="Permanent link">&para;</a></h3>
+<p>The retrieval kind carries the same spec-YAML promise as every kind from its first release, with no pre-adoption carve-out: <code>retrieval_version</code> is <code>1</code>, changes within it are additive, as phase 4's <code>fusion.k</code>, <code>fusion.depth</code> and <code>analyser</code> were, and a breaking change mints <code>retrieval_version: 2</code>, per S-0042/D-23.</p>
+<ul>
+<li>Paths: <code>src/bloomery/spec/retrieval.py</code> <code>pages/docs/reference/stability.md</code></li>
+<li>Consequence: a retrieval spec written against 0.3.0 keeps compiling under the same promise as every other kind, the two refusals the stability page names included</li>
 </ul>
 <h3 id="s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine">S-0033/D-30 — <code>ASSUMED</code> (Data quality: declarative cleansing, dispositions, quarantine)<a class="headerlink" href="#s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine" title="Permanent link">&para;</a></h3>
 <p><em>(2026-08-08, M12; closed by D84)</em> <strong>Postgres cannot host quality-carrying entities.</strong> <code>coercible</code> needs a real NULL-on-failure cast (<code>DialectFeature.TRY_CAST</code>); sqlglot renders <code>TRY_CAST</code> on Postgres as a plain <code>CAST</code>, which aborts the run instead of marking the row, so the dialect declares the feature gap and compiling a quality-carrying entity for it raises <code>UnsupportedByTarget</code> — loud, never a silent degradation into an aborted run. Consequence for §6's dialect matrix: there is no Postgres dirty-corpus tier to add until either sqlglot renders a real <code>TRY_CAST</code> or the lowering grows a per-type <code>CASE</code>-based fallback whose semantics are proven equal to <code>TRY_CAST</code>'s on the corpus. Named as the escape hatch, not built.</p>
