@@ -1,7 +1,11 @@
 {
   "metrics": [
     {
-      "config": null,
+      "config": {
+        "meta": {
+          "owner": "finance-reporting@example.com"
+        }
+      },
       "datatype": null,
       "description": null,
       "filter": null,
@@ -75,7 +79,11 @@
   "saved_queries": [],
   "semantic_models": [
     {
-      "config": null,
+      "config": {
+        "meta": {
+          "owner": "analytics@example.com"
+        }
+      },
       "defaults": null,
       "description": null,
       "dimensions": [

@@ -24,6 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cover it, run the audit's query once over the whole model after upgrading, or deploy the
   upgrade with a `plan` whose range spans the history.
 
+### Changed
+
+- **The MetricFlow manifest carries owners.** A mart's `owner:` reaches its semantic model
+  and a metric's `owner:` its metric, both as `config.meta.owner`; with no owner, `config`
+  stays null. An entity's owner is not carried: an entity reaches MetricFlow only as entity
+  elements inside a mart's semantic model, which carries the mart's owner. An exposure
+  still emits no `saved_query` — a saved query is a request someone wrote, an exposure a
+  consumer — and the manifest's `saved_queries` stays empty.
+
+  **Upgrade note.** A project that declares an owner on a mart or a metric compiles a
+  different `semantic_manifest.json`, so its manifest hash moves.
+
 ## [0.5.0] - 2026-09-30
 
 ### Added

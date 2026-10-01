@@ -594,3 +594,11 @@ def test_a_target_with_no_spelling_for_a_column_comparison_refuses_by_name() -> 
     clause = MetricFilterIR(dimension="billing_region", op="eq", values=(), column="shipping_region")
     with pytest.raises(UnsupportedByTarget, match="compares two columns"):
         metric_filter_sql(clause, ref="billing_region", declared=StringType())
+
+
+def test_an_exposure_emits_no_saved_query() -> None:
+    """S-0087/D-3. A saved query is a request and an exposure a consumer;
+    `ecom_basic` declares exposures and the manifest still holds no query."""
+    ir = _fixture_ir("ecom_basic")
+    assert ir.exposures
+    assert emit_manifest(ir, naming=DefaultNaming()).saved_queries == []

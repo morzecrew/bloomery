@@ -84,6 +84,9 @@ from metricflow_semantic_interfaces.implementations.semantic_manifest import (
 )
 
 # isort: split
+from metricflow_semantic_interfaces.implementations.element_config import (
+    PydanticSemanticLayerElementConfig,
+)
 from metricflow_semantic_interfaces.implementations.elements.dimension import (
     PydanticDimension,
     PydanticDimensionTypeParams,
@@ -451,6 +454,18 @@ def _agg_time_dimension(mart: MartIR) -> str:
 # ....................... #
 
 
+def _config(owner: str | None) -> PydanticSemanticLayerElementConfig | None:
+    """The owner as ``config.meta.owner`` (S-0087/D-1), or no config at all —
+    an unowned node serializes byte for byte as before."""
+
+    if owner is None:
+        return None
+    return PydanticSemanticLayerElementConfig(meta={"owner": owner})
+
+
+# ....................... #
+
+
 def _semantic_model(
     mart: MartIR,
     ir: ProjectIR,
@@ -472,7 +487,7 @@ def _semantic_model(
         defaults=None,
         description=None,
         metadata=None,
-        config=None,
+        config=_config(mart.owner),
     )
 
 
@@ -671,7 +686,7 @@ def _metric(
             ),
             filter=None,
             metadata=None,
-            config=None,
+            config=_config(metric.owner),
         )
 
     if metric.additivity is Additivity.RATIO:
@@ -690,7 +705,7 @@ def _metric(
             ),
             filter=None,
             metadata=None,
-            config=None,
+            config=_config(metric.owner),
         )
 
     measure = PydanticMetricInputMeasure(name=metric.name, filter=None, alias=None)
@@ -704,7 +719,7 @@ def _metric(
             type_params=_type_params(measure=measure),
             filter=where,
             metadata=None,
-            config=None,
+            config=_config(metric.owner),
         )
 
     return PydanticMetric(
@@ -727,7 +742,7 @@ def _metric(
         ),
         filter=where,
         metadata=None,
-        config=None,
+        config=_config(metric.owner),
     )
 
 
