@@ -589,9 +589,17 @@ def _replay_columns_guard(
 
     # The column reads open dbt's own transaction where the engine has one, and
     # the macro's `BEGIN` would then nest inside it — DuckDB refuses that
-    # outright. Measured on dbt-core 1.10.8 and 1.12.3.
+    # outright. Measured on dbt-core 1.10.8 and 1.12.3. Whether a column read
+    # opens one is the adapter's business — dbt-duckdb's runs through
+    # `statement`, a read through `run_query` or an API call does not — and
+    # dbt's base commit raises when nothing is open, so an `auto_begin`
+    # statement first makes sure there is exactly one transaction to commit.
     if ctx.dialect.begin_transaction:
-        lines.append("  {% do adapter.commit() %}")
+        lines.append(
+            f"  {{% call statement('replay_{entity.name}_columns', auto_begin=True) %}}"
+            "select 1{% endcall %}\n"
+            "  {% do adapter.commit() %}"
+        )
 
     return "\n".join(lines)
 

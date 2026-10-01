@@ -16,6 +16,7 @@
   {% if missing %}
     {{ exceptions.raise_compiler_error("replay_q_dup writes " ~ missing | join(", ") ~ " into silver.q_dup__reject, which does not have them; rebuild it from the checkout this macro was compiled from with `dbt run --full-refresh --select q_dup__reject` before replaying") }}
   {% endif %}
+  {% call statement('replay_q_dup_columns', auto_begin=True) %}select 1{% endcall %}
   {% do adapter.commit() %}
   {% do run_query("BEGIN") %}
 
