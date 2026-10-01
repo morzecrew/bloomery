@@ -50,7 +50,7 @@ from bloomery.ir import (
     canon,
     step_sort_key,
 )
-from bloomery.spec.common import RESERVED_MEMBER_REASONS
+from bloomery.spec.common import MAX_SQL_DEPTH, RESERVED_MEMBER_REASONS, sql_depth
 from bloomery.steps import EMPTY_REGISTRY
 from bloomery.typing import parse_type
 
@@ -803,7 +803,7 @@ def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[Bloo
     """
 
     try:
-        return sqlglot.parse_one(body), []
+        parsed = sqlglot.parse_one(body)
     # The base class, not `ParseError`: `TokenError` is its *sibling* under
     # `SqlglotError`, so an unterminated string (`SELECT 'abc`) bypassed a
     # `ParseError`-only handler and crossed the compile boundary as a
@@ -825,6 +825,20 @@ def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[Bloo
             "registry error rather than something an engine discovers later"
         )
         return None, [StepError(msg, source_path=_path(wiring))]
+
+    # The cap `SqlText` holds authored expressions to, through the same measure
+    # (S-0088/D-3): a body parsed here is parsed again at emit, deeper in the
+    # stack, so a body that only just parses here overflows there.
+    depth = sql_depth(parsed)
+    if depth > MAX_SQL_DEPTH:
+        msg = (
+            f"step {wiring.use!r} has a body that nests {depth} levels deep, past the "
+            f"{MAX_SQL_DEPTH} authored SQL may nest. Every later stage parses it again, "
+            "deeper in the stack"
+        )
+        return None, [StepError(msg, source_path=_path(wiring))]
+
+    return parsed, []
 
 
 # ....................... #

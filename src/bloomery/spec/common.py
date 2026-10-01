@@ -29,6 +29,7 @@ from bloomery.errors import BloomeryError, SpecParseError
 
 __all__ = [
     "JSONPATH_PATTERN",
+    "MAX_SQL_DEPTH",
     "PARTITION_SPEC_PATTERN",
     "RESERVED_MEMBER_NAMES",
     "RESERVED_MEMBER_REASONS",
@@ -61,6 +62,7 @@ __all__ = [
     "flatten_collected",
     "load_yaml_mapping",
     "source_path_from_loc",
+    "sql_depth",
     "validate_document",
 ]
 
@@ -165,6 +167,29 @@ def _reject_reserved_relation(name: str) -> str:
 # ....................... #
 
 
+#: How deep authored SQL may nest, in edges from the root of its parsed tree
+#: (S-0088/D-3). SQLGlot spends roughly 20 frames per level at every site that
+#: parses the text again, so a text that only just parses here can overflow a
+#: site a few frames deeper. A cap well under that window means no admitted
+#: text can, and a new re-parse site needs no guard of its own.
+MAX_SQL_DEPTH = 32
+
+
+def sql_depth(tree: exp.Expr) -> int:
+    """The deepest node of ``tree``, in edges from its root.
+
+    Iterative, because the trees this measures are the ones a recursive walk
+    exists to refuse.
+    """
+    deepest = 0
+    stack = [(tree, 0)]
+    while stack:
+        node, depth = stack.pop()
+        deepest = max(deepest, depth)
+        stack.extend((child, depth + 1) for child in node.iter_expressions())
+    return deepest
+
+
 def _parses_as_sql(expr: str) -> str:
     """Refuse authored text that is not one SQL expression.
 
@@ -249,16 +274,28 @@ def _parses_as_sql(expr: str) -> str:
         )
         raise ValueError(msg)
 
+    depth = sql_depth(parsed)
+    if depth > MAX_SQL_DEPTH:
+        msg = (
+            f"nests {depth} levels deep, past the {MAX_SQL_DEPTH} authored SQL may nest. "
+            "Every later stage parses it again, deeper in the stack. Fix: flatten the "
+            "expression"
+        )
+        raise ValueError(msg)
+
     try:
-        parse_one(expr, into=exp.Condition)
+        scalar = parse_one(expr, into=exp.Condition)
     except (SqlglotError, RecursionError):
+        scalar = None
+
+    if scalar is None or scalar != parsed or isinstance(parsed, exp.Command):
         msg = (
             f"a {parsed.key.upper()} statement, not an expression. These are spliced into "
             "a larger expression rather than executed, so a statement lands inside the "
             "cast the column is wrapped in and the artifact does not parse at all. Fix: "
             "write the expression itself, without the surrounding statement"
         )
-        raise ValueError(msg) from None
+        raise ValueError(msg)
 
     return expr
 
@@ -580,6 +617,10 @@ def validate_document[ModelT: SpecModel](
 
     data, identity_refusal = _with_document_identity(model_cls, data, document=document)
 
+    # Raised after the `except`, never inside it (S-0088/D-1): an exception
+    # raised in a handler keeps the `ValidationError` alive as its context, so
+    # a caller refusing documents by the thousand would hold every one.
+    collected: tuple[SpecParseError, ...] = ()
     try:
         validated = model_cls.model_validate(data)
     except PydanticValidationError as exc:
@@ -593,9 +634,11 @@ def validate_document[ModelT: SpecModel](
                 for err in exc.errors()
             ),
         )
-        if len(collected) == 1:
-            raise collected[0] from None
-        raise SpecParseError.from_collected(collected) from None
+
+    if len(collected) == 1:
+        raise collected[0]
+    if collected:
+        raise SpecParseError.from_collected(collected)
 
     if identity_refusal is not None:
         raise identity_refusal
