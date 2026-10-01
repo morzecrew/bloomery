@@ -31,7 +31,7 @@ amendments:
       Answered by a later row, which the row now names:
       - D-8 is answered by S-0070/D-9: The row is marked 'Superseded by 9'; D-9 grades `IMPORTED_VERIFIED` as `ASSUMED`.
   - id: A-2
-    at: '2026-10-01T10:38:49Z'
+    at: '2026-10-01T09:52:49Z'
     title: The owner locks D-9
     changes:
       - subject: D-9
@@ -75,7 +75,7 @@ amendments:
       The row's text now says so, and it gains the paths that hold the grade, which
       a lock needs.
   - id: A-3
-    at: '2026-10-01T10:38:49Z'
+    at: '2026-10-01T09:52:49Z'
     title: Settled by S-0085
     md: >-
       S-0085, accepted by the owner on 2026-10-01, answers S-0070/Q-2 in S-0085/D-2:

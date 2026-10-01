@@ -48,9 +48,11 @@ design:
       carry every column the statements write. Either mismatch raises a compiler error
       naming what differs and its fix: a fingerprint mismatch is fixed by compiling
       again with bloomery into the dbt project, and a missing column by `dbt build
-      -s <entity> <entity>__reject` from the same checkout. The byte fingerprint is
-      exact here: every compile rewrites every file, so the two differ only when one
-      is left over or the project was compiled elsewhere.
+      --full-refresh -s <entity> <entity>__reject` from the same checkout: an incremental
+      dbt model ignores a new column without it, and the full refresh loses resolved
+      reject rows, as the how-to already says. The byte fingerprint is exact here:
+      every compile rewrites every file, so the two differ only when one is left over
+      or the project was compiled elsewhere.
 tests: |-
   - A mismatched `bloomery_fingerprint` var makes the replay refuse and write nothing.
   - A reject table missing a written column refuses, naming it.
@@ -90,3 +92,10 @@ questions:
       writes and could remove hand-written files.
     status: settled
     settled_by: D-8
+  - id: Q-3
+    text: >-
+      dbt's incremental models default to `on_schema_change: ignore`, so a field added
+      to an entity never reaches its dbt table without `--full-refresh`, which loses
+      resolved reject rows. This is wider than replay: a plan that calls the addition
+      ADDITIVE leaves the dbt table without the column. Should every emitted incremental
+      model carry `on_schema_change: append_new_columns`?

@@ -801,7 +801,7 @@ A mart may declare `reading: current` on its base, and a flatten `via:` in place
 
 ### S-0087/D-5 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
 
-An entity materialized `incremental_by_partition` may declare `arrival_lag`, a duration in `quarantine.retention`'s grammar; SQLMesh's model pins `interval_unit 'day'` and `lookback` is the lag in whole days, rounded up, so an operator's cron cannot shrink it, and a cron more frequent than daily is refused by SQLMesh at load; unset, neither is emitted. Declared on any other entity it is refused. dbt carries nothing: its incremental entity merges its whole select on the key every run, so a late row already lands.
+An entity materialized `incremental_by_partition` may declare `arrival_lag`, a duration in `quarantine.retention`'s grammar; SQLMesh's model pins `interval_unit 'day'` and `lookback` is the lag in whole days, rounded up, so an operator's cron cannot shrink it, and a cron more frequent than daily is refused by SQLMesh at load unless the caller also sets `allow_partials`; unset, neither is emitted. Declared on any other entity it is refused. dbt carries nothing: its incremental entity merges its whole select on the key every run, so a late row already lands.
 
 - Paths: `src/bloomery/spec/entity.py` `src/bloomery/emit/sqlmesh/__init__.py`
 - Consequence: a row that lands after its interval ran is loaded on a later run instead of never, and a project that declares no lag compiles byte for byte as before

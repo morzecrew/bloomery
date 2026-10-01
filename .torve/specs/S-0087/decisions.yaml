@@ -66,9 +66,9 @@ decisions:
       a duration in `quarantine.retention`'s grammar; SQLMesh's model pins `interval_unit
       'day'` and `lookback` is the lag in whole days, rounded up, so an operator's
       cron cannot shrink it, and a cron more frequent than daily is refused by SQLMesh
-      at load; unset, neither is emitted. Declared on any other entity it is refused.
-      dbt carries nothing: its incremental entity merges its whole select on the key
-      every run, so a late row already lands.
+      at load unless the caller also sets `allow_partials`; unset, neither is emitted.
+      Declared on any other entity it is refused. dbt carries nothing: its incremental
+      entity merges its whole select on the key every run, so a late row already lands.
     paths: [src/bloomery/spec/entity.py, src/bloomery/emit/sqlmesh/__init__.py]
     consequence: >-
       a row that lands after its interval ran is loaded on a later run instead of
