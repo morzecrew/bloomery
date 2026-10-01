@@ -107,3 +107,25 @@ def test_an_unrelated_entity_is_not_named() -> None:
     result = _plan((_child("elsewhere", ("other", "quarantine")),))
     assert result.replay_scope.entities == ("parent",)
     assert result.backfill_scope.entities == ("parent",)
+
+
+def test_a_replayed_child_still_owes_the_backfill_its_keeping_rule_needs() -> None:
+    result = _plan(
+        (
+            _child("q", ("parent", "quarantine")),
+            _child("c", ("parent", "unknown_member"), ("q", "quarantine")),
+        )
+    )
+    assert result.replay_scope.entities == ("parent", "q", "c")
+    assert "c" in result.backfill_scope.entities
+
+
+def test_a_child_replayed_for_its_own_rule_still_waits_for_its_parent() -> None:
+    old = project(
+        entities=(
+            entity("z_parent", quality=(QUARANTINE_RULE,)),
+            _child("a_child", ("z_parent", "quarantine")),
+        )
+    )
+    new = project(entities=(entity("z_parent"), _child("a_child", ("z_parent", "unknown_member"))))
+    assert plan(old, new).replay_scope.entities == ("z_parent", "a_child")

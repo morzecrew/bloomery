@@ -1217,6 +1217,7 @@ def _cascade(new: ProjectIR, acc: _Acc) -> tuple[str, ...]:
 
     quarantined_on: dict[str, set[str]] = {}
     kept_on: dict[str, set[str]] = {}
+    refers_to: dict[str, set[str]] = {}
 
     for entity in new.entities:
         for rule in entity.quality:
@@ -1229,6 +1230,7 @@ def _cascade(new: ProjectIR, acc: _Acc) -> tuple[str, ...]:
                 continue
 
             label = _disposition_label(rule)
+            refers_to.setdefault(entity.name, set()).add(parent)
 
             if label == OnFail.QUARANTINE:
                 quarantined_on.setdefault(parent, set()).add(entity.name)
@@ -1244,13 +1246,14 @@ def _cascade(new: ProjectIR, acc: _Acc) -> tuple[str, ...]:
                 frontier.append(child)
 
     for parent in acc.replay:
-        acc.backfill.update(kept_on.get(parent, set()) - acc.replay)
+        # A replay reads the reject table and never recomputes admitted rows,
+        # so a child in both scopes still owes its backfill (S-0084/D-5).
+        acc.backfill.update(kept_on.get(parent, set()))
 
-    waiting = {
-        name: {parent for parent, children in quarantined_on.items() if name in children}
-        & acc.replay
-        for name in acc.replay
-    }
+    # Order by every referential edge, not only the quarantining ones that
+    # grew the scope: a child replayed before any parent it reads rewrites or
+    # flags against an absent parent (S-0084/D-4).
+    waiting = {name: refers_to.get(name, set()) & acc.replay for name in acc.replay}
     order: list[str] = []
 
     while waiting:
