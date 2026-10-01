@@ -203,9 +203,16 @@ An entity materialized `incremental_by_partition` may declare `arrival_lag`, a d
 
 ### S-0087/D-6 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
 
-Whether a `months(...)` or `years(...)` partition under SQLMesh's default daily interval overwrites a whole partition is measured on the Trino lane before any emitter change; Q-2 stays open until the measurement is recorded.
+No `interval_unit` is derived from a partition transform: a coarse partition under SQLMesh's daily interval overwrites nothing on Trino. Measured on 2026-10-01 on `trinodb/trino:483` with a Hive 4 metastore: the Hive catalog refuses any transform before a write, and on Iceberg the daily interval deletes and re-inserts its own time range, leaving the rest of the month intact.
 
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py`
 - Consequence: the interval unit changes only on evidence, and a null result closes the question without code
+
+### S-0087/D-8 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+
+On Trino, a partition transform reaches the SQLMesh model in the connector's singular spelling, `day`, `month`, `year` or `hour`; the spec keeps its plural grammar. A Hive catalog takes no transform at all, and the docs say to partition by a date column there.
+
+- Paths: `src/bloomery/dialects/trino.py` `src/bloomery/emit/sqlmesh/__init__.py`
+- Consequence: a transform-partitioned model builds on a Trino Iceberg catalog, which today refuses every one bloomery emits
 
 <!-- /torve:managed -->

@@ -35,7 +35,7 @@ non_goals: |
   - **A schedule.** No `cron` is emitted anywhere (D-2); a cadence is the operator's.
   - **A saved query per exposure.** An exposure stays a consumer (D-3).
   - **A freshness filter.** It changes scan time, never the answer (D-4).
-  - **A coarser interval unit before the measurement.** Q-2 is measured first (D-6).
+  - **A coarser interval unit.** The measurement found no overwrite to prevent (D-6).
   - **Late arrivals on dbt.** Its incremental entity already re-merges its whole select (D-5).
 design:
   - key: owner-in-metricflow
@@ -68,3 +68,10 @@ questions:
       A `months(...)` or `years(...)` partition with SQLMesh's default daily interval
       may let one day's run overwrite the whole partition on a Hive catalog. Measure
       first; if it reproduces, derive `interval_unit` from the partition transform?
+    status: settled
+    settled_by: D-6
+  - id: Q-3
+    text: >-
+      Do BigQuery and Databricks accept the plural transforms bloomery hands SQLMesh?
+      Both emit `days(...)` as Trino did, and neither has been run on a live account;
+      their live lanes answer it.

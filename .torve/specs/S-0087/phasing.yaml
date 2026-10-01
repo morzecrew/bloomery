@@ -42,3 +42,24 @@ phasing:
       - >-
         uv run pytest tests/unit/test_spec tests/unit/test_emit tests/golden -q
     character: routine
+  - phase: 3
+    title: A partition transform builds on Trino
+    intent: >-
+      The Trino dialect port spells a partition transform in the singular, `day`,
+      `month`, `year` or `hour`, and the SQLMesh emitter asks the port for it; every
+      other dialect keeps its output. A unit test pins the Trino spelling for all
+      four transforms, the Trino goldens move, and the partitioning docs say a Hive
+      catalog takes a date column, not a transform. Settles D-8.
+    scope:
+      - src/bloomery/dialects/**
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - tests/unit/test_dialects/**
+      - tests/unit/test_emit/**
+      - tests/golden/**
+      - pages/docs/concepts/specs-and-catalog.md
+      - pages/docs/reference/spec-schemas.md
+      - CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_dialects tests/unit/test_emit tests/golden -q
+    character: routine
