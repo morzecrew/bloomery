@@ -10,3 +10,36 @@ amendments:
       Trino's Iceberg connector refuses every plural transform bloomery emits, while
       its Hive connector refuses any transform; D-8 and phase 3 fix the spelling,
       and Q-3 asks the same of BigQuery and Databricks.
+  - id: A-2
+    at: '2026-10-01T23:11:24Z'
+    title: The lag is a type 1 entity's
+    changes:
+      - subject: D-5
+        field: text
+        before: >-
+          An entity materialized `incremental_by_partition` may declare `arrival_lag`,
+          a duration in `quarantine.retention`'s grammar; SQLMesh's model pins `interval_unit
+          'day'` and `lookback` is the lag in whole days, rounded up, so an operator's
+          cron cannot shrink it, and a cron more frequent than daily is refused by
+          SQLMesh at load unless the caller also sets `allow_partials`; unset, neither
+          is emitted. Declared on any other entity it is refused. dbt carries nothing:
+          its incremental entity merges its whole select on the key every run, so
+          a late row already lands.
+        after: >-
+          An entity materialized `incremental_by_partition` at `scd: type1` may declare
+          `arrival_lag`, a duration in `quarantine.retention`'s grammar; SQLMesh's
+          model pins `interval_unit 'day'` and `lookback` is the lag in whole days,
+          rounded up, so an operator's cron cannot shrink it, and a cron more frequent
+          than daily is refused by SQLMesh at load unless the caller also sets `allow_partials`;
+          unset, neither is emitted. Declared on any other entity it is refused, a
+          type 2 entity included: its SCD kind replaces the time-range kind, so the
+          lag would reach no model. dbt carries nothing: its incremental entity merges
+          its whole select on the key every run, so a late row already lands.
+      - subject: D-5
+        field: fingerprint
+        after: eed32e680ef49b65/263fd20917fa6ead
+    md: >-
+      T-0231 found that a type 2 entity's SCD kind replaces `INCREMENTAL_BY_TIME_RANGE`,
+      so a lag declared on one would reach no model and be dropped silently. D-5 now
+      admits the lag only at `scd: type1` and refuses it on a type 2 entity. Phase
+      2's scope gains `resolve/facets.py`, where every `EntityIR` field is classified.

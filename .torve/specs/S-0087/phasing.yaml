@@ -43,6 +43,7 @@ phasing:
       - src/bloomery/ir/nodes.py
       - src/bloomery/resolve/build.py
       - tests/unit/test_resolve/**
+      - src/bloomery/resolve/facets.py
     acceptance:
       - >-
         uv run pytest tests/unit/test_spec tests/unit/test_emit tests/unit/test_resolve
