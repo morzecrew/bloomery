@@ -31,7 +31,9 @@ decisions:
     grade: ASSUMED
     text: >-
       `replay_scope` names every entity whose `referential` rule at `on_missing: quarantine`
-      reaches, directly or through a chain, an entity already in scope
+      reaches, directly or through a chain, an entity already in scope, provided it
+      already quarantined on that entity before the change; a child that is new, or
+      quarantines on it only from now on, holds no orphans and is not named
     paths: [src/bloomery/plan/diff.py, src/bloomery/plan/model.py]
     consequence: >-
       a parent that comes back brings back the children it held
@@ -40,6 +42,7 @@ decisions:
       mechanism; S-0033/D-52 names an entity where rows can come back, and a child
       of a replayed parent is one, because the rows it orphaned can now resolve
     cites: [S-0033/D-52]
+    fingerprint: 0c9344e9754b6c74/8c56a734bac15d77
   - id: D-4
     grade: ASSUMED
     text: >-

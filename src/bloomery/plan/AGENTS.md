@@ -198,7 +198,7 @@ The delta vocabulary is S-0069's and is never restated here. Two tables describi
 
 ### S-0084/D-3 — `ASSUMED` (A replayed parent brings its children back)
 
-`replay_scope` names every entity whose `referential` rule at `on_missing: quarantine` reaches, directly or through a chain, an entity already in scope
+`replay_scope` names every entity whose `referential` rule at `on_missing: quarantine` reaches, directly or through a chain, an entity already in scope, provided it already quarantined on that entity before the change; a child that is new, or quarantines on it only from now on, holds no orphans and is not named
 
 - Paths: `src/bloomery/plan/diff.py` `src/bloomery/plan/model.py`
 - Consequence: a parent that comes back brings back the children it held
