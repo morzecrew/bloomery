@@ -263,6 +263,8 @@ questions:
       in `marts:`. A `date_dimension` prefix, a `mart` node for a thing that is not
       in `marts:`, or nothing — the answer probably depends on whether anyone asks
       a lineage question about the calendar.
+    status: settled
+    settled_by: D-8
   - id: Q-2
     text: >-
       **Whether an exposure's `depends_on.marts` should admit a rollup.** S-0063 (§10)

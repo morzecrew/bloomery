@@ -28,3 +28,18 @@ amendments:
 
       Settled by the implementation:
       - D-8: The discipline is implemented and guarded. `SUPERSEDED` is empty, so the guard has not yet been exercised by a real split. That is a gap in test coverage, not an open question. Evidence: src/bloomery/semantic/proof.py; src/bloomery/semantic/proof.py, 445-449; tests/unit/test_semantic/test_proof.py::test_a_superseded_rule_keeps_its_entry.
+  - id: A-2
+    at: '2026-10-01T06:07:08Z'
+    title: What the owner decided on 2026-10-01
+    changes:
+      - subject: D-10
+        field: text
+        after: >-
+          Of the seven rules the design names, the six that are minted are the core
+          contract. Explicit unit conversion is not minted while the spec language
+          declares no unit; a spec language that gains units brings the rule with
+          it.
+    md: |-
+      What the owner decided on 2026-10-01 for questions this document still left open. The owner's merge is the acceptance, and LOCKED stays the owner's act.
+
+      - D-10 answers Q-1, as the owner decided.

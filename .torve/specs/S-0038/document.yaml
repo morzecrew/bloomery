@@ -277,8 +277,6 @@ sections:
       Decisions 4–8 are documentation and policy and can land in a single small change ahead of
       the fixture.
 questions:
-  - id: Q-1
-    text: 'None introduced. This RFC closes four:'
   - id: Q-2
     text: >-
       Identity resolution — §5.1, settled as a step, permanently.

@@ -35,3 +35,10 @@ amendments:
 
       Answered by a later row, which the row now names:
       - D-10 is answered by S-0040/D-15: D-15 answers it: `convert` is refused, not removed from the whitelist. `convert` has since gained a real lowering (tests/execution/test_currency_convert.py), so it stays registered either way.
+  - id: A-2
+    at: '2026-10-01T05:21:50Z'
+    title: What the code and later rows already answered
+    md: |-
+      What this document still left open, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+
+      - Q-1 is answered by S-0080/D-1: S-0080 names S-0040/Q-1 as its motivation and ships the escape hatch as `reading: current`, rejecting the question's version-grained mart guess in its alternatives.

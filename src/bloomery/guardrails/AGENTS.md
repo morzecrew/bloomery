@@ -584,4 +584,11 @@ R018 does not reach a timestamp parsed inside a catalog recipe: a recipe fills n
 - Paths: `src/bloomery/guardrails/zone.py` `tests/unit/test_guardrails/test_zone.py`
 - Consequence: A project whose recipe casts wall-clock text to a timestamp compiles without a zone refusal, and whoever closes the hole needs a declaration site on the catalog side first
 
+### S-0076/D-11 — `ASSUMED` (Declared source timezone)
+
+The as-of anchor is R018's to refuse, not a premise R004 gains: R018's demand includes each flatten join's `as_of:` column, traced through `MartColumnIR` to its entity column beside date roles and literal comparisons, and R004's as-of proof carries no zone premise.
+
+- Paths: `src/bloomery/guardrails/zone.py`
+- Consequence: a join anchored on a zoneless timestamp is refused where the zone matters, by the rule that owns zones
+
 <!-- /torve:managed -->

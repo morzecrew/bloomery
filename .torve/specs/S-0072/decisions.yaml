@@ -59,11 +59,13 @@ decisions:
       `plan()` is untouched. Its impact report reads the IR's own edges by design,
       and a graph walk beside it would be a second answer to one question.
   - id: D-8
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether `dim_date` gets a node, and under which prefix. §10 states the three
-      candidates; whoever builds this decides and logs the decision, or defers it
-      explicitly.
+      `dim_date` gets no lineage node: `NodeKind` has no member for the catalog's
+      date dimension, no edge reaches it, and no prefix is reserved for it. A node
+      waits for a lineage question about the calendar, and a `gold` kind merging it
+      with marts stays rejected.
+    fingerprint: fa4079bc7ece79e9/202c11f3690cefb1
   - id: D-9
     grade: ASSUMED
     text: >-

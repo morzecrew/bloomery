@@ -318,8 +318,9 @@ sections:
       with the grades the owner gave them: rows D1 through D5 and D10 `LOCKED`, D6 through
       D9 and D13 `ASSUMED`, D11 and D12 `OPEN`. Row identifiers here are `D-1` through
       `D-13` and map one-to-one onto rows D1 through D13 of that file. Text was tightened,
-      never re-graded, and no row was added: the schema needed none that the source did not
-      write. The source's own cross-references, which its numbering scheme spells in a
+      never re-graded, and no row was added in the carry: the schema needed none that the
+      source did not write. D-14 came later, from A-3, to record how the implementation
+      answered Q-2. The source's own cross-references, which its numbering scheme spells in a
       grammar this corpus retired, were rewritten as file paths or as plain description.
 
       **What was measured afresh.** Every path on every row was read from the working tree
@@ -396,8 +397,12 @@ questions:
       respectable; if it is the first, the correct outcome is to refuse this document
       and keep retrieval semantics downstream, where a runtime that already knows
       its own vector store can enforce them.
+    status: settled
+    settled_by: D-1
   - id: Q-2
     text: >-
       What does a spec-version bump mean for a kind nobody has adopted yet? The stability
       promise is written for kinds in use; this kind starts with no users, and saying
       so before the first release is cheaper than discovering the promise applies.
+    status: settled
+    settled_by: D-14
