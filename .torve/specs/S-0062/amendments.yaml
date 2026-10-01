@@ -19,6 +19,6 @@ amendments:
     at: '2026-10-01T09:04:35Z'
     title: Settled by S-0087
     md: >-
-      S-0087, accepted by the owner on 2026-10-01, answers Q-2 in S-0087/D-1: a mart's
-      and a metric's owner reach MetricFlow as `config.meta.owner`, since the pinned
-      manifest has no `owners` list.
+      S-0087, accepted by the owner on 2026-10-01, answers S-0062/Q-2 in S-0087/D-1:
+      a mart's and a metric's owner reach MetricFlow as `config.meta.owner`, since
+      the pinned manifest has no `owners` list.

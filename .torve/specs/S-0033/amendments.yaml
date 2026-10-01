@@ -45,6 +45,6 @@ amendments:
     at: '2026-10-01T09:04:35Z'
     title: Settled by S-0084
     md: >-
-      S-0084, accepted by the owner on 2026-10-01, answers Q-5 in S-0084/D-2: a parent
-      that is quarantined, late or not yet replayed counts as absent, `coverage:`
-      counts admitted rows on both sides, and D90 stands.
+      S-0084, accepted by the owner on 2026-10-01, answers S-0033/Q-5 in S-0084/D-2:
+      `coverage:` counts admitted rows on both sides and has no 'exists' form, so
+      a check phrased 'has an order' is correct and D-90 stands.

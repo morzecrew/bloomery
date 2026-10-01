@@ -91,7 +91,7 @@ amendments:
     at: '2026-10-01T09:04:35Z'
     title: Settled by S-0085
     md: >-
-      S-0085, accepted by the owner on 2026-10-01, answers Q-1 in S-0085/D-6: the
-      IR records no naming policy until a surface other than Python can select one;
-      then it records each export's resolved relation and the emit seam refuses a
-      mismatch.
+      S-0085, accepted by the owner on 2026-10-01, answers S-0002/Q-1 in S-0085/D-6:
+      the IR records no naming policy until a surface other than Python can select
+      one; then it records each export's resolved relation and the emit seam refuses
+      a mismatch.

@@ -20,6 +20,7 @@ phasing:
       - >-
         uv run pytest tests/unit/test_emit tests/property/test_compile_properties.py
         tests/golden -q
+      - uv run pytest tests/e2e/test_dbt_quality.py -q
     character: structural
   - phase: 2
     title: >-
@@ -38,6 +39,7 @@ phasing:
     acceptance:
       - >-
         uv run pytest tests/unit/test_emit tests/golden -q
+      - uv run pytest tests/e2e/test_dbt_quality.py -q
     depends_on:
       - 1
     character: structural

@@ -17,7 +17,7 @@ schema_version: 4
 summary: |-
   Four questions asked whether an emitter should carry a fact its target can hold. Checked against the pinned dbt-core 1.12.3, metricflow 0.213.0 and sqlmesh 0.236.2, one is a gap: a mart's and a metric's `owner` never reach the MetricFlow manifest, whose slot is `config.meta`, not the `owners` list the docs claim. The other three are recorded no's: an unstated SQLMesh cron makes a project late, never wrong; an exposure is a consumer, not a saved query; and a freshness `filter:` only saves scan time on a partition column no spec declares.
 
-  Settling the cron question surfaced two that are not about cron and stay open here: a row arriving after its interval ran is never loaded, and a daily interval over a monthly partition may overwrite the month.
+  Settling the cron question surfaced two that are not about cron: a row arriving after its interval ran is never loaded, which an optional `arrival_lag` answers, and a daily interval over a monthly partition might overwrite the month, which a measurement on Trino found it does not.
 motivation: >-
   S-0061/Q-2, S-0062/Q-2, S-0063/Q-1 and S-0064/Q-1, grouped by the triage of 2026-10-01
   as small target-local calls.

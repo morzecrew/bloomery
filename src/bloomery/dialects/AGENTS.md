@@ -344,6 +344,6 @@ A `to_utc` whose operand is an ISO wall-clock parse makes the parse zoned: every
 On Trino, a partition transform reaches the SQLMesh model in the connector's singular spelling, `day`, `month`, `year` or `hour`; the spec keeps its plural grammar. A Hive catalog takes no transform at all, and the docs say to partition by a date column there.
 
 - Paths: `src/bloomery/dialects/trino.py` `src/bloomery/emit/sqlmesh/__init__.py`
-- Consequence: a transform-partitioned model builds on a Trino Iceberg catalog, which today refuses every one bloomery emits
+- Consequence: once phase 3 lands, a transform-partitioned model builds on a Trino Iceberg catalog; today that catalog refuses every transform bloomery emits
 
 <!-- /torve:managed -->

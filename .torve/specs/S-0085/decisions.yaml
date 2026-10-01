@@ -78,14 +78,17 @@ decisions:
     grade: ASSUMED
     text: >-
       This boundary stores no provenance; it grades an upstream fact ASSUMED from
-      `ProjectIR.upstream` (S-0085/D-5), the grade S-0070/D-9 gives `IMPORTED_VERIFIED`,
-      which S-0075's importer already produces. S-0070/D-9's answer is observable
-      on both paths and holds, and the owner locked it on 2026-10-01.
+      `ProjectIR.upstream` (S-0085/D-5), the grade S-0070/D-9 gives `IMPORTED_VERIFIED`.
+      The evidence guard already grades a hop S-0075's `imported_from` marks with
+      that same grade, though no proof node carries the provenance itself (S-0070/D-18).
+      S-0070/D-9's answer is therefore what a strict consumer meets on both routes,
+      and the owner locked it on 2026-10-01.
     paths: [src/bloomery/guardrails/evidence.py, src/bloomery/semantic/proof.py]
     consequence: >-
       the grade an imported fact gets is settled before the first strict consumer
       relies on it
     rationale: >-
-      S-0070/D-9 stayed unlocked because nothing produced the provenance it grades;
-      S-0075 has produced it since, and this boundary reaches the same grade by another
-      route, so there was nothing left to observe before locking.
+      S-0070/D-9 waited on a producer of its provenance. Its grade is already what
+      the evidence guard gives an imported hop, and this boundary gives an upstream
+      fact the same, so the owner locked the answer without waiting for a proof node
+      to carry the provenance.

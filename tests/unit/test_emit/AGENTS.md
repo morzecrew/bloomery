@@ -311,7 +311,7 @@ SQLMesh and Cube emit nothing, and it is not a refusal — neither models a sour
 
 ### S-0087/D-2 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
 
-No `cron` is emitted, in `model_defaults` or on any model; an unstated cron makes a project late, never wrong, because it moves when an interval closes and not which rows the interval holds; this answers S-0061/Q-2
+No `cron` is emitted, in `model_defaults` or on any model; an unstated cron makes a project late, never wrong, because it moves when an interval closes and not which rows the interval holds; a row that arrives after its interval ran is S-0087/D-5's arrival lag, not the cron's; this answers S-0061/Q-2
 
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py` `tests/unit/test_emit/test_sqlmesh.py`
 - Consequence: cadence stays the caller's, outside a file every compile rewrites
@@ -321,6 +321,6 @@ No `cron` is emitted, in `model_defaults` or on any model; an unstated cron make
 An exposure emits no MetricFlow `saved_query`, and this is not a refusal: a saved query is a request and an exposure a consumer, with no group-by, no slot for a mart, and metrics the manifest may lack; this answers S-0063/Q-1
 
 - Paths: `src/bloomery/emit/metricflow/__init__.py` `tests/unit/test_emit/test_metricflow.py`
-- Consequence: the manifest holds only queries someone wrote
+- Consequence: the manifest's `saved_queries` holds only queries someone wrote
 
 <!-- /torve:managed -->

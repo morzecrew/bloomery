@@ -48,6 +48,6 @@ amendments:
     at: '2026-10-01T09:04:35Z'
     title: Settled by S-0086
     md: >-
-      S-0086, accepted by the owner on 2026-10-01, answers Q-2 in S-0086/D-5: no id-only
-      fingerprint; a guard that needs a narrower scope gets a new entity fingerprint
-      beside an unchanged `project_fingerprint`.
+      S-0086, accepted by the owner on 2026-10-01, answers S-0067/Q-2 in S-0086/D-5:
+      no id-only fingerprint; a guard that needs a narrower scope gets a new entity
+      fingerprint beside an unchanged `project_fingerprint`.

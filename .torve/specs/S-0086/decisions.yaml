@@ -15,8 +15,8 @@ decisions:
     grade: ASSUMED
     text: >-
       `dbt_project.yml` carries `vars: {bloomery_fingerprint: <project fingerprint>}`,
-      and the dbt replay macro refuses before BEGIN when the var differs from the
-      fingerprint it was emitted under
+      and the dbt replay macro refuses before its first statement when the var differs
+      from the fingerprint it was emitted under
     paths: [src/bloomery/emit/dbt/__init__.py]
     consequence: >-
       a replay left over from another compile, or run against a project compiled elsewhere,
@@ -28,13 +28,14 @@ decisions:
   - id: D-3
     grade: ASSUMED
     text: >-
-      Before BEGIN the dbt replay macro checks that the entity and its reject table
-      carry every column the statements write, and refuses naming the missing columns
-      and the rebuild that adds them
+      Before its first statement the dbt replay macro checks that the entity and its
+      reject table carry every column the statements write, and refuses, naming the
+      missing columns and the rebuild that adds them
     paths: [src/bloomery/emit/dbt/__init__.py, src/bloomery/emit/lower/silver.py]
     consequence: >-
-      a reject table a version behind the macro is refused before a statement commits,
-      including on Databricks
+      a reject table missing a column the macro writes is refused before a statement
+      commits, including on Databricks; one that has every column passes whatever
+      its age
     rationale: >-
       without a transaction a half-applied replay is the state S-0060/D-14 exists
       to prevent

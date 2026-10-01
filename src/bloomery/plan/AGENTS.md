@@ -205,14 +205,14 @@ The delta vocabulary is S-0069's and is never restated here. Two tables describi
 
 ### S-0084/D-4 — `ASSUMED` (A replayed parent brings its children back) — implementation: none
 
-`replay_scope` is ordered parents first, topologically with ties broken by name
+`replay_scope` is ordered parents first, topologically with ties broken by name; entities whose `referential` rules form a cycle have no parent-first order and are ordered by name among themselves
 
 - Paths: `src/bloomery/plan/diff.py`
 - Consequence: a caller running the scope in order replays a child after its parent's rows are admitted
 
 ### S-0084/D-5 — `ASSUMED` (A replayed parent brings its children back) — implementation: none
 
-A dependent at `on_missing: unknown_member` or `flag` of an entity in `replay_scope` is named in `backfill_scope`; rows bronze no longer holds keep their rewrite or flag; no reserved column keeps the original key, and the documented remedy for such a child is re-ingesting its rows into bronze or setting the parent's coverage to warn
+A dependent at `on_missing: unknown_member` or `flag` of an entity in `replay_scope` is named in `backfill_scope`; rows bronze no longer holds keep their rewrite or flag; no reserved column keeps the original key, and phase 1 documents the remedy for such a child: re-ingesting its rows into bronze or setting the parent's coverage to warn
 
 - Paths: `src/bloomery/plan/diff.py`
 - Consequence: children still in bronze's window are re-judged against the returned parent

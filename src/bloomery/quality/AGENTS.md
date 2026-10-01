@@ -238,6 +238,6 @@ bloomery **declares** freshness and never measures it. The threshold is emitted;
 A `referential` verdict reads only the parent's admitted silver rows; the probe never reads a reject table, so a parent that is quarantined, late or not yet replayed counts as absent
 
 - Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/quality/predicates.py`
-- Consequence: the verdict is a fact about silver, which is what every mart and metric reads
+- Consequence: the verdict is a fact about silver, which is what every consumer mart and metric reads; the quality mart alone also counts reject rows
 
 <!-- /torve:managed -->

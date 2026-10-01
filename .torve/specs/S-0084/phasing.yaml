@@ -20,6 +20,7 @@ phasing:
       - tests/property/test_plan_properties.py
       - tests/unit/test_cli.py
       - tests/execution/test_quarantine_replay.py
+      - tests/unit/test_docs_floor.py
     acceptance:
       - >-
         uv run pytest tests/unit/test_plan tests/property/test_plan_properties.py

@@ -25,11 +25,11 @@ phasing:
     title: A late row reaches SQLMesh
     intent: >-
       `Entity` gains an optional `arrival_lag` in the retention grammar, refused off
-      `incremental_by_partition`; SQLMesh's `INCREMENTAL_BY_TIME_RANGE` clause carries
-      `lookback` as the lag in whole days, rounded up, since bloomery emits no cron
-      and the interval is daily; no lag, no change to any emitted golden, while the
-      entity-model schema golden gains the field. The spec reference and the changelog
-      name it. Settles D-5.
+      `incremental_by_partition`; the SQLMesh model pins `interval_unit 'day'` and
+      carries `lookback` as the lag in whole days, rounded up, and a test shows an
+      `@hourly` cron on such a model refused by SQLMesh; no lag, no change to any
+      emitted golden, while the entity-model schema golden gains the field. The spec
+      reference and the changelog name it. Settles D-5.
     scope:
       - src/bloomery/spec/entity.py
       - src/bloomery/emit/sqlmesh/__init__.py
@@ -41,6 +41,8 @@ phasing:
     acceptance:
       - >-
         uv run pytest tests/unit/test_spec tests/unit/test_emit tests/golden -q
+    depends_on:
+      - 1
     character: routine
   - phase: 3
     title: A partition transform builds on Trino
@@ -62,4 +64,6 @@ phasing:
     acceptance:
       - >-
         uv run pytest tests/unit/test_dialects tests/unit/test_emit tests/golden -q
+    depends_on:
+      - 2
     character: routine

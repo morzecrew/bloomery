@@ -27,9 +27,10 @@ current_state: >-
   both targets and `quality/predicates.py::_referential` calls a child an orphan when
   the join finds nothing. `emit/lower/reconcile.py::coverage_audit_select` reports
   parents in silver with fewer than `min` children in silver. `plan/diff.py::_replay`
-  names an entity only when its own quarantine rule was relaxed (S-0033/D-52), and
-  neither `replay_scope` nor `backfill_scope` reaches a dependent. Replaying a child
-  already works, because its re-evaluation re-runs the probe; nothing asks for it.
+  names an entity only when its own change can admit rows its quarantine used to reject,
+  such as a relaxed rule or a move to `flag` (S-0033/D-52), and neither `replay_scope`
+  nor `backfill_scope` reaches a dependent. Replaying a child already works, because
+  its re-evaluation re-runs the probe; nothing asks for it.
 goals: |-
   - A parent that comes back brings back the children it orphaned, through the replay each already has.
   - The plan says which entities to replay and in which order.
@@ -49,7 +50,7 @@ design:
       A child's replay runs after its parent's rows are admitted: after the parent's
       replay for type 1, after the next run for type 2.
 tests: |-
-  - Relaxing a parent's rule names its quarantining child in `replay_scope` after the parent, and its `unknown_member` child in `backfill_scope`.
+  - Relaxing a parent's rule names its quarantining child in `replay_scope` after the parent, and its `unknown_member` and `flag` children in `backfill_scope`.
   - Tightening a rule names no dependent.
   - Executed over `dirty_corpus` (spec text edited in the test): after the parent's replay and then the child's, the routed child is admitted and resolved.
 docs: >-
@@ -78,8 +79,9 @@ questions:
     text: >-
       Is the limit acceptable, that an `unknown_member` or `flag` child outside bronze's
       window keeps its rewrite? The alternative is a reserved column keeping the original
-      foreign key, so a replay can restore it; it is the only way a blocking coverage
-      check on such a parent ever clears, and it changes emitted SQL on both targets.
+      foreign key, so a replay can restore it; it is the only way such a parent's
+      blocking coverage check clears without re-ingesting the rows, and it changes
+      emitted SQL on both targets.
     status: settled
     settled_by: D-5
   - id: Q-2

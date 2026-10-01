@@ -19,5 +19,6 @@ amendments:
     at: '2026-10-01T09:04:35Z'
     title: Settled by S-0087
     md: >-
-      S-0087, accepted by the owner on 2026-10-01, answers Q-1 in S-0087/D-4: `freshness:`
-      carries no `filter:`, which only shrinks the scan and never changes the answer.
+      S-0087, accepted by the owner on 2026-10-01, answers S-0064/Q-1 in S-0087/D-4:
+      `freshness:` carries no `filter:`, which would need a bronze partition column
+      no spec declares.

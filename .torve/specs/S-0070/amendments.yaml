@@ -31,7 +31,7 @@ amendments:
       Answered by a later row, which the row now names:
       - D-8 is answered by S-0070/D-9: The row is marked 'Superseded by 9'; D-9 grades `IMPORTED_VERIFIED` as `ASSUMED`.
   - id: A-2
-    at: '2026-10-01T09:01:40Z'
+    at: '2026-10-01T09:52:49Z'
     title: The owner locks D-9
     changes:
       - subject: D-9
@@ -57,24 +57,26 @@ amendments:
           **`IMPORTED_VERIFIED` grades `ASSUMED`, following §5.1's table — supersedes
           8.** The question a strict consumer asks is "did a human *here* write this
           down", and an exact read of another project's artifact answers no however
-          exact the rule was. Locked by the owner on 2026-10-01: S-0075's importer
-          produces that provenance, and S-0085's project boundary grades upstream
-          facts the same way (S-0085/D-7); S-0002 asks the same question from the
-          other direction (§10). Added by execution 2026-09-09 — see `logs/T-0031.md`
-          (`logs/T-0031.md`) (D8, attempt 1).
+          exact the rule was. Locked by the owner on 2026-10-01 without waiting for
+          a proof node to carry that provenance (D-18): the evidence guard already
+          gives a hop S-0075's `imported_from` marks this grade, and S-0085's project
+          boundary gives an upstream fact the same (S-0085/D-7). S-0002 asks the same
+          question from the other direction (§10). Added by execution 2026-09-09 —
+          see `logs/T-0031.md` (`logs/T-0031.md`) (D8, attempt 1).
       - subject: D-9
         field: fingerprint
-        after: 00c8b86f180ef9a9/2906c2411d857822
+        after: 4b7c50562fadfd97/2906c2411d857822
     md: >-
-      The owner locked D-9 on 2026-10-01. It stayed `ASSUMED` because nothing produced
-      the provenance it grades; S-0075's importer has produced it since, and S-0085's
-      project boundary grades upstream facts the same way (S-0085/D-7), so the reason
-      the text gave for not locking it is replaced. The row gains the paths that hold
-      the grade, which a lock needs.
+      The owner locked D-9 on 2026-10-01. Its text gave "nothing yet produces that
+      provenance" as the reason it was not locked, and D-18 still holds that no proof
+      node carries it. The grade, though, is already what a strict consumer meets:
+      the evidence guard gives it to a hop S-0075's `imported_from` marks, and S-0085's
+      project boundary gives it to an upstream fact (S-0085/D-7). The row's text now
+      says so, and it gains the paths that hold the grade, which a lock needs.
   - id: A-3
-    at: '2026-10-01T09:04:35Z'
+    at: '2026-10-01T09:52:49Z'
     title: Settled by S-0085
     md: >-
-      S-0085, accepted by the owner on 2026-10-01, answers Q-2 in S-0085/D-2: a fact
-      bound from an upstream project grades ASSUMED however the upstream obtained
+      S-0085, accepted by the owner on 2026-10-01, answers S-0070/Q-2 in S-0085/D-2:
+      a fact bound from an upstream project grades ASSUMED however the upstream obtained
       it.
