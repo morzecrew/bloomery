@@ -552,9 +552,11 @@ def _replay_columns_guard(
     """
     entity_relation = ctx.naming.relation(entity.name, Layer.SILVER)
     reject = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
+    # An incremental model adds no column on a plain run, so either relation
+    # rebuilds with `--full-refresh` unless it is a table already.
+    entity_refresh = "" if entity.materialization is Materialization.FULL else "--full-refresh "
     rebuilds = {
-        entity_relation: f"dbt run --select {_entity_model(entity, entity_relation[1])}",
-        # An incremental model adds no column on a plain run.
+        entity_relation: f"dbt run {entity_refresh}--select {_entity_model(entity, entity_relation[1])}",
         reject: f"dbt run --full-refresh --select {reject[1]}",
     }
     written: dict[tuple[str, str], list[str]] = {}

@@ -262,6 +262,11 @@ compare against the spec that quarantined a row — replaying after a spec chang
 replay is for — and it cannot tell a stale checkout whose own compile is self-consistent;
 the order above is the guard for that.
 
+Each macro also checks, before its first statement, that the entity and its reject table
+carry every column it writes, and refuses naming the missing ones and the rebuild that adds
+them. For an incremental model that rebuild is `dbt run --full-refresh`, because a plain run
+adds no column to one; for a table, a plain run does.
+
 It is a macro rather than a `.sql` file you could paste into a client, and that is
 forced rather than chosen: the statements name their relations through `{{ ref(...) }}`,
 which resolves inside dbt's Jinja and nowhere else. A loose file would be runnable by

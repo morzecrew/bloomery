@@ -23,7 +23,7 @@ from bloomery.emit.sqlmesh import SQLMeshEmitter
 from bloomery.emit.lower import REJECT_KEY, entity_select, ingestion_audit_predicate, mart_select
 from bloomery.emit.lower.silver import _schema_column
 from bloomery.errors import EmitError, UnsupportedByTarget
-from bloomery.ir import MartJoinIR
+from bloomery.ir import MartJoinIR, Materialization
 from bloomery.marts import HAS_QUALITY_FLAGS
 from bloomery.naming import DefaultNaming
 from bloomery.quality import (
@@ -1128,3 +1128,30 @@ def test_a_merged_entity_scopes_the_conservation_audit_by_the_source_pair() -> N
     )
     assert "_entity._source_row_id IN (" in single.content
     assert "_entity._source," not in single.content
+
+
+@pytest.mark.parametrize(
+    ("materialization", "rebuild"),
+    [
+        (Materialization.FULL, "`dbt run --select dirty_status`"),
+        (Materialization.INCREMENTAL_BY_KEY, "`dbt run --full-refresh --select dirty_status`"),
+    ],
+)
+def test_the_rebuild_a_replay_names_adds_the_column(materialization: Materialization, rebuild: str) -> None:
+    """S-0086/D-3: a plain ``dbt run`` adds no column to an incremental model,
+    so the rebuild the column guard names for an incremental entity is a full
+    refresh, as it already was for the reject table; a table rebuilds whole on
+    any run and needs none."""
+    ir = build_project_ir(*load_fixture("dirty_corpus"))
+    ir = replace(
+        ir,
+        entities=tuple(
+            replace(entity, materialization=materialization) if entity.name == "dirty_status" else entity
+            for entity in ir.entities
+        ),
+    )
+    context = EmitContext(dialect=get_dialect("duckdb"), naming=DefaultNaming(), fingerprint="blm1:test")
+    (macro,) = [a.content for a in DbtEmitter().emit(ir, context) if a.path == "macros/replay_dirty_status.sql"]
+
+    assert rebuild in macro
+    assert "`dbt run --full-refresh --select dirty_status__reject`" in macro
