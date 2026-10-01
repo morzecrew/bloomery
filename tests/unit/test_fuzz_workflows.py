@@ -201,6 +201,31 @@ def test_the_replay_job_still_leads(workflow: dict) -> None:
     assert jobs.index("replay") < jobs.index("pr")
 
 
+# ....................... #
+# Where a finding goes
+
+
+def test_a_failed_scheduled_run_files_its_findings(workflow: dict) -> None:
+    """S-0009/D-10. Two red Monday runs went unread for ten days, so a failed
+    scheduled run opens an issue per failed target. Only the schedule files: a
+    pull request's red is read by its author."""
+    report = workflow["jobs"]["report"]
+
+    assert set(report["needs"]) == {"replay", "batch"}
+    assert report["if"] == "failure() && github.event_name == 'schedule'"
+    assert "gh issue create" in report["steps"][-1]["run"]
+
+
+def test_only_a_job_that_runs_no_bloomery_code_can_write_issues(workflow: dict) -> None:
+    """Fuzzed code runs with a token that reads and nothing more: the write
+    lives in a job that never checks the repository out."""
+    writers = {
+        name for name, job in workflow["jobs"].items() if job.get("permissions", {}).get("issues") == "write"
+    }
+
+    assert writers == {"report"}
+    assert not any("actions/checkout" in step.get("uses", "") for step in workflow["jobs"]["report"]["steps"])
+
 
 def test_no_uv_cache_crowds_out_the_corpus() -> None:
     """S-0009/D-9. Unpruned uv caches of about 2 GB each, several saved by pull

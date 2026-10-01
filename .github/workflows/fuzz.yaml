@@ -52,11 +52,11 @@ jobs:
   replay:
     name: Cross-process determinism replay
     runs-on: ubuntu-latest
-    # 66 projects x 3 targets x 3 dialects, compiled three times over: 594
-    # compiles per run, measured at 1m24s on a developer machine. The ceiling
-    # is here so a lane nobody watches cannot run until the six-hour job cap
-    # stops it, and it has an order of magnitude of headroom for the corpus to
-    # grow into.
+    # Every seed project x 3 targets x 3 dialects, compiled in three processes
+    # (S-0009/D-8), measured at 1m24s on a developer machine when the corpus
+    # held 66 projects. The ceiling is here so a lane nobody watches cannot run
+    # until the six-hour job cap stops it, and it has an order of magnitude of
+    # headroom for the corpus to grow into.
     timeout-minutes: 30
     permissions:
       contents: read
@@ -397,3 +397,47 @@ jobs:
           path: fuzz/crashes/
           if-no-files-found: ignore
           retention-days: 14
+
+  # A failed scheduled run files its findings (S-0009/D-10). The Monday runs
+  # of 2026-09-21 and 2026-09-28 went red and nobody read them for ten days: a
+  # red scheduled job notifies the repository's owner and nobody who acts. One
+  # issue per failed target, commented on rather than duplicated while it stays
+  # open. The filing has a job of its own, which checks nothing out, so fuzzed
+  # code never shares a runner with a token that can write.
+  report:
+    name: File the findings
+    needs: [replay, batch]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read # the run's job conclusions
+      issues: write # opens or comments on a finding's issue
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Open or update one issue per failed target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh run view "$RUN_ID" --json jobs --jq '.jobs[] | select(.conclusion == "failure") | .name' |
+            sed -E 's/^Batch fuzz \(([a-z_]+),.*/\1/; s/^Cross-process determinism replay$/replay/' |
+            sort -u |
+            while read -r target; do
+              title="Fuzz finding: $target"
+              body="The scheduled fuzz run $RUN_URL failed on \`$target\`. The run's log and its \`fuzz-crashes-$target-*\` artifacts hold the reproducer."
+              number=$(gh issue list --state open --limit 200 --json number,title \
+                --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)
+              if [ -n "$number" ]; then
+                gh issue comment "$number" --body "$body"
+              else
+                gh issue create --title "$title" --body "$body"
+              fi
+            done
