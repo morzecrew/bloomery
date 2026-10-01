@@ -61,12 +61,6 @@
       "skillPath": "skills/reproduce-then-fix/SKILL.md",
       "computedHash": "d6dc5b40255cd67d0b580e10ae2bc0b19d408b185287e4465892cfbbf6466e82"
     },
-    "rfc-writer": {
-      "source": "morzecrew/agent-skills",
-      "sourceType": "github",
-      "skillPath": "skills/rfc-writer/SKILL.md",
-      "computedHash": "4a6c9b3ed00762841fa48633a7c3aecb5f7601892b24dd69a08ef3ec572d2d72"
-    },
     "self-audit": {
       "source": "morzecrew/agent-skills",
       "sourceType": "github",
