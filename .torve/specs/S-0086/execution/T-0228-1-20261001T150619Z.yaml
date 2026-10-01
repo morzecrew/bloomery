@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0228
+phase: 1
+base: 462766669e16630ab93b13fdfe2c412a14deb89c
+commit: 2153d1e328dc5820121187f1fb8a401e0879531a
+at: '2026-10-01T15:06:19Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-10-01T15:02:24Z'
+    claim: >-
+      guard compares the macro's emit fingerprint with the project var only; the widened-spec
+      replay e2e still passes
+    evidence: >-
+      src/bloomery/emit/dbt/__init__.py:495-508 — guard reads var('bloomery_fingerprint')
+      only; tests/e2e/test_dbt_quality.py:230 replays after a spec change and passes
+    action: decided
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-10-01T15:02:24Z'
+    claim: >-
+      dbt_project.yml carries vars.bloomery_fingerprint; replay macro raises a compiler
+      error before BEGIN on mismatch; guard is an if-block, not a set statement_ block
+    evidence: >-
+      src/bloomery/emit/dbt/__init__.py:1840 — vars emitted; guard at :495-508, rendered
+      before begin_line; tests/e2e/test_dbt_quality.py:284 is the red case
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-10-01T15:02:24Z'
+    claim: >-
+      SQLMesh emitter untouched; no SQLMesh golden moved
+    evidence: >-
+      `uv run pytest tests/golden -q` — 88 passed after regenerating only dbt goldens
+    action: decided
+  - decision: D-6
+    grade: ASSUMED
+    at: '2026-10-01T15:02:24Z'
+    claim: >-
+      how-to names rebuilding entity and reject table from the same checkout, and
+      what the guard refuses
+    evidence: >-
+      pages/docs/how-to/emit-dbt.md:244-266 — rebuild order and guard description
+    action: decided
+  - decision: D-8
+    grade: ASSUMED
+    at: '2026-10-01T15:02:24Z'
+    claim: >-
+      how-to says to compile into a clean directory; --out unchanged
+    evidence: >-
+      pages/docs/how-to/emit-dbt.md:253 — clean-directory instruction
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-01T15:02:25Z'
+    claim: >-
+      test_scaffold_and_sources_artifacts asserts the exact dbt_project.yml dict,
+      so D-2's new vars key required editing that existing assertion
+    evidence: >-
+      tests/unit/test_emit/test_dbt.py:515 — vars entry added to the expected dict
+    action: decided
+    proposal: >-
+      D-2 consequence should name the dbt_project.yml unit assertion as moving with
+      the goldens
