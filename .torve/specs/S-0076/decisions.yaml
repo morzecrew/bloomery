@@ -120,3 +120,17 @@ decisions:
       there is no `zone_in:` to write, and refusing it would be a refusal no author
       could satisfy
     cites: [D-7]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      The as-of anchor is R018's to refuse, not a premise R004 gains: R018's demand
+      includes each flatten join's `as_of:` column, traced through `MartColumnIR`
+      to its entity column beside date roles and literal comparisons, and R004's as-of
+      proof carries no zone premise.
+    paths: [src/bloomery/guardrails/zone.py]
+    consequence: >-
+      a join anchored on a zoneless timestamp is refused where the zone matters, by
+      the rule that owns zones
+    rationale: >-
+      `_mart_sites` in the R018 guardrail adds every as-of anchor to the zone demand,
+      and `test_an_as_of_anchor_over_a_parsed_timestamp_is_refused` pins it.

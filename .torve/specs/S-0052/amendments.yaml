@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-01T05:21:50Z'
+    title: What the code and later rows already answered
+    md: |-
+      What this document still left open, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+
+      - Q-1 is answered by S-0081/D-1 and S-0081/D-2 together, so this amendment settles it. Both deferred items are closed by S-0081, which cites S-0052/Q-1: S-0081/D-2 is the instant format §8 deferred and S-0081/D-1 settles the `Z`-plus-`to_utc` case.

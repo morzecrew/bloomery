@@ -211,6 +211,7 @@ decisions:
       none of it. A field added for an unwritten consumer is the shape S-0007/D-2
       refuses at the spec surface, read one layer down
     cites: [S-0007/D-2, S-0007/what-each-fact-buys]
+    superseded_by: D-11
   - id: D-11
     grade: ASSUMED
     text: >-

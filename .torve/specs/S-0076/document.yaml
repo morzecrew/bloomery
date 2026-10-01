@@ -289,6 +289,8 @@ questions:
       the as-of join and a zone premise there would travel with the proof the join
       already produces. Two defensible homes, and the deciding fact is whether an
       anchor is ever consumed outside a join.
+    status: settled
+    settled_by: D-11
   - id: Q-2
     text: >-
       Whether "compared against a literal instant" is **decidable over the expression**
@@ -304,6 +306,8 @@ questions:
       step emitting a timestamp column is a source of instants bloomery did not parse,
       and §5.3's third provenance currently waves it through on the grounds that it
       never passed `parse_ts` — which is true and possibly too generous.
+    status: settled
+    settled_by: D-7
   - id: Q-4
     text: >-
       What the rule does with a **catalog recipe** whose body parses a timestamp.

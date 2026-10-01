@@ -287,3 +287,5 @@ questions:
       How many of the four cloud ports are actually wanted. This document describes
       how to validate a port; it does not argue that Snowflake, BigQuery, Redshift
       and Databricks should all exist.
+    status: settled
+    settled_by: D-8

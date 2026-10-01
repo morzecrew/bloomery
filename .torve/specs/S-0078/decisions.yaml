@@ -64,3 +64,15 @@ decisions:
     paths: [.torve/archive/identifiers.yaml]
     consequence: >-
       A `§n.m` citation of a live RFC resolves to the document alone
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      The vendored `rfc-writer` skill is removed; the historical `tasks/*.json` are
+      already gone. New design goes through `torve spec`, and no RFC is written in
+      the retired format.
+    paths: [.agents/skills/**, skills-lock.json]
+    consequence: >-
+      no agent is taught to write a document in the grammar this corpus retired
+    rationale: >-
+      bloomery has no `rfcs/` directory since S-0078 carried the corpus into documents,
+      so the skill teaches only the retired format.

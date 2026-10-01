@@ -199,6 +199,8 @@ questions:
     text: >-
       **Cross-branch filter semantics.** §6 refuses rather than defines them, deliberately,
       and the definition is a document of its own.
+    status: settled
+    settled_by: S-0082/D-1
   - id: Q-2
     text: >-
       **Full-outer join null semantics per target.** "Defined explicitly" is the requirement;
@@ -209,3 +211,5 @@ questions:
       §5's "defined explicitly" was asking for. The first is still a document of its
       own: P1 carries no filters at all, and §13a's P2 places one only where D12's
       identity test licenses it.
+    status: settled
+    settled_by: D-18

@@ -83,6 +83,13 @@ Floats are banned in IR and emission; `Decimal`/int only.
 
 - Paths: `src/bloomery/cli/io.py` `tests/unit/test_purity_guard.py`
 
+### S-0037/D-13 — `ASSUMED` (Authoring ergonomics: schema export, CLI, fix suggestions)
+
+`all_spec_schemas()` returns one standalone schema per kind, never a bundle; `bloomery explain` takes `--policy 'dimension op value'`, parsed into a `RowPolicy`; and `--format json` is the API's own value (S-0037/D-4), never a platform ledger's shape, with one addition: `bloomery explain` lifts the plan's own proofs to a top-level `derivation` field.
+
+- Paths: `src/bloomery/schema.py` `src/bloomery/cli/__init__.py` `src/bloomery/cli/serialize.py`
+- Consequence: an editor or CI validates one kind's YAML on its own, and an explanation policy is stated on the command line
+
 ### S-0039/D-2 — `ASSUMED` (`SpecEvidence`: spec analysis as a first-class output)
 
 **Refusals are a return value, not an exception**, because a refusal on a draft spec is a normal outcome that a caller wants *alongside* the analysis that completed — not instead of it. `evaluate()` never raises `BloomeryError` — **except `InvariantViolated`**, which subclasses it but reports a bloomery bug rather than a spec refusal, and so propagates (decision 7). Programming errors outside the hierarchy propagate too; the catch is narrow by construction.

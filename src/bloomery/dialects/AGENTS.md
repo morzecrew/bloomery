@@ -325,12 +325,6 @@ The check exists, and it is a **conformance battery at the engine tiers over the
 
 - Paths: `src/bloomery/dialects/base.py`
 
-### S-0055/D-13 — `ASSUMED` (Multi-grain aggregate-then-join query planning)
-
-*(superseded by D18.)* **Null-safe key equality, one key row per group, no re-aggregation pass.** Groups missing from a branch surface as NULL measures, not as dropped rows, and a NULL group key joins to the other branch's NULL group key rather than failing `NULL = NULL` and splitting in two. MetricFlow's own combine node merges that split afterwards with `GROUP BY COALESCE(…)` and `MAX(…)`; composing the join ourselves means never making the split. `ASSUMED` rather than `LOCKED`: a caller who wants missing groups dropped is asking for an inner join, which is a later option on the same node, not a different design.
-
-- Paths: `src/bloomery/dialects/base.py` `src/bloomery/planner/compose.py` `tests/unit/test_planner/test_compose.py`
-
 ### S-0081/D-1 — `ASSUMED` (An instant is parsed as one, and a Z behind to_utc is not converted twice)
 
 A `to_utc` whose operand is an ISO wall-clock parse makes the parse zoned: every port's guard then reads a trailing `Z` as an offset and yields NULL, because the chain has declared the text a wall clock in a named zone

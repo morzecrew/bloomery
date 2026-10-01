@@ -324,12 +324,6 @@ None of `distinct_count`, `semi_additive` and snapshot enters branch planning: a
 - Paths: `src/bloomery/planner/compose.py` `src/bloomery/planner/coverage.py` `src/bloomery/planner/explain.py` `tests/fixtures/cross_mart_branches/entity_model.yaml` `tests/fixtures/cross_mart_branches/marts.yaml` `tests/unit/test_planner/test_metricflow_planner.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0055/D-13 — `ASSUMED` (Multi-grain aggregate-then-join query planning)
-
-*(superseded by D18.)* **Null-safe key equality, one key row per group, no re-aggregation pass.** Groups missing from a branch surface as NULL measures, not as dropped rows, and a NULL group key joins to the other branch's NULL group key rather than failing `NULL = NULL` and splitting in two. MetricFlow's own combine node merges that split afterwards with `GROUP BY COALESCE(…)` and `MAX(…)`; composing the join ourselves means never making the split. `ASSUMED` rather than `LOCKED`: a caller who wants missing groups dropped is asking for an inner join, which is a later option on the same node, not a different design.
-
-- Paths: `src/bloomery/dialects/base.py` `src/bloomery/planner/compose.py` `tests/unit/test_planner/test_compose.py`
-
 ### S-0055/D-15 — `ASSUMED` (Multi-grain aggregate-then-join query planning)
 
 **The public plan surface widens deliberately: `PlanNode` opens from four kinds to five with `JoinAggregates`, and `QueryPlan` gains `marts`.** `SemanticPlan` was published beside `QueryPlan` at S-0054/phasing (P-1), so this is an API decision rather than a detail. `QueryPlan.mart` and `Explanation.mart` are single names and a composed plan has no single answer for them; both are retained, holding the lexicographically first of `marts`, and `render()` names every branch. Retained rather than removed because they are pinned by goldens a capability phase should not be rewriting; a later document may drop them once nothing reads them.
@@ -338,7 +332,7 @@ None of `distinct_count`, `semi_additive` and snapshot enters branch planning: a
 
 ### S-0055/D-17 — `ASSUMED` (Multi-grain aggregate-then-join query planning)
 
-**`IS NOT DISTINCT FROM` is a declared `DialectFeature`, proven in the engine tier, not asserted from documentation.** It was executed on DuckDB and read about for Postgres and Trino; a planner that composes a join for three dialects on two readings is asserting a capability it has not seen. The feature enum is the existing place a dialect says what it can do, and an engine-tier test is where the claim stops being a citation. **Answered:** `tests/engines/test_branch_join_engines.py` executes the composed statement on all three, and the first thing it found was that the D13 spelling does not run on PostgreSQL at all — see D18.
+**`IS NOT DISTINCT FROM` is a declared `DialectFeature`, proven in the engine tier, not asserted from documentation.** It was executed on DuckDB and read about for Postgres and Trino; a planner that composes a join for three dialects on two readings is asserting a capability it has not seen. The feature enum is the existing place a dialect says what it can do, and an engine-tier test is where the claim stops being a citation. **Answered:** `tests/engines/test_branch_join_engines.py` executes the composed statement on all three, and the first thing it found was that a full outer join on `IS NOT DISTINCT FROM`, the spelling D13 chose, does not run on PostgreSQL at all — see D18.
 
 - Paths: `src/bloomery/planner/compose.py` `tests/engines/test_branch_join_engines.py`
 

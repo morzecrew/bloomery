@@ -46,3 +46,10 @@ amendments:
       Settled by the implementation:
       - D-8: Decided by building and releasing, not by a logged decision. S-0013/S-0014/S-0015/S-0016 each deferred the question to this row and built in-tree anyway, and after 0.3.0 moving a port out is the breaking change the consequence warns about. Evidence: src/bloomery/dialects/__init__.py; CHANGELOG.md; pyproject.toml dependencies.
       - D-9: The first surrogate lane chose the spelling and recorded the reason, as the row required. Evidence: pyproject.toml; tests/unit/test_tier_ladder_guard.py::test_the_selector_is_distinct_from_engine; tests/unit/test_tier_ladder_guard.py::test_the_table_records_why; .torve/specs/S-0012/execution/T-0007-1-20260919T004033Z.yaml.
+  - id: A-2
+    at: '2026-10-01T05:21:50Z'
+    title: What the code and later rows already answered
+    md: |-
+      What this document still left open, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
+
+      - Q-1 is answered by S-0012/D-8: All four ports are wanted and shipped: S-0012/D-8 records Snowflake, BigQuery, Redshift and Databricks in-tree and released in 0.3.0, each with an accepted, implemented port document (S-0013 to S-0016).
