@@ -281,6 +281,27 @@ def test_replay_admits_a_row_the_widened_spec_now_accepts(
     ) == [(True,)], "the reject row was not stamped resolved"
 
 
+def test_a_replay_left_over_from_another_compile_refuses_before_writing(
+    built: tuple[pathlib.Path, pathlib.Path],
+) -> None:
+    """S-0086/D-2, executed: the macro from a widened compile, dropped beside a
+    project compiled from the original spec, refuses on its first line. The
+    clean twin is the replay test above, which runs the same macro against the
+    project it was compiled with and succeeds."""
+    root, database = built
+    widened = compile_project(load_project(_widened_sources()), target=Target.DBT, dialect="duckdb")
+    (macro,) = [a for a in widened if a.path == "macros/replay_order_line.sql"]
+    (root / macro.path).write_text(macro.content, encoding="utf-8")
+
+    result = _dbt(root, "run-operation", "replay_order_line")
+    assert not result.success, "a replay from another compile ran against this project"
+    assert "bloomery_fingerprint" in str(result.result), result
+    assert _rows(
+        database,
+        "SELECT resolved_at IS NULL FROM silver.order_line__reject WHERE _source_row_id = 's2'",
+    ) == [(True,)], "the refused replay wrote before refusing"
+
+
 def test_a_full_refresh_loses_resolved_reject_history(
     built: tuple[pathlib.Path, pathlib.Path],
 ) -> None:

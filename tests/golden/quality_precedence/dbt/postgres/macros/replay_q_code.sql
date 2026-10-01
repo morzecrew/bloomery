@@ -5,6 +5,9 @@
 -- one unit of work and the macro says so to the engine; bloomery executes
 -- nothing — this file is text until you run it.
 {% macro replay_q_code() %}
+  {% if var('bloomery_fingerprint', none) != 'blm1:563c97db50847a3d4c86f30389babc8f7245569b1b9997efad48e694e3137438' %}
+    {{ exceptions.raise_compiler_error("replay_q_code was emitted under blm1:563c97db50847a3d4c86f30389babc8f7245569b1b9997efad48e694e3137438, but this dbt project carries bloomery_fingerprint " ~ var('bloomery_fingerprint', none) ~ "; compile into a clean directory and rebuild q_code and its reject table from the same checkout before replaying") }}
+  {% endif %}
   {% do run_query("BEGIN") %}
 
   {% set statement_0 %}

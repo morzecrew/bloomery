@@ -317,6 +317,7 @@ _REPLAY_ENVELOPE = jinja2.Template(
 -- a statement that fails leaves the ones before it committed; bloomery
 -- executes nothing — this file is text until you run it.
 {% endif %}{{ open_line }}
+{{ guard_line }}
 {{ begin_line }}
 
 {{ body }}
@@ -492,6 +493,19 @@ def _reject_artifacts(
                 fingerprint=ctx.fingerprint,
                 macro=macro,
                 open_line=f"{{% macro {macro}() %}}",
+                # S-0086/D-1, S-0086/D-2: the macro is compared with the project
+                # it runs against, never with the spec that quarantined a row,
+                # and refuses before its first statement on a mismatch. Not a
+                # `{% set statement_` block: those are the statements.
+                guard_line=(
+                    f"  {{% if var('bloomery_fingerprint', none) != '{ctx.fingerprint}' %}}\n"
+                    f"    {{{{ exceptions.raise_compiler_error("
+                    f'"{macro} was emitted under {ctx.fingerprint}, but this dbt project '
+                    f"carries bloomery_fingerprint \" ~ var('bloomery_fingerprint', none) ~ "
+                    f'"; compile into a clean directory and rebuild {entity.name} and its '
+                    f'reject table from the same checkout before replaying") }}}}\n'
+                    f"  {{% endif %}}"
+                ),
                 # A port with no multi-statement transaction (Databricks: every
                 # statement is its own Delta commit, `BEGIN` is rejected) says
                 # so with an empty spelling; the envelope then opens nothing,
@@ -1822,6 +1836,8 @@ def _project_artifact(
         # "the layout is stated", not "the tests are found".
         "macro-paths": ["macros"],
         "test-paths": ["tests"],
+        # S-0086/D-2: what a replay macro compares its own fingerprint with.
+        "vars": {"bloomery_fingerprint": ctx.fingerprint},
     }
 
     if namespaces:
