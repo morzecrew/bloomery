@@ -147,3 +147,16 @@ decisions:
       The scheduled runs of 2026-09-21 and 2026-09-28 went red with uncaught exceptions
       in `cli` and `parse_doors` and an out-of-memory in `parse_doors`, and nobody
       read them for ten days: a red scheduled job notifies no one who acts.
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      The batch runs weekly, on Mondays at 04:00 UTC and on dispatch, not nightly
+      as the design first wrote.
+    paths: [.github/workflows/fuzz.yaml]
+    consequence: >-
+      findings arrive once a week, on the day the lane is read, at a seventh of the
+      nightly runner cost
+    rationale: >-
+      The workflow chose it at implementation: the jobs are exploratory, and a lane
+      that reports on Monday is one someone reads. The design's own text still said
+      nightly.

@@ -83,6 +83,12 @@ amendments:
           on the open one, linking the run and its crash artifacts. The filing job
           runs after the fuzzing, on the schedule only, and is the only job that may
           write issues.
+      - subject: D-11
+        field: text
+        before: null
+        after: >-
+          The batch runs weekly, on Mondays at 04:00 UTC and on dispatch, not nightly
+          as the design first wrote.
     md: |-
       What this document still left open, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
 
@@ -91,3 +97,4 @@ amendments:
       - D-9 answers Q-1, as the owner decided.
       - D-10 answers Q-3, as the owner decided.
       - The out-of-scope note on automatic issue filing becomes a note on triage: D-10 files, and a person still decides what a finding means.
+      - D-11 records the weekly cadence the workflow chose, and the summary and goals now say weekly. Evidence: .github/workflows/fuzz.yaml.

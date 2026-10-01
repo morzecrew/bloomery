@@ -23,7 +23,7 @@ summary: |
   and atheris 3.1.0 ships no cp311 wheel and no source distribution — so the container path
   needs a hand-maintained CPython build from day one. The corpus lives in `actions/cache`,
   seeded from `examples/**` and `tests/fixtures/**` so its floor tracks the examples rather
-  than drifting from them. Three jobs: a nightly batch matrixed over `PYTHONHASHSEED`, a
+  than drifting from them. Three jobs: a weekly batch matrixed over `PYTHONHASHSEED`, a
   weekly replay job that verifies rather than explores, and a short non-blocking PR job.
   ClusterFuzzLite is the demand-gated upgrade, priced here and not taken now.
 motivation: |
@@ -78,7 +78,7 @@ current_state: |
 goals: |
   - Persist the corpus between runs, so week two is better than week one.
   - Test the determinism claim across processes and hash seeds, at corpus scale.
-  - Keep the nightly cost inside a public repository's free runner budget, well clear of
+  - Keep the weekly cost inside a public repository's free runner budget, well clear of
     the six-hour job cap.
   - Report findings somewhere a person actually reads.
   - Depend on nothing whose breakage silently produces a green check.
