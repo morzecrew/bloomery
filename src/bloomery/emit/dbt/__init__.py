@@ -318,6 +318,7 @@ _REPLAY_ENVELOPE = jinja2.Template(
 -- executes nothing — this file is text until you run it.
 {% endif %}{{ open_line }}
 {{ guard_line }}
+{{ columns_line }}
 {{ begin_line }}
 
 {{ body }}
@@ -506,6 +507,7 @@ def _reject_artifacts(
                     f'reject table from the same checkout before replaying") }}}}\n'
                     f"  {{% endif %}}"
                 ),
+                columns_line=_replay_columns_guard(entity, ctx, references),
                 # A port with no multi-statement transaction (Databricks: every
                 # statement is its own Delta commit, `BEGIN` is rejected) says
                 # so with an empty spelling; the envelope then opens nothing,
@@ -530,6 +532,68 @@ def _reject_artifacts(
 
 
 # ....................... #
+
+
+def _replay_columns_guard(
+    entity: EntityIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+) -> str:
+    """Refuse before the first statement when the entity or its reject table
+    lacks a column the statements write (S-0086/D-3).
+
+    The columns are read off the statements themselves — every ``SET`` target
+    and ``INSERT`` column, by the relation it writes — so the list cannot drift
+    from what the macro does. Only the entity and its reject table are checked:
+    a type 2 entity's re-delivery writes bronze, which bloomery does not build.
+
+    ``adapter.get_columns_in_relation`` was measured on dbt-core 1.10.8 and
+    1.12.3 (dbt-duckdb): it answers names in their stored case and ``[]`` for a
+    relation not built yet, so the comparison lowers both sides and an unbuilt
+    relation refuses with every column it would need.
+    """
+    entity_relation = ctx.naming.relation(entity.name, Layer.SILVER)
+    reject = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
+    rebuilds = {
+        entity_relation: f"dbt run --select {_entity_model(entity, entity_relation[1])}",
+        # An incremental model adds no column on a plain run.
+        reject: f"dbt run --full-refresh --select {reject[1]}",
+    }
+    written: dict[tuple[str, str], list[str]] = {}
+
+    for statement in replay_statements(entity, ctx):
+        key = (statement.this.text("db"), statement.this.name)
+        if key not in rebuilds:
+            continue
+        columns = written.setdefault(key, [])
+        for clause in statement.find_all(exp.Update, exp.Insert):
+            assigned = (
+                [assignment.this for assignment in clause.expressions]
+                if isinstance(clause, exp.Update)
+                else clause.this.expressions
+            )
+            columns.extend(c.name.lower() for c in assigned if c.name.lower() not in columns)
+
+    lines: list[str] = []
+    for key, columns in written.items():
+        relation = references[key].removeprefix("{{ ").removesuffix(" }}")
+        lines.append(
+            f"  {{% set missing = {columns!r} | reject('in', "
+            f"adapter.get_columns_in_relation({relation}) | map(attribute='name') "
+            f"| map('lower') | list) | list %}}\n"
+            f"  {{% if missing %}}\n"
+            f"    {{{{ exceptions.raise_compiler_error("
+            f'"replay_{entity.name} writes " ~ missing | join(", ") ~ " into {key[0]}.{key[1]}, '
+            f"which does not have them; rebuild it from the checkout this macro was compiled "
+            f'from with `{rebuilds[key]}` before replaying") }}}}\n'
+            f"  {{% endif %}}"
+        )
+
+    # The column reads open dbt's own transaction where the engine has one, and
+    # the macro's `BEGIN` would then nest inside it — DuckDB refuses that
+    # outright. Measured on dbt-core 1.10.8 and 1.12.3.
+    if ctx.dialect.begin_transaction:
+        lines.append("  {% do adapter.commit() %}")
+
+    return "\n".join(lines)
 
 
 def _replay_body(entity: EntityIR, ctx: EmitContext, references: dict[tuple[str, str], str]) -> str:

@@ -302,6 +302,36 @@ def test_a_replay_left_over_from_another_compile_refuses_before_writing(
     ) == [(True,)], "the refused replay wrote before refusing"
 
 
+def test_a_reject_table_missing_a_written_column_refuses_before_writing(
+    built: tuple[pathlib.Path, pathlib.Path],
+) -> None:
+    """S-0086/D-3, executed: a reject table without ``last_evaluated_at`` —
+    one built before the column existed — refuses on the macro's first lines,
+    naming the column and the rebuild. The entity's column renamed to upper
+    case is the case-insensitive half: it is present, so it is not named. The
+    clean twin is the replay test above, whose relations carry every column."""
+    import duckdb
+
+    root, database = built
+    connection = duckdb.connect(str(database))
+    try:
+        connection.execute("ALTER TABLE silver.order_line__reject DROP COLUMN last_evaluated_at")
+        connection.execute('ALTER TABLE silver.order_line RENAME COLUMN _load_id TO "_LOAD_ID"')
+    finally:
+        connection.close()
+
+    result = _dbt(root, "run-operation", "replay_order_line")
+    assert not result.success, "a replay ran against a reject table missing a column it writes"
+    message = str(result.result)
+    assert "last_evaluated_at" in message, result
+    assert "--full-refresh --select order_line__reject" in message, result
+    assert "_load_id" not in message.lower(), "an upper-cased column was reported missing"
+    assert _rows(
+        database,
+        "SELECT resolved_at IS NULL FROM silver.order_line__reject WHERE _source_row_id = 's2'",
+    ) == [(True,)], "the refused replay wrote before refusing"
+
+
 def test_a_full_refresh_loses_resolved_reject_history(
     built: tuple[pathlib.Path, pathlib.Path],
 ) -> None:

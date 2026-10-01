@@ -8,6 +8,15 @@
   {% if var('bloomery_fingerprint', none) != 'blm1:563c97db50847a3d4c86f30389babc8f7245569b1b9997efad48e694e3137438' %}
     {{ exceptions.raise_compiler_error("replay_q_code was emitted under blm1:563c97db50847a3d4c86f30389babc8f7245569b1b9997efad48e694e3137438, but this dbt project carries bloomery_fingerprint " ~ var('bloomery_fingerprint', none) ~ "; compile into a clean directory and rebuild q_code and its reject table from the same checkout before replaying") }}
   {% endif %}
+  {% set missing = ['code_fail', 'code_flag', 'code_quar', '_ingested_at', '_load_id', '_source_row_id', '_quality_flags', '_quality_ok', 'code_id'] | reject('in', adapter.get_columns_in_relation(ref('q_code')) | map(attribute='name') | map('lower') | list) | list %}
+  {% if missing %}
+    {{ exceptions.raise_compiler_error("replay_q_code writes " ~ missing | join(", ") ~ " into silver.q_code, which does not have them; rebuild it from the checkout this macro was compiled from with `dbt run --select q_code` before replaying") }}
+  {% endif %}
+  {% set missing = ['resolved_at', 'last_evaluated_at', 'failed_rules'] | reject('in', adapter.get_columns_in_relation(ref('q_code__reject')) | map(attribute='name') | map('lower') | list) | list %}
+  {% if missing %}
+    {{ exceptions.raise_compiler_error("replay_q_code writes " ~ missing | join(", ") ~ " into silver.q_code__reject, which does not have them; rebuild it from the checkout this macro was compiled from with `dbt run --full-refresh --select q_code__reject` before replaying") }}
+  {% endif %}
+  {% do adapter.commit() %}
   {% do run_query("BEGIN") %}
 
   {% set statement_0 %}
