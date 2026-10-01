@@ -10,7 +10,8 @@ amendments:
           `all_spec_schemas()` returns one standalone schema per kind, never a bundle;
           `bloomery explain` takes `--policy 'dimension op value'`, parsed into a
           `RowPolicy`; and `--format json` is the API's own value (S-0037/D-4), never
-          a platform ledger's shape.
+          a platform ledger's shape, with one addition: `bloomery explain` lifts the
+          plan's own proofs to a top-level `derivation` field.
       - subject: D-14
         field: text
         after: >-

@@ -408,7 +408,7 @@ Determinism tiers: `pure` (freely backfillable) | `seeded` (seed required in the
 
 ### S-0037/D-13 — `ASSUMED` (Authoring ergonomics: schema export, CLI, fix suggestions)
 
-`all_spec_schemas()` returns one standalone schema per kind, never a bundle; `bloomery explain` takes `--policy 'dimension op value'`, parsed into a `RowPolicy`; and `--format json` is the API's own value (S-0037/D-4), never a platform ledger's shape.
+`all_spec_schemas()` returns one standalone schema per kind, never a bundle; `bloomery explain` takes `--policy 'dimension op value'`, parsed into a `RowPolicy`; and `--format json` is the API's own value (S-0037/D-4), never a platform ledger's shape, with one addition: `bloomery explain` lifts the plan's own proofs to a top-level `derivation` field.
 
 - Paths: `src/bloomery/schema.py` `src/bloomery/cli/__init__.py` `src/bloomery/cli/serialize.py`
 - Consequence: an editor or CI validates one kind's YAML on its own, and an explanation policy is stated on the command line
