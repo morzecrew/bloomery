@@ -452,8 +452,10 @@ def render_plan(plan: Plan) -> str:
 
     if replay:
         lines.append("")
-        lines.append("Quarantine replay scope")
-        lines.extend(_table([(name,) for name in replay]))
+        # Numbered because the order is the content: a child replayed before
+        # its parent stays held (S-0084/D-4).
+        lines.append("Quarantine replay scope (in order, parents first)")
+        lines.extend(_table([(f"{n}.", name) for n, name in enumerate(replay, 1)]))
 
     if plan.downstream_impact:
         lines.append("")

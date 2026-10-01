@@ -2895,3 +2895,27 @@ def test_an_upstream_path_that_is_not_there_is_a_usage_error(
 
     assert code == EXIT_USAGE
     assert "not a file" in err
+
+
+def test_the_replay_scope_renders_in_plan_order_numbered() -> None:
+    """The replay scope is ordered parents first, not by name, so the table
+    keeps the plan's order and numbers it (S-0084/D-4)."""
+    rendered = render_plan(
+        Plan(
+            changes=(
+                Change(
+                    entity="parent",
+                    subject="quality:amount_positive",
+                    change_class=ChangeClass.RESTATING,
+                    detail="rule relaxed",
+                ),
+            ),
+            backfill_scope=BackfillScope(entities=("kept", "parent"), restates_history=True),
+            downstream_impact=(),
+            replay_scope=ReplayScope(entities=("parent", "child")),
+        )
+    )
+    assert "Quarantine replay scope (in order, parents first)" in rendered
+    assert "  1.  parent" in rendered
+    assert "  2.  child" in rendered
+    assert "kept" in rendered
