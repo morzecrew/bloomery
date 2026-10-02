@@ -586,32 +586,27 @@ def _dbt_refresh(entity: EntityIR) -> str:
     """What a field added to, dropped from or renamed on ``entity`` costs on dbt (S-0086/D-10).
 
     dbt's incremental models carry ``on_schema_change='fail'``, so a changed
-    column set fails the next run until it is rebuilt — with its reject table
-    when it quarantines, the only case the emitter writes one. Read from the
-    **new** IR: the refresh runs against what is about to be built.
+    column set fails the next run until it is rebuilt. Two relations can be
+    one: the entity, when it is an incremental type 1 model (a ``full`` table
+    rebuilds whole on every run, and a type 2 entity is a snapshot, which widens
+    itself), and its reject table whenever it quarantines, an incremental model
+    holding the entity's columns whatever the entity's own materialization.
+    Read from the **new** IR: the refresh runs against what is about to be built.
     """
 
-    if entity.materialization is Materialization.FULL:
+    targets: list[str] = []
+
+    if entity.materialization is not Materialization.FULL and entity.scd is not SCDKind.TYPE2:
+        targets.append(entity.name)
+
+    if entity.quarantine is not None:
+        targets.append(f"{entity.name}__reject")
+
+    if not targets:
         return ""
 
-    # A type 2 entity is a dbt snapshot, which widens itself and carries no
-    # `on_schema_change`; only its reject table, an incremental model holding
-    # the entity's columns, fails on the change.
-    if entity.scd is SCDKind.TYPE2:
-        if entity.quarantine is None:
-            return ""
-        return (
-            f"; on dbt, run `dbt build --full-refresh -s {entity.name}__reject`"
-            " — resolved reject rows are lost"
-        )
-
-    if entity.quarantine is None:
-        return f"; on dbt, run `dbt build --full-refresh -s {entity.name}`"
-
-    return (
-        f"; on dbt, run `dbt build --full-refresh -s {entity.name} {entity.name}__reject`"
-        " — resolved reject rows are lost"
-    )
+    lost = " — resolved reject rows are lost" if entity.quarantine is not None else ""
+    return f"; on dbt, run `dbt build --full-refresh -s {' '.join(targets)}`{lost}"
 
 
 # ....................... #

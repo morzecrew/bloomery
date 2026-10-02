@@ -1275,3 +1275,15 @@ def test_a_type_2_entity_refreshes_only_its_reject_table() -> None:
     detail = only_change(old, new).detail
     assert "dbt build --full-refresh -s order_item__reject`" in detail
     assert "-s order_item order_item__reject" not in detail
+
+
+def test_a_full_table_that_quarantines_refreshes_its_reject_table() -> None:
+    """The reject table is incremental whatever the entity's own materialization:
+    a `full` entity rebuilds whole on any run, but its reject table fails on the
+    change, so the refresh names the reject table alone."""
+    quarantined = {"materialization": Materialization.FULL, "quarantine": QuarantineIR(retention="90d")}
+    old = entity_project(plan_ir.column("id", required=True), **quarantined)
+    new = entity_project(plan_ir.column("id", required=True), plan_ir.column("note"), **quarantined)
+    detail = only_change(old, new).detail
+    assert "dbt build --full-refresh -s order_item__reject`" in detail
+    assert "-s order_item order_item__reject" not in detail
