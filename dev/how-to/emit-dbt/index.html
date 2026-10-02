@@ -1139,6 +1139,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#schema-changes-on-incremental-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Schema changes on incremental models
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#byte-identical-selects" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2062,6 +2073,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#schema-changes-on-incremental-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Schema changes on incremental models
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#byte-identical-selects" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2495,6 +2517,25 @@ SQLMesh replay file is.</p>
   rebuilding anyway, and a model that refused to full-refresh would be one you could not
   recover.</li>
 </ul>
+<h2 id="schema-changes-on-incremental-models">Schema changes on incremental models<a class="headerlink" href="#schema-changes-on-incremental-models" title="Permanent link">&para;</a></h2>
+<p>Every incremental model bloomery emits — an incremental entity and every reject table —
+carries <code>on_schema_change='fail'</code>. When a spec change adds, drops or renames a field, the next
+<code>dbt run</code> or <code>dbt build</code> of that model <strong>fails</strong> with dbt's "schema out of sync" error.</p>
+<p>That is deliberate. dbt's default, <code>ignore</code>, would build the model without the new column,
+so the field the spec declares would be silently missing from the table. A failed run
+says so instead.</p>
+<p>The fix is to rebuild the entity and its reject table from scratch:</p>
+<div class="highlight"><pre><span></span><code>dbt<span class="w"> </span>build<span class="w"> </span>--full-refresh<span class="w"> </span>-s<span class="w"> </span>order_line<span class="w"> </span>order_line__reject
+</code></pre></div>
+<p>An entity with no <code>quarantine:</code> block has no reject table, so the rebuild names the entity
+alone, and <code>bloomery plan</code> prints it that way.</p>
+<p>This recomputes the entity's history from bronze, as SQLMesh's rebuild of the same change
+does, so the two targets agree on the new column's history. Like any full refresh it
+loses resolved reject rows (see above).</p>
+<p>You don't have to find this out from a failed run: <code>bloomery plan</code> names the same command
+beside every field added to, dropped from or renamed on an incremental entity. The change keeps its
+class — an added optional field is still <code>additive</code> — because the refresh is a cost on
+dbt, not a change in what the field means.</p>
 <h2 id="byte-identical-selects">Byte-identical SELECTs<a class="headerlink" href="#byte-identical-selects" title="Permanent link">&para;</a></h2>
 <p>The SELECT inside every dbt model is rendered from the same lowered AST through the
 same dialect port as the SQLMesh target — only the envelope (Jinja config header vs
