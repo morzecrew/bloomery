@@ -49,11 +49,12 @@ phasing:
     intent: >-
       Every incremental dbt model, entity and reject alike, carries `on_schema_change='fail'`
       in its config header. `bloomery plan` appends the dbt full refresh to every
-      field added to or dropped from an incremental entity, in both its text and JSON
-      renderings, without changing the change's class. The dbt goldens move; the end-to-end
-      dbt test shows a field added between two builds failing the second build, and
-      `--full-refresh` recovering it. The how-to's schema-change section says what
-      fails, why, and the command. Settles D-9 and D-10.
+      field added to or dropped from an entity whose new `EntityIR.materialization`
+      is incremental, in both its text and JSON renderings, without changing the change's
+      class. The dbt goldens move; the end-to-end dbt test shows a field added between
+      two builds failing the second build, and `--full-refresh` recovering it. The
+      how-to's schema-change section says what fails, why, and the command. Settles
+      D-9 and D-10.
     scope:
       - src/bloomery/emit/dbt/__init__.py
       - src/bloomery/plan/diff.py

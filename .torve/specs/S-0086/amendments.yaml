@@ -17,9 +17,9 @@ amendments:
         field: text
         after: >-
           `bloomery plan` names the dbt full refresh beside every change that adds
-          or drops a field of an incremental entity, so the operator reads it in the
-          plan rather than from a failed run; the change keeps its class, and SQLMesh's
-          output is unchanged.
+          or drops a field of an incremental entity, reading the entity's materialization
+          from the new IR, so the operator reads it in the plan rather than from a
+          failed run; the change keeps its class, and SQLMesh's output is unchanged.
     md: >-
       The owner answered Q-3 on 2026-10-01: incremental dbt models fail on a schema
       change (D-9), and the plan names the full refresh that fixes it (D-10). Phase
