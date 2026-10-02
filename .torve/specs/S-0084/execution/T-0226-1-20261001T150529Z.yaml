@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0226
+phase: 1
+base: 462766669e16630ab93b13fdfe2c412a14deb89c
+commit: caa66fe2a9e5f6fcfba14dc0756ee1e5938f0add
+at: '2026-10-01T15:05:29Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-10-01T15:01:54Z'
+    claim: >-
+      no emitted SQL changes; the probe already reads only admitted silver rows, and
+      the docs now state that a quarantined, late or unreplayed parent counts as absent
+    evidence: >-
+      pages/docs/concepts/data-quality.md:367-372 — the verdict reads admitted silver
+      only; tests/execution/test_quarantine_replay.py:500 shows the orphan held until
+      the parent is replayed
+    action: decided
+    notes: >-
+      Compliance only: silver.py and predicates.py untouched.
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-10-01T15:01:54Z'
+    claim: >-
+      coverage left as is (admitted rows on both sides, no exists form); documented
+      beside the cascade
+    evidence: >-
+      pages/docs/concepts/data-quality.md:372 — coverage counts admitted rows on both
+      sides
+    action: decided
+    notes: 'Compliance only: reconcile.py untouched.'
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-10-01T15:01:54Z'
+    claim: >-
+      replay_scope closes over entities whose referential rule at on_missing: quarantine
+      reaches an entity already in scope, transitively, read from the new IR's to_entity
+      param
+    evidence: >-
+      src/bloomery/plan/diff.py:1238-1244 — transitive closure over quarantining dependents
+    action: decided
+    notes: >-
+      Self-referencing rules are skipped: a model cannot join itself, so no edge exists.
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-10-01T15:01:54Z'
+    claim: >-
+      replay_scope is topological parents first, ties by name; a stuck cycle is released
+      by smallest name; CLI numbers the rows
+    evidence: >-
+      src/bloomery/plan/diff.py:1256-1267 — Kahn order with name ties and name-released
+      cycles
+    action: decided
+    notes: >-
+      This makes replay_scope the one plan collection not sorted lexicographically,
+      which S-0024/D-6 (ASSUMED) states for all ordering; S-0084/D-4 is the later,
+      specific row, and the ReplayScope docstring and api.md say so. render.py heads
+      the section 'Quarantine replay scope (in order, parents first)' and numbers
+      rows.
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-10-01T15:01:54Z'
+    claim: >-
+      unknown_member and flag dependents of a replayed entity are added to backfill_scope;
+      no reserved column; the remedy is documented
+    evidence: >-
+      src/bloomery/plan/diff.py:1247 — keeping dependents join the backfill; pages/docs/concepts/data-quality.md:390
+      names the remedy
+    action: decided
+    notes: >-
+      The row says 'setting the parent's coverage to warn'; coverage on_fail has no
+      warn value (fail or flag), so the docs say non-blocking, on_fail: flag.
+  - decision: D-6
+    grade: ASSUMED
+    at: '2026-10-01T15:01:54Z'
+    claim: >-
+      documented that replaying a routed child is the fix for a late parent and is
+      safe every cycle; no plan field marks a standing replay
+    evidence: >-
+      pages/docs/concepts/data-quality.md:396 — replay safe every cycle, not scheduled,
+      no standing field
+    action: decided
+    notes: 'No code: the plan model gains no field.'

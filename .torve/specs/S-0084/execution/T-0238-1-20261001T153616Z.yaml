@@ -1,0 +1,284 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0238
+base: db94f31d6e780e35e56235b00c95643ff00a0af3
+commit: acdfa0f9ce89465f74369bec33bade51b4c95f1a
+at: '2026-10-01T15:36:16Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: S-0003/D-7
+    grade: ASSUMED
+  - id: S-0004/D-10
+    grade: ASSUMED
+  - id: S-0005/D-1
+    grade: LOCKED
+  - id: S-0005/D-2
+    grade: LOCKED
+  - id: S-0005/D-5
+    grade: ASSUMED
+  - id: S-0005/D-6
+    grade: LOCKED
+  - id: S-0006/D-5
+    grade: ASSUMED
+  - id: S-0010/D-1
+    grade: LOCKED
+  - id: S-0010/D-3
+    grade: ASSUMED
+  - id: S-0010/D-5
+    grade: ASSUMED
+  - id: S-0010/D-6
+    grade: ASSUMED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0019/D-6
+    grade: ASSUMED
+  - id: S-0020/D-1
+    grade: ASSUMED
+  - id: S-0020/D-5
+    grade: ASSUMED
+  - id: S-0024/D-1
+    grade: ASSUMED
+  - id: S-0024/D-2
+    grade: ASSUMED
+  - id: S-0024/D-3
+    grade: ASSUMED
+  - id: S-0024/D-5
+    grade: ASSUMED
+  - id: S-0024/D-6
+    grade: ASSUMED
+  - id: S-0024/D-7
+    grade: ASSUMED
+  - id: S-0024/D-9
+    grade: ASSUMED
+  - id: S-0033/D-2
+    grade: ASSUMED
+  - id: S-0033/D-11
+    grade: ASSUMED
+  - id: S-0033/D-32
+    grade: ASSUMED
+  - id: S-0033/D-51
+    grade: ASSUMED
+  - id: S-0033/D-52
+    grade: ASSUMED
+  - id: S-0033/D-56
+    grade: ASSUMED
+  - id: S-0033/D-57
+    grade: ASSUMED
+  - id: S-0033/D-67
+    grade: ASSUMED
+  - id: S-0033/D-84
+    grade: ASSUMED
+  - id: S-0034/D-6
+    grade: ASSUMED
+  - id: S-0034/D-11
+    grade: ASSUMED
+  - id: S-0036/D-7
+    grade: ASSUMED
+  - id: S-0037/D-4
+    grade: ASSUMED
+  - id: S-0037/D-6
+    grade: ASSUMED
+  - id: S-0037/D-9
+    grade: ASSUMED
+  - id: S-0039/D-5
+    grade: ASSUMED
+  - id: S-0039/D-8
+    grade: ASSUMED
+  - id: S-0041/D-9
+    grade: ASSUMED
+  - id: S-0041/D-14
+    grade: LOCKED
+  - id: S-0041/D-26
+    grade: ASSUMED
+  - id: S-0041/D-32
+    grade: LOCKED
+  - id: S-0047/D-1
+    grade: LOCKED
+  - id: S-0047/D-2
+    grade: LOCKED
+  - id: S-0047/D-7
+    grade: ASSUMED
+  - id: S-0048/D-1
+    grade: LOCKED
+  - id: S-0051/D-2
+    grade: LOCKED
+  - id: S-0057/D-4
+    grade: LOCKED
+  - id: S-0057/D-5
+    grade: ASSUMED
+  - id: S-0057/D-6
+    grade: ASSUMED
+  - id: S-0057/D-7
+    grade: ASSUMED
+  - id: S-0063/D-7
+    grade: LOCKED
+  - id: S-0063/D-8
+    grade: ASSUMED
+  - id: S-0064/D-5
+    grade: ASSUMED
+  - id: S-0065/D-5
+    grade: LOCKED
+  - id: S-0067/D-1
+    grade: LOCKED
+  - id: S-0067/D-3
+    grade: LOCKED
+  - id: S-0069/D-1
+    grade: LOCKED
+  - id: S-0069/D-2
+    grade: LOCKED
+  - id: S-0069/D-3
+    grade: LOCKED
+  - id: S-0073/D-7
+    grade: ASSUMED
+  - id: S-0074/D-1
+    grade: LOCKED
+  - id: S-0074/D-2
+    grade: LOCKED
+  - id: S-0074/D-3
+    grade: LOCKED
+  - id: S-0074/D-11
+    grade: LOCKED
+  - id: S-0074/D-14
+    grade: ASSUMED
+  - id: S-0075/D-11
+    grade: ASSUMED
+  - id: S-0083/D-5
+    grade: ASSUMED
+  - id: S-0088/D-4
+    grade: ASSUMED
+entries:
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-10-01T15:23:04Z'
+    claim: >-
+      the change is confined to _cascade's replay ordering and backfill naming; it
+      adds no import, does not touch merged-entity guards, rule projection, branch
+      provenance, exposures, id handling or the timeline walk
+    evidence: >-
+      src/bloomery/plan/diff.py:1218-1256 — the only lines changed in diff.py; _cascade
+      reads entity.quality and writes acc.backfill and the returned order
+    action: decided
+  - decision: S-0041/D-14
+    grade: LOCKED
+    at: '2026-10-01T15:23:04Z'
+    claim: >-
+      the change is confined to _cascade's replay ordering and backfill naming; it
+      adds no import, does not touch merged-entity guards, rule projection, branch
+      provenance, exposures, id handling or the timeline walk
+    evidence: >-
+      src/bloomery/plan/diff.py:1218-1256 — the only lines changed in diff.py; _cascade
+      reads entity.quality and writes acc.backfill and the returned order
+    action: decided
+  - decision: S-0041/D-32
+    grade: LOCKED
+    at: '2026-10-01T15:23:04Z'
+    claim: >-
+      the change is confined to _cascade's replay ordering and backfill naming; it
+      adds no import, does not touch merged-entity guards, rule projection, branch
+      provenance, exposures, id handling or the timeline walk
+    evidence: >-
+      src/bloomery/plan/diff.py:1218-1256 — the only lines changed in diff.py; _cascade
+      reads entity.quality and writes acc.backfill and the returned order
+    action: decided
+  - decision: S-0051/D-2
+    grade: LOCKED
+    at: '2026-10-01T15:23:04Z'
+    claim: >-
+      the change is confined to _cascade's replay ordering and backfill naming; it
+      adds no import, does not touch merged-entity guards, rule projection, branch
+      provenance, exposures, id handling or the timeline walk
+    evidence: >-
+      src/bloomery/plan/diff.py:1218-1256 — the only lines changed in diff.py; _cascade
+      reads entity.quality and writes acc.backfill and the returned order
+    action: decided
+  - decision: S-0063/D-7
+    grade: LOCKED
+    at: '2026-10-01T15:23:04Z'
+    claim: >-
+      the change is confined to _cascade's replay ordering and backfill naming; it
+      adds no import, does not touch merged-entity guards, rule projection, branch
+      provenance, exposures, id handling or the timeline walk
+    evidence: >-
+      src/bloomery/plan/diff.py:1218-1256 — the only lines changed in diff.py; _cascade
+      reads entity.quality and writes acc.backfill and the returned order
+    action: decided
+  - decision: S-0067/D-3
+    grade: LOCKED
+    at: '2026-10-01T15:23:04Z'
+    claim: >-
+      the change is confined to _cascade's replay ordering and backfill naming; it
+      adds no import, does not touch merged-entity guards, rule projection, branch
+      provenance, exposures, id handling or the timeline walk
+    evidence: >-
+      src/bloomery/plan/diff.py:1218-1256 — the only lines changed in diff.py; _cascade
+      reads entity.quality and writes acc.backfill and the returned order
+    action: decided
+  - decision: S-0074/D-2
+    grade: LOCKED
+    at: '2026-10-01T15:23:04Z'
+    claim: >-
+      the change is confined to _cascade's replay ordering and backfill naming; it
+      adds no import, does not touch merged-entity guards, rule projection, branch
+      provenance, exposures, id handling or the timeline walk
+    evidence: >-
+      src/bloomery/plan/diff.py:1218-1256 — the only lines changed in diff.py; _cascade
+      reads entity.quality and writes acc.backfill and the returned order
+    action: decided
+  - decision: S-0074/D-3
+    grade: LOCKED
+    at: '2026-10-01T15:23:04Z'
+    claim: >-
+      the change is confined to _cascade's replay ordering and backfill naming; it
+      adds no import, does not touch merged-entity guards, rule projection, branch
+      provenance, exposures, id handling or the timeline walk
+    evidence: >-
+      src/bloomery/plan/diff.py:1218-1256 — the only lines changed in diff.py; _cascade
+      reads entity.quality and writes acc.backfill and the returned order
+    action: decided
+  - decision: S-0074/D-11
+    grade: LOCKED
+    at: '2026-10-01T15:23:04Z'
+    claim: >-
+      the change is confined to _cascade's replay ordering and backfill naming; it
+      adds no import, does not touch merged-entity guards, rule projection, branch
+      provenance, exposures, id handling or the timeline walk
+    evidence: >-
+      src/bloomery/plan/diff.py:1218-1256 — the only lines changed in diff.py; _cascade
+      reads entity.quality and writes acc.backfill and the returned order
+    action: decided
+  - decision: D-5
+    grade: ASSUMED
+    class: drift
+    at: '2026-10-01T15:23:04Z'
+    claim: >-
+      review claim held: a child replayed through one parent was dropped from the
+      backfill its unknown_member/flag rule on another replayed parent requires; replay
+      reads the reject table and never recomputes admitted rows
+    evidence: >-
+      src/bloomery/plan/diff.py:1251 — the '- acc.replay' subtraction is removed;
+      tests/unit/test_plan/test_replay_cascade.py:113 pins it
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    class: drift
+    at: '2026-10-01T15:23:04Z'
+    claim: >-
+      review claim held: replay order considered only quarantine edges, so a child
+      whose referential rule moved to unknown_member was ordered before its parent;
+      ordering now uses every referential edge, expansion still quarantine-only
+    evidence: >-
+      src/bloomery/plan/diff.py:1256 — waiting reads refers_to, built from every non-self
+      referential rule at :1233; tests/unit/test_plan/test_replay_cascade.py:124 pins
+      it
+    action: decided

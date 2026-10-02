@@ -102,7 +102,10 @@ class BackfillScope:
 @dataclass(frozen=True, slots=True)
 class ReplayScope:
     """Which entities' ``<entity>__reject`` tables a plan invalidates
-    (S-0033/plan-integration-rfc-0007-amendment, S-0033/D-11) — sorted, like every other plan collection.
+    (S-0033/plan-integration-rfc-0007-amendment, S-0033/D-11) — ordered **parents first**, the
+    one plan collection that is not sorted by name (S-0084/D-4): a caller
+    running it in order replays a child after its parent's rows are admitted.
+    Ties, and entities whose ``referential`` rules form a cycle, go by name.
 
     Distinct from :class:`BackfillScope` because the two name different
     *storage*. A backfill recomputes an entity from bronze; a replay re-runs
@@ -125,6 +128,12 @@ class ReplayScope:
     ``expression``) the replay is reported: a no-op MERGE is cheaper than a
     row stranded in quarantine. bloomery emits the replay merge artifact;
     *executing* it is the caller's (§5.6).
+
+    A replayed parent brings its children (S-0084/D-3): every entity whose
+    ``referential`` rule at ``on_missing: quarantine`` reaches an entity in
+    scope, directly or through a chain, is named too. A child at
+    ``unknown_member`` or ``flag`` kept its rows and is named in the
+    :class:`BackfillScope` instead (D5).
     """
 
     entities: tuple[str, ...]

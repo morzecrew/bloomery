@@ -6,7 +6,12 @@ from __future__ import annotations
 import pytest
 
 from bloomery.errors import SpecParseError
-from bloomery.spec.common import load_yaml_mapping, source_path_from_loc
+from bloomery.spec.common import (
+    SpecModel,
+    load_yaml_mapping,
+    source_path_from_loc,
+    validate_document,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -158,3 +163,21 @@ def test_heavy_but_honest_alias_reuse_still_loads() -> None:
     its heaviest — stay loadable while a bomb's ratio is astronomical."""
     document = "anchor: &a {x: 1, y: 2}\n" + "\n".join(f"k{i}: *a" for i in range(2_000))
     assert len(load_yaml_mapping(document, document="d")) == 2_001
+
+
+# ....................... #
+
+
+class _Refused(SpecModel):
+    count: int
+
+
+def test_a_refused_document_leaves_no_validation_error_alive() -> None:
+    """Raised inside the `except`, every refusal held its `ValidationError` as
+    context, so refusing specs by the thousand grew memory (S-0088/D-1).
+    Asserted on the refusal's own chain rather than by scanning the heap, which
+    any other test or library holding a `ValidationError` would turn red."""
+    with pytest.raises(SpecParseError) as excinfo:
+        validate_document(_Refused, {"count": "x"}, document="d")
+    assert excinfo.value.__context__ is None
+    assert excinfo.value.__cause__ is None

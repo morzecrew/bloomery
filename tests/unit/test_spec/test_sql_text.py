@@ -18,6 +18,7 @@ from sqlglot import exp, parse_one
 
 from bloomery import load_catalog, load_project
 from bloomery.errors import SpecParseError
+from bloomery.spec.common import MAX_SQL_DEPTH, sql_depth
 from support.compiling import FIXTURES
 
 pytestmark = pytest.mark.unit
@@ -215,7 +216,16 @@ def test_a_second_statement_is_refused_on_every_field() -> None:
 
 @pytest.mark.parametrize(
     ("statement", "named"),
-    [("SELECT 1", "SELECT"), ("INSERT INTO t VALUES (1)", "INSERT"), ("DELETE FROM t", "DELETE")],
+    [
+        ("SELECT 1", "SELECT"),
+        ("INSERT INTO t VALUES (1)", "INSERT"),
+        ("DELETE FROM t", "DELETE"),
+        # Parses bare as an empty `WhileBlock` and as a `Mul` under `into=`, so
+        # the scalar check alone admitted it and emit rendered nothing (S-0088/D-2).
+        ("WHILE*2", "WHILEBLOCK"),
+        # SQLGlot's `Command` fallback, spliced verbatim if admitted (S-0088/D-6).
+        ("IF a", "COMMAND"),
+    ],
 )
 def test_a_statement_is_refused(statement: str, named: str) -> None:
     """A `Block` was the special case; a statement is the general one.
@@ -263,3 +273,23 @@ def test_every_expression_the_corpus_owns_is_a_scalar_expression() -> None:
     assert len(authored) > 20, "corpus scan found almost nothing — the regex stopped matching"
     for expression in sorted(authored):
         parse_one(expression, into=exp.Condition)
+
+
+def _nested(levels: int) -> str:
+    """An expression whose parsed tree is exactly ``levels`` deep."""
+    text = "(" * (levels - 1) + "line_total" + ")" * (levels - 1)
+    assert sql_depth(parse_one(text)) == levels
+    return text
+
+
+def test_an_expression_at_the_depth_cap_loads() -> None:
+    assert load_catalog(catalog(recipe=_nested(MAX_SQL_DEPTH)))
+
+
+def test_an_expression_past_the_depth_cap_is_refused() -> None:
+    """Parseable here and not at a site a few frames deeper, so refused at
+    load rather than left for a re-parse to overflow (S-0088/D-3)."""
+    with pytest.raises(SpecParseError) as excinfo:
+        load_catalog(catalog(recipe=_nested(MAX_SQL_DEPTH + 1)))
+    assert f"past the {MAX_SQL_DEPTH} authored SQL may nest" in str(excinfo.value)
+    assert MAX_SQL_DEPTH == 32

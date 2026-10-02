@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0233
+phase: 1
+base: 462766669e16630ab93b13fdfe2c412a14deb89c
+commit: 9cf2041104c760cdfa7281ce603458a54f2cf8b8
+at: '2026-10-01T15:17:14Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-10-01T15:14:35Z'
+    claim: >-
+      validate_document collects refusals inside the except and raises after it; a
+      test asserts no ValidationError survives 100 refusals and gc.collect()
+    evidence: >-
+      src/bloomery/spec/common.py:620 — the raise now follows the except block
+    action: decided
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-10-01T15:14:35Z'
+    claim: >-
+      _parses_as_sql compares the Condition parse to the bare parse and refuses a
+      mismatch with the statement message; WHILE*2 joins test_a_statement_is_refused
+    evidence: >-
+      src/bloomery/spec/common.py:291 — mismatch, Command and failed scalar parse
+      share one refusal
+    action: decided
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-10-01T15:14:35Z'
+    claim: >-
+      shared iterative sql_depth with MAX_SQL_DEPTH=32 in spec/common.py, used by
+      _parses_as_sql and resolve/steps.py::_parse_body; depth counted in edges from
+      the root of the parsed tree, so 31 nested parens around a column is 32 levels;
+      the step-door test lives in tests/unit/test_resolve because tests/unit/test_steps
+      is outside scope
+    evidence: >-
+      src/bloomery/spec/common.py:178 — sql_depth; src/bloomery/resolve/steps.py:832
+      is the step door
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-10-01T15:14:35Z'
+    claim: >-
+      read_text already maps an unstat-able --catalog to exit 2, so only the regression
+      test was owed; src/bloomery/cli/io.py is outside scope.allow and untouched
+    evidence: >-
+      tests/unit/test_cli.py:683 — --catalog with a 300-character name exits 2
+    action: decided
+  - decision: D-6
+    grade: ASSUMED
+    at: '2026-10-01T15:14:35Z'
+    claim: >-
+      _parses_as_sql refuses a Command parse with the statement message; IF a joins
+      test_a_statement_is_refused
+    evidence: >-
+      src/bloomery/spec/common.py:291 — isinstance(parsed, exp.Command) refuses
+    action: decided

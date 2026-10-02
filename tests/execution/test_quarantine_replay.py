@@ -423,3 +423,101 @@ def test_the_blocking_audit_reports_a_replayed_row_that_violates_it(
     assert landed and BLOCKING_RULE in landed[0][0]
     # …so an audit reporting nothing is a model contradicting its own data.
     assert _blocking_violations(conn, artifacts) == 1
+
+
+# ....................... #
+# A replayed parent brings its children back (S-0084)
+#
+# `dirty_ref_parent` quarantines `quarantining_parent_row` on its implicit
+# `coercible` rule, so `fk_to_own_entity_reject` — the `dirty_ref_routed` row
+# pointing at it — is an orphan in silver. The child's parent rule is edited
+# to `on_missing: quarantine` so the orphan sits in a reject table, and the
+# parent's rule is then relaxed to `flag`. The plan must name the child after
+# the parent, and running the two replays in that order must admit it.
+
+_CHILD_PARENT_RULE = "{rule: referential, via: routed_of_parent, on_missing: flag}"
+_CHILD_PARENT_RULE_QUARANTINE = "{rule: referential, via: routed_of_parent, on_missing: quarantine}"
+_PARENT_RULE = "      - {rule: unique, on_fail: flag}"
+_PARENT_RULE_RELAXED = f"{_PARENT_RULE}\n      - {{rule: coercible, on_fail: flag}}"
+
+PARENT = "dirty_ref_parent"
+CHILD = "dirty_ref_routed"
+#: `fk_to_own_entity_reject` and the parent row it points at.
+CHILD_ROW, CHILD_ORDER, PARENT_ROW = "ref_015", "ORD-2015", "ref_016"
+
+
+def _cascade_project(*, relaxed: bool) -> tuple[Project, ProjectIR]:
+    sources = dict(fixture_sources(FIXTURE))
+    assert sources["entity_model"].count(_CHILD_PARENT_RULE) == 1
+    sources["entity_model"] = sources["entity_model"].replace(
+        _CHILD_PARENT_RULE, _CHILD_PARENT_RULE_QUARANTINE
+    )
+    if relaxed:
+        assert sources["mapping_ref_parents"].count(_PARENT_RULE) == 1
+        sources["mapping_ref_parents"] = sources["mapping_ref_parents"].replace(
+            _PARENT_RULE, _PARENT_RULE_RELAXED
+        )
+    project = load_project(sources)
+    catalog = load_catalog((FIXTURES / FIXTURE / "catalog.yaml").read_text(encoding="utf-8"))
+    return project, build_project_ir(project, catalog)
+
+
+def _replay_entity(
+    conn: duckdb.DuckDBPyConnection, artifacts: tuple[EmittedArtifact, ...], name: str
+) -> None:
+    artifact = next(
+        a for a in artifacts if a.kind is ArtifactKind.REPLAY and a.path.endswith(f"/{name}.sql")
+    )
+    for statement in replay_statements(artifact):
+        conn.execute(statement)
+
+
+def _unresolved(conn: duckdb.DuckDBPyConnection, name: str) -> set[str]:
+    return {
+        row
+        for (row,) in conn.execute(
+            f"SELECT _source_row_id FROM silver.{name}__reject WHERE resolved_at IS NULL"
+        ).fetchall()
+    }
+
+
+def _child_parent_ref(conn: duckdb.DuckDBPyConnection) -> list[tuple[object, ...]]:
+    return conn.execute(
+        f"SELECT parent_ref FROM silver.{CHILD} WHERE order_id = '{CHILD_ORDER}'"
+    ).fetchall()
+
+
+def test_relaxing_the_parent_names_its_children_parents_first() -> None:
+    _p, before = _cascade_project(relaxed=False)
+    _p, after = _cascade_project(relaxed=True)
+    result = plan(before, after)
+
+    assert result.replay_scope.entities == (PARENT, CHILD)
+    # `dirty_ref` judges the same parent at `unknown_member`: rebuilt, not replayed.
+    assert "dirty_ref" in result.backfill_scope.entities
+
+
+def test_the_parents_replay_then_the_childs_admits_and_resolves_the_child() -> None:
+    before_project, _ir = _cascade_project(relaxed=False)
+    after_project, _ir = _cascade_project(relaxed=True)
+    conn = build_corpus()
+    try:
+        materialize(conn, _artifacts(before_project))
+        assert PARENT_ROW in _unresolved(conn, PARENT)
+        assert CHILD_ROW in _unresolved(conn, CHILD)
+        assert _child_parent_ref(conn) == []
+
+        # Bronze's window moves past both rows: only the replays can reach them.
+        conn.execute("DELETE FROM bronze.dirty__ref_parents WHERE _source_row_id = ?", [PARENT_ROW])
+        conn.execute("DELETE FROM bronze.dirty__refs WHERE _source_row_id = ?", [CHILD_ROW])
+        artifacts = _artifacts(after_project)
+        materialize(conn, artifacts)
+
+        _replay_entity(conn, artifacts, PARENT)
+        assert PARENT_ROW not in _unresolved(conn, PARENT)
+        _replay_entity(conn, artifacts, CHILD)
+
+        assert CHILD_ROW not in _unresolved(conn, CHILD)
+        assert _child_parent_ref(conn) == [("ORD-2016",)]
+    finally:
+        conn.close()

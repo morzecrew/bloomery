@@ -364,6 +364,40 @@ real: relaxing `quarantine` to `flag` frees rows that are sitting in the reject 
 *not* in bronze's incremental window, so a backfill alone would leave them quarantined
 forever.
 
+### A replayed parent brings its children back
+
+A `referential` rule judges a child against its parent's **admitted silver rows** and
+nothing else: the probe never reads a reject table, so a parent that is quarantined,
+late, or not yet replayed counts as absent, and its children are orphans under whatever
+`on_missing` says. A `coverage:` check counts admitted rows on both sides for the same
+reason — it answers "has a child in silver", which is what every consumer of silver sees.
+
+So when a parent comes back, its children must be re-judged, and `plan()` names them:
+
+- an entity whose `referential` rule at `on_missing: quarantine` reaches an entity in
+  `replay_scope` — directly or through a chain — is in `replay_scope` too. The scope is
+  ordered **parents first**, ties broken by name; entities whose rules form a cycle have
+  no parent-first order and come out by name among themselves. Run the replays in that
+  order: a child replayed before its parent's rows are admitted stays held, harmlessly,
+  until the next replay. For a type 2 parent, whose replay re-delivers to bronze, the
+  child's replay belongs after the parent's next run.
+- an entity whose `referential` rule at `on_missing: unknown_member` or `flag` reaches an
+  entity in `replay_scope` is named in `backfill_scope`. Its rows still in bronze's window
+  are rebuilt against the returned parent.
+
+That second case has a limit. Rows bronze no longer holds keep their `__unknown__`
+rewrite or their flag: no column keeps the original key, so nothing can restore it. The
+remedy for such a child is to **re-ingest its rows into bronze**, or to make the parent's
+`coverage:` check non-blocking (`on_fail: flag`) so it stops failing runs over children
+that cannot come back. Choose `quarantine` for a rule whose orphans you want back.
+
+A parent that is merely **late** recovers the same way as a quarantined one: replay the
+child once the parent has arrived. Replaying an entity whose routing reads another entity
+is safe to run every cycle — a replay with nothing to admit changes no entity row — and that is
+the documented fix. bloomery does not schedule it, and the plan carries no field marking a
+replay as standing; a parent replayed in an upstream project is invisible to this
+project's plan.
+
 ## Every check here is about rows that arrived
 
 That is worth saying out loud, because the most expensive production failure in an
