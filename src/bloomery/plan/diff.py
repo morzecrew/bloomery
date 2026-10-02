@@ -110,7 +110,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
-from bloomery.ir import SOURCE_COLUMN, OnFail, ProjectIR
+from bloomery.ir import SOURCE_COLUMN, Materialization, OnFail, ProjectIR
 from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan, ReplayScope
 from bloomery.quality import disposition, payload_key
 from bloomery.spec.quality import EXACT_DECIMAL
@@ -582,7 +582,30 @@ def _semantic_signature(
 # ....................... #
 
 
-def _added_column(entity_name: str, column: ColumnIR, acc: _Acc) -> None:
+def _dbt_refresh(entity: EntityIR) -> str:
+    """What a field added to or dropped from ``entity`` costs on dbt (S-0086/D-10).
+
+    dbt's incremental models carry ``on_schema_change='fail'``, so a changed
+    column set fails the next run until both relations are rebuilt. Read from
+    the **new** IR: the refresh runs against what is about to be built.
+    """
+
+    if entity.materialization is Materialization.FULL:
+        return ""
+
+    return (
+        f"; on dbt, run `dbt build --full-refresh -s {entity.name} {entity.name}__reject`"
+        " — resolved reject rows are lost"
+    )
+
+
+# ....................... #
+
+
+def _added_column(new_e: EntityIR, column: ColumnIR, acc: _Acc) -> None:
+    entity_name = new_e.name
+    refresh = _dbt_refresh(new_e)
+
     if column.required:
         acc.changes.append(
             Change(
@@ -590,7 +613,7 @@ def _added_column(entity_name: str, column: ColumnIR, acc: _Acc) -> None:
                 f"field:{column.name}",
                 ChangeClass.BREAKING,
                 "new field is required — historical rows cannot satisfy it; add it "
-                "optional, backfill, then tighten (S-0024/D-7)",
+                "optional, backfill, then tighten (S-0024/D-7)" + refresh,
                 new=_render_shape(column),
             )
         )
@@ -601,7 +624,7 @@ def _added_column(entity_name: str, column: ColumnIR, acc: _Acc) -> None:
             entity_name,
             f"field:{column.name}",
             ChangeClass.ADDITIVE,
-            "field added",
+            "field added" + refresh,
             new=_render_shape(column),
         )
     )
@@ -628,7 +651,7 @@ def _dropped_column(old_e: EntityIR, new_e: EntityIR, column: ColumnIR, acc: _Ac
             new_e.name,
             f"field:{column.name}",
             ChangeClass.BREAKING,
-            f"field dropped{hint}",
+            f"field dropped{hint}{_dbt_refresh(new_e)}",
             old=_render_shape(column),
         )
     )
@@ -1730,7 +1753,7 @@ def _entity_pair(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
         elif name not in new_cols:
             _dropped_column(old_e, new_e, old_cols[name], acc)
         elif name not in old_cols:
-            _added_column(new_e.name, new_cols[name], acc)
+            _added_column(new_e, new_cols[name], acc)
         else:
             _column_pair(old_e, new_e, old_cols[name], new_cols[name], acc, renamed_from=None)
 

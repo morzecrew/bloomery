@@ -144,6 +144,42 @@ def test_dropped_unreferenced_column_is_breaking_not_raised() -> None:
     assert change.detail == "field dropped"
 
 
+_REFRESH = "dbt build --full-refresh -s order_item order_item__reject"
+
+
+def test_a_field_added_to_an_incremental_entity_names_the_dbt_full_refresh() -> None:
+    incremental = {"materialization": Materialization.INCREMENTAL_BY_KEY}
+    old = entity_project(plan_ir.column("id", required=True), **incremental)
+    new = entity_project(plan_ir.column("id", required=True), plan_ir.column("note"), **incremental)
+    change = only_change(old, new)
+    assert change.change_class is ChangeClass.ADDITIVE
+    assert change.detail.startswith("field added")
+    assert _REFRESH in change.detail
+
+
+def test_a_field_dropped_from_an_incremental_entity_names_the_dbt_full_refresh() -> None:
+    incremental = {"materialization": Materialization.INCREMENTAL_BY_PARTITION}
+    old = entity_project(plan_ir.column("id", required=True), plan_ir.column("note"), **incremental)
+    new = entity_project(plan_ir.column("id", required=True), **incremental)
+    change = only_change(old, new)
+    assert change.change_class is ChangeClass.BREAKING
+    assert _REFRESH in change.detail
+
+
+def test_the_refresh_reads_the_new_materialization() -> None:
+    old = entity_project(plan_ir.column("id", required=True))
+    new = entity_project(
+        plan_ir.column("id", required=True),
+        plan_ir.column("note"),
+        materialization=Materialization.INCREMENTAL_BY_KEY,
+    )
+    added = next(c for c in plan(old, new).changes if c.subject == "field:note")
+    assert _REFRESH in added.detail
+
+    back = next(c for c in plan(new, old).changes if c.subject == "field:note")
+    assert "full-refresh" not in back.detail
+
+
 def test_dropped_column_hints_renamed_from_when_a_same_typed_field_appears() -> None:
     old = entity_project(plan_ir.column("id", required=True), plan_ir.column("note"))
     new = entity_project(plan_ir.column("id", required=True), plan_ir.column("comment"))
