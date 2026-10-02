@@ -1787,9 +1787,14 @@ class ProjectIR:
     Version 25 (S-0080/D-2) adds ``MartIR.reading`` and ``MartJoinIR.reading``,
     the current-version reading of an ``scd: type2`` base or flatten hop. Every
     project with a mart encodes the field, and every fingerprint moves once.
+
+    Version 26 (S-0087/D-5) adds ``EntityIR.arrival_lag_hours``, the declared
+    arrival lag a SQLMesh time-range model carries as ``lookback``. Every
+    project encodes the field, ``None`` where no lag is declared, so every
+    fingerprint moves once.
     """
 
-    bloomery_ir_version: int = 25
+    bloomery_ir_version: int = 26
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()
