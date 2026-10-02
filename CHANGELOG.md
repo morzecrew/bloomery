@@ -72,14 +72,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   incremental model, which a plain run never widens.
 
 - **A schema change fails loudly on dbt.** Every incremental dbt model, an entity's and its
-  reject table's, carries `on_schema_change='fail'`, so a field added to or dropped from an
-  incremental entity stops the build instead of leaving the table silently without the
-  column. `bloomery plan` names the fix beside each such field change:
-  `dbt build --full-refresh -s <entity> <entity>__reject`, which recomputes history as
-  SQLMesh's rebuild does and loses resolved reject rows, as the dbt how-to says.
+  reject table's, carries `on_schema_change='fail'`, so a field added, dropped or renamed
+  stops the build instead of leaving the table silently without the column. `bloomery
+  plan` names the fix beside each such field change: `dbt build --full-refresh -s` over the
+  relations that fail, which are the entity when it is an incremental type 1 model and its
+  `<entity>__reject` table whenever it quarantines. A `full` table rebuilds whole and a
+  type 2 snapshot widens itself, so neither is named. The refresh recomputes history as
+  SQLMesh's rebuild does; a refreshed reject table loses its resolved rows, as the dbt
+  how-to says.
 
-  **Upgrade note.** On dbt, a field change on an incremental entity now needs the full
-  refresh the plan names.
+  **Upgrade note.** On dbt, a field change on an incremental entity, or on any entity that
+  quarantines, now needs the full refresh the plan names.
 
 - **A partition transform builds on Trino.** The SQLMesh model spells `days(...)`,
   `months(...)`, `years(...)` and `hours(...)` in Trino's singular form (`day`, `month`,

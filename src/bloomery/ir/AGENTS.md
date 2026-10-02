@@ -525,7 +525,7 @@ The current reading lowers to `valid_to IS NULL` over the shared `VALID_TO` colu
 - Paths: `src/bloomery/emit/lower/predicates.py` `src/bloomery/emit/lower/marts.py` `src/bloomery/ir/nodes.py`
 - Consequence: the mart and the audit cannot disagree about which version is current, and every fingerprint moves once
 
-### S-0086/D-5 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: partial
+### S-0086/D-5 — `ASSUMED` (A replay runs only against the project it was compiled with)
 
 No id-only fingerprint is introduced; if a guard ever needs a narrower scope it is a new entity fingerprint beside an unchanged `project_fingerprint`; this answers S-0067/Q-2 for replay
 

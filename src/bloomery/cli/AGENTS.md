@@ -314,7 +314,7 @@ The CLI command takes spec directories positionally, like `plan`. It resolves no
 - Paths: `src/bloomery/cli/__init__.py` `tests/unit/test_cli.py`
 - Consequence: A script can tell a wrong artifact from a wrong invocation, and an import that adds nothing reads as success rather than as a refusal to retry
 
-### S-0086/D-10 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: partial
+### S-0086/D-10 — `ASSUMED` (A replay runs only against the project it was compiled with)
 
 `bloomery plan` names the dbt full refresh beside every change that adds, drops or renames a field of an incremental entity, naming the entity when it is an incremental type 1 model and its reject table whenever it quarantines (a `full` table rebuilds whole, and a type 2 entity is a snapshot that widens itself), reading the entity's materialization from the new IR, so the operator reads it in the plan rather than from a failed run; the change keeps its class, and SQLMesh's output is unchanged.
 

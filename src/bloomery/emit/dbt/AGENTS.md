@@ -354,35 +354,35 @@ The audit is derived at emit time from the key, the `scd` kind and `dedupe` alre
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/dbt/__init__.py`
 - Consequence: no fingerprint moves for the IR's sake; goldens change only by the new audit
 
-### S-0086/D-1 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: partial
+### S-0086/D-1 — `ASSUMED` (A replay runs only against the project it was compiled with)
 
 A replay guard compares the macro with the project it was compiled with or the relations that are built, never with the spec that quarantined a row
 
 - Paths: `src/bloomery/emit/dbt/__init__.py`
 - Consequence: replaying after a spec change, which is replay's purpose, is never refused
 
-### S-0086/D-2 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: partial
+### S-0086/D-2 — `ASSUMED` (A replay runs only against the project it was compiled with)
 
 `dbt_project.yml` carries `vars: {bloomery_fingerprint: <project fingerprint>}`, and the dbt replay macro refuses before its first statement when the var differs from the fingerprint it was emitted under
 
 - Paths: `src/bloomery/emit/dbt/__init__.py`
 - Consequence: a replay left over from another compile, or run against a project compiled elsewhere, refuses instead of writing
 
-### S-0086/D-3 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: partial
+### S-0086/D-3 — `ASSUMED` (A replay runs only against the project it was compiled with)
 
 Before its first statement the dbt replay macro checks that the entity and its reject table carry every column the statements write, and refuses, naming the missing columns and the rebuild that adds them
 
 - Paths: `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/silver.py`
 - Consequence: a reject table missing a column the macro writes is refused before a statement commits, including on Databricks; one that has every column passes whatever its age
 
-### S-0086/D-7 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: partial
+### S-0086/D-7 — `ASSUMED` (A replay runs only against the project it was compiled with)
 
 bloomery writes no ledger into the warehouse: a stale checkout whose own compile is self-consistent is an operator error, and S-0086/D-6's documentation is its guard.
 
 - Paths: `src/bloomery/emit/dbt/__init__.py`
 - Consequence: every relation bloomery emits is owned by a model, and the replay guards read only what the compile and the relations already carry
 
-### S-0086/D-9 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: partial
+### S-0086/D-9 — `ASSUMED` (A replay runs only against the project it was compiled with)
 
 Every incremental model the dbt emitter writes, an entity's and its reject table's, carries `on_schema_change='fail'`: a changed column set fails the run instead of leaving the table without the column, and the fix is `dbt build --full-refresh -s <entity> <entity>__reject`, which recomputes history as SQLMesh's rebuild does and loses resolved reject rows, as the how-to says.
 

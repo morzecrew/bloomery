@@ -180,7 +180,7 @@ On an `incremental_by_partition` entity emitted to SQLMesh (`INCREMENTAL_BY_TIME
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/lower/silver.py`
 - Consequence: a daily run pays for its own keys rather than for the whole history, and dbt's incremental entities pay the whole-model scan until a project needs otherwise
 
-### S-0086/D-4 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: partial
+### S-0086/D-4 — `ASSUMED` (A replay runs only against the project it was compiled with)
 
 SQLMesh's replay script is unchanged
 

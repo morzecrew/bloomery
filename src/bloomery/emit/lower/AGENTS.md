@@ -537,7 +537,7 @@ A `referential` verdict reads only the parent's admitted silver rows; the probe 
 - Paths: `src/bloomery/emit/lower/reconcile.py`
 - Consequence: a coverage failure means the silver data lacks the children, which is what a consumer of silver sees
 
-### S-0086/D-3 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: partial
+### S-0086/D-3 — `ASSUMED` (A replay runs only against the project it was compiled with)
 
 Before its first statement the dbt replay macro checks that the entity and its reject table carry every column the statements write, and refuses, naming the missing columns and the rebuild that adds them
 

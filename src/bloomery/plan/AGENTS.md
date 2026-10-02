@@ -217,7 +217,7 @@ A dependent at `on_missing: unknown_member` or `flag` of an entity in `replay_sc
 - Paths: `src/bloomery/plan/diff.py`
 - Consequence: children still in bronze's window are re-judged against the returned parent
 
-### S-0086/D-10 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: partial
+### S-0086/D-10 — `ASSUMED` (A replay runs only against the project it was compiled with)
 
 `bloomery plan` names the dbt full refresh beside every change that adds, drops or renames a field of an incremental entity, naming the entity when it is an incremental type 1 model and its reject table whenever it quarantines (a `full` table rebuilds whole, and a type 2 entity is a snapshot that widens itself), reading the entity's materialization from the new IR, so the operator reads it in the plan rather than from a failed run; the change keeps its class, and SQLMesh's output is unchanged.
 

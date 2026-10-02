@@ -49,14 +49,14 @@ Comparing two instants is the how-to's framing, not `plan()`'s: the Compare sect
 - Paths: `pages/docs/how-to/reproduce-a-past-artifact-set.md` `src/bloomery/plan/diff.py`
 - Consequence: A reader of the API reference learns what `plan()` diffs, and a reader arriving with an incident learns from the how-to that two historical compiles need nothing beyond it
 
-### S-0086/D-6 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: partial
+### S-0086/D-6 — `ASSUMED` (A replay runs only against the project it was compiled with)
 
 `how-to/emit-dbt.md` names rebuilding the entity and its reject table from the same checkout before a replay, and what the guard refuses
 
 - Paths: `pages/docs/how-to/emit-dbt.md`
 - Consequence: the documented order matches what the guard enforces
 
-### S-0086/D-8 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: partial
+### S-0086/D-8 — `ASSUMED` (A replay runs only against the project it was compiled with)
 
 `--out` deletes nothing; `how-to/emit-dbt.md` says to compile into a clean directory, and a left-over replay macro is what S-0086/D-2 refuses.
 
