@@ -1198,6 +1198,79 @@ def _replay(
 # ....................... #
 
 
+def _cascade(new: ProjectIR, acc: _Acc) -> tuple[str, ...]:
+    """Extend the replay to the entities that judged their rows against an
+    entity already in it, and return the scope parents first (S-0084).
+
+    A ``referential`` verdict reads only the parent's admitted silver rows
+    (D1), so a parent held in quarantine made orphans of its children. When
+    the parent comes back, so must they (D3): a child at ``on_missing:
+    quarantine`` holds its orphans in its own reject table and joins the
+    replay, transitively; a child at ``unknown_member`` or ``flag`` kept its
+    rows, rewritten or flagged, and is named in the backfill instead (D5) —
+    rows bronze no longer holds keep their rewrite, the documented limit.
+
+    The order is topological, child after parent, ties broken by name (D4).
+    Entities whose rules form a cycle have no parent-first order; whichever
+    is stuck is released by name, so they come out by name among themselves.
+    """
+
+    quarantined_on: dict[str, set[str]] = {}
+    kept_on: dict[str, set[str]] = {}
+    refers_to: dict[str, set[str]] = {}
+
+    for entity in new.entities:
+        for rule in entity.quality:
+            if rule.kind != "referential":
+                continue
+
+            parent = dict(rule.params)["to_entity"]
+
+            if parent == entity.name:
+                continue
+
+            label = _disposition_label(rule)
+            refers_to.setdefault(entity.name, set()).add(parent)
+
+            if label == OnFail.QUARANTINE:
+                quarantined_on.setdefault(parent, set()).add(entity.name)
+            elif label in {"unknown_member", OnFail.FLAG}:
+                kept_on.setdefault(parent, set()).add(entity.name)
+
+    frontier = list(acc.replay)
+
+    while frontier:
+        for child in quarantined_on.get(frontier.pop(), ()):
+            if child not in acc.replay:
+                acc.replay.add(child)
+                frontier.append(child)
+
+    for parent in acc.replay:
+        # A replay reads the reject table and never recomputes admitted rows,
+        # so a child in both scopes still owes its backfill (S-0084/D-5).
+        acc.backfill.update(kept_on.get(parent, set()))
+
+    # Order by every referential edge, not only the quarantining ones that
+    # grew the scope: a child replayed before any parent it reads rewrites or
+    # flags against an absent parent (S-0084/D-4).
+    waiting = {name: refers_to.get(name, set()) & acc.replay for name in acc.replay}
+    order: list[str] = []
+
+    while waiting:
+        ready = sorted(name for name, parents in waiting.items() if not parents) or [min(waiting)]
+        name = ready[0]
+        order.append(name)
+        del waiting[name]
+
+        for parents in waiting.values():
+            parents.discard(name)
+
+    return tuple(order)
+
+
+# ....................... #
+
+
 def _dedupe_repr(dedupe: DedupeIR | None) -> tuple[str, str, str]:
     if dedupe is None:
         return ("", "", "")
@@ -2584,6 +2657,7 @@ def plan(
     _diff_reconcile(old, new, acc)
     _diff_steps(old, new, acc)
     _enforce_contract(old, new, acc)
+    replay = _cascade(new, acc)
     changes = tuple(sorted(acc.changes, key=_sort_key))
     downstream = _downstream_impact(new, acc.seeds)
     return Plan(
@@ -2595,6 +2669,6 @@ def plan(
             ),
         ),
         downstream_impact=downstream,
-        replay_scope=ReplayScope(entities=tuple(sorted(acc.replay))),
+        replay_scope=ReplayScope(entities=replay),
         affected_exposures=_affected_exposures(new, downstream, changes),
     )

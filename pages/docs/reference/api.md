@@ -221,7 +221,9 @@ The closed classification vocabulary: `ADDITIVE`, `WIDENING`, `RENAME`, `RESTATI
 
 ### `ReplayScope`
 
-`entities` — the sorted entities whose `<entity>__reject` tables a plan invalidates.
+`entities` — the entities whose `<entity>__reject` tables a plan invalidates, ordered
+parents first (topologically, ties and cycles by name), so a caller running them in order
+replays a child after its parent.
 Distinct from `BackfillScope` because the two name different storage: a backfill
 recomputes an entity from bronze, while a replay re-runs the current mapping against
 rows that are not in bronze's incremental window at all. Populated only where a change
@@ -230,6 +232,9 @@ gone, now disposes as `flag`, or has relaxed parameters. A tightening — a narr
 bound, or `quarantine → fail` — needs a backfill and no replay: every quarantined row
 still fails the rule, so replaying it drains nothing. Where relaxation is undecidable
 from the parameters (a `pattern` regex, an `expression`), the replay is reported.
+A replayed entity brings its dependents: an entity whose `referential` rule at
+`on_missing: quarantine` reaches one in scope is named too, and one at `unknown_member`
+or `flag` is named in `BackfillScope` instead.
 bloomery emits the replay merge artifact; executing it is the caller's. See [Add quality
 rules](../how-to/add-quality-rules.md).
 
