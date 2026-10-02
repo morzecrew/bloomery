@@ -669,7 +669,7 @@ A determination is a **stored** fact. `ColumnIR` gains `determines: tuple[str, .
 - Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/dialects/**` `src/bloomery/semantic/zone.py` `src/bloomery/resolve/build.py`
 - Consequence: a source that stamps instants has a spelling, and the compiler refuses the double conversion the type system cannot see
 
-### S-0088/D-3 — `ASSUMED` (The fuzz lane's first findings are closed) — implementation: none
+### S-0088/D-3 — `ASSUMED` (The fuzz lane's first findings are closed)
 
 Authored SQL text nests at most 32 levels: `_parses_as_sql` and `resolve/steps.py::_parse_body` measure the parsed tree's depth with an iterative walk and refuse deeper text, as `SpecParseError` and `StepError`. This supersedes S-0008/D-10's fix owed at `_parse_sql` and S-0008/D-7's "no depth limit"; S-0008/D-7's widened catches stay behind the cap.
 

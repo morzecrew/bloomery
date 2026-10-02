@@ -309,14 +309,14 @@ SQLMesh and Cube emit nothing, and it is not a refusal — neither models a sour
 - Paths: `tests/unit/test_emit/test_cube.py` `tests/unit/test_emit/test_sqlmesh.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0087/D-2 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+### S-0087/D-2 — `ASSUMED` (What each emitter carries of the facts a spec declares)
 
 No `cron` is emitted, in `model_defaults` or on any model; an unstated cron makes a project late, never wrong, because it moves when an interval closes and not which rows the interval holds; a row that arrives after its interval ran is S-0087/D-5's arrival lag, not the cron's; this answers S-0061/Q-2
 
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py` `tests/unit/test_emit/test_sqlmesh.py`
 - Consequence: cadence stays the caller's, outside a file every compile rewrites
 
-### S-0087/D-3 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+### S-0087/D-3 — `ASSUMED` (What each emitter carries of the facts a spec declares)
 
 An exposure emits no MetricFlow `saved_query`, and this is not a refusal: a saved query is a request and an exposure a consumer, with no group-by, no slot for a mart, and metrics the manifest may lack; this answers S-0063/Q-1
 

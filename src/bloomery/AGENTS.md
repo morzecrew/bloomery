@@ -727,7 +727,7 @@ The refusal names how the fact was obtained and what to write instead. A message
 - Paths: `src/bloomery/cli/__init__.py` `src/bloomery/imports.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0085/D-6 — `ASSUMED` (A fact from an upstream project grades as imported) — implementation: none
+### S-0085/D-6 — `ASSUMED` (A fact from an upstream project grades as imported)
 
 The IR records no naming policy, and S-0002/D-7 stays a documented advisory until a surface other than Python can select a policy; then the IR records each export's resolved relation and the emit seam refuses a mismatch; this answers S-0002/Q-1
 

@@ -389,7 +389,7 @@ Every incremental model the dbt emitter writes, an entity's and its reject table
 - Paths: `src/bloomery/emit/dbt/__init__.py`
 - Consequence: a field added to an incremental entity can never be silently missing from its dbt table, and dbt and SQLMesh agree on the history of the new column once the refresh runs
 
-### S-0087/D-4 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+### S-0087/D-4 — `ASSUMED` (What each emitter carries of the facts a spec declares)
 
 `freshness:` carries no `filter:`; a filter would have to name a bronze partition column no spec declares, and one that excluded the newest load would change the answer, so leaving it out costs scan time and never a wrong freshness; this answers S-0064/Q-1
 

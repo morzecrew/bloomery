@@ -523,14 +523,14 @@ On an `incremental_by_partition` entity emitted to SQLMesh (`INCREMENTAL_BY_TIME
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/lower/silver.py`
 - Consequence: a daily run pays for its own keys rather than for the whole history, and dbt's incremental entities pay the whole-model scan until a project needs otherwise
 
-### S-0084/D-1 — `ASSUMED` (A replayed parent brings its children back) — implementation: none
+### S-0084/D-1 — `ASSUMED` (A replayed parent brings its children back)
 
 A `referential` verdict reads only the parent's admitted silver rows; the probe never reads a reject table, so a parent that is quarantined, late or not yet replayed counts as absent
 
 - Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/quality/predicates.py`
 - Consequence: the verdict is a fact about silver, which is what every consumer mart and metric reads; the quality mart alone also counts reject rows
 
-### S-0084/D-2 — `ASSUMED` (A replayed parent brings its children back) — implementation: none
+### S-0084/D-2 — `ASSUMED` (A replayed parent brings its children back)
 
 `coverage:` counts admitted rows on both sides and has no 'exists' form; S-0033/Q-5's literal question is answered as correct for 'has an order', and S-0033/D-90 stands
 

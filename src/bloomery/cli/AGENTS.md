@@ -321,7 +321,7 @@ The CLI command takes spec directories positionally, like `plan`. It resolves no
 - Paths: `src/bloomery/plan/diff.py` `src/bloomery/cli/render.py`
 - Consequence: an ADDITIVE field on dbt costs a full refresh, and the plan says so before it is applied
 
-### S-0088/D-4 — `ASSUMED` (The fuzz lane's first findings are closed) — implementation: none
+### S-0088/D-4 — `ASSUMED` (The fuzz lane's first findings are closed)
 
 A `--catalog` path the OS refuses to stat exits 2, as #174 made a specs path do, and a test pins it.
 

@@ -111,14 +111,14 @@ The MetricFlow target emits its one artifact at the root as `semantic_manifest.j
 - Paths: `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/guardrails/evidence.py` `src/bloomery/semantic/proof.py` `src/bloomery/spec/entity.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0087/D-1 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+### S-0087/D-1 — `ASSUMED` (What each emitter carries of the facts a spec declares)
 
 A mart's owner reaches its MetricFlow semantic model and a metric's owner its metric, both as `config.meta.owner`; with no owner `config` stays null, and an entity's owner is not carried: an entity reaches MetricFlow only as entity elements inside the marts' semantic models, which carry the marts' owners; this answers S-0062/Q-2
 
 - Paths: `src/bloomery/emit/metricflow/__init__.py` `tests/unit/test_ownership.py`
 - Consequence: the fourth target carries the owner the other three already do
 
-### S-0087/D-3 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+### S-0087/D-3 — `ASSUMED` (What each emitter carries of the facts a spec declares)
 
 An exposure emits no MetricFlow `saved_query`, and this is not a refusal: a saved query is a request and an exposure a consumer, with no group-by, no slot for a mart, and metrics the manifest may lack; this answers S-0063/Q-1
 

@@ -187,28 +187,28 @@ SQLMesh's replay script is unchanged
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py`
 - Consequence: no SQLMesh golden moves
 
-### S-0087/D-2 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+### S-0087/D-2 — `ASSUMED` (What each emitter carries of the facts a spec declares)
 
 No `cron` is emitted, in `model_defaults` or on any model; an unstated cron makes a project late, never wrong, because it moves when an interval closes and not which rows the interval holds; a row that arrives after its interval ran is S-0087/D-5's arrival lag, not the cron's; this answers S-0061/Q-2
 
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py` `tests/unit/test_emit/test_sqlmesh.py`
 - Consequence: cadence stays the caller's, outside a file every compile rewrites
 
-### S-0087/D-5 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+### S-0087/D-5 — `ASSUMED` (What each emitter carries of the facts a spec declares)
 
 An entity materialized `incremental_by_partition` at `scd: type1` may declare `arrival_lag`, a duration in `quarantine.retention`'s grammar; SQLMesh's model pins `interval_unit 'day'` and `lookback` is the lag in whole days, rounded up, so an operator's cron cannot shrink it, and a cron more frequent than daily is refused by SQLMesh at load unless the caller also sets `allow_partials`; unset, neither is emitted. Declared on any other entity it is refused, a type 2 entity included: its SCD kind replaces the time-range kind, so the lag would reach no model. dbt carries nothing: its incremental entity merges its whole select on the key every run, so a late row already lands.
 
 - Paths: `src/bloomery/spec/entity.py` `src/bloomery/emit/sqlmesh/__init__.py`
 - Consequence: a row that lands after its interval ran is loaded on a later run instead of never, and a project that declares no lag compiles byte for byte as before
 
-### S-0087/D-6 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+### S-0087/D-6 — `ASSUMED` (What each emitter carries of the facts a spec declares)
 
 No `interval_unit` is derived from a partition transform: a coarse partition under SQLMesh's daily interval loses nothing outside the interval's own time range on Trino. Measured on 2026-10-01 on `trinodb/trino:483` with a Hive 4 metastore: the Hive catalog refuses any transform before a write, and on Iceberg the daily interval deletes and re-inserts its own time range, leaving the rest of the month intact.
 
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py`
 - Consequence: the interval unit changes only on evidence, and a null result closes the question without code
 
-### S-0087/D-8 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+### S-0087/D-8 — `ASSUMED` (What each emitter carries of the facts a spec declares)
 
 On Trino, a partition transform reaches the SQLMesh model in the connector's singular spelling, `day`, `month`, `year` or `hour`; the spec keeps its plural grammar. A Hive catalog takes no transform at all, and the docs say to partition by a date column there.
 

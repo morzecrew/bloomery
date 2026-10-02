@@ -6,7 +6,7 @@ change:
   type: fix
   scope: spec
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0008, S-0009]
 informed_by: []
 supersedes: []
