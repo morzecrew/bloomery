@@ -187,6 +187,18 @@ def test_a_field_dropped_from_an_incremental_entity_names_the_dbt_full_refresh()
     assert _REFRESH in change.detail
 
 
+def test_a_field_renamed_on_an_incremental_entity_names_the_dbt_full_refresh() -> None:
+    incremental = {"materialization": Materialization.INCREMENTAL_BY_KEY}
+    old = entity_project(plan_ir.column("quantity", expr="q"), **incremental)
+    new = entity_project(
+        plan_ir.column("qty", expr="q", renamed_from="quantity"), **incremental
+    )
+    change = only_change(old, new)
+    assert change.change_class is ChangeClass.RENAME
+    assert change.detail.startswith("renamed from 'quantity'")
+    assert _REFRESH in change.detail
+
+
 def test_the_refresh_reads_the_new_materialization() -> None:
     old = entity_project(plan_ir.column("id", required=True))
     new = entity_project(

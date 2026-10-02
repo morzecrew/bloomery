@@ -292,7 +292,7 @@ Two things the reject table does that are worth knowing before you operate it:
 ## Schema changes on incremental models
 
 Every incremental model bloomery emits — an incremental entity and every reject table —
-carries `on_schema_change='fail'`. When a spec change adds or drops a field, the next
+carries `on_schema_change='fail'`. When a spec change adds, drops or renames a field, the next
 `dbt run` or `dbt build` of that model **fails** with dbt's "schema out of sync" error.
 
 That is deliberate. dbt's default, `ignore`, would build the model without the new column,
@@ -313,7 +313,7 @@ does, so the two targets agree on the new column's history. Like any full refres
 loses resolved reject rows (see above).
 
 You don't have to find this out from a failed run: `bloomery plan` names the same command
-beside every field added to or dropped from an incremental entity. The change keeps its
+beside every field added to, dropped from or renamed on an incremental entity. The change keeps its
 class — an added optional field is still `additive` — because the refresh is a cost on
 dbt, not a change in what the field means.
 

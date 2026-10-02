@@ -583,7 +583,7 @@ def _semantic_signature(
 
 
 def _dbt_refresh(entity: EntityIR) -> str:
-    """What a field added to or dropped from ``entity`` costs on dbt (S-0086/D-10).
+    """What a field added to, dropped from or renamed on ``entity`` costs on dbt (S-0086/D-10).
 
     dbt's incremental models carry ``on_schema_change='fail'``, so a changed
     column set fails the next run until it is rebuilt — with its reject table
@@ -687,7 +687,7 @@ def _column_pair(
                 new_e.name,
                 subject,
                 ChangeClass.RENAME,
-                f"renamed from {renamed_from!r}",
+                f"renamed from {renamed_from!r}{_dbt_refresh(new_e)}",
                 old=renamed_from,
                 new=new_c.name,
             )
