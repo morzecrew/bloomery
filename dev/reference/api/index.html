@@ -3467,7 +3467,9 @@ human-readable <code>detail</code>, and compact <code>old</code>/<code>new</code
 <p><code>entities</code> — the sorted entities whose stored rows a plan invalidates — and
 <code>restates_history</code>, true when any RESTATING change is present.</p>
 <h3 id="replayscope"><code>ReplayScope</code><a class="headerlink" href="#replayscope" title="Permanent link">&para;</a></h3>
-<p><code>entities</code> — the sorted entities whose <code>&lt;entity&gt;__reject</code> tables a plan invalidates.
+<p><code>entities</code> — the entities whose <code>&lt;entity&gt;__reject</code> tables a plan invalidates, ordered
+parents first (topologically, ties and cycles by name), so a caller running them in order
+replays a child after its parent.
 Distinct from <code>BackfillScope</code> because the two name different storage: a backfill
 recomputes an entity from bronze, while a replay re-runs the current mapping against
 rows that are not in bronze's incremental window at all. Populated only where a change
@@ -3476,6 +3478,9 @@ gone, now disposes as <code>flag</code>, or has relaxed parameters. A tightening
 bound, or <code>quarantine → fail</code> — needs a backfill and no replay: every quarantined row
 still fails the rule, so replaying it drains nothing. Where relaxation is undecidable
 from the parameters (a <code>pattern</code> regex, an <code>expression</code>), the replay is reported.
+A replayed entity brings its dependents: an entity whose <code>referential</code> rule at
+<code>on_missing: quarantine</code> reaches one in scope is named too, and one at <code>unknown_member</code>
+or <code>flag</code> is named in <code>BackfillScope</code> instead.
 bloomery emits the replay merge artifact; executing it is the caller's. See <a href="../../how-to/add-quality-rules/">Add quality
 rules</a>.</p>
 <h2 id="request-time-planning">Request-time planning<a class="headerlink" href="#request-time-planning" title="Permanent link">&para;</a></h2>

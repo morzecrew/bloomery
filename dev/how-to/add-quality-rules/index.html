@@ -2408,6 +2408,14 @@ replay: ('inventory_level',)
 bound, or <code>quarantine → fail</code>) restates and backfills, but every quarantined row still
 fails it. Widening an <code>enum_map</code> — a new target <em>or</em> a new spelling for an existing one
 — relaxes <code>in_enum</code> and does name the entity.</p>
+<p>Relaxing a rule on a <strong>parent</strong> names its children as well, because a <code>referential</code>
+rule judged them against a parent that was not in silver. A child at <code>on_missing:
+quarantine</code> joins <code>replay_scope</code> after its parent — the scope is ordered parents first,
+so apply the replays in the order given. A child at <code>unknown_member</code> or <code>flag</code> joins
+<code>backfill_scope</code>: its rows still in bronze are rebuilt, but rows bronze no longer holds
+keep their rewrite or flag. To bring those back, re-ingest them into bronze, or make the
+parent's <code>coverage:</code> check non-blocking so it stops failing on them. See
+<a href="../../concepts/data-quality/#a-replayed-parent-brings-its-children-back">the cascade</a>.</p>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Targets.</strong> Both SQL targets emit the full set — the reject table, its replay, the

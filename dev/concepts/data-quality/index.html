@@ -923,6 +923,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#a-replayed-parent-brings-its-children-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A replayed parent brings its children back
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2089,6 +2100,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#a-replayed-parent-brings-its-children-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A replayed parent brings its children back
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2586,6 +2608,36 @@ a <code>Plan</code> carries a <code>replay_scope</code> alongside its <code>back
 real: relaxing <code>quarantine</code> to <code>flag</code> frees rows that are sitting in the reject table,
 <em>not</em> in bronze's incremental window, so a backfill alone would leave them quarantined
 forever.</p>
+<h3 id="a-replayed-parent-brings-its-children-back">A replayed parent brings its children back<a class="headerlink" href="#a-replayed-parent-brings-its-children-back" title="Permanent link">&para;</a></h3>
+<p>A <code>referential</code> rule judges a child against its parent's <strong>admitted silver rows</strong> and
+nothing else: the probe never reads a reject table, so a parent that is quarantined,
+late, or not yet replayed counts as absent, and its children are orphans under whatever
+<code>on_missing</code> says. A <code>coverage:</code> check counts admitted rows on both sides for the same
+reason — it answers "has a child in silver", which is what every consumer of silver sees.</p>
+<p>So when a parent comes back, its children must be re-judged, and <code>plan()</code> names them:</p>
+<ul>
+<li>an entity whose <code>referential</code> rule at <code>on_missing: quarantine</code> reaches an entity in
+  <code>replay_scope</code> — directly or through a chain — is in <code>replay_scope</code> too. The scope is
+  ordered <strong>parents first</strong>, ties broken by name; entities whose rules form a cycle have
+  no parent-first order and come out by name among themselves. Run the replays in that
+  order: a child replayed before its parent's rows are admitted stays held, harmlessly,
+  until the next replay. For a type 2 parent, whose replay re-delivers to bronze, the
+  child's replay belongs after the parent's next run.</li>
+<li>an entity whose <code>referential</code> rule at <code>on_missing: unknown_member</code> or <code>flag</code> reaches an
+  entity in <code>replay_scope</code> is named in <code>backfill_scope</code>. Its rows still in bronze's window
+  are rebuilt against the returned parent.</li>
+</ul>
+<p>That second case has a limit. Rows bronze no longer holds keep their <code>__unknown__</code>
+rewrite or their flag: no column keeps the original key, so nothing can restore it. The
+remedy for such a child is to <strong>re-ingest its rows into bronze</strong>, or to make the parent's
+<code>coverage:</code> check non-blocking (<code>on_fail: flag</code>) so it stops failing runs over children
+that cannot come back. Choose <code>quarantine</code> for a rule whose orphans you want back.</p>
+<p>A parent that is merely <strong>late</strong> recovers the same way as a quarantined one: replay the
+child once the parent has arrived. Replaying an entity whose routing reads another entity
+is safe to run every cycle — a replay with nothing to admit changes no entity row — and that is
+the documented fix. bloomery does not schedule it, and the plan carries no field marking a
+replay as standing; a parent replayed in an upstream project is invisible to this
+project's plan.</p>
 <h2 id="every-check-here-is-about-rows-that-arrived">Every check here is about rows that arrived<a class="headerlink" href="#every-check-here-is-about-rows-that-arrived" title="Permanent link">&para;</a></h2>
 <p>That is worth saying out loud, because the most expensive production failure in an
 analytics stack is not a wrong number — it is a right number computed over yesterday's
