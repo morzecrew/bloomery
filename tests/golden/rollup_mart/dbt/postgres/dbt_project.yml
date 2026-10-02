@@ -19,6 +19,8 @@ macro-paths:
 - macros
 test-paths:
 - tests
+vars:
+  bloomery_fingerprint: blm1:5ae38717919da8d2dfe08487325ec8b5f487d4419d8d1d813a2daf86c7886a44
 models:
   bloomery:
     gold:

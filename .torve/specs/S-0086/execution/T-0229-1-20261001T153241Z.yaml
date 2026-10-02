@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0229
+phase: 2
+base: 8ff89a743268c5621685150a5ea1d566e46b00e9
+commit: e393a45f36e5cd6b50d6ef1d72f23b908a16b4b8
+at: '2026-10-01T15:32:41Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-10-01T15:27:27Z'
+    claim: >-
+      replay macro checks entity and reject columns, case-insensitively, before BEGIN;
+      columns read off the statements' SET/INSERT targets. adapter.get_columns_in_relation(ref())
+      measured on dbt-core 1.10.8 and 1.12.3 with dbt-duckdb: stored-case names, []
+      for an unbuilt relation. The read opens dbt's own transaction, so the macro's
+      BEGIN collided on DuckDB in either order; an adapter.commit() after the reads,
+      emitted only on transactional dialects, fixes it on both versions. Not measured
+      on dbt-postgres: no server in this sandbox
+    evidence: >-
+      src/bloomery/emit/dbt/__init__.py:555-620 — _replay_columns_guard; tests/e2e/test_dbt_quality.py:303
+      is the sabotage case (dropped reject column, upper-cased entity column), the
+      replay test above it the clean twin
+    action: decided
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-10-01T15:27:27Z'
+    claim: >-
+      no fingerprint introduced or changed; the column guard needs no narrower scope
+      than the relations themselves
+    evidence: >-
+      src/bloomery/ir/fingerprint.py:1 — untouched by this task
+    action: decided
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-10-01T15:27:33Z'
+    claim: >-
+      corrects the previous D-3 entry's citation: the guard is at 537-596 and the
+      sabotage case at 305
+    evidence: >-
+      src/bloomery/emit/dbt/__init__.py:537-596 — _replay_columns_guard; tests/e2e/test_dbt_quality.py:305
+      is the sabotage case
+    action: decided

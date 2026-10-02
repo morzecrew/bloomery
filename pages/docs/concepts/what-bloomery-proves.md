@@ -280,6 +280,24 @@ exists. What a strict mart is asking is whether somebody **here** wrote it.
 checks that — bloomery cannot tell a hand-typed one from a generated one, and writing it
 on a relationship you authored silently lowers that relationship's grade.
 
+**A fact from an upstream project grades `ASSUMED` here.** An entity, mart or metric this
+project imports was proven, or not, where it was authored — and however strong it was
+there, it was not written here. So a strict mart over an imported base, a strict mart
+listing an imported metric, and a strict exposure reading an imported mart or metric are each
+refused, naming the alias and the upstream's fingerprint:
+
+```
+mart 'lines' requires 'locked'; it rests on entity 'order_item', bound from upstream
+'platform' (fingerprint 3f9c…) rather than written here, and a fact that crosses a
+project boundary grades 'assumed' however the upstream obtained it (S-0085/D-2). Fix:
+set 'requires_evidence: assumed' on this consumer, or carry the requirement on the
+upstream's mart; it cannot be authored in this project
+```
+
+Those are the two repairs open to you: relax the requirement here, or put
+`requires_evidence: locked` on the upstream's mart, where the fact can be judged. An
+upstream whose own strict mart would refuse a fact cannot launder it by being imported.
+
 ### The consumer is often not the mart
 
 A dashboard is the thing somebody signs off, and it usually reads several marts none of

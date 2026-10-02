@@ -5,6 +5,19 @@
 -- one unit of work and the macro says so to the engine; bloomery executes
 -- nothing — this file is text until you run it.
 {% macro replay_q_code() %}
+  {% if var('bloomery_fingerprint', none) != 'blm1:b4add99c38382c6751d4a778a027591302424af4ec91a386cf7803d507b57719' %}
+    {{ exceptions.raise_compiler_error("replay_q_code was emitted under blm1:b4add99c38382c6751d4a778a027591302424af4ec91a386cf7803d507b57719, but this dbt project carries bloomery_fingerprint " ~ var('bloomery_fingerprint', none) ~ "; compile into a clean directory and rebuild q_code and its reject table from the same checkout before replaying") }}
+  {% endif %}
+  {% set missing = ['code_fail', 'code_flag', 'code_quar', '_ingested_at', '_load_id', '_source_row_id', '_quality_flags', '_quality_ok', 'code_id'] | reject('in', adapter.get_columns_in_relation(ref('q_code')) | map(attribute='name') | map('lower') | list) | list %}
+  {% if missing %}
+    {{ exceptions.raise_compiler_error("replay_q_code writes " ~ missing | join(", ") ~ " into silver.q_code, which does not have them; rebuild it from the checkout this macro was compiled from with `dbt run --select q_code` before replaying") }}
+  {% endif %}
+  {% set missing = ['resolved_at', 'last_evaluated_at', 'failed_rules'] | reject('in', adapter.get_columns_in_relation(ref('q_code__reject')) | map(attribute='name') | map('lower') | list) | list %}
+  {% if missing %}
+    {{ exceptions.raise_compiler_error("replay_q_code writes " ~ missing | join(", ") ~ " into silver.q_code__reject, which does not have them; rebuild it from the checkout this macro was compiled from with `dbt run --full-refresh --select q_code__reject` before replaying") }}
+  {% endif %}
+  {% call statement('replay_q_code_columns', auto_begin=True) %}select 1{% endcall %}
+  {% do adapter.commit() %}
   {% do run_query("BEGIN") %}
 
   {% set statement_0 %}
