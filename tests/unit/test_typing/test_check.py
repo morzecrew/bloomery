@@ -15,6 +15,7 @@ from bloomery.typing import (
     StringType,
     TimestampType,
     VariantType,
+    VectorType,
     typecheck_chain,
     typecheck_chains,
 )
@@ -227,3 +228,37 @@ def test_batched_success_returns_terminal_types() -> None:
         ChainCheck(StringType(), steps({"to_decimal": [12, 4]}), DecimalType(12, 4), "b"),
     ]
     assert typecheck_chains(checks, registry=REGISTRY) == (IntType(), DecimalType(12, 4))
+
+
+def test_a_chain_into_a_vector_is_refused_at_the_field() -> None:
+    """S-0011/D-4: a vector arrives from a step, never from a mapping. Refused
+    at type-check with the field's path, rather than at emit, where the neutral
+    cast raised with no address and the schema-agreement census caught it."""
+    with pytest.raises(TypeCheckError, match="a mapping chain cannot populate") as raised:
+        typecheck_chain(
+            StringType(), (), VectorType("float32", 3), registry=REGISTRY, source_path="mapping: fields.embedding"
+        )
+    assert raised.value.source_path == "mapping: fields.embedding"
+
+
+@pytest.mark.parametrize("slot", ["key", "fields"])
+def test_a_mapped_vector_is_refused_even_without_a_transform(slot: str) -> None:
+    """An empty chain is a declared-type cast at extraction, and no cast reaches
+    a vector (S-0011/D-4). The schema-agreement census drew exactly this — a
+    vector key mapped straight from the source — and it reached emit with no
+    address; it is now refused at the mapping's own key or field."""
+    from bloomery import build_project_ir, load_project  # noqa: PLC0415
+
+    fields = "a: {type: string}\n      v: {type: \"vector(float32, 3)\"}"
+    key = "v" if slot == "key" else "a"
+    documents = {
+        "entity_model": f"spec_version: 1\nentities:\n  e:\n    grain: one e\n    key: [{key}]\n    fields:\n      {fields}\n",
+        "mapping": (
+            "mapping_version: 1\nsource: raw\ntarget: e\n"
+            + (f"key:\n  v: {{from: \"$.v\"}}\nfields:\n  a: {{from: \"$.a\"}}\n" if slot == "key"
+               else "key:\n  a: {from: \"$.a\"}\nfields:\n  v: {from: \"$.v\"}\n")
+        ),
+    }
+    with pytest.raises(TypeCheckError, match="a mapping chain cannot populate vector") as raised:
+        build_project_ir(load_project(documents))
+    assert raised.value.source_path is not None and raised.value.source_path.endswith(f"{slot}.v")
