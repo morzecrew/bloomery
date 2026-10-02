@@ -41,8 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still emits no `saved_query` — a saved query is a request someone wrote, an exposure a
   consumer — and the manifest's `saved_queries` stays empty.
 
-  **Upgrade note.** A project that declares an owner on a mart or a metric compiles a
-  different `semantic_manifest.json`, so its manifest hash moves.
+  **Upgrade note.** A project that declares an owner on a mart, or on a metric the
+  manifest emits, compiles a different `semantic_manifest.json`, so its manifest hash
+  moves; a metric MetricFlow cannot serve is omitted, owner and all.
 
 ## [0.5.0] - 2026-09-30
 

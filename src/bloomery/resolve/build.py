@@ -522,14 +522,14 @@ def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) ->
                 )
         for field_name in sorted(mapping.fields):
             field_mapping = mapping.fields[field_name]
-            if isinstance(field_mapping, ALIAS_BOUND):
-                continue
             declared = _field_type(mapping.target, field_name, entity.fields[field_name])
             path = f"{doc}: fields.{field_name}"
+            # Before the alias skip: a recipe or macro aimed at a vector reaches
+            # the same neutral cast at emit as a plain chain does.
             if isinstance(declared, VectorType):
                 checks.append(ChainCheck(declared, (), declared, path))
                 continue
-            if not field_mapping.transform:
+            if isinstance(field_mapping, ALIAS_BOUND) or not field_mapping.transform:
                 continue
             checks.extend(
                 ChainCheck(input_type, run, expected, path)
