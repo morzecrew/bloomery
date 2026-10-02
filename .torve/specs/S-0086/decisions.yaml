@@ -117,10 +117,13 @@ decisions:
   - id: D-10
     grade: ASSUMED
     text: >-
-      `bloomery plan` names the dbt full refresh beside every change that adds or
-      drops a field of an incremental entity, reading the entity's materialization
-      from the new IR, so the operator reads it in the plan rather than from a failed
-      run; the change keeps its class, and SQLMesh's output is unchanged.
+      `bloomery plan` names the dbt full refresh beside every change that adds, drops
+      or renames a field of an incremental entity, naming the entity when it is an
+      incremental type 1 model and its reject table whenever it quarantines (a `full`
+      table rebuilds whole, and a type 2 entity is a snapshot that widens itself),
+      reading the entity's materialization from the new IR, so the operator reads
+      it in the plan rather than from a failed run; the change keeps its class, and
+      SQLMesh's output is unchanged.
     paths: [src/bloomery/plan/diff.py, src/bloomery/cli/render.py]
     consequence: >-
       an ADDITIVE field on dbt costs a full refresh, and the plan says so before it
@@ -129,3 +132,4 @@ decisions:
       S-0024/D-1 classes an optional new field ADDITIVE (document §5.5's presence
       rule), which promises no backfill; on dbt under D-9 it needs one, and a promise
       the plan does not keep is worse than a cost it states.
+    fingerprint: a27acac3cec42926/7c6179a571180cc5
