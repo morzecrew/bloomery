@@ -2929,3 +2929,34 @@ def test_the_replay_scope_renders_in_plan_order_numbered() -> None:
     assert "  1.  parent" in rendered
     assert "  2.  child" in rendered
     assert "kept" in rendered
+
+
+# ....................... #
+# plan names the dbt full refresh (S-0086/D-10)
+
+
+def test_plan_names_the_dbt_full_refresh_in_text_and_json(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    sides = []
+    for step in (1, 2):
+        side = tmp_path / f"v{step}"
+        side.mkdir()
+        for path in (FIXTURES / f"evolution_v{step}").glob("*.yaml"):
+            text = path.read_text(encoding="utf-8")
+            if path.name == "entity_model.yaml":
+                text = text.replace(
+                    "    scd: type1\n", "    scd: type1\n    materialization: incremental_by_key\n"
+                )
+            (side / path.name).write_text(text, encoding="utf-8")
+        sides.append(str(side))
+    refresh = "dbt build --full-refresh -s order_item`"
+
+    code, out, err = run(capsys, "plan", *sides)
+    assert code == EXIT_OK, err
+    assert refresh in out
+
+    payload = _json(capsys, "plan", *sides, "--format", "json")
+    (added,) = [c for c in payload["changes"] if c["subject"] == "field:discount"]  # type: ignore[index]
+    assert added["change_class"] == "additive"
+    assert refresh in added["detail"]

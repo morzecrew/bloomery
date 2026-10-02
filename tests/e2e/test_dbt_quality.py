@@ -497,3 +497,48 @@ def test_the_relation_with_no_threshold_is_not_checked(tmp_path: pathlib.Path) -
     result = _dbt(tmp_path, "source", "freshness")
 
     assert {node.node.name for node in result.result} == {"shopify__order_lines"}
+
+
+def _incremental_sources(*, gift_note: bool) -> dict[str, str]:
+    """The fixture with ``order_line`` incremental by key, and with or without
+    ``gift_note`` — the field a spec change adds between two builds."""
+    sources = dict(fixture_sources(FIXTURE))
+    grain = "    key: [order_id, line_no]\n"
+    assert grain in sources["entity_model"], "the key moved — mark the one that exists"
+    sources["entity_model"] = sources["entity_model"].replace(
+        grain, grain + "    materialization: incremental_by_key\n"
+    )
+    if not gift_note:
+        sources["entity_model"] = sources["entity_model"].replace(
+            "      gift_note: {type: string}\n", ""
+        )
+        sources["mapping_platform"] = sources["mapping_platform"].replace(
+            '  gift_note: {from: "$.properties.gift_note", transform: [to_string]}\n', ""
+        )
+    return sources
+
+
+def test_a_field_added_to_an_incremental_entity_fails_the_build_until_a_full_refresh(
+    tmp_path: pathlib.Path,
+) -> None:
+    """S-0086/D-9, executed: ``on_schema_change='fail'`` turns a field added
+    between two builds into a failed run rather than a table silently missing
+    the column, and the refresh the how-to and ``bloomery plan`` name recovers
+    it. The first build is the clean twin: the same model, unchanged, passes."""
+    database = tmp_path / "warehouse.duckdb"
+    _seed(database)
+    _write_project(tmp_path, database, _incremental_sources(gift_note=False))
+    assert _dbt(tmp_path, "build").success
+
+    _write_project(tmp_path, database, _incremental_sources(gift_note=True))
+    # `run` of the model alone: under dbt's default `ignore` the model succeeds
+    # without the column and only the checks downstream of it fail.
+    assert not _dbt(tmp_path, "run", "-s", "order_line").success, (
+        "a field added to an incremental model built without the column"
+    )
+    columns = "SELECT column_name FROM information_schema.columns WHERE table_name = 'order_line'"
+    assert ("gift_note",) not in _rows(database, columns)
+
+    result = _dbt(tmp_path, "build", "--full-refresh", "-s", "order_line", "order_line__reject")
+    assert result.success, getattr(result, "exception", None)
+    assert ("gift_note",) in _rows(database, columns)

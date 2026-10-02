@@ -289,6 +289,34 @@ Two things the reject table does that are worth knowing before you operate it:
   rebuilding anyway, and a model that refused to full-refresh would be one you could not
   recover.
 
+## Schema changes on incremental models
+
+Every incremental model bloomery emits — an incremental entity and every reject table —
+carries `on_schema_change='fail'`. When a spec change adds, drops or renames a field, the next
+`dbt run` or `dbt build` of that model **fails** with dbt's "schema out of sync" error.
+
+That is deliberate. dbt's default, `ignore`, would build the model without the new column,
+so the field the spec declares would be silently missing from the table. A failed run
+says so instead.
+
+The fix is to rebuild the entity and its reject table from scratch:
+
+```bash
+dbt build --full-refresh -s order_line order_line__reject
+```
+
+An entity with no `quarantine:` block has no reject table, so the rebuild names the entity
+alone, and `bloomery plan` prints it that way.
+
+This recomputes the entity's history from bronze, as SQLMesh's rebuild of the same change
+does, so the two targets agree on the new column's history. Like any full refresh it
+loses resolved reject rows (see above).
+
+You don't have to find this out from a failed run: `bloomery plan` names the same command
+beside every field added to, dropped from or renamed on an incremental entity. The change keeps its
+class — an added optional field is still `additive` — because the refresh is a cost on
+dbt, not a change in what the field means.
+
 ## Byte-identical SELECTs
 
 The SELECT inside every dbt model is rendered from the same lowered AST through the

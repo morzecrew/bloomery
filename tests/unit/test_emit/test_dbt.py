@@ -146,11 +146,11 @@ def _dbt_select(content: str) -> str:
         (Materialization.FULL, "{{ config(materialized='table') }}"),
         (
             Materialization.INCREMENTAL_BY_KEY,
-            "{{ config(materialized='incremental', unique_key='item_id') }}",
+            "{{ config(materialized='incremental', unique_key='item_id', on_schema_change='fail') }}",
         ),
         (
             Materialization.INCREMENTAL_BY_PARTITION,
-            "{{ config(materialized='incremental', unique_key='item_id') }}",
+            "{{ config(materialized='incremental', unique_key='item_id', on_schema_change='fail') }}",
         ),
     ],
 )

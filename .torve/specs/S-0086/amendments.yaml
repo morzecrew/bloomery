@@ -26,3 +26,33 @@ amendments:
       3 builds both. Of the four modes dbt offers, `ignore` drops a new column silently,
       `append_new_columns` and `sync_all_columns` give it NULL history where SQLMesh
       recomputes it, and `fail` alone keeps the targets agreeing.
+  - id: A-2
+    at: '2026-10-02T10:26:54Z'
+    title: The refresh names what fails
+    changes:
+      - subject: D-10
+        field: text
+        before: >-
+          `bloomery plan` names the dbt full refresh beside every change that adds
+          or drops a field of an incremental entity, reading the entity's materialization
+          from the new IR, so the operator reads it in the plan rather than from a
+          failed run; the change keeps its class, and SQLMesh's output is unchanged.
+        after: >-
+          `bloomery plan` names the dbt full refresh beside every change that adds,
+          drops or renames a field of an incremental entity, naming the entity when
+          it is an incremental type 1 model and its reject table whenever it quarantines
+          (a `full` table rebuilds whole, and a type 2 entity is a snapshot that widens
+          itself), reading the entity's materialization from the new IR, so the operator
+          reads it in the plan rather than from a failed run; the change keeps its
+          class, and SQLMesh's output is unchanged.
+      - subject: D-10
+        field: fingerprint
+        before: 92021ca4379f400c/7c6179a571180cc5
+        after: a27acac3cec42926/7c6179a571180cc5
+    md: >-
+      Phase 3's review found three edges D-10 did not name. A rename changes the column
+      set exactly as an addition does, so it carries the refresh too (T-0256). A type
+      2 entity is a dbt snapshot, which widens itself and carries no `on_schema_change`,
+      and a `full` entity is a table rebuilt whole on every run, so neither needs
+      the refresh itself. A reject table is incremental whatever its entity's materialization,
+      so it is named whenever the entity quarantines.

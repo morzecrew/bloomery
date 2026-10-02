@@ -110,7 +110,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
-from bloomery.ir import SOURCE_COLUMN, OnFail, ProjectIR
+from bloomery.ir import SOURCE_COLUMN, Materialization, OnFail, ProjectIR, SCDKind
 from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan, ReplayScope
 from bloomery.quality import disposition, payload_key
 from bloomery.spec.quality import EXACT_DECIMAL
@@ -582,7 +582,40 @@ def _semantic_signature(
 # ....................... #
 
 
-def _added_column(entity_name: str, column: ColumnIR, acc: _Acc) -> None:
+def _dbt_refresh(entity: EntityIR) -> str:
+    """What a field added to, dropped from or renamed on ``entity`` costs on dbt (S-0086/D-10).
+
+    dbt's incremental models carry ``on_schema_change='fail'``, so a changed
+    column set fails the next run until it is rebuilt. Two relations can be
+    one: the entity, when it is an incremental type 1 model (a ``full`` table
+    rebuilds whole on every run, and a type 2 entity is a snapshot, which widens
+    itself), and its reject table whenever it quarantines, an incremental model
+    holding the entity's columns whatever the entity's own materialization.
+    Read from the **new** IR: the refresh runs against what is about to be built.
+    """
+
+    targets: list[str] = []
+
+    if entity.materialization is not Materialization.FULL and entity.scd is not SCDKind.TYPE2:
+        targets.append(entity.name)
+
+    if entity.quarantine is not None:
+        targets.append(f"{entity.name}__reject")
+
+    if not targets:
+        return ""
+
+    lost = " — resolved reject rows are lost" if entity.quarantine is not None else ""
+    return f"; on dbt, run `dbt build --full-refresh -s {' '.join(targets)}`{lost}"
+
+
+# ....................... #
+
+
+def _added_column(new_e: EntityIR, column: ColumnIR, acc: _Acc) -> None:
+    entity_name = new_e.name
+    refresh = _dbt_refresh(new_e)
+
     if column.required:
         acc.changes.append(
             Change(
@@ -590,7 +623,7 @@ def _added_column(entity_name: str, column: ColumnIR, acc: _Acc) -> None:
                 f"field:{column.name}",
                 ChangeClass.BREAKING,
                 "new field is required — historical rows cannot satisfy it; add it "
-                "optional, backfill, then tighten (S-0024/D-7)",
+                "optional, backfill, then tighten (S-0024/D-7)" + refresh,
                 new=_render_shape(column),
             )
         )
@@ -601,7 +634,7 @@ def _added_column(entity_name: str, column: ColumnIR, acc: _Acc) -> None:
             entity_name,
             f"field:{column.name}",
             ChangeClass.ADDITIVE,
-            "field added",
+            "field added" + refresh,
             new=_render_shape(column),
         )
     )
@@ -628,7 +661,7 @@ def _dropped_column(old_e: EntityIR, new_e: EntityIR, column: ColumnIR, acc: _Ac
             new_e.name,
             f"field:{column.name}",
             ChangeClass.BREAKING,
-            f"field dropped{hint}",
+            f"field dropped{hint}{_dbt_refresh(new_e)}",
             old=_render_shape(column),
         )
     )
@@ -660,7 +693,7 @@ def _column_pair(
                 new_e.name,
                 subject,
                 ChangeClass.RENAME,
-                f"renamed from {renamed_from!r}",
+                f"renamed from {renamed_from!r}{_dbt_refresh(new_e)}",
                 old=renamed_from,
                 new=new_c.name,
             )
@@ -1730,7 +1763,7 @@ def _entity_pair(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
         elif name not in new_cols:
             _dropped_column(old_e, new_e, old_cols[name], acc)
         elif name not in old_cols:
-            _added_column(new_e.name, new_cols[name], acc)
+            _added_column(new_e, new_cols[name], acc)
         else:
             _column_pair(old_e, new_e, old_cols[name], new_cols[name], acc, renamed_from=None)
 

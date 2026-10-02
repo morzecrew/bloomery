@@ -381,7 +381,11 @@ def _config_line(materialization: Materialization, key: tuple[str, ...]) -> str:
     if materialization is Materialization.FULL:
         return "{{ config(materialized='table') }}"
 
-    return f"{{{{ config(materialized='incremental', {_unique_key(key)}) }}}}"
+    # `fail`, not dbt's default `ignore`: a column added to an incremental model
+    # is otherwise silently absent from its table (S-0086/D-9).
+    return (
+        f"{{{{ config(materialized='incremental', {_unique_key(key)}, on_schema_change='fail') }}}}"
+    )
 
 
 # ....................... #
@@ -471,7 +475,7 @@ def _reject_artifacts(
         fingerprint=ctx.fingerprint,
         config_line=(
             f"{{{{ config(materialized='incremental', unique_key='{REJECT_KEY}', "
-            "incremental_strategy='delete+insert') }}"
+            "incremental_strategy='delete+insert', on_schema_change='fail') }}"
         ),
         open_line="{% if is_incremental() %}",
         incremental=_render(

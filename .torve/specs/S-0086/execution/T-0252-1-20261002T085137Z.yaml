@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0252
+phase: 3
+base: fb7c23cd4855da2edad315c6ca79f223d38b4671
+commit: 3ea39500a75fca853c146cee654b487bfb62399c
+at: '2026-10-02T08:51:37Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+entries:
+  - decision: D-9
+    grade: ASSUMED
+    at: '2026-10-02T08:46:21Z'
+    claim: >-
+      every incremental dbt model carries on_schema_change='fail' through _config_line
+      and the reject config; marts and rollups that are incremental share _config_line
+      and carry it too, which D-9's 'every incremental model' covers
+    evidence: >-
+      src/bloomery/emit/dbt/__init__.py:380-388 — _config_line; src/bloomery/emit/dbt/__init__.py:478
+      is the reject table's config
+    action: decided
+  - decision: D-10
+    grade: ASSUMED
+    at: '2026-10-02T08:46:21Z'
+    claim: >-
+      the refresh is appended to Change.detail for added and dropped fields, read
+      from the new EntityIR, so text and JSON both carry it with no new Change field;
+      the change class is untouched, and an added entity's fields carry no refresh
+      since no table exists yet
+    evidence: >-
+      src/bloomery/plan/diff.py:585-600 — _dbt_refresh; render.py's render_plan and
+      the JSON payload both print detail unchanged
+    action: decided
