@@ -513,6 +513,8 @@ def test_scaffold_and_sources_artifacts() -> None:
         # layout, *not* that removing the line would stop dbt finding the
         # tests — it would not, and an earlier draft of this said otherwise.
         "test-paths": ["tests"],
+        # S-0086/D-2: what every replay macro compares its fingerprint with.
+        "vars": {"bloomery_fingerprint": "blm1:test"},
         "models": {"bloomery": {"silver": {"+schema": "silver"}}},
     }
     sources = cast("dict[str, object]", yaml.safe_load(artifacts["models/sources.yml"].content))

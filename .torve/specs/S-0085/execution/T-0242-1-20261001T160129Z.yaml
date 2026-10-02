@@ -1,0 +1,202 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0242
+base: 92b40e06bc432825b1c236efddf646998074e667
+commit: e85c876f4d5c29fce9afe87b090c66fd06b327d2
+at: '2026-10-01T16:01:29Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: S-0002/D-9
+    grade: LOCKED
+  - id: S-0002/D-10
+    grade: LOCKED
+  - id: S-0004/D-10
+    grade: ASSUMED
+  - id: S-0005/D-3
+    grade: LOCKED
+  - id: S-0006/D-5
+    grade: ASSUMED
+  - id: S-0011/D-2
+    grade: LOCKED
+  - id: S-0011/D-9
+    grade: ASSUMED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0019/D-6
+    grade: ASSUMED
+  - id: S-0023/D-2
+    grade: ASSUMED
+  - id: S-0023/D-8
+    grade: ASSUMED
+  - id: S-0023/D-9
+    grade: ASSUMED
+  - id: S-0023/D-10
+    grade: ASSUMED
+  - id: S-0033/D-84
+    grade: ASSUMED
+  - id: S-0041/D-26
+    grade: ASSUMED
+  - id: S-0041/D-36
+    grade: ASSUMED
+  - id: S-0058/D-1
+    grade: LOCKED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0058/D-3
+    grade: LOCKED
+  - id: S-0058/D-4
+    grade: LOCKED
+  - id: S-0062/D-9
+    grade: LOCKED
+  - id: S-0062/D-11
+    grade: LOCKED
+  - id: S-0063/D-2
+    grade: LOCKED
+  - id: S-0063/D-8
+    grade: ASSUMED
+  - id: S-0065/D-5
+    grade: LOCKED
+  - id: S-0070/D-3
+    grade: LOCKED
+  - id: S-0070/D-4
+    grade: LOCKED
+  - id: S-0070/D-9
+    grade: LOCKED
+  - id: S-0075/D-1
+    grade: LOCKED
+  - id: S-0075/D-2
+    grade: LOCKED
+  - id: S-0075/D-3
+    grade: LOCKED
+  - id: S-0075/D-7
+    grade: ASSUMED
+  - id: S-0075/D-10
+    grade: LOCKED
+  - id: S-0083/D-5
+    grade: ASSUMED
+entries:
+  - decision: S-0070/D-4
+    grade: LOCKED
+    at: '2026-10-01T15:44:06Z'
+    claim: >-
+      the new exposure refusal reuses BOUNDARY_MESSAGE, which names how the fact was
+      obtained (bound from upstream alias and fingerprint) and what to write instead
+    evidence: >-
+      src/bloomery/guardrails/evidence.py:553-572 — the leaf formats BOUNDARY_MESSAGE
+      with the exposure as consumer
+    action: decided
+  - decision: S-0070/D-9
+    grade: LOCKED
+    at: '2026-10-01T15:44:06Z'
+    claim: >-
+      an imported metric a strict exposure names grades ASSUMED like every other upstream
+      fact; the new walk only adds the route that reached nothing before
+    evidence: >-
+      src/bloomery/guardrails/evidence.py:553-572 — refuses a locked exposure resting
+      on a bound metric
+    action: decided
+  - decision: S-0075/D-1
+    grade: LOCKED
+    at: '2026-10-01T15:44:06Z'
+    claim: >-
+      relationship-keyed provenance is untouched; the new leaf is about project-boundary
+      facts from ProjectIR.upstream, not relationship provenance
+    evidence: >-
+      src/bloomery/guardrails/evidence.py:553-572 — reads only the bound map; the
+      imported relationships map is not consulted
+    action: decided
+  - decision: S-0075/D-2
+    grade: LOCKED
+    at: '2026-10-01T15:44:06Z'
+    claim: >-
+      no dbt relationships test is read or imported by this change
+    evidence: >-
+      src/bloomery/guardrails/evidence.py:553-572 — no importer code touched
+    action: decided
+  - decision: S-0075/D-10
+    grade: LOCKED
+    at: '2026-10-01T15:44:06Z'
+    claim: >-
+      relationship-name uniqueness is not relied on or relaxed by this change
+    evidence: >-
+      src/bloomery/guardrails/evidence.py:553-572 — no relationship lookup in the
+      added block
+    action: decided
+  - decision: S-0011/D-2
+    grade: LOCKED
+    at: '2026-10-01T15:44:06Z'
+    claim: >-
+      no embedding or encoder identity is read by this change
+    evidence: >-
+      src/bloomery/guardrails/evidence.py:553-572 — only metric names and upstream
+      bindings are read
+    action: decided
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-10-01T15:44:06Z'
+    claim: >-
+      no engine driver, cloud SDK or Spark import enters src/bloomery
+    evidence: >-
+      src/bloomery/guardrails/evidence.py:553-572 — the block adds no import
+    action: decided
+  - decision: S-0002/D-10
+    grade: LOCKED
+    at: '2026-10-01T15:44:06Z'
+    claim: >-
+      the cross-project test file gains guardrail tests only; dbt naming and its tests
+      are unchanged
+    evidence: >-
+      tests/unit/test_emit/test_cross_project.py:465-487 — two tests over build_project_ir,
+      no dbt emit
+    action: decided
+  - decision: S-0058/D-1
+    grade: LOCKED
+    at: '2026-10-01T15:44:06Z'
+    claim: >-
+      the doc sentence extends the boundary claim to a strict exposure naming an imported
+      metric, which the new test checks; it claims grading, not truth
+    evidence: >-
+      pages/docs/concepts/what-bloomery-proves.md:283-287 — paragraph on upstream
+      facts grading ASSUMED; tests/unit/test_emit/test_cross_project.py:465 proves
+      it
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-10-01T15:44:06Z'
+    claim: no planner claim added
+    evidence: >-
+      pages/docs/concepts/what-bloomery-proves.md:283-287 — the only edit adds 'or
+      metric' to an existing sentence
+    action: decided
+  - decision: S-0058/D-3
+    grade: LOCKED
+    at: '2026-10-01T15:44:06Z'
+    claim: >-
+      representation safety and query answerability are not conflated by the edit
+    evidence: >-
+      pages/docs/concepts/what-bloomery-proves.md:283-287 — the only edit adds 'or
+      metric' to an existing sentence
+    action: decided
+  - decision: S-0058/D-4
+    grade: LOCKED
+    at: '2026-10-01T15:44:06Z'
+    claim: >-
+      the edited sentence still states what is proven (graded ASSUMED, refused), from
+      what (upstream binding), when (compile), and is backed by a test
+    evidence: >-
+      pages/docs/concepts/what-bloomery-proves.md:283-287 — tests/unit/test_emit/test_cross_project.py:465
+      is the reproduction
+    action: decided

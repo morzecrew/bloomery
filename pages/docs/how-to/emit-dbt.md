@@ -241,13 +241,31 @@ A quarantined row that a corrected delivery fixes is admitted by **replay**, and
 replay is a macro you run:
 
 ```bash
-dbt run --select silver.order_line__reject   # rebuild the reject table first
+dbt run --select silver.order_line silver.order_line__reject   # rebuild both first
 dbt run-operation replay_order_line
 ```
 
-Rebuild first, always. Replay re-runs the *current* mapping against the rows the reject
-table holds, so a reject table built before the correction landed still says the row
-fails.
+Rebuild first, always, and rebuild the entity **and** its reject table from the same
+checkout you compiled the macro from. Replay re-runs the *current* mapping against the
+rows the reject table holds, so a reject table built before the correction landed still
+says the row fails.
+
+Compile into a clean directory. `--out` deletes nothing, so a replay macro left over from
+an earlier compile — or a hand-written file — stays beside the new project.
+
+The macro guards that itself. `dbt_project.yml` carries
+`vars: {bloomery_fingerprint: ...}`, the fingerprint of the compile that wrote it, and
+each replay macro refuses before its first statement when that var differs from the
+fingerprint it was emitted under: a left-over macro, or one run against a project
+compiled elsewhere, raises a compiler error naming both and writes nothing. It does not
+compare against the spec that quarantined a row — replaying after a spec change is what
+replay is for — and it cannot tell a stale checkout whose own compile is self-consistent;
+the order above is the guard for that.
+
+Each macro also checks, before its first statement, that the entity and its reject table
+carry every column it writes, and refuses naming the missing ones and the rebuild that adds
+them. For an incremental model that rebuild is `dbt run --full-refresh`, because a plain run
+adds no column to one; for a table, a plain run does.
 
 It is a macro rather than a `.sql` file you could paste into a client, and that is
 forced rather than chosen: the statements name their relations through `{{ ref(...) }}`,

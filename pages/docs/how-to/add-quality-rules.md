@@ -308,6 +308,15 @@ bound, or `quarantine → fail`) restates and backfills, but every quarantined r
 fails it. Widening an `enum_map` — a new target *or* a new spelling for an existing one
 — relaxes `in_enum` and does name the entity.
 
+Relaxing a rule on a **parent** names its children as well, because a `referential`
+rule judged them against a parent that was not in silver. A child at `on_missing:
+quarantine` joins `replay_scope` after its parent — the scope is ordered parents first,
+so apply the replays in the order given. A child at `unknown_member` or `flag` joins
+`backfill_scope`: its rows still in bronze are rebuilt, but rows bronze no longer holds
+keep their rewrite or flag. To bring those back, re-ingest them into bronze, or make the
+parent's `coverage:` check non-blocking so it stops failing on them. See
+[the cascade](../concepts/data-quality.md#a-replayed-parent-brings-its-children-back).
+
 ## Notes
 
 - **Targets.** Both SQL targets emit the full set — the reject table, its replay, the
