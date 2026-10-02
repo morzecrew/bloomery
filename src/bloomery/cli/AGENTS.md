@@ -314,6 +314,13 @@ The CLI command takes spec directories positionally, like `plan`. It resolves no
 - Paths: `src/bloomery/cli/__init__.py` `tests/unit/test_cli.py`
 - Consequence: A script can tell a wrong artifact from a wrong invocation, and an import that adds nothing reads as success rather than as a refusal to retry
 
+### S-0086/D-10 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: partial
+
+`bloomery plan` names the dbt full refresh beside every change that adds or drops a field of an incremental entity, reading the entity's materialization from the new IR, so the operator reads it in the plan rather than from a failed run; the change keeps its class, and SQLMesh's output is unchanged.
+
+- Paths: `src/bloomery/plan/diff.py` `src/bloomery/cli/render.py`
+- Consequence: an ADDITIVE field on dbt costs a full refresh, and the plan says so before it is applied
+
 ### S-0088/D-4 — `ASSUMED` (The fuzz lane's first findings are closed) — implementation: none
 
 A `--catalog` path the OS refuses to stat exits 2, as #174 made a specs path do, and a test pins it.

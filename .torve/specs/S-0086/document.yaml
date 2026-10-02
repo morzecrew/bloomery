@@ -7,7 +7,7 @@ change:
   type: fix
   scope: emit
 status: accepted
-implementation: none
+implementation: partial
 depends_on: [S-0060, S-0033]
 informed_by: [S-0067, S-0025]
 supersedes: []
@@ -99,3 +99,5 @@ questions:
       resolved reject rows. This is wider than replay: a plan that calls the addition
       ADDITIVE leaves the dbt table without the column. Should every emitted incremental
       model carry `on_schema_change: append_new_columns`?
+    status: settled
+    settled_by: D-9
