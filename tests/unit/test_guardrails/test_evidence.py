@@ -17,7 +17,7 @@ import dataclasses
 import pytest
 
 from bloomery import build_project_ir, load_catalog, load_project
-from bloomery.errors import GuardrailError, InsufficientEvidence, SpecParseError
+from bloomery.errors import GuardrailError, InsufficientEvidence, MissingReference, SpecParseError
 from bloomery.ir import project_fingerprint
 from bloomery.guardrails import evidence as guard
 from bloomery.semantic import (
@@ -853,3 +853,183 @@ def test_a_non_imported_weak_route_renders_the_other_exposure_template(
         assert "the compiler reached by" in refusal
         assert "or set 'requires_evidence: assumed' on this exposure" in refusal
         assert "imported_from" not in refusal
+
+
+# ....................... #
+# A fact bound from an upstream grades ASSUMED (S-0085/D-1 to D-5)
+
+
+#: The downstream, built inline as the cross-project tests build theirs: a
+#: local entity, and a mart whose base is the imported `order_item` and whose
+#: one measure is the imported `gross_revenue`. Nothing in it is weak locally —
+#: every fact a strict consumer would refuse crossed the boundary.
+_DOWNSTREAM = {
+    "imports": """
+imports_version: 1
+imports:
+  platform:
+    entities: [order, order_item]
+    marts: [order_items]
+    metrics: [gross_revenue]
+""",
+    "entity_model": """
+spec_version: 1
+entities:
+  shipment:
+    grain: one row per shipment
+    key: [shipment_id]
+    fields:
+      shipment_id: {type: string, required: true}
+      order_id: {type: string, required: true}
+""",
+    "mapping": """
+mapping_version: 1
+source: raw__shipments
+target: shipment
+key:
+  shipment_id: {from: "$.shipment_id", transform: [to_string]}
+fields:
+  order_id: {from: "$.order_id"}
+""",
+}
+
+
+def _downstream_mart(requirement: str) -> str:
+    return f"""
+marts_version: 1
+marts:
+  lines:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {{date: order_date, role: ordered}}
+    measures: [gross_revenue]
+    requires_evidence: {requirement}
+"""
+
+
+def _downstream_exposure(requirement: str, mart: str = "order_items") -> str:
+    return f"""
+exposures_version: 1
+exposures:
+  board:
+    kind: dashboard
+    owner: analytics@example.com
+    requires_evidence: {requirement}
+    depends_on:
+      marts: [{mart}]
+"""
+
+
+def _upstream(*, imported: bool = False):
+    """The corpus fixture as an upstream, relaxed so it compiles — and with
+    `imported` its relationship read out of a manifest, the fact its own
+    `locked` mart refuses."""
+
+    project, catalog = _project("assumed", imported=imported)
+    return build_project_ir(project, catalog), catalog
+
+
+def _downstream(documents: dict[str, str], *, imported: bool = False) -> list[str]:
+    upstream, catalog = _upstream(imported=imported)
+    try:
+        build_project_ir(
+            load_project({**_DOWNSTREAM, **documents}),
+            catalog,
+            upstream={"platform": upstream},
+        )
+    except GuardrailError as error:
+        return [str(leaf) for leaf in error.collected if isinstance(leaf, InsufficientEvidence)]
+    return []
+
+
+def test_a_strict_mart_over_an_imported_base_is_refused_at_the_boundary() -> None:
+    upstream, _ = _upstream()
+    refusals = _downstream({"marts": _downstream_mart("locked")})
+
+    # The base and the measure each crossed, so each is its own leaf (D-3).
+    assert len(refusals) == 2
+    assert all(message.startswith("mart 'lines' requires 'locked'") for message in refusals)
+    assert all("upstream 'platform'" in message for message in refusals)
+    assert all(project_fingerprint(upstream) in message for message in refusals)
+    assert any("entity 'order_item'" in message for message in refusals)
+    assert any("metric 'gross_revenue'" in message for message in refusals)
+    # D-4: the two things an author here can do, and never "declare" or "author".
+    assert all("set 'requires_evidence: assumed'" in message for message in refusals)
+    assert all("carry the requirement on the upstream's mart" in message for message in refusals)
+    assert not any("declare the relationship" in message for message in refusals)
+
+
+def test_an_assumed_mart_over_an_imported_base_compiles() -> None:
+    assert _downstream({"marts": _downstream_mart("assumed")}) == []
+
+
+def test_a_strict_exposure_naming_an_imported_mart_is_refused_at_the_boundary() -> None:
+    upstream, _ = _upstream()
+    (message,) = _downstream({"exposures": _downstream_exposure("locked")})
+
+    assert message.startswith("exposure 'board' (reading mart 'order_items') requires 'locked'")
+    assert "mart 'order_items', bound from upstream 'platform'" in message
+    assert project_fingerprint(upstream) in message
+
+
+def test_an_assumed_exposure_naming_an_imported_mart_compiles() -> None:
+    assert _downstream({"exposures": _downstream_exposure("assumed")}) == []
+
+
+def test_an_upstreams_weak_fact_does_not_launder_across_the_boundary() -> None:
+    """The probe's scenario. The upstream's own `locked` mart refuses the
+    manifest-read relationship; the same upstream, relaxed so it compiles, is
+    imported — and a `locked` mart over the same entity downstream must refuse
+    too, or crossing the boundary made a weak fact strong (D-2)."""
+
+    strict, catalog = _project("locked", imported=True)
+    with pytest.raises(GuardrailError, match=r"read out of 'metricflow:"):
+        build_project_ir(strict, catalog)
+
+    refusals = _downstream({"marts": _downstream_mart("locked")}, imported=True)
+
+    assert any("entity 'order_item', bound from upstream 'platform'" in m for m in refusals)
+
+
+def test_a_dangling_mart_name_stays_leafless_with_an_upstream_bound() -> None:
+    """The composed view does not turn a name nothing declares into a boundary
+    fact: a dangling exposure target is `check_exposure_targets`'s refusal, and
+    the evidence guard adds no second leaf for it."""
+
+    upstream, catalog = _upstream()
+    relaxed = load_project({**_DOWNSTREAM, "exposures": _downstream_exposure("assumed")})
+    strict = load_project({**_DOWNSTREAM, "exposures": _downstream_exposure("locked", "nowhere")})
+    draft = build_project_ir(relaxed, catalog, upstream={"platform": upstream})
+
+    from bloomery.ir.nodes import with_imported  # noqa: PLC0415
+
+    assert guard.check_evidence(strict, with_imported(draft)) == []
+
+
+
+def test_a_local_metric_cannot_read_an_imported_one_so_the_boundary_needs_no_walk() -> None:
+    """S-0085/D-3 checks the metrics a mart lists and not their dependencies,
+    which is complete only while a local derived metric cannot read an
+    imported one. Pinned: the day composition admits it, this fails, and the
+    boundary has to follow `MetricIR.depends_on` to the imported fact."""
+    metrics = """
+metrics_version: 1
+metrics:
+  revenue_doubled:
+    description: Twice the platform's gross revenue
+    additivity: non_additive
+    derived:
+      expr: "revenue * 2"
+      inputs:
+        revenue: {metric: gross_revenue}
+"""
+    mart = _downstream_mart("locked").replace("measures: [gross_revenue]", "measures: [revenue_doubled]")
+    upstream, catalog = _upstream()
+
+    with pytest.raises(MissingReference, match="derived metric reads unknown metric 'gross_revenue'"):
+        build_project_ir(
+            load_project({**_DOWNSTREAM, "marts": mart, "metrics": metrics}),
+            catalog,
+            upstream={"platform": upstream},
+        )
