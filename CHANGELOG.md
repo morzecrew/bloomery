@@ -49,8 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A replayed parent brings its children back.** When a change lets a quarantined parent's
   rows back in, `bloomery plan` also names in `replay_scope` every child that quarantined
-  on it before the change, parents first where the rules allow an order and by name within
-  a cycle of `referential` rules; a child that rewrote or flagged its orphans
+  on it before the change, parents first, with a cycle of `referential` rules broken at its first
+  member by name; a child that rewrote or flagged its orphans
   (`on_missing: unknown_member` or `flag`) is named in `backfill_scope`. Before, the child
   stayed orphaned and a blocking `coverage:` check on the parent failed every run. Rows
   bronze no longer holds keep their rewrite; the quality docs name the remedy.

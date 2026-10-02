@@ -23,3 +23,27 @@ amendments:
       to replay: an entity added in the same change, or one whose rule on the parent
       turned to quarantine only now, has no reject rows from that rule. D-3 now names
       only a child that already quarantined on the parent before the change.
+  - id: A-2
+    at: '2026-10-02T17:22:09Z'
+    title: A cycle is broken, not sorted
+    changes:
+      - subject: D-4
+        field: text
+        before: >-
+          `replay_scope` is ordered parents first, topologically with ties broken
+          by name; entities whose `referential` rules form a cycle have no parent-first
+          order and are ordered by name among themselves
+        after: >-
+          `replay_scope` is ordered parents first, topologically with ties broken
+          by name; a cycle of `referential` rules has no parent-first order, so it
+          is broken at its first member by name and parent-first order resumes from
+          there
+      - subject: D-4
+        field: fingerprint
+        after: f1dd061192a65718/de3cbb24f12438da
+    md: >-
+      Review found that name order cannot hold across a whole cycle: once the first
+      member is released, its children become ready and parent-first order resumes,
+      so a cycle A, B, C can come out A, C, B. D-4 now says what the order does: the
+      cycle is broken at its first member by name, never at a child downstream of
+      it, and parent-first order resumes from there.

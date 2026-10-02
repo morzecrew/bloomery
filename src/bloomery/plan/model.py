@@ -105,7 +105,8 @@ class ReplayScope:
     (S-0033/plan-integration-rfc-0007-amendment, S-0033/D-11) — ordered **parents first**, the
     one plan collection that is not sorted by name (S-0084/D-4): a caller
     running it in order replays a child after its parent's rows are admitted.
-    Ties, and entities whose ``referential`` rules form a cycle, go by name.
+    Ties go by name; a cycle of ``referential`` rules is broken at its first
+    member by name, and parent-first order resumes from there.
 
     Distinct from :class:`BackfillScope` because the two name different
     *storage*. A backfill recomputes an entity from bronze; a replay re-runs

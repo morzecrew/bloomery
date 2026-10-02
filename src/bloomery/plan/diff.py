@@ -1299,8 +1299,9 @@ def _cascade(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> tuple[str, ...
     nothing.
 
     The order is topological, child after parent, ties broken by name (D4).
-    Entities whose rules form a cycle have no parent-first order; whichever
-    is stuck is released by name, so they come out by name among themselves.
+    Entities whose rules form a cycle have no parent-first order: the cycle is
+    broken at its first member by name, and parent-first order resumes from
+    there, so the rest of the cycle need not come out by name.
     """
 
     quarantined_on, kept_on, refers_to = _referential_edges(new)

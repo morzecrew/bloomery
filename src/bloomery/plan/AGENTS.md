@@ -205,7 +205,7 @@ The delta vocabulary is S-0069's and is never restated here. Two tables describi
 
 ### S-0084/D-4 — `ASSUMED` (A replayed parent brings its children back)
 
-`replay_scope` is ordered parents first, topologically with ties broken by name; entities whose `referential` rules form a cycle have no parent-first order and are ordered by name among themselves
+`replay_scope` is ordered parents first, topologically with ties broken by name; a cycle of `referential` rules has no parent-first order, so it is broken at its first member by name and parent-first order resumes from there
 
 - Paths: `src/bloomery/plan/diff.py`
 - Consequence: a caller running the scope in order replays a child after its parent's rows are admitted

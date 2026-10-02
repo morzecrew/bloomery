@@ -47,8 +47,8 @@ decisions:
     grade: ASSUMED
     text: >-
       `replay_scope` is ordered parents first, topologically with ties broken by name;
-      entities whose `referential` rules form a cycle have no parent-first order and
-      are ordered by name among themselves
+      a cycle of `referential` rules has no parent-first order, so it is broken at
+      its first member by name and parent-first order resumes from there
     paths: [src/bloomery/plan/diff.py]
     consequence: >-
       a caller running the scope in order replays a child after its parent's rows
@@ -56,6 +56,7 @@ decisions:
     rationale: >-
       a child replayed before its parent stays held, so the order is the cascade's
       correctness
+    fingerprint: f1dd061192a65718/de3cbb24f12438da
   - id: D-5
     grade: ASSUMED
     text: >-
