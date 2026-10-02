@@ -3174,7 +3174,7 @@ implement is <strong>refused</strong>, never read as one it does.</p>
 <tr>
 <td>Partition spec</td>
 <td>A bare column, or <code>fn(column)</code> with <code>fn</code> ∈ <code>days</code>/<code>months</code>/<code>years</code>/<code>hours</code></td>
-<td><code>days(order_date)</code></td>
+<td><code>days(order_date)</code> — on Trino emitted as <code>day(order_date)</code>; a Trino Hive catalog takes no transform, so partition by a <code>date</code> column there</td>
 </tr>
 <tr>
 <td>Source path</td>
@@ -3611,8 +3611,20 @@ declaration — bounds are calendar years, never a clock.</p>
 <td>no</td>
 <td>Reject-table policy — see <a href="#quarantine">Quarantine</a></td>
 </tr>
+<tr>
+<td><code>arrival_lag</code></td>
+<td>duration (<code>quarantine.retention</code>'s grammar)</td>
+<td>no</td>
+<td>How late a row may land after its interval ran. Only on an <code>incremental_by_partition</code> entity at <code>scd: type1</code>; refused anywhere else</td>
+</tr>
 </tbody>
 </table>
+<p><strong><code>arrival_lag</code> reprocesses past days on SQLMesh.</strong> The model pins <code>interval_unit 'day'</code> and
+sets <code>lookback</code> to the lag in whole days, rounded up (<code>30h</code> is <code>lookback 2</code>), so a late row
+lands on a later run rather than never. A cron more frequent than daily on such a model is
+refused by SQLMesh at load unless you also set <code>allow_partials</code>. Unset, neither is emitted.
+dbt carries nothing: its incremental entity merges its whole select on the key every run, so
+a late row already lands.</p>
 <p><strong><code>materialization</code> is derived, never inferred, and that distinction is the rule.</strong> An
 entity with a partition key gets <code>incremental_by_partition</code> without anyone writing it —
 that is a <em>default</em>: visible in the compiled output, and overridable by saying otherwise.

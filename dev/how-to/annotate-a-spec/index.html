@@ -2092,6 +2092,7 @@ spellings that are correct for their reader. <code>o'brien@example.com</code> is
 <th>SQLMesh</th>
 <th>dbt</th>
 <th>Cube</th>
+<th>MetricFlow</th>
 </tr>
 </thead>
 <tbody>
@@ -2100,27 +2101,28 @@ spellings that are correct for their reader. <code>o'brien@example.com</code> is
 <td><code>MODEL (owner …)</code></td>
 <td><code>meta.owner</code></td>
 <td>—</td>
+<td>—</td>
 </tr>
 <tr>
 <td>mart</td>
 <td><code>MODEL (owner …)</code></td>
 <td><code>meta.owner</code></td>
 <td>cube <code>meta.owner</code></td>
+<td>semantic model <code>config.meta.owner</code></td>
 </tr>
 <tr>
 <td>metric</td>
 <td>—</td>
 <td>—</td>
 <td>measure <code>meta.owner</code></td>
+<td>metric <code>config.meta.owner</code></td>
 </tr>
 </tbody>
 </table>
 <p>The blanks are objects that do not exist rather than metadata that was dropped: Cube emits
-no entities, and a metric has no model of its own in either SQL target.</p>
-<p><strong>The MetricFlow manifest carries no owner yet.</strong> A semantic model there has an <code>owners</code>
-list and it would be the natural fourth column of that table; what it should hold — the
-entity's owner, the metric's, or both — is a question about the manifest's shape rather
-than about this annotation, and it is open.</p>
+no entities, a metric has no model of its own in either SQL target, and an entity reaches
+MetricFlow only as entity elements inside the marts' semantic models, which carry the
+marts' owners. With no owner written, MetricFlow's <code>config</code> stays null.</p>
 <p><strong>It does not inherit.</strong> A mart over an owned entity has no owner until you write one, and
 a metric instantiating a catalog template does not take the template's. An owner nobody
 wrote should not look like one somebody did — so <code>metric_templates:</code> has no <code>owner:</code> key

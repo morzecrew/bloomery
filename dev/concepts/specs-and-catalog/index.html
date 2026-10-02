@@ -2198,6 +2198,11 @@ field count toward metric reachability ("this tenant can have <code>gross_revenu
 <code>tax_basis</code> metadata onto the column so the guardrails can check arithmetic. A field
 without a <code>canonical:</code> link is tenant-native: legal, queryable, but invisible to
 catalog-derived metrics and metadata-free (<code>unknown</code>) in monetary arithmetic.</p>
+<p><code>partition_by: [days(order_date)]</code> is spelled in the spec's plural grammar on every
+target; on Trino it reaches SQLMesh as <code>day(order_date)</code>, the Iceberg connector's
+spelling. A Trino <strong>Hive</strong> catalog takes no transform at all and refuses the model
+before it writes: there, partition by a <code>date</code> column (<code>partition_by: [order_date]</code>)
+instead of a transform.</p>
 <h2 id="mapping-the-recorded-decision">Mapping: the recorded decision<a class="headerlink" href="#mapping-the-recorded-decision" title="Permanent link">&para;</a></h2>
 <p>A Mapping describes how one bronze source becomes one entity — key extraction, field
 extraction via JSONPath-style references, and transform chains drawn from a closed,
