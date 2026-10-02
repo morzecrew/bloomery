@@ -23,7 +23,7 @@ import yaml
 
 from bloomery import Target, build_project_ir, compile_project, load_catalog, load_project
 from bloomery.emit import ArtifactKind, EmittedArtifact
-from bloomery.errors import EmitError
+from bloomery.errors import EmitError, GuardrailError, InsufficientEvidence
 from bloomery.ir import ProjectIR
 from support.compiling import FIXTURES, extract_select, fixture_sources
 
@@ -436,3 +436,52 @@ def test_an_exposure_may_name_an_imported_mart_and_metric() -> None:
     # The local mart `lines` serves `gross_revenue`, so the metric leg adds it;
     # the imported mart is the two-argument reference.
     assert exposure["depends_on"] == [f"ref('{NAME}', 'mart_order_items')", "ref('mart_lines')"]
+
+
+def _metric_only(requirement: str) -> dict[str, str]:
+    """An exposure naming an imported metric that no mart in the view lists,
+    so no mart walk reaches it (S-0085/D-1)."""
+    sources = {key: text for key, text in DOWNSTREAM.items() if key != "marts"}
+    sources["imports"] = f"""
+imports_version: 1
+imports:
+  {ALIAS}:
+    entities: [order, order_item]
+    metrics: [gross_revenue]
+"""
+    sources["exposures"] = f"""
+exposures_version: 1
+exposures:
+  revenue_board:
+    kind: dashboard
+    owner: analytics@example.com
+    requires_evidence: {requirement}
+    depends_on:
+      metrics: [gross_revenue]
+"""
+    return sources
+
+
+def test_a_strict_exposure_naming_an_unlisted_imported_metric_is_refused() -> None:
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(
+            load_project(_metric_only("locked")),
+            catalog=_catalog(),
+            upstream={ALIAS: _upstream()},
+        )
+
+    (leaf,) = excinfo.value.collected
+    assert isinstance(leaf, InsufficientEvidence)
+    assert leaf.source_path == "exposures: exposures.revenue_board.requires_evidence"
+    assert "exposure 'revenue_board' requires 'locked'; it rests on metric 'gross_revenue'" in str(
+        leaf
+    )
+    assert f"bound from upstream {ALIAS!r}" in str(leaf)
+
+
+def test_an_assumed_exposure_naming_an_unlisted_imported_metric_compiles() -> None:
+    build_project_ir(
+        load_project(_metric_only("assumed")),
+        catalog=_catalog(),
+        upstream={ALIAS: _upstream()},
+    )

@@ -54,6 +54,7 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 __all__ = [
+    "BOUNDARY_MESSAGE",
     "EXPOSURE_IMPORTED_MESSAGE",
     "EXPOSURE_MESSAGE",
     "IMPORTED_MESSAGE",
@@ -131,6 +132,19 @@ EXPOSURE_IMPORTED_MESSAGE = (
     "{column} comes in through {relationships} — read out of {artifacts} rather than written "
     "here (S-0075/D-1). Fix: author the relationship in this project and drop its "
     "'imported_from:', or set 'requires_evidence: assumed' on this exposure"
+)
+
+#: The refusal for a strict consumer resting on a node bound from an upstream
+#: project (S-0085/D-4). One template for both consumers, unlike the pairs
+#: above: the opening placeholder is the consumer, so every literal segment the
+#: docs quote follows it. The repair is neither to declare nor to author the
+#: fact — it lives in another project, and only that project can grade it.
+BOUNDARY_MESSAGE = (
+    "{consumer} requires 'locked'; it rests on {node}, bound from upstream {alias} "
+    "(fingerprint {fingerprint}) rather than written here, and a fact that crosses a "
+    "project boundary grades 'assumed' however the upstream obtained it (S-0085/D-2). "
+    "Fix: set 'requires_evidence: assumed' on this consumer, or carry the requirement "
+    "on the upstream's mart; it cannot be authored in this project"
 )
 
 #: The requirement that asks for anything. ``assumed`` is the default and
@@ -294,6 +308,53 @@ def _weak_columns(
 # ....................... #
 
 
+def _bound(draft: ProjectIR) -> dict[tuple[str, str], tuple[str, str]]:
+    """Every node bound from an upstream, keyed ``(kind, name)`` and valued
+    ``(alias, fingerprint)``.
+
+    Derived from ``ProjectIR.upstream`` on every call and never stored on a
+    node (S-0085/D-5), so no IR shape or fingerprint moves for it.
+    """
+
+    return {
+        (kind, node.name): (up.alias, up.fingerprint)
+        for up in draft.upstream
+        for kind, nodes in (("entity", up.entities), ("mart", up.marts), ("metric", up.metrics))
+        for node in nodes
+    }
+
+
+def _boundary(
+    mart_name: str, draft: ProjectIR, bound: Mapping[tuple[str, str], tuple[str, str]]
+) -> list[tuple[str, str, str]]:
+    """The upstream nodes a mart rests on, as ``(node, alias, fingerprint)``.
+
+    Each grades `ASSUMED` however the upstream obtained it (S-0085/D-2): an
+    imported mart is one fact as a whole; a local mart rests on its imported
+    base, any imported entity its columns come from, and any imported metric it
+    lists (S-0085/D-3). A mart absent from the view gets nothing, for the reason
+    :func:`_weak_columns` gives.
+    """
+
+    mart = next((m for m in draft.marts if m.name == mart_name), None)
+    if mart is None:
+        return []
+
+    if ("mart", mart.name) in bound:
+        wanted = {("mart", mart.name)}
+    else:
+        wanted = {("entity", mart.base)}
+        wanted |= {("entity", column.source_entity) for column in mart.columns}
+        wanted |= {("metric", measure) for measure in mart.measures}
+
+    return sorted(
+        (f"{kind} {name!r}", *bound[kind, name]) for kind, name in wanted if (kind, name) in bound
+    )
+
+
+# ....................... #
+
+
 def _reads(exposure: Exposure, draft: ProjectIR) -> dict[str, tuple[str, ...]]:
     """Every mart an exposure's requirement reaches, keyed by mart name, valued
     by the metrics that reached it — empty where the exposure named the mart.
@@ -378,6 +439,7 @@ def check_evidence(project: Project, draft: ProjectIR) -> list[GuardrailError]:
         for relationship in project.entity_model.relationships
         if relationship.imported_from is not None
     }
+    bound = _bound(draft)
     errors: list[GuardrailError] = []
     strict_marts: set[str] = set()
 
@@ -411,6 +473,18 @@ def check_evidence(project: Project, draft: ProjectIR) -> list[GuardrailError]:
                 )
                 errors.append(
                     InsufficientEvidence(msg, source_path=f"marts: marts.{name}.requires_evidence")
+                )
+            for node, alias, fingerprint in _boundary(name, draft, bound):
+                errors.append(
+                    InsufficientEvidence(
+                        BOUNDARY_MESSAGE.format(
+                            consumer=f"mart {name!r}",
+                            node=node,
+                            alias=repr(alias),
+                            fingerprint=fingerprint,
+                        ),
+                        source_path=f"marts: marts.{name}.requires_evidence",
+                    )
                 )
 
     if project.exposures is None:
@@ -464,5 +538,37 @@ def check_evidence(project: Project, draft: ProjectIR) -> list[GuardrailError]:
                         msg, source_path=f"exposures: exposures.{name}.requires_evidence"
                     )
                 )
+            for node, alias, fingerprint in _boundary(mart_name, draft, bound):
+                errors.append(
+                    InsufficientEvidence(
+                        BOUNDARY_MESSAGE.format(
+                            consumer=f"exposure {name!r} (reading mart {mart_name!r}{via})",
+                            node=node,
+                            alias=repr(alias),
+                            fingerprint=fingerprint,
+                        ),
+                        source_path=f"exposures: exposures.{name}.requires_evidence",
+                    )
+                )
+        # An imported metric no mart in the view lists reaches no mart walk
+        # above, so the exposure rests on it directly (S-0085/D-1). One that a
+        # mart does list is named by that mart's boundary, or by the mart's own
+        # requirement, and is not repeated here.
+        listed = {measure for mart in draft.marts for measure in mart.measures}
+        for metric in sorted(set(exposure.depends_on.metrics) - listed):
+            if ("metric", metric) not in bound:
+                continue
+            alias, fingerprint = bound["metric", metric]
+            errors.append(
+                InsufficientEvidence(
+                    BOUNDARY_MESSAGE.format(
+                        consumer=f"exposure {name!r}",
+                        node=f"metric {metric!r}",
+                        alias=repr(alias),
+                        fingerprint=fingerprint,
+                    ),
+                    source_path=f"exposures: exposures.{name}.requires_evidence",
+                )
+            )
 
     return errors
