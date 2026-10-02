@@ -1263,6 +1263,24 @@ def _referential_edges(
     return quarantined_on, kept_on, refers_to
 
 
+def _on_a_cycle(name: str, waiting: Mapping[str, set[str]]) -> bool:
+    """Whether ``name`` reaches itself through the parents it still waits on."""
+
+    seen: set[str] = set()
+    stack = list(waiting[name])
+
+    while stack:
+        parent = stack.pop()
+        if parent == name:
+            return True
+        if parent in seen or parent not in waiting:
+            continue
+        seen.add(parent)
+        stack.extend(waiting[parent])
+
+    return False
+
+
 def _cascade(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> tuple[str, ...]:
     """Extend the replay to the entities that judged their rows against an
     entity already in it, and return the scope parents first (S-0084).
@@ -1308,8 +1326,11 @@ def _cascade(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> tuple[str, ...
     order: list[str] = []
 
     while waiting:
-        ready = sorted(name for name, parents in waiting.items() if not parents) or [min(waiting)]
-        name = ready[0]
+        ready = sorted(name for name, parents in waiting.items() if not parents)
+        # Stuck only on a cycle, which a graph where every entity still waits
+        # always contains: release the first by name *on* it, never a child
+        # downstream of it, or the child replays before a parent (S-0084/D-4).
+        name = ready[0] if ready else min(n for n in waiting if _on_a_cycle(n, waiting))
         order.append(name)
         del waiting[name]
 

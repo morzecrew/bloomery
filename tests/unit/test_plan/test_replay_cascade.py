@@ -91,6 +91,22 @@ def test_a_cycle_is_ordered_by_name_among_itself() -> None:
     assert result.replay_scope.entities == ("parent", "x", "y")
 
 
+def test_a_child_downstream_of_a_cycle_still_waits_for_its_parent() -> None:
+    """Breaking a cycle by name must pick a member of the cycle: `a` sorts first
+    but reads `x`, so releasing it to break the x/y cycle would replay it
+    before its parent (S-0084/D-4)."""
+    result = _plan(
+        (
+            _child("y", ("parent", "quarantine"), ("x", "quarantine")),
+            _child("x", ("y", "quarantine")),
+            _child("a", ("x", "quarantine")),
+        )
+    )
+    order = result.replay_scope.entities
+    assert order.index("x") < order.index("a")
+    assert order == ("parent", "x", "a", "y")
+
+
 def test_tightening_a_rule_names_no_dependent() -> None:
     result = _plan(
         (
