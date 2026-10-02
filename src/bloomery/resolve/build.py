@@ -353,6 +353,22 @@ def _try_cast_shape(node: Expression) -> Expression:
 # ....................... #
 
 
+def _refuse_composed_depth(node: Expression, uses: list[str], *, source_path: str) -> None:
+    """Refuse a chain whose macros compose past :data:`MAX_SQL_DEPTH` (S-0088/D-3).
+
+    Each macro body passed the cap alone, but a chain splices one into the
+    next, so two bodies under the cap can compose past it. Only a macro can
+    carry authored depth into a chain; a transform adds a level or two.
+    """
+    if (depth := sql_depth(node)) > MAX_SQL_DEPTH:
+        msg = (
+            f"the chain composes {', '.join(repr(use) for use in uses)} into an expression "
+            f"{depth} levels deep, past the {MAX_SQL_DEPTH} authored SQL may nest: each macro "
+            "body splices into the next. Fix: flatten a macro body or split the chain"
+        )
+        raise StepError(msg, source_path=source_path)
+
+
 def _lower_chain(
     path: str,
     steps: tuple[TransformStep, ...],
@@ -377,9 +393,16 @@ def _lower_chain(
     # already been proven, with the per-step source paths that stage attaches.
     current: LogicalType = StringType()
 
+    uses: list[str] = []
+
     for step in steps:
         if step.step is not None:
+            uses.append(step.step)
             node, current = _splice_link(step.step, node, macros, source_path=source_path)
+            # Measured after every splice, not only at the end: the next splice
+            # deep-copies the running expression, recursively, so a chain past
+            # the cap would overflow there before a final check ran.
+            _refuse_composed_depth(node, uses, source_path=source_path)
             continue
         spec = reg[step.name]
         node = (
@@ -389,18 +412,9 @@ def _lower_chain(
         )
         current = spec.output_type(current, step.args)
 
-    # Each macro body passed the depth cap alone, but a chain splices one into
-    # the next, so two bodies under the cap can compose past it (S-0088/D-3).
-    # Only a macro can carry authored depth into a chain; a transform adds a
-    # level or two of its own.
-    uses = [step.step for step in steps if step.step is not None]
-    if uses and (depth := sql_depth(node)) > MAX_SQL_DEPTH:
-        msg = (
-            f"the chain composes {', '.join(repr(use) for use in uses)} into an expression "
-            f"{depth} levels deep, past the {MAX_SQL_DEPTH} authored SQL may nest: each macro "
-            "body splices into the next. Fix: flatten a macro body or split the chain"
-        )
-        raise StepError(msg, source_path=source_path)
+    # Again at the end, for the levels the transforms after the last macro add.
+    if uses:
+        _refuse_composed_depth(node, uses, source_path=source_path)
 
     terminal = _chain_terminal(steps, declared, reg, macros, source_path=source_path)
 
