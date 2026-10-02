@@ -5,6 +5,19 @@
 -- one unit of work and the macro says so to the engine; bloomery executes
 -- nothing — this file is text until you run it.
 {% macro replay_q_dup() %}
+  {% if var('bloomery_fingerprint', none) != 'blm1:563c97db50847a3d4c86f30389babc8f7245569b1b9997efad48e694e3137438' %}
+    {{ exceptions.raise_compiler_error("replay_q_dup was emitted under blm1:563c97db50847a3d4c86f30389babc8f7245569b1b9997efad48e694e3137438, but this dbt project carries bloomery_fingerprint " ~ var('bloomery_fingerprint', none) ~ "; compile into a clean directory and rebuild q_dup and its reject table from the same checkout before replaying") }}
+  {% endif %}
+  {% set missing = ['note', 'status', '_ingested_at', '_load_id', '_source_row_id', '_quality_flags', '_quality_ok', 'group_id'] | reject('in', adapter.get_columns_in_relation(ref('q_dup')) | map(attribute='name') | map('lower') | list) | list %}
+  {% if missing %}
+    {{ exceptions.raise_compiler_error("replay_q_dup writes " ~ missing | join(", ") ~ " into silver.q_dup, which does not have them; rebuild it from the checkout this macro was compiled from with `dbt run --select q_dup` before replaying") }}
+  {% endif %}
+  {% set missing = ['resolved_at', 'last_evaluated_at', 'failed_rules'] | reject('in', adapter.get_columns_in_relation(ref('q_dup__reject')) | map(attribute='name') | map('lower') | list) | list %}
+  {% if missing %}
+    {{ exceptions.raise_compiler_error("replay_q_dup writes " ~ missing | join(", ") ~ " into silver.q_dup__reject, which does not have them; rebuild it from the checkout this macro was compiled from with `dbt run --full-refresh --select q_dup__reject` before replaying") }}
+  {% endif %}
+  {% call statement('replay_q_dup_columns', auto_begin=True) %}select 1{% endcall %}
+  {% do adapter.commit() %}
   {% do run_query("BEGIN") %}
 
   {% set statement_0 %}
