@@ -493,3 +493,18 @@ def test_a_macro_body_past_the_depth_cap_is_refused() -> None:
     with pytest.raises(StepError, match=f"past the {MAX_SQL_DEPTH} authored SQL may nest") as excinfo:
         build(CALL, registry(body=_macro_body(MAX_SQL_DEPTH + 1)))
     assert "extract_domain@1" in str(excinfo.value)
+
+
+def test_two_macros_under_the_cap_cannot_compose_past_it() -> None:
+    """Each body passes the cap alone, but a chain splices one into the next,
+    so the composed expression is measured too (S-0088/D-3)."""
+    from bloomery.spec.common import MAX_SQL_DEPTH  # noqa: PLC0415
+
+    body = "SPLIT_PART(" + "(" * 20 + ":v" + ")" * 20 + ", '@', 2)"
+    once = '    from: "$.email"\n    transform: [{step: extract_domain@1}]\n'
+    twice = '    from: "$.email"\n    transform: [{step: extract_domain@1}, {step: extract_domain@1}]\n'
+    reg = registry(body=body, accepts={"v": "string"})
+
+    assert build(once, reg)
+    with pytest.raises(StepError, match=f"past the {MAX_SQL_DEPTH} authored SQL may nest: each macro"):
+        build(twice, reg)

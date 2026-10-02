@@ -822,9 +822,9 @@ An entity materialized `incremental_by_partition` at `scd: type1` may declare `a
 
 ### S-0088/D-3 — `ASSUMED` (The fuzz lane's first findings are closed)
 
-Authored SQL text nests at most 32 levels: `_parses_as_sql`, a quality rule's `expr` (depth only, its other refusals staying the quality guardrail's), `resolve/steps.py::_parse_body` and a registered macro body in `_macro_parts` measure the parsed tree's depth with an iterative walk and refuse deeper text, as `SpecParseError` and `StepError`. This supersedes S-0008/D-10's fix owed at `_parse_sql` and S-0008/D-7's "no depth limit"; S-0008/D-7's widened catches stay behind the cap.
+Authored SQL text nests at most 32 levels: `_parses_as_sql`, a quality rule's `expr` (depth only, its other refusals staying the quality guardrail's), `resolve/steps.py::_parse_body`, a registered macro body in `resolve/build.py::_macro_parts` and the expression a chain of macros composes in `resolve/build.py::_lower_chain` measure the parsed tree's depth with an iterative walk and refuse deeper text, as `SpecParseError` and `StepError`. This supersedes S-0008/D-10's fix owed at `_parse_sql` and S-0008/D-7's "no depth limit"; S-0008/D-7's widened catches stay behind the cap.
 
-- Paths: `src/bloomery/spec/common.py` `src/bloomery/resolve/steps.py`
+- Paths: `src/bloomery/resolve/build.py` `src/bloomery/resolve/steps.py` `src/bloomery/spec/common.py` `src/bloomery/spec/quality.py`
 - Consequence: no admitted text can overflow the stack at any site that parses it again, and a new re-parse site needs no guard of its own
 
 ### S-0088/D-6 — `ASSUMED` (The fuzz lane's first findings are closed)

@@ -5,6 +5,14 @@ amendments:
     title: Every door the cap must hold
     changes:
       - subject: D-3
+        field: paths
+        before: [src/bloomery/spec/common.py, src/bloomery/resolve/steps.py]
+        after:
+          - src/bloomery/resolve/build.py
+          - src/bloomery/resolve/steps.py
+          - src/bloomery/spec/common.py
+          - src/bloomery/spec/quality.py
+      - subject: D-3
         field: text
         before: >-
           Authored SQL text nests at most 32 levels: `_parses_as_sql` and `resolve/steps.py::_parse_body`
@@ -15,17 +23,21 @@ amendments:
         after: >-
           Authored SQL text nests at most 32 levels: `_parses_as_sql`, a quality rule's
           `expr` (depth only, its other refusals staying the quality guardrail's),
-          `resolve/steps.py::_parse_body` and a registered macro body in `_macro_parts`
+          `resolve/steps.py::_parse_body`, a registered macro body in `resolve/build.py::_macro_parts`
+          and the expression a chain of macros composes in `resolve/build.py::_lower_chain`
           measure the parsed tree's depth with an iterative walk and refuse deeper
           text, as `SpecParseError` and `StepError`. This supersedes S-0008/D-10's
           fix owed at `_parse_sql` and S-0008/D-7's "no depth limit"; S-0008/D-7's
           widened catches stay behind the cap.
       - subject: D-3
         field: fingerprint
-        after: 44d287ee9435609f/4f65baca4881bc03
+        before: 44d287ee9435609f/4f65baca4881bc03
+        after: a83684e31e88a21b/e0429b4c49264b9b
     md: >-
-      Review after the merge found two doors phase 1 left open: a quality rule's `expr`
-      is a plain string, and a macro body is registered in Python, so neither passed
-      `SqlText` or `_parse_body`. Both now refuse text past the cap: the expression
-      at load, judging depth only so the quality guardrail keeps its own messages,
-      and the macro body in `_macro_parts` as a `StepError`.
+      Review after the merge found three doors phase 1 left open: a quality rule's
+      `expr` is a plain string, a macro body is registered in Python, and a chain
+      splices one macro body into the next, so two bodies under the cap compose past
+      it. The expression is now refused at load on depth alone, so the quality guardrail
+      keeps its own messages; the macro body is refused in `resolve/build.py::_macro_parts`;
+      and a chain's composed expression in `resolve/build.py::_lower_chain`, both
+      as a `StepError`. D-3's paths now name both files.

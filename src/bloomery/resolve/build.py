@@ -389,6 +389,19 @@ def _lower_chain(
         )
         current = spec.output_type(current, step.args)
 
+    # Each macro body passed the depth cap alone, but a chain splices one into
+    # the next, so two bodies under the cap can compose past it (S-0088/D-3).
+    # Only a macro can carry authored depth into a chain; a transform adds a
+    # level or two of its own.
+    uses = [step.step for step in steps if step.step is not None]
+    if uses and (depth := sql_depth(node)) > MAX_SQL_DEPTH:
+        msg = (
+            f"the chain composes {', '.join(repr(use) for use in uses)} into an expression "
+            f"{depth} levels deep, past the {MAX_SQL_DEPTH} authored SQL may nest: each macro "
+            "body splices into the next. Fix: flatten a macro body or split the chain"
+        )
+        raise StepError(msg, source_path=source_path)
+
     terminal = _chain_terminal(steps, declared, reg, macros, source_path=source_path)
 
     if terminal != declared:

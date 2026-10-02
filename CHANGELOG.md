@@ -101,8 +101,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validation graph alive, which grew a long-running caller's memory with every refusal;
   `WHILE*2` and `IF a`, which sqlglot parses as a statement or gives up on as a `Command`,
   are refused as SQL text; and authored SQL text nests at most 32 levels, refused at load
-  for a spec field or a quality rule's expression and at compile for a step body or a
-  registered macro body, instead of overflowing the stack at a later re-parse.
+  for a spec field or a quality rule's expression, and at compile for a step body, a
+  registered macro body or the expression a chain of macros composes, instead of
+  overflowing the stack at a later re-parse.
 
   **Upgrade note.** SQL text nested deeper than 32 levels, or that only parses as a
   statement, is refused now.
