@@ -908,3 +908,66 @@ def test_a_declared_freshness_threshold_reaches_nothing_here() -> None:
 
     assert artifacts, "the fixture stopped compiling for SQLMesh"
     assert not [a.path for a in artifacts if "freshness" in a.content]
+
+
+def _lagged(lag: str | None) -> str:
+    from bloomery import load_project
+
+    model = _PARTITIONED_MODEL.format(first="event_date", second="status")
+    if lag is not None:
+        model += f"    arrival_lag: {lag}\n"
+    (artifact,) = (
+        a
+        for a in compile_project(
+            load_project({"entity_model": model, "mapping": _PARTITIONED_MAPPING}),
+            target=Target.SQLMESH,
+            dialect="duckdb",
+        )
+        if a.path.startswith("models/")
+    )
+    return artifact.content
+
+
+@pytest.mark.parametrize(("lag", "days"), [("1h", 1), ("24h", 1), ("25h", 2), ("2d", 2), ("1w", 7)])
+def test_arrival_lag_is_lookback_in_whole_days_rounded_up(lag: str, days: int) -> None:
+    """S-0087/D-5: against a pinned daily interval, so a cron cannot shrink it."""
+    content = _lagged(lag)
+    assert (
+        f"kind INCREMENTAL_BY_TIME_RANGE (time_column event_date, lookback {days}),\n"
+        "  interval_unit 'day'," in content
+    )
+
+
+def test_no_arrival_lag_emits_neither_lookback_nor_interval_unit() -> None:
+    content = _lagged(None)
+    assert "lookback" not in content
+    assert "interval_unit" not in content
+
+
+def _loaded(content: str) -> object:
+    import re
+
+    from sqlmesh.core.dialect import parse
+    from sqlmesh.core.model import load_sql_based_model
+
+    # The audits are separate artifacts; the model alone is what is loaded here.
+    content = re.sub(r",\n  audits \([^)]*\)", "", content)
+    return load_sql_based_model(parse(content, default_dialect="duckdb"), dialect="duckdb")
+
+
+def test_sqlmesh_refuses_an_hourly_cron_on_a_lagged_model() -> None:
+    """S-0087/D-5: the pinned interval is what stops an operator's cron from
+    shrinking the lag — SQLMesh refuses a cron finer than the interval at load
+    unless the caller also sets ``allow_partials``."""
+    from sqlmesh.utils.errors import ConfigError
+
+    content = _lagged("30h")
+    model = _loaded(content)
+    assert model.lookback == 2  # type: ignore[attr-defined]
+
+    hourly = content.replace("interval_unit 'day',", "interval_unit 'day',\n  cron '@hourly',")
+    with pytest.raises(ConfigError, match="cannot be more frequent than interval unit 'day'"):
+        _loaded(hourly)
+
+    partial = hourly.replace("cron '@hourly',", "cron '@hourly',\n  allow_partials true,")
+    assert _loaded(partial).cron == "@hourly"  # type: ignore[attr-defined]

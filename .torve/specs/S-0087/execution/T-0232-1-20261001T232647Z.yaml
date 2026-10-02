@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0232
+phase: 3
+base: 2b2a8aeb53bdda7821da2e4ae1a5dd4e114624aa
+commit: e2b0589174a7f869028f44a1828710e04b73af30
+at: '2026-10-01T23:26:47Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: D-8
+    grade: ASSUMED
+    at: '2026-10-01T23:24:26Z'
+    claim: >-
+      Trino port spells days/months/years/hours as day/month/year/hour; SQLMesh emitter
+      asks the port for every partitioned_by; other dialects unchanged; docs tell
+      Hive catalogs to partition by a date column
+    evidence: >-
+      src/bloomery/dialects/trino.py:126-133 — the spelling; src/bloomery/emit/sqlmesh/__init__.py:442-449
+      asks the port
+    action: decided
+    proposal: keep D-8 as written; built as stated
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-01T23:24:26Z'
+    claim: >-
+      partition_transform is an optional port member read via getattr with an identity
+      default, not added to DialectPort or DIALECT_PORT_MEMBERS: adding it would make
+      register_dialect refuse every hand-written port, including the one in tests/unit/test_quality/test_edges.py
+      outside this scope
+    evidence: >-
+      src/bloomery/dialects/__init__.py:69 — register_dialect refuses a port missing
+      any DIALECT_PORT_MEMBERS name; tests/unit/test_quality/test_edges.py:196 is
+      a hand-written port
+    action: decided
+    proposal: >-
+      ASSUMED — dialect-specific DDL spellings are optional port members with a neutral
+      default; promote to DialectPort only alongside a registry migration

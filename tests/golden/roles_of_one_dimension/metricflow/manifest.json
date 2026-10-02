@@ -75,7 +75,11 @@
   "saved_queries": [],
   "semantic_models": [
     {
-      "config": null,
+      "config": {
+        "meta": {
+          "owner": "analytics@example.com"
+        }
+      },
       "defaults": null,
       "description": null,
       "dimensions": [

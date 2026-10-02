@@ -29,7 +29,14 @@ from bloomery.spec.common import (
     SpecModel,
     TypeString,
 )
-from bloomery.spec.quality import Coverage, Dedupe, EntityQualityRule, Quarantine, Reconcile
+from bloomery.spec.quality import (
+    Coverage,
+    Dedupe,
+    EntityQualityRule,
+    Quarantine,
+    Reconcile,
+    RetentionDuration,
+)
 
 # ----------------------- #
 
@@ -165,6 +172,44 @@ class Entity(SpecModel):
     #: annotations above, this one is **applied** — by the framework, on the
     #: engine — so being wrong changes who can read data.
     grants: Grants | None = None
+    #: How late a row may land after its interval ran (S-0087/D-5), in
+    #: ``quarantine.retention``'s grammar. SQLMesh reprocesses that many
+    #: whole days, rounded up, on every run; dbt carries nothing, because its
+    #: incremental entity merges its whole select every run and a late row
+    #: already lands.
+    arrival_lag: RetentionDuration | None = None
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _arrival_lag_is_incremental_by_partition(self) -> Self:
+        """``arrival_lag`` only on a type 1 ``incremental_by_partition`` entity
+        (S-0087/D-5).
+
+        Anywhere else the lag reaches no model: a full or by-key entity has no
+        interval to look back over, and a type 2 entity's SCD kind replaces the
+        time-range kind. Accepting it there would be a declaration that does
+        nothing. The materialization is the declared one, or the default
+        derived from ``partition_by`` exactly as the resolver derives it.
+        """
+
+        if self.arrival_lag is None:
+            return self
+
+        materialization = self.materialization or (
+            "incremental_by_partition" if self.partition_by else "full"
+        )
+
+        if materialization != "incremental_by_partition" or self.scd != "type1":
+            msg = (
+                f"arrival_lag: {self.arrival_lag} is declared on an entity that is "
+                f"{materialization} at scd {self.scd}, so it would reach no model — only an "
+                "incremental_by_partition entity at scd type1 reprocesses past intervals. "
+                "Fix: drop arrival_lag, or partition the entity by its time column at scd type1"
+            )
+            raise ValueError(msg)
+
+        return self
 
     # ....................... #
 

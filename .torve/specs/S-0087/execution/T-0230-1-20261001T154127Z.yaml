@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0230
+phase: 1
+base: 462766669e16630ab93b13fdfe2c412a14deb89c
+commit: 5421ff1def53f988376f4a48f2bd5439d3ee9226
+at: '2026-10-01T15:41:27Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-10-01T15:39:53Z'
+    claim: >-
+      Mart owner reaches its semantic model and metric owner its metric as config.meta.owner
+      via PydanticSemanticLayerElementConfig; config stays null with no owner; entity
+      owner is not carried. Goldens for ecom_basic and roles_of_one_dimension and
+      the ecom_basic corpus hash moved. The existing test test_a_metric_owner_reaches_cube_alone
+      still passes but its name now understates; left unedited.
+    evidence: >-
+      src/bloomery/emit/metricflow/__init__.py:457 — _config builds the owner config;
+      line 490 and the four _metric shapes call it
+    action: decided
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-10-01T15:39:53Z'
+    claim: >-
+      Recorded only: no cron is emitted; nothing in this task's scope emits one, so
+      no code changes for D-2.
+    evidence: >-
+      `grep -n cron src/bloomery/emit/metricflow/__init__.py` — no matches; the SQLMesh
+      emitter is outside this scope
+    action: decided
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-10-01T15:39:53Z'
+    claim: >-
+      An exposure emits no saved_query; a new test pins saved_queries empty for ecom_basic,
+      which declares exposures.
+    evidence: >-
+      tests/unit/test_emit/test_metricflow.py:599 — test_an_exposure_emits_no_saved_query
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-10-01T15:39:53Z'
+    claim: >-
+      Recorded only: freshness carries no filter; its paths (spec/mapping.py, emit/dbt)
+      are outside this scope and unchanged.
+    evidence: >-
+      `grep -n freshness src/bloomery/emit/metricflow/__init__.py` — no matches; dbt
+      freshness is untouched by this diff
+    action: decided

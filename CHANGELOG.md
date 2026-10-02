@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A late row reaches SQLMesh.** An `incremental_by_partition` entity at `scd: type1` may
+  declare `arrival_lag:` (`30h`, `2d`, `1w`). Its SQLMesh model pins `interval_unit 'day'`
+  and sets `lookback` to the lag in whole days, rounded up, so a row that lands after its
+  interval ran is loaded on a later run. A cron more frequent than daily on such a model is
+  refused by SQLMesh unless the caller also sets `allow_partials`. Declared on any other
+  entity, a type 2 entity included, it is refused. dbt emits nothing for it. A project that
+  declares no lag compiles as before, apart from the fingerprint header.
+
 - **A declared key is checked, not only trusted.** Every entity with a `key:` and no
   `dedupe:` gets a generated blocking audit, `<entity>_key_unique`: no two rows share the
   key, among the current versions on an `scd: type2` entity and among all rows otherwise.
@@ -23,6 +31,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a metadata-only change that `sqlmesh plan` checks over the plan's own start..end range. To
   cover it, run the audit's query once over the whole model after upgrading, or deploy the
   upgrade with a `plan` whose range spans the history.
+
+### Changed
+
+- **The MetricFlow manifest carries owners.** A mart's `owner:` reaches its semantic model
+  and a metric's `owner:` its metric, both as `config.meta.owner`; with no owner, `config`
+  stays null. An entity's owner is not carried: an entity reaches MetricFlow only as entity
+  elements inside a mart's semantic model, which carries the mart's owner. An exposure
+  still emits no `saved_query` — a saved query is a request someone wrote, an exposure a
+  consumer — and the manifest's `saved_queries` stays empty.
+
+  **Upgrade note.** A project that declares an owner on a mart, or on a metric the
+  manifest emits, compiles a different `semantic_manifest.json`, so its manifest hash
+  moves; a metric MetricFlow cannot serve is omitted, owner and all.
 
 ## [0.5.0] - 2026-09-30
 

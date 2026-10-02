@@ -82,6 +82,8 @@ def test_manifest_model_fields_the_emitter_populates() -> None:
     assert "non_additive_dimension" in PydanticMeasure.__fields__
     assert "agg_time_dimension" in PydanticMeasure.__fields__
     assert "description" in PydanticMetric.__fields__
+    assert "config" in PydanticSemanticModel.__fields__  # owner (S-0087/D-1)
+    assert "config" in PydanticMetric.__fields__
     assert sorted(PydanticNonAdditiveDimensionParameters.__fields__) == [
         "name",
         "window_choice",

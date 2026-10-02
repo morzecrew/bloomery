@@ -167,6 +167,19 @@
       "additionalProperties": false,
       "description": "One entity: grain, authored-order key, SCD kind, partitioning, optional\nexplicit materialization, named fields (generated names reserved,\nS-0019/D-10 / S-0033/schema-additions-and-the-array-capability), and the entity-level quality surface.\n\n``dedupe`` partitions by this entity's ``key``; ``quality`` holds the row\nrules (``expression``, ``referential``); ``quarantine`` governs the\n``<entity>__reject`` table (S-0033/spec-schema, S-0033/quarantine-one-reject-table-per-entity).",
       "properties": {
+        "arrival_lag": {
+          "anyOf": [
+            {
+              "pattern": "^[1-9][0-9]{0,4}[hdw]$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Arrival Lag"
+        },
         "dedupe": {
           "anyOf": [
             {

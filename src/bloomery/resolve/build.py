@@ -128,6 +128,7 @@ from bloomery.spec.mapping import (
 )
 from bloomery.spec.metrics import parse_time_window
 from bloomery.spec.project import Project
+from bloomery.spec.quality import duration_hours
 from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 from bloomery.steps.splice import parameter_literal, placeholders, splice
 from bloomery.transforms import (
@@ -146,6 +147,7 @@ from bloomery.typing import (
     LogicalType,
     StringType,
     TimestampType,
+    VectorType,
     parse_type,
     render_type,
     typecheck_chain,
@@ -496,7 +498,10 @@ def _chain_terminal(
 
 def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) -> None:
     """Batch-check every non-empty transform chain (S-0021/typecheck-stage-bloomery-typing-check-py). Empty
-    chains are declared-type casts at extraction and carry no chain to check."""
+    chains are declared-type casts at extraction and carry no chain to check —
+    except into a vector, which no cast reaches (S-0011/D-4): that one is queued
+    as an empty chain so the batched check refuses it at the field, instead of
+    the neutral cast refusing it at emit with no address."""
     checks: list[ChainCheck] = []
 
     for mapping in project.mappings:
@@ -504,9 +509,11 @@ def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) ->
         entity = project.entity_model.entities[mapping.target]
         for field_name in sorted(mapping.key):
             steps = mapping.key[field_name].transform
-            if steps:
-                declared = _field_type(mapping.target, field_name, entity.fields[field_name])
-                path = f"{doc}: key.{field_name}"
+            declared = _field_type(mapping.target, field_name, entity.fields[field_name])
+            path = f"{doc}: key.{field_name}"
+            if isinstance(declared, VectorType):
+                checks.append(ChainCheck(declared, (), declared, path))
+            elif steps:
                 checks.extend(
                     ChainCheck(input_type, run, expected, path)
                     for input_type, run, expected in chain_segments(
@@ -515,10 +522,15 @@ def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) ->
                 )
         for field_name in sorted(mapping.fields):
             field_mapping = mapping.fields[field_name]
-            if isinstance(field_mapping, ALIAS_BOUND) or not field_mapping.transform:
-                continue
             declared = _field_type(mapping.target, field_name, entity.fields[field_name])
             path = f"{doc}: fields.{field_name}"
+            # Before the alias skip: a recipe or macro aimed at a vector reaches
+            # the same neutral cast at emit as a plain chain does.
+            if isinstance(declared, VectorType):
+                checks.append(ChainCheck(declared, (), declared, path))
+                continue
+            if isinstance(field_mapping, ALIAS_BOUND) or not field_mapping.transform:
+                continue
             checks.extend(
                 ChainCheck(input_type, run, expected, path)
                 for input_type, run, expected in chain_segments(
@@ -1465,6 +1477,9 @@ def _build_entity(
         ),
         dedupe=lower_dedupe(entity),
         quarantine=lower_quarantine(entity),
+        arrival_lag_hours=(
+            duration_hours(entity.arrival_lag) if entity.arrival_lag is not None else None
+        ),
     )
 
 

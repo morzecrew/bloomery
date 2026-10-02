@@ -877,6 +877,10 @@ class EntityIR:
     #: Who may read this relation (S-0062/grants), or ``None`` for "bloomery
     #: has no opinion and the warehouse's grants stand" (D6).
     grants: GrantsIR | None = None
+    #: How late a row may land after its interval ran, in hours (S-0087/D-5),
+    #: or ``None`` for no lag declared. Only an ``incremental_by_partition``
+    #: type 1 entity carries one; SQLMesh reads it as ``lookback`` in days.
+    arrival_lag_hours: int | None = None
 
 
 # ....................... #
@@ -1783,9 +1787,14 @@ class ProjectIR:
     Version 25 (S-0080/D-2) adds ``MartIR.reading`` and ``MartJoinIR.reading``,
     the current-version reading of an ``scd: type2`` base or flatten hop. Every
     project with a mart encodes the field, and every fingerprint moves once.
+
+    Version 26 (S-0087/D-5) adds ``EntityIR.arrival_lag_hours``, the declared
+    arrival lag a SQLMesh time-range model carries as ``lookback``. Every
+    project encodes the field, ``None`` where no lag is declared, so every
+    fingerprint moves once.
     """
 
-    bloomery_ir_version: int = 25
+    bloomery_ir_version: int = 26
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

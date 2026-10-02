@@ -19,7 +19,7 @@ from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
 from bloomery.errors import BloomeryError, TypeCheckError, UnknownTransformError
-from bloomery.typing.types import ArgKind, DecimalType, LogicalType, assignable
+from bloomery.typing.types import ArgKind, DecimalType, LogicalType, VectorType, assignable
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -138,6 +138,17 @@ def typecheck_chain(
     type function. The terminal type must be assignable to ``declared``.
     Step failures carry ``source_path`` suffixed ``.transform[i]``.
     """
+    # A vector is the input of no transform and the output of no cast
+    # (S-0011/D-4), so no chain can reach one; refused here, at the field, rather
+    # than at emit, where the neutral cast raises with no address to give.
+    if isinstance(declared, VectorType):
+        msg = (
+            f"a mapping chain cannot populate {_describe(declared)}: a vector is produced "
+            "by no transform and converted from no type. Fix: populate this column from "
+            "a step's declared output rather than from a mapping"
+        )
+        raise TypeCheckError(msg, source_path=source_path)
+
     current = input_type
 
     for index, step in enumerate(steps):

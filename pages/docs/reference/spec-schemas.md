@@ -22,7 +22,7 @@ implement is **refused**, never read as one it does.
 | Grammar | Rule | Examples |
 |---|---|---|
 | Type string | `string`, `int`, `bool`, `date`, `timestamp`, `variant`, `decimal(p, s)`, or `vector(scalar, dimensions)` | `decimal(12,4)`, `vector(float32, 1536)` |
-| Partition spec | A bare column, or `fn(column)` with `fn` ∈ `days`/`months`/`years`/`hours` | `days(order_date)` |
+| Partition spec | A bare column, or `fn(column)` with `fn` ∈ `days`/`months`/`years`/`hours` | `days(order_date)` — on Trino emitted as `day(order_date)`; a Trino Hive catalog takes no transform, so partition by a `date` column there |
 | Source path | JSONPath-lite: `$` followed by dotted identifiers only | `$.customer.id` |
 | Currency code | Three uppercase letters (ISO 4217) | `EUR` |
 | Zone name | An IANA name: a letter-led segment, optionally `/`-joined up to three deep. Checked for shape, never against a zone database — the engine is the authority for a zone that reaches SQL | `America/New_York` |
@@ -161,6 +161,14 @@ Exactly one per project.
 | `quality` | list of entity quality rules | no (`[]`) | Row rules — see [Entity quality rules](#entity-quality-rules) |
 | `dedupe` | Dedupe | no | Keep one row per key — see [Dedupe](#dedupe) |
 | `quarantine` | Quarantine | no | Reject-table policy — see [Quarantine](#quarantine) |
+| `arrival_lag` | duration (`quarantine.retention`'s grammar) | no | How late a row may land after its interval ran. Only on an `incremental_by_partition` entity at `scd: type1`; refused anywhere else |
+
+**`arrival_lag` reprocesses past days on SQLMesh.** The model pins `interval_unit 'day'` and
+sets `lookback` to the lag in whole days, rounded up (`30h` is `lookback 2`), so a late row
+lands on a later run rather than never. A cron more frequent than daily on such a model is
+refused by SQLMesh at load unless you also set `allow_partials`. Unset, neither is emitted.
+dbt carries nothing: its incremental entity merges its whole select on the key every run, so
+a late row already lands.
 
 **`materialization` is derived, never inferred, and that distinction is the rule.** An
 entity with a partition key gets `incremental_by_partition` without anyone writing it —

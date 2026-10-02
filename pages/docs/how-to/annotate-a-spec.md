@@ -38,19 +38,16 @@ spellings that are correct for their reader. `o'brien@example.com` is fine.
 
 It reaches whichever slot each target has for that kind of node:
 
-| | SQLMesh | dbt | Cube |
-|---|---|---|---|
-| entity | `MODEL (owner …)` | `meta.owner` | — |
-| mart | `MODEL (owner …)` | `meta.owner` | cube `meta.owner` |
-| metric | — | — | measure `meta.owner` |
+| | SQLMesh | dbt | Cube | MetricFlow |
+|---|---|---|---|---|
+| entity | `MODEL (owner …)` | `meta.owner` | — | — |
+| mart | `MODEL (owner …)` | `meta.owner` | cube `meta.owner` | semantic model `config.meta.owner` |
+| metric | — | — | measure `meta.owner` | metric `config.meta.owner` |
 
 The blanks are objects that do not exist rather than metadata that was dropped: Cube emits
-no entities, and a metric has no model of its own in either SQL target.
-
-**The MetricFlow manifest carries no owner yet.** A semantic model there has an `owners`
-list and it would be the natural fourth column of that table; what it should hold — the
-entity's owner, the metric's, or both — is a question about the manifest's shape rather
-than about this annotation, and it is open.
+no entities, a metric has no model of its own in either SQL target, and an entity reaches
+MetricFlow only as entity elements inside the marts' semantic models, which carry the
+marts' owners. With no owner written, MetricFlow's `config` stays null.
 
 **It does not inherit.** A mart over an owned entity has no owner until you write one, and
 a metric instantiating a catalog template does not take the template's. An owner nobody

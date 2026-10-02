@@ -264,6 +264,42 @@ def test_a_metric_owner_reaches_cube_alone() -> None:
         assert not any(declared in a.content for a in emitted)
 
 
+def _metricflow_manifest(sources: dict[str, str]) -> dict:  # noqa: ANN201
+    import json
+
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8"))
+    (artifact,) = compile_project(
+        load_project(sources), target="metricflow", dialect="duckdb", catalog=catalog
+    )
+    return json.loads(artifact.content)
+
+
+def test_mart_and_metric_owners_reach_metricflow_config_meta() -> None:
+    """S-0087/D-1. The fourth target carries the owner the other three do, in
+    the `config.meta` slot both a semantic model and a metric have."""
+    manifest = _metricflow_manifest(dict(fixture_sources("ecom_basic")))
+
+    (model,) = manifest["semantic_models"]
+    assert model["config"] == {"meta": {"owner": "analytics@example.com"}}
+    revenue = next(m for m in manifest["metrics"] if m["name"] == "gross_revenue")
+    assert revenue["config"] == {"meta": {"owner": "finance-reporting@example.com"}}
+
+
+def test_metricflow_carries_no_entity_owner_and_no_config_when_unowned() -> None:
+    """S-0087/D-1. An entity reaches MetricFlow only as entity elements inside
+    a mart's semantic model, which carries the mart's owner; with no owner
+    written, `config` stays null rather than an empty `meta`."""
+    owned = _metricflow_manifest(dict(fixture_sources("ecom_basic")))
+    assert "commerce-platform@example.com" not in str(owned)
+
+    sources = dict(fixture_sources("ecom_basic"))
+    for kind in ("marts", "metrics"):
+        sources[kind] = _ANNOTATION_LINE.sub("", sources[kind])
+    unowned = _metricflow_manifest(sources)
+    assert all(model["config"] is None for model in unowned["semantic_models"])
+    assert all(metric["config"] is None for metric in unowned["metrics"])
+
+
 def test_the_reject_table_carries_its_entity_owner() -> None:
     """The reject model is the same entity's second artifact rather than a
     second node, so carrying the owner there is not the inheritance D2
