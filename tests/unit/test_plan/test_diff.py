@@ -1258,3 +1258,20 @@ def test_an_initial_deploy_stays_all_additive() -> None:
     new = plan_ir.project(entities=(plan_ir.entity(freshness=FRESH_6H),))
 
     assert {change.change_class for change in plan(None, new).changes} == {ChangeClass.ADDITIVE}
+
+
+def test_a_type_2_entity_refreshes_only_its_reject_table() -> None:
+    """dbt builds a type 2 entity as a snapshot, which widens itself and carries
+    no `on_schema_change`, so the refresh names only the reject table, an
+    incremental model holding the entity's columns, and nothing without one."""
+    type2 = {"materialization": Materialization.INCREMENTAL_BY_KEY, "scd": SCDKind.TYPE2}
+    old = entity_project(plan_ir.column("id", required=True), **type2)
+    new = entity_project(plan_ir.column("id", required=True), plan_ir.column("note"), **type2)
+    assert "full-refresh" not in only_change(old, new).detail
+
+    quarantined = {**type2, "quarantine": QuarantineIR(retention="90d")}
+    old = entity_project(plan_ir.column("id", required=True), **quarantined)
+    new = entity_project(plan_ir.column("id", required=True), plan_ir.column("note"), **quarantined)
+    detail = only_change(old, new).detail
+    assert "dbt build --full-refresh -s order_item__reject`" in detail
+    assert "-s order_item order_item__reject" not in detail

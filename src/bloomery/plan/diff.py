@@ -110,7 +110,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
-from bloomery.ir import SOURCE_COLUMN, Materialization, OnFail, ProjectIR
+from bloomery.ir import SOURCE_COLUMN, Materialization, OnFail, ProjectIR, SCDKind
 from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan, ReplayScope
 from bloomery.quality import disposition, payload_key
 from bloomery.spec.quality import EXACT_DECIMAL
@@ -593,6 +593,17 @@ def _dbt_refresh(entity: EntityIR) -> str:
 
     if entity.materialization is Materialization.FULL:
         return ""
+
+    # A type 2 entity is a dbt snapshot, which widens itself and carries no
+    # `on_schema_change`; only its reject table, an incremental model holding
+    # the entity's columns, fails on the change.
+    if entity.scd is SCDKind.TYPE2:
+        if entity.quarantine is None:
+            return ""
+        return (
+            f"; on dbt, run `dbt build --full-refresh -s {entity.name}__reject`"
+            " — resolved reject rows are lost"
+        )
 
     if entity.quarantine is None:
         return f"; on dbt, run `dbt build --full-refresh -s {entity.name}`"
