@@ -19,30 +19,19 @@ Run it through the lane rather than directly::
 
     just fuzz parse_doors 60
 
-Its own known-catchable defects, for the sabotage check the lane owes every
-target (S-0008/tests). Narrow either handler back to `except SqlglotError` and
-replay the seed that drives its door::
+The two `band-*` seeds stay in the corpus as inputs the depth cap now refuses
+at load (S-0088/D-3)::
 
     just fuzz-repro parse_doors fuzz/fuzz_parse_doors_seed_corpus/band-recipe-expr
     just fuzz-repro parse_doors fuzz/fuzz_parse_doors_seed_corpus/band-step-body
 
-The first reaches `src/bloomery/evidence.py`, the second
-`src/bloomery/resolve/steps.py`; in both cases the `RecursionError` crosses the
-compile boundary and the target reports it. Both seeds nest 51 deep, which is
-measured, not arbitrary: sqlglot spends roughly 20 frames per nesting level, so
-the window between what the load-time validator accepts and what a site a few
-frames deeper can parse is about one level wide. A seed one level either side
-of it proves nothing.
-
-**One open finding, deferred rather than fixed.** A 45-second run on the
-step-body door reaches `src/bloomery/ir/nodes.py:428` (`_parse_sql`, through
-`SqlExpr.ast` at emit) with a body that `resolve/steps.py` parsed happily one
-stage earlier — the same asymmetry again, one stack position deeper. That file
-is outside this phase's allow list and the fix belongs to a follow-up task, so
-the lane currently stops on it. Until then a run is read as: *this* crash is
-the known one, anything else is new. The crash file is reproducible from any
-seed corpus run; it is not checked in, because a corpus entry is not a
-regression test (S-0008/D-4).
+Both nest 51 deep. That was measured as the window between what one site could
+parse and what a site a few frames deeper could — sqlglot spends roughly 20
+frames per nesting level — and it is why the cap sits at 32: the first seed is
+refused by `SqlText` in `src/bloomery/spec/common.py` and the second by
+`_parse_body` in `src/bloomery/resolve/steps.py`, so neither reaches a re-parse
+site at all. They are kept because a cap raised back into that window is
+what they would catch.
 """
 
 from __future__ import annotations

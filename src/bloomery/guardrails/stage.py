@@ -186,7 +186,9 @@ def check_guardrails(
     # Consumer evidence (S-0070/D-4, `LOCKED`): the requirement is read from
     # the authored marts document and the facts from the draft, which is the
     # one guardrail that needs both sides — the key never enters `MartIR` (D3).
-    violations.extend(check_evidence(project, draft))
+    # The composed view (S-0085/D-1): a strict local mart over an imported base,
+    # or a strict exposure naming an imported mart or metric, is judged with it.
+    violations.extend(check_evidence(project, composed))
     # Retrieval profiles (S-0011/the-guardrails): the declaration read from the
     # authored retrieval document and the types and keys from the draft, which is
     # the only side that has them — a field's dimensions exist once the entity

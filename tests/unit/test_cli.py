@@ -680,6 +680,16 @@ def test_a_missing_explicit_catalog_is_a_usage_error(capsys: pytest.CaptureFixtu
     assert "not a file" in err
 
 
+def test_a_catalog_path_the_os_refuses_to_stat_exits_two(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The 2026-09-21 `cli` fuzz crash, at the `--catalog` door: a name the OS
+    refuses to stat is a usage error, as it is for a specs path."""
+    code, _out, err = run(capsys, "resolve", ECOM, "--catalog", "x" * 300)
+    assert code == EXIT_USAGE
+    assert "not a file" in err
+
+
 # ....................... #
 # The renderer and the serializer, on the branches the corpus does not reach
 
