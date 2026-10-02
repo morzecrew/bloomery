@@ -305,6 +305,9 @@ The fix is to rebuild the entity and its reject table from scratch:
 dbt build --full-refresh -s order_line order_line__reject
 ```
 
+An entity with no `quarantine:` block has no reject table, so the rebuild names the entity
+alone, and `bloomery plan` prints it that way.
+
 This recomputes the entity's history from bronze, as SQLMesh's rebuild of the same change
 does, so the two targets agree on the new column's history. Like any full refresh it
 loses resolved reject rows (see above).

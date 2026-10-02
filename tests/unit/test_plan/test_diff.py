@@ -28,6 +28,7 @@ from bloomery.ir import (
     Materialization,
     PartitionSpec,
     ProjectIR,
+    QuarantineIR,
     RelationshipIR,
     SCDKind,
     SourceFieldIR,
@@ -144,7 +145,27 @@ def test_dropped_unreferenced_column_is_breaking_not_raised() -> None:
     assert change.detail == "field dropped"
 
 
-_REFRESH = "dbt build --full-refresh -s order_item order_item__reject"
+_REFRESH = "dbt build --full-refresh -s order_item`"
+_REJECT_REFRESH = "dbt build --full-refresh -s order_item order_item__reject"
+
+
+def test_the_refresh_names_the_reject_table_only_where_the_emitter_writes_one() -> None:
+    quarantined = {
+        "materialization": Materialization.INCREMENTAL_BY_KEY,
+        "quarantine": QuarantineIR(retention="90d"),
+    }
+    old = entity_project(plan_ir.column("id", required=True), **quarantined)
+    new = entity_project(plan_ir.column("id", required=True), plan_ir.column("note"), **quarantined)
+    change = only_change(old, new)
+    assert _REJECT_REFRESH in change.detail
+    assert "resolved reject rows are lost" in change.detail
+
+    bare = {"materialization": Materialization.INCREMENTAL_BY_KEY}
+    old = entity_project(plan_ir.column("id", required=True), **bare)
+    new = entity_project(plan_ir.column("id", required=True), plan_ir.column("note"), **bare)
+    change = only_change(old, new)
+    assert "__reject" not in change.detail
+    assert "reject rows" not in change.detail
 
 
 def test_a_field_added_to_an_incremental_entity_names_the_dbt_full_refresh() -> None:

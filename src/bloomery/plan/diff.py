@@ -586,12 +586,16 @@ def _dbt_refresh(entity: EntityIR) -> str:
     """What a field added to or dropped from ``entity`` costs on dbt (S-0086/D-10).
 
     dbt's incremental models carry ``on_schema_change='fail'``, so a changed
-    column set fails the next run until both relations are rebuilt. Read from
-    the **new** IR: the refresh runs against what is about to be built.
+    column set fails the next run until it is rebuilt — with its reject table
+    when it quarantines, the only case the emitter writes one. Read from the
+    **new** IR: the refresh runs against what is about to be built.
     """
 
     if entity.materialization is Materialization.FULL:
         return ""
+
+    if entity.quarantine is None:
+        return f"; on dbt, run `dbt build --full-refresh -s {entity.name}`"
 
     return (
         f"; on dbt, run `dbt build --full-refresh -s {entity.name} {entity.name}__reject`"

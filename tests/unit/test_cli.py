@@ -2950,7 +2950,7 @@ def test_plan_names_the_dbt_full_refresh_in_text_and_json(
                 )
             (side / path.name).write_text(text, encoding="utf-8")
         sides.append(str(side))
-    refresh = "dbt build --full-refresh -s order_item order_item__reject"
+    refresh = "dbt build --full-refresh -s order_item`"
 
     code, out, err = run(capsys, "plan", *sides)
     assert code == EXIT_OK, err
