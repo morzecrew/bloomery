@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-02T16:15:31Z'
+    title: Every door the cap must hold
+    changes:
+      - subject: D-3
+        field: text
+        before: >-
+          Authored SQL text nests at most 32 levels: `_parses_as_sql` and `resolve/steps.py::_parse_body`
+          measure the parsed tree's depth with an iterative walk and refuse deeper
+          text, as `SpecParseError` and `StepError`. This supersedes S-0008/D-10's
+          fix owed at `_parse_sql` and S-0008/D-7's "no depth limit"; S-0008/D-7's
+          widened catches stay behind the cap.
+        after: >-
+          Authored SQL text nests at most 32 levels: `_parses_as_sql`, a quality rule's
+          `expr` (depth only, its other refusals staying the quality guardrail's),
+          `resolve/steps.py::_parse_body` and a registered macro body in `_macro_parts`
+          measure the parsed tree's depth with an iterative walk and refuse deeper
+          text, as `SpecParseError` and `StepError`. This supersedes S-0008/D-10's
+          fix owed at `_parse_sql` and S-0008/D-7's "no depth limit"; S-0008/D-7's
+          widened catches stay behind the cap.
+      - subject: D-3
+        field: fingerprint
+        after: 44d287ee9435609f/4f65baca4881bc03
+    md: >-
+      Review after the merge found two doors phase 1 left open: a quality rule's `expr`
+      is a plain string, and a macro body is registered in Python, so neither passed
+      `SqlText` or `_parse_body`. Both now refuse text past the cap: the expression
+      at load, judging depth only so the quality guardrail keeps its own messages,
+      and the macro body in `_macro_parts` as a `StepError`.

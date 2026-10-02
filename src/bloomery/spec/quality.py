@@ -31,7 +31,7 @@ from typing import Annotated, ClassVar, Final, Literal, NoReturn, Self, cast
 
 from pydantic import AfterValidator, Discriminator, Field, StringConstraints, model_validator
 
-from bloomery.spec.common import JsonPath, ParameterValue, SpecModel, StepUse
+from bloomery.spec.common import DepthCappedSql, JsonPath, ParameterValue, SpecModel, StepUse
 
 # ----------------------- #
 
@@ -914,7 +914,9 @@ class ExpressionRule(QualityRule):
     repairable: ClassVar[bool] = False
 
     name: RuleName
-    expr: str
+    # Depth-capped at load (S-0088/D-3); the quality guardrail owns every other
+    # refusal of the text, with messages its tests pin.
+    expr: DepthCappedSql
 
 
 # ....................... #

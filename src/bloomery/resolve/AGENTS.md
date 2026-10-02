@@ -671,7 +671,7 @@ A determination is a **stored** fact. `ColumnIR` gains `determines: tuple[str, .
 
 ### S-0088/D-3 — `ASSUMED` (The fuzz lane's first findings are closed)
 
-Authored SQL text nests at most 32 levels: `_parses_as_sql` and `resolve/steps.py::_parse_body` measure the parsed tree's depth with an iterative walk and refuse deeper text, as `SpecParseError` and `StepError`. This supersedes S-0008/D-10's fix owed at `_parse_sql` and S-0008/D-7's "no depth limit"; S-0008/D-7's widened catches stay behind the cap.
+Authored SQL text nests at most 32 levels: `_parses_as_sql`, a quality rule's `expr` (depth only, its other refusals staying the quality guardrail's), `resolve/steps.py::_parse_body` and a registered macro body in `_macro_parts` measure the parsed tree's depth with an iterative walk and refuse deeper text, as `SpecParseError` and `StepError`. This supersedes S-0008/D-10's fix owed at `_parse_sql` and S-0008/D-7's "no depth limit"; S-0008/D-7's widened catches stay behind the cap.
 
 - Paths: `src/bloomery/spec/common.py` `src/bloomery/resolve/steps.py`
 - Consequence: no admitted text can overflow the stack at any site that parses it again, and a new re-parse site needs no guard of its own

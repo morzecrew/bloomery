@@ -117,7 +117,7 @@ from bloomery.resolve.resolution import Resolution, resolve
 from bloomery.resolve.steps import lower_steps, step_entities
 from bloomery.semantic import Conversion, Refutation, consequence_of, prove_conversion
 from bloomery.spec.catalog import Catalog
-from bloomery.spec.common import UTC_ZONES
+from bloomery.spec.common import MAX_SQL_DEPTH, UTC_ZONES, sql_depth
 from bloomery.spec.mapping import (
     ALIAS_BOUND,
     CurrencyColumn,
@@ -751,6 +751,18 @@ def _macro_parts(
             "statement. The body is spliced into the consuming column (S-0034/the-four-tier-ladder) "
             "rather than executed, so the trailing statement lands inside the cast the "
             "column is wrapped in and the artifact does not parse at all"
+        )
+        raise StepError(msg, source_path=source_path)
+
+    # The registry is assembled in Python, so neither `SqlText` nor
+    # `_parse_body` has measured this body: the depth cap applies here too
+    # (S-0088/D-3), or a deep body splices into a column every later stage
+    # parses again, deeper in the stack.
+    depth = sql_depth(parsed)
+    if depth > MAX_SQL_DEPTH:
+        msg = (
+            f"field references step {use!r}, whose registered macro body nests {depth} "
+            f"levels deep, past the {MAX_SQL_DEPTH} authored SQL may nest. Fix: flatten the body"
         )
         raise StepError(msg, source_path=source_path)
 

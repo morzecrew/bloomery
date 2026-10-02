@@ -467,3 +467,29 @@ def test_a_statement_macro_body_is_refused(body: str) -> None:
     with pytest.raises(StepError, match="statement rather than an expression") as excinfo:
         build(CALL, registry(body=body))
     assert "extract_domain@1" in str(excinfo.value)
+
+
+def _macro_body(levels: int) -> str:
+    """A macro body whose parsed tree is exactly ``levels`` deep."""
+    from sqlglot import parse_one  # noqa: PLC0415
+
+    from bloomery.spec.common import sql_depth  # noqa: PLC0415
+
+    for parens in range(levels + 1):
+        body = f"SPLIT_PART({'(' * parens}:email{')' * parens}, '@', 2)"
+        if sql_depth(parse_one(body)) == levels:
+            return body
+    raise AssertionError(levels)
+
+
+def test_a_macro_body_past_the_depth_cap_is_refused() -> None:
+    """S-0088/D-3 at the registry door: a body is assembled in Python, so
+    neither `SqlText` nor `_parse_body` measures it, and a deep one would
+    splice into a column every later stage parses again. One level under the
+    cap still builds."""
+    from bloomery.spec.common import MAX_SQL_DEPTH  # noqa: PLC0415
+
+    assert build(CALL, registry(body=_macro_body(MAX_SQL_DEPTH)))
+    with pytest.raises(StepError, match=f"past the {MAX_SQL_DEPTH} authored SQL may nest") as excinfo:
+        build(CALL, registry(body=_macro_body(MAX_SQL_DEPTH + 1)))
+    assert "extract_domain@1" in str(excinfo.value)

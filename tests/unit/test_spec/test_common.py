@@ -181,3 +181,22 @@ def test_a_refused_document_leaves_no_validation_error_alive() -> None:
         validate_document(_Refused, {"count": "x"}, document="d")
     assert excinfo.value.__context__ is None
     assert excinfo.value.__cause__ is None
+
+
+def test_a_quality_expression_past_the_depth_cap_is_refused_at_load() -> None:
+    """S-0088/D-3 reaches a quality rule's `expr`, which is not `SqlText`
+    because the quality guardrail owns its other refusals: only the depth is
+    judged at load, and a shallow expression still loads."""
+    from bloomery import load_project  # noqa: PLC0415
+
+    def entity_model(expr: str) -> str:
+        return (
+            "spec_version: 1\nentities:\n  e:\n    grain: one e\n    key: [id]\n"
+            "    fields:\n      id: {type: string}\n      amount: {type: int}\n"
+            f'    quality:\n      - {{rule: expression, name: positive, expr: "{expr}", on_fail: flag}}\n'
+        )
+
+    assert load_project({"entity_model": entity_model("amount > 0")})
+    deep = "(" * 40 + "amount > 0" + ")" * 40
+    with pytest.raises(SpecParseError, match="levels deep"):
+        load_project({"entity_model": entity_model(deep)})
