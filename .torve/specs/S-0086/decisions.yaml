@@ -95,3 +95,37 @@ decisions:
     rationale: >-
       Deleting needs a record of earlier writes and can remove files bloomery did
       not write; the case it would clean up is already refused.
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      Every incremental model the dbt emitter writes, an entity's and its reject table's,
+      carries `on_schema_change='fail'`: a changed column set fails the run instead
+      of leaving the table without the column, and the fix is `dbt build --full-refresh
+      -s <entity> <entity>__reject`, which recomputes history as SQLMesh's rebuild
+      does and loses resolved reject rows, as the how-to says.
+    paths: [src/bloomery/emit/dbt/__init__.py]
+    consequence: >-
+      a field added to an incremental entity can never be silently missing from its
+      dbt table, and dbt and SQLMesh agree on the history of the new column once the
+      refresh runs
+    rationale: >-
+      dbt's default `ignore` drops a new column without a word. `append_new_columns`
+      and `sync_all_columns` fill the new column with NULL for every earlier row,
+      where SQLMesh recomputes it, so a consumer of the dbt target would undercount
+      silently; `fail` is the only mode that keeps the targets agreeing, at the cost
+      of a full refresh per schema change. The owner chose it on 2026-10-01.
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      `bloomery plan` names the dbt full refresh beside every change that adds or
+      drops a field of an incremental entity, reading the entity's materialization
+      from the new IR, so the operator reads it in the plan rather than from a failed
+      run; the change keeps its class, and SQLMesh's output is unchanged.
+    paths: [src/bloomery/plan/diff.py, src/bloomery/cli/render.py]
+    consequence: >-
+      an ADDITIVE field on dbt costs a full refresh, and the plan says so before it
+      is applied
+    rationale: >-
+      S-0024/D-1 classes an optional new field ADDITIVE (document §5.5's presence
+      rule), which promises no backfill; on dbt under D-9 it needs one, and a promise
+      the plan does not keep is worse than a cost it states.

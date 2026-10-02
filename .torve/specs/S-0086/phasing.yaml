@@ -44,3 +44,34 @@ phasing:
     depends_on:
       - 1
     character: structural
+  - phase: 3
+    title: A schema change fails loudly on dbt
+    intent: >-
+      Every incremental dbt model, entity and reject alike, carries `on_schema_change='fail'`
+      in its config header. `bloomery plan` appends the dbt full refresh to every
+      field added to or dropped from an entity whose new `EntityIR.materialization`
+      is incremental, in both its text and JSON renderings, without changing the change's
+      class. The dbt goldens move; the end-to-end dbt test shows a field added between
+      two builds failing the second build, and `--full-refresh` recovering it. The
+      how-to's schema-change section says what fails, why, and the command. Settles
+      D-9 and D-10.
+    scope:
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/plan/diff.py
+      - src/bloomery/plan/model.py
+      - src/bloomery/cli/render.py
+      - tests/unit/test_emit/**
+      - tests/unit/test_plan/**
+      - tests/unit/test_cli.py
+      - tests/golden/**
+      - tests/e2e/test_dbt_quality.py
+      - pages/docs/how-to/emit-dbt.md
+      - CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_emit tests/unit/test_plan tests/unit/test_cli.py
+        tests/golden -q
+      - uv run pytest tests/e2e/test_dbt_quality.py -q
+    depends_on:
+      - 2
+    character: routine
