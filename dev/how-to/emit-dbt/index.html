@@ -2454,12 +2454,27 @@ duplicate rows.</p>
 <h2 id="replaying-on-dbt">Replaying on dbt<a class="headerlink" href="#replaying-on-dbt" title="Permanent link">&para;</a></h2>
 <p>A quarantined row that a corrected delivery fixes is admitted by <strong>replay</strong>, and on dbt
 replay is a macro you run:</p>
-<div class="highlight"><pre><span></span><code>dbt<span class="w"> </span>run<span class="w"> </span>--select<span class="w"> </span>silver.order_line__reject<span class="w">   </span><span class="c1"># rebuild the reject table first</span>
+<div class="highlight"><pre><span></span><code>dbt<span class="w"> </span>run<span class="w"> </span>--select<span class="w"> </span>silver.order_line<span class="w"> </span>silver.order_line__reject<span class="w">   </span><span class="c1"># rebuild both first</span>
 dbt<span class="w"> </span>run-operation<span class="w"> </span>replay_order_line
 </code></pre></div>
-<p>Rebuild first, always. Replay re-runs the <em>current</em> mapping against the rows the reject
-table holds, so a reject table built before the correction landed still says the row
-fails.</p>
+<p>Rebuild first, always, and rebuild the entity <strong>and</strong> its reject table from the same
+checkout you compiled the macro from. Replay re-runs the <em>current</em> mapping against the
+rows the reject table holds, so a reject table built before the correction landed still
+says the row fails.</p>
+<p>Compile into a clean directory. <code>--out</code> deletes nothing, so a replay macro left over from
+an earlier compile — or a hand-written file — stays beside the new project.</p>
+<p>The macro guards that itself. <code>dbt_project.yml</code> carries
+<code>vars: {bloomery_fingerprint: ...}</code>, the fingerprint of the compile that wrote it, and
+each replay macro refuses before its first statement when that var differs from the
+fingerprint it was emitted under: a left-over macro, or one run against a project
+compiled elsewhere, raises a compiler error naming both and writes nothing. It does not
+compare against the spec that quarantined a row — replaying after a spec change is what
+replay is for — and it cannot tell a stale checkout whose own compile is self-consistent;
+the order above is the guard for that.</p>
+<p>Each macro also checks, before its first statement, that the entity and its reject table
+carry every column it writes, and refuses naming the missing ones and the rebuild that adds
+them. For an incremental model that rebuild is <code>dbt run --full-refresh</code>, because a plain run
+adds no column to one; for a table, a plain run does.</p>
 <p>It is a macro rather than a <code>.sql</code> file you could paste into a client, and that is
 forced rather than chosen: the statements name their relations through <code>{{ ref(...) }}</code>,
 which resolves inside dbt's Jinja and nowhere else. A loose file would be runnable by
