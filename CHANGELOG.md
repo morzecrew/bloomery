@@ -49,7 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A replayed parent brings its children back.** When a change lets a quarantined parent's
   rows back in, `bloomery plan` also names in `replay_scope` every child that quarantined
-  on it before the change, parents first; a child that rewrote or flagged its orphans
+  on it before the change, parents first where the rules allow an order and by name within
+  a cycle of `referential` rules; a child that rewrote or flagged its orphans
   (`on_missing: unknown_member` or `flag`) is named in `backfill_scope`. Before, the child
   stayed orphaned and a blocking `coverage:` check on the parent failed every run. Rows
   bronze no longer holds keep their rewrite; the quality docs name the remedy.
@@ -69,7 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   first statement when that var differs from the fingerprint it was emitted under, or when
   the entity or its reject table lacks a column the statements write. The refusal names
   the missing columns and the rebuild that adds them: `dbt run --full-refresh` for an
-  incremental model, which a plain run never widens.
+  incremental model, which a plain run never widens. A fingerprint mismatch is fixed by
+  compiling again with bloomery into a clean directory, not by a rebuild.
 
 - **A schema change fails loudly on dbt.** Every incremental dbt model, an entity's and its
   reject table's, carries `on_schema_change='fail'`, so a field added, dropped or renamed
@@ -99,8 +101,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validation graph alive, which grew a long-running caller's memory with every refusal;
   `WHILE*2` and `IF a`, which sqlglot parses as a statement or gives up on as a `Command`,
   are refused as SQL text; and authored SQL text nests at most 32 levels, refused at load
-  for a spec field and at compile for a step body, instead of overflowing the stack at a
-  later re-parse.
+  for a spec field or a quality rule's expression and at compile for a step body or a
+  registered macro body, instead of overflowing the stack at a later re-parse.
 
   **Upgrade note.** SQL text nested deeper than 32 levels, or that only parses as a
   statement, is refused now.
