@@ -48,9 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   moves; a metric MetricFlow cannot serve is omitted, owner and all.
 
 - **`bloomery_ir_version` is 26 (it was 25 in 0.5.0).** `EntityIR` carries the declared
-  arrival lag, `None` where none is declared, so every compiled artifact's fingerprint
-  header moves. An IR written by 0.5.0 is refused by `plan()` and `ir_from_json` with the
-  version mismatch message; recompile the project.
+  arrival lag, `None` where none is declared, so every project's fingerprint moves, and with
+  it the header of every artifact that carries one. An IR written by 0.5.0 is refused by
+  `plan()` and `ir_from_json` with the version mismatch message; recompile the project.
 
 ### Fixed
 
