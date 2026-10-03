@@ -2618,8 +2618,9 @@ reason — it answers "has a child in silver", which is what every consumer of s
 <ul>
 <li>an entity whose <code>referential</code> rule at <code>on_missing: quarantine</code> reaches an entity in
   <code>replay_scope</code> — directly or through a chain — is in <code>replay_scope</code> too. The scope is
-  ordered <strong>parents first</strong>, ties broken by name; entities whose rules form a cycle have
-  no parent-first order and come out by name among themselves. Run the replays in that
+  ordered <strong>parents first</strong>, ties broken by name; entities whose rules form a cycle have no
+  parent-first order, so the cycle is broken at its first member by name and parent-first
+  order resumes from there. Run the replays in that
   order: a child replayed before its parent's rows are admitted stays held, harmlessly,
   until the next replay. For a type 2 parent, whose replay re-delivers to bronze, the
   child's replay belongs after the parent's next run.</li>
