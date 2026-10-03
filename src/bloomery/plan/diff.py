@@ -1231,28 +1231,18 @@ def _replay(
 # ....................... #
 
 
-def _cascade(new: ProjectIR, acc: _Acc) -> tuple[str, ...]:
-    """Extend the replay to the entities that judged their rows against an
-    entity already in it, and return the scope parents first (S-0084).
-
-    A ``referential`` verdict reads only the parent's admitted silver rows
-    (D1), so a parent held in quarantine made orphans of its children. When
-    the parent comes back, so must they (D3): a child at ``on_missing:
-    quarantine`` holds its orphans in its own reject table and joins the
-    replay, transitively; a child at ``unknown_member`` or ``flag`` kept its
-    rows, rewritten or flagged, and is named in the backfill instead (D5) —
-    rows bronze no longer holds keep their rewrite, the documented limit.
-
-    The order is topological, child after parent, ties broken by name (D4).
-    Entities whose rules form a cycle have no parent-first order; whichever
-    is stuck is released by name, so they come out by name among themselves.
-    """
+def _referential_edges(
+    ir: ProjectIR,
+) -> tuple[dict[str, set[str]], dict[str, set[str]], dict[str, set[str]]]:
+    """Each parent's quarantining children, its keeping children, and each
+    child's parents, read off the ``referential`` rules (a self-reference
+    excluded)."""
 
     quarantined_on: dict[str, set[str]] = {}
     kept_on: dict[str, set[str]] = {}
     refers_to: dict[str, set[str]] = {}
 
-    for entity in new.entities:
+    for entity in ir.entities:
         for rule in entity.quality:
             if rule.kind != "referential":
                 continue
@@ -1270,10 +1260,57 @@ def _cascade(new: ProjectIR, acc: _Acc) -> tuple[str, ...]:
             elif label in {"unknown_member", OnFail.FLAG}:
                 kept_on.setdefault(parent, set()).add(entity.name)
 
+    return quarantined_on, kept_on, refers_to
+
+
+def _on_a_cycle(name: str, waiting: Mapping[str, set[str]]) -> bool:
+    """Whether ``name`` reaches itself through the parents it still waits on."""
+
+    seen: set[str] = set()
+    stack = list(waiting[name])
+
+    while stack:
+        parent = stack.pop()
+        if parent == name:
+            return True
+        if parent in seen or parent not in waiting:
+            continue
+        seen.add(parent)
+        stack.extend(waiting[parent])
+
+    return False
+
+
+def _cascade(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> tuple[str, ...]:
+    """Extend the replay to the entities that judged their rows against an
+    entity already in it, and return the scope parents first (S-0084).
+
+    A ``referential`` verdict reads only the parent's admitted silver rows
+    (D1), so a parent held in quarantine made orphans of its children. When
+    the parent comes back, so must they (D3): a child at ``on_missing:
+    quarantine`` holds its orphans in its own reject table and joins the
+    replay, transitively; a child at ``unknown_member`` or ``flag`` kept its
+    rows, rewritten or flagged, and is named in the backfill instead (D5) —
+    rows bronze no longer holds keep their rewrite, the documented limit.
+
+    Only a child that already quarantined on that parent *before* the change
+    can hold such orphans: one that is new, or that quarantines on it only
+    from now on, has none, and naming it would report replay work that admits
+    nothing.
+
+    The order is topological, child after parent, ties broken by name (D4).
+    Entities whose rules form a cycle have no parent-first order: the cycle is
+    broken at its first member by name, and parent-first order resumes from
+    there, so the rest of the cycle need not come out by name.
+    """
+
+    quarantined_on, kept_on, refers_to = _referential_edges(new)
+    held_before = _referential_edges(old)[0] if old is not None else {}
     frontier = list(acc.replay)
 
     while frontier:
-        for child in quarantined_on.get(frontier.pop(), ()):
+        parent = frontier.pop()
+        for child in quarantined_on.get(parent, set()) & held_before.get(parent, set()):
             if child not in acc.replay:
                 acc.replay.add(child)
                 frontier.append(child)
@@ -1290,8 +1327,11 @@ def _cascade(new: ProjectIR, acc: _Acc) -> tuple[str, ...]:
     order: list[str] = []
 
     while waiting:
-        ready = sorted(name for name, parents in waiting.items() if not parents) or [min(waiting)]
-        name = ready[0]
+        ready = sorted(name for name, parents in waiting.items() if not parents)
+        # Stuck only on a cycle, which a graph where every entity still waits
+        # always contains: release the first by name *on* it, never a child
+        # downstream of it, or the child replays before a parent (S-0084/D-4).
+        name = ready[0] if ready else min(n for n in waiting if _on_a_cycle(n, waiting))
         order.append(name)
         del waiting[name]
 
@@ -2690,7 +2730,7 @@ def plan(
     _diff_reconcile(old, new, acc)
     _diff_steps(old, new, acc)
     _enforce_contract(old, new, acc)
-    replay = _cascade(new, acc)
+    replay = _cascade(old, new, acc)
     changes = tuple(sorted(acc.changes, key=_sort_key))
     downstream = _downstream_impact(new, acc.seeds)
     return Plan(

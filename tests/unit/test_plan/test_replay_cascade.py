@@ -91,6 +91,22 @@ def test_a_cycle_is_ordered_by_name_among_itself() -> None:
     assert result.replay_scope.entities == ("parent", "x", "y")
 
 
+def test_a_child_downstream_of_a_cycle_still_waits_for_its_parent() -> None:
+    """Breaking a cycle by name must pick a member of the cycle: `a` sorts first
+    but reads `x`, so releasing it to break the x/y cycle would replay it
+    before its parent (S-0084/D-4)."""
+    result = _plan(
+        (
+            _child("y", ("parent", "quarantine"), ("x", "quarantine")),
+            _child("x", ("y", "quarantine")),
+            _child("a", ("x", "quarantine")),
+        )
+    )
+    order = result.replay_scope.entities
+    assert order.index("x") < order.index("a")
+    assert order == ("parent", "x", "a", "y")
+
+
 def test_tightening_a_rule_names_no_dependent() -> None:
     result = _plan(
         (
@@ -129,3 +145,25 @@ def test_a_child_replayed_for_its_own_rule_still_waits_for_its_parent() -> None:
     )
     new = project(entities=(entity("z_parent"), _child("a_child", ("z_parent", "unknown_member"))))
     assert plan(old, new).replay_scope.entities == ("z_parent", "a_child")
+
+
+def test_a_child_that_held_no_orphans_before_the_change_is_not_replayed() -> None:
+    """S-0084/D-3: only a child that already quarantined on the parent can hold
+    its orphans in a reject table. One that is new, or that quarantines on the
+    parent only from this change on, has nothing to replay."""
+    old = project(
+        entities=(
+            entity("parent", quality=(QUARANTINE_RULE,)),
+            _child("was_kept", ("parent", "unknown_member")),
+            _child("held", ("parent", "quarantine")),
+        )
+    )
+    new = project(
+        entities=(
+            entity("parent"),
+            _child("was_kept", ("parent", "quarantine")),
+            _child("held", ("parent", "quarantine")),
+            _child("brand_new", ("parent", "quarantine")),
+        )
+    )
+    assert plan(old, new).replay_scope.entities == ("parent", "held")

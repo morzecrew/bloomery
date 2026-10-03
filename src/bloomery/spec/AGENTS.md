@@ -792,42 +792,42 @@ A mart may declare `reading: current` on its base, and a flatten `via:` in place
 - Paths: `src/bloomery/spec/marts.py` `src/bloomery/marts/flatten.py` `tests/unit/test_marts/test_flatten.py`
 - Consequence: an author reaches the current version of a history table with one key, and the refusal stays the default
 
-### S-0087/D-4 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+### S-0087/D-4 — `ASSUMED` (What each emitter carries of the facts a spec declares)
 
 `freshness:` carries no `filter:`; a filter would have to name a bronze partition column no spec declares, and one that excluded the newest load would change the answer, so leaving it out costs scan time and never a wrong freshness; this answers S-0064/Q-1
 
 - Paths: `src/bloomery/spec/mapping.py` `src/bloomery/emit/dbt/__init__.py`
 - Consequence: no unchecked SQL fragment enters dbt's freshness query
 
-### S-0087/D-5 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+### S-0087/D-5 — `ASSUMED` (What each emitter carries of the facts a spec declares)
 
 An entity materialized `incremental_by_partition` at `scd: type1` may declare `arrival_lag`, a duration in `quarantine.retention`'s grammar; SQLMesh's model pins `interval_unit 'day'` and `lookback` is the lag in whole days, rounded up, so an operator's cron cannot shrink it, and a cron more frequent than daily is refused by SQLMesh at load unless the caller also sets `allow_partials`; unset, neither is emitted. Declared on any other entity it is refused, a type 2 entity included: its SCD kind replaces the time-range kind, so the lag would reach no model. dbt carries nothing: its incremental entity merges its whole select on the key every run, so a late row already lands.
 
 - Paths: `src/bloomery/spec/entity.py` `src/bloomery/emit/sqlmesh/__init__.py`
 - Consequence: a row that lands after its interval ran is loaded on a later run instead of never, and a project that declares no lag compiles byte for byte as before
 
-### S-0088/D-1 — `ASSUMED` (The fuzz lane's first findings are closed) — implementation: none
+### S-0088/D-1 — `ASSUMED` (The fuzz lane's first findings are closed)
 
 `validate_document` raises its `SpecParseError` after the `except` block, never inside it, so a refused document leaves nothing alive.
 
 - Paths: `src/bloomery/spec/common.py`
 - Consequence: a fuzzer, a service or a test session that refuses specs by the thousand keeps flat memory
 
-### S-0088/D-2 — `ASSUMED` (The fuzz lane's first findings are closed) — implementation: none
+### S-0088/D-2 — `ASSUMED` (The fuzz lane's first findings are closed)
 
 `_parses_as_sql` refuses a text whose expression parse differs from its statement parse, with the existing statement message.
 
 - Paths: `src/bloomery/spec/common.py`
 - Consequence: a text the validator admits renders as itself, and `WHILE*2` is refused at load instead of reaching emit as an empty expression
 
-### S-0088/D-3 — `ASSUMED` (The fuzz lane's first findings are closed) — implementation: none
+### S-0088/D-3 — `ASSUMED` (The fuzz lane's first findings are closed)
 
-Authored SQL text nests at most 32 levels: `_parses_as_sql` and `resolve/steps.py::_parse_body` measure the parsed tree's depth with an iterative walk and refuse deeper text, as `SpecParseError` and `StepError`. This supersedes S-0008/D-10's fix owed at `_parse_sql` and S-0008/D-7's "no depth limit"; S-0008/D-7's widened catches stay behind the cap.
+Authored SQL text nests at most 32 levels: `_parses_as_sql`, a quality rule's `expr` (depth only, its other refusals staying the quality guardrail's), `resolve/steps.py::_parse_body`, a registered macro body in `resolve/build.py::_macro_parts` and the expression a chain of macros composes in `resolve/build.py::_lower_chain` measure the parsed tree's depth with an iterative walk and refuse deeper text, as `SpecParseError` and `StepError`. This supersedes S-0008/D-10's fix owed at `_parse_sql` and S-0008/D-7's "no depth limit"; S-0008/D-7's widened catches stay behind the cap.
 
-- Paths: `src/bloomery/spec/common.py` `src/bloomery/resolve/steps.py`
+- Paths: `src/bloomery/resolve/build.py` `src/bloomery/resolve/steps.py` `src/bloomery/spec/common.py` `src/bloomery/spec/quality.py`
 - Consequence: no admitted text can overflow the stack at any site that parses it again, and a new re-parse site needs no guard of its own
 
-### S-0088/D-6 — `ASSUMED` (The fuzz lane's first findings are closed) — implementation: none
+### S-0088/D-6 — `ASSUMED` (The fuzz lane's first findings are closed)
 
 `_parses_as_sql` refuses a text sqlglot can parse only as a `Command`, its fallback for syntax it does not support, with the existing statement message.
 

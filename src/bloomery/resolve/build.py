@@ -117,7 +117,7 @@ from bloomery.resolve.resolution import Resolution, resolve
 from bloomery.resolve.steps import lower_steps, step_entities
 from bloomery.semantic import Conversion, Refutation, consequence_of, prove_conversion
 from bloomery.spec.catalog import Catalog
-from bloomery.spec.common import UTC_ZONES
+from bloomery.spec.common import MAX_SQL_DEPTH, UTC_ZONES, sql_depth
 from bloomery.spec.mapping import (
     ALIAS_BOUND,
     CurrencyColumn,
@@ -353,6 +353,22 @@ def _try_cast_shape(node: Expression) -> Expression:
 # ....................... #
 
 
+def _refuse_composed_depth(node: Expression, uses: list[str], *, source_path: str) -> None:
+    """Refuse a chain whose macros compose past :data:`MAX_SQL_DEPTH` (S-0088/D-3).
+
+    Each macro body passed the cap alone, but a chain splices one into the
+    next, so two bodies under the cap can compose past it. Only a macro can
+    carry authored depth into a chain; a transform adds a level or two.
+    """
+    if (depth := sql_depth(node)) > MAX_SQL_DEPTH:
+        msg = (
+            f"the chain composes {', '.join(repr(use) for use in uses)} into an expression "
+            f"{depth} levels deep, past the {MAX_SQL_DEPTH} authored SQL may nest: each macro "
+            "body splices into the next. Fix: flatten a macro body or split the chain"
+        )
+        raise StepError(msg, source_path=source_path)
+
+
 def _lower_chain(
     path: str,
     steps: tuple[TransformStep, ...],
@@ -377,9 +393,16 @@ def _lower_chain(
     # already been proven, with the per-step source paths that stage attaches.
     current: LogicalType = StringType()
 
+    uses: list[str] = []
+
     for step in steps:
         if step.step is not None:
+            uses.append(step.step)
             node, current = _splice_link(step.step, node, macros, source_path=source_path)
+            # Measured after every splice, not only at the end: the next splice
+            # deep-copies the running expression, recursively, so a chain past
+            # the cap would overflow there before a final check ran.
+            _refuse_composed_depth(node, uses, source_path=source_path)
             continue
         spec = reg[step.name]
         node = (
@@ -388,6 +411,10 @@ def _lower_chain(
             else spec.builder(node, *step.args)
         )
         current = spec.output_type(current, step.args)
+
+    # Again at the end, for the levels the transforms after the last macro add.
+    if uses:
+        _refuse_composed_depth(node, uses, source_path=source_path)
 
     terminal = _chain_terminal(steps, declared, reg, macros, source_path=source_path)
 
@@ -751,6 +778,18 @@ def _macro_parts(
             "statement. The body is spliced into the consuming column (S-0034/the-four-tier-ladder) "
             "rather than executed, so the trailing statement lands inside the cast the "
             "column is wrapped in and the artifact does not parse at all"
+        )
+        raise StepError(msg, source_path=source_path)
+
+    # The registry is assembled in Python, so neither `SqlText` nor
+    # `_parse_body` has measured this body: the depth cap applies here too
+    # (S-0088/D-3), or a deep body splices into a column every later stage
+    # parses again, deeper in the stack.
+    depth = sql_depth(parsed)
+    if depth > MAX_SQL_DEPTH:
+        msg = (
+            f"field references step {use!r}, whose registered macro body nests {depth} "
+            f"levels deep, past the {MAX_SQL_DEPTH} authored SQL may nest. Fix: flatten the body"
         )
         raise StepError(msg, source_path=source_path)
 

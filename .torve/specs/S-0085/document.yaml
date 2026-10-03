@@ -7,7 +7,7 @@ change:
   type: fix
   scope: guardrails
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0002, S-0070]
 informed_by: [S-0075]
 supersedes: []

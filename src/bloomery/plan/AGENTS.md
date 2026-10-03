@@ -196,28 +196,28 @@ The delta vocabulary is S-0069's and is never restated here. Two tables describi
 - Paths: `src/bloomery/cli/__init__.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/lineage.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0084/D-3 — `ASSUMED` (A replayed parent brings its children back) — implementation: none
+### S-0084/D-3 — `ASSUMED` (A replayed parent brings its children back)
 
-`replay_scope` names every entity whose `referential` rule at `on_missing: quarantine` reaches, directly or through a chain, an entity already in scope
+`replay_scope` names every entity whose `referential` rule at `on_missing: quarantine` reaches, directly or through a chain, an entity already in scope, provided it already quarantined on that entity before the change; a child that is new, or quarantines on it only from now on, holds no orphans and is not named
 
 - Paths: `src/bloomery/plan/diff.py` `src/bloomery/plan/model.py`
 - Consequence: a parent that comes back brings back the children it held
 
-### S-0084/D-4 — `ASSUMED` (A replayed parent brings its children back) — implementation: none
+### S-0084/D-4 — `ASSUMED` (A replayed parent brings its children back)
 
-`replay_scope` is ordered parents first, topologically with ties broken by name; entities whose `referential` rules form a cycle have no parent-first order and are ordered by name among themselves
+`replay_scope` is ordered parents first, topologically with ties broken by name; a cycle of `referential` rules has no parent-first order, so it is broken at its first member by name and parent-first order resumes from there
 
 - Paths: `src/bloomery/plan/diff.py`
 - Consequence: a caller running the scope in order replays a child after its parent's rows are admitted
 
-### S-0084/D-5 — `ASSUMED` (A replayed parent brings its children back) — implementation: none
+### S-0084/D-5 — `ASSUMED` (A replayed parent brings its children back)
 
 A dependent at `on_missing: unknown_member` or `flag` of an entity in `replay_scope` is named in `backfill_scope`; rows bronze no longer holds keep their rewrite or flag; no reserved column keeps the original key, and phase 1 documents the remedy for such a child: re-ingesting its rows into bronze or setting the parent's coverage to warn
 
 - Paths: `src/bloomery/plan/diff.py`
 - Consequence: children still in bronze's window are re-judged against the returned parent
 
-### S-0086/D-10 — `ASSUMED` (A replay runs only against the project it was compiled with) — implementation: partial
+### S-0086/D-10 — `ASSUMED` (A replay runs only against the project it was compiled with)
 
 `bloomery plan` names the dbt full refresh beside every change that adds, drops or renames a field of an incremental entity, naming the entity when it is an incremental type 1 model and its reject table whenever it quarantines (a `full` table rebuilds whole, and a type 2 entity is a snapshot that widens itself), reading the entity's materialization from the new IR, so the operator reads it in the plan rather than from a failed run; the change keeps its class, and SQLMesh's output is unchanged.
 

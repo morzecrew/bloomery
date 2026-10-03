@@ -30,6 +30,7 @@ from bloomery.errors import BloomeryError, SpecParseError
 __all__ = [
     "JSONPATH_PATTERN",
     "MAX_SQL_DEPTH",
+    "DepthCappedSql",
     "PARTITION_SPEC_PATTERN",
     "RESERVED_MEMBER_NAMES",
     "RESERVED_MEMBER_REASONS",
@@ -190,6 +191,42 @@ def sql_depth(tree: exp.Expr) -> int:
     return deepest
 
 
+def _refuse_too_deep(parsed: exp.Expr) -> None:
+    """Refuse a parsed tree deeper than :data:`MAX_SQL_DEPTH` (S-0088/D-3)."""
+    depth = sql_depth(parsed)
+    if depth > MAX_SQL_DEPTH:
+        msg = (
+            f"nests {depth} levels deep, past the {MAX_SQL_DEPTH} authored SQL may nest. "
+            "Every later stage parses it again, deeper in the stack. Fix: flatten the "
+            "expression"
+        )
+        raise ValueError(msg)
+
+
+def _within_sql_depth(expr: str) -> str:
+    """Only the depth half of :func:`_parses_as_sql`, for authored SQL whose
+    other refusals belong to a later stage with its own message, a quality
+    rule's expression among them (S-0088/D-3).
+
+    A text the parser rejects is passed on for that stage to refuse; one it
+    cannot parse for recursion is too deep by definition, so it is refused here
+    rather than left to overflow a later re-parse.
+    """
+    try:
+        parsed = parse_one(expr)
+    except RecursionError:
+        msg = (
+            f"nests past the {MAX_SQL_DEPTH} levels authored SQL may nest. Every later "
+            "stage parses it again, deeper in the stack. Fix: flatten the expression"
+        )
+        raise ValueError(msg) from None
+    except SqlglotError:
+        return expr
+
+    _refuse_too_deep(parsed)
+    return expr
+
+
 def _parses_as_sql(expr: str) -> str:
     """Refuse authored text that is not one SQL expression.
 
@@ -274,14 +311,7 @@ def _parses_as_sql(expr: str) -> str:
         )
         raise ValueError(msg)
 
-    depth = sql_depth(parsed)
-    if depth > MAX_SQL_DEPTH:
-        msg = (
-            f"nests {depth} levels deep, past the {MAX_SQL_DEPTH} authored SQL may nest. "
-            "Every later stage parses it again, deeper in the stack. Fix: flatten the "
-            "expression"
-        )
-        raise ValueError(msg)
+    _refuse_too_deep(parsed)
 
     try:
         scalar = parse_one(expr, into=exp.Condition)
@@ -335,6 +365,10 @@ MemberName = Annotated[str, AfterValidator(_reject_reserved_member)]
 #: derived metric's formula. Proved parseable at load; everything about what
 #: it *means* is decided downstream.
 SqlText = Annotated[str, AfterValidator(_parses_as_sql)]
+
+#: Authored SQL whose only refusal at load is its depth (S-0088/D-3); every
+#: other judgement is a later stage's, with its own message.
+DepthCappedSql = Annotated[str, AfterValidator(_within_sql_depth)]
 
 #: A bare lower-snake identifier — the shape a name must have to be safe in a
 #: context that does not quote it. Two such contexts exist, and they are

@@ -491,14 +491,14 @@ A `pii`/`secret` column reaching a relation that **admits a role its source enti
 - Paths: `src/bloomery/cli/__init__.py` `tests/unit/test_cli.py`
 - Consequence: A script can tell a wrong artifact from a wrong invocation, and an import that adds nothing reads as success rather than as a refusal to retry
 
-### S-0087/D-1 — `ASSUMED` (What each emitter carries of the facts a spec declares) — implementation: none
+### S-0087/D-1 — `ASSUMED` (What each emitter carries of the facts a spec declares)
 
 A mart's owner reaches its MetricFlow semantic model and a metric's owner its metric, both as `config.meta.owner`; with no owner `config` stays null, and an entity's owner is not carried: an entity reaches MetricFlow only as entity elements inside the marts' semantic models, which carry the marts' owners; this answers S-0062/Q-2
 
 - Paths: `src/bloomery/emit/metricflow/__init__.py` `tests/unit/test_ownership.py`
 - Consequence: the fourth target carries the owner the other three already do
 
-### S-0088/D-4 — `ASSUMED` (The fuzz lane's first findings are closed) — implementation: none
+### S-0088/D-4 — `ASSUMED` (The fuzz lane's first findings are closed)
 
 A `--catalog` path the OS refuses to stat exits 2, as #174 made a specs path do, and a test pins it.
 

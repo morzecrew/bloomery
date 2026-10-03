@@ -28,12 +28,19 @@ decisions:
   - id: D-3
     grade: ASSUMED
     text: >-
-      Authored SQL text nests at most 32 levels: `_parses_as_sql` and `resolve/steps.py::_parse_body`
-      measure the parsed tree's depth with an iterative walk and refuse deeper text,
-      as `SpecParseError` and `StepError`. This supersedes S-0008/D-10's fix owed
-      at `_parse_sql` and S-0008/D-7's "no depth limit"; S-0008/D-7's widened catches
-      stay behind the cap.
-    paths: [src/bloomery/spec/common.py, src/bloomery/resolve/steps.py]
+      Authored SQL text nests at most 32 levels: `_parses_as_sql`, a quality rule's
+      `expr` (depth only, its other refusals staying the quality guardrail's), `resolve/steps.py::_parse_body`,
+      a registered macro body in `resolve/build.py::_macro_parts` and the expression
+      a chain of macros composes in `resolve/build.py::_lower_chain` measure the parsed
+      tree's depth with an iterative walk and refuse deeper text, as `SpecParseError`
+      and `StepError`. This supersedes S-0008/D-10's fix owed at `_parse_sql` and
+      S-0008/D-7's "no depth limit"; S-0008/D-7's widened catches stay behind the
+      cap.
+    paths:
+      - src/bloomery/resolve/build.py
+      - src/bloomery/resolve/steps.py
+      - src/bloomery/spec/common.py
+      - src/bloomery/spec/quality.py
     consequence: >-
       no admitted text can overflow the stack at any site that parses it again, and
       a new re-parse site needs no guard of its own
@@ -44,6 +51,7 @@ decisions:
       SQL text across `examples/`, `tests/fixtures/` and the golden specs is 5 levels
       of tree depth, and the crash input is 52; 32 leaves six times the deepest real
       text and twenty levels below the overflow.
+    fingerprint: a83684e31e88a21b/e0429b4c49264b9b
   - id: D-4
     grade: ASSUMED
     text: >-

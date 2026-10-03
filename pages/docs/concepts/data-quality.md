@@ -376,8 +376,9 @@ So when a parent comes back, its children must be re-judged, and `plan()` names 
 
 - an entity whose `referential` rule at `on_missing: quarantine` reaches an entity in
   `replay_scope` — directly or through a chain — is in `replay_scope` too. The scope is
-  ordered **parents first**, ties broken by name; entities whose rules form a cycle have
-  no parent-first order and come out by name among themselves. Run the replays in that
+  ordered **parents first**, ties broken by name; entities whose rules form a cycle have no
+  parent-first order, so the cycle is broken at its first member by name and parent-first
+  order resumes from there. Run the replays in that
   order: a child replayed before its parent's rows are admitted stays held, harmlessly,
   until the next replay. For a type 2 parent, whose replay re-delivers to bronze, the
   child's replay belongs after the parent's next run.

@@ -222,7 +222,8 @@ The closed classification vocabulary: `ADDITIVE`, `WIDENING`, `RENAME`, `RESTATI
 ### `ReplayScope`
 
 `entities` — the entities whose `<entity>__reject` tables a plan invalidates, ordered
-parents first (topologically, ties and cycles by name), so a caller running them in order
+parents first (topologically, ties by name, a cycle broken at its first member by name),
+so a caller running them in order
 replays a child after its parent.
 Distinct from `BackfillScope` because the two name different storage: a backfill
 recomputes an entity from bronze, while a replay re-runs the current mapping against

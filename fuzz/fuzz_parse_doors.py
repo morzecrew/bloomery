@@ -20,7 +20,7 @@ Run it through the lane rather than directly::
     just fuzz parse_doors 60
 
 The two `band-*` seeds stay in the corpus as inputs the depth cap now refuses
-at load (S-0088/D-3)::
+(S-0088/D-3), each at its own door::
 
     just fuzz-repro parse_doors fuzz/fuzz_parse_doors_seed_corpus/band-recipe-expr
     just fuzz-repro parse_doors fuzz/fuzz_parse_doors_seed_corpus/band-step-body
@@ -28,9 +28,9 @@ at load (S-0088/D-3)::
 Both nest 51 deep. That was measured as the window between what one site could
 parse and what a site a few frames deeper could — sqlglot spends roughly 20
 frames per nesting level — and it is why the cap sits at 32: the first seed is
-refused by `SqlText` in `src/bloomery/spec/common.py` and the second by
-`_parse_body` in `src/bloomery/resolve/steps.py`, so neither reaches a re-parse
-site at all. They are kept because a cap raised back into that window is
+refused at load, by `SqlText` in `src/bloomery/spec/common.py`, and the second
+at compile, by `_parse_body` in `src/bloomery/resolve/steps.py`, so neither
+reaches a re-parse site at all. They are kept because a cap raised back into that window is
 what they would catch.
 """
 
