@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-03
+
 ### Added
 
 - **A late row reaches SQLMesh.** An `incremental_by_partition` entity at `scd: type1` may
@@ -44,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **Upgrade note.** A project that declares an owner on a mart, or on a metric the
   manifest emits, compiles a different `semantic_manifest.json`, so its manifest hash
   moves; a metric MetricFlow cannot serve is omitted, owner and all.
+
+- **`bloomery_ir_version` is 26 (it was 25 in 0.5.0).** `EntityIR` carries the declared
+  arrival lag, `None` where none is declared, so every project's fingerprint moves, and with
+  it the header of every artifact that carries one. An IR written by 0.5.0 is refused by
+  `plan()` and `ir_from_json` with the version mismatch message; recompile the project.
 
 ### Fixed
 
@@ -2407,7 +2414,8 @@ artifacts explicitly **not** stable across bloomery versions.
 - Documentation: get-started, concepts, how-to guides for every target and the planner,
   full spec/transform/error/API/stability references, and a runnable `examples/quickstart/`.
 
-[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/morzecrew/bloomery/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/morzecrew/bloomery/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/morzecrew/bloomery/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/morzecrew/bloomery/compare/v0.2.0...v0.3.0
