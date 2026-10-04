@@ -193,16 +193,19 @@ jobs:
         with:
           egress-policy: audit
 
+      # Checkout first: it cleans the workspace, and a `dist/` downloaded
+      # before it is gone by the time the release attaches `dist/*` (v0.6.0
+      # was published with no files).
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
       - name: Download package artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: python-package
           path: dist/
-
-      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
 
       - name: Compute version from tag
         id: ver
