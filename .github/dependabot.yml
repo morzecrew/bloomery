@@ -14,6 +14,10 @@ updates:
     cooldown:
       default-days: 7
       semver-major-days: 14
+      # The engine is this organization's own release, tagged from a reviewed
+      # main: a release is adopted on the next run, not a week later.
+      exclude:
+        - "torve"
 
     labels:
       - "dependencies"
