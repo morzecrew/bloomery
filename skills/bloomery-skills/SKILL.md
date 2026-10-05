@@ -20,8 +20,12 @@ Most tasks need three to five references; read the whole row. Find your task in 
 | Start a project | `mental-model` → `project-and-cli` → `catalog` → `entities` → `mappings-and-transforms` |
 | Bring in a new source | `entities` → `mappings-and-transforms` → `quality-rules` → `merge-sources` |
 | Build a mart and its metrics | `marts` → `metrics` → `guardrails-and-evidence` → `emit-semantic-layers` |
-| Ship to dbt | `emit-dbt` → `dialects` |
-| Ship to SQLMesh | `emit-sqlmesh` → `dialects` |
+| Ship to dbt | `emit-dbt` → `dialects` → `plan-a-change` |
+| Ship to SQLMesh | `emit-sqlmesh` → `dialects` → `plan-a-change` |
+| Change a spec already in production | `plan-a-change` → `history-and-reproduction` → `emit-dbt` |
+| Make a refused compile go green | `errors-and-refusals` → `guardrails-and-evidence` → `mappings-and-transforms` |
+| Answer a metric request at run time | `plan-a-metric-request` → `metrics` → `python-api` |
+| Compose two projects | `composition` → `guardrails-and-evidence` → `emit-dbt` |
 
 ## Index
 
@@ -57,9 +61,19 @@ Most tasks need three to five references; read the whole row. Find your task in 
 
 ### Change
 
+- [plan-a-change](references/plan-a-change.md) — change classes, renames, expand/contract, backfill and replay scope, the target's refresh
+- [history-and-reproduction](references/history-and-reproduction.md) — rebuild a past artifact set, trace a definition across versions
+- [lineage](references/lineage.md) — walk a node upstream or downstream, node ids, `id:`
+
 ### Consumption
 
+- [plan-a-metric-request](references/plan-a-metric-request.md) — structured requests to SQL, filters, row policies, refusals
+- [python-api](references/python-api.md) — load, compile and analyse from Python; transforms and emitters
+- [import-a-semantic-layer](references/import-a-semantic-layer.md) — relationships out of a MetricFlow manifest with `bloomery import`
+
 ### Running
+
+- [errors-and-refusals](references/errors-and-refusals.md) — exit codes, stages, `source_path`, common refusals, advisories
 
 ## Documentation versions
 
