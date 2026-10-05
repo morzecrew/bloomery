@@ -18,7 +18,10 @@ Most tasks need three to five references; read the whole row. Find your task in 
 | I want to… | Read, in order |
 |---|---|
 | Start a project | `mental-model` → `project-and-cli` → `catalog` → `entities` → `mappings-and-transforms` |
-| Bring in a new source | `entities` → `mappings-and-transforms` → `merge-sources` |
+| Bring in a new source | `entities` → `mappings-and-transforms` → `quality-rules` → `merge-sources` |
+| Build a mart and its metrics | `marts` → `metrics` → `guardrails-and-evidence` → `emit-semantic-layers` |
+| Ship to dbt | `emit-dbt` → `dialects` |
+| Ship to SQLMesh | `emit-sqlmesh` → `dialects` |
 
 ## Index
 
@@ -42,7 +45,15 @@ Most tasks need three to five references; read the whole row. Find your task in 
 
 ### Correctness
 
+- [guardrails-and-evidence](references/guardrails-and-evidence.md) — what a guardrail refused, what was proved, closing an open decision, `requires_evidence`
+- [quality-rules](references/quality-rules.md) — field and row rules, dispositions, dedupe, reject tables and replay, reconcile, the quality mart
+
 ### Targets
+
+- [emit-dbt](references/emit-dbt.md) — compile to dbt and run it: tests, `dbt build`, replay, schema changes
+- [emit-sqlmesh](references/emit-sqlmesh.md) — compile to SQLMesh and run it: model kinds, SCD2, audits, the fingerprint
+- [emit-semantic-layers](references/emit-semantic-layers.md) — the MetricFlow manifest and Cube over the marts
+- [dialects](references/dialects.md) — pick a warehouse dialect; types, capabilities and where ports differ
 
 ### Change
 
