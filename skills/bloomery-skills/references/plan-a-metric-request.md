@@ -4,7 +4,9 @@ Turn a structured request ("revenue by month for these countries") into SQL that
 correct at the requested grain, or a typed refusal when it cannot be. The planner renders
 through an embedded MetricFlow and executes nothing: you get SQL, its columns and its
 provenance, and running it is yours. Requests are served from wide marts, so the project
-needs a mart carrying each metric as a measure (see [marts](marts.md)).
+needs a mart carrying each stored measure a request reads; a ratio or `derived:` metric is
+answered from the marts carrying its inputs, aggregated on each and combined over the join
+(see [marts](marts.md)).
 
 ## From the command line
 
@@ -89,8 +91,10 @@ before refusing:
 ```
 
 What cannot cross raises `UnsupportedFilter` with a stable `.reason` from the closed list
-`KNOWN_UNSUPPORTED` (`$regex`, set relations, over-cap expansions, offsets and cursors).
-A malformed document (wrong shape, unknown `$op`) is `InvalidRequest` instead.
+`KNOWN_UNSUPPORTED` (`$regex` and other text operators, set relations, over-cap expansions).
+Offsets and cursors are not filters: `parse_page_json`, the pagination parser, refuses them
+from the same list as `unsupported_pagination`. A malformed document (wrong shape, unknown
+`$op`) is `InvalidRequest` instead.
 
 ## Row policies
 
@@ -116,11 +120,11 @@ disjunction cannot leak past the policy.
 | `QueryPlan` field | Carries |
 |---|---|
 | `sql` | SQL text, runnable as-is on the requested dialect |
-| `columns` | one `ColumnDescriptor(name, type, role)` per output column, in bloomery names |
+| `columns` | one `ColumnDescriptor` per output column: `name` (bloomery's vocabulary), `sql_alias` (what the SQL projects), `type`, `role`, optional `label`; bind rows by `sql_alias`, render `name` |
 | `mart`, `marts` | the serving mart; every mart read, one per branch across grains |
 | `warnings` | a clamped `limit`, a `time_grain` with nothing to apply to |
 | `explanation` | deterministic provenance; `explanation.render()` prints it |
-| `fingerprint` | `sha256(sql)`, a sound result-cache key |
+| `fingerprint` | `sha256(sql)`: identical requests over identical specs give the same value, so it identifies the query; a result cache keys on it together with the data's freshness |
 | `semantic` | the derivation: each step and the proof admitting it; `render()`, `proofs`, `serialize()` |
 
 ```text

@@ -1,15 +1,19 @@
 # Python API
 
 Load, compile and analyse a project from Python, and extend bloomery with a transform or
-a target. Everything public is importable from `bloomery` itself and listed in
-`bloomery.__all__`; import from the root, never from a subpackage. The library is pure:
+a target. Everything in `bloomery.__all__` is importable from `bloomery` itself; import
+those names from the root. Two families live one level down and are imported from there:
+the planner's request parsers (`parse_filter_json`, `parse_page_json`, `KNOWN_UNSUPPORTED`)
+in `bloomery.planner`, and the error leaves (`UnsupportedFilter` and every other subclass of
+`BloomeryError`) in `bloomery.errors`. The library is pure:
 strings in, values out. It reads no file, opens no connection and runs nothing. The CLI is
 a thin shell over exactly these functions and is the only part that touches a filesystem.
 
 ## Load
 
 Every function takes text you read. `load_project` takes a mapping of document name to
-YAML text. The name prefixes every error's source path, so use the filename stem:
+YAML text. The name prefixes every error's source path, so use the filename stem. Read
+`.yaml` and `.yml` alike, as the CLI does, and load the catalog on its own:
 
 ```python
 from pathlib import Path
@@ -17,13 +21,11 @@ from pathlib import Path
 from bloomery import load_catalog, load_project
 
 specs = Path("specs")
-sources = {
-    path.stem: path.read_text(encoding="utf-8")
-    for path in sorted(specs.glob("*.yaml"))
-    if path.name != "catalog.yaml"
-}
+documents = sorted(path for path in specs.iterdir() if path.suffix in {".yaml", ".yml"})
+sources = {path.stem: path.read_text(encoding="utf-8") for path in documents if path.stem != "catalog"}
 project = load_project(sources)
-catalog = load_catalog((specs / "catalog.yaml").read_text(encoding="utf-8"))
+catalog_path = next(path for path in documents if path.stem == "catalog")
+catalog = load_catalog(catalog_path.read_text(encoding="utf-8"))
 ```
 
 Each document identifies its kind by its version key. Every failure across every document
@@ -47,7 +49,7 @@ for artifact in artifacts:
 | Argument | Meaning |
 |---|---|
 | `target` | `Target.SQLMESH`, `DBT`, `METRICFLOW`, `CUBE`, or a registered emitter's name |
-| `dialect` | `"duckdb"`, `"trino"` or `"postgres"`; shapes SQL, never which artifacts exist |
+| `dialect` | `"bigquery"`, `"databricks"`, `"duckdb"`, `"postgres"`, `"redshift"`, `"snowflake"` or `"trino"`; shapes SQL, never which artifacts exist |
 | `naming` | a `NamingPolicy`; default `DefaultNaming()` gives `silver.<entity>`, `gold.mart_<name>` |
 | `catalog` | the `Catalog` the specs read against |
 | `steps` | the `StepRegistry` for a `steps:` document; refused without one |
@@ -70,7 +72,9 @@ byte-identical artifacts out. Write into a clean directory.
 | `MetricFlowPlanner(...).plan(ir, request, ...)` | SQL for a request; see [plan-a-metric-request](plan-a-metric-request.md) |
 
 `build_project_ir` runs the same resolution, typecheck and guardrails as
-`compile_project`: a spec that builds an IR is one that compiles, and a refusal raises.
+`compile_project`, and a refusal there raises. Emission can still refuse afterwards for a
+particular target or dialect: an unknown dialect, a pattern the dialect cannot carry, or a
+construct the target cannot express.
 `evaluate` **never raises for a spec refusal**; it returns what completed beside what
 refused:
 
@@ -101,7 +105,8 @@ metrics_schema = spec_json_schema(SpecKind.METRICS)
 every_schema = all_spec_schemas()
 ```
 
-The six kinds are `CATALOG`, `ENTITY_MODEL`, `MAPPING`, `MARTS`, `METRICS`, `STEPS`. Each
+The nine kinds are `CATALOG`, `ENTITY_MODEL`, `EXPORTS`, `EXPOSURES`, `IMPORTS`, `MAPPING`,
+`MARTS`, `METRICS`, `STEPS`. Each
 schema is generated from the parser's model, so an editor validating against it agrees
 with `load_project`. `bloomery schema --kind metrics --out schemas/` writes the same.
 

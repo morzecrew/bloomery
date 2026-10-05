@@ -85,7 +85,7 @@ no node named 'metric.gross_revenu' in this project's dependency graph. did you 
 ## Identity: `id:`
 
 `metric.<name>` makes the name the identity, so a rename deletes one node and adds
-another. Give a metric or step an `id:` and the name becomes a label:
+another. Give a metric, canonical field or step an `id:` and the name becomes a label:
 
 ```yaml fragment
 metrics:
@@ -116,8 +116,9 @@ not a list of paths**: each node appears once in `nodes` however many ways it is
 and every connection appears in `edges`. Path enumeration is exponential in the graph's
 width; walk the sub-DAG yourself if you need paths, with a budget.
 
-**An empty answer is an answer.** A source column has no upstream; a metric nothing
-composes has no downstream. Both return a one-node `Lineage` containing the root:
+**An empty answer is an answer.** A source column has no upstream; a metric no derived
+metric, mart or exposure reads has no downstream. Both return a one-node `Lineage`
+containing the root:
 
 ```text
 metric.order_count  (upstream)
