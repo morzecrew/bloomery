@@ -1423,10 +1423,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-nine-commands" class="md-nav__link">
+  <a href="#the-ten-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The nine commands
+        The ten commands
       </span>
     </span>
   </a>
@@ -1973,10 +1973,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-nine-commands" class="md-nav__link">
+  <a href="#the-ten-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The nine commands
+        The ten commands
       </span>
     </span>
   </a>
@@ -2223,7 +2223,7 @@ than "nothing unreachable".</p>
 <p>A project that wires a <code>steps:</code> document reports the unwired step here, because the CLI
 passes no registry — see <a href="#compiling">Steps are the one thing the CLI cannot wire</a> below.
 <code>bloomery compile</code> on the same project refuses for the same reason.</p>
-<h2 id="the-nine-commands">The nine commands<a class="headerlink" href="#the-nine-commands" title="Permanent link">&para;</a></h2>
+<h2 id="the-ten-commands">The ten commands<a class="headerlink" href="#the-ten-commands" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>bloomery compile     &lt;dir&gt; [--target sqlmesh] [--dialect duckdb] [--catalog F] [--out DIR]
                            [--emit-ir PATH] [--upstream ALIAS=PATH]
 bloomery plan        &lt;old-dir&gt; &lt;new-dir&gt; [--catalog F] [--format table|json]
@@ -2237,6 +2237,7 @@ bloomery explain     &lt;dir&gt; --metrics a,b [--by x,y] [--where JSON] [--grai
                            [--format table|json]
 bloomery schema      [--kind entity_model] [--out DIR]
 bloomery fingerprint &lt;dir&gt; [--catalog F]
+bloomery import      metricflow &lt;manifest&gt; &lt;dir&gt; [--entity MODEL=ENTITY]
 </code></pre></div>
 <p>Every command reads files, calls the public API, and writes stdout or a directory.
 Nothing is executed, nothing is cached, and there is no state anywhere.</p>
