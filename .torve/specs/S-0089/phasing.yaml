@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The skill's shell and its checks
+    intent: >-
+      `skills/README.md`, `skills/AUTHORING.md` and `skills/bloomery-skills/SKILL.md`
+      with its frontmatter, mental model, read-the-row rule, the versioned-docs note
+      and empty index sections. `tests/unit/test_skills.py` carries every structure,
+      link and example check, with its own fixtures proving each one fails, and passes
+      over the shell. Settles D-1 to D-7.
+    scope: [skills/**, tests/unit/test_skills.py]
+    acceptance:
+      - uv run pytest tests/unit/test_skills.py -q
+    character: structural
+  - phase: 2
+    title: Foundations and the spec references
+    intent: >-
+      The twelve references of the Foundations and Specs areas, written from the pages
+      the map names, each with checked examples, indexed in `SKILL.md`, with the routing
+      rows they complete (start a project, bring in a new source).
+    scope: [skills/**]
+    acceptance:
+      - uv run pytest tests/unit/test_skills.py -q
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: The correctness and target references
+    intent: >-
+      The six references of the Correctness and Targets areas, indexed, with the routing
+      rows they complete (build a mart and its metrics, ship to dbt, ship to SQLMesh).
+    scope: [skills/**]
+    acceptance:
+      - uv run pytest tests/unit/test_skills.py -q
+    depends_on:
+      - 2
+    character: routine
+  - phase: 4
+    title: The change, consumption and running references
+    intent: >-
+      The seven references of the Change, Consumption and Running areas, indexed,
+      with the remaining routing rows; the index now names all twenty-five and every
+      row resolves.
+    scope: [skills/**]
+    acceptance:
+      - uv run pytest tests/unit/test_skills.py -q
+    depends_on:
+      - 3
+    character: routine
+  - phase: 5
+    title: The census, and the install line in the docs
+    intent: >-
+      `skills/coverage.toml` and its test, reading the spec kinds, targets, CLI commands
+      and quality-rule kinds from bloomery. The installation page and the README gain
+      the install line, and the CHANGELOG an Added entry. Settles D-8. D-9's behavioural
+      check runs when this phase lands and is recorded with it.
+    scope:
+      - skills/coverage.toml
+      - tests/unit/test_skills.py
+      - pages/docs/get-started/installation.md
+      - README.md
+      - CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_skills.py tests/unit/test_docs_floor.py -q
+    depends_on:
+      - 4
+    character: structural

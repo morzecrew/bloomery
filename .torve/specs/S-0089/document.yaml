@@ -1,0 +1,186 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0089
+title: One agent skill teaches a bloomery project
+kind: design
+change:
+  type: feat
+  scope: skills
+status: draft
+implementation: none
+depends_on: [S-0010]
+informed_by: [S-0078]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  An agent asked to write a bloomery project has nothing written for it. The documentation is about 10,900 lines across 45 pages written for a person reading in order, so an agent either reads too little of it and writes specs the loader refuses, or reads far too much of it. forze solved the same problem for its own consumers with `forze-skills`: one published skill whose `SKILL.md` is a routing index over reference files read only when a task needs them, guarded by a checker.
+
+  bloomery publishes `skills/bloomery-skills/` on that model, installed with `npx skills add morzecrew/bloomery`. Its `SKILL.md` gives the mental model, the rule that a task needs a bundle of references and not one, a routing table keyed by task, and an index of 25 references, each covering one job. Unit tests keep it honest. Every spec example validates against the schema of its kind, and every Python and CLI example names something bloomery has. Every spec kind, emit target and CLI command is assigned to a reference or recorded as out of scope, and the index and the files agree.
+motivation: >-
+  The owner asked for it on 2026-10-05: bloomery is about to be used by people other
+  than its author, through agents, and forze-skills is the shape that worked. forze's
+  skills-consolidation design measured that shape. It replaced 21 skills (20 of 21
+  broke when installed alone, and about 1.1k tokens of descriptions were loaded into
+  every session) with one index over 43 references, and verified that a cold agent
+  given only the index reached every reference of all six task bundles. bloomery has
+  no skill at all, so it adopts the end state directly, with no migration.
+current_state: >-
+  The documentation lives in `pages/docs/` (get-started, concepts, how-to and reference)
+  and is published per version at `https://morzecrew.github.io/bloomery/`. The only
+  skills in the repository are the vendored engineering skills under `.agents/skills/`.
+  They are for people changing bloomery (S-0078/D-9 removed one), not for people using
+  it. `bloomery schema` exports a JSON Schema per spec kind (S-0010). `bloomery.__all__`
+  is the public surface (95 names), and the CLI has nine commands.
+goals: |-
+  - An agent writing a bloomery project reads the few references its task needs, not the whole documentation.
+  - Every spec, Python and CLI example in the skill is checked against the bloomery it ships with, so an example that stops working fails a test.
+  - A new spec kind, emit target or CLI command cannot ship without a decision about the skill.
+  - The skill installs into a consumer's repository with nothing in it that is not for the reader.
+non_goals: |-
+  - Teaching people who change bloomery. Contributor guidance stays in `AGENTS.md` and `.agents/skills/`.
+  - Several installable skills, or installing one reference alone. forze measured that this leaves dangling links.
+  - Generating references from the documentation. The documentation is narrative for a person; a reference is a procedure for an agent, and the routing bundles cannot be derived from either.
+  - A scheduled check that the published documentation links still resolve. It is added when the first one breaks.
+design:
+  - key: the-one-skill
+    md: >-
+      One published skill: the directory `skills/bloomery-skills/`, with frontmatter
+      `name: bloomery-skills` naming it the same. Its contents are `SKILL.md` and
+      `references/*.md`, and nothing else, because the installer copies the directory
+      recursively into the consumer's `.claude/skills/`. The maintainer rules (`skills/AUTHORING.md`),
+      the install instructions (`skills/README.md`) and the census table (`skills/coverage.toml`)
+      sit one level up, outside what ships. A reference links to other references
+      with plain relative links, and never outside the skill directory. Published
+      documentation is linked as `https://morzecrew.github.io/bloomery/latest/<page>/`,
+      with `latest` and a trailing slash. `SKILL.md` notes once how to swap `latest`
+      for a pinned minor.
+  - key: the-index-is-the-product
+    md: |-
+      `SKILL.md` holds the frontmatter description, the mental model in four sentences, the rule "most tasks need three to five references; read the whole row", a routing table keyed by task, and an index of every reference grouped by area. The routing table at acceptance:
+
+      | I want to… | Read, in order |
+      |---|---|
+      | Start a project | `mental-model` → `project-and-cli` → `catalog` → `entities` → `mappings-and-transforms` |
+      | Bring in a new source | `entities` → `mappings-and-transforms` → `quality-rules` → `merge-sources` |
+      | Build a mart and its metrics | `marts` → `metrics` → `guardrails-and-evidence` → `emit-semantic-layers` |
+      | Ship to dbt | `emit-dbt` → `dialects` → `plan-a-change` |
+      | Ship to SQLMesh | `emit-sqlmesh` → `dialects` → `plan-a-change` |
+      | Change a spec already in production | `plan-a-change` → `history-and-reproduction` → `emit-dbt` |
+      | Make a refused compile go green | `errors-and-refusals` → `guardrails-and-evidence` → `mappings-and-transforms` |
+      | Answer a metric request at run time | `plan-a-metric-request` → `metrics` → `python-api` |
+      | Compose two projects | `composition` → `guardrails-and-evidence` → `emit-dbt` |
+  - key: the-reference-map
+    md: |-
+      Twenty-five references, one job each, written from the pages named. A reference must stand alone, never splits a procedure, and runs 60 to 250 lines. A shorter file records why in `AUTHORING.md`.
+
+      | Area | Reference | Job | Written from |
+      |---|---|---|---|
+      | Foundations | `mental-model` | The spec kinds and how they meet, the compile pipeline and the IR, determinism, what bloomery proves and what a target is | introduction, compile-pipeline, determinism, specs-and-catalog, what-bloomery-proves |
+      | Foundations | `project-and-cli` | Install, lay out a spec directory, the nine commands, exit codes, `--format json`, checking in CI | installation, quickstart, use-the-cli |
+      | Specs | `catalog` | Declare the vertical's domain graph | specs-and-catalog, spec-schemas |
+      | Specs | `entities` | Declare an entity: key, sources, SCD type, materialization, retention and arrival lag, dedupe, the key audit | spec-schemas |
+      | Specs | `mappings-and-transforms` | Map source fields through transform chains; casts, parses, currency, custom transforms | spec-schemas, transforms |
+      | Specs | `merge-sources` | Merge several sources into one entity | merge-sources |
+      | Specs | `resolve-identities` | Resolve identities across sources with the identity step | resolve-identities |
+      | Specs | `metrics` | Declare measures and metrics: additivity, derived, ratios, filters | specs-and-catalog, spec-schemas |
+      | Specs | `marts` | Declare a wide mart: base, joins, flatten, historical anchors, the current reading, role-playing | wide-marts, spec-schemas |
+      | Specs | `steps-and-macros` | Write a step or a macro: the ladder, SQL bodies, the nesting limit, `runtime_lock` | step-registry, spec-schemas |
+      | Specs | `exposures-and-annotations` | Declare exposures; annotate with owner, classification and grants | declare-an-exposure, annotate-a-spec |
+      | Specs | `composition` | Compose projects: exports, imports, upstream fingerprints, how imported facts grade | use-the-cli, emit-dbt, emit-sqlmesh |
+      | Correctness | `guardrails-and-evidence` | Read what a guardrail refused, what was proved, and close an OPEN decision; `requires_evidence` | guardrails, what-bloomery-proves, close-an-open-decision |
+      | Correctness | `quality-rules` | Field and row rules, dispositions, reject tables and replay, reconcile, the quality mart | data-quality, add-quality-rules |
+      | Targets | `emit-dbt` | Compile to dbt and run it, including replay and schema changes | emit-dbt |
+      | Targets | `emit-sqlmesh` | Compile to SQLMesh and run it, including audits and SCD2 | emit-sqlmesh |
+      | Targets | `emit-semantic-layers` | Emit the MetricFlow manifest and Cube | emit-cube, wide-marts |
+      | Targets | `dialects` | Pick a warehouse dialect and know where the dialects differ | dialects |
+      | Change | `plan-a-change` | Plan a spec change: change classes, renames, expand/contract, backfill and replay scope, the target's refresh | evolve-a-spec, emit-dbt |
+      | Change | `history-and-reproduction` | Trace a definition over time and rebuild a past artifact set | trace-a-definition-over-time, reproduce-a-past-artifact-set |
+      | Change | `lineage` | Walk a node's lineage upstream or downstream | trace-lineage |
+      | Consumption | `plan-a-metric-request` | Plan and explain a metric request, with row policies | plan-a-metric-request |
+      | Consumption | `python-api` | Load, compile and analyse from Python; the extension points | api |
+      | Consumption | `import-a-semantic-layer` | Bring an existing semantic layer in | import-a-semantic-layer |
+      | Running | `errors-and-refusals` | Read a refusal, its `source_path` and its fix; diagnose how far a spec got | errors, evaluate-a-spec |
+
+      The map belongs to this document. Adding or removing a reference amends it, in the same change that creates or deletes the file.
+  - key: every-example-is-checked
+    md: |-
+      `tests/unit/test_skills.py` runs in the ordinary battery and checks:
+      - **Structure.** The frontmatter is present, the index and the reference files
+        agree in both directions, every bundle in the routing table resolves to indexed
+        references, and line counts fall within bounds. Nothing under
+        `skills/bloomery-skills/` is not `SKILL.md` or a reference.
+
+      - **Links.** Every relative link resolves and none leaves the skill directory.
+        Every published link carries the `latest` segment and a trailing slash.
+
+      - **Examples.**
+
+        - A `yaml` block that carries its kind's version key (`spec_version:`,
+          `mapping_version:` and the rest) validates against the JSON Schema
+          `bloomery schema` exports for that kind. Any other `yaml` block must still
+          parse.
+
+        - A `python` block parses, and every name it imports from `bloomery` is in
+          `bloomery.__all__`.
+
+        - A `bloomery …` line in a shell block names a command and flags the CLI
+          accepts.
+
+      An example that stops working therefore fails the build, not a reader.
+  - key: the-census
+    md: >-
+      `skills/coverage.toml` assigns every census unit either a reference that shows
+      it in a checked example, or out of scope with a written reason. The census units
+      are every spec kind `bloomery schema` knows, every emit target, every CLI command
+      and every quality-rule kind. The test reads the units from bloomery itself,
+      not from the file. A unit missing from the table fails, as does a covered unit
+      whose reference holds no checked example naming it. A new kind, target or command
+      therefore cannot ship without someone deciding what the skill says about it.
+  - key: the-routing-works
+    md: >-
+      The one check the tests cannot make: for each row of the routing table, a cold
+      agent given only `SKILL.md` and a task from that row opens every reference the
+      row names. This is measured once, when the skill lands, by recording the files
+      each agent opened rather than asking it. The result goes in the landing's execution
+      record. A row added later adds a case.
+tests: |-
+  - Removing a reference file, or adding one the index does not name, fails the parity check, and so does a routing-table row naming a reference not in the index.
+  - A spec block with a field its kind's schema lacks fails; an unrelated YAML fragment that parses passes.
+  - A Python block importing a name absent from `bloomery.__all__` fails, and so does a shell line naming a CLI flag that does not exist.
+  - A relative link out of `skills/bloomery-skills/`, and a published link without `latest`, each fail.
+  - A file other than `SKILL.md` or a reference under `skills/bloomery-skills/`, such as an `AGENTS.md` written by a projection, fails.
+  - A spec kind or CLI command added in a test with no census entry fails; one covered in the table but shown in no checked example fails.
+docs: >-
+  `pages/docs/get-started/installation.md` and the README gain the install line `npx
+  skills add morzecrew/bloomery` and say what the skill is for. `skills/README.md`
+  states the install and the routing table for a person; `skills/AUTHORING.md` holds
+  the maintainer rules: audience, splitting, links, the census, and how the map changes.
+out_of_scope: ''
+risks: |-
+  - Routing by an index is model judgment where the harness's description matcher was mechanical, and an agent that reads one reference when its task needed three writes confidently incomplete specs. The bundles and the stated read-the-row rule reduce this without removing it, which is why the routing is measured once by behaviour.
+  - The skill and the documentation describe the same things, and the prose of one can drift from the other. The example checks and the census catch an example that no longer works and a surface nobody wrote down. They do not catch a sentence that has gone stale; review does.
+  - Links use `latest`, which is the newest release. Between releases the skill on `main` may describe behaviour `latest` does not have yet. The skill is installed from the repository's default branch, so an adopter pinned to an older bloomery reads newer advice.
+  - Twenty-five references at 60 to 250 lines is about 4,000 lines of new writing, most of it condensing pages that already exist. It is spread over four phases so each is reviewable.
+alternatives:
+  - option: One skill per area, each installable alone
+    rejected_because: >-
+      forze shipped that shape and measured it: 20 of its 21 skills had dangling links
+      when installed alone, and every session paid for every description
+  - option: >-
+      Point agents at the published documentation, or an llms.txt of it
+    rejected_because: >-
+      that is the narrative for a person, read over the network, with no bundles and
+      no check that its examples still load
+  - option: >-
+      Generate the references from the documentation pages
+    rejected_because: >-
+      a page and a job are different units; generation would split procedures across
+      files or pack several jobs into one, and the routing bundles cannot be generated
+questions:
+  - id: Q-1
+    text: >-
+      Retrieval (`RetrievalSpec`, vectors and encoder identities) has a concept page
+      and no reference in this map. The draft records it in the census as out of scope
+      until a project outside bloomery's own examples declares one. Should it get
+      a reference now?

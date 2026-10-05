@@ -1,0 +1,118 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      bloomery publishes one agent skill, `skills/bloomery-skills/` with frontmatter
+      `name: bloomery-skills`, installed by `npx skills add morzecrew/bloomery`. It
+      holds `SKILL.md` and `references/*.md` only. The maintainer rules, install instructions
+      and census table sit at `skills/`, outside what ships
+    paths: [skills/README.md, skills/AUTHORING.md, tests/unit/test_skills.py]
+    consequence: >-
+      a consumer installs one name, and nothing for maintainers reaches their `.claude/skills/`
+    rationale: >-
+      the installer copies the skill directory recursively, and forze measured that
+      installing one of several cross-linked skills leaves its links dangling
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The skill is for people and agents writing a bloomery project: specs, compiling,
+      planning, quality, targets and the Python API. Changing bloomery itself is not
+      taught there
+    paths: [skills/AUTHORING.md]
+    consequence: >-
+      contributor guidance stays in `AGENTS.md` and `.agents/skills/`, and the skill
+      never tells a reader to read `src/`
+    rationale: >-
+      the two audiences need different things, and a skill that serves both ships
+      maintainer detail to every adopter
+    cites: [S-0078/D-9]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `SKILL.md` is a routing index: the mental model, the rule that a task needs
+      its whole row, a routing table keyed by task naming every reference the task
+      needs, and an index of every reference
+    paths: [skills/AUTHORING.md, tests/unit/test_skills.py]
+    consequence: >-
+      an agent reads three to five references for a task, not one and not twenty-five
+    rationale: >-
+      routing by index trades the harness's description matching for model judgment,
+      and the way that judgment fails is reading one file and stopping
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A reference covers one job, never splits a procedure, stands alone, and runs
+      60 to 250 lines; a shorter one records its reason in `AUTHORING.md`
+    paths: [skills/AUTHORING.md, tests/unit/test_skills.py]
+    consequence: >-
+      a reference answers its task without a second file for context, and no reference
+      is a narrative chapter
+    rationale: >-
+      forze's measured bounds; its two 300-to-450-line files did many jobs and cost
+      every cross-link their full size
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The reference map in this document's design is the file set; adding or removing
+      a reference amends this document in the same change that creates or deletes
+      the file
+    paths: [skills/AUTHORING.md, tests/unit/test_skills.py]
+    consequence: >-
+      a reference cannot appear or vanish without a reviewed amendment, and the parity
+      check makes that enforceable
+    rationale: >-
+      the index is what an agent routes by, so its file set is a design decision,
+      not an editing detail
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      A reference links between references with relative links that never leave the
+      skill directory. It links the published documentation as `https://morzecrew.github.io/bloomery/latest/<page>/`
+    paths: [skills/AUTHORING.md, tests/unit/test_skills.py]
+    consequence: >-
+      every link works in a consumer's checkout, and none hits the 404 the docs give
+      a URL with no version segment
+    rationale: >-
+      an installed skill lives outside this repository, and the docs are versioned
+      with mike
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      `tests/unit/test_skills.py` checks examples. A YAML block carrying its kind's
+      version key validates against that kind's exported JSON Schema, and any other
+      YAML block parses. A Python block parses and imports only names in `bloomery.__all__`.
+      A `bloomery` shell line names a command and flags the CLI accepts
+    paths: [tests/unit/test_skills.py]
+    consequence: >-
+      an example that stops working fails the battery the day it stops
+    rationale: >-
+      an agent copies examples, so a stale example is the skill's most expensive defect;
+      the schemas and `__all__` already define what is valid
+    cites: [S-0010/D-1]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      `skills/coverage.toml` gives every spec kind, emit target, CLI command and quality-rule
+      kind either a reference that shows it in a checked example or out of scope with
+      a reason. The test reads the units from bloomery and fails on a missing entry
+      or a covered unit with no example
+    paths: [skills/coverage.toml, tests/unit/test_skills.py]
+    consequence: >-
+      a new kind, target or command cannot land without a decision about what the
+      skill says about it
+    rationale: >-
+      naming something in prose proves nothing a test can see; a checked example does
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      When the skill lands, every routing-table row is verified once by behaviour:
+      a cold agent given only `SKILL.md` and a task from that row opens every reference
+      the row names. The opened files are observed and recorded in the landing's execution
+      record
+    paths: [skills/AUTHORING.md]
+    consequence: >-
+      the routing table is known to work, not assumed to, and a later row adds a case
+    rationale: >-
+      the routing is the risk this shape concentrates, and no unit test can judge
+      it
