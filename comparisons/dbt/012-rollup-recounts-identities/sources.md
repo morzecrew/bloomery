@@ -16,7 +16,7 @@ Version-pinned and checkable offline, which is what makes it the primary citatio
 | the commands a dbt Core user has | `dbt/cli/main.py` — `build`, `compile`, `list`, `parse`, `run`, `show`, `test` and the rest |
 
 ```
-python -c "import importlib.metadata as m; print(m.version('dbt-core'))"     # 1.12.3
+python -c "import importlib.metadata as m; print(m.version('dbt-core'))"     # 1.12.5
 python -c "import importlib.metadata as m; print(m.version('dbt-duckdb'))"   # 1.11.0
 ```
 

@@ -1,7 +1,7 @@
 # dbt Core × 009-null-denominator
 
-- **System:** dbt Core `1.12.3`, with the `dbt-duckdb` `1.11.0` adapter against DuckDB `1.5.5`.
-- **Checked:** 2026-09-18.
+- **System:** dbt Core `1.12.5`, with the `dbt-duckdb` `1.11.0` adapter against DuckDB `1.5.5`.
+- **Checked:** 2026-10-05.
 - **Feature set:** a dbt project — `sources:`, models, and the `semantic_models:` and
   `metrics:` blocks dbt parses into its manifest (`dbt/contracts/graph/unparsed.py`), here
   measures, a categorical dimension, `simple` metrics and two `ratio` metrics, one of them
@@ -45,7 +45,7 @@ The two numbers in `observed.txt` therefore come from **models this project's au
 The probe is the last line, and it is the one place this column differs from MetricFlow's at
 the version each pins. `fill_nulls_with: 0` on a ratio metric's denominator — the key
 MetricFlow `0.213.0` accepted in the same position, changing nothing — is refused by dbt Core
-`1.12.3`'s parser:
+`1.12.5`'s parser:
 
 ```text
 Parsing Error: at path ['type_params']['denominator']:
@@ -62,7 +62,7 @@ That is the `declared` row. Both the inclusive and the restricted readings were 
 renders a metric, so both are `CUSTOM` rather than `NATIVE-PLAN`.
 
 It does **not** support any statement about dbt beyond this configuration and this version —
-in particular, the probe says what dbt Core `1.12.3`'s parser does with `fill_nulls_with` in
+in particular, the probe says what dbt Core `1.12.5`'s parser does with `fill_nulls_with` in
 the denominator position of a `ratio` metric, and nothing about the key elsewhere or at
 another version. It says nothing about dbt Core with `dbt-metricflow` installed, or about the
 dbt Semantic Layer service: neither was run here.
