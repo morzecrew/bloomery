@@ -1,7 +1,7 @@
 # dbt Core × 006-two-grains-one-request
 
-- **System:** dbt Core `1.12.3`, with the `dbt-duckdb` `1.11.0` adapter against DuckDB `1.5.5`.
-- **Checked:** 2026-09-29.
+- **System:** dbt Core `1.12.5`, with the `dbt-duckdb` `1.11.0` adapter against DuckDB `1.5.5`.
+- **Checked:** 2026-10-05.
 - **Feature set:** a dbt project — `sources:`, models, and the `semantic_models:` and
   `metrics:` blocks dbt parses into its manifest (`dbt/contracts/graph/unparsed.py`), here two
   semantic models at their own grains (`order` and `order_line`, joined by a `foreign` entity),
