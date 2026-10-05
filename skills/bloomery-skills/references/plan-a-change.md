@@ -101,8 +101,9 @@ migration = plan(
 ```
 
 A rename restates nothing, so there is no backfill. What it breaks is everything that
-spells the old name. The report lists what in the project cited it (metrics, marts,
-rollups, exposures) under "what cited the old name"; dashboards, saved queries and runbooks
+spells the old name. For a renamed **metric**, the report lists what in the project cited it
+(metrics, marts, rollups, exposures) under "what cited the old name"; other renames carry no citation
+list; dashboards, saved queries and runbooks
 outside the project are not in that list and need their own search. An `id:`
 minted only on the new side is a delete and an add. A renamed **canonical field** always
 reads as a drop plus an add.

@@ -96,9 +96,10 @@ fx_rates:
 **Annotate every monetary field.** The guardrails check only what is declared. At `+` and
 `-`: two declared, different units are refused (`UnitMismatch`), net and gross may not meet,
 and an operand with no `tax_basis` beside a monetary one is refused (`TaxBasisMismatch`).
-A field with no `unit` passes the unit rule unchecked. Two different currencies may not
-meet in any arithmetic (`CurrencyMismatch`): declare a converted field in the target
-currency instead and convert in the mapping.
+A field with no `unit` passes the unit rule unchecked. Two operands that each declare one
+currency, and different ones, may not meet in any arithmetic (`CurrencyMismatch`); an operand
+whose currency is undeclared or mixed (a `COALESCE` over two currencies) passes unchecked.
+Declare a converted field in the target currency instead and convert in the mapping.
 
 ## Recipes
 

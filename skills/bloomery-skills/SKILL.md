@@ -25,7 +25,7 @@ Most tasks need three to five references; read the whole row. Find your task in 
 | Change a spec already in production | `plan-a-change` → `history-and-reproduction` → `emit-dbt` or `emit-sqlmesh`, whichever the project runs on |
 | Make a refused compile go green | `errors-and-refusals` → `guardrails-and-evidence` → `mappings-and-transforms` |
 | Answer a metric request at run time | `plan-a-metric-request` → `metrics` → `python-api` |
-| Compose two projects | `composition` → `guardrails-and-evidence` → `emit-dbt` or `emit-sqlmesh`, whichever the project runs on |
+| Compose two projects | `composition` → `guardrails-and-evidence` → `emit-dbt`, `emit-sqlmesh` or `emit-semantic-layers`, whichever the project runs on |
 
 ## Index
 

@@ -3,7 +3,7 @@
 Load, compile and analyse a project from Python, and extend bloomery with a transform or
 a target. Everything in `bloomery.__all__` is importable from `bloomery` itself; import
 those names from the root. Two families live one level down and are imported from there:
-the planner's request parsers (`parse_filter_json`, `parse_page_json`, `KNOWN_UNSUPPORTED`)
+the planner's request parsers (`parse_filter_json`, `parse_page_json`, `parse_sort_json`, `KNOWN_UNSUPPORTED`)
 in `bloomery.planner`, and the error leaves (`UnsupportedFilter` and every other subclass of
 `BloomeryError`) in `bloomery.errors`. The library is pure:
 strings in, values out. It reads no file, opens no connection and runs nothing. The CLI is
@@ -13,7 +13,8 @@ a thin shell over exactly these functions and is the only part that touches a fi
 
 Every function takes text you read. `load_project` takes a mapping of document name to
 YAML text. The name prefixes every error's source path, so use the filename stem. Read
-`.yaml` and `.yml` alike, as the CLI does, and load the catalog on its own:
+`.yaml` and `.yml` alike, as the CLI does, and load the catalog on its own (with both
+`catalog.yaml` and `catalog.yml` present, the CLI takes the last in sorted order, `.yml`):
 
 ```python
 from pathlib import Path
@@ -21,10 +22,10 @@ from pathlib import Path
 from bloomery import load_catalog, load_project
 
 specs = Path("specs")
-documents = sorted(path for path in specs.iterdir() if path.suffix in {".yaml", ".yml"})
+documents = sorted(path for path in specs.iterdir() if path.is_file() and path.suffix in {".yaml", ".yml"})
 sources = {path.stem: path.read_text(encoding="utf-8") for path in documents if path.stem != "catalog"}
 project = load_project(sources)
-catalog_path = next(path for path in documents if path.stem == "catalog")
+catalog_path = next(path for path in reversed(documents) if path.stem == "catalog")
 catalog = load_catalog(catalog_path.read_text(encoding="utf-8"))
 ```
 
@@ -49,7 +50,7 @@ for artifact in artifacts:
 | Argument | Meaning |
 |---|---|
 | `target` | `Target.SQLMESH`, `DBT`, `METRICFLOW`, `CUBE`, or a registered emitter's name |
-| `dialect` | `"bigquery"`, `"databricks"`, `"duckdb"`, `"postgres"`, `"redshift"`, `"snowflake"` or `"trino"`; shapes SQL, never which artifacts exist |
+| `dialect` | a built-in, `"bigquery"`, `"databricks"`, `"duckdb"`, `"postgres"`, `"redshift"`, `"snowflake"` or `"trino"`, or a name registered with `bloomery.dialects.register_dialect`; shapes SQL, never which artifacts exist |
 | `naming` | a `NamingPolicy`; default `DefaultNaming()` gives `silver.<entity>`, `gold.mart_<name>` |
 | `catalog` | the `Catalog` the specs read against |
 | `steps` | the `StepRegistry` for a `steps:` document; refused without one |
@@ -164,8 +165,9 @@ artifacts = compile_project(project, target="lakehouse_yaml", dialect="trino")
 
 ## Stability
 
-The names in `bloomery.__all__` are the public surface. Any type in a public signature is
-exported from the root too, so nothing needs a deep import. A name absent from `__all__` is
-internal and may change in any release, as may a handle's fields.
+The names in `bloomery.__all__`, and in each subpackage's `__all__` (`bloomery.planner`,
+`bloomery.errors`, `bloomery.dialects` and the rest), are the public surface. Any type in a
+public signature is exported from the root too, so nothing needs a deep import. A name in
+no `__all__` is internal and may change in any release, as may a handle's fields.
 
 Documentation: [API reference](https://morzecrew.github.io/bloomery/latest/reference/api/).

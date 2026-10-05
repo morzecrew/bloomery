@@ -102,9 +102,12 @@ compile refuses with `IngestionMetadataMissing`.
 | `on_fail: fail` | a blocking audit stops the run |
 | `on_fail: repair` | a registered step rewrites the value, recorded in `_quality_repairs`; a row it does not fix takes the rule's `fallback` |
 
-`repair` names its recipe beside it, a step declared in a StepSet (see
-[steps-and-macros](steps-and-macros.md)), and a `fallback` that cannot itself be `repair`.
-It is refused on `coercible`, `unique` and row rules, which have no value in hand to rewrite:
+`repair` names its recipe beside it, a registered Tier 1 `sql_macro` given as
+`ref@version` (registered in the `StepRegistry`, see [steps-and-macros](steps-and-macros.md)),
+and a `fallback` that cannot itself be `repair`. It is refused on three rules, each for its
+own reason: `coercible` fires after the cast has already lost the bad value, `unique` is a
+property of the population that no rewrite of one row can fix, and a row rule names no
+column to rewrite:
 
 ```yaml fragment
 - rule: charset
