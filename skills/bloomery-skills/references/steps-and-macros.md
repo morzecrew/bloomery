@@ -48,7 +48,7 @@ outputs:
       started_at: {type: timestamp}
       event_count: {type: int}
 parameters:
-  gap_minutes: {type: int, default: 30, min: 1, max: 240}
+  min_events: {type: int, default: 1, min: 1, max: 1000}
 lineage: column
 ```
 
@@ -66,7 +66,7 @@ steps:
   - use: dedupe_sessions@2
     inputs: {events: silver.event}
     outputs: {session: silver.session}
-    parameters: {gap_minutes: 45}
+    parameters: {min_events: 2}
     canonical:
       session: {event_count: session_events}
     quality:
@@ -93,19 +93,22 @@ based on it.
 
 ## A SQL body and its parameters
 
-A Tier 2 body (and a Tier 1 body) uses `:name` placeholders. Each is replaced by a literal
-node, never text, so a parameter cannot carry SQL.
+A Tier 2 body uses `:name` placeholders for its parameters, and reads its inputs by the
+relations the wiring binds: the body is emitted as written, so `FROM` names the bound
+relation, not the input's name. Each placeholder is replaced by a literal node, never text,
+so a parameter cannot carry SQL.
 
 ```sql
 SELECT session_id, MIN(event_at) AS started_at, COUNT(*) AS event_count
-FROM events
+FROM silver.event
 GROUP BY session_id
-HAVING MAX(gap) <= :gap_minutes
+HAVING COUNT(*) >= :min_events
 ```
 
-The body's placeholders and the parameters must be the same set: an undeclared `:x`, a
-declared parameter with no default and no wiring, and a parameter the body never uses are
-each compile errors. A `variant` parameter cannot be substituted; pass a scalar and cast.
+A `sql_model` body's placeholders and its resolved parameters must be the same set: an
+undeclared `:x`, a declared parameter with no default and no wiring, and a parameter the
+body never uses are each compile errors. A `variant` parameter cannot be substituted; pass
+a scalar and cast. A `sql_macro` body's placeholders are its `accepts` names instead (below).
 
 ## Macros (Tier 1)
 

@@ -104,6 +104,11 @@ kind: python_model
 entrypoint: platform_steps.resolve_customers:resolve
 determinism: pure
 runtime_lock: sha256:a91f
+inputs:
+  crm: {grain: customer_source_row, requires: [source_system, source_id, email]}
+  billing: {grain: customer_source_row, requires: [source_system, source_id, email]}
+parameters:
+  threshold: {type: decimal, default: 0.85, min: 0.5, max: 1.0}
 outputs:
   customer:
     grain: customer
@@ -141,9 +146,10 @@ version the registry does not hold is `UnknownStep`, naming the versions it does
 What comes out: the two mapped sources as ordinary silver models with
 `<entity>_key_unique` audits, one generated Python wrapper per output
 (`models/silver/customer.py`, `models/silver/customer_xref.py`), the quality audit, and a
-`references` audit proving every `canonical_id` in the crosswalk exists in `customer`. Each
-output is its own model, so the step runs once per output; that audit is what catches a step
-misdeclared as `pure`.
+`references` audit that fails when a non-NULL `canonical_id` in the crosswalk has no row in
+`customer`. Each output is its own model, so the step runs once per output, and a step
+misdeclared as `pure` can mint ids in one run that the other never did; that audit catches
+those dangling ids. It checks nothing else the two runs might disagree on.
 
 ## Reading the result
 

@@ -93,10 +93,12 @@ fx_rates:
 | `description` | no | carried into semantic-layer emissions |
 | `recipes` | no | alternative derivation paths, ordered by reliability |
 
-**Annotate every monetary field.** A field without `unit` is `unknown`, and `unknown` in
-additive arithmetic is a compile error. Net and gross may not meet in one expression, and
-two different currencies may not either (`CurrencyMismatch`): declare a converted field in
-the target currency instead and convert in the mapping.
+**Annotate every monetary field.** The guardrails check only what is declared. At `+` and
+`-`: two declared, different units are refused (`UnitMismatch`), net and gross may not meet,
+and an operand with no `tax_basis` beside a monetary one is refused (`TaxBasisMismatch`).
+A field with no `unit` passes the unit rule unchecked. Two different currencies may not
+meet in any arithmetic (`CurrencyMismatch`): declare a converted field in the target
+currency instead and convert in the mapping.
 
 ## Recipes
 
@@ -143,10 +145,11 @@ some entity field's `canonical:`.
 
 bloomery owns the calendar, and defines it here once. `start_year` and `end_year` are
 required and inclusive; `name` defaults to `dim_date` and `grain` to `day` (the only grain).
-One definition emits both the `gold.dim_date` model and the MetricFlow time spine pointing
-at it. Any project with marts needs one: marts declare date roles, and metrics over time
-(`offset:`, `cumulative:`) resolve against it. A SQLMesh compile also takes its
-`model_defaults.start` from `start_year`.
+One definition emits the `gold.dim_date` model on SQLMesh and dbt and the MetricFlow time
+spine pointing at it. A MetricFlow compile of a project with marts is refused without one
+(`EmitError`: MetricFlow needs the spine for `metric_time`); SQLMesh, dbt and Cube compile
+without it and emit no calendar. A SQLMesh compile also takes its `model_defaults.start`
+from `start_year`.
 
 ## Exchange rates
 
@@ -155,7 +158,8 @@ name and the columns for `from`, `to`, `rate`, `valid_from` and `valid_to`. Both
 ends are required, and no two roles may name the same column. Without `fx_rates`, a
 `convert` transform in a mapping is refused at emit with `UnsupportedByTarget`. The
 operator guarantees that intervals for one currency pair do not overlap and that a rate
-exists for every pair and date converted; a miss converts to `NULL`.
+exists for every pair and date converted; a miss converts to `NULL`. To stop the run on a
+miss, give each converted field `{rule: not_null, on_fail: fail}` in its mapping.
 
 ## Loading it from Python
 

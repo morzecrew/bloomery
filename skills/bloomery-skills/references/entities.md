@@ -19,7 +19,7 @@ entities:
     fields:
       order_id: {type: string, required: true}
       customer_id: {type: string}
-      total_amount: {type: "decimal(12,2)", canonical: amount}
+      total_amount: {type: "decimal(12,2)"}
       order_date: {type: date, assert: {not_null: true}}
       status: {type: string, assert: {enum: [placed, paid, refunded]}}
   order_item:
@@ -93,7 +93,9 @@ be `type2`.
 ## Materialization
 
 **bloomery derives defaults; it never infers intent.** With `partition_by` set the default
-is `incremental_by_partition`, otherwise `full`. Write `materialization:` to override.
+is `incremental_by_partition`, otherwise `full`. Write `materialization:` to override. An
+`scd: type2` entity takes the target's SCD form whatever `materialization:` says: SQLMesh's
+`SCD_TYPE_2_BY_COLUMN` kind, and a dbt snapshot.
 
 ```yaml spec=entity_model
 spec_version: 1
@@ -127,11 +129,13 @@ There is no default, because reject rows hold raw source payloads.
 ```yaml fragment
 quarantine:
   retention: 90d
-  redact: ["$.customer.email"]
+  redact: ["$.operator_note"]
 ```
 
-Durations take `h`, `d` or `w`; months and years are refused. `redact` strips JSON paths
-from stored payloads, and may not name a path the mapping reads (`RedactionConflict`).
+Durations take `h`, `d` or `w`; months and years are refused. `redact` removes whole
+top-level bronze columns from stored payloads: a path's first segment names the column, so
+`$.customer.email` strips all of `customer`, siblings included. A redacted column may hold
+no path the mapping reads (`RedactionConflict`).
 
 ## Dedupe
 
@@ -155,8 +159,9 @@ under `unmapped:`; otherwise `IngestionMetadataMissing`.
 A declared `key:` is a `LOCKED` premise: every proof that a mart holds one row per key
 rests on it. Because uniqueness is a property of data the compiler cannot see, an entity
 with a key and **no** `dedupe:` gets a generated blocking audit, `<entity>_key_unique`, that
-stops the run when two rows share a key. With `dedupe:`, duplicates are resolved instead and
-the audit is not emitted.
+stops the run when two rows share a key: among current versions (`valid_to IS NULL`) on an
+`scd: type2` entity, among all rows otherwise. With `dedupe:`, duplicates are resolved
+instead and the audit is not emitted.
 
 ## Relationships
 
