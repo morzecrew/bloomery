@@ -116,3 +116,17 @@ decisions:
     rationale: >-
       the routing is the risk this shape concentrates, and no unit test can judge
       it
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      Retrieval (`RetrievalSpec`, vectors and encoder identities) gets no reference
+      yet: the census records it out of scope, with the trigger that a project outside
+      bloomery's own examples declares a `RetrievalSpec`, and that trigger adds the
+      reference by amendment
+    paths: [skills/coverage.toml]
+    consequence: >-
+      the first skill covers what adopters write today, and retrieval cannot be forgotten,
+      because the census names it and the condition that brings it in
+    rationale: >-
+      no adopter declares retrieval yet, and a reference written before one does is
+      written without the questions an adopter would ask

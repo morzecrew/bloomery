@@ -5,7 +5,7 @@ kind: design
 change:
   type: feat
   scope: skills
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0010]
 informed_by: [S-0078]
@@ -184,3 +184,5 @@ questions:
       and no reference in this map. The draft records it in the census as out of scope
       until a project outside bloomery's own examples declares one. Should it get
       a reference now?
+    status: settled
+    settled_by: D-10
