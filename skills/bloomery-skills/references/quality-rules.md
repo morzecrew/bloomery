@@ -100,6 +100,18 @@ compile refuses with `IngestionMetadataMissing`.
 | `on_fail: flag` | passes, the rule's name appended to `_quality_flags` |
 | `on_fail: quarantine` | moves to `<entity>__reject`, replayable |
 | `on_fail: fail` | a blocking audit stops the run |
+| `on_fail: repair` | a registered step rewrites the value, recorded in `_quality_repairs`; a row it does not fix takes the rule's `fallback` |
+
+`repair` names its recipe beside it, a step declared in a StepSet (see
+[steps-and-macros](steps-and-macros.md)), and a `fallback` that cannot itself be `repair`.
+It is refused on `coercible`, `unique` and row rules, which have no value in hand to rewrite:
+
+```yaml fragment
+- rule: charset
+  forbid: [U+200B, U+FFFD]
+  on_fail: repair
+  repair: {via: strip_invisible@1, fallback: quarantine}
+```
 
 There is no `drop`: quarantine and let retention delete. When a row fails several rules,
 `fail` beats `quarantine` beats `flag`, and every failed rule is still recorded

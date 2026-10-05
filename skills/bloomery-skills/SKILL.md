@@ -22,10 +22,10 @@ Most tasks need three to five references; read the whole row. Find your task in 
 | Build a mart and its metrics | `marts` → `metrics` → `guardrails-and-evidence` → `emit-semantic-layers` |
 | Ship to dbt | `emit-dbt` → `dialects` → `plan-a-change` |
 | Ship to SQLMesh | `emit-sqlmesh` → `dialects` → `plan-a-change` |
-| Change a spec already in production | `plan-a-change` → `history-and-reproduction` → `emit-dbt` |
+| Change a spec already in production | `plan-a-change` → `history-and-reproduction` → `emit-dbt` or `emit-sqlmesh`, whichever the project runs on |
 | Make a refused compile go green | `errors-and-refusals` → `guardrails-and-evidence` → `mappings-and-transforms` |
 | Answer a metric request at run time | `plan-a-metric-request` → `metrics` → `python-api` |
-| Compose two projects | `composition` → `guardrails-and-evidence` → `emit-dbt` |
+| Compose two projects | `composition` → `guardrails-and-evidence` → `emit-dbt` or `emit-sqlmesh`, whichever the project runs on |
 
 ## Index
 

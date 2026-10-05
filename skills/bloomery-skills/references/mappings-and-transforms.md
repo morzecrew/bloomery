@@ -20,11 +20,7 @@ fields:
     recipe: from_total
     from: {line_total: "$.total", quantity: "$.qty"}
   quantity: {from: "$.qty", transform: [to_int]}
-  sku: {from: "$.variant.sku", transform: [trim, upper]}
-  placed_at:
-    from: "$.created_at"
-    transform: [{parse_ts: ISO8601}, {to_utc: Europe/Paris}]
-unmapped: ["$.extensions"]
+unmapped: ["$.extensions", "$.variant", "$.created_at"]
 ```
 
 | Key | Required | Meaning |

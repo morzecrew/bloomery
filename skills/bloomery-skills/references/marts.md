@@ -164,7 +164,8 @@ statutory_revenue:
 
 Metrics on different marts can be requested together: each is aggregated on its own mart
 and the results joined on a shared dimension, when every requested dimension is the *same
-source column* on every branch. Otherwise the request is refused as `UnreachableAtGrain`;
+source column at the same ref* on every branch: a date role's buckets are distinct refs, so
+`ordered_month` joins only `ordered_month`, never `order_date` or another role's month. Otherwise the request is refused as `UnreachableAtGrain`;
 the fix is usually to flatten the dimension onto every mart involved.
 
 ## Published pages

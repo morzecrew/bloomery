@@ -57,9 +57,10 @@ $ bloomery plan deployed/ proposed/ --catalog catalog.yaml
 
 ### What gets emitted
 
-dbt gets `models/exposures.yml` (metric dependencies written as `ref()` on the marts that
-serve them, metric names kept under `meta:`). Cube and SQLMesh get nothing, and nothing is
-refused. Nothing is discovered: an exposure is declared and hand-maintained, and a
+dbt gets `models/exposures.yml`: each entry writes `kind` as dbt's `type`, the owner as
+`owner.email`, and one flat `depends_on` list of `ref()`s, a metric dependency lowered to the
+marts that serve it, with the metric names kept under `meta.bloomery_metrics`. Cube and
+SQLMesh get no exposure artifact, and that omission is not refused. Nothing is discovered: an exposure is declared and hand-maintained, and a
 dashboard deleted in the BI tool leaves a declaration nothing refutes.
 
 ## The three annotations

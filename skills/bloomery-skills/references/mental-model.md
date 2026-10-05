@@ -98,7 +98,9 @@ is why:
 - the compiler **never chooses**: a mapping records which catalog recipe it uses, and the
   compiler validates the choice rather than making one;
 - defaults are derived and visible, never inferred from intent;
-- every artifact carries a `blm1:` fingerprint header, a hash of the compiled IR.
+- every artifact whose format admits a comment carries a `blm1:` fingerprint header, a hash
+  of the compiled IR; the MetricFlow and retrieval JSON manifests carry none, since a
+  comment would make them invalid JSON.
 
 The fingerprint answers "did the compiled meaning change?". It is not stable across
 bloomery versions and is not a migration key: specs are durable, fingerprints and
