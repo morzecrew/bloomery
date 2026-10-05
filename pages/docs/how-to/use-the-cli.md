@@ -58,7 +58,7 @@ A project that wires a `steps:` document reports the unwired step here, because 
 passes no registry — see [Steps are the one thing the CLI cannot wire](#compiling) below.
 `bloomery compile` on the same project refuses for the same reason.
 
-## The nine commands
+## The ten commands
 
 ```text
 bloomery compile     <dir> [--target sqlmesh] [--dialect duckdb] [--catalog F] [--out DIR]
@@ -74,6 +74,7 @@ bloomery explain     <dir> --metrics a,b [--by x,y] [--where JSON] [--grain mont
                            [--format table|json]
 bloomery schema      [--kind entity_model] [--out DIR]
 bloomery fingerprint <dir> [--catalog F]
+bloomery import      metricflow <manifest> <dir> [--entity MODEL=ENTITY]
 ```
 
 Every command reads files, calls the public API, and writes stdout or a directory.
