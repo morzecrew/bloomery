@@ -40,7 +40,7 @@ entities:
     key: [order_id]
     fields:
       order_id: {type: string, required: true}
-      amount: {type: "decimal(12,2)", canonical: amount}
+      amount: {type: "decimal(12,2)"}
 ```
 
 ```yaml spec=mapping
