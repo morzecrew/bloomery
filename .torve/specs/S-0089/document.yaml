@@ -31,10 +31,11 @@ current_state: >-
   skills in the repository are the vendored engineering skills under `.agents/skills/`.
   They are for people changing bloomery (S-0078/D-9 removed one), not for people using
   it. `bloomery schema` exports a JSON Schema per spec kind (S-0010). `bloomery.__all__`
-  is the public surface (95 names), and the CLI has nine commands.
+  is the public surface (95 names), and the CLI has ten commands; `use-the-cli.md`
+  still lists nine, missing `import`.
 goals: |-
   - An agent writing a bloomery project reads the few references its task needs, not the whole documentation.
-  - Every spec, Python and CLI example in the skill is checked against the bloomery it ships with, so an example that stops working fails a test.
+  - Every example in the skill is checked against the bloomery it ships with: a spec that no longer validates, or an import, command or flag that no longer exists, fails a test.
   - A new spec kind, emit target or CLI command cannot ship without a decision about the skill.
   - The skill installs into a consumer's repository with nothing in it that is not for the reader.
 non_goals: |-
@@ -77,7 +78,7 @@ design:
       | Area | Reference | Job | Written from |
       |---|---|---|---|
       | Foundations | `mental-model` | The spec kinds and how they meet, the compile pipeline and the IR, determinism, what bloomery proves and what a target is | introduction, compile-pipeline, determinism, specs-and-catalog, what-bloomery-proves |
-      | Foundations | `project-and-cli` | Install, lay out a spec directory, the nine commands, exit codes, `--format json`, checking in CI | installation, quickstart, use-the-cli |
+      | Foundations | `project-and-cli` | Install, lay out a spec directory, the ten commands, exit codes, `--format json`, checking in CI | installation, quickstart, use-the-cli |
       | Specs | `catalog` | Declare the vertical's domain graph | specs-and-catalog, spec-schemas |
       | Specs | `entities` | Declare an entity: key, sources, SCD type, materialization, retention and arrival lag, dedupe, the key audit | spec-schemas |
       | Specs | `mappings-and-transforms` | Map source fields through transform chains; casts, parses, currency, custom transforms | spec-schemas, transforms |
@@ -99,7 +100,7 @@ design:
       | Change | `lineage` | Walk a node's lineage upstream or downstream | trace-lineage |
       | Consumption | `plan-a-metric-request` | Plan and explain a metric request, with row policies | plan-a-metric-request |
       | Consumption | `python-api` | Load, compile and analyse from Python; the extension points | api |
-      | Consumption | `import-a-semantic-layer` | Bring an existing semantic layer in | import-a-semantic-layer |
+      | Consumption | `import-a-semantic-layer` | Bring an existing semantic layer in with `bloomery import` | import-a-semantic-layer |
       | Running | `errors-and-refusals` | Read a refusal, its `source_path` and its fix; diagnose how far a spec got | errors, evaluate-a-spec |
 
       The map belongs to this document. Adding or removing a reference amends it, in the same change that creates or deletes the file.
@@ -116,10 +117,11 @@ design:
 
       - **Examples.**
 
-        - A `yaml` block that carries its kind's version key (`spec_version:`,
-          `mapping_version:` and the rest) validates against the JSON Schema
-          `bloomery schema` exports for that kind. Any other `yaml` block must still
-          parse.
+        - Every `yaml` block declares itself on its fence. `yaml spec=<kind>` validates
+          against the JSON Schema `bloomery schema` exports for that kind, so a spec
+          missing its version key fails rather than slipping through. `yaml fragment`
+          must parse and must not validate as a complete spec of any kind, so the marker
+          cannot opt a whole spec out. An undeclared `yaml` block fails.
 
         - A `python` block parses, and every name it imports from `bloomery` is in
           `bloomery.__all__`.
@@ -127,7 +129,7 @@ design:
         - A `bloomery …` line in a shell block names a command and flags the CLI
           accepts.
 
-      An example that stops working therefore fails the build, not a reader.
+      A spec that no longer validates, or an import, command or flag that no longer exists, therefore fails the build, not a reader. A Python example is parsed and its imports resolved, not run: a call to a method that no longer exists is review's to catch.
   - key: the-census
     md: >-
       `skills/coverage.toml` assigns every census unit either a reference that shows
@@ -142,11 +144,12 @@ design:
       The one check the tests cannot make: for each row of the routing table, a cold
       agent given only `SKILL.md` and a task from that row opens every reference the
       row names. This is measured once, when the skill lands, by recording the files
-      each agent opened rather than asking it. The result goes in the landing's execution
-      record. A row added later adds a case.
+      each agent opened rather than asking it. The cases, one task per row, and the
+      observed result sit in `skills/AUTHORING.md`, which phase 5 writes. A row added
+      later adds a case.
 tests: |-
   - Removing a reference file, or adding one the index does not name, fails the parity check, and so does a routing-table row naming a reference not in the index.
-  - A spec block with a field its kind's schema lacks fails; an unrelated YAML fragment that parses passes.
+  - A `yaml spec=<kind>` block with a field its kind's schema lacks, or missing its version key, fails; a `yaml fragment` block that parses passes, one that validates as a whole spec fails, and an undeclared `yaml` block fails.
   - A Python block importing a name absent from `bloomery.__all__` fails, and so does a shell line naming a CLI flag that does not exist.
   - A relative link out of `skills/bloomery-skills/`, and a published link without `latest`, each fail.
   - A file other than `SKILL.md` or a reference under `skills/bloomery-skills/`, such as an `AGENTS.md` written by a projection, fails.
@@ -162,6 +165,7 @@ risks: |-
   - The skill and the documentation describe the same things, and the prose of one can drift from the other. The example checks and the census catch an example that no longer works and a surface nobody wrote down. They do not catch a sentence that has gone stale; review does.
   - Links use `latest`, which is the newest release. Between releases the skill on `main` may describe behaviour `latest` does not have yet. The skill is installed from the repository's default branch, so an adopter pinned to an older bloomery reads newer advice.
   - Twenty-five references at 60 to 250 lines is about 4,000 lines of new writing, most of it condensing pages that already exist. It is spread over four phases so each is reviewable.
+  - A Python example is parsed and its imports resolved, not executed, so a call to a renamed method passes the battery. Running examples needs a project for each to run against; review carries that gap until a broken call is reported.
 alternatives:
   - option: One skill per area, each installable alone
     rejected_because: >-

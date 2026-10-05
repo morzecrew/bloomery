@@ -53,11 +53,14 @@ phasing:
       `skills/coverage.toml` and its test, reading the spec kinds, targets, CLI commands
       and quality-rule kinds from bloomery. The installation page and the README gain
       the install line, and the CHANGELOG an Added entry. Settles D-8 and D-10, with
-      retrieval recorded out of scope and its trigger. D-9's behavioural check runs
-      when this phase lands and is recorded with it.
+      retrieval recorded out of scope and its trigger. `skills/AUTHORING.md` gains
+      the routing-verification section: one task per routing row and what counts as
+      reaching the row. The check runs when this phase lands, and its observed result
+      is recorded there, which settles D-9.
     scope:
       - skills/coverage.toml
       - tests/unit/test_skills.py
+      - skills/AUTHORING.md
       - pages/docs/get-started/installation.md
       - README.md
       - CHANGELOG.md

@@ -542,10 +542,10 @@ A reference links between references with relative links that never leave the sk
 
 ### S-0089/D-7 — `ASSUMED` (One agent skill teaches a bloomery project) — implementation: none
 
-`tests/unit/test_skills.py` checks examples. A YAML block carrying its kind's version key validates against that kind's exported JSON Schema, and any other YAML block parses. A Python block parses and imports only names in `bloomery.__all__`. A `bloomery` shell line names a command and flags the CLI accepts
+`tests/unit/test_skills.py` checks examples. Every YAML block declares itself on its fence: `yaml spec=<kind>` validates against that kind's exported JSON Schema, and `yaml fragment` parses and validates as no complete spec. A Python block parses and imports only names in `bloomery.__all__`. A `bloomery` shell line names a command and flags the CLI accepts
 
 - Paths: `tests/unit/test_skills.py`
-- Consequence: an example that stops working fails the battery the day it stops
+- Consequence: a spec that no longer validates, or an import, command or flag that no longer exists, fails the battery the day it changes; a Python example's calls are not executed
 
 ### S-0089/D-8 — `ASSUMED` (One agent skill teaches a bloomery project) — implementation: none
 
