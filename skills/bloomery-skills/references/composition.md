@@ -75,7 +75,7 @@ bloomery compile downstream/ --target dbt --upstream platform=/tmp/platform.json
 
 | Target | Imported relation spelled as | Obligation |
 |---|---|---|
-| dbt | `{{ ref('ecom_platform', 'order_item') }}` plus a `dependencies.yml` listing the project | the upstream must export a `name`, or the dbt compile is refused |
+| dbt | `{{ ref('ecom_platform', 'order_item') }}` plus a `dependencies.yml` listing the project | the upstream must export a `name`, or the dbt compile is refused; its exported entities and marts are emitted `access: public`, except an SCD2 entity, whose snapshot takes no `access` and which dbt cannot reference across projects |
 | SQLMesh | the relation name directly | both projects compiled under the same naming policy |
 | Cube, MetricFlow | read the downstream's marts | same naming policy, since they read relations the policy names |
 

@@ -26,7 +26,9 @@ Downstream metrics
 ```
 
 The breaking count is the number to decide on; the rest is context. `--format json` emits
-the same value the Python call returns. Exit code `1` means a refusal (one of the two raises
+the same value `plan()` returns when it is given both sides' `node_labels` (see
+[Renames](#renames)); the bare call below reports a metric or step rename as a drop plus an
+add. Exit code `1` means a refusal (one of the two raises
 below, or a side that does not compile), not "there are breaking changes".
 
 From Python:
@@ -98,8 +100,10 @@ migration = plan(
 )
 ```
 
-A rename restates nothing, so there is no backfill. What it breaks is every document that
-spells the old name, and the report lists them under "what cited the old name". An `id:`
+A rename restates nothing, so there is no backfill. What it breaks is everything that
+spells the old name. The report lists what in the project cited it (metrics, marts,
+rollups, exposures) under "what cited the old name"; dashboards, saved queries and runbooks
+outside the project are not in that list and need their own search. An `id:`
 minted only on the new side is a delete and an add. A renamed **canonical field** always
 reads as a drop plus an add.
 

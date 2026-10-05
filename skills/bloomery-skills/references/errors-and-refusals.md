@@ -3,7 +3,9 @@
 When bloomery says no, it says where and why. This reference covers reading a refusal: its
 class, its `source_path`, the fix it names; diagnosing how far a spec got before it was
 refused; and telling a refusal from a usage error, an internal error and an advisory.
-Every failure derives from `BloomeryError`, so one `except BloomeryError` catches them all.
+Every refusal the library raises derives from `BloomeryError`, so one `except BloomeryError`
+catches them all. A CLI usage error (code `2`) is not one: it belongs to the command line
+and is about the invocation, not the spec.
 
 ## First: which exit code
 
@@ -12,9 +14,11 @@ Every failure derives from `BloomeryError`, so one `except BloomeryError` catche
 | `0` | success | |
 | `1` | a **refusal**: bloomery read the spec and said no, with a reason and a path | the spec's |
 | `2` | a **usage error**: a missing path, an unknown flag, a mistyped `--target` or `--dialect`, bad `--where` JSON | the invocation's |
-| `3` | an **internal error**, including `InvariantViolated` | bloomery's: report it |
+| `3` | an **internal error**: an unexpected exception, printed with its traceback | bloomery's: report it |
 
 Never treat `1` as "fine with warnings". A pipeline branching on the code stops on it.
+`InvariantViolated` derives from `BloomeryError`, so the CLI exits `1` for it as for a
+refusal; its class name says it is bloomery's fault, not the spec's.
 
 ## Diagnose how far a spec got
 
@@ -154,7 +158,10 @@ Some findings are legal, compile correctly, and are still worth knowing. They ar
 | `undeclared_audience` | a mart publishes a `pii` or `secret` column with no `grants:` saying who reads it |
 | `inexact_division` | a catalog recipe's `expr:` divides in floating point; use a `divide`/`multiply` chain |
 
-Anything that could make a number wrong is a refusal, never an advisory.
+Anything bloomery can show makes a number wrong is a refusal, never an advisory. The one
+advisory that bears on a value is `inexact_division`: its floating-point division is
+narrowed back to the declared decimal, and values needing more than ~15 significant digits
+can still round.
 
 Documentation: [errors](https://morzecrew.github.io/bloomery/latest/reference/errors/),
 [assess a spec](https://morzecrew.github.io/bloomery/latest/how-to/evaluate-a-spec/).

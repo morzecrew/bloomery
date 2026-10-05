@@ -26,7 +26,7 @@ the spec. Fix the spec; never look for a knob.
 
 | Refusal | What the spec got wrong | Usual fix |
 |---|---|---|
-| `UnitMismatch` | `+`/`-` over different units, or over a field whose unit is `unknown` | link the field to a catalog canonical with a `unit` |
+| `UnitMismatch` | `+`/`-` over operands whose declared units differ; an operand with no declared unit is not unit-checked | derive a shared-unit operand first, or link the fields to canonicals with compatible `unit` |
 | `TaxBasisMismatch` | `net` meets `gross`, or `unknown` meets money, in `+`/`-` | link the field to a canonical carrying `tax_basis` |
 | `CurrencyMismatch` | two *declared* different currencies meet | convert into a column the catalog declares in one currency (needs `fx_rates:`) |
 | `GrainMismatch` | a derivation mixes grains with no aggregation | aggregate or allocate explicitly, or declare it on the coarser entity |
@@ -48,8 +48,10 @@ how extensive quantities work).
 `SUM(num) / NULLIF(SUM(den), 0)` guards a zero *total*. A row with a zero denominator
 still contributes its numerator, so bloomery refuses a ratio until you say which answer
 you mean. A denominator that counts rows over a required column needs nothing; otherwise
-restrict both operands identically, declare the denominator positive with a
-`quarantine` or `fail` rule, or say the zeros belong in the answer:
+restrict both operands identically **to rows whose denominator column is not zero**
+(`filter: [{dimension: <column>, op: gt, values: [0]}]` on each), declare the denominator
+positive with a `quarantine` or `fail` rule, or say the zeros belong in the answer.
+Identical filters that leave the zero rows in do not discharge it:
 
 ```yaml fragment
 cost_per_parcel:
@@ -95,8 +97,9 @@ Evidence (2 locked, 2 assumed)
 and unknown facts never close an obligation: a refusal can mean "unsafe" or "no rule
 covers this yet", and both come out as a refusal rather than a guess.
 
-A declared entity `key:` is a `LOCKED` premise, and the build checks it: an entity with
-a key and no `dedupe:` gets a blocking `<entity>_key_unique` audit.
+A declared entity `key:` is a `LOCKED` premise, and the SQLMesh and dbt targets check it:
+an entity with a key and no `dedupe:` gets a blocking `<entity>_key_unique` audit there.
+Cube and MetricFlow emit no audits, so nothing checks the key on those targets.
 
 ## Requiring declared evidence
 

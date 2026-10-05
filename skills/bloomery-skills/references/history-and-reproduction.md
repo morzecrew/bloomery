@@ -46,28 +46,38 @@ for artifact in artifacts:
 
 A project with a `steps:` document needs the step registry that was in force, passed as
 `steps=registry`; without it the compile refuses (*"no step 'resolve_customers' is
-registered, and the registry is empty"*). Reproducing means reproducing the manifests too.
+registered, and the registry is empty"*). A project with `imports:` needs the upstream IRs
+that were in force, passed as `upstream={alias: ir}` to both calls; without them it refuses
+with `UnknownUpstream`. Reproducing means reproducing the manifests and the upstreams too.
 
-From the command line, a fetched directory fingerprints the same way:
+From the command line, a fetched directory fingerprints the same way, unless it imports:
+`bloomery fingerprint` takes no `--upstream`, so an importing project fingerprints from
+Python.
 
 ```console
 $ bloomery fingerprint march/          # reads march/catalog.yaml if present
 ```
 
-**Compare.** Matching fingerprints mean the definitions did not move and the number came
-from the data. Differing ones mean the specs changed, and `plan()` says what:
+**Compare.** Matching fingerprints mean the project IR did not move: look for the cause in
+the data and in what ran the artifacts (target, dialect, deployment). Differing ones mean
+the IR moved. The fingerprint covers each upstream's fingerprint too, so it also moves on an
+upstream-only change, which `plan()` does not report: `plan()` lists this project's own
+changes. Give it the earlier IR first:
 
 ```python
 from bloomery import build_project_ir, load_project, plan
 
-report = plan(build_project_ir(load_project(march), catalog), ir)
+earlier = build_project_ir(load_project(march_sources), catalog)
+later = build_project_ir(load_project(june_sources), catalog)
+report = plan(earlier, later)  # old first, new second; nothing checks the order
 for change in report.changes:
     print(change.change_class.value, change.subject)
 ```
 
-Same specs and the same bloomery reproduce the same bytes on any machine. A fingerprint
-compared across bloomery versions is meaningless, not merely noisy. And March's
-definitions run against today's data: this is not time travel for the warehouse.
+The same compile inputs (specs, catalog, target, dialect, step registry, upstream IRs) and
+the same bloomery reproduce the same bytes on any machine. A fingerprint compared across
+bloomery versions is meaningless, not merely noisy. And March's definitions run against
+today's data: this is not time travel for the warehouse.
 
 ## Trace one definition over time
 
@@ -102,9 +112,10 @@ $ bloomery timeline q1/ q2/ q3/ --node metric.gross_revenue
 $ bloomery timeline history/*/ --node metric.gross_revenue --format json
 ```
 
-The command passes no step registry and reads directories only: a project wiring `steps:`,
-or a history held in git revisions or a table, needs the Python form, with
-`SpecVersion(..., steps=registry)` per version.
+The command passes no step registry and no upstream IRs, and reads directories only: a
+project wiring `steps:` or `imports:`, or a history held in git revisions or a table, needs
+the Python form, with `SpecVersion(..., steps=registry, upstream={alias: ir})` per version.
+Without the upstreams an importing version refuses with `UnknownUpstream`.
 
 **bloomery never sorts the history.** Order is positional; a reversed history gives a
 reversed timeline and no complaint. Every version is compiled, so start coarse (one per
@@ -114,8 +125,9 @@ answer "between these two", never "April".
 ## Reading a timeline
 
 - `entries`: one row per version supplied, present or absent; an absence keeps its place.
-- `changes`: one row per adjacent pair whose definition differs. A node that never moved
-  has empty `changes`, and that is the answer. A gap (deleted, then added) produces no change.
+- `changes`: one row per adjacent pair in which a definition in the node's upstream closure
+  differs. It is empty only when nothing in that closure moved, and then that is the answer.
+  A gap (deleted, then added) produces no change.
 - `change.node`: the node that moved, often not the one asked about. The walk covers the
   node's **upstream closure**, so a metric whose own text never moved still reports the
   field beneath it whose recipe changed.
