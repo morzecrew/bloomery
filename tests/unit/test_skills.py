@@ -25,6 +25,7 @@ import re
 import shlex
 from functools import cache
 from pathlib import Path
+from textwrap import indent
 
 import pytest
 import yaml
@@ -47,7 +48,7 @@ DOCS = "https://morzecrew.github.io/bloomery/"
 LATEST = DOCS + "latest/"
 SHELLS = {"console", "shell", "bash", "sh"}
 
-_FENCE = re.compile(r"^```(?P<lang>[\w-]*)(?P<info>[^`]*)$")
+_FENCE = re.compile(r"^(?P<indent> *)(?P<fence>`{3,})(?P<lang>[\w-]*)(?P<info>[^`]*)$")
 _LINK = re.compile(r"\[[^\]]*\]\((?P<target>[^)\s]+)\)")
 _INDEXED = re.compile(r"\]\(references/(?P<name>[\w-]+)\.md\)")
 _ROUTED = re.compile(r"`(?P<name>[\w-]+)`")
@@ -69,7 +70,11 @@ def _section(text: str, heading: str) -> str:
 
 
 def _blocks(text: str) -> list[tuple[int, str, list[str], str]]:
-    """Every fenced block as ``(line, language, info words, body)``."""
+    """Every fenced block as ``(line, language, info words, body)``.
+
+    A fence may be indented (inside a list item) or longer than three backticks;
+    it closes on a fence at least as long, and its body loses the opener's indent.
+    """
     blocks = []
     lines = text.splitlines()
     index = 0
@@ -80,9 +85,11 @@ def _blocks(text: str) -> list[tuple[int, str, list[str], str]]:
             continue
         start = index
         index += 1
+        closer = re.compile(rf" *`{{{len(opened['fence'])},}} *")
         body = []
-        while index < len(lines) and lines[index] != "```":
-            body.append(lines[index])
+        while index < len(lines) and not closer.fullmatch(lines[index]):
+            line = lines[index]
+            body.append(line[min(len(opened["indent"]), len(line) - len(line.lstrip(" "))) :])
             index += 1
         blocks.append((start + 1, opened["lang"], opened["info"].split(), "\n".join(body)))
         index += 1
@@ -91,7 +98,7 @@ def _blocks(text: str) -> list[tuple[int, str, list[str], str]]:
 
 def _without_code(text: str) -> str:
     """The text with fenced blocks removed: a link inside an example is the example's."""
-    return re.sub(r"^```.*?^```$", "", text, flags=re.M | re.S)
+    return re.sub(r"^ *(`{3,}).*?^ *\1`* *$", "", text, flags=re.M | re.S)
 
 
 # ....................... #
@@ -426,6 +433,11 @@ BREAKS = {
     ),
     # Examples
     "an undeclared yaml block": lambda s: _example(s, f"```yaml\n{_CLEAN_SPEC}```"),
+    "an undeclared indented yaml block": lambda s: _example(s, "- item\n\n  ```yaml\n  colour: red\n  ```"),
+    "an undeclared four-backtick yaml block": lambda s: _example(s, f"````yaml\n{_CLEAN_SPEC}````"),
+    "an invalid indented spec": lambda s: _example(
+        s, "- item\n\n" + indent(f"```yaml spec=mapping\n{_CLEAN_SPEC}colour: red\n```", "  ")
+    ),
     "a spec with a field its kind lacks": lambda s: _example(s, f"```yaml spec=mapping\n{_CLEAN_SPEC}colour: red\n```"),
     "a spec missing its version key": lambda s: _example(
         s, "```yaml spec=mapping\n" + _CLEAN_SPEC.replace("mapping_version: 1\n", "") + "```"
