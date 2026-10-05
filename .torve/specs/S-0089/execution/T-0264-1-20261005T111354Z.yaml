@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0264
+base: 3735a46a8cc41b6cd754fcb64ecbb4b9d9b55f08
+commit: 71018c315dc9b95280bbc8720beabf4a8988092a
+at: '2026-10-05T11:13:54Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+entries:
+  - decision: D-7
+    grade: ASSUMED
+    class: drift
+    at: '2026-10-05T11:04:36Z'
+    claim: >-
+      review claim held: _blocks only matched column-0 three-backtick fences, so indented
+      or four-backtick yaml blocks escaped the D-7 check; fences now match any indent
+      and 3+ backticks, closing on a fence at least as long
+    evidence: >-
+      tests/unit/test_skills.py:51 — _FENCE now allows leading spaces and `{3,}; three
+      new BREAKS cases (indented undeclared, four-backtick undeclared, indented invalid
+      spec) go red against the old regex
+    action: decided
