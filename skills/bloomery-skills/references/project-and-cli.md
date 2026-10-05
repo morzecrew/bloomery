@@ -119,13 +119,13 @@ stage but `complete` the counts are a prefix, and `Unreachable (0)` means "never
 A refusal is a correct outcome, so never retry on `1`. Branch on the code:
 
 ```bash
-if ! bloomery compile specs/ --out out/; then
-  case $? in
-    1) echo "spec refused; fix the spec" ;;
-    2) echo "bad invocation" ;;
-    3) echo "bloomery bug; report it" ;;
-  esac
-fi
+bloomery compile specs/ --out out/
+case $? in
+  0) ;;
+  1) echo "spec refused; fix the spec" ;;
+  2) echo "bad invocation" ;;
+  3) echo "bloomery bug; report it" ;;
+esac
 ```
 
 ## Scripting with `--format json`
