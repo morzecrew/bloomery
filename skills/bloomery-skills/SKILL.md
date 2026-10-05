@@ -17,12 +17,28 @@ Most tasks need three to five references; read the whole row. Find your task in 
 
 | I want to… | Read, in order |
 |---|---|
+| Start a project | `mental-model` → `project-and-cli` → `catalog` → `entities` → `mappings-and-transforms` |
+| Bring in a new source | `entities` → `mappings-and-transforms` → `merge-sources` |
 
 ## Index
 
 ### Foundations
 
+- [mental-model](references/mental-model.md) — what a project is, how its documents meet, what a compile does
+- [project-and-cli](references/project-and-cli.md) — install, spec layout, the ten commands, exit codes, scripting
+
 ### Specs
+
+- [catalog](references/catalog.md) — canonical fields, recipes, metric templates, the date dimension
+- [entities](references/entities.md) — grain, key, typed fields, relationships, history
+- [mappings-and-transforms](references/mappings-and-transforms.md) — map a bronze source onto an entity with transform chains and recipes
+- [merge-sources](references/merge-sources.md) — several mappings on one entity over a shared key space
+- [resolve-identities](references/resolve-identities.md) — match records across systems with no shared key, as a Tier 3 step
+- [metrics](references/metrics.md) — additivity, ratios, derived, cumulative, semi-additive, filters
+- [marts](references/marts.md) — wide marts, flatten steps, date roles, history, rollups, required evidence
+- [steps-and-macros](references/steps-and-macros.md) — the tier ladder, manifests, wiring, SQL parameters, macros, `runtime_lock`
+- [exposures-and-annotations](references/exposures-and-annotations.md) — consumers, `owner:`, `classification:`, `grants:`
+- [composition](references/composition.md) — exports, imports, compiling against an upstream IR, evidence across the boundary
 
 ### Correctness
 
