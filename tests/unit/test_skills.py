@@ -406,7 +406,9 @@ def _example(skill: Path, block: str) -> None:
 
 BREAKS = {
     # Structure
-    "no frontmatter": lambda s: _replace(_skill_md(s), "name: bloomery-skills\n", ""),
+    "no frontmatter": lambda s: _replace(
+        _skill_md(s), "---\nname: bloomery-skills\ndescription: A fixture.\n---\n", ""
+    ),
     "wrong frontmatter name": lambda s: _replace(_skill_md(s), "name: bloomery-skills", "name: other"),
     "a stray file ships": lambda s: (s / "AGENTS.md").write_text("# managed\n", encoding="utf-8"),
     "a nested directory ships": lambda s: (s / "references" / "deep").mkdir()
