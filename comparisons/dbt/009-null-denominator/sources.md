@@ -17,7 +17,7 @@ Version-pinned and checkable offline, which is what makes it the primary citatio
 | the commands a dbt Core user has | `dbt/cli/main.py` — `build`, `compile`, `list`, `parse`, `run`, `show`, `test` and the rest |
 
 ```
-python -c "import importlib.metadata as m; print(m.version('dbt-core'))"     # 1.12.3
+python -c "import importlib.metadata as m; print(m.version('dbt-core'))"     # 1.12.5
 python -c "import importlib.metadata as m; print(m.version('dbt-duckdb'))"   # 1.11.0
 ```
 
@@ -40,7 +40,7 @@ names the absence of a slot, not an unlucky search.
 ## A key that looks relevant, measured rather than reasoned about
 
 `fill_nulls_with` reads as though it answered a null denominator. In the denominator position
-of a `ratio` metric, dbt Core `1.12.3` refuses it outright — `observed.txt`'s last line — so
+of a `ratio` metric, dbt Core `1.12.5` refuses it outright — `observed.txt`'s last line — so
 this bundle makes no claim about what it would have changed. MetricFlow `0.213.0` accepted
 the same key in the same position and returned `4.0` either way; the two are different
 packages at different versions, and the difference is recorded rather than smoothed over.
