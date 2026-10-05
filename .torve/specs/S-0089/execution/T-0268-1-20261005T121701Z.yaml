@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0268
+base: a408aa9113a6cca57cf4d81a2d84f180afdc5ff0
+at: '2026-10-05T12:17:01Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-10-05T12:02:30Z'
+    claim: >-
+      Review claim that the 'Bring in a new source' routing row omits quality-rules
+      does not hold: the row already reads entities → mappings-and-transforms → quality-rules
+      → merge-sources, matching S-0089's design row exactly; no change made
+    evidence: >-
+      skills/bloomery-skills/SKILL.md:21 — row names quality-rules between mappings-and-transforms
+      and merge-sources, identical to .torve/specs/S-0089/document.yaml:66
+    action: decided
+    proposal: >-
+      none — routing row already matches the design; close the thread
