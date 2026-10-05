@@ -1,0 +1,85 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0262
+phase: 5
+base: 309b70f958a8c21b81e061864a0f9ff9dd3284ea
+commit: 58ec631d2c0cd871eeed7e9f6000422ed028e0a1
+at: '2026-10-05T12:32:07Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+entries:
+  - decision: D-8
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-10-05T12:29:52Z'
+    claim: >-
+      eight field-rule kinds (coercible, length, pattern, in_enum, in_set, normalize,
+      charset, unique) are named only in quality-rules prose, and references/ is outside
+      this task's scope, so they cannot be covered by a checked example here; the
+      census records them out_of_scope with that reason instead
+    evidence: >-
+      skills/bloomery-skills/references/quality-rules.md:41-48 — the kinds appear
+      in prose, with no yaml block naming them; skills/coverage.toml:63-70 records
+      each out of scope
+    action: departed
+    proposal: >-
+      a follow-up task scoped to skills/bloomery-skills/references/quality-rules.md
+      adds one yaml fragment per kind and flips the eight entries to reference = quality-rules
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-05T12:29:52Z'
+    claim: >-
+      D-8 says a covered unit must be shown in a checked example but not what showing
+      means per unit kind; decided: spec kind by a yaml spec=<kind> fence, rule kind
+      by rule: <kind> in a yaml block, command by a bloomery <command> shell line,
+      target by --target <t> on a bloomery line or Target.<NAME> in python
+    evidence: >-
+      tests/unit/test_skills.py:309-320 — _shows; skills/coverage.toml:10-15 states
+      the same for maintainers
+    action: decided
+    proposal: >-
+      add to D-8: what counts as showing each unit kind, as stated atop skills/coverage.toml
+  - decision: D-9
+    grade: ASSUMED
+    at: '2026-10-05T12:29:52Z'
+    claim: >-
+      ran one cold claude -p agent per routing row (nine) against a directory holding
+      only bloomery-skills/, observed opened files from tool calls; all nine reached
+      every reference their row names; recorded in AUTHORING.md
+    evidence: >-
+      skills/AUTHORING.md:86-112 — Routing verification section with cases and observed
+      results
+    action: decided
+    proposal: none; D-9 holds as written
+  - decision: D-10
+    grade: ASSUMED
+    at: '2026-10-05T12:29:52Z'
+    claim: >-
+      retrieval recorded out of scope in the census under the retrieval emit target,
+      with the RetrievalSpec trigger and its amendment path; RetrievalSpec is not
+      a SpecKind, so the target is the census unit that carries it
+    evidence: >-
+      skills/coverage.toml:36-41 — target.retrieval out_of_scope with the trigger
+    action: decided
+    proposal: none; D-10 holds as written
