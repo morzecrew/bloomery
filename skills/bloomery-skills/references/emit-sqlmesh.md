@@ -11,7 +11,10 @@ $ bloomery compile specs/ --target sqlmesh --dialect duckdb --out my_sqlmesh_rep
 ```
 
 `--out` points at the SQLMesh repository root; the paths already follow its `models/`
-and `audits/` layout. Then, on the SQLMesh side:
+and `audits/` layout. The emitted `config.yaml` carries `model_defaults` and no gateway,
+because a connection holds hosts and credentials the compiler never reads: supply one
+through `SQLMESH__GATEWAYS__…` in the environment or a config the compile does not own
+(an edit to the emitted file is overwritten by the next compile). Then:
 
 ```bash
 sqlmesh plan

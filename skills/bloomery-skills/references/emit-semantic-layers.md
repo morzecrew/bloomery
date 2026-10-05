@@ -55,10 +55,10 @@ One artifact, `semantic_manifest.json`, the file `dbt-semantic-interfaces` reads
 | In the manifest | From |
 |---|---|
 | one `semantic_models` entry per mart | `node_relation` is the mart's gold table, e.g. `gold.mart_orders` |
-| the primary entity | the mart's grain; flattened relationships become foreign entities |
-| dimensions | every flattened column; each date role a time dimension |
-| measures | each mart measure, with its aggregation and time dimension |
-| `metrics` | every metric, ratios as `type: ratio` over their operands |
+| the primary entity | the mart's grain; each single-column flattened join becomes a foreign entity, and a composite join emits none |
+| dimensions | every flattened column except the join keys; of each date role only its `<role>_day` bucket, a TIME dimension MetricFlow derives coarser grains from |
+| measures | each stored mart measure, with its aggregation and time dimension; ratios and derived metrics are metrics, never measures |
+| `metrics` | every metric it can serve: a ratio (`type: ratio`) when both operands are measures, a derived metric when all its inputs are emitted; any other is left out, and the planner refuses it by name at request time |
 | the time spine | the catalog's date dimension, at `gold.dim_date` |
 
 No semantic model is ever emitted for an entity that is not a mart: that would bring back
@@ -116,13 +116,21 @@ the rollup's gold table that SQLMesh or dbt builds. A rollup's measures are limi
 
 ## What is refused
 
-`UnsupportedByTarget`, per construct, on either semantic layer:
+`UnsupportedByTarget`, per construct. On either semantic layer:
 
 - an aggregation outside the target's set;
-- a metric with no expression;
-- a non-additive metric whose decomposition is not a ratio;
-- a mart measure whose metric was not imported alongside an imported mart (an export
-  list is written by hand, so import the metrics a mart's `measures:` names).
+- a stored measure with no `expr` (a ratio or derived metric has none and needs none: it
+  is emitted from its operands).
+
+On MetricFlow only: a semi-additive rule other than `last` or `first`.
+
+On Cube only: a non-additive metric whose decomposition is not a ratio, any `derived:`
+or `cumulative:` metric (keep those for MetricFlow), `grants:`, a vector column as a
+dimension, and a rollup that stores no measure.
+
+On both, as an `EmitError`: a mart measure whose metric was not imported alongside an
+imported mart (an export list is written by hand, so import the metrics a mart's
+`measures:` names).
 
 Storing a ratio as a mart column never gets this far: it is a guardrail refusal at
 compile time (see [guardrails and evidence](guardrails-and-evidence.md)). SCD2 and
@@ -140,8 +148,10 @@ $ bloomery compile specs/ --target cube --out build/cube
 $ bloomery compile specs/ --target metricflow --out build/metricflow
 ```
 
-The same request through bloomery's planner, Cube's REST API and MetricFlow returns the
-same number, because all three read one mart.
+For an additive metric or a ratio, the same request through bloomery's planner, Cube's
+REST API and MetricFlow returns the same number, because all three read one mart. A
+semi-additive metric differs on Cube, which emits the plain aggregation and records the
+policy only in `meta.semi_additive`: compare those per shape, not by trust.
 
 ## Published pages
 

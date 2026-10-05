@@ -45,7 +45,9 @@ Choose dbt when your stack is dbt. If you are free to choose, SQLMesh expresses 
 | `models/silver/<entity>__reject.sql`, `macros/replay_<entity>.sql` | quarantine and replay |
 | `models/silver/<check>__reconcile.sql`, `models/gold/mart_data_quality.sql` | reconcile and the quality mart |
 
-Every SELECT is byte-identical to the SQLMesh target's; only the envelope differs.
+Every SELECT matches the SQLMesh target's byte for byte once dbt's `{{ ref() }}` and
+`{{ source() }}` names resolve to the relations SQLMesh spells out; those references and
+the envelope are all that differ.
 Snapshots use `strategy='check'` over all columns, because the specs declare no
 updated-at marker. Materialization maps `full` → `table` and both incremental kinds →
 `incremental` with the entity key as `unique_key`.
@@ -94,7 +96,9 @@ Rebuild the entity **and** its reject table from the same checkout first, or the
 table still says the row fails. The macro refuses before its first statement when the
 project's `bloomery_fingerprint` var is not the fingerprint it was emitted under (a
 leftover macro), or when a column it writes is missing (rebuild with `--full-refresh` on
-an incremental model). Its statements run in one transaction.
+an incremental model). On every dialect but Databricks its statements run in one
+transaction; Databricks has none, so each commits on its own and a failure partway leaves
+the earlier ones committed.
 
 A re-delivery keeps `first_seen`. A `--full-refresh` of the reject table loses rows replay
 already resolved; that is accepted.

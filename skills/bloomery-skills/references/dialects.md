@@ -55,15 +55,15 @@ target, not a warehouse table.
 
 ## Capabilities: refused, never approximated
 
-A port that cannot express a construct refuses it at compile time. `duckdb`, `postgres`,
-`trino` and `bigquery` declare every capability.
+A port that cannot express a construct refuses it at compile time. `duckdb`, `postgres`
+and `trino` refuse none of these.
 
 | Construct | Refused on | What to do |
 |---|---|---|
 | a `normalize` quality rule | `redshift`, `snowflake`, `databricks` | drop the rule there, or normalize upstream |
 | the `json_path` transform (variant extraction) | `redshift` | read the nested path as a `string` field instead |
 | array columns | `redshift` | nothing: `_quality_flags` and `failed_rules` become a comma-delimited string, sorted by rule name, empty string when clean |
-| a `regexp` transform naming a capture group other than the first | `bigquery` | restructure the pattern |
+| a `regex_extract` transform naming a capture group other than the first | `bigquery`, `redshift` | restructure the pattern so the group you want is the first |
 
 On Redshift, a consumer asks "does this row carry a flag" by matching a delimited member
 instead of indexing an array. A mart's `has_quality_flags` works on both shapes.

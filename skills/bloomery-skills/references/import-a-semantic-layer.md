@@ -43,7 +43,7 @@ refuses rather than emit a weaker edge:
 | The manifest says | Result |
 |---|---|
 | a `foreign` element no other model declares `primary` or `unique` | refused: the target is not unique |
-| two models declaring one element `primary` | refused: the target is ambiguous |
+| a `foreign` element two or more other models declare `primary` or `unique`, in any mix | refused: the target is ambiguous |
 | an element with no `expr` | refused: no column to join on |
 | an `expr` such as `lower(customer_id)` | refused: a relationship joins columns |
 | a `natural` element | ignored: a non-unique key implies no cardinality |
