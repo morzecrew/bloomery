@@ -57,14 +57,11 @@ expression = { reference = "quality-rules" }
 not_null = { reference = "quality-rules" }
 range = { reference = "quality-rules" }
 referential = { reference = "quality-rules" }
-# Named in quality-rules prose with their constraints, but not yet in a checked
-# example. Adding a `yaml fragment` per kind to quality-rules.md moves each of
-# these to `reference = "quality-rules"`.
-charset = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
-coercible = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
-in_enum = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
-in_set = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
-length = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
-normalize = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
-pattern = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
-unique = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
+charset = { reference = "quality-rules" }
+coercible = { reference = "quality-rules" }
+in_enum = { reference = "quality-rules" }
+in_set = { reference = "quality-rules" }
+length = { reference = "quality-rules" }
+normalize = { reference = "quality-rules" }
+pattern = { reference = "quality-rules" }
+unique = { reference = "quality-rules" }

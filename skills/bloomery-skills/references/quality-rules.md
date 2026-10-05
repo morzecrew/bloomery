@@ -47,6 +47,46 @@ The field rules are a closed set: `coercible`, `not_null`, `range`, `length`, `p
   inline flags and `\A`/`\Z` are refused at parse, as is an unanchored pattern.
 - `normalize` and `charset` on a non-string column are refused at parse.
 
+Every remaining field rule, with the parameters each takes:
+
+```yaml spec=mapping
+mapping_version: 1
+source: crm__customers
+target: customer
+key:
+  customer_id: {from: "$.id", transform: [to_string]}
+fields:
+  email:
+    from: "$.email"
+    transform: [to_string]
+    quality:
+      - {rule: length, max: 254, on_fail: quarantine}
+      - {rule: pattern, regex: "^[^@ ]+@[^@ ]+$", on_fail: flag}
+      - {rule: unique, on_fail: quarantine}
+  display_name:
+    from: "$.name"
+    transform: [to_string]
+    quality:
+      - {rule: normalize, form: nfc, on_fail: flag}
+      - {rule: charset, forbid: ["U+200B", "U+FEFF"], on_fail: quarantine}
+  tier:
+    from: "$.tier"
+    transform: [to_string, {enum_map: [G, gold, S, silver]}]
+    quality:
+      - {rule: in_enum, on_fail: flag}
+  country:
+    from: "$.country"
+    transform: [to_string]
+    quality:
+      - {rule: in_set, values: [DE, FR, NL], on_fail: flag}
+  signups:
+    from: "$.signups"
+    transform: [to_int]
+    quality:
+      - {rule: coercible, on_fail: flag}
+unmapped: ["$._ingested_at", "$._load_id", "$._source_row_id"]
+```
+
 An entity that quarantines or dedupes needs the bronze ingestion columns `_load_id`,
 `_ingested_at` and `_source_row_id`. Map them or acknowledge them in `unmapped:`, or the
 compile refuses with `IngestionMetadataMissing`.
