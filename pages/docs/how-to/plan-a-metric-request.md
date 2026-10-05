@@ -137,7 +137,7 @@ malformed `nulls`, `limit`, or `offset` value is `InvalidRequest`).
 | `marts` | Every mart the plan read: one name, or one per branch when the measures span grains |
 | `warnings` | Non-fatal notices: a clamped `limit`, a `time_grain` with nothing to apply to |
 | `explanation` | Deterministic provenance — `explanation.render()` gives the human-readable block |
-| `fingerprint` | `sha256(sql)` — your result-cache key |
+| `fingerprint` | `sha256(sql)`: identical requests over identical specs give the same value, so it identifies the query; a result cache keys on it together with the data's freshness |
 | `semantic` | The derivation: what bloomery decided to compute, and the rule authorizing each step |
 
 The explanation is generated from the plan, never from a model — every number ships
@@ -298,9 +298,10 @@ con.execute("""
 rows = con.execute(plan.sql).fetchall()
 ```
 
-Pair the rows with `plan.columns` for names and types, and cache results under
-`plan.fingerprint` — identical requests over identical specs produce identical SQL,
-so the fingerprint is a sound cache key.
+Pair the rows with `plan.columns` for names and types. Identical requests over identical
+specs produce identical SQL, so `plan.fingerprint` identifies the query; it does not change
+when the warehouse's rows do, so a result cache keys on it together with the data's
+freshness (a load watermark, or a time to live).
 
 ## Notes
 
