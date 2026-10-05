@@ -1,0 +1,70 @@
+# The census of what bloomery-skills says about bloomery (S-0089, the census).
+#
+# Every unit bloomery itself names — each spec kind `bloomery schema` knows,
+# each emit target, each CLI command and each quality-rule kind — has one
+# entry here: either `reference`, a reference that shows the unit in a checked
+# example, or `out_of_scope`, the reason the skill does not. The units are read
+# from bloomery by `tests/unit/test_skills.py`, never from this file, so a new
+# kind, target, command or rule kind fails the test until it has an entry.
+#
+# What counts as showing a unit, per table:
+#   spec_kind  a ```yaml spec=<kind>``` block
+#   target     `--target <name>` on a `bloomery` shell line, or `Target.<NAME>`
+#              in a python block
+#   command    a `bloomery <command>` shell line
+#   rule_kind  `rule: <kind>` in a declared yaml block
+
+[spec_kind]
+catalog = { reference = "catalog" }
+entity_model = { reference = "entities" }
+exports = { reference = "composition" }
+exposures = { reference = "exposures-and-annotations" }
+imports = { reference = "composition" }
+mapping = { reference = "mappings-and-transforms" }
+marts = { reference = "marts" }
+metrics = { reference = "metrics" }
+steps = { reference = "steps-and-macros" }
+
+[target]
+cube = { reference = "emit-semantic-layers" }
+dbt = { reference = "emit-dbt" }
+metricflow = { reference = "emit-semantic-layers" }
+sqlmesh = { reference = "emit-sqlmesh" }
+
+# S-0089/D-10: the trigger is a project outside bloomery's own examples
+# declaring a `RetrievalSpec`; it adds a reference by amending S-0089.
+[target.retrieval]
+out_of_scope = """\
+Retrieval (`RetrievalSpec`, vectors and encoder identities) has no reference yet: no \
+adopter declares it, and a reference written before one does lacks the questions an \
+adopter asks. Trigger: the first project outside bloomery's own examples that \
+declares a `RetrievalSpec` adds the reference, by amending S-0089."""
+
+[command]
+check = { reference = "errors-and-refusals" }
+compile = { reference = "project-and-cli" }
+explain = { reference = "plan-a-metric-request" }
+fingerprint = { reference = "history-and-reproduction" }
+import = { reference = "import-a-semantic-layer" }
+lineage = { reference = "lineage" }
+plan = { reference = "plan-a-change" }
+resolve = { reference = "metrics" }
+schema = { reference = "project-and-cli" }
+timeline = { reference = "history-and-reproduction" }
+
+[rule_kind]
+expression = { reference = "quality-rules" }
+not_null = { reference = "quality-rules" }
+range = { reference = "quality-rules" }
+referential = { reference = "quality-rules" }
+# Named in quality-rules prose with their constraints, but not yet in a checked
+# example. Adding a `yaml fragment` per kind to quality-rules.md moves each of
+# these to `reference = "quality-rules"`.
+charset = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
+coercible = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
+in_enum = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
+in_set = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
+length = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
+normalize = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
+pattern = { out_of_scope = "named in quality-rules prose only; no checked example yet" }
+unique = { out_of_scope = "named in quality-rules prose only; no checked example yet" }

@@ -1,7 +1,7 @@
 """The published agent skill stays true to the bloomery it ships with (S-0089).
 
 `skills/bloomery-skills/` is what `npx skills add morzecrew/bloomery` copies
-into a consumer's repository. Three families of check keep it honest:
+into a consumer's repository. Four families of check keep it honest:
 
 * **Structure** — the frontmatter, `SKILL.md` and `references/` only, the index
   and the files agreeing both ways, the routing table naming indexed
@@ -11,6 +11,9 @@ into a consumer's repository. Three families of check keep it honest:
 * **Examples** — every `yaml` block declares itself and validates as it says,
   Python imports only `bloomery.__all__`, and `bloomery` shell lines name a
   command and flags the CLI accepts (S-0089/D-7).
+* **Census** — every spec kind, emit target, CLI command and quality-rule kind,
+  read from bloomery, has an entry in `skills/coverage.toml`: a reference that
+  shows it in a checked example, or out of scope with a reason (S-0089/D-8).
 
 Each check is a function returning its problems, run once over the real skill
 and once over a fixture built to break it: a check never observed to fail is
@@ -23,6 +26,8 @@ import argparse
 import ast
 import re
 import shlex
+import tomllib
+import typing
 from functools import cache
 from pathlib import Path
 from textwrap import indent
@@ -32,8 +37,9 @@ import yaml
 from jsonschema import Draft202012Validator
 
 import bloomery
-from bloomery import SpecKind, spec_json_schema
+from bloomery import SpecKind, Target, spec_json_schema
 from bloomery.cli import build_parser
+from bloomery.spec.quality import EntityQualityRule, FieldQualityRule
 
 pytestmark = pytest.mark.unit
 
@@ -41,6 +47,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SKILLS = ROOT / "skills"
 SKILL = SKILLS / "bloomery-skills"
 AUTHORING = SKILLS / "AUTHORING.md"
+CENSUS = SKILLS / "coverage.toml"
 
 NAME = "bloomery-skills"
 MIN_LINES, MAX_LINES = 60, 250
@@ -281,6 +288,64 @@ def example_problems(skill: Path) -> list[str]:
 
 
 # ....................... #
+# Census (S-0089/D-8)
+
+
+def census_units() -> dict[str, frozenset[str]]:
+    """The units bloomery names, read from bloomery itself rather than the census."""
+    rules = (
+        member.model_fields["rule"].annotation
+        for union in (FieldQualityRule, EntityQualityRule)
+        for member in typing.get_args(typing.get_args(union)[0])
+    )
+    return {
+        "spec_kind": frozenset(kind.value for kind in SpecKind),
+        "target": frozenset(target.value for target in Target),
+        "command": frozenset(_commands()),
+        "rule_kind": frozenset(kind for literal in rules for kind in typing.get_args(literal)),
+    }
+
+
+def _shows(table: str, unit: str, lang: str, info: list[str], body: str) -> bool:
+    """Whether one checked block shows ``unit``; what counts is stated atop the census."""
+    if table == "spec_kind":
+        return lang in {"yaml", "yml"} and f"spec={unit}" in info
+    if table == "rule_kind":
+        return lang in {"yaml", "yml"} and re.search(rf"\brule:\s*{unit}\b", body) is not None
+    if lang not in SHELLS:
+        return table == "target" and lang in {"python", "py"} and f"Target.{Target(unit).name}" in body
+    lines = [line for line in body.replace("\\\n", " ").splitlines() if re.match(r"(\$ )?bloomery\b", line.strip())]
+    if table == "command":
+        return any(re.match(rf"(\$ )?bloomery(\s+-\S+)*\s+{unit}\b", line.strip()) for line in lines)
+    return any(re.search(rf"--target[ =]{unit}\b", line) for line in lines)
+
+
+def census_problems(skill: Path, census: Path, units: dict[str, frozenset[str]]) -> list[str]:
+    problems = []
+    entries = tomllib.loads(census.read_text(encoding="utf-8"))
+    problems += [f"census table [{table}] is no unit kind" for table in sorted(entries.keys() - units.keys())]
+    for table, names in sorted(units.items()):
+        recorded = entries.get(table, {})
+        problems += [f"{table} {name}: no census entry" for name in sorted(names - recorded.keys())]
+        problems += [f"{table} {name}: bloomery has no such unit" for name in sorted(recorded.keys() - names)]
+        for name in sorted(names & recorded.keys()):
+            entry = recorded[name]
+            reference, reason = entry.get("reference"), entry.get("out_of_scope")
+            if (reference is None) == (reason is None) or set(entry) - {"reference", "out_of_scope"}:
+                problems.append(f"{table} {name}: give exactly one of reference or out_of_scope")
+            elif reason is not None:
+                if not isinstance(reason, str) or not reason.strip():
+                    problems.append(f"{table} {name}: out_of_scope needs a reason")
+            elif not (path := skill / "references" / f"{reference}.md").is_file():
+                problems.append(f"{table} {name}: references/{reference}.md does not exist")
+            elif not any(
+                _shows(table, name, lang, info, body) for _, lang, info, body in _blocks(path.read_text(encoding="utf-8"))
+            ):
+                problems.append(f"{table} {name}: references/{reference}.md shows it in no checked example")
+    return problems
+
+
+# ....................... #
 # The real skill
 
 
@@ -294,6 +359,10 @@ def test_the_skills_links_stay_inside_and_on_latest() -> None:
 
 def test_every_example_in_the_skill_checks() -> None:
     assert example_problems(SKILL) == []
+
+
+def test_every_census_unit_has_an_entry() -> None:
+    assert census_problems(SKILL, CENSUS, census_units()) == []
 
 
 # ....................... #
@@ -469,3 +538,85 @@ def test_a_short_reference_with_a_recorded_reason_passes(fixture_skill: tuple[Pa
     (skill / "references" / "beta.md").write_text("# beta\n", encoding="utf-8")
     _append(authoring, "- `beta` — one table, nothing more to say\n")
     assert structure_problems(skill, authoring) == []
+
+
+# ....................... #
+# The census: a clean twin, and one break per way an entry goes wrong
+
+_UNITS = {
+    "spec_kind": frozenset({"mapping"}),
+    "target": frozenset({"dbt", "retrieval"}),
+    "command": frozenset({"compile", "schema"}),
+    "rule_kind": frozenset({"unique"}),
+}
+
+_CLEAN_CENSUS = """\
+[spec_kind]
+mapping = { reference = "alpha" }
+
+[target]
+dbt = { reference = "alpha" }
+retrieval = { out_of_scope = "no adopter declares it yet" }
+
+[command]
+compile = { reference = "alpha" }
+schema = { reference = "alpha" }
+
+[rule_kind]
+unique = { out_of_scope = "prose only" }
+"""
+
+
+@pytest.fixture
+def fixture_census(fixture_skill: tuple[Path, Path]) -> tuple[Path, Path]:
+    skill, authoring = fixture_skill
+    census = authoring.parent / "coverage.toml"
+    census.write_text(_CLEAN_CENSUS, encoding="utf-8")
+    return skill, census
+
+
+def test_the_units_are_read_from_bloomery() -> None:
+    units = census_units()
+    assert "mapping" in units["spec_kind"]
+    assert "retrieval" in units["target"]
+    assert "compile" in units["command"]
+    assert {"not_null", "referential"} <= units["rule_kind"]
+
+
+def test_the_clean_census_passes(fixture_census: tuple[Path, Path]) -> None:
+    assert census_problems(*fixture_census, _UNITS) == []
+
+
+CENSUS_BREAKS = {
+    "a spec kind added with no entry": lambda units, census: {**units, "spec_kind": units["spec_kind"] | {"widget"}},
+    "a cli command added with no entry": lambda units, census: {**units, "command": units["command"] | {"deploy"}},
+    "an entry for a unit bloomery lacks": lambda units, census: _append(census, '\n[command.deploy]\nreference = "alpha"\n'),
+    "an unknown table": lambda units, census: _append(census, '\n[widget]\nx = { reference = "alpha" }\n'),
+    "out of scope with no reason": lambda units, census: _replace(census, '"prose only"', '" "'),
+    "both reference and out of scope": lambda units, census: _replace(
+        census, '{ out_of_scope = "prose only" }', '{ reference = "alpha", out_of_scope = "prose only" }'
+    ),
+    "a reference that does not exist": lambda units, census: _replace(
+        census, 'compile = { reference = "alpha" }', 'compile = { reference = "gone" }'
+    ),
+    "a covered spec kind with no example": lambda units, census: _replace(
+        census, 'mapping = { reference = "alpha" }', 'mapping = { reference = "beta" }'
+    ),
+    "a covered target with no example": lambda units, census: _replace(
+        census, 'dbt = { reference = "alpha" }', 'dbt = { reference = "beta" }'
+    ),
+    "a covered target shown in no example": lambda units, census: _replace(
+        census, '{ out_of_scope = "no adopter declares it yet" }', '{ reference = "alpha" }'
+    ),
+    "a covered rule kind in prose only": lambda units, census: _replace(
+        census, '{ out_of_scope = "prose only" }', '{ reference = "alpha" }'
+    ),
+}
+
+
+@pytest.mark.parametrize("name", CENSUS_BREAKS)
+def test_each_census_check_fails_on_its_break(name: str, fixture_census: tuple[Path, Path]) -> None:
+    skill, census = fixture_census
+    assert census_problems(skill, census, _UNITS) == []
+    units = CENSUS_BREAKS[name](_UNITS, census) or _UNITS
+    assert census_problems(skill, census, units) != []

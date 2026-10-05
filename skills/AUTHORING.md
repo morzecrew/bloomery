@@ -68,6 +68,51 @@ Every example is checked against the bloomery it ships with.
 - A `bloomery …` line in a `console`, `shell`, `bash` or `sh` block names a
   command and flags the CLI accepts.
 
+## The census
+
+`skills/coverage.toml` has one entry per unit bloomery names: every spec kind
+`bloomery schema` knows, every emit target, every CLI command and every
+quality-rule kind. An entry is either `reference`, a reference that shows the
+unit in a checked example, or `out_of_scope`, with the reason. The test reads
+the units from bloomery itself, so a new kind, target, command or rule kind
+fails until it has an entry, and so does an entry for a unit that no longer
+exists. A unit named only in prose is not covered: what counts as showing each
+kind of unit is stated at the top of the census.
+
+Retrieval is out of scope until a project outside bloomery's own examples
+declares a `RetrievalSpec`; that project's arrival adds the reference by
+amending S-0089.
+
+## Routing verification
+
+Each routing-table row is checked once by behaviour, when it lands: a cold
+agent gets `SKILL.md` and a task from that row, and nothing else. The row is
+reached when the files the agent opened, observed from its tool calls rather
+than asked of it, include every reference the row names. Order and extra
+reads do not matter. A row added later adds a case here and runs it.
+
+The cases ran on 2026-10-05 against the skill as this census landed, with
+`claude -p` (claude-opus-5-5) in a directory holding only
+`bloomery-skills/`, prompted to start from `SKILL.md` and write no files.
+
+| Row | Task given | Reached |
+|---|---|---|
+| Start a project | Set up a new project for an online shop: lay out the specs, declare the catalog, an order entity, and map the raw orders table onto it. | yes |
+| Bring in a new source | Add a second CRM's customer table to the existing customer entity, and send rows without an email to quarantine. | yes |
+| Build a mart and its metrics | Build an orders mart with revenue and average order value, available to MetricFlow. | yes |
+| Ship to dbt | Compile to dbt for Snowflake and check what the first deploy will change. | yes |
+| Ship to SQLMesh | Compile to SQLMesh on DuckDB and check what the first deploy will change. | yes |
+| Change a spec already in production | Rename the amount field on the order entity, already deployed to dbt. | yes |
+| Make a refused compile go green | `bloomery compile` refuses with `FanoutDetected` on the orders mart; make it compile. | yes |
+| Answer a metric request at run time | From a Python service, turn a request for revenue by month, filtered to EU customers, into SQL at run time. | yes |
+| Compose two projects | The finance project needs the customer entity the core project owns. | yes |
+
+All nine reached their row. Five agents read the row with one `cat` of every
+named file rather than one read per file; that counts, since the files were
+opened. Three read beyond the row: `Bring in a new source` and `Ship to dbt`
+grepped `project-and-cli`, and `Make a refused compile go green` added `marts`
+and `entities`.
+
 ## Short references
 
 References under 60 lines, one per line as `` - `name` — reason ``.

@@ -68,6 +68,13 @@ uv add bloomery      # or: pip install bloomery
 
 Python 3.12–3.14. No orchestrator, no cloud SDK, no database driver.
 
+For an agent writing your specs, install the bloomery skill — specs, compiling, planning,
+quality rules, targets and the Python API, with every example checked against the release:
+
+```bash
+npx skills add morzecrew/bloomery
+```
+
 ```python
 from bloomery import (
     LruManifestHydrator, 

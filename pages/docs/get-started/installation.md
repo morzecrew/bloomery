@@ -35,6 +35,19 @@ commit:
 uv add git+https://github.com/morzecrew/bloomery
 ```
 
+## Agent skill
+
+bloomery publishes one agent skill, `bloomery-skills`, for agents writing a bloomery
+project: specs, compiling, planning a change, quality rules, targets and the Python API.
+Install it into the project with:
+
+```bash
+npx skills add morzecrew/bloomery
+```
+
+It is a routing index over references whose examples are checked against the bloomery
+they ship with. It does not teach changing bloomery itself.
+
 ## For contributors
 
 Clone the repository and let uv build the environment from the lockfile:
