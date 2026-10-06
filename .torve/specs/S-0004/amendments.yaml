@@ -36,3 +36,26 @@ amendments:
       What this document still left open, checked against the code and the corpus on 2026-10-01. Each is answered by what the code does or by a row written since; the owner's merge is the acceptance, and LOCKED stays the owner's act.
 
       - Q-2 is answered by S-0004/D-14: S-0004/D-14 answers it with DEBUG and carries the bench-lane measurement the question asks for as its reopening condition, and src/bloomery/runtime/hydration.py logs the hydration miss at DEBUG.
+  - id: A-3
+    at: '2026-10-06T18:48:36Z'
+    title: >-
+      The inexact-division advisory is retired (S-0090)
+    changes:
+      - subject: D-16
+        field: text
+        before: >-
+          No quality rule is advised as unstrengthened, and the unstrengthened-rule
+          advisory does not exist. The only rules provably vacuous from a declared
+          type, `normalize` and `charset` on a non-`string` column, are refused as
+          a `SpecParseError` by `_check_character_rules` in `load_project`, and `AdvisoryCode`
+          carries only `inexact_division` and `undeclared_audience`.
+        after: >-
+          No quality rule is advised as unstrengthened, and the unstrengthened-rule
+          advisory does not exist. The only rules provably vacuous from a declared
+          type, `normalize` and `charset` on a non-`string` column, are refused as
+          a `SpecParseError` by `_check_character_rules` in `load_project`, and `AdvisoryCode`
+          carries only `undeclared_audience`
+      - subject: D-16
+        field: fingerprint
+        before: fc85480bde866908/93d13834f72e5485
+        after: 7718b4e9f2aad5a1/93d13834f72e5485
