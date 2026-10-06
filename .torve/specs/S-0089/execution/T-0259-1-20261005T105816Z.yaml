@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0259
+phase: 2
+base: 3735a46a8cc41b6cd754fcb64ecbb4b9d9b55f08
+commit: 910807fb8e93ee003f48cd6bdd9ab5a1f24efde8
+at: '2026-10-05T10:58:16Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-10-05T10:55:22Z'
+    claim: >-
+      the designed 'Bring in a new source' routing row names quality-rules, a Correctness
+      reference written in a later phase; the structure test refuses a routing row
+      naming an unindexed reference, so the row ships without it
+    evidence: >-
+      skills/bloomery-skills/SKILL.md:21 — row as shipped; .torve/specs/S-0089/document.yaml:66
+      is the designed row naming quality-rules
+    action: decided
+    proposal: >-
+      the phase writing quality-rules inserts it between mappings-and-transforms and
+      merge-sources in the 'Bring in a new source' row

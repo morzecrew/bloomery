@@ -3,8 +3,8 @@
 You want the same compiled project as a dbt project — models, sources, snapshots,
 schema tests and singular tests. Be clear-eyed about what this target is: its job in the
 architecture is proving that emission is a real port, not a SQLMesh-shaped hole. It
-ships honestly — every SELECT is byte-identical to what the SQLMesh emitter renders, and
-anything dbt cannot express faithfully is a loud error, never an approximation. It now
+ships honestly — every SELECT is the one the SQLMesh emitter renders, apart from how it
+names a relation, and anything dbt cannot express faithfully is a loud error, never an approximation. It now
 carries the whole data-quality surface too: reject tables, replay, reconcile models and
 the quality mart. Do not read that as parity — Tier 3 Python steps stay refused, and the
 list below says exactly which cells are still unequal.
@@ -320,10 +320,12 @@ dbt, not a change in what the field means.
 ## Byte-identical SELECTs
 
 The SELECT inside every dbt model is rendered from the same lowered AST through the
-same dialect port as the SQLMesh target — only the envelope (Jinja config header vs
-`MODEL` block) differs. Diff a dbt model against its SQLMesh counterpart and the query
-text matches byte for byte. That equality is the point: it demonstrates the emitters
-share one lowering, so a semantics bug cannot exist in only one target's SQL.
+same dialect port as the SQLMesh target. Two things differ: the envelope (Jinja config
+header vs `MODEL` block), and how a relation is named. dbt reads through
+`{{ source('bronze', 'shop__orders') }}` and `{{ ref('order') }}`, where SQLMesh names the
+table, `bronze.shop__orders`. Diff a dbt model against its SQLMesh counterpart and those
+references are the only lines that differ. That equality is the point: it demonstrates the
+emitters share one lowering, so a semantics bug cannot exist in only one target's SQL.
 
 ## Composing across projects
 

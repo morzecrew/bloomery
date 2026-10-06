@@ -407,8 +407,10 @@ The available names are the closed whitelist in the
 ### Field quality rules
 
 A closed catalogue, discriminated on `rule`. New rules are RFC amendments, never config.
-Every rule requires `on_fail` ∈ `flag` \| `quarantine` \| `fail` — there is no
-project-wide default, and there is deliberately no `drop` and no `repair` in v1.
+Every rule requires `on_fail` ∈ `flag` \| `quarantine` \| `fail` \| `repair` — there is no
+project-wide default, and there is deliberately no `drop`. `repair` names a registered step
+beside it (`repair: {via: <step>@<version>, fallback: …}`), its `fallback` cannot itself be
+`repair`, and `coercible`, `unique` and `expression` take no `repair`.
 
 | `rule` | Parameters | Fires when |
 |---|---|---|

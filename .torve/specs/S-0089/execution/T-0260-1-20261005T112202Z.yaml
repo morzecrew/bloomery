@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0260
+phase: 3
+base: 5e9e41020b6d1d6243b20701ee6fbf12ee8de1fa
+commit: 1ac1ebd2358703452fb528171c249adb6b60a945
+at: '2026-10-05T11:22:02Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-10-05T11:20:08Z'
+    claim: >-
+      the designed 'Ship to dbt' and 'Ship to SQLMesh' routing rows end with plan-a-change,
+      a Change reference written in phase 4; the structure test refuses a routing
+      row naming an unindexed reference, so both rows ship without it
+    evidence: >-
+      skills/bloomery-skills/SKILL.md:23-24 — rows as shipped; .torve/specs/S-0089/document.yaml:68-69
+      are the designed rows naming plan-a-change
+    action: decided
+    proposal: >-
+      the phase writing plan-a-change appends it to the 'Ship to dbt' and 'Ship to
+      SQLMesh' rows, after dialects

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **An agent skill for writing bloomery projects.** `npx skills add morzecrew/bloomery`
+  installs `bloomery-skills`: a routing index from a task to the references it needs,
+  covering specs, compiling, planning a change, quality rules, targets and the Python API.
+  Every spec example validates against the exported JSON Schema, every Python import is in
+  `bloomery.__all__`, and every `bloomery` command line names a command and flags the CLI
+  accepts. A census, `skills/coverage.toml`, gives every spec kind, emit target, CLI command
+  and quality-rule kind a reference that shows it or a reason it is out of scope, so a new
+  one cannot land unrecorded. Retrieval is out of scope until a project outside bloomery's
+  own examples declares a `RetrievalSpec`.
+
 ## [0.6.0] - 2026-10-03
 
 ### Added
