@@ -122,7 +122,7 @@ A new field on `SpecEvidence` is appended after whatever field is last at the ti
 
 ### S-0004/D-16 — `ASSUMED` (Observability: logging and a warnings channel)
 
-No quality rule is advised as unstrengthened, and the unstrengthened-rule advisory does not exist. The only rules provably vacuous from a declared type, `normalize` and `charset` on a non-`string` column, are refused as a `SpecParseError` by `_check_character_rules` in `load_project`, and `AdvisoryCode` carries only `inexact_division` and `undeclared_audience`.
+No quality rule is advised as unstrengthened, and the unstrengthened-rule advisory does not exist. The only rules provably vacuous from a declared type, `normalize` and `charset` on a non-`string` column, are refused as a `SpecParseError` by `_check_character_rules` in `load_project`, and `AdvisoryCode` carries only `undeclared_audience`
 
 - Paths: `src/bloomery/evidence.py`
 - Consequence: The advisory cannot be built before the term means something checkable, and the definition chosen fixes both what the code reports and what its documentation row can say; getting it wrong produces an advisory that fires on correct specs, which D-7 forbids
@@ -733,6 +733,13 @@ The IR records no naming policy, and S-0002/D-7 stays a documented advisory unti
 
 - Paths: `src/bloomery/compile.py` `src/bloomery/naming.py`
 - Consequence: no IR bump for a mismatch only a Python caller can make today
+
+### S-0090/D-3 — `ASSUMED` (Three places bloomery said one thing and did another) — implementation: none
+
+A catalog recipe's `/` is lowered through the `divide` transform's exactness marker, its dividend cast to a decimal keeping at least the declared scale, so integer operands divide fractionally and the division is the transform's; the `inexact_division` advisory is retired and `AdvisoryCode` carries only `undeclared_audience`
+
+- Paths: `src/bloomery/resolve/build.py` `src/bloomery/evidence.py` `tests/unit/test_advisories.py`
+- Consequence: a dividing recipe is exact on PostgreSQL and Trino, and no advisory stands where the errors page's rule says a refusal belongs
 
 ## Invariants holding over `src/bloomery/`
 
