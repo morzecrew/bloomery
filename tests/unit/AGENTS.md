@@ -505,49 +505,49 @@ A `--catalog` path the OS refuses to stat exits 2, as #174 made a specs path do,
 - Paths: `src/bloomery/cli/io.py` `tests/unit/test_cli.py`
 - Consequence: the 2026-09-21 `cli` crash has a regression test, not only a fix
 
-### S-0089/D-1 — `ASSUMED` (One agent skill teaches a bloomery project) — implementation: none
+### S-0089/D-1 — `ASSUMED` (One agent skill teaches a bloomery project)
 
 bloomery publishes one agent skill, `skills/bloomery-skills/` with frontmatter `name: bloomery-skills`, installed by `npx skills add morzecrew/bloomery`. It holds `SKILL.md` and `references/*.md` only. The maintainer rules, install instructions and census table sit at `skills/`, outside what ships
 
 - Paths: `skills/README.md` `skills/AUTHORING.md` `tests/unit/test_skills.py`
 - Consequence: a consumer installs one name, and nothing for maintainers reaches their `.claude/skills/`
 
-### S-0089/D-3 — `ASSUMED` (One agent skill teaches a bloomery project) — implementation: none
+### S-0089/D-3 — `ASSUMED` (One agent skill teaches a bloomery project)
 
 `SKILL.md` is a routing index: the mental model, the rule that a task needs its whole row, a routing table keyed by task naming every reference the task needs, and an index of every reference
 
 - Paths: `skills/AUTHORING.md` `tests/unit/test_skills.py`
 - Consequence: an agent reads three to five references for a task, not one and not twenty-five
 
-### S-0089/D-4 — `ASSUMED` (One agent skill teaches a bloomery project) — implementation: none
+### S-0089/D-4 — `ASSUMED` (One agent skill teaches a bloomery project)
 
 A reference covers one job, never splits a procedure, stands alone, and runs 60 to 250 lines; a shorter one records its reason in `AUTHORING.md`
 
 - Paths: `skills/AUTHORING.md` `tests/unit/test_skills.py`
 - Consequence: a reference answers its task without a second file for context, and no reference is a narrative chapter
 
-### S-0089/D-5 — `ASSUMED` (One agent skill teaches a bloomery project) — implementation: none
+### S-0089/D-5 — `ASSUMED` (One agent skill teaches a bloomery project)
 
 The reference map in this document's design is the file set; adding or removing a reference amends this document in the same change that creates or deletes the file
 
 - Paths: `skills/AUTHORING.md` `tests/unit/test_skills.py`
 - Consequence: a reference cannot appear or vanish without a reviewed amendment, and the parity check makes that enforceable
 
-### S-0089/D-6 — `ASSUMED` (One agent skill teaches a bloomery project) — implementation: none
+### S-0089/D-6 — `ASSUMED` (One agent skill teaches a bloomery project)
 
 A reference links between references with relative links that never leave the skill directory. It links the published documentation as `https://morzecrew.github.io/bloomery/latest/<page>/`
 
 - Paths: `skills/AUTHORING.md` `tests/unit/test_skills.py`
 - Consequence: every link works in a consumer's checkout, and none hits the 404 the docs give a URL with no version segment
 
-### S-0089/D-7 — `ASSUMED` (One agent skill teaches a bloomery project) — implementation: none
+### S-0089/D-7 — `ASSUMED` (One agent skill teaches a bloomery project)
 
 `tests/unit/test_skills.py` checks examples. Every YAML block declares itself on its fence: `yaml spec=<kind>` validates against that kind's exported JSON Schema, and `yaml fragment` parses and validates as no complete spec. A Python block parses and imports only names in `bloomery.__all__`. A `bloomery` shell line names a command and flags the CLI accepts
 
 - Paths: `tests/unit/test_skills.py`
 - Consequence: a spec that no longer validates, or an import, command or flag that no longer exists, fails the battery the day it changes; a Python example's calls are not executed
 
-### S-0089/D-8 — `ASSUMED` (One agent skill teaches a bloomery project) — implementation: none
+### S-0089/D-8 — `ASSUMED` (One agent skill teaches a bloomery project)
 
 `skills/coverage.toml` gives every spec kind, emit target, CLI command and quality-rule kind either a reference that shows it in a checked example or out of scope with a reason. The test reads the units from bloomery and fails on a missing entry or a covered unit with no example
 
