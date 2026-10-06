@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.63">
+      <meta name="generator" content="zensical-0.0.65">
     
     
       
@@ -36,7 +36,7 @@
       
         
       
-      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.10763589.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.40d3fdbb.min.css">
       
         
           
@@ -2191,8 +2191,8 @@
 <p>You want the same compiled project as a dbt project — models, sources, snapshots,
 schema tests and singular tests. Be clear-eyed about what this target is: its job in the
 architecture is proving that emission is a real port, not a SQLMesh-shaped hole. It
-ships honestly — every SELECT is byte-identical to what the SQLMesh emitter renders, and
-anything dbt cannot express faithfully is a loud error, never an approximation. It now
+ships honestly — every SELECT is the one the SQLMesh emitter renders, apart from how it
+names a relation, and anything dbt cannot express faithfully is a loud error, never an approximation. It now
 carries the whole data-quality surface too: reject tables, replay, reconcile models and
 the quality mart. Do not read that as parity — Tier 3 Python steps stay refused, and the
 list below says exactly which cells are still unequal.</p>
@@ -2538,10 +2538,12 @@ class — an added optional field is still <code>additive</code> — because the
 dbt, not a change in what the field means.</p>
 <h2 id="byte-identical-selects">Byte-identical SELECTs<a class="headerlink" href="#byte-identical-selects" title="Permanent link">&para;</a></h2>
 <p>The SELECT inside every dbt model is rendered from the same lowered AST through the
-same dialect port as the SQLMesh target — only the envelope (Jinja config header vs
-<code>MODEL</code> block) differs. Diff a dbt model against its SQLMesh counterpart and the query
-text matches byte for byte. That equality is the point: it demonstrates the emitters
-share one lowering, so a semantics bug cannot exist in only one target's SQL.</p>
+same dialect port as the SQLMesh target. Two things differ: the envelope (Jinja config
+header vs <code>MODEL</code> block), and how a relation is named. dbt reads through
+<code>{{ source('bronze', 'shop__orders') }}</code> and <code>{{ ref('order') }}</code>, where SQLMesh names the
+table, <code>bronze.shop__orders</code>. Diff a dbt model against its SQLMesh counterpart and those
+references are the only lines that differ. That equality is the point: it demonstrates the
+emitters share one lowering, so a semantics bug cannot exist in only one target's SQL.</p>
 <h2 id="composing-across-projects">Composing across projects<a class="headerlink" href="#composing-across-projects" title="Permanent link">&para;</a></h2>
 <p>A project that imports from an upstream names the upstream's relations the way dbt
 names another project's models — <code>{{ ref('ecom_platform', 'order_item') }}</code>, where
@@ -2709,7 +2711,7 @@ compile was handed rather than found. Both flags are described in
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"redirect":null,"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.8dcc8e9c.min.js"></script>
+      <script src="../../assets/javascripts/bundle.c04ba553.min.js"></script>
       
     
   </body>

@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.63">
+      <meta name="generator" content="zensical-0.0.65">
     
     
       
@@ -36,7 +36,7 @@
       
         
       
-      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.10763589.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.40d3fdbb.min.css">
       
         
           
@@ -4182,8 +4182,10 @@ there is nothing there to attach one to and nothing is refused.</p>
 <a href="../transforms/">transforms reference</a>; existence is checked at typecheck, not parse.</p>
 <h3 id="field-quality-rules">Field quality rules<a class="headerlink" href="#field-quality-rules" title="Permanent link">&para;</a></h3>
 <p>A closed catalogue, discriminated on <code>rule</code>. New rules are RFC amendments, never config.
-Every rule requires <code>on_fail</code> ∈ <code>flag</code> | <code>quarantine</code> | <code>fail</code> — there is no
-project-wide default, and there is deliberately no <code>drop</code> and no <code>repair</code> in v1.</p>
+Every rule requires <code>on_fail</code> ∈ <code>flag</code> | <code>quarantine</code> | <code>fail</code> | <code>repair</code> — there is no
+project-wide default, and there is deliberately no <code>drop</code>. <code>repair</code> names a registered step
+beside it (<code>repair: {via: &lt;step&gt;@&lt;version&gt;, fallback: …}</code>), its <code>fallback</code> cannot itself be
+<code>repair</code>, and <code>coercible</code>, <code>unique</code> and <code>expression</code> take no <code>repair</code>.</p>
 <table>
 <thead>
 <tr>
@@ -5609,7 +5611,7 @@ guardrail questions — see
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"redirect":null,"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.8dcc8e9c.min.js"></script>
+      <script src="../../assets/javascripts/bundle.c04ba553.min.js"></script>
       
     
   </body>
