@@ -60,7 +60,7 @@ Violations are batched project-wide: leaf errors (`UnitMismatch`, `TaxBasisMisma
 
 ### S-0023/D-3 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
-`unit`/`tax_basis` originate only on catalog canonical fields and propagate via `canonical:`; a monetary operand without metadata is `unknown`, and `unknown` in any `+`/`-` is an error. No inference from names or values, ever.
+`unit`/`tax_basis` originate only on catalog canonical fields and propagate via `canonical:`; the unit check refuses two declared, different units in `+`/`-` and lets an undeclared unit pass, and `unknown` poisons additive arithmetic through the tax-basis check, which refuses an operand with no `tax_basis` beside a monetary one. No inference from names or values, ever
 
 - Paths: `src/bloomery/guardrails/arithmetic.py` `src/bloomery/guardrails/operands.py` `tests/unit/test_guardrails/test_arithmetic.py` `tests/unit/test_guardrails/test_grain.py`
 

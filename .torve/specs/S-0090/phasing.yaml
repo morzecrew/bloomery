@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: A bug in bloomery exits three
+    intent: >-
+      `main` handles `InvariantViolated` before the `BloomeryError` branch, as an
+      internal error: exit `3`, the traceback under the report line. A test reaches
+      an `InvariantViolated` through the CLI and asserts exit `3` and the report line;
+      a refusal still exits `1`. The exit-code table in use-the-cli and the errors
+      reference say so, and the CHANGELOG gains a Fixed entry. Settles D-2.
+    scope:
+      - src/bloomery/cli/__init__.py
+      - tests/unit/test_cli.py
+      - pages/docs/how-to/use-the-cli.md
+      - pages/docs/reference/errors.md
+      - CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_cli.py tests/unit/test_docs_floor.py -q
+    character: routine
+  - phase: 2
+    title: A recipe divides as the transform does
+    intent: >-
+      `_recipe_expr` rewrites each `exp.Div` in a recipe's parsed `expr:` as the `DIVIDE_MARKER`
+      call the `divide` transform builds. `_inexact_divisions` and `AdvisoryCode.INEXACT_DIVISION`
+      are removed with their tests, golden and docs-claims row; the errors reference's
+      advisory table drops the row; the CHANGELOG gains a Changed entry (exact recipe
+      division, with an upgrade note on the moved fingerprint) and a Removed entry
+      (the advisory code). Settles D-3.
+    scope:
+      - src/bloomery/resolve/build.py
+      - src/bloomery/evidence.py
+      - tests/unit/test_resolve/**
+      - tests/unit/test_advisories.py
+      - tests/unit/test_evidence.py
+      - tests/unit/test_dialects/test_base.py
+      - tests/unit/test_emit/test_currency_convert.py
+      - tests/unit/test_semantic/test_denomination.py
+      - tests/support/docs_claims.py
+      - tests/support/ir_factory.py
+      - tests/support/plan_ir.py
+      - tests/golden/**
+      - pages/docs/reference/errors.md
+      - CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_resolve tests/unit/test_advisories.py tests/unit/test_evidence.py
+        tests/unit/test_dialects tests/unit/test_emit tests/unit/test_semantic tests/unit/test_docs_floor.py
+        tests/golden -q
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: >-
+      The guardrails page states the unit rule as applied
+    intent: >-
+      The "Unit coherence" section of the guardrails page says the unit check refuses
+      two declared, different units, an undeclared unit passes it, and `unknown` poisons
+      through the tax-basis check beside a monetary operand; a unit test pins `qty
+      + qty` on unitless fields compiling and `amount + fee` refused `TaxBasisMismatch`.
+      Settles D-1.
+    scope: [pages/docs/concepts/guardrails.md, tests/unit/test_guardrails/**]
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_guardrails tests/unit/test_docs_floor.py -q
+    depends_on:
+      - 2
+    character: routine

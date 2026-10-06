@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      The unit check refuses two declared, different units in `+` or `-` and lets
+      an undeclared unit pass; `unknown` poisons additive arithmetic through the tax-basis
+      check, which refuses an operand with no `tax_basis` beside a monetary one; the
+      guardrails page states this rule
+    paths:
+      - pages/docs/concepts/guardrails.md
+      - src/bloomery/guardrails/arithmetic.py
+    consequence: >-
+      the page and the code agree, and money beside an undeclared operand is still
+      refused
+    rationale: >-
+      read literally, the page's rule refuses arithmetic on any two tenant-native
+      fields; the code's rule refuses what the rule exists for
+    cites: [S-0023/D-3]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      At the command line `InvariantViolated` is an internal error: exit `3`, its
+      traceback on stderr under the line asking for a report; it stays a `BloomeryError`
+      subclass
+    paths: [src/bloomery/cli/__init__.py, tests/unit/test_cli.py]
+    consequence: >-
+      a bug in bloomery reads as one at the shell, whichever exception carries it
+    rationale: >-
+      the exit-code table defines `3` as bloomery's mistake, and `InvariantViolated`
+      is documented as never an authored spec's fault
+    cites: [S-0020/D-11]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A catalog recipe's `/` is lowered through the `divide` transform's exactness
+      marker, so its division is the transform's; the `inexact_division` advisory
+      is retired and `AdvisoryCode` carries only `undeclared_audience`
+    paths:
+      - src/bloomery/resolve/build.py
+      - src/bloomery/evidence.py
+      - tests/unit/test_advisories.py
+    consequence: >-
+      a dividing recipe is exact on PostgreSQL and Trino, and no advisory stands where
+      the errors page's rule says a refusal belongs
+    rationale: >-
+      the marker already gives the transform exact division; leaving the recipe without
+      it kept a known inexactness behind an advisory
+    cites: [S-0004/D-16]
