@@ -3,16 +3,17 @@ decisions:
   - id: D-1
     grade: ASSUMED
     text: >-
-      The unit check refuses two declared, different units in `+` or `-` and lets
-      an undeclared unit pass; `unknown` poisons additive arithmetic through the tax-basis
-      check, which refuses an operand with no `tax_basis` beside a monetary one; the
-      guardrails page states this rule
+      The unit check refuses `+` or `-` only where each side declares exactly one
+      unit and the two differ, and lets an undeclared unit pass; `unknown` poisons
+      additive arithmetic through the tax-basis check, which refuses an operand with
+      a currency or undeclared unit whose `tax_basis` is absent or `unknown` beside
+      a monetary one; the guardrails page states this rule
     paths:
       - pages/docs/concepts/guardrails.md
       - src/bloomery/guardrails/arithmetic.py
     consequence: >-
-      the page and the code agree, and money beside an undeclared operand is still
-      refused
+      the page and the code agree, money beside an undeclared or explicitly unknown
+      basis is refused, and arithmetic on unitless tenant-native fields compiles
     rationale: >-
       read literally, the page's rule refuses arithmetic on any two tenant-native
       fields; the code's rule refuses what the rule exists for
@@ -34,8 +35,9 @@ decisions:
     grade: ASSUMED
     text: >-
       A catalog recipe's `/` is lowered through the `divide` transform's exactness
-      marker, so its division is the transform's; the `inexact_division` advisory
-      is retired and `AdvisoryCode` carries only `undeclared_audience`
+      marker, its dividend cast to a decimal keeping at least the declared scale,
+      so integer operands divide fractionally and the division is the transform's;
+      the `inexact_division` advisory is retired and `AdvisoryCode` carries only `undeclared_audience`
     paths:
       - src/bloomery/resolve/build.py
       - src/bloomery/evidence.py

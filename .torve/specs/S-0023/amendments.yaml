@@ -17,7 +17,7 @@ amendments:
 
       - D-12 answers Q-1.
   - id: A-2
-    at: '2026-10-06T18:48:36Z'
+    at: '2026-10-06T19:26:57Z'
     title: The unit rule as the code applies it (S-0090)
     changes:
       - subject: D-3
@@ -29,10 +29,11 @@ amendments:
           ever.
         after: >-
           `unit`/`tax_basis` originate only on catalog canonical fields and propagate
-          via `canonical:`; the unit check refuses two declared, different units in
-          `+`/`-` and lets an undeclared unit pass, and `unknown` poisons additive
-          arithmetic through the tax-basis check, which refuses an operand with no
-          `tax_basis` beside a monetary one. No inference from names or values, ever
+          via `canonical:`; the unit check refuses `+`/`-` only where each side declares
+          exactly one unit and the two differ, and lets an undeclared unit pass; `unknown`
+          poisons additive arithmetic through the tax-basis check, which refuses an
+          operand with a currency or undeclared unit whose `tax_basis` is absent or
+          `unknown` beside a monetary one. No inference from names or values, ever
       - subject: D-3
         field: fingerprint
-        after: d64fc0e664e25ad1/436507eea27c0abf
+        after: b9f4123c3e1992da/436507eea27c0abf

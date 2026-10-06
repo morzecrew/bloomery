@@ -678,7 +678,7 @@ Authored SQL text nests at most 32 levels: `_parses_as_sql`, a quality rule's `e
 
 ### S-0090/D-3 — `ASSUMED` (Three places bloomery said one thing and did another) — implementation: none
 
-A catalog recipe's `/` is lowered through the `divide` transform's exactness marker, so its division is the transform's; the `inexact_division` advisory is retired and `AdvisoryCode` carries only `undeclared_audience`
+A catalog recipe's `/` is lowered through the `divide` transform's exactness marker, its dividend cast to a decimal keeping at least the declared scale, so integer operands divide fractionally and the division is the transform's; the `inexact_division` advisory is retired and `AdvisoryCode` carries only `undeclared_audience`
 
 - Paths: `src/bloomery/resolve/build.py` `src/bloomery/evidence.py` `tests/unit/test_advisories.py`
 - Consequence: a dividing recipe is exact on PostgreSQL and Trino, and no advisory stands where the errors page's rule says a refusal belongs

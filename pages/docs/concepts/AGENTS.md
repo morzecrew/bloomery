@@ -80,9 +80,9 @@ A boundary refusal has its own template naming the alias and the upstream finger
 
 ### S-0090/D-1 — `ASSUMED` (Three places bloomery said one thing and did another) — implementation: none
 
-The unit check refuses two declared, different units in `+` or `-` and lets an undeclared unit pass; `unknown` poisons additive arithmetic through the tax-basis check, which refuses an operand with no `tax_basis` beside a monetary one; the guardrails page states this rule
+The unit check refuses `+` or `-` only where each side declares exactly one unit and the two differ, and lets an undeclared unit pass; `unknown` poisons additive arithmetic through the tax-basis check, which refuses an operand with a currency or undeclared unit whose `tax_basis` is absent or `unknown` beside a monetary one; the guardrails page states this rule
 
 - Paths: `pages/docs/concepts/guardrails.md` `src/bloomery/guardrails/arithmetic.py`
-- Consequence: the page and the code agree, and money beside an undeclared operand is still refused
+- Consequence: the page and the code agree, money beside an undeclared or explicitly unknown basis is refused, and arithmetic on unitless tenant-native fields compiles
 
 <!-- /torve:managed -->

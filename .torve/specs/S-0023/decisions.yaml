@@ -31,16 +31,17 @@ decisions:
     grade: ASSUMED
     text: >-
       `unit`/`tax_basis` originate only on catalog canonical fields and propagate
-      via `canonical:`; the unit check refuses two declared, different units in `+`/`-`
-      and lets an undeclared unit pass, and `unknown` poisons additive arithmetic
-      through the tax-basis check, which refuses an operand with no `tax_basis` beside
-      a monetary one. No inference from names or values, ever
+      via `canonical:`; the unit check refuses `+`/`-` only where each side declares
+      exactly one unit and the two differ, and lets an undeclared unit pass; `unknown`
+      poisons additive arithmetic through the tax-basis check, which refuses an operand
+      with a currency or undeclared unit whose `tax_basis` is absent or `unknown`
+      beside a monetary one. No inference from names or values, ever
     paths:
       - src/bloomery/guardrails/arithmetic.py
       - src/bloomery/guardrails/operands.py
       - tests/unit/test_guardrails/test_arithmetic.py
       - tests/unit/test_guardrails/test_grain.py
-    fingerprint: d64fc0e664e25ad1/436507eea27c0abf
+    fingerprint: b9f4123c3e1992da/436507eea27c0abf
   - id: D-4
     grade: ASSUMED
     text: >-

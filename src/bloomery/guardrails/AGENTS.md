@@ -130,7 +130,7 @@ Violations are batched project-wide: leaf errors (`UnitMismatch`, `TaxBasisMisma
 
 ### S-0023/D-3 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
-`unit`/`tax_basis` originate only on catalog canonical fields and propagate via `canonical:`; the unit check refuses two declared, different units in `+`/`-` and lets an undeclared unit pass, and `unknown` poisons additive arithmetic through the tax-basis check, which refuses an operand with no `tax_basis` beside a monetary one. No inference from names or values, ever
+`unit`/`tax_basis` originate only on catalog canonical fields and propagate via `canonical:`; the unit check refuses `+`/`-` only where each side declares exactly one unit and the two differ, and lets an undeclared unit pass; `unknown` poisons additive arithmetic through the tax-basis check, which refuses an operand with a currency or undeclared unit whose `tax_basis` is absent or `unknown` beside a monetary one. No inference from names or values, ever
 
 - Paths: `src/bloomery/guardrails/arithmetic.py` `src/bloomery/guardrails/operands.py` `tests/unit/test_guardrails/test_arithmetic.py` `tests/unit/test_guardrails/test_grain.py`
 
@@ -642,9 +642,9 @@ This boundary stores no provenance; it grades an upstream fact ASSUMED from `Pro
 
 ### S-0090/D-1 — `ASSUMED` (Three places bloomery said one thing and did another) — implementation: none
 
-The unit check refuses two declared, different units in `+` or `-` and lets an undeclared unit pass; `unknown` poisons additive arithmetic through the tax-basis check, which refuses an operand with no `tax_basis` beside a monetary one; the guardrails page states this rule
+The unit check refuses `+` or `-` only where each side declares exactly one unit and the two differ, and lets an undeclared unit pass; `unknown` poisons additive arithmetic through the tax-basis check, which refuses an operand with a currency or undeclared unit whose `tax_basis` is absent or `unknown` beside a monetary one; the guardrails page states this rule
 
 - Paths: `pages/docs/concepts/guardrails.md` `src/bloomery/guardrails/arithmetic.py`
-- Consequence: the page and the code agree, and money beside an undeclared operand is still refused
+- Consequence: the page and the code agree, money beside an undeclared or explicitly unknown basis is refused, and arithmetic on unitless tenant-native fields compiles
 
 <!-- /torve:managed -->
