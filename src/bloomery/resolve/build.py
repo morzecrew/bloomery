@@ -682,24 +682,32 @@ def _column_pair(
 # ....................... #
 
 
-#: Integer digits a recipe's dividend keeps once it is cast to a decimal. It is
-#: BigQuery's ``NUMERIC`` bound, so the cast stays ``NUMERIC`` there wherever the
-#: declared scale allows, and it is never under the declared type's own digits.
+#: The digits a recipe's dividend keeps once it is cast to a decimal: BigQuery's
+#: ``NUMERIC``, 29 integer digits and 9 fractional, so the cast stays ``NUMERIC``
+#: there wherever the declared type allows.
 _DIVIDEND_INTEGER_DIGITS = 29
+_DIVIDEND_FRACTION_DIGITS = 9
 
 
 def _dividend_type(declared: LogicalType) -> LogicalType:
-    """The decimal a recipe's dividend is cast to: the declared scale, so two
-    integers divide fractionally, and room for a dividend wider than the
-    quotient — ``123456789 / 2`` into ``decimal(12, 4)`` fits as a result and
-    would overflow as a dividend cast to ``decimal(12, 4)``."""
+    """The decimal a recipe's dividend is cast to.
+
+    Wider than the declared type on both sides. Integer digits: ``123456789 /
+    2`` into ``decimal(12, 4)`` fits as a result and would overflow as a
+    dividend cast to ``decimal(12, 4)``. Fractional digits: in ``(1 / 6) / 2``
+    the inner quotient is the outer dividend, and cast to a ``decimal(12, 2)``
+    it would round to ``0.17`` before the second division — ``0.09`` where the
+    answer is ``0.08``. The result is narrowed to the declared type once, at the
+    end. Where the declared type needs more integer digits, they win over the
+    fraction."""
 
     if not isinstance(declared, DecimalType):
         return declared
 
     digits = max(_DIVIDEND_INTEGER_DIGITS, declared.precision - declared.scale)
+    scale = max(declared.scale, min(_DIVIDEND_FRACTION_DIGITS, 38 - digits))
 
-    return DecimalType(min(38, declared.scale + digits), declared.scale)
+    return DecimalType(min(38, digits + scale), scale)
 
 
 # ....................... #
@@ -716,7 +724,7 @@ def _marked_division(node: Expression, declared: LogicalType) -> Expression:
     operands divide fractionally once the dividend is a decimal. Rewriting the
     ``Div`` as the marker call :func:`~bloomery.transforms.divide` builds
     closes both: the port renders the marker with a typed division, and the
-    dividend is cast to a decimal keeping the declared scale
+    dividend is cast to a decimal at least as wide as the declared one
     (:func:`_dividend_type`), so ``line_total / quantity`` keeps its fraction
     rather than truncating.
 

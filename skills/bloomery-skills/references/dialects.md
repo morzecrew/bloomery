@@ -106,8 +106,8 @@ fields:
 ```
 
 **A catalog recipe's `/` divides as `divide` does**: every `/` in a recipe `expr:` is lowered
-through the same marker, its dividend cast to a decimal with the declared scale. Exact on
-PostgreSQL and Trino, through a float on DuckDB.
+through the same marker, its dividend cast to a decimal at least `decimal(38, 9)` wide and the
+result narrowed once. Exact on PostgreSQL and Trino, through a float on DuckDB.
 
 ## Published pages
 

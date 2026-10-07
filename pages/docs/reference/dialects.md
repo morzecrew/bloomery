@@ -303,11 +303,12 @@ shipped examples do exactly that, and say why.
 **A catalog recipe's `/` divides as `divide` does.** A recipe's `expr:` is parsed
 SQL rather than a built transform, so the compiler lowers every `/` in it, nested
 ones included, through the marker the `divide` transform carries. The dividend is
-cast to a decimal with the declared scale, so two integer operands divide
-fractionally, and with at least 29 integer digits, so a dividend wider than the
-quotient does not overflow: `expr: line_total / quantity` into `decimal(12, 4)`
-renders as `CAST(line_total AS DECIMAL(33, 4)) / quantity`, narrowed back to
-`decimal(12, 4)`. It is exact on PostgreSQL and Trino and goes through a float on
+cast to a decimal at least as wide as BigQuery's `NUMERIC` — 29 integer digits and
+9 fractional — so two integer operands divide fractionally, a dividend wider than
+the quotient does not overflow, and a nested quotient is not rounded before the
+next division: `expr: line_total / quantity` into `decimal(12, 4)` renders as
+`CAST(line_total AS DECIMAL(38, 9)) / quantity`, narrowed to `decimal(12, 4)` once,
+at the end. It is exact on PostgreSQL and Trino and goes through a float on
 DuckDB, exactly as `divide` does above.
 
 ## Notes

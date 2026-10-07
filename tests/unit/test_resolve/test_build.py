@@ -60,11 +60,11 @@ def test_ecom_recipe_lowering_records_the_recipe_id() -> None:
     unit_price = next(c for c in order_item.columns if c.name == "unit_price")
     lowered = next(c for c in order_item.sources[0].columns if c.name == "unit_price")
     # A recipe's `/` is lowered to the divide transform's exactness marker, its
-    # dividend cast to the declared scale with room for a dividend wider than
-    # the quotient, rather than left as a bare Div (S-0090/D-3).
+    # dividend cast to a decimal wider than the declared one on both sides,
+    # rather than left as a bare Div (S-0090/D-3).
     assert (
         lowered.expr.sql
-        == "CAST(BLM_EXACT_DIV(CAST(total AS DECIMAL(33, 4)), qty) AS DECIMAL(12, 4))"
+        == "CAST(BLM_EXACT_DIV(CAST(total AS DECIMAL(38, 9)), qty) AS DECIMAL(12, 4))"
     )
     assert lowered.recipe_id == "from_total"
     assert unit_price.type == DecimalType(12, 4)
@@ -93,15 +93,18 @@ def test_a_nested_recipe_division_is_exact_and_leaves_no_marker() -> None:
 @pytest.mark.parametrize(
     ("declared", "dividend"),
     [
-        (DecimalType(12, 4), DecimalType(33, 4)),
+        (DecimalType(12, 4), DecimalType(38, 9)),
+        (DecimalType(12, 2), DecimalType(38, 9)),
         (DecimalType(38, 2), DecimalType(38, 2)),
         (DecimalType(20, 12), DecimalType(38, 12)),
     ],
 )
-def test_a_recipe_dividend_has_room_past_the_declared_precision(declared, dividend) -> None:
+def test_a_recipe_dividend_is_wider_than_the_declared_decimal(declared, dividend) -> None:
     """A dividend cast to the declared ``decimal(12, 4)`` overflows on
-    ``123456789 / 2`` though the quotient fits; it keeps the declared scale and
-    at least 29 integer digits, capped at 38."""
+    ``123456789 / 2`` though the quotient fits, and in ``(1 / 6) / 2`` declared
+    ``decimal(12, 2)`` it rounds the inner quotient to ``0.17`` first. It keeps
+    at least 29 integer digits and 9 fractional, capped at 38, the integer
+    digits first."""
 
     assert _dividend_type(declared) == dividend
 

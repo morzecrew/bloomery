@@ -26,9 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   division — an explicit `CAST(x AS DOUBLE PRECISION)` on PostgreSQL and `CAST(x AS DOUBLE)`
   on Trino — narrowed back to the declared decimal, so values needing more than ~15
   significant digits could round. Every `/` in the recipe, nested ones included, is now
-  lowered through the `divide` transform's marker. Its dividend is cast to a decimal with the
-  declared scale and at least 29 integer digits, so integer operands divide fractionally and
-  a dividend wider than the quotient does not overflow. The division is the transform's —
+  lowered through the `divide` transform's marker. Its dividend is cast to a decimal at least
+  29 integer digits and 9 fractional wide, so integer operands divide fractionally, a
+  dividend wider than the quotient does not overflow, and a nested quotient is not rounded
+  before the next division; the result is narrowed to the declared type once. The division
+  is the transform's —
   exact on PostgreSQL and Trino and rendered per dialect like any other division. DuckDB,
   which has no exact decimal division, is unchanged in being inexact there.
 
