@@ -21,8 +21,8 @@ decisions:
       of that name.
     paths: [src/bloomery/resolve/build.py]
     consequence: >-
-      arithmetic in a recipe runs on typed values on every port, and `numeric / text`
-      cannot reach an engine
+      arithmetic in a recipe runs on the types its catalog declares, so a text-shaped
+      extraction never reaches an engine untyped
     rationale: >-
       The canonical fallback is the resolution `guardrails/arithmetic.py::_lookup`
       already applies to an operand's unit and tax basis (S-0023/D-3), so a name means

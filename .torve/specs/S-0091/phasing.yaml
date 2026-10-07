@@ -4,12 +4,14 @@ phasing:
     title: Operands are typed before a recipe's arithmetic
     intent: >-
       `Recipe.types` with its load check and schema; `_recipe_expr` casts each operand
-      per D-2; the refusal of D-3 in `resolve_recipe`. The repository's catalogs that
-      compute over a non-canonical operand gain `types:`, and the goldens re-bless.
-      Tests: `types:` round-trips and a surplus key is refused; a text operand lowers
-      to a cast; a nested JSON path operand lowers to a cast of the `->>` extraction;
-      an untyped non-canonical operand under `/` is refused with its fix. Settles
-      D-1 to D-3 and the fixture half of D-4.
+      per D-2; the refusal of D-3 in `resolve_recipe`. Every catalog the repository
+      compiles that computes over a non-canonical operand gains `types:` — the fixtures,
+      `tests/execution`, `examples`, `fuzz` and the catalog snippets in the docs and
+      the skill references that tests compile — and the goldens re-bless. Tests: `types:`
+      round-trips and a surplus key is refused; a text operand lowers to a cast; a
+      nested JSON path operand lowers to a cast of the `->>` extraction; an untyped
+      non-canonical operand under `/` is refused with its fix. Settles D-1 to D-3
+      and the fixture half of D-4.
     scope:
       - src/bloomery/spec/catalog.py
       - src/bloomery/resolve/build.py
@@ -23,8 +25,12 @@ phasing:
       - tests/golden/**
       - examples/**
       - fuzz/fixtures/**
-      - pages/docs/how-to/trace-a-definition-over-time.md
       - tests/unit/test_docs_snippets.py
+      - tests/execution/**
+      - pages/docs/**
+      - skills/bloomery-skills/references/**
+      - tests/unit/test_skills.py
+      - skills/coverage.toml
     acceptance:
       - >-
         uv run pytest -m "not engine and not e2e and not chaos and not perf and not
@@ -34,18 +40,19 @@ phasing:
   - phase: 2
     title: The reference and the skill say what `types:` is
     intent: >-
-      The catalog reference and spec-schema pages document `types:` and the refusal;
-      the dialects page says a recipe's operands are typed; the skill's catalog and
-      errors references follow; the changelog entry is breaking with the upgrade note.
-      Settles the rest of D-4.
+      With every snippet already typed by phase 1, the catalog reference and spec-schema
+      pages document `types:` and the refusal; the dialects page says a recipe's operands
+      are typed; the skill's catalog and errors references follow; the changelog entry
+      is breaking with the upgrade note. Settles the rest of D-4.
     scope:
       - pages/docs/reference/**
       - pages/docs/concepts/**
       - skills/bloomery-skills/references/**
-      - skills/coverage.toml
       - CHANGELOG.md
-      - tests/unit/test_docs_*.py
-      - tests/unit/test_skills*.py
+      - tests/unit/test_docs_floor.py
+      - tests/unit/test_docs_snippets.py
+      - tests/unit/test_skills.py
+      - skills/coverage.toml
     acceptance:
       - uv run pytest tests/unit -q -k "docs or skill"
     depends_on:

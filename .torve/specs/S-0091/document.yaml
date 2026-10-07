@@ -31,13 +31,14 @@ current_state: >-
   `from_total` divides the raw `total` by the raw `qty`, while the same mapping's
   `quantity` field is `CAST(qty AS INT)`.
 goals: |-
-  - Every operand of a recipe's arithmetic is a typed value before the operator applies.
+  - Every operand of a recipe's arithmetic is cast to a declared type before the operator applies.
   - A recipe over text-shaped extractions compiles to a model that runs on PostgreSQL and BigQuery.
   - A missing type is a compile-time refusal that names the fix, never an engine error.
 non_goals: |-
   - Running an entity field's transform chain on a recipe operand of the same name; a recipe's operand is an alias slot, not a field (S-0022).
   - Inferring bronze column types from the warehouse.
   - Casting operands to the recipe's declared type, which rounds an operand finer than that type.
+  - Checking that a declared operand type suits its operator; a `types:` entry is the author's declaration, as a canonical field's `type:` is.
 design:
   - key: the-grammar
     md: |-
@@ -45,11 +46,11 @@ design:
       recipes:
         - id: from_total
           requires: [line_total, quantity]
-          types: {line_total: decimal(12,4)}
+          types: {line_total: "decimal(12,4)"}
           expr: line_total / quantity
       ```
 
-      `types:` keeps `requires` a list of names, so every reader of `requires` is untouched. `quantity` needs no entry: it is a canonical field declared `int`. A `types:` key that `requires` does not name is refused at load, like a surplus `from:` alias (S-0022).
+      `types:` keeps `requires` a list of names, so every reader of `requires` is untouched. `quantity` needs no entry: it is a canonical field declared `int`. A `types:` key that `requires` does not name is refused at load, like a surplus `from:` alias (S-0022). In flow style a type is quoted: the comma in `decimal(12,4)` would otherwise end the entry.
   - key: the-lowering
     md: >-
       `_recipe_expr` substitutes `CAST(<extraction> AS <type>)` for each operand,
