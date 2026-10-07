@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../schemas/provider.json
 # The ModelStudio token plan, reached over its Anthropic route so the claude
 # image drives it unchanged. Copied from torve's record on 2026-10-07 and cut to
-# the one route and the one model this repository's seats name.
+# the one route and the two models this repository's seats name.
 name: modelstudio
 key_env: MODELSTUDIO_CODING_API_KEY
 via_proxy: false
@@ -19,3 +19,9 @@ models:
   # a prepaid weekly quota rather than per-token billing.
   deepseek-v4.1-flash:
     reasoning: [minimal, low, medium, high, xhigh, max, ultra]
+  # The reviewer's model. Levels enumerated by the endpoint's own 400; the
+  # window and output cap are the vendor's figures, as torve's record has them.
+  qwen3.8-flash:
+    context_window: 1000000
+    max_tokens: 65536
+    reasoning: [none, minimal, low, medium, high, xhigh, max]
