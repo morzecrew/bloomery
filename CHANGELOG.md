@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one cannot land unrecorded. Retrieval is out of scope until a project outside bloomery's
   own examples declares a `RetrievalSpec`.
 
+### Fixed
+
+- **`InvariantViolated` reaches the shell as an internal error.** It subclasses
+  `BloomeryError`, so the command line's refusal arm claimed it and exited `1` — reading a
+  bloomery bug as though the spec were at fault. It is now handled ahead of that arm: exit
+  `3`, the traceback on stderr under the report line, as any other defect is.
+
 ## [0.6.0] - 2026-10-03
 
 ### Added
