@@ -70,7 +70,9 @@ tiers:
   reviewer:
     harness: claude-subscription
     profile: review
-    model: deepseek-v4.1-flash
+    # A different model from the executor's, so a review is not the same model
+    # agreeing with itself; same plan, same route (2026-10-07).
+    model: qwen3.8-flash
     provider: modelstudio
     dialect: anthropic
     reasoning: medium
