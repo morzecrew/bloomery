@@ -145,6 +145,7 @@ from bloomery.transforms import (
 from bloomery.typing import (
     ChainCheck,
     DateType,
+    DecimalType,
     LogicalType,
     StringType,
     TimestampType,
@@ -681,9 +682,32 @@ def _column_pair(
 # ....................... #
 
 
+#: Integer digits a recipe's dividend keeps once it is cast to a decimal. It is
+#: BigQuery's ``NUMERIC`` bound, so the cast stays ``NUMERIC`` there wherever the
+#: declared scale allows, and it is never under the declared type's own digits.
+_DIVIDEND_INTEGER_DIGITS = 29
+
+
+def _dividend_type(declared: LogicalType) -> LogicalType:
+    """The decimal a recipe's dividend is cast to: the declared scale, so two
+    integers divide fractionally, and room for a dividend wider than the
+    quotient — ``123456789 / 2`` into ``decimal(12, 4)`` fits as a result and
+    would overflow as a dividend cast to ``decimal(12, 4)``."""
+
+    if not isinstance(declared, DecimalType):
+        return declared
+
+    digits = max(_DIVIDEND_INTEGER_DIGITS, declared.precision - declared.scale)
+
+    return DecimalType(min(38, declared.scale + digits), declared.scale)
+
+
+# ....................... #
+
+
 def _marked_division(node: Expression, declared: LogicalType) -> Expression:
-    """A recipe ``expr:``'s outermost ``/`` per branch, lowered to the
-    ``divide`` transform's exactness marker (S-0090/D-3).
+    """Every ``/`` in a recipe ``expr:``, lowered to the ``divide`` transform's
+    exactness marker (S-0090/D-3).
 
     A recipe's expression is parsed SQL rather than a built transform, so its
     ``Div`` carries no marker: SQLGlot renders it with an explicit
@@ -692,25 +716,19 @@ def _marked_division(node: Expression, declared: LogicalType) -> Expression:
     operands divide fractionally once the dividend is a decimal. Rewriting the
     ``Div`` as the marker call :func:`~bloomery.transforms.divide` builds
     closes both: the port renders the marker with a typed division, and the
-    dividend is cast to a decimal keeping at least the declared scale, so
-    ``line_total / quantity`` keeps its fraction rather than truncating.
+    dividend is cast to a decimal keeping the declared scale
+    (:func:`_dividend_type`), so ``line_total / quantity`` keeps its fraction
+    rather than truncating.
 
-    The walk marks a division only where it is not itself inside one, and that
-    is deliberate rather than a shortcut. :meth:`Expression.transform` prunes
-    the subtree of a node it replaces — so the walk stops at the first ``Div``
-    down each branch and the markers come out **flat**, never one inside
-    another. The render-side unmarking
-    (:func:`bloomery.dialects.base._exact_division`) replaces markers the same
-    way and prunes in turn, so a marker nested under a marker would be visited
-    once and the inner one would survive into the artifact as an undefined
-    function call (the leak T-0281 measured). Flat markers are all reachable.
-
-    A ``/`` nested inside another ``/`` keeps SQLGlot's own division — a
-    binary float, the behavior before this change. Making that one exact needs
-    the render-side unmarking to reach nested markers, which is outside this
-    task's scope; the flat walk is what keeps the marker from reaching the
-    engine meanwhile.
+    :meth:`Expression.transform` prunes the subtree of a node it replaces, so
+    one pass marks the outermost ``/`` down each branch and leaves ``a / b``
+    inside ``(a / b) / c`` alone. The walk repeats until no ``/`` is left, one
+    level of nesting per pass; the render side unmarks the same way
+    (:func:`bloomery.dialects.base._exact_division`), so no marker reaches the
+    engine as an undefined function call.
     """
+
+    dividend = neutral_type(_dividend_type(declared))
 
     def marked(child: Expression) -> Expression:
         if not isinstance(child, exp.Div):
@@ -718,13 +736,13 @@ def _marked_division(node: Expression, declared: LogicalType) -> Expression:
 
         return exp.Anonymous(
             this=DIVIDE_MARKER,
-            expressions=[
-                exp.cast(child.this, neutral_type(declared)),
-                child.expression,
-            ],
+            expressions=[exp.cast(child.this, dividend), child.expression],
         )
 
-    return node.transform(marked)
+    while node.find(exp.Div) is not None:
+        node = node.transform(marked)
+
+    return node
 
 
 def _recipe_expr(

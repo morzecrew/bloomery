@@ -22,21 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **A catalog recipe's `/` is exact.** A recipe's `expr:` is parsed SQL rather than a built
-  transform, so its division carried no exactness marker: SQLGlot rendered it with an
-  explicit `CAST(x AS DOUBLE PRECISION)` on PostgreSQL and `CAST(x AS DOUBLE)` on Trino,
-  narrowing a binary float back to the declared decimal, and two integer operands divided
-  to an integer on every engine. The outermost `/` down each branch is now lowered through
-  the `divide` transform's marker, its dividend cast to a decimal keeping at least the
-  declared scale, so the division is the transform's — exact on PostgreSQL and Trino,
-  fractional for integer operands, and rendered per dialect like any other division.
-  DuckDB, which has no exact decimal division, is unchanged in being inexact there.
-
-  A `/` nested inside another `/` keeps SQLGlot's own division, as it did before. The
-  render-side unmarking replaces a marker and prunes the subtree it replaced, so a marker
-  nested inside a marker would reach the engine as an undefined function call; keeping the
-  markers flat is what keeps this change from shipping one. Making a nested division exact
-  needs that unmarking to reach nested markers, which is a dialect-layer change this release
-  does not carry.
+  transform, so its division carried no exactness marker: SQLGlot rendered it as a float
+  division — an explicit `CAST(x AS DOUBLE PRECISION)` on PostgreSQL and `CAST(x AS DOUBLE)`
+  on Trino — narrowed back to the declared decimal, so values needing more than ~15
+  significant digits could round. Every `/` in the recipe, nested ones included, is now
+  lowered through the `divide` transform's marker. Its dividend is cast to a decimal with the
+  declared scale and at least 29 integer digits, so integer operands divide fractionally and
+  a dividend wider than the quotient does not overflow. The division is the transform's —
+  exact on PostgreSQL and Trino and rendered per dialect like any other division. DuckDB,
+  which has no exact decimal division, is unchanged in being inexact there.
 
   **Upgrade note.** A project whose catalog carries a dividing recipe compiles a different
   silver model, so its fingerprint moves; recompile the project and re-plan against the new

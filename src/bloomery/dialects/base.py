@@ -355,14 +355,22 @@ def _exact_division(node: Expression) -> Expression:
     rather than removed (S-0046/what-fixed-looks-like, logs/T-0002.md D-003).
     """
 
+    def marker(child: Expression) -> bool:
+        return isinstance(child, exp.Anonymous) and child.name.upper() == DIVIDE_MARKER
+
     def replace(child: Expression) -> Expression:
-        if isinstance(child, exp.Anonymous) and child.name.upper() == DIVIDE_MARKER:
+        if marker(child):
             left, right = child.expressions
             return exp.Div(this=left, expression=right, typed=True)
 
         return child
 
-    return node.transform(replace)
+    # `transform` prunes what it replaces, so a marker inside another marker —
+    # a recipe's `(a / b) / c` — is reached one level per pass.
+    while any(marker(child) for child in node.find_all(exp.Anonymous)):
+        node = node.transform(replace)
+
+    return node
 
 
 # ....................... #

@@ -26,7 +26,7 @@ from bloomery.ir import (
 )
 from bloomery.dialects.base import _exact_division
 from bloomery.quality import dedupe_sort_columns
-from bloomery.resolve.build import DIRECT_SUFFIX, _marked_division
+from bloomery.resolve.build import DIRECT_SUFFIX, _dividend_type, _marked_division
 from bloomery.typing import DecimalType, StringType, TimestampType
 from support.compiling import FIXTURES, fixture_sources, load_fixture
 
@@ -60,11 +60,11 @@ def test_ecom_recipe_lowering_records_the_recipe_id() -> None:
     unit_price = next(c for c in order_item.columns if c.name == "unit_price")
     lowered = next(c for c in order_item.sources[0].columns if c.name == "unit_price")
     # A recipe's `/` is lowered to the divide transform's exactness marker, its
-    # dividend cast to the declared scale, rather than left as a bare Div
-    # (S-0090/D-3).
+    # dividend cast to the declared scale with room for a dividend wider than
+    # the quotient, rather than left as a bare Div (S-0090/D-3).
     assert (
         lowered.expr.sql
-        == "CAST(BLM_EXACT_DIV(CAST(total AS DECIMAL(12, 4)), qty) AS DECIMAL(12, 4))"
+        == "CAST(BLM_EXACT_DIV(CAST(total AS DECIMAL(33, 4)), qty) AS DECIMAL(12, 4))"
     )
     assert lowered.recipe_id == "from_total"
     assert unit_price.type == DecimalType(12, 4)
@@ -73,14 +73,12 @@ def test_ecom_recipe_lowering_records_the_recipe_id() -> None:
     assert unit_price.tax_basis is not None and unit_price.tax_basis.value == "net"
 
 
-def test_a_nested_recipe_division_never_leaves_a_marker_in_the_artifact() -> None:
-    """T-0281: the render-side unmarking replaces a marker and prunes the
-    subtree it replaced, so a marker nested *inside* another marker is never
-    visited and survives into the SQL as an undefined function call.
-    ``_marked_division`` keeps its markers flat — the walk stops at the first
-    ``Div`` down each branch — so every marker the artifact carries is one
-    ``render`` reaches, and none leaks.
-    """
+def test_a_nested_recipe_division_is_exact_and_leaves_no_marker() -> None:
+    """T-0281: a marker nested inside another marker once survived into the SQL
+    as an undefined function call, because ``transform`` prunes what it
+    replaces. Both sides now walk one level per pass, so every ``/`` of the
+    recipe is marked and every marker is rendered as a typed division — no
+    marker, and no binary float either."""
 
     from sqlglot import parse_one
 
@@ -88,6 +86,24 @@ def test_a_nested_recipe_division_never_leaves_a_marker_in_the_artifact() -> Non
         marked = _marked_division(parse_one(text), DecimalType(12, 4))
         rendered = _exact_division(marked).sql(dialect="postgres")
         assert "BLM_EXACT_DIV" not in rendered, text
+        assert "DOUBLE" not in rendered, text
+        assert rendered.count(" / ") == 2, text
+
+
+@pytest.mark.parametrize(
+    ("declared", "dividend"),
+    [
+        (DecimalType(12, 4), DecimalType(33, 4)),
+        (DecimalType(38, 2), DecimalType(38, 2)),
+        (DecimalType(20, 12), DecimalType(38, 12)),
+    ],
+)
+def test_a_recipe_dividend_has_room_past_the_declared_precision(declared, dividend) -> None:
+    """A dividend cast to the declared ``decimal(12, 4)`` overflows on
+    ``123456789 / 2`` though the quotient fits; it keeps the declared scale and
+    at least 29 integer digits, capped at 38."""
+
+    assert _dividend_type(declared) == dividend
 
 
 def test_ecom_nested_jsonpath_lowering() -> None:

@@ -105,9 +105,9 @@ fields:
     transform: [{to_decimal: [14, 2]}, {multiply: "0.01"}]
 ```
 
-**A catalog recipe's `/` is inexact on every engine**: a recipe `expr:` is parsed SQL and
-renders as a float division narrowed back. Use a `divide`/`multiply` transform chain where
-the division must be exact, and keep recipe division for screen-precision values.
+**A catalog recipe's `/` divides as `divide` does**: every `/` in a recipe `expr:` is lowered
+through the same marker, its dividend cast to a decimal with the declared scale. Exact on
+PostgreSQL and Trino, through a float on DuckDB.
 
 ## Published pages
 
