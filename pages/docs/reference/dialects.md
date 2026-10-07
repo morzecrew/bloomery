@@ -300,17 +300,16 @@ If exactness matters on DuckDB, multiply by the reciprocal instead: `{multiply:
 "0.01"}` rather than `{divide: 100}` stays in decimal arithmetic end to end. The
 shipped examples do exactly that, and say why.
 
-**A catalog recipe's `/` is inexact on every engine.** The `divide` transform is
-marked so PostgreSQL and Trino keep it in exact decimal arithmetic, but a
-recipe's `expr:` is parsed SQL, not a built transform, and carries no marker —
-`expr: line_total / quantity` renders as `CAST(line_total AS DOUBLE PRECISION) /
-quantity`, a binary-float division narrowed back to the declared decimal
-(logs/T-0002.md D-004). The narrowing bounds the error the way DuckDB's `divide`
-is bounded above; values needing more than ~15 significant digits can still
-round. Marking a recipe's division exact needs operand types the recipe grammar
-does not carry yet — until it does, prefer a `divide`/`multiply` transform chain
-where the division must be exact, and keep recipe `expr:` division for
-screen-precision derivations.
+**A catalog recipe's `/` divides as `divide` does.** A recipe's `expr:` is parsed
+SQL rather than a built transform, so the compiler lowers every `/` in it, nested
+ones included, through the marker the `divide` transform carries. The dividend is
+cast to a decimal at least as wide as BigQuery's `NUMERIC` — 29 integer digits and
+9 fractional — so two integer operands divide fractionally, a dividend wider than
+the quotient does not overflow, and a nested quotient is not rounded before the
+next division: `expr: line_total / quantity` into `decimal(12, 4)` renders as
+`CAST(line_total AS DECIMAL(38, 9)) / quantity`, narrowed to `decimal(12, 4)` once,
+at the end. It is exact on PostgreSQL and Trino and goes through a float on
+DuckDB, exactly as `divide` does above.
 
 ## Notes
 

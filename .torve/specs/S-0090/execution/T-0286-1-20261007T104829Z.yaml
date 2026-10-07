@@ -1,0 +1,274 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0286
+base: a4a62da41e4da2198523c39fa39970b033bcedd1
+commit: 5cb489953c1435177d2e23fab61e8f0937287a12
+at: '2026-10-07T10:48:29Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: S-0002/D-1
+    grade: LOCKED
+  - id: S-0002/D-6
+    grade: ASSUMED
+  - id: S-0002/D-9
+    grade: LOCKED
+  - id: S-0002/D-11
+    grade: ASSUMED
+  - id: S-0002/D-12
+    grade: ASSUMED
+  - id: S-0002/D-13
+    grade: ASSUMED
+  - id: S-0005/D-3
+    grade: LOCKED
+  - id: S-0005/D-4
+    grade: ASSUMED
+  - id: S-0006/D-5
+    grade: ASSUMED
+  - id: S-0011/D-2
+    grade: LOCKED
+  - id: S-0011/D-9
+    grade: ASSUMED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0018/D-13
+    grade: ASSUMED
+  - id: S-0019/D-4
+    grade: ASSUMED
+  - id: S-0019/D-9
+    grade: ASSUMED
+  - id: S-0019/D-10
+    grade: ASSUMED
+  - id: S-0020/D-5
+    grade: ASSUMED
+  - id: S-0022/D-2
+    grade: ASSUMED
+  - id: S-0023/D-2
+    grade: ASSUMED
+  - id: S-0023/D-3
+    grade: ASSUMED
+  - id: S-0023/D-4
+    grade: ASSUMED
+  - id: S-0023/D-5
+    grade: ASSUMED
+  - id: S-0023/D-6
+    grade: ASSUMED
+  - id: S-0023/D-7
+    grade: ASSUMED
+  - id: S-0023/D-8
+    grade: ASSUMED
+  - id: S-0023/D-9
+    grade: ASSUMED
+  - id: S-0023/D-10
+    grade: ASSUMED
+  - id: S-0023/D-11
+    grade: ASSUMED
+  - id: S-0023/D-12
+    grade: ASSUMED
+  - id: S-0024/D-3
+    grade: ASSUMED
+  - id: S-0025/D-2
+    grade: ASSUMED
+  - id: S-0025/D-13
+    grade: ASSUMED
+  - id: S-0027/D-2
+    grade: ASSUMED
+  - id: S-0027/D-3
+    grade: ASSUMED
+  - id: S-0027/D-4
+    grade: ASSUMED
+  - id: S-0027/D-7
+    grade: ASSUMED
+  - id: S-0027/D-8
+    grade: ASSUMED
+  - id: S-0028/D-5
+    grade: ASSUMED
+  - id: S-0030/D-8
+    grade: ASSUMED
+  - id: S-0032/D-5
+    grade: ASSUMED
+  - id: S-0033/D-1
+    grade: ASSUMED
+  - id: S-0033/D-3
+    grade: ASSUMED
+  - id: S-0033/D-5
+    grade: ASSUMED
+  - id: S-0033/D-10
+    grade: ASSUMED
+  - id: S-0033/D-12
+    grade: ASSUMED
+  - id: S-0033/D-49
+    grade: ASSUMED
+  - id: S-0033/D-56
+    grade: ASSUMED
+  - id: S-0033/D-80
+    grade: ASSUMED
+  - id: S-0033/D-83
+    grade: ASSUMED
+  - id: S-0033/D-86
+    grade: ASSUMED
+  - id: S-0033/D-87
+    grade: ASSUMED
+  - id: S-0033/D-89
+    grade: ASSUMED
+  - id: S-0034/D-13
+    grade: ASSUMED
+  - id: S-0034/D-16
+    grade: ASSUMED
+  - id: S-0034/D-51
+    grade: ASSUMED
+  - id: S-0034/D-52
+    grade: ASSUMED
+  - id: S-0037/D-2
+    grade: ASSUMED
+  - id: S-0037/D-3
+    grade: ASSUMED
+  - id: S-0040/D-1
+    grade: LOCKED
+  - id: S-0040/D-2
+    grade: LOCKED
+  - id: S-0040/D-5
+    grade: LOCKED
+  - id: S-0041/D-5
+    grade: LOCKED
+  - id: S-0041/D-12
+    grade: LOCKED
+  - id: S-0041/D-26
+    grade: ASSUMED
+  - id: S-0041/D-33
+    grade: LOCKED
+  - id: S-0041/D-34
+    grade: LOCKED
+  - id: S-0041/D-36
+    grade: ASSUMED
+  - id: S-0042/D-27
+    grade: ASSUMED
+  - id: S-0049/D-3
+    grade: LOCKED
+  - id: S-0050/D-1
+    grade: LOCKED
+  - id: S-0050/D-2
+    grade: LOCKED
+  - id: S-0050/D-5
+    grade: LOCKED
+  - id: S-0050/D-6
+    grade: LOCKED
+  - id: S-0050/D-7
+    grade: LOCKED
+  - id: S-0050/D-8
+    grade: LOCKED
+  - id: S-0050/D-9
+    grade: LOCKED
+  - id: S-0050/D-11
+    grade: LOCKED
+  - id: S-0051/D-3
+    grade: LOCKED
+  - id: S-0053/D-1
+    grade: LOCKED
+  - id: S-0053/D-2
+    grade: LOCKED
+  - id: S-0053/D-7
+    grade: ASSUMED
+  - id: S-0058/D-1
+    grade: LOCKED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0058/D-3
+    grade: LOCKED
+  - id: S-0058/D-4
+    grade: LOCKED
+  - id: S-0059/D-6
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0063/D-2
+    grade: LOCKED
+  - id: S-0063/D-8
+    grade: ASSUMED
+  - id: S-0064/D-8
+    grade: LOCKED
+  - id: S-0064/D-10
+    grade: LOCKED
+  - id: S-0066/D-2
+    grade: LOCKED
+  - id: S-0066/D-5
+    grade: ASSUMED
+  - id: S-0070/D-3
+    grade: LOCKED
+  - id: S-0070/D-4
+    grade: LOCKED
+  - id: S-0075/D-1
+    grade: LOCKED
+  - id: S-0075/D-3
+    grade: LOCKED
+  - id: S-0075/D-7
+    grade: ASSUMED
+  - id: S-0076/D-9
+    grade: ASSUMED
+  - id: S-0076/D-10
+    grade: ASSUMED
+  - id: S-0079/D-3
+    grade: ASSUMED
+  - id: S-0079/D-8
+    grade: ASSUMED
+  - id: S-0080/D-5
+    grade: ASSUMED
+  - id: S-0081/D-4
+    grade: ASSUMED
+entries:
+  - decision: S-0002/D-9
+    grade: LOCKED
+    at: '2026-10-07T10:31:23Z'
+    claim: >-
+      the arithmetic guard reads only catalog canonical metadata through operand_meta;
+      the composed-view change to this stage is untouched by the lookup fix, which
+      only stops dropping a name absent from the catalog
+    evidence: >-
+      src/bloomery/guardrails/arithmetic.py:82-95 — _lookup now synthesizes an unknown
+      OperandMeta instead of filtering the name out; no cross-project node resolution
+      added
+    action: decided
+  - decision: S-0011/D-2
+    grade: LOCKED
+    at: '2026-10-07T10:31:23Z'
+    claim: >-
+      no encoder identity is computed, read or resolved; the guard still compares
+      only declared unit/tax_basis/currency strings
+    evidence: >-
+      src/bloomery/guardrails/arithmetic.py:245-270 — check_arithmetic resolves operands
+      from catalog metadata and compares declared fields
+    action: decided
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-10-07T10:31:23Z'
+    claim: >-
+      no engine driver, cloud SDK or Spark session is introduced; the change is a
+      pure in-memory operand lookup
+    evidence: >-
+      src/bloomery/guardrails/arithmetic.py:82-95 — dataclass and dict comprehension
+      only, no engine import
+    action: decided
+  - decision: S-0040/D-5
+    grade: LOCKED
+    at: '2026-10-07T10:31:23Z'
+    claim: >-
+      the currency rule stays unconditional and no convert marker is reintroduced;
+      the fix touches only the operand lookup feeding the tax-basis rule
+    evidence: >-
+      src/bloomery/guardrails/arithmetic.py:160-188 — _check_currency unchanged, no
+      marker accepted
+    action: decided
+  - decision: S-0066/D-2
+    grade: LOCKED
+    at: '2026-10-07T10:31:23Z'
+    claim: >-
+      no currency is inferred; an operand absent from the catalog is given unit/tax_basis/currency
+      all None, i.e. the unknown state, never a guessed code
+    evidence: >-
+      src/bloomery/guardrails/arithmetic.py:88-93 — synthesized OperandMeta carries
+      currency=None
+    action: decided

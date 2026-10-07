@@ -40,9 +40,6 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from sqlglot import exp, parse_one
-from sqlglot.errors import SqlglotError
-
 from bloomery.errors import BloomeryError, InvariantViolated
 from bloomery.guardrails.classification import published_columns, sensitive_columns
 from bloomery.ir import Materialization, ProjectIR, UnreachableMetric, project_fingerprint
@@ -94,12 +91,6 @@ class AdvisoryCode(StrEnum):
     not a softening.
     """
 
-    #: A catalog recipe whose ``expr:`` divides. The ``divide`` *transform* is
-    #: marked so PostgreSQL and Trino keep it in exact decimal arithmetic, but a
-    #: recipe's ``expr:`` is parsed SQL carrying no marker, so it renders as a
-    #: binary-float division narrowed back to the declared decimal — on every
-    #: engine, not only DuckDB (``pages/docs/reference/dialects.md``).
-    INEXACT_DIVISION = "inexact_division"
     #: A `pii` or `secret` column published by a mart or rollup where no
     #: `grants:` block says who may read it — on the relation, on the source
     #: entity, or on either (S-0062/D-11). The refusal beside it needs both
@@ -663,17 +654,14 @@ def _from_ir(
                 1 for mart in ir.marts for join in mart.joins if join.as_of is not None
             ),
         ),
-        advisories=_advisories(catalog, ir),
+        advisories=_advisories(ir),
     )
 
 
 # ....................... #
 
 
-def _advisories(
-    catalog: Catalog | None,
-    ir: ProjectIR | None = None,
-) -> tuple[Advisory, ...]:
+def _advisories(ir: ProjectIR | None = None) -> tuple[Advisory, ...]:
     """Every compile-time advisory, as a pure function of what the pipeline
     already holds (S-0004 (§5.1)).
 
@@ -686,19 +674,13 @@ def _advisories(
     this type is built, and it makes the answer independent of when a stage
     ran (``logs/T-0048.md``).
 
-    The signature widened for the second finding, exactly as this docstring
-    said it would: `undeclared_audience` is about the IR rather than the
-    catalog. ``ir`` is optional because the partial widths below reach here
-    before one exists — a project refused at parse has no IR and still has a
-    catalog to advise about.
+    ``undeclared_audience`` is a finding about the IR, so ``ir`` is optional:
+    the partial widths below reach here before one exists — a project refused
+    at parse has no IR to advise about, and nothing else on the channel is
+    derived from the catalog.
     """
 
-    return _sorted_advisories(
-        (
-            *_inexact_divisions(catalog),
-            *_undeclared_audiences(ir),
-        ),
-    )
+    return _sorted_advisories(_undeclared_audiences(ir))
 
 
 # ....................... #
@@ -768,82 +750,6 @@ def _undeclared_audiences(ir: ProjectIR | None) -> tuple[Advisory, ...]:
             )
 
     return tuple(found)
-
-
-# ....................... #
-
-
-def _inexact_divisions(catalog: Catalog | None) -> tuple[Advisory, ...]:
-    """A catalog recipe whose ``expr:`` divides (S-0004 (§5.3))."""
-
-    if catalog is None:
-        return ()
-
-    return tuple(
-        Advisory(
-            code=AdvisoryCode.INEXACT_DIVISION,
-            message=(
-                f"catalog recipe {recipe.id!r} on canonical field {name!r} divides in its "
-                "expr:, and a recipe's expression is parsed SQL carrying no exactness marker "
-                "— so the division happens in binary floating point and is narrowed back to "
-                "the declared decimal, on every engine rather than only on DuckDB. The "
-                "narrowing bounds the error; values needing more than ~15 significant digits "
-                "can still round. This is legal and the artifacts are correct. Fix, where the "
-                "division must be exact: use a divide/multiply transform chain instead, which "
-                "is marked and stays in exact decimal arithmetic on PostgreSQL and Trino"
-            ),
-            source_path=f"catalog: canonical_fields.{name}.recipes.{recipe.id}.expr",
-        )
-        for name, field in sorted(catalog.canonical_fields.items())
-        for recipe in field.recipes
-        if _divides(recipe.expr)
-    )
-
-
-# ....................... #
-
-
-def _divides(expr: str | None) -> bool:
-    """Whether a recipe's expression contains a division, read off the parsed
-    tree rather than the text.
-
-    A ``/`` in the source is not a division: it appears inside string literals
-    and comments, and the resolver already parses this same string with
-    SQLGlot two stages later (``resolve/build.py``). Scanning the text would
-    both over-report and disagree with the parse that decides what the
-    expression actually means.
-
-    An expression SQLGlot cannot read is **not** an advisory: a malformed
-    recipe is the resolve stage's refusal to make, and guessing at one here
-    would report a finding about a project that is about to be refused for a
-    better reason.
-
-    ``SqlglotError``, not ``ParseError``. An unterminated string literal raises
-    ``TokenError``, which is a sibling of ``ParseError`` rather than a subclass
-    — so the narrower catch let a third-party exception out of
-    :func:`evaluate`, whose whole contract is that a spec-level problem comes
-    back as a value (``logs/T-0048.md``).
-
-    ``RecursionError`` beside it, for the same contract and a different reason.
-    The expression arrives as ``SqlText``, so :func:`bloomery.spec.common` has
-    already parsed it once — but SQLGlot recurses on nesting depth, and how
-    much nesting it accepts depends on the stack position it is called from
-    rather than on the expression. Measured at a recursion limit of 1000: the
-    validator runs at depth 8 and accepts 51 levels; this call runs at depth 11
-    under ``evaluate`` and deeper still under any caller with frames of its
-    own, where 51 levels raise. A ``SqlText`` value is a proof about one stack
-    position and this is another, so the door has to hold on its own.
-    """
-
-    if expr is None:
-        return False
-
-    try:
-        parsed = parse_one(expr)
-    except (SqlglotError, RecursionError):
-        return False
-
-    return any(True for _ in parsed.find_all(exp.Div))
 
 
 # ....................... #
@@ -924,15 +830,15 @@ def _partial(
     genuinely computed — an empty tuple here means "not computed", which is why
     :attr:`SpecEvidence.stage_reached` has to be read first.
 
-    **Advisories travel with all three widths**, including the narrowest, and
-    that is not an exception to the paragraph above — it is the same rule. An
-    advisory is derived from the catalog, which is an *input*: it is computed
-    and correct whether or not a stage refused, so withholding it would make
-    ``advisories`` the one field here that is empty for a reason
-    :attr:`SpecEvidence.stage_reached` cannot explain, which is exactly the
-    objection the next paragraph raises about ``unresolved``. §5.2's bar — the
-    spec is legal, the artifacts are correct — decides what *qualifies* as an
-    advisory, not when a qualifying one is worth saying.
+    **Advisories travel with the IR, and with nothing narrower.** The channel's
+    one producer is a finding about the compiled IR — a sensitive column
+    published where the audience is undeclared — so the two widths that reach
+    here without one report the empty tuple because there is genuinely nothing
+    to advise about, which :attr:`SpecEvidence.stage_reached` explains the same
+    way it explains every other empty tuple here. §5.2's bar — the spec is
+    legal, the artifacts are correct — decides what *qualifies* as an advisory,
+    and a future advisory derived from a document rather than the IR would
+    travel wider than this one does.
 
     **The unresolved-work report travels with the resolution**, not with
     ``COMPLETE``. S-0047/D-5 says a refusal empties it, and its argument is
@@ -950,7 +856,7 @@ def _partial(
         return SpecEvidence(
             stage_reached=stage,
             refusals=refusals,
-            advisories=_advisories(catalog, None),
+            advisories=_advisories(),
         )
 
     if progress.ir is not None:
@@ -964,7 +870,7 @@ def _partial(
         refusals=refusals,
         unresolved=_unresolved(project, catalog, resolution),
         provenance=resolution.provenance,
-        advisories=_advisories(catalog, None),
+        advisories=_advisories(),
     )
 
 

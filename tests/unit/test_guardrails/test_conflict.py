@@ -29,7 +29,9 @@ def test_both_columns_and_the_reconcile_audit_land_in_the_ir() -> None:
 
     derived = by_name["net_price"]
     assert lowered["net_price"].recipe_id == "from_total"  # the recorded decision
-    assert lowered["net_price"].expr.sql == "CAST(total / qty AS DECIMAL(12, 4))"
+    assert lowered["net_price"].expr.sql == (
+        "CAST(BLM_EXACT_DIV(CAST(total AS DECIMAL(38, 9)), qty) AS DECIMAL(12, 4))"
+    )
 
     shadow = by_name["net_price__direct"]
     assert lowered["net_price__direct"].expr.sql == "CAST(price AS DECIMAL(12, 4))"
@@ -229,7 +231,9 @@ def test_the_shadow_takes_the_coercion_shape_of_the_entity_it_lands_on() -> None
     ir = build_project_ir(load_project(_CLEANED), load_catalog(_CLEANED_CATALOG))
     (entity,) = ir.entities
     lowered = {column.name: column.expr.sql for column in entity.sources[0].columns}
-    assert lowered["net_price"] == "TRY_CAST(total / qty AS DECIMAL(12, 4))"
+    assert lowered["net_price"] == (
+        "TRY_CAST(BLM_EXACT_DIV(CAST(total AS DECIMAL(38, 9)), qty) AS DECIMAL(12, 4))"
+    )
     assert lowered["net_price__direct"] == "TRY_CAST(price AS DECIMAL(12, 4))"
 
 
@@ -245,7 +249,9 @@ def test_the_shadow_stays_produce_or_raise_off_the_quality_system() -> None:
     ir = build_project_ir(project, catalog)
     (entity,) = ir.entities
     lowered = {column.name: column.expr.sql for column in entity.sources[0].columns}
-    assert lowered["net_price"] == "CAST(total / qty AS DECIMAL(12, 4))"
+    assert lowered["net_price"] == (
+        "CAST(BLM_EXACT_DIV(CAST(total AS DECIMAL(38, 9)), qty) AS DECIMAL(12, 4))"
+    )
     assert lowered["net_price__direct"] == "CAST(price AS DECIMAL(12, 4))"
 
 

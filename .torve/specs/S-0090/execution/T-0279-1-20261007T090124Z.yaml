@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0279
+phase: 3
+base: dafd8c36b3fb8a41fef7bdb69dbf147dc9339935
+commit: d6d1c3dd0efc786376ba8ffedb9fdec9292b217d
+at: '2026-10-07T09:01:24Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+entries:
+  - decision: S-0023/D-7
+    grade: ASSUMED
+    at: '2026-10-07T08:48:19Z'
+    claim: >-
+      touched test_conflict.py only to sync three expected lowering strings with the
+      exact-division change already landed in the tree; the path-conflict behaviour
+      itself is unchanged
+    evidence: >-
+      tests/unit/test_resolve/test_build.py:67 — asserts the exact-division lowering
+      for the same recipe; tests/unit/test_guardrails/test_conflict.py:33 now asserts
+      the same rendered SQL
+    action: decided
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-10-07T08:48:43Z'
+    claim: >-
+      implemented D-1 verbatim: a declared tax_basis: unknown is now refused beside
+      a monetary operand exactly as an absent one, the guardrails page states the
+      rule, and unit tests pin both the refusal and two undeclared units compiling
+    evidence: >-
+      src/bloomery/guardrails/arithmetic.py:136 — the refusal now reads tax_basis
+      in (None, "unknown"); pages/docs/concepts/guardrails.md and tests/unit/test_guardrails/test_arithmetic.py
+      carry the matching rule and tests
+    action: decided

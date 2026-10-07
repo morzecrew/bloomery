@@ -83,7 +83,7 @@ BloomeryError
 | Class | Stage | Raised when |
 |---|---|---|
 | `BloomeryError` | — | Base class; carries `message`, `source_path`, and `collected` |
-| `InvariantViolated` | any | A guarantee an earlier stage was supposed to have established did not hold — never an authored spec's fault, and never spec feedback. Every total lookup that raises it is total *because* a guardrail already refused the case, so seeing one is a bug report |
+| `InvariantViolated` | any | A guarantee an earlier stage was supposed to have established did not hold — never an authored spec's fault, and never spec feedback. Every total lookup that raises it is total *because* a guardrail already refused the case, so seeing one is a bug report. It is the one `BloomeryError` subclass the command line does not read as a refusal: it exits `3` as an internal error, not `1` |
 | `StepError` | steps | Base of the referenced-implementation family (S-0034) |
 | `StepDeterminismError` | steps (compile) | A step declaring `determinism: nondeterministic`, or a `seeded` step wired without a seed — a nondeterministic step makes a backfill disagree with the run it replaces |
 | `StepContractViolation` | steps (**run time**) | Raised by the wrapper bloomery generates *into your warehouse*: the step's actual output contradicts its manifest — a missing or undeclared output, a differing column set, an unassignable type, or a NULL in a required column. The one error here a reader meets outside a compile |
@@ -366,7 +366,6 @@ improves between releases.
 | Code | Raised when |
 |---|---|
 | `undeclared_audience` | A mart or rollup publishes a `pii`/`secret` column and no `grants:` block says who may read it — on the relation, on the source entity, or on either. bloomery has no opinion about the audience, so whatever the warehouse already grants stands. Declare grants on both and the guardrail refuses a widening instead |
-| `inexact_division` | A catalog recipe's `expr:` divides. The `divide` *transform* is marked so PostgreSQL and Trino keep it in exact decimal arithmetic, but a recipe's expression is parsed SQL carrying no marker — so the division happens in binary floating point and is narrowed back to the declared decimal, on every engine rather than only on DuckDB. Where the division must be exact, use a `divide`/`multiply` transform chain instead |
 
 Advisories carry a `source_path` under the same rules as an error's, below.
 

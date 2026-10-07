@@ -137,6 +137,7 @@ from bloomery.transforms import (
     CONVERT_FROM,
     CONVERT_MARKER,
     CONVERT_TO,
+    DIVIDE_MARKER,
     ISO8601_INSTANT,
     neutral_type,
     registry,
@@ -144,6 +145,7 @@ from bloomery.transforms import (
 from bloomery.typing import (
     ChainCheck,
     DateType,
+    DecimalType,
     LogicalType,
     StringType,
     TimestampType,
@@ -680,6 +682,77 @@ def _column_pair(
 # ....................... #
 
 
+#: The digits a recipe's dividend keeps once it is cast to a decimal: BigQuery's
+#: ``NUMERIC``, 29 integer digits and 9 fractional, so the cast stays ``NUMERIC``
+#: there wherever the declared type allows.
+_DIVIDEND_INTEGER_DIGITS = 29
+_DIVIDEND_FRACTION_DIGITS = 9
+
+
+def _dividend_type(declared: LogicalType) -> LogicalType:
+    """The decimal a recipe's dividend is cast to.
+
+    Wider than the declared type on both sides. Integer digits: ``123456789 /
+    2`` into ``decimal(12, 4)`` fits as a result and would overflow as a
+    dividend cast to ``decimal(12, 4)``. Fractional digits: in ``(1 / 6) / 2``
+    the inner quotient is the outer dividend, and cast to a ``decimal(12, 2)``
+    it would round to ``0.17`` before the second division — ``0.09`` where the
+    answer is ``0.08``. The result is narrowed to the declared type once, at the
+    end. Where the declared type needs more integer digits, they win over the
+    fraction."""
+
+    if not isinstance(declared, DecimalType):
+        return declared
+
+    digits = max(_DIVIDEND_INTEGER_DIGITS, declared.precision - declared.scale)
+    scale = max(declared.scale, min(_DIVIDEND_FRACTION_DIGITS, 38 - digits))
+
+    return DecimalType(min(38, digits + scale), scale)
+
+
+# ....................... #
+
+
+def _marked_division(node: Expression, declared: LogicalType) -> Expression:
+    """Every ``/`` in a recipe ``expr:``, lowered to the ``divide`` transform's
+    exactness marker (S-0090/D-3).
+
+    A recipe's expression is parsed SQL rather than a built transform, so its
+    ``Div`` carries no marker: SQLGlot renders it with an explicit
+    ``CAST(x AS DOUBLE PRECISION)`` on PostgreSQL and ``CAST(x AS DOUBLE)`` on
+    Trino — a binary float on an emission path (S-0020/D-5) — and two integer
+    operands divide fractionally once the dividend is a decimal. Rewriting the
+    ``Div`` as the marker call :func:`~bloomery.transforms.divide` builds
+    closes both: the port renders the marker with a typed division, and the
+    dividend is cast to a decimal at least as wide as the declared one
+    (:func:`_dividend_type`), so ``line_total / quantity`` keeps its fraction
+    rather than truncating.
+
+    :meth:`Expression.transform` prunes the subtree of a node it replaces, so
+    one pass marks the outermost ``/`` down each branch and leaves ``a / b``
+    inside ``(a / b) / c`` alone. The walk repeats until no ``/`` is left, one
+    level of nesting per pass; the render side unmarks the same way
+    (:func:`bloomery.dialects.base._exact_division`), so no marker reaches the
+    engine as an undefined function call.
+    """
+
+    dividend = neutral_type(_dividend_type(declared))
+
+    def marked(child: Expression) -> Expression:
+        if not isinstance(child, exp.Div):
+            return child
+
+        return exp.Anonymous(
+            this=DIVIDE_MARKER,
+            expressions=[exp.cast(child.this, dividend), child.expression],
+        )
+
+    while node.find(exp.Div) is not None:
+        node = node.transform(marked)
+
+    return node
+
+
 def _recipe_expr(
     field_mapping: RecipeFieldMapping,
     declared: LogicalType,
@@ -702,7 +775,7 @@ def _recipe_expr(
 
             return node
 
-        body = parsed.transform(substitute)
+        body = _marked_division(parsed.transform(substitute), declared)
 
     return exp.cast(body, neutral_type(declared)), recipe.id
 

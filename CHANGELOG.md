@@ -19,6 +19,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one cannot land unrecorded. Retrieval is out of scope until a project outside bloomery's
   own examples declares a `RetrievalSpec`.
 
+### Changed
+
+- **A catalog recipe's `/` is exact.** A recipe's `expr:` is parsed SQL rather than a built
+  transform, so its division carried no exactness marker: SQLGlot rendered it as a float
+  division — an explicit `CAST(x AS DOUBLE PRECISION)` on PostgreSQL and `CAST(x AS DOUBLE)`
+  on Trino — narrowed back to the declared decimal, so values needing more than ~15
+  significant digits could round. Every `/` in the recipe, nested ones included, is now
+  lowered through the `divide` transform's marker. Its dividend is cast to a decimal at least
+  29 integer digits and 9 fractional wide, so integer operands divide fractionally, a
+  dividend wider than the quotient does not overflow, and a nested quotient is not rounded
+  before the next division; the result is narrowed to the declared type once. The division
+  is the transform's —
+  exact on PostgreSQL and Trino and rendered per dialect like any other division. DuckDB,
+  which has no exact decimal division, is unchanged in being inexact there.
+
+  **Upgrade note.** A project whose catalog carries a dividing recipe compiles a different
+  silver model, so its fingerprint moves; recompile the project and re-plan against the new
+  fingerprint. A project with no dividing recipe is unaffected.
+
+### Removed
+
+- **The `inexact_division` advisory.** A recipe's division is now lowered through the
+  `divide` transform's marker, so no advisory stands where the reference's own rule says a
+  refusal belongs; `AdvisoryCode` carries `undeclared_audience` only.
+
+### Fixed
+
+- **A declared `tax_basis: unknown` is refused beside money.** The tax-basis check
+  tripped only on an absent `tax_basis`, so a field that declared `tax_basis: unknown`
+  explicitly passed it: `amount + adj` compiled and added a figure whose canonical field
+  says nothing usable about tax. `unknown` now poisons additive arithmetic by being
+  absent *or* declared, exactly as the guardrails page states.
+
+- **`InvariantViolated` reaches the shell as an internal error.** It subclasses
+  `BloomeryError`, so the command line's refusal arm claimed it and exited `1` — reading a
+  bloomery bug as though the spec were at fault. It is now handled ahead of that arm: exit
+  `3`, the traceback on stderr under the report line, as any other defect is.
+
 ## [0.6.0] - 2026-10-03
 
 ### Added

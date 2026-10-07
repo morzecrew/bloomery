@@ -406,6 +406,8 @@ a `--where` document that is not JSON, a mistyped `--target`, `--dialect`, `--gr
 `--policy`, a file that is not UTF-8 or cannot be read. `3` means the mistake was
 bloomery's: an exception no handler claimed. It still prints the traceback to stderr —
 a bug report needs it — under a line asking you to report it, and never as the interface.
+`InvariantViolated` is this case even though it subclasses `BloomeryError`: it means a
+guardrail and the lookup it guarantees have drifted apart, so it exits `3`, not `1`.
 
 One non-code: a **broken pipe** is not an error at all. `bloomery schema | head` means
 the reader chose to stop; the command exits `0` quietly instead of a traceback.

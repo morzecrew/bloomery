@@ -156,12 +156,8 @@ Some findings are legal, compile correctly, and are still worth knowing. They ar
 | Code | Means |
 |---|---|
 | `undeclared_audience` | a mart publishes a `pii` or `secret` column with no `grants:` saying who reads it |
-| `inexact_division` | a catalog recipe's `expr:` divides in floating point; use a `divide`/`multiply` chain |
 
-Anything bloomery can show makes a number wrong is a refusal, never an advisory. The one
-advisory that bears on a value is `inexact_division`: its floating-point division is
-narrowed back to the declared decimal, and values needing more than ~15 significant digits
-can still round.
+Anything bloomery can show makes a number wrong is a refusal, never an advisory.
 
 Documentation: [errors](https://morzecrew.github.io/bloomery/latest/reference/errors/),
 [assess a spec](https://morzecrew.github.io/bloomery/latest/how-to/evaluate-a-spec/).

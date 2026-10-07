@@ -79,7 +79,7 @@ from bloomery.cli.render import (
     render_plan,
 )
 from bloomery.cli.serialize import SpecEncoder
-from bloomery.errors import BloomeryError
+from bloomery.errors import BloomeryError, InvariantViolated
 from bloomery.ir import ir_from_json, ir_json
 from bloomery.naming import DefaultNaming
 from support.compiling import COLLIDING_ID_SOURCES, fixture_sources, load_fixture
@@ -1474,6 +1474,27 @@ def test_an_unexpected_exception_exits_three_with_the_report_line(
     assert "internal error" in err
     assert "https://github.com/morzecrew/bloomery/issues" in err
     assert "RecursionError" in err  # the traceback is in the report, not the interface
+    assert err.index("internal error") < err.index("Traceback")  # under the line, not above it
+
+
+def test_an_invariant_violation_is_an_internal_error_not_a_refusal(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`InvariantViolated` subclasses `BloomeryError` but is not a spec
+    refusal — it means a guardrail and the lookup it guarantees have drifted
+    apart, a bug in bloomery. The command line must read it as exit 3 with the
+    report line, not let the `BloomeryError` arm claim it as a refusal (1)."""
+
+    def drifted() -> object:
+        raise InvariantViolated("a guardrail and its lookup have drifted apart")
+
+    monkeypatch.setattr("bloomery.cli.all_spec_schemas", drifted)
+    code, _out, err = run(capsys, "schema")
+
+    assert code == EXIT_INTERNAL
+    assert "internal error" in err
+    assert "https://github.com/morzecrew/bloomery/issues" in err
+    assert "InvariantViolated" in err  # the traceback is in the report
 
 
 def test_a_keyboard_interrupt_is_not_claimed_by_the_catch_all(

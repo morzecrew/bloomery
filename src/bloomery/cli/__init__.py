@@ -86,7 +86,7 @@ from bloomery import (
 from bloomery.cli import io, render, serialize
 from bloomery.dialects import get_dialect
 from bloomery.emit import get_emitter
-from bloomery.errors import EmitError, UnknownMember
+from bloomery.errors import EmitError, InvariantViolated, UnknownMember
 from bloomery.imports import metricflow_relationships
 from bloomery.imports import render as render_relationships
 from bloomery.ir import ir_from_json, ir_json
@@ -1074,6 +1074,19 @@ def build_parser() -> argparse.ArgumentParser:
 # ....................... #
 
 
+def _internal_error(prog: str) -> int:
+    """Report a bug in bloomery: the traceback still prints (a report needs
+    it), but under a contract line and behind its own exit code, so a script
+    can tell "your spec is wrong" (1) and "the invocation is wrong" (2) from
+    "bloomery is wrong" (3)."""
+    sys.stderr.write(
+        f"{prog}: internal error — this is a bug in bloomery, not in your"
+        " spec. Please report it: https://github.com/morzecrew/bloomery/issues\n"
+    )
+    traceback.print_exc(file=sys.stderr)
+    return EXIT_INTERNAL
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for the ``bloomery`` console script.
 
@@ -1135,6 +1148,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             io.silence_stdout()
             sys.stderr.write(f"{prog}: stdout: {error}\n")
             return EXIT_USAGE
+    except InvariantViolated:
+        # An `InvariantViolated` subclasses `BloomeryError` but is not a spec
+        # refusal: a guarantee an earlier stage was supposed to establish did
+        # not hold, so it is a bug in bloomery and reads as one at the shell —
+        # the same internal-error contract as any other unclaimed exception
+        # (S-0090/D-2). Caught ahead of the `BloomeryError` arm, which would
+        # otherwise claim it as a refusal and return 1.
+        return _internal_error(prog)
     except BloomeryError as error:
         # A refusal, not a crash: bloomery read the spec and said no.
         #
@@ -1165,16 +1186,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Exception:
         # Anything else is a bug in bloomery, not in the spec or the
         # invocation — a refusal it should have raised as a BloomeryError, or
-        # a defect. The traceback still prints (a report needs it), but under
-        # a contract line and behind its own exit code, so a script can tell
-        # "your spec is wrong" (1) and "the invocation is wrong" (2) from
-        # "bloomery is wrong" (3).
-        traceback.print_exc(file=sys.stderr)
-        sys.stderr.write(
-            f"{prog}: internal error — this is a bug in bloomery, not in your"
-            " spec. Please report it: https://github.com/morzecrew/bloomery/issues\n"
-        )
-        return EXIT_INTERNAL
+        # a defect. Same contract as `InvariantViolated` above.
+        return _internal_error(prog)
 
     return exit_code
 
