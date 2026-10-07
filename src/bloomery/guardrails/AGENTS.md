@@ -640,7 +640,7 @@ This boundary stores no provenance; it grades an upstream fact ASSUMED from `Pro
 - Paths: `src/bloomery/guardrails/evidence.py` `src/bloomery/semantic/proof.py`
 - Consequence: the grade an imported fact gets is settled before the first strict consumer relies on it
 
-### S-0090/D-1 — `ASSUMED` (Three places bloomery said one thing and did another) — implementation: none
+### S-0090/D-1 — `ASSUMED` (Three places bloomery said one thing and did another)
 
 The unit check refuses `+` or `-` only where each side declares exactly one unit and the two differ, and lets an undeclared unit pass; `unknown` poisons additive arithmetic through the tax-basis check, which refuses an operand with a currency or undeclared unit whose `tax_basis` is absent or `unknown` beside a monetary one; the guardrails page states this rule
 
