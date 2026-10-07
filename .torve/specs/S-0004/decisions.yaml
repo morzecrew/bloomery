@@ -270,7 +270,7 @@ decisions:
       does not exist. The only rules provably vacuous from a declared type, `normalize`
       and `charset` on a non-`string` column, are refused as a `SpecParseError` by
       `_check_character_rules` in `load_project`, and `AdvisoryCode` carries only
-      `inexact_division` and `undeclared_audience`.
+      `undeclared_audience`
     paths: [src/bloomery/evidence.py]
     consequence: >-
       The advisory cannot be built before the term means something checkable, and
@@ -281,7 +281,7 @@ decisions:
       The readiness gate scoped this candidate out as under-specified rather than
       wrong; the question is a definition an executor can settle against twelve concrete
       rule classes, not an author-level design choice
-    fingerprint: fc85480bde866908/93d13834f72e5485
+    fingerprint: 7718b4e9f2aad5a1/93d13834f72e5485
 invariants:
   - id: I-1
     statement: >-

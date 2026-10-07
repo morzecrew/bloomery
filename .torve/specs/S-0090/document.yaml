@@ -1,0 +1,103 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0090
+title: >-
+  Three places bloomery said one thing and did another
+kind: design
+change:
+  type: fix
+status: accepted
+implementation: none
+depends_on: [S-0004, S-0023]
+informed_by: [S-0089]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  The review of the bloomery-skills references (#261) checked every claim against the code and found three places where bloomery's own words and its behaviour disagree. The guardrails page says an `unknown` unit in `+` or `-` is refused, while the unit check refuses only two different declared units. The CLI's exit codes say `3` is a bug in bloomery, and `InvariantViolated` is documented as one, yet it exits `1`, a refusal. And the errors page says anything where the numbers could be wrong stays a refusal, while a catalog recipe that divides gets an `inexact_division` advisory because its division runs in floating point.
+
+  Each is resolved toward the stronger promise that can actually be kept. The unit rule the code applies is the workable one, so the page and S-0023/D-3 say what it is: an undeclared unit passes the unit check, and `unknown`, absent or declared, poisons through the tax-basis check beside a monetary operand, which today misses an explicit `tax_basis: unknown`. `InvariantViolated` exits `3` with the request to report it. And a recipe's division takes the same exactness marker as the `divide` transform, its dividend cast to decimal so integers still divide fractionally, so it is no longer worse than the transform, and the advisory is retired.
+motivation: >-
+  Three findings of the #261 review round on 2026-10-05 (the skill's guardrails, errors
+  and CLI references), confirmed against `guardrails/arithmetic.py`, `cli/__init__.py`
+  and `evidence.py`. The owner asked on 2026-10-06 for them to be resolved with the
+  proposed leans.
+current_state: >-
+  `guardrails/arithmetic.py::_check_units` returns early unless each operand declares
+  exactly one unit and the two differ; `_check_tax` refuses an operand with no `tax_basis`
+  beside a monetary one. `pages/docs/concepts/guardrails.md` says any additive arithmetic
+  with an `unknown` unit is refused, as S-0023's design text does. `cli/__init__.py::main`
+  catches `BloomeryError` before its internal-error branch, and `InvariantViolated`
+  subclasses `BloomeryError` (S-0020/D-11), so it exits `1`. `resolve/build.py::_recipe_expr`
+  parses a recipe's `expr:` and leaves every `/` a plain `Div`, which SQLGlot renders
+  as floating-point division on PostgreSQL and Trino; `evidence.py::_inexact_divisions`
+  reports each dividing recipe as `inexact_division`, and S-0004/D-16 names it as
+  one of the two advisory codes.
+goals: |-
+  - The guardrails page states the unit rule the code applies.
+  - A bug in bloomery exits `3` at the command line, whichever exception carries it.
+  - A recipe's division is the same division the `divide` transform makes, and no advisory stands where the errors page's rule says a refusal belongs.
+non_goals: |-
+  - Refusing additive arithmetic on two tenant-native fields with no unit. Read literally, "unknown in any `+`/`-`" would refuse `qty + qty`; the tax-basis check already refuses what matters, an undeclared operand beside money.
+  - Exact decimal division on DuckDB. The engine has none, and S-0046 bounds its float with the narrowing cast, for the transform and now the recipe alike.
+  - Changing `InvariantViolated`'s place in the Python hierarchy.
+design:
+  - key: the-unit-rule-as-applied
+    md: >-
+      The unit check refuses `+` or `-` only where each side declares exactly one
+      unit and the two differ (`UnitMismatch`); an operand with no declared unit,
+      or with several, passes it. `unknown` poisons additive arithmetic through the
+      tax-basis check: an operand with a currency or undeclared unit whose `tax_basis`
+      is absent or `unknown` is refused beside a monetary operand (`TaxBasisMismatch`),
+      so a tenant-native column added to money is still refused. Today the check treats
+      only an absent basis as unknown, and a catalog's explicit `tax_basis: unknown`,
+      which the IR's `TaxBasis.UNKNOWN` documents as poisoning, passes; phase 3 closes
+      that. S-0023/D-3 is amended to say so, and the guardrails page's "Unit coherence"
+      section states the same rule.
+  - key: a-bug-exits-three
+    md: >-
+      `main` handles `InvariantViolated` as it handles any exception no handler claims:
+      exit `3`, the traceback on stderr under the line asking for a report. The handler
+      sits before the `BloomeryError` branch. The class stays a `BloomeryError` subclass,
+      so a Python caller catching the base still catches it. The exit-code table and
+      the errors reference say which exception exits `3`.
+  - key: recipe-division-is-the-transforms
+    md: >-
+      `_recipe_expr` rewrites every `exp.Div` in a recipe's parsed `expr:` as the
+      `divide` transform's marker (`DIVIDE_MARKER`), which render turns into a typed
+      division PostgreSQL and Trino keep in exact decimal arithmetic. Unlike the transform,
+      whose input is always a decimal, a recipe can divide integers, and a typed integer
+      division truncates on both engines; so the dividend is cast to a decimal first,
+      wide enough to keep at least the declared scale (and its own scale where its
+      type is known), and the result is narrowed by the recipe's cast to the declared
+      type as today. DuckDB keeps its float, bounded by that cast, as the transform's
+      does. With the recipe no worse than the transform, `inexact_division` is retired:
+      `AdvisoryCode` carries only `undeclared_audience`, and S-0004/D-16 is amended
+      to say so. A dividing recipe's compiled SQL and fingerprint change (the ecom_basic
+      goldens' `line_total / quantity` among them); its values on PostgreSQL and Trino
+      become exact.
+tests: |-
+  - `qty + qty` on two unitless fields compiles; `amount + fee` with `fee` tenant-native beside a monetary `amount` is refused `TaxBasisMismatch`, and so is `amount + adj` where `adj`'s canonical field declares `tax_basis: unknown`; two operands each declaring one, different unit are refused `UnitMismatch`.
+  - A CLI run that reaches an `InvariantViolated` exits `3` and prints the report line and a traceback on stderr; an ordinary refusal still exits `1`.
+  - A recipe `expr: "total / quantity"` compiles to a typed division of a decimal-cast dividend on PostgreSQL and Trino and to a narrowed division on DuckDB; with two integer inputs it keeps the fractional result on PostgreSQL and Trino; `evaluate()` reports no `inexact_division`, and `AdvisoryCode` has one member.
+docs: >-
+  `pages/docs/concepts/guardrails.md` (unit coherence), `pages/docs/how-to/use-the-cli.md`
+  (exit codes), `pages/docs/reference/errors.md` (`InvariantViolated`'s exit, the
+  advisory table), and the CHANGELOG: a Fixed entry for the exit code, a Changed entry
+  for exact recipe division with an upgrade note, and a Removed entry for the advisory
+  code.
+out_of_scope: ''
+risks: |-
+  - A caller branching on `inexact_division` loses the code. It was an advisory, never raised, and the closed list is documented as reviewed; the CHANGELOG names the removal.
+  - A script that read exit `1` as "bloomery said no" now sees `3` for an invariant failure. That was the documented meaning all along, and an invariant failure is a bug to report either way.
+alternatives:
+  - option: >-
+      Refuse every additive operation with an undeclared unit, as the page says
+    rejected_because: >-
+      it refuses arithmetic on tenant-native fields that makes no claim to check,
+      and the tax-basis check already refuses an undeclared operand beside money
+  - option: >-
+      Refuse a dividing recipe instead of making its division exact
+    rejected_because: >-
+      the exact division the `divide` transform makes is already available to the
+      lowering; refusing would break catalogs for a defect bloomery can remove

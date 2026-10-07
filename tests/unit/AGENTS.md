@@ -554,4 +554,18 @@ A reference links between references with relative links that never leave the sk
 - Paths: `skills/coverage.toml` `tests/unit/test_skills.py`
 - Consequence: a new kind, target or command cannot land without a decision about what the skill says about it
 
+### S-0090/D-2 — `ASSUMED` (Three places bloomery said one thing and did another) — implementation: none
+
+At the command line `InvariantViolated` is an internal error: exit `3`, its traceback on stderr under the line asking for a report; it stays a `BloomeryError` subclass
+
+- Paths: `src/bloomery/cli/__init__.py` `tests/unit/test_cli.py`
+- Consequence: a bug in bloomery reads as one at the shell, whichever exception carries it
+
+### S-0090/D-3 — `ASSUMED` (Three places bloomery said one thing and did another) — implementation: none
+
+A catalog recipe's `/` is lowered through the `divide` transform's exactness marker, its dividend cast to a decimal keeping at least the declared scale, so integer operands divide fractionally and the division is the transform's; the `inexact_division` advisory is retired and `AdvisoryCode` carries only `undeclared_audience`
+
+- Paths: `src/bloomery/resolve/build.py` `src/bloomery/evidence.py` `tests/unit/test_advisories.py`
+- Consequence: a dividing recipe is exact on PostgreSQL and Trino, and no advisory stands where the errors page's rule says a refusal belongs
+
 <!-- /torve:managed -->

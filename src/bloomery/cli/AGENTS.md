@@ -328,4 +328,11 @@ A `--catalog` path the OS refuses to stat exits 2, as #174 made a specs path do,
 - Paths: `src/bloomery/cli/io.py` `tests/unit/test_cli.py`
 - Consequence: the 2026-09-21 `cli` crash has a regression test, not only a fix
 
+### S-0090/D-2 — `ASSUMED` (Three places bloomery said one thing and did another) — implementation: none
+
+At the command line `InvariantViolated` is an internal error: exit `3`, its traceback on stderr under the line asking for a report; it stays a `BloomeryError` subclass
+
+- Paths: `src/bloomery/cli/__init__.py` `tests/unit/test_cli.py`
+- Consequence: a bug in bloomery reads as one at the shell, whichever exception carries it
+
 <!-- /torve:managed -->
