@@ -356,7 +356,14 @@ def _exact_division(node: Expression) -> Expression:
     """
 
     def marker(child: Expression) -> bool:
-        return isinstance(child, exp.Anonymous) and child.name.upper() == DIVIDE_MARKER
+        # Two operands, as `divide` and a recipe's `/` build it: authored SQL can
+        # name a function `BLM_EXACT_DIV` too, and one of another arity is left
+        # for the engine to refuse rather than unpacked here.
+        return (
+            isinstance(child, exp.Anonymous)
+            and child.name.upper() == DIVIDE_MARKER
+            and len(child.expressions) == 2
+        )
 
     def replace(child: Expression) -> Expression:
         if marker(child):

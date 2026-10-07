@@ -261,6 +261,32 @@ def test_one_metric_field_lands_in_one_facet(
     assert [(one.facet, one.field, one.old, one.new) for one in moved] == [expected]
 
 
+def test_an_exact_division_is_shown_as_the_division_it_renders_as() -> None:
+    """The `divide` marker carries an exact division through the IR's text and
+    is never written by an author or seen by an engine, so a delta spells the
+    division instead. The comparison still reads the IR's own text: a body that
+    moved from a bare `/` to the marked one is a change."""
+    marked = SqlExpr(sql="CAST(BLM_EXACT_DIV(CAST(total AS DECIMAL(38, 9)), qty) AS DECIMAL(12, 4))")
+    moved = facets(metric(expr=SqlExpr(sql="CAST(total / qty AS DECIMAL(12, 4))")), metric(expr=marked))
+
+    assert [(one.field, one.old, one.new) for one in moved] == [
+        (
+            "expr",
+            "CAST(total / qty AS DECIMAL(12, 4))",
+            "CAST(CAST(total AS DECIMAL(38, 9)) / qty AS DECIMAL(12, 4))",
+        )
+    ]
+
+
+def test_an_authored_function_named_like_the_marker_is_shown_as_written() -> None:
+    """Authored SQL can call a function `BLM_EXACT_DIV` of another arity; it is
+    not the marker, so the delta spells it as written instead of failing."""
+    authored = SqlExpr(sql="BLM_EXACT_DIV(total)")
+    moved = facets(metric(), metric(expr=authored))
+
+    assert [(one.field, one.new) for one in moved] == [("expr", "BLM_EXACT_DIV(total)")]
+
+
 def test_a_filter_moving_is_the_filter_facet_and_carries_no_values() -> None:
     """A filter is a tuple of records, so there is no compact spelling for it
     and the delta names the field and stops. Naming it is the answer; rendering
