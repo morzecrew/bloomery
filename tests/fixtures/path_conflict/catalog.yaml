@@ -9,7 +9,7 @@ canonical_fields:
     tax_basis: net
     recipes:
       - {id: direct, requires: [net_price]}
-      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+      - {id: from_total, requires: [line_total, quantity], types: {line_total: "decimal(12,4)"}, expr: "line_total / quantity"}
   quantity:
     entity: item
     type: int

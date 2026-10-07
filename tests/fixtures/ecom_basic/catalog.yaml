@@ -11,7 +11,7 @@ canonical_fields:
     tax_basis: net
     recipes:
       - {id: direct, requires: [unit_price]}
-      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+      - {id: from_total, requires: [line_total, quantity], types: {line_total: "decimal(12,4)"}, expr: "line_total / quantity"}
   quantity:
     entity: order_item
     type: int
@@ -28,6 +28,20 @@ canonical_fields:
     tax_basis: net
     recipes:
       - {id: direct, requires: [cogs]}
+  # Also umapped: `net_revenue`'s `gross_minus_tax` recipe (the unresolved-loop
+  # corpus in tests/unit/test_unresolved.py composes its catalog onto this one)
+  # computes `gross - tax`. Both operands must carry a type for S-0091/D-3, and
+  # D-2's fallback reads it from here rather than from a recipe-local `types:`.
+  gross:
+    entity: order_item
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+  tax:
+    entity: order_item
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
 
 canonical_relationships:
   - {from: order_item, to: order, via: order_id, cardinality: many_to_one}

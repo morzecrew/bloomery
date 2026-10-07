@@ -71,7 +71,7 @@ v1 -> v2  order_item.unit_price
 v3 -> v4  order_item.qty
     metadata: renamed_from  quantity -> None
 v3 -> v4  order_item.unit_price
-    body: expr  shop__order_lines: CAST(price AS DECIMAL(12, 4)) -> shop__order_lines: CAST(CAST(total AS DECIMAL(38, 9)) / qty AS DECIMAL(12, 4))
+    body: expr  shop__order_lines: CAST(price AS DECIMAL(12, 4)) -> shop__order_lines: CAST(CAST(CAST(total AS DECIMAL(12, 4)) AS DECIMAL(38, 9)) / CAST(qty AS BIGINT) AS DECIMAL(12, 4))
     body: recipe_id  shop__order_lines: direct -> shop__order_lines: from_total
 ```
 

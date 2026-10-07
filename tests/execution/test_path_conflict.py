@@ -173,7 +173,7 @@ canonical_fields:
     unit: currency
     tax_basis: net
     recipes:
-      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+      - {id: from_total, requires: [line_total, quantity], types: {line_total: "decimal(12,4)", quantity: "int"}, expr: "line_total / quantity"}
 """
 
 

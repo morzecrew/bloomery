@@ -109,6 +109,7 @@ relation, and a shared name makes the emitted predicate compare a column against
 |---|---|---|---|
 | `id` | string | yes | The id a mapping records with `recipe:` |
 | `requires` | list of strings | yes | Names the recipe consumes |
+| `types` | map name → type string | no (`{}`) | Logical type per required name the catalog does not declare canonically; an operand under `+`, `-`, `*` or `/` that no `types:` entry or canonical field types is refused, and a key `requires` does not name is refused at load |
 | `expr` | string | no | Derivation expression over the required names |
 
 ### CanonicalRelationship

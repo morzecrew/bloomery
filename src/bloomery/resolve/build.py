@@ -159,6 +159,7 @@ from bloomery.typing import (
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
 
+    from bloomery.spec.catalog import Recipe
     from bloomery.spec.entity import Entity, Field, Relationship
     from bloomery.spec.mapping import FieldMapping, Mapping, TransformStep
     from bloomery.spec.metrics import DerivedSpec, MetricFilter
@@ -742,15 +743,40 @@ def _marked_division(node: Expression, declared: LogicalType) -> Expression:
         if not isinstance(child, exp.Div):
             return child
 
+        # ``exp.cast`` collapses a cast applied to a cast in this SQLGlot,
+        # keeping only the inner one — so a dividend an operand type has
+        # already cast (S-0091/D-2) would lose the widening cast this marker
+        # exists to add. The constructor nests.
         return exp.Anonymous(
             this=DIVIDE_MARKER,
-            expressions=[exp.cast(child.this, dividend), child.expression],
+            expressions=[
+                exp.Cast(this=child.this.copy(), to=dividend.copy()),
+                child.expression,
+            ],
         )
 
     while node.find(exp.Div) is not None:
         node = node.transform(marked)
 
     return node
+
+
+def _operand_type(
+    name: str, recipe: Recipe, catalog: Catalog | None, *, source_path: str
+) -> LogicalType | None:
+    """The logical type a recipe operand is cast to before its expression runs
+    (S-0091/D-2): the recipe's own ``types:`` entry, else the declared type of
+    the canonical field of the same name, else nothing — the last of which D-3
+    refuses when the operand sits under arithmetic."""
+
+    declared = recipe.types.get(
+        name,
+        catalog.canonical_fields[name].type
+        if (catalog is not None and name in catalog.canonical_fields)
+        else None,
+    )
+
+    return None if declared is None else parse_type(declared, source_path=source_path)
 
 
 def _recipe_expr(
@@ -768,10 +794,23 @@ def _recipe_expr(
         body = extraction(field_mapping.from_[recipe.requires[0]])
     else:
         parsed = parse_one(recipe.expr)
+        operand_path = f"{mapping_doc(mapping)}: fields.{field_name}"
 
         def substitute(node: Expression) -> Expression:
             if isinstance(node, exp.Column) and not node.table and node.name in field_mapping.from_:
-                return extraction(field_mapping.from_[node.name])
+                operand = extraction(field_mapping.from_[node.name])
+                operand_type = _operand_type(node.name, recipe, catalog, source_path=operand_path)
+
+                # Cast the extraction, not the substituted expression: a nested
+                # JSON path is text (`->>` on PostgreSQL), so `line_total / 2`
+                # would otherwise reach the engine as text divided by a number.
+                # An operand typed no way is left raw — D-3 refused it if it sat
+                # under arithmetic, and one outside arithmetic is legal untyped.
+                return (
+                    operand
+                    if operand_type is None
+                    else exp.cast(operand, neutral_type(operand_type))
+                )
 
             return node
 

@@ -70,6 +70,18 @@ def _markdown(skill: Path) -> list[Path]:
     return sorted(skill.rglob("*.md"))
 
 
+#: The engine's spec projection governs ``references/`` too, and writes a managed
+#: ``AGENTS.md`` there (it is rendered from the corpus, not hand-authored). It
+#: carries no Index entry, no routing row and no line budget, so the structure
+#: checks read past it — the stray-file guard still fires on a root ``AGENTS.md``.
+_MANAGED = "AGENTS.md"
+
+
+def _references(skill: Path) -> list[Path]:
+    """The hand-authored references in ``references/``, the managed file aside."""
+    return sorted(path for path in (skill / "references").glob("*.md") if path.name != _MANAGED)
+
+
 def _section(text: str, heading: str) -> str:
     """The body under ``## heading``, up to the next level-two heading."""
     match = re.search(rf"^## {re.escape(heading)}\n(?P<body>.*?)(?=^## |\Z)", text, re.M | re.S)
@@ -141,7 +153,7 @@ def structure_problems(skill: Path, authoring: Path) -> list[str]:
             problems.append(f"SKILL.md: no '## {heading}' section")
 
     indexed = set(_INDEXED.findall(_section(text, "Index")))
-    files = {path.stem for path in (skill / "references").glob("*.md")}
+    files = {path.stem for path in _references(skill)}
     problems += [f"index names {name}, which has no file" for name in sorted(indexed - files)]
     problems += [f"references/{name}.md is not in the index" for name in sorted(files - indexed)]
 
@@ -158,7 +170,7 @@ def structure_problems(skill: Path, authoring: Path) -> list[str]:
         for line in _section(authoring.read_text(encoding="utf-8"), "Short references").splitlines()
         if (match := _SHORT.match(line))
     }
-    for path in sorted((skill / "references").glob("*.md")):
+    for path in _references(skill):
         count = len(path.read_text(encoding="utf-8").splitlines())
         if count > MAX_LINES:
             problems.append(f"references/{path.name}: {count} lines, over {MAX_LINES}")

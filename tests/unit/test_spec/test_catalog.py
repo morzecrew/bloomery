@@ -206,6 +206,60 @@ def test_fx_rates_refuses_one_column_in_two_roles() -> None:
 
 
 # ....................... #
+# Recipe operand types (S-0091/D-1)
+
+
+_TYPED_RECIPE = """
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  unit_price:
+    entity: order_item
+    type: decimal(12,4)
+    recipes:
+      - {id: direct, requires: [unit_price]}
+      - {id: from_total, requires: [line_total, quantity],
+         types: {line_total: "decimal(12,4)", quantity: "int"},
+         expr: "line_total / quantity"}
+"""
+
+
+def test_recipe_types_round_trip() -> None:
+    """S-0091/D-1: `types:` maps a name in this recipe's `requires` to the
+    logical type a canonical field's `type:` is written with, so a catalog
+    author can say what an operand is."""
+    recipe = load_catalog(_TYPED_RECIPE).canonical_fields["unit_price"].recipes[1]
+    assert recipe.requires == ("line_total", "quantity")
+    assert recipe.types == {"line_total": "decimal(12,4)", "quantity": "int"}
+
+
+def test_recipe_types_is_optional_and_empty_by_default() -> None:
+    recipe = load_catalog(_TYPED_RECIPE).canonical_fields["unit_price"].recipes[0]
+    assert recipe.types == {}
+
+
+def test_recipe_types_key_outside_requires_is_refused() -> None:
+    """S-0091/D-1: a `types:` key `requires` does not name is refused at load.
+    It is a typo'd operand, and leaving it accepted would type nothing while
+    reading like it typed something."""
+    text = _TYPED_RECIPE.replace("{line_total: \"decimal(12,4)\", quantity: \"int\"}", '{"line_totl": "decimal(12,4)"}')
+    with pytest.raises(SpecParseError) as excinfo:
+        load_catalog(text)
+    message = str(excinfo.value)
+    assert "'line_totl'" in message
+    assert "requires" in message
+
+
+def test_recipe_types_value_must_be_a_logical_type() -> None:
+    text = _TYPED_RECIPE.replace('"decimal(12,4)"', '"decimal(12;4)"')
+    with pytest.raises(SpecParseError) as excinfo:
+        load_catalog(text)
+    assert excinfo.value.source_path == (
+        "catalog: canonical_fields.unit_price.recipes[1].types.line_total"
+    )
+
+
+# ....................... #
 # S-0067/risks — two canonical fields, one identity
 
 

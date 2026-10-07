@@ -52,6 +52,7 @@ __all__ = [
     "ResolutionError",
     "CircularDerivation",
     "MissingReference",
+    "UntypedRecipeOperand",
     "GuardrailError",
     "InvariantViolated",
     "UnitMismatch",
@@ -321,6 +322,16 @@ class CircularDerivation(ResolutionError):
 class MissingReference(ResolutionError):
     """Raised by the resolution stage (S-0022/D-7) when a spec references a
     nonexistent entity, field, canonical field, template, or relationship end."""
+
+
+# ....................... #
+
+
+class UntypedRecipeOperand(ResolutionError):
+    """Raised by the resolution stage (S-0091/D-3) when a recipe's ``expr:``
+    applies ``+``, ``-``, ``*`` or ``/`` to an operand typed neither by the
+    recipe's ``types:`` nor by a canonical field of the same name. The message
+    names the recipe, the operand, and the ``types:`` entry that fixes it."""
 
 
 # ....................... #

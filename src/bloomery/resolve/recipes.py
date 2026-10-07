@@ -15,9 +15,12 @@ Runs on reference-clean specs (S-0022/cross-spec-reference-validation-bloomery-r
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from bloomery.errors import BloomeryError, ResolutionError
+from sqlglot import exp, parse_one
+from sqlglot.expressions.core import Expression
+
+from bloomery.errors import BloomeryError, ResolutionError, UntypedRecipeOperand
 from bloomery.resolve.refs import mapping_doc
 from bloomery.spec.mapping import RecipeFieldMapping
 
@@ -43,6 +46,32 @@ def recipe_fields(mapping: Mapping) -> tuple[tuple[str, RecipeFieldMapping], ...
         for name, field in sorted(mapping.fields.items())
         if isinstance(field, RecipeFieldMapping)
     )
+
+
+# ....................... #
+
+
+#: The operators S-0091/D-3 refuses an untyped operand under. Modulo and the
+#: bitwise forms are deliberately absent: the spec names ``+``, ``-``, ``*``
+#: and ``/``, and the refusal is exactly as wide as the defect it closes.
+_ARITHMETIC = (exp.Add, exp.Sub, exp.Mul, exp.Div)
+
+
+def _arithmetic_operands(expr: str) -> set[str]:
+    """The bare column names an expression applies arithmetic to.
+
+    A name an operator *reaches*, at any depth: ``a / (b + c)`` applies ``/`` to
+    ``a`` and ``+`` to ``b`` and ``c``. A name read outside every arithmetic
+    node is not an operand of one and is left to S-0091/D-2 alone.
+    """
+
+    parsed = cast("Expression", parse_one(expr))
+    return {
+        column.name
+        for operator in parsed.find_all(*_ARITHMETIC)
+        for column in operator.find_all(exp.Column)
+        if not column.table
+    }
 
 
 # ....................... #
@@ -107,6 +136,30 @@ def resolve_recipe(
             "— a surplus alias is a silent no-op"
         )
         raise ResolutionError(msg, source_path=f"{path}.from")
+
+    if recipe.expr is not None:
+        # S-0091/D-3: an operand the recipe neither types nor shares a name with a
+        # canonical field reaches the engine untyped, and arithmetic on a text
+        # extraction is a model PostgreSQL and BigQuery refuse before it reads a
+        # row. Refused here, where the fix is one `types:` line, rather than at run
+        # time on an engine that cannot say which operand it choked on.
+        untyped = sorted(
+            name
+            for name in _arithmetic_operands(recipe.expr)
+            if name in required
+            and name not in recipe.types
+            and name not in catalog.canonical_fields
+        )
+
+        if untyped:
+            entries = ", ".join(f"{name!r}: '<type>'" for name in untyped)
+            msg = (
+                f"recipe {recipe.id!r} applies +, -, * or / to {untyped}, which the "
+                "recipe's types: does not name and the catalog does not declare "
+                f"canonically, so the operand would reach the engine untyped. Fix: add "
+                f"{entries} to recipe {recipe.id!r}'s types:"
+            )
+            raise UntypedRecipeOperand(msg, source_path=f"{path}.recipe")
 
     if recipe.expr is None and len(recipe.requires) != 1:
         msg = (
