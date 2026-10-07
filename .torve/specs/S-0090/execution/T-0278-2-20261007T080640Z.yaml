@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0278
+phase: 2
+attempt: 2
+base: 412ea6b1a64a57232bc144872fa61c36399404be
+commit: e0ba1e06e8a67fbd7662a7ab23209e780f7c683f
+at: '2026-10-07T08:06:40Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-10-07T07:49:37Z'
+    attempt: 2
+    claim: >-
+      The row says every `/` a recipe's expr: carries is lowered through the divide
+      marker. The previous attempt did that recursively, nesting a marker inside a
+      marker for (a/b)/c; the render-side unmarking (bloomery.dialects.base._exact_division)
+      replaces a marker and Expression.transform prunes the subtree it replaced, so
+      the inner marker is never visited and reaches the engine as an undefined function
+      call. The render-side fix is a dialect-layer change outside this task's scope,
+      so the markers are now kept flat: the outermost `/` down each branch is lowered,
+      and a `/` nested inside another stays SQLGlot's own (float) division, which
+      is what it was before this change.
+    evidence: >-
+      src/bloomery/dialects/base.py:365 — _exact_division returns a new exp.Div from
+      node.transform(replace), whose prune skips the replaced marker's children, so
+      a nested marker survives into the SQL
+    action: departed
+    proposal: >-
+      Either widen the work to bloomery.dialects.base._exact_division so it iterates
+      to a fixpoint (unmarking one level per pass until no marker remains, which makes
+      nested recipe division exact), or state in S-0090/D-3 that a recipe `/` nested
+      inside another `/` is left to SQLGlot's division, so the row and the code agree.
