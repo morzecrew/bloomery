@@ -21,6 +21,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A catalog recipe's operands carry types.** A recipe may declare `types:`, a mapping
+  from names in its `requires` to logical types written as a canonical field's `type:`
+  is. Before a recipe's `expr:` is evaluated, each operand's extraction is cast to the
+  type `types:` names it, or else to the declared type of the canonical field of the same
+  name, so arithmetic runs on declared types rather than on whatever an engine infers
+  from a text-shaped extraction. A recipe whose `expr:` applies `+`, `-`, `*` or `/` to an
+  operand typed neither way is now refused at compile time with `UntypedRecipeOperand`,
+  naming the recipe, the operand and the `types:` entry that fixes it; a `types:` key
+  that `requires` does not name is refused at load.
+
+  **Upgrade note.** A catalog that computes a recipe over a non-canonical operand now has
+  to declare `types:`, or its compile is refused. The refusal names the exact entry to
+  add — put it under the recipe's `types:` and recompile. A catalog whose recipe
+  arithmetic touches only canonical fields needs no change; where a `types:` entry is
+  added, the operand gains a cast and the fingerprint moves, so re-plan.
+
 - **A catalog recipe's `/` is exact.** A recipe's `expr:` is parsed SQL rather than a built
   transform, so its division carried no exactness marker: SQLGlot rendered it as a float
   division — an explicit `CAST(x AS DOUBLE PRECISION)` on PostgreSQL and `CAST(x AS DOUBLE)`
