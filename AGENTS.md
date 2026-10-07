@@ -227,6 +227,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `examples/lakehouse/` — 8 decision(s)
 - `examples/retrieval/` — 0 decision(s)
 - `examples/targets/` — 2 decision(s)
+- `examples/targets/out/` — 0 decision(s)
 - `fuzz/` — 8 decision(s)
 - `pages/` — 2 decision(s)
 - `pages/docs/` — 1 decision(s)

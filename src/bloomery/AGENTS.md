@@ -734,7 +734,7 @@ The IR records no naming policy, and S-0002/D-7 stays a documented advisory unti
 - Paths: `src/bloomery/compile.py` `src/bloomery/naming.py`
 - Consequence: no IR bump for a mismatch only a Python caller can make today
 
-### S-0090/D-3 — `ASSUMED` (Three places bloomery said one thing and did another) — implementation: none
+### S-0090/D-3 — `ASSUMED` (Three places bloomery said one thing and did another)
 
 A catalog recipe's `/` is lowered through the `divide` transform's exactness marker, its dividend cast to a decimal keeping at least the declared scale, so integer operands divide fractionally and the division is the transform's; the `inexact_division` advisory is retired and `AdvisoryCode` carries only `undeclared_audience`
 

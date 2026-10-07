@@ -6,7 +6,7 @@ kind: design
 change:
   type: fix
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0004, S-0023]
 informed_by: [S-0089]
 supersedes: []

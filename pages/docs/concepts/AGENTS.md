@@ -78,7 +78,7 @@ A boundary refusal has its own template naming the alias and the upstream finger
 - Paths: `src/bloomery/guardrails/evidence.py` `pages/docs/concepts/what-bloomery-proves.md`
 - Consequence: the author is told the two things they can actually do
 
-### S-0090/D-1 — `ASSUMED` (Three places bloomery said one thing and did another) — implementation: none
+### S-0090/D-1 — `ASSUMED` (Three places bloomery said one thing and did another)
 
 The unit check refuses `+` or `-` only where each side declares exactly one unit and the two differ, and lets an undeclared unit pass; `unknown` poisons additive arithmetic through the tax-basis check, which refuses an operand with a currency or undeclared unit whose `tax_basis` is absent or `unknown` beside a monetary one; the guardrails page states this rule
 
