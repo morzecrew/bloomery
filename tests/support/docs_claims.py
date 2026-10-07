@@ -41,7 +41,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "pages" / "docs"
 ERRORS_PAGE = DOCS / "reference" / "errors.md"
 
-#: A row of the reference's advisory table: ``| `inexact_division` | … |``. A
+#: A row of the reference's advisory table: ``| `undeclared_audience` | … |``. A
 #: separate pattern from the class one below rather than a widening of it: the
 #: two vocabularies are documented on one page and censused separately, and a
 #: single pattern loose enough for both would let an advisory code satisfy the

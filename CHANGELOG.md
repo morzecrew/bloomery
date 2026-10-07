@@ -19,6 +19,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one cannot land unrecorded. Retrieval is out of scope until a project outside bloomery's
   own examples declares a `RetrievalSpec`.
 
+### Changed
+
+- **A catalog recipe's `/` is exact.** A recipe's `expr:` is parsed SQL rather than a built
+  transform, so its division carried no exactness marker: SQLGlot rendered it with an
+  explicit `CAST(x AS DOUBLE PRECISION)` on PostgreSQL and `CAST(x AS DOUBLE)` on Trino,
+  narrowing a binary float back to the declared decimal, and two integer operands divided
+  to an integer on every engine. The outermost `/` down each branch is now lowered through
+  the `divide` transform's marker, its dividend cast to a decimal keeping at least the
+  declared scale, so the division is the transform's — exact on PostgreSQL and Trino,
+  fractional for integer operands, and rendered per dialect like any other division.
+  DuckDB, which has no exact decimal division, is unchanged in being inexact there.
+
+  A `/` nested inside another `/` keeps SQLGlot's own division, as it did before. The
+  render-side unmarking replaces a marker and prunes the subtree it replaced, so a marker
+  nested inside a marker would reach the engine as an undefined function call; keeping the
+  markers flat is what keeps this change from shipping one. Making a nested division exact
+  needs that unmarking to reach nested markers, which is a dialect-layer change this release
+  does not carry.
+
+  **Upgrade note.** A project whose catalog carries a dividing recipe compiles a different
+  silver model, so its fingerprint moves; recompile the project and re-plan against the new
+  fingerprint. A project with no dividing recipe is unaffected.
+
+### Removed
+
+- **The `inexact_division` advisory.** A recipe's division is now lowered through the
+  `divide` transform's marker, so no advisory stands where the reference's own rule says a
+  refusal belongs; `AdvisoryCode` carries `undeclared_audience` only.
+
 ### Fixed
 
 - **`InvariantViolated` reaches the shell as an internal error.** It subclasses

@@ -137,6 +137,7 @@ from bloomery.transforms import (
     CONVERT_FROM,
     CONVERT_MARKER,
     CONVERT_TO,
+    DIVIDE_MARKER,
     ISO8601_INSTANT,
     neutral_type,
     registry,
@@ -680,6 +681,52 @@ def _column_pair(
 # ....................... #
 
 
+def _marked_division(node: Expression, declared: LogicalType) -> Expression:
+    """A recipe ``expr:``'s outermost ``/`` per branch, lowered to the
+    ``divide`` transform's exactness marker (S-0090/D-3).
+
+    A recipe's expression is parsed SQL rather than a built transform, so its
+    ``Div`` carries no marker: SQLGlot renders it with an explicit
+    ``CAST(x AS DOUBLE PRECISION)`` on PostgreSQL and ``CAST(x AS DOUBLE)`` on
+    Trino — a binary float on an emission path (S-0020/D-5) — and two integer
+    operands divide fractionally once the dividend is a decimal. Rewriting the
+    ``Div`` as the marker call :func:`~bloomery.transforms.divide` builds
+    closes both: the port renders the marker with a typed division, and the
+    dividend is cast to a decimal keeping at least the declared scale, so
+    ``line_total / quantity`` keeps its fraction rather than truncating.
+
+    The walk marks a division only where it is not itself inside one, and that
+    is deliberate rather than a shortcut. :meth:`Expression.transform` prunes
+    the subtree of a node it replaces — so the walk stops at the first ``Div``
+    down each branch and the markers come out **flat**, never one inside
+    another. The render-side unmarking
+    (:func:`bloomery.dialects.base._exact_division`) replaces markers the same
+    way and prunes in turn, so a marker nested under a marker would be visited
+    once and the inner one would survive into the artifact as an undefined
+    function call (the leak T-0281 measured). Flat markers are all reachable.
+
+    A ``/`` nested inside another ``/`` keeps SQLGlot's own division — a
+    binary float, the behavior before this change. Making that one exact needs
+    the render-side unmarking to reach nested markers, which is outside this
+    task's scope; the flat walk is what keeps the marker from reaching the
+    engine meanwhile.
+    """
+
+    def marked(child: Expression) -> Expression:
+        if not isinstance(child, exp.Div):
+            return child
+
+        return exp.Anonymous(
+            this=DIVIDE_MARKER,
+            expressions=[
+                exp.cast(child.this, neutral_type(declared)),
+                child.expression,
+            ],
+        )
+
+    return node.transform(marked)
+
+
 def _recipe_expr(
     field_mapping: RecipeFieldMapping,
     declared: LogicalType,
@@ -702,7 +749,7 @@ def _recipe_expr(
 
             return node
 
-        body = parsed.transform(substitute)
+        body = _marked_division(parsed.transform(substitute), declared)
 
     return exp.cast(body, neutral_type(declared)), recipe.id
 

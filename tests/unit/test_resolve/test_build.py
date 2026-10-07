@@ -24,8 +24,9 @@ from bloomery.ir import (
     PartitionSpec,
     UnreachableMetric,
 )
+from bloomery.dialects.base import _exact_division
 from bloomery.quality import dedupe_sort_columns
-from bloomery.resolve.build import DIRECT_SUFFIX
+from bloomery.resolve.build import DIRECT_SUFFIX, _marked_division
 from bloomery.typing import DecimalType, StringType, TimestampType
 from support.compiling import FIXTURES, fixture_sources, load_fixture
 
@@ -58,12 +59,35 @@ def test_ecom_recipe_lowering_records_the_recipe_id() -> None:
     order_item = next(e for e in ir.entities if e.name == "order_item")
     unit_price = next(c for c in order_item.columns if c.name == "unit_price")
     lowered = next(c for c in order_item.sources[0].columns if c.name == "unit_price")
-    assert lowered.expr.sql == "CAST(total / qty AS DECIMAL(12, 4))"
+    # A recipe's `/` is lowered to the divide transform's exactness marker, its
+    # dividend cast to the declared scale, rather than left as a bare Div
+    # (S-0090/D-3).
+    assert (
+        lowered.expr.sql
+        == "CAST(BLM_EXACT_DIV(CAST(total AS DECIMAL(12, 4)), qty) AS DECIMAL(12, 4))"
+    )
     assert lowered.recipe_id == "from_total"
     assert unit_price.type == DecimalType(12, 4)
     assert unit_price.canonical == "unit_price"
     assert unit_price.unit is not None and unit_price.unit.value == "currency"
     assert unit_price.tax_basis is not None and unit_price.tax_basis.value == "net"
+
+
+def test_a_nested_recipe_division_never_leaves_a_marker_in_the_artifact() -> None:
+    """T-0281: the render-side unmarking replaces a marker and prunes the
+    subtree it replaced, so a marker nested *inside* another marker is never
+    visited and survives into the SQL as an undefined function call.
+    ``_marked_division`` keeps its markers flat — the walk stops at the first
+    ``Div`` down each branch — so every marker the artifact carries is one
+    ``render`` reaches, and none leaks.
+    """
+
+    from sqlglot import parse_one
+
+    for text in ("line_total / quantity / 2", "line_total / (quantity / 2)"):
+        marked = _marked_division(parse_one(text), DecimalType(12, 4))
+        rendered = _exact_division(marked).sql(dialect="postgres")
+        assert "BLM_EXACT_DIV" not in rendered, text
 
 
 def test_ecom_nested_jsonpath_lowering() -> None:

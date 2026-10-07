@@ -366,7 +366,6 @@ improves between releases.
 | Code | Raised when |
 |---|---|
 | `undeclared_audience` | A mart or rollup publishes a `pii`/`secret` column and no `grants:` block says who may read it — on the relation, on the source entity, or on either. bloomery has no opinion about the audience, so whatever the warehouse already grants stands. Declare grants on both and the guardrail refuses a widening instead |
-| `inexact_division` | A catalog recipe's `expr:` divides. The `divide` *transform* is marked so PostgreSQL and Trino keep it in exact decimal arithmetic, but a recipe's expression is parsed SQL carrying no marker — so the division happens in binary floating point and is narrowed back to the declared decimal, on every engine rather than only on DuckDB. Where the division must be exact, use a `divide`/`multiply` transform chain instead |
 
 Advisories carry a `source_path` under the same rules as an error's, below.
 
