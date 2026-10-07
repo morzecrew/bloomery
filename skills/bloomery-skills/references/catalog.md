@@ -106,9 +106,10 @@ Declare a converted field in the target currency instead and convert in the mapp
 A recipe is an alternative path to a canonical field: if `unit_price` is not present
 directly, it can come from `line_total / quantity`. Each recipe has an `id`, the names it
 `requires`, and an optional `expr` over those names. A required name the catalog does not
-declare as a canonical field carries its own logical type in `types:`, so `line_total` is
-typed even though nothing else knows what it is; an operand of `+`, `-`, `*` or `/` typed
-neither way is refused, and a `types:` key outside `requires` is refused at load.
+declare as a canonical field can be typed in `types:`, so `line_total` is typed even
+though nothing else knows what it is; one the catalog declares takes that field's type
+unless `types:` overrides it. An operand of `+`, `-`, `*` or `/` typed neither way is
+refused, and a `types:` key outside `requires` is refused at load.
 
 Recipes are ordered by reliability, but **the compiler never picks one**. Which recipe a
 tenant's data satisfies is decided upstream and recorded in the mapping as

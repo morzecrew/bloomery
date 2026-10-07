@@ -26,16 +26,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is. Before a recipe's `expr:` is evaluated, each operand's extraction is cast to the
   type `types:` names it, or else to the declared type of the canonical field of the same
   name, so arithmetic runs on declared types rather than on whatever an engine infers
-  from a text-shaped extraction. A recipe whose `expr:` applies `+`, `-`, `*` or `/` to an
-  operand typed neither way is now refused at compile time with `UntypedRecipeOperand`,
-  naming the recipe, the operand and the `types:` entry that fixes it; a `types:` key
-  that `requires` does not name is refused at load.
+  from a text-shaped extraction. A recipe whose `expr:` applies `+`, `-` (unary too), `*`
+  or `/` to an operand typed neither way, or to a name `requires` does not bind, is now
+  refused at compile time with `UntypedRecipeOperand`, naming the recipe, the operand and
+  the fix; a `types:` key that `requires` does not name is refused at load.
 
-  **Upgrade note.** A catalog that computes a recipe over a non-canonical operand now has
-  to declare `types:`, or its compile is refused. The refusal names the exact entry to
-  add — put it under the recipe's `types:` and recompile. A catalog whose recipe
-  arithmetic touches only canonical fields needs no change; where a `types:` entry is
-  added, the operand gains a cast and the fingerprint moves, so re-plan.
+  **Upgrade note.** This is breaking for a catalog whose recipe arithmetic uses an
+  untyped non-canonical operand: its compile is refused until the recipe's `types:` gains
+  the entry the refusal names. Every recipe whose `expr:` reads a typed operand now casts
+  it, canonical ones included, so its silver model and the project's fingerprint move
+  even where the catalog needs no edit; recompile and re-plan.
 
 - **A catalog recipe's `/` is exact.** A recipe's `expr:` is parsed SQL rather than a built
   transform, so its division carried no exactness marker: SQLGlot rendered it as a float

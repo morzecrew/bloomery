@@ -137,6 +137,36 @@ def test_an_untyped_operand_under_division_is_refused_with_its_fix() -> None:
     assert excinfo.value.source_path == f"{DOC}: fields.unit_price.recipe"
 
 
+@pytest.mark.parametrize(
+    ("expr", "operands"),
+    [
+        ("a / (b + c)", {"a", "b", "c"}),
+        ("-amount", {"amount"}),
+        ("amount * CASE WHEN raw_status = 'x' THEN factor ELSE 0 END", {"amount", "factor"}),
+        ("COALESCE(note, label)", set()),
+    ],
+    ids=["nested", "unary-minus", "case-condition", "no-arithmetic"],
+)
+def test_an_arithmetic_operand_is_a_value_the_operator_reads(expr, operands) -> None:
+    """S-0091/D-3's operands: what `+`, `-` (unary too), `*` or `/` reads as a
+    value. A name tested in a condition inside the arithmetic is not one."""
+    from bloomery.resolve.recipes import _arithmetic_operands
+
+    assert _arithmetic_operands(expr) == operands
+
+
+def test_arithmetic_on_a_name_requires_does_not_bind_is_refused() -> None:
+    """A bare name in `expr:` that `requires` does not list is read off the
+    source as it lands, and `types:` cannot name it; the refusal says to bind it."""
+    catalog = CATALOG.replace('expr: "line_total / quantity"', 'expr: "line_total / qty"')
+    project = load_project({"entity_model": ENTITY_MODEL, "mapping": RECIPE_MAPPING})
+    with pytest.raises(UntypedRecipeOperand) as excinfo:
+        resolve(project, load_catalog(catalog))
+    message = str(excinfo.value)
+    assert "['qty']" in message
+    assert "requires: does not name" in message
+
+
 def test_recipe_failures_are_batched() -> None:
     model = ENTITY_MODEL.replace(
         "      note: {type: string}",

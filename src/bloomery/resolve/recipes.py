@@ -51,27 +51,43 @@ def recipe_fields(mapping: Mapping) -> tuple[tuple[str, RecipeFieldMapping], ...
 # ....................... #
 
 
-#: The operators S-0091/D-3 refuses an untyped operand under. Modulo and the
-#: bitwise forms are deliberately absent: the spec names ``+``, ``-``, ``*``
-#: and ``/``, and the refusal is exactly as wide as the defect it closes.
-_ARITHMETIC = (exp.Add, exp.Sub, exp.Mul, exp.Div)
+#: The operators S-0091/D-3 refuses an untyped operand under: ``+``, ``-``
+#: (binary and unary), ``*`` and ``/``. Modulo and the bitwise forms are
+#: deliberately absent, so the refusal is exactly as wide as the defect it closes.
+_ARITHMETIC = (exp.Add, exp.Sub, exp.Mul, exp.Div, exp.Neg)
+
+#: What a name can sit inside without being a value the arithmetic around it
+#: reads: the test of a `CASE` branch, a comparison, a boolean connective.
+_CONDITIONS = (exp.Predicate, exp.Connector, exp.Not)
 
 
 def _arithmetic_operands(expr: str) -> set[str]:
     """The bare column names an expression applies arithmetic to.
 
-    A name an operator *reaches*, at any depth: ``a / (b + c)`` applies ``/`` to
-    ``a`` and ``+`` to ``b`` and ``c``. A name read outside every arithmetic
-    node is not an operand of one and is left to S-0091/D-2 alone.
+    A name an operator *reaches* as a value, at any depth: ``a / (b + c)``
+    applies ``/`` to ``a`` and ``+`` to ``b`` and ``c``, and ``-a`` negates
+    ``a``. A name read only inside a condition — ``raw_status`` in ``amount *
+    CASE WHEN raw_status = 'x' THEN f ELSE 0 END`` — is not, and neither is a
+    name outside every arithmetic node; both are left to S-0091/D-2 alone.
     """
 
     parsed = cast("Expression", parse_one(expr))
-    return {
-        column.name
-        for operator in parsed.find_all(*_ARITHMETIC)
-        for column in operator.find_all(exp.Column)
-        if not column.table
-    }
+    names: set[str] = set()
+
+    for operator in parsed.find_all(*_ARITHMETIC):
+        for column in operator.find_all(exp.Column):
+            if column.table:
+                continue
+
+            node = column.parent
+
+            while node is not None and node is not operator and not isinstance(node, _CONDITIONS):
+                node = node.parent
+
+            if node is operator:
+                names.add(column.name)
+
+    return names
 
 
 # ....................... #
@@ -143,12 +159,25 @@ def resolve_recipe(
         # extraction is a model PostgreSQL and BigQuery refuse before it reads a
         # row. Refused here, where the fix is one `types:` line, rather than at run
         # time on an engine that cannot say which operand it choked on.
+        operands = _arithmetic_operands(recipe.expr)
+        unbound = sorted(operands - required)
+
+        if unbound:
+            # Not an alias slot at all: the name is read off the source relation
+            # as it lands, and `types:` cannot name it, since D-1 holds its keys
+            # to `requires`.
+            msg = (
+                f"recipe {recipe.id!r} applies +, -, * or / to {unbound}, which its "
+                "requires: does not name, so the operand would be read off the source "
+                "untyped. Fix: add it to the recipe's requires: and the mapping's from:, "
+                "with a types: entry unless the catalog declares it canonically"
+            )
+            raise UntypedRecipeOperand(msg, source_path=f"{path}.recipe")
+
         untyped = sorted(
             name
-            for name in _arithmetic_operands(recipe.expr)
-            if name in required
-            and name not in recipe.types
-            and name not in catalog.canonical_fields
+            for name in operands
+            if name not in recipe.types and name not in catalog.canonical_fields
         )
 
         if untyped:
