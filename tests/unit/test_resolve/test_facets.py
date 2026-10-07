@@ -278,6 +278,15 @@ def test_an_exact_division_is_shown_as_the_division_it_renders_as() -> None:
     ]
 
 
+def test_an_authored_function_named_like_the_marker_is_shown_as_written() -> None:
+    """Authored SQL can call a function `BLM_EXACT_DIV` of another arity; it is
+    not the marker, so the delta spells it as written instead of failing."""
+    authored = SqlExpr(sql="BLM_EXACT_DIV(total)")
+    moved = facets(metric(), metric(expr=authored))
+
+    assert [(one.field, one.new) for one in moved] == [("expr", "BLM_EXACT_DIV(total)")]
+
+
 def test_a_filter_moving_is_the_filter_facet_and_carries_no_values() -> None:
     """A filter is a tuple of records, so there is no compact spelling for it
     and the delta names the field and stops. Naming it is the answer; rendering
