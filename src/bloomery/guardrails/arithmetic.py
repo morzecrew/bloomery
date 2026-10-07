@@ -79,6 +79,26 @@ def _summarize(node: Expression, lookup: dict[str, OperandMeta]) -> _Side:
 # ....................... #
 
 
+def _lookup(names: tuple[str, ...], catalog: Catalog | None) -> dict[str, OperandMeta]:
+    """Operand metadata for every name the expression may combine.
+
+    A name the catalog does not describe — a recipe ``requires`` that names no
+    canonical field — is not dropped from the lookup: an absent entry is the
+    ``unknown`` the tax rule poisons on, exactly as a canonical field that
+    declares no ``tax_basis`` is (S-0023/D-3). Dropping it left the operand
+    invisible to ``_summarize``, so money beside a field no catalog entry can
+    vouch for compiled clean — the pass the guard exists to refuse.
+    """
+    return {
+        name: operand_meta(name, catalog)
+        or OperandMeta(name=name, entity="", unit=None, tax_basis=None, currency=None)
+        for name in names
+    }
+
+
+# ....................... #
+
+
 def _declared_units(side: _Side) -> set[str]:
     return {meta.unit for meta in side.metas if meta.unit is not None}
 
@@ -235,11 +255,7 @@ def check_arithmetic(
     for derivation in derivations:
         if derivation.expr is None:
             continue
-        lookup = {
-            name: meta
-            for name in derivation.operands
-            if (meta := operand_meta(name, catalog)) is not None
-        }
+        lookup = _lookup(derivation.operands, catalog)
         violations.extend(
             _walk(derivation.expr, lookup, derivation.source_path, convertible=convertible)
         )
@@ -247,11 +263,7 @@ def check_arithmetic(
     for metric in metrics:
         if metric.expr is None:
             continue
-        lookup = {
-            name: meta
-            for name in metric.depends_on
-            if (meta := operand_meta(name, catalog)) is not None
-        }
+        lookup = _lookup(metric.depends_on, catalog)
         violations.extend(
             _walk(
                 metric.expr.sql,
