@@ -53,11 +53,16 @@ scm:
 
 tiers:
   planner: {harness: fake}
+  # Both live seats run deepseek-v4.1-flash on the ModelStudio token plan
+  # (2026-10-07), which spares the Claude subscription's quota. The plan is a
+  # prepaid weekly quota, so an attempt's cost reads unreported, not zero.
   executor:
     harness: claude-subscription
     profile: claude-equipped
-    model: claude-opus-5-5
-    provider: anthropic
+    model: deepseek-v4.1-flash
+    provider: modelstudio
+    dialect: anthropic
+    reasoning: medium
   # The review tier, as close to shadow as the configuration allows: it runs
   # on every gate-green attempt and records its findings; only a `blocker`
   # stops a promotion (`blocks_at` below), a grade the reviewer has not once
@@ -65,8 +70,10 @@ tiers:
   reviewer:
     harness: claude-subscription
     profile: review
-    model: claude-opus-5-5
-    provider: anthropic
+    model: deepseek-v4.1-flash
+    provider: modelstudio
+    dialect: anthropic
+    reasoning: medium
 
 broker:
   adapter: local
@@ -74,7 +81,7 @@ broker:
   cost_tolerance: 0.25
 
 providers:
-  default: [anthropic]
+  default: [anthropic, modelstudio]
   repositories: {}
   never_send: []
 

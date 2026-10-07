@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=../schemas/provider.json
+# The ModelStudio token plan, reached over its Anthropic route so the claude
+# image drives it unchanged. Copied from torve's record on 2026-10-07 and cut to
+# the one route and the one model this repository's seats name.
+name: modelstudio
+key_env: MODELSTUDIO_CODING_API_KEY
+via_proxy: false
+request_timeout_s: 600
+stream_idle_timeout_s: 120
+
+routes:
+  anthropic:
+    base_url: https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic
+
+models:
+  # The levels are the ones the endpoint enumerates: there is no `none`, so the
+  # model cannot be asked to stop reasoning. No `context_window`, `max_tokens`
+  # or `price`: neither bound is observable from the endpoint, and the plan is
+  # a prepaid weekly quota rather than per-token billing.
+  deepseek-v4.1-flash:
+    reasoning: [minimal, low, medium, high, xhigh, max, ultra]
