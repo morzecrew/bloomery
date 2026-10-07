@@ -90,7 +90,7 @@ review:
 # the tier recorded on S-0009 reached #155 for a person to sweep by hand.
 threads:
   enabled: true
-  bots: [coderabbitai, codeant-ai]
+  bots: [coderabbitai, codeant-ai, cubic-dev-ai]
   rounds_per_pass: 1
   sources: [forge, record]
 
