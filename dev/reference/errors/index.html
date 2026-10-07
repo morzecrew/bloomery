@@ -2236,7 +2236,7 @@ pulling in any pipeline stage.</p>
 <tr>
 <td><code>InvariantViolated</code></td>
 <td>any</td>
-<td>A guarantee an earlier stage was supposed to have established did not hold — never an authored spec's fault, and never spec feedback. Every total lookup that raises it is total <em>because</em> a guardrail already refused the case, so seeing one is a bug report</td>
+<td>A guarantee an earlier stage was supposed to have established did not hold — never an authored spec's fault, and never spec feedback. Every total lookup that raises it is total <em>because</em> a guardrail already refused the case, so seeing one is a bug report. It is the one <code>BloomeryError</code> subclass the command line does not read as a refusal: it exits <code>3</code> as an internal error, not <code>1</code></td>
 </tr>
 <tr>
 <td><code>StepError</code></td>
@@ -2872,10 +2872,6 @@ improves between releases.</p>
 <tr>
 <td><code>undeclared_audience</code></td>
 <td>A mart or rollup publishes a <code>pii</code>/<code>secret</code> column and no <code>grants:</code> block says who may read it — on the relation, on the source entity, or on either. bloomery has no opinion about the audience, so whatever the warehouse already grants stands. Declare grants on both and the guardrail refuses a widening instead</td>
-</tr>
-<tr>
-<td><code>inexact_division</code></td>
-<td>A catalog recipe's <code>expr:</code> divides. The <code>divide</code> <em>transform</em> is marked so PostgreSQL and Trino keep it in exact decimal arithmetic, but a recipe's expression is parsed SQL carrying no marker — so the division happens in binary floating point and is narrowed back to the declared decimal, on every engine rather than only on DuckDB. Where the division must be exact, use a <code>divide</code>/<code>multiply</code> transform chain instead</td>
 </tr>
 </tbody>
 </table>

@@ -2508,7 +2508,9 @@ said no. <code>2</code> means the invocation was wrong before any spec was opene
 a <code>--where</code> document that is not JSON, a mistyped <code>--target</code>, <code>--dialect</code>, <code>--grain</code> or
 <code>--policy</code>, a file that is not UTF-8 or cannot be read. <code>3</code> means the mistake was
 bloomery's: an exception no handler claimed. It still prints the traceback to stderr —
-a bug report needs it — under a line asking you to report it, and never as the interface.</p>
+a bug report needs it — under a line asking you to report it, and never as the interface.
+<code>InvariantViolated</code> is this case even though it subclasses <code>BloomeryError</code>: it means a
+guardrail and the lookup it guarantees have drifted apart, so it exits <code>3</code>, not <code>1</code>.</p>
 <p>One non-code: a <strong>broken pipe</strong> is not an error at all. <code>bloomery schema | head</code> means
 the reader chose to stop; the command exits <code>0</code> quietly instead of a traceback.</p>
 <p><code>main</code> <strong>returns</strong> these codes rather than raising, so a Python caller can read them:

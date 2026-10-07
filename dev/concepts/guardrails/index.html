@@ -2144,15 +2144,17 @@ whole project are collected and raised as a single <code>GuardrailError</code> a
 with a source path, so authors fix a spec in one round trip.</p>
 </div>
 <h2 id="unit-coherence">Unit coherence<a class="headerlink" href="#unit-coherence" title="Permanent link">&para;</a></h2>
-<p>Operands of <code>+</code> and <code>-</code> must share a <code>unit</code>. Adding a currency to a count is refused;
-so is any additive arithmetic involving a field whose unit is <code>unknown</code> — a monetary
-column without a <code>canonical:</code> link has no metadata, and unknown <em>poisons</em> additive
-arithmetic rather than silently passing. Multiplication and division are exempt:
-currency × count is how extensive quantities work. Violation: <code>UnitMismatch</code>.</p>
+<p>Operands of <code>+</code> and <code>-</code> must share a <code>unit</code>, but only <em>declared</em> units are compared:
+the check refuses where each side declares exactly one unit and the two differ — adding
+a currency to a count is refused — and a side that declares no unit passes it. An
+unknown unit is not a unit verdict at all: it poisons additive arithmetic through the
+tax-basis check below, which refuses an operand with a currency or undeclared unit whose
+<code>tax_basis</code> is absent or <code>unknown</code> beside a monetary one. Multiplication and division
+are exempt: currency × count is how extensive quantities work. Violation: <code>UnitMismatch</code>.</p>
 <h2 id="tax-basis">Tax basis<a class="headerlink" href="#tax-basis" title="Permanent link">&para;</a></h2>
-<p><code>net</code> and <code>gross</code> may never meet in <code>+</code>/<code>-</code>, and <code>unknown</code> alongside a monetary operand
-is equally refused. A margin computed as <code>unit_price - supplier_cost</code>, where
-<code>supplier_cost</code> has no catalog link:</p>
+<p><code>net</code> and <code>gross</code> may never meet in <code>+</code>/<code>-</code>, and a <code>tax_basis</code> that is absent or
+explicitly <code>unknown</code> alongside a monetary operand is equally refused. A margin computed
+as <code>unit_price - supplier_cost</code>, where <code>supplier_cost</code> has no catalog link:</p>
 <div class="highlight"><pre><span></span><code>TaxBasisMismatch at entity_model: entities.order_item.fields.margin
   '-' combines 'unit_price' (tax_basis: net) with 'supplier_cost'
   (tax_basis: unknown — the field has no canonical: link, so no metadata
