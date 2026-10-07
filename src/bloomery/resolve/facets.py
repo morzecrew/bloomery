@@ -40,6 +40,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Final, TypeGuard, cast
 
+from bloomery.dialects.base import _exact_division
 from bloomery.errors import InvariantViolated
 
 # Runtime imports, not `TYPE_CHECKING` ones: `Facet`, `FacetDelta` and
@@ -48,6 +49,7 @@ from bloomery.errors import InvariantViolated
 # on every export and a guarded name fails it.
 from bloomery.ir import SourceColumnIR, SqlExpr
 from bloomery.spec.catalog import CanonicalField
+from bloomery.transforms import DIVIDE_MARKER
 from bloomery.typing import LogicalType, render_type
 
 # ----------------------- #
@@ -279,7 +281,14 @@ def _render(value: object) -> str | None:
         case None:
             return None
         case SqlExpr():
-            return value.sql
+            # The `divide` marker is how an exact division survives the IR's
+            # text (S-0046/D-3); nobody writes it and no engine sees it, so a
+            # reader is shown the division it renders as. Only the spelling
+            # moves: the two sides are compared on the IR's own text.
+            if DIVIDE_MARKER not in value.sql:
+                return value.sql
+
+            return _exact_division(value.ast()).sql()
         case str():
             # `StrEnum` lands here too, and `str()` is what makes the member
             # its declared spelling — `currency` rather than `Unit.CURRENCY`.

@@ -46,6 +46,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A definition's timeline shows an exact division as a division.** Its changes printed
+  the internal `BLM_EXACT_DIV(...)` marker wherever a `divide` transform or a catalog
+  recipe's `/` moved a body. They now print the division it renders as,
+  `CAST(total AS DECIMAL(38, 9)) / qty`. The comparison still reads the IR's own text, so
+  a body that changed still reports as changed.
+
 - **A declared `tax_basis: unknown` is refused beside money.** The tax-basis check
   tripped only on an absent `tax_basis`, so a field that declared `tax_basis: unknown`
   explicitly passed it: `amount + adj` compiled and added a figure whose canonical field
