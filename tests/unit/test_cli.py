@@ -1474,6 +1474,7 @@ def test_an_unexpected_exception_exits_three_with_the_report_line(
     assert "internal error" in err
     assert "https://github.com/morzecrew/bloomery/issues" in err
     assert "RecursionError" in err  # the traceback is in the report, not the interface
+    assert err.index("internal error") < err.index("Traceback")  # under the line, not above it
 
 
 def test_an_invariant_violation_is_an_internal_error_not_a_refusal(

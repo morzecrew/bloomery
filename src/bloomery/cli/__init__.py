@@ -1079,11 +1079,11 @@ def _internal_error(prog: str) -> int:
     it), but under a contract line and behind its own exit code, so a script
     can tell "your spec is wrong" (1) and "the invocation is wrong" (2) from
     "bloomery is wrong" (3)."""
-    traceback.print_exc(file=sys.stderr)
     sys.stderr.write(
         f"{prog}: internal error — this is a bug in bloomery, not in your"
         " spec. Please report it: https://github.com/morzecrew/bloomery/issues\n"
     )
+    traceback.print_exc(file=sys.stderr)
     return EXIT_INTERNAL
 
 
