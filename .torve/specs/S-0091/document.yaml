@@ -5,7 +5,7 @@ kind: design
 change:
   type: fix
   scope: resolve
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0022, S-0090]
 informed_by: []
@@ -59,10 +59,17 @@ design:
       AS DECIMAL(38, 9)) / CAST(qty AS INT) AS DECIMAL(12, 4))`: a text `qty` or a
       `->>` extraction is now a number before the division. The identity recipe (no
       `expr:`) already casts its one operand to the declared type and is unchanged.
-tests: ''
+tests: |-
+  - `types:` loads and round-trips; a key `requires` does not name is refused at load (D-1).
+  - A recipe over a text operand lowers to a cast of the extraction; a nested JSON path operand lowers to a cast of the `->>` extraction; a canonical-field operand takes that field's type (D-2).
+  - An untyped non-canonical operand under `+`, `-`, `*` or `/` is refused naming the recipe, the operand and the `types:` entry; one outside arithmetic is not (D-3).
+  - The whole unit selection and `tests/execution` pass over the repository's typed catalogs, and the goldens re-bless with the casts (D-4).
 docs: ''
 out_of_scope: ''
-risks: ''
+risks: |-
+  - A catalog that compiled before is refused if a recipe does arithmetic on a name that is neither typed nor a canonical field. That is the point of D-3, and the changelog's upgrade note gives the one-line `types:` entry that fixes it.
+  - Every project with a dividing or multiplying recipe compiles a different silver model, so its fingerprint moves; recompile and re-plan, as for S-0090.
+  - A canonical field's declared type is applied to an operand of the same name; a recipe whose operand shares a canonical field's name but means something else gets that type. `types:` overrides it.
 alternatives:
   - option: >-
       Cast every operand to the recipe's declared type.
@@ -85,3 +92,5 @@ questions:
       it raw, as today, so no catalog that compiled stops compiling, at the cost of
       #269 staying open for non-canonical names. The lean is D-3: bloomery refuses
       rather than ship a model that can fail.
+    status: settled
+    settled_by: D-3
