@@ -830,15 +830,15 @@ def _partial(
     genuinely computed — an empty tuple here means "not computed", which is why
     :attr:`SpecEvidence.stage_reached` has to be read first.
 
-    **Advisories travel with all three widths**, including the narrowest, and
-    that is not an exception to the paragraph above — it is the same rule. An
-    advisory is derived from the catalog, which is an *input*: it is computed
-    and correct whether or not a stage refused, so withholding it would make
-    ``advisories`` the one field here that is empty for a reason
-    :attr:`SpecEvidence.stage_reached` cannot explain, which is exactly the
-    objection the next paragraph raises about ``unresolved``. §5.2's bar — the
-    spec is legal, the artifacts are correct — decides what *qualifies* as an
-    advisory, not when a qualifying one is worth saying.
+    **Advisories travel with the IR, and with nothing narrower.** The channel's
+    one producer is a finding about the compiled IR — a sensitive column
+    published where the audience is undeclared — so the two widths that reach
+    here without one report the empty tuple because there is genuinely nothing
+    to advise about, which :attr:`SpecEvidence.stage_reached` explains the same
+    way it explains every other empty tuple here. §5.2's bar — the spec is
+    legal, the artifacts are correct — decides what *qualifies* as an advisory,
+    and a future advisory derived from a document rather than the IR would
+    travel wider than this one does.
 
     **The unresolved-work report travels with the resolution**, not with
     ``COMPLETE``. S-0047/D-5 says a refusal empties it, and its argument is
