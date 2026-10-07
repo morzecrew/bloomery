@@ -823,6 +823,12 @@
       "additionalProperties": false,
       "description": "The review-thread leg's terms (S-0084/D-5): which logins are bots, how\nmany rounds one pass may mint, and whether the leg runs at all.\n\nOff by default \u2014 a repository configured today gains nothing until\nsomebody writes that it should. On, it is refused at load under any\nlanding but `pull_request` with `unit: document` (see the refusal on\n`RunnerConfig`): the leg reads a document's pull request, so a\nconfiguration that could only ever fail at the first thread fails while a\nperson is standing at the terminal instead.",
       "properties": {
+        "approve_comment": {
+          "default": "",
+          "description": "What the leg posts on a document pull request once every thread a login in `bots`\nopened on its head is resolved and the head's checks are green (S-0097/D-7). Keyed\nby the head sha, so it lands once per head; unset posts nothing.",
+          "title": "Approve Comment",
+          "type": "string"
+        },
         "bots": {
           "description": "The forge logins whose threads the engine may answer and resolve. Every other\nthread is a person's: replied to and left (S-0084/D-11). Empty answers nobody.",
           "items": {
@@ -836,6 +842,18 @@
           "description": "Whether the leg runs at all; off by default. Spelled `enabled` rather than `on`\nbecause YAML 1.1 resolves an unquoted `on` key to a boolean.",
           "title": "Enabled",
           "type": "boolean"
+        },
+        "findings_per_round": {
+          "default": 15,
+          "description": "How many findings one round carries (S-0097/D-5). A head's findings are minted\ntogether as rounds of at most this many, grouped by file so no two rounds of one\nwave share a file; `rounds_per_pass` still bounds what a pass mints.",
+          "title": "Findings Per Round",
+          "type": "integer"
+        },
+        "review_wait": {
+          "default": 45,
+          "description": "Minutes a night waits for a document pull request's head to be reviewed before\nit would otherwise drain (S-0097/D-4). The wait ends early once every login in\n`bots` has reviewed the head, and is measured from the head's push.",
+          "title": "Review Wait",
+          "type": "integer"
         },
         "rounds_per_pass": {
           "default": 1,
