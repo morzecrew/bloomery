@@ -26,17 +26,19 @@ is [data quality](data-quality.md)'s business, not this stage's.
 
 ## Unit coherence
 
-Operands of `+` and `-` must share a `unit`. Adding a currency to a count is refused;
-so is any additive arithmetic involving a field whose unit is `unknown` — a monetary
-column without a `canonical:` link has no metadata, and unknown *poisons* additive
-arithmetic rather than silently passing. Multiplication and division are exempt:
-currency × count is how extensive quantities work. Violation: `UnitMismatch`.
+Operands of `+` and `-` must share a `unit`, but only *declared* units are compared:
+the check refuses where each side declares exactly one unit and the two differ — adding
+a currency to a count is refused — and a side that declares no unit passes it. An
+unknown unit is not a unit verdict at all: it poisons additive arithmetic through the
+tax-basis check below, which refuses an operand with a currency or undeclared unit whose
+`tax_basis` is absent or `unknown` beside a monetary one. Multiplication and division
+are exempt: currency × count is how extensive quantities work. Violation: `UnitMismatch`.
 
 ## Tax basis
 
-`net` and `gross` may never meet in `+`/`-`, and `unknown` alongside a monetary operand
-is equally refused. A margin computed as `unit_price - supplier_cost`, where
-`supplier_cost` has no catalog link:
+`net` and `gross` may never meet in `+`/`-`, and a `tax_basis` that is absent or
+explicitly `unknown` alongside a monetary operand is equally refused. A margin computed
+as `unit_price - supplier_cost`, where `supplier_cost` has no catalog link:
 
 ```
 TaxBasisMismatch at entity_model: entities.order_item.fields.margin

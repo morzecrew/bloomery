@@ -30,6 +30,11 @@ canonical_fields:
   net_price: {entity: item, type: "decimal(12,4)", unit: currency, tax_basis: net}
   gross_price: {entity: item, type: "decimal(12,4)", unit: currency, tax_basis: gross}
   bare_money: {entity: item, type: "decimal(12,4)", unit: currency}
+  amount: {entity: item, type: "decimal(12,4)", unit: currency, tax_basis: net}
+  fee: {entity: item, type: "decimal(12,4)", unit: currency}
+  adj: {entity: item, type: "decimal(12,4)", unit: currency, tax_basis: unknown}
+  weight: {entity: item, type: int}
+  height: {entity: item, type: int}
   qty: {entity: item, type: int, unit: count}
   packs: {entity: item, type: int, unit: count}
 """
@@ -79,6 +84,12 @@ def test_count_plus_count_passes() -> None:
     assert _check("qty + packs", "qty", "packs") == []
 
 
+def test_two_undeclared_units_pass() -> None:
+    # The unit check compares only declared units; a side that declares none
+    # passes it, so two unitless tenant-native fields compile (S-0090/D-1).
+    assert _check("weight + height", "weight", "height") == []
+
+
 def test_unit_mismatch_reports_once_per_expression() -> None:
     violations = _check("(net_price + qty) - (net_price + qty)", "net_price", "qty")
     assert [type(v) for v in violations] == [UnitMismatch]
@@ -107,6 +118,21 @@ def test_unknown_basis_with_a_monetary_operand_is_refused() -> None:
 
 def test_shared_basis_passes() -> None:
     assert _check("net_price + other_eur", "net_price", "other_eur") == []
+
+
+def test_absent_basis_beside_money_is_a_tax_basis_mismatch() -> None:
+    (violation,) = _check("amount + fee", "amount", "fee")
+    assert isinstance(violation, TaxBasisMismatch)
+    assert "'fee' (tax_basis: unknown)" in str(violation)
+
+
+def test_declared_unknown_basis_beside_money_is_refused() -> None:
+    """S-0090/D-1: an explicit ``tax_basis: unknown`` poisons exactly as an
+    absent one does — the check must not let a declared "unknown" through."""
+    (violation,) = _check("amount + adj", "amount", "adj")
+    assert isinstance(violation, TaxBasisMismatch)
+    assert "'adj' (tax_basis: unknown)" in str(violation)
+    assert "unknown poisons" in str(violation)
 
 
 def test_unknown_basis_without_any_monetary_operand_passes() -> None:

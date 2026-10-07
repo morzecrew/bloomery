@@ -50,6 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A declared `tax_basis: unknown` is refused beside money.** The tax-basis check
+  tripped only on an absent `tax_basis`, so a field that declared `tax_basis: unknown`
+  explicitly passed it: `amount + adj` compiled and added a figure whose canonical field
+  says nothing usable about tax. `unknown` now poisons additive arithmetic by being
+  absent *or* declared, exactly as the guardrails page states.
+
 - **`InvariantViolated` reaches the shell as an internal error.** It subclasses
   `BloomeryError`, so the command line's refusal arm claimed it and exited `1` — reading a
   bloomery bug as though the spec were at fault. It is now handled ahead of that arm: exit

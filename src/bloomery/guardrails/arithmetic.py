@@ -133,11 +133,11 @@ def _check_tax(op: str, left: _Side, right: _Side, source_path: str) -> TaxBasis
 
     described = _described(metas, "tax_basis")
 
-    if any(meta.tax_basis is None for meta in metas):
+    if any(meta.tax_basis in (None, "unknown") for meta in metas):
         msg = (
-            f"{op!r} combines {described}; an unknown basis means the canonical field "
-            "declares none, so nothing propagates, and arithmetic combining unknown "
-            "with a monetary operand is refused (S-0023/D-3: unknown poisons). Fix: "
+            f"{op!r} combines {described}; an unknown basis — absent or declared "
+            "`unknown` — propagates nothing, and arithmetic combining unknown with a "
+            "monetary operand is refused (S-0023/D-3: unknown poisons). Fix: "
             "declare tax_basis on the operand's canonical field, or link the operand "
             "to a canonical field that carries one"
         )
