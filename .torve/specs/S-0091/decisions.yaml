@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A catalog recipe may declare `types:`, a mapping from names in its `requires`
+      to logical types written as a canonical field's `type:` is; a key `requires`
+      does not name is refused at load.
+    paths: [src/bloomery/spec/catalog.py, tests/golden/schema/catalog.json]
+    consequence: >-
+      a catalog author can say what each operand is, and a typo in `types:` is caught
+      where it is written
+    rationale: >-
+      A separate key keeps `requires` a tuple of names for its six readers; a richer
+      `requires` entry would touch each of them.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Before a recipe's `expr:` is evaluated, each operand's extraction is cast to
+      its type: the one `types:` names, else the declared type of the canonical field
+      of that name.
+    paths: [src/bloomery/resolve/build.py]
+    consequence: >-
+      arithmetic in a recipe runs on typed values on every port, and `numeric / text`
+      cannot reach an engine
+    rationale: >-
+      The canonical fallback is the resolution `guardrails/arithmetic.py::_lookup`
+      already applies to an operand's unit and tax basis (S-0023/D-3), so a name means
+      one thing to both.
+    cites: [S-0023/D-3]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A recipe whose `expr:` applies `+`, `-`, `*` or `/` to an operand typed neither
+      way is refused at compile time, naming the recipe, the operand and the `types:`
+      entry that fixes it.
+    paths: [src/bloomery/resolve/recipes.py, src/bloomery/errors.py]
+    consequence: >-
+      an untyped operand is a refusal that says what to write, never a model the engine
+      rejects at run time
+    rationale: >-
+      Leaving such an operand raw keeps #269 open for every non-canonical name; casting
+      it to the declared type rounds an operand finer than that type.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Every catalog in the repository that computes a recipe over a non-canonical
+      operand declares `types:`; the reference pages and the skill's catalog reference
+      document the key, and the changelog marks the refusal as breaking with an upgrade
+      note.
+    paths:
+      - tests/fixtures/
+      - examples/
+      - pages/docs/reference/
+      - skills/bloomery-skills/references/
+      - CHANGELOG.md
+    consequence: >-
+      the repository's own catalogs compile under D-3, and a user upgrading reads
+      what to add
+    rationale: >-
+      D-3 refuses catalogs that compiled before; the upgrade note is where they learn
+      the one-line fix.

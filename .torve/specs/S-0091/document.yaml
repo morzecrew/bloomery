@@ -1,0 +1,86 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0091
+title: A recipe's operands carry types
+kind: design
+change:
+  type: fix
+  scope: resolve
+status: draft
+implementation: none
+depends_on: [S-0022, S-0090]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A catalog recipe's `expr:` is evaluated over raw source extractions: each name in `requires` is bound to a path in the mapping's `from:` and lowered with none of the entity field's transform chain. A nested JSON path is always text (`->>` on PostgreSQL), and a bronze column can be text too, so `line_total / quantity` is `numeric / text` and PostgreSQL and BigQuery refuse the model before it reads a row (#269).
+
+  A recipe gains an optional `types:` mapping from its required names to logical types. Before the expression is evaluated, every operand is cast to the type `types:` names, or else to the declared type of the canonical field of that name, the same name-to-catalog resolution the arithmetic guardrails already use for an operand's unit and tax basis. An operand typed neither way, under arithmetic, is refused at compile time with the `types:` entry that fixes it.
+motivation: >-
+  Found in the S-0090 review on #266 (codeant, PostgreSQL and BigQuery goldens) and
+  filed as #269 on 2026-10-07; the owner asked for the issue and its fix the same
+  day. The reference page's old note on recipe division already named the missing
+  piece: operand types the recipe grammar does not carry.
+current_state: >-
+  `spec/catalog.py::Recipe` holds `id`, `requires` and `expr`. `resolve/build.py::_recipe_expr`
+  substitutes each required name with `ir/lower.py::extraction(path)`, a bare column
+  or a `JSONExtractScalar`, then casts only the result to the declared type. `guardrails/arithmetic.py::_lookup`
+  resolves an operand's unit, tax basis and currency by the canonical field of the
+  same name and treats a name the catalog does not describe as `unknown`. `ecom_basic`'s
+  `from_total` divides the raw `total` by the raw `qty`, while the same mapping's
+  `quantity` field is `CAST(qty AS INT)`.
+goals: |-
+  - Every operand of a recipe's arithmetic is a typed value before the operator applies.
+  - A recipe over text-shaped extractions compiles to a model that runs on PostgreSQL and BigQuery.
+  - A missing type is a compile-time refusal that names the fix, never an engine error.
+non_goals: |-
+  - Running an entity field's transform chain on a recipe operand of the same name; a recipe's operand is an alias slot, not a field (S-0022).
+  - Inferring bronze column types from the warehouse.
+  - Casting operands to the recipe's declared type, which rounds an operand finer than that type.
+design:
+  - key: the-grammar
+    md: |-
+      ```yaml
+      recipes:
+        - id: from_total
+          requires: [line_total, quantity]
+          types: {line_total: decimal(12,4)}
+          expr: line_total / quantity
+      ```
+
+      `types:` keeps `requires` a list of names, so every reader of `requires` is untouched. `quantity` needs no entry: it is a canonical field declared `int`. A `types:` key that `requires` does not name is refused at load, like a surplus `from:` alias (S-0022).
+  - key: the-lowering
+    md: >-
+      `_recipe_expr` substitutes `CAST(<extraction> AS <type>)` for each operand,
+      in the neutral type the port renders, before S-0090/D-3's division marking.
+      `ecom_basic`'s `unit_price` becomes `CAST(CAST(CAST(total AS DECIMAL(12, 4))
+      AS DECIMAL(38, 9)) / CAST(qty AS INT) AS DECIMAL(12, 4))`: a text `qty` or a
+      `->>` extraction is now a number before the division. The identity recipe (no
+      `expr:`) already casts its one operand to the declared type and is unchanged.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''
+alternatives:
+  - option: >-
+      Cast every operand to the recipe's declared type.
+    rejected_because: >-
+      A divisor of 0.00005 cast to decimal(12, 4) is 0.0001; tried in a review round
+      on #266 and abandoned.
+  - option: >-
+      Run the entity field's transform chain on an operand of the same name.
+    rejected_because: >-
+      A recipe's operand is an alias slot, not a field (S-0022); `line_total` has
+      no field to borrow from.
+  - option: 'Richer `requires` entries (`{name: type}`).'
+    rejected_because: >-
+      Six readers of `requires` would change for a fact only the lowering and the
+      refusal need.
+questions:
+  - id: Q-1
+    text: >-
+      D-3 refuses an untyped operand under arithmetic. The alternative is to leave
+      it raw, as today, so no catalog that compiled stops compiling, at the cost of
+      #269 staying open for non-canonical names. The lean is D-3: bloomery refuses
+      rather than ship a model that can fail.

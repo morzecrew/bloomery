@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: Operands are typed before a recipe's arithmetic
+    intent: >-
+      `Recipe.types` with its load check and schema; `_recipe_expr` casts each operand
+      per D-2; the refusal of D-3 in `resolve_recipe`. The repository's catalogs that
+      compute over a non-canonical operand gain `types:`, and the goldens re-bless.
+      Tests: `types:` round-trips and a surplus key is refused; a text operand lowers
+      to a cast; a nested JSON path operand lowers to a cast of the `->>` extraction;
+      an untyped non-canonical operand under `/` is refused with its fix. Settles
+      D-1 to D-3 and the fixture half of D-4.
+    scope:
+      - src/bloomery/spec/catalog.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/resolve/recipes.py
+      - src/bloomery/errors.py
+      - tests/unit/test_spec/**
+      - tests/unit/test_resolve/**
+      - tests/unit/test_guardrails/**
+      - tests/unit/test_errors.py
+      - tests/fixtures/**
+      - tests/golden/**
+      - examples/**
+      - fuzz/fixtures/**
+      - pages/docs/how-to/trace-a-definition-over-time.md
+      - tests/unit/test_docs_snippets.py
+    acceptance:
+      - >-
+        uv run pytest -m "not engine and not e2e and not chaos and not perf and not
+        surrogate" -q
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: The reference and the skill say what `types:` is
+    intent: >-
+      The catalog reference and spec-schema pages document `types:` and the refusal;
+      the dialects page says a recipe's operands are typed; the skill's catalog and
+      errors references follow; the changelog entry is breaking with the upgrade note.
+      Settles the rest of D-4.
+    scope:
+      - pages/docs/reference/**
+      - pages/docs/concepts/**
+      - skills/bloomery-skills/references/**
+      - skills/coverage.toml
+      - CHANGELOG.md
+      - tests/unit/test_docs_*.py
+      - tests/unit/test_skills*.py
+    acceptance:
+      - uv run pytest tests/unit -q -k "docs or skill"
+    depends_on:
+      - 1
+    character: routine
