@@ -57,8 +57,29 @@ def recipe_fields(mapping: Mapping) -> tuple[tuple[str, RecipeFieldMapping], ...
 _ARITHMETIC = (exp.Add, exp.Sub, exp.Mul, exp.Div, exp.Neg)
 
 #: What a name can sit inside without being a value the arithmetic around it
-#: reads: the test of a `CASE` branch, a comparison, a boolean connective.
+#: reads: a comparison, a boolean connective, a negation.
 _CONDITIONS = (exp.Predicate, exp.Connector, exp.Not)
+
+
+def _in_condition(column: exp.Expr, operator: exp.Expr) -> bool:
+    """Whether *column* reaches *operator* only through a test: inside a
+    condition, or as the selector of a simple ``CASE x WHEN …`` or the test of
+    a ``WHEN`` branch (the ``this`` of an ``exp.Case`` or an ``exp.If``)."""
+
+    node: exp.Expr = column
+
+    while node is not operator and node.parent is not None:
+        parent = node.parent
+
+        if isinstance(parent, _CONDITIONS):
+            return True
+
+        if isinstance(parent, (exp.Case, exp.If)) and node.arg_key == "this":
+            return True
+
+        node = parent
+
+    return node is not operator
 
 
 def _arithmetic_operands(expr: str) -> set[str]:
@@ -66,28 +87,20 @@ def _arithmetic_operands(expr: str) -> set[str]:
 
     A name an operator *reaches* as a value, at any depth: ``a / (b + c)``
     applies ``/`` to ``a`` and ``+`` to ``b`` and ``c``, and ``-a`` negates
-    ``a``. A name read only inside a condition — ``raw_status`` in ``amount *
-    CASE WHEN raw_status = 'x' THEN f ELSE 0 END`` — is not, and neither is a
-    name outside every arithmetic node; both are left to S-0091/D-2 alone.
+    ``a``. A name read only as a test — ``raw_status`` in ``amount * CASE WHEN
+    raw_status = 'x' THEN f ELSE 0 END`` or in ``CASE raw_status WHEN 'x' THEN
+    f END * amount`` — is not, and neither is a name outside every arithmetic
+    node; both are left to S-0091/D-2 alone.
     """
 
     parsed = cast("Expression", parse_one(expr))
-    names: set[str] = set()
 
-    for operator in parsed.find_all(*_ARITHMETIC):
-        for column in operator.find_all(exp.Column):
-            if column.table:
-                continue
-
-            node = column.parent
-
-            while node is not None and node is not operator and not isinstance(node, _CONDITIONS):
-                node = node.parent
-
-            if node is operator:
-                names.add(column.name)
-
-    return names
+    return {
+        column.name
+        for operator in parsed.find_all(*_ARITHMETIC)
+        for column in operator.find_all(exp.Column)
+        if not column.table and not _in_condition(column, operator)
+    }
 
 
 # ....................... #

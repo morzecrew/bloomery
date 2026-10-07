@@ -111,7 +111,7 @@ planner is the exception: a request fails on its first problem.
 | `SpecParseError` | a typo'd key, a wrong shape, a missing version key | match the kind's schema: `bloomery schema --kind <kind>` |
 | `MissingReference` | a name points at nothing | spell the entity, field, canonical or relationship as declared |
 | `CircularDerivation` | a dependency cycle; the message names the path | break one edge of the printed cycle |
-| `UntypedRecipeOperand` | a recipe's `+`/`-`/`*`/`/` operand typed neither by `types:` nor by a canonical field of the same name, or not in `requires` at all | add the operand to the recipe's `types:`, or bind it in `requires:` first |
+| `UntypedRecipeOperand` | a recipe's `+`/`-`/`*`/`/` operand typed neither by `types:` nor by a canonical field of the same name, or not in `requires` at all | add the operand to the recipe's `types:`, or add it to `requires:` and bind it in the mapping's `from:` (with a `types:` entry unless canonical) |
 | `UnknownTransformError` | a transform not in the whitelist | use the suggested name, or register one |
 | `TypeCheckError` | the chain's result does not fit the declared type | add a cast, or widen the declared type |
 | `GrainViolation` | a measure coarser than the mart's grain | move it to a mart at its grain, or a rollup |

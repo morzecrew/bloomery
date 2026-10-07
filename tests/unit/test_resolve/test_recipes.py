@@ -143,9 +143,11 @@ def test_an_untyped_operand_under_division_is_refused_with_its_fix() -> None:
         ("a / (b + c)", {"a", "b", "c"}),
         ("-amount", {"amount"}),
         ("amount * CASE WHEN raw_status = 'x' THEN factor ELSE 0 END", {"amount", "factor"}),
+        ("CASE raw_status WHEN 'ok' THEN amount ELSE 0 END * rate", {"amount", "rate"}),
+        ("CASE WHEN flag THEN amount ELSE 0 END * rate", {"amount", "rate"}),
         ("COALESCE(note, label)", set()),
     ],
-    ids=["nested", "unary-minus", "case-condition", "no-arithmetic"],
+    ids=["nested", "unary-minus", "case-condition", "case-selector", "case-test", "no-arithmetic"],
 )
 def test_an_arithmetic_operand_is_a_value_the_operator_reads(expr, operands) -> None:
     """S-0091/D-3's operands: what `+`, `-` (unary too), `*` or `/` reads as a
