@@ -834,7 +834,7 @@ Authored SQL text nests at most 32 levels: `_parses_as_sql`, a quality rule's `e
 - Paths: `src/bloomery/spec/common.py`
 - Consequence: `IF a` and its kind are refused at load instead of being spliced into SQL verbatim
 
-### S-0091/D-1 — `ASSUMED` (A recipe's operands carry types) — implementation: none
+### S-0091/D-1 — `ASSUMED` (A recipe's operands carry types)
 
 A catalog recipe may declare `types:`, a mapping from names in its `requires` to logical types written as a canonical field's `type:` is; a key `requires` does not name is refused at load.
 
