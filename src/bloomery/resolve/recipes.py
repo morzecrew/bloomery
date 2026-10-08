@@ -15,9 +15,12 @@ Runs on reference-clean specs (S-0022/cross-spec-reference-validation-bloomery-r
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from bloomery.errors import BloomeryError, ResolutionError
+from sqlglot import exp, parse_one
+from sqlglot.expressions.core import Expression
+
+from bloomery.errors import BloomeryError, ResolutionError, UntypedRecipeOperand
 from bloomery.resolve.refs import mapping_doc
 from bloomery.spec.mapping import RecipeFieldMapping
 
@@ -43,6 +46,61 @@ def recipe_fields(mapping: Mapping) -> tuple[tuple[str, RecipeFieldMapping], ...
         for name, field in sorted(mapping.fields.items())
         if isinstance(field, RecipeFieldMapping)
     )
+
+
+# ....................... #
+
+
+#: The operators S-0091/D-3 refuses an untyped operand under: ``+``, ``-``
+#: (binary and unary), ``*`` and ``/``. Modulo and the bitwise forms are
+#: deliberately absent, so the refusal is exactly as wide as the defect it closes.
+_ARITHMETIC = (exp.Add, exp.Sub, exp.Mul, exp.Div, exp.Neg)
+
+#: What a name can sit inside without being a value the arithmetic around it
+#: reads: a comparison, a boolean connective, a negation.
+_CONDITIONS = (exp.Predicate, exp.Connector, exp.Not)
+
+
+def _in_condition(column: exp.Expr, operator: exp.Expr) -> bool:
+    """Whether *column* reaches *operator* only through a test: inside a
+    condition, or as the selector of a simple ``CASE x WHEN …`` or the test of
+    a ``WHEN`` branch (the ``this`` of an ``exp.Case`` or an ``exp.If``)."""
+
+    node: exp.Expr = column
+
+    while node is not operator and node.parent is not None:
+        parent = node.parent
+
+        if isinstance(parent, _CONDITIONS):
+            return True
+
+        if isinstance(parent, (exp.Case, exp.If)) and node.arg_key == "this":
+            return True
+
+        node = parent
+
+    return node is not operator
+
+
+def _arithmetic_operands(expr: str) -> set[str]:
+    """The bare column names an expression applies arithmetic to.
+
+    A name an operator *reaches* as a value, at any depth: ``a / (b + c)``
+    applies ``/`` to ``a`` and ``+`` to ``b`` and ``c``, and ``-a`` negates
+    ``a``. A name read only as a test — ``raw_status`` in ``amount * CASE WHEN
+    raw_status = 'x' THEN f ELSE 0 END`` or in ``CASE raw_status WHEN 'x' THEN
+    f END * amount`` — is not, and neither is a name outside every arithmetic
+    node; both are left to S-0091/D-2 alone.
+    """
+
+    parsed = cast("Expression", parse_one(expr))
+
+    return {
+        column.name
+        for operator in parsed.find_all(*_ARITHMETIC)
+        for column in operator.find_all(exp.Column)
+        if not column.table and not _in_condition(column, operator)
+    }
 
 
 # ....................... #
@@ -107,6 +165,43 @@ def resolve_recipe(
             "— a surplus alias is a silent no-op"
         )
         raise ResolutionError(msg, source_path=f"{path}.from")
+
+    if recipe.expr is not None:
+        # S-0091/D-3: an operand the recipe neither types nor shares a name with a
+        # canonical field reaches the engine untyped, and arithmetic on a text
+        # extraction is a model PostgreSQL and BigQuery refuse before it reads a
+        # row. Refused here, where the fix is one `types:` line, rather than at run
+        # time on an engine that cannot say which operand it choked on.
+        operands = _arithmetic_operands(recipe.expr)
+        unbound = sorted(operands - required)
+
+        if unbound:
+            # Not an alias slot at all: the name is read off the source relation
+            # as it lands, and `types:` cannot name it, since D-1 holds its keys
+            # to `requires`.
+            msg = (
+                f"recipe {recipe.id!r} applies +, -, * or / to {unbound}, which its "
+                "requires: does not name, so the operand would be read off the source "
+                "untyped. Fix: add it to the recipe's requires: and the mapping's from:, "
+                "with a types: entry unless the catalog declares it canonically"
+            )
+            raise UntypedRecipeOperand(msg, source_path=f"{path}.recipe")
+
+        untyped = sorted(
+            name
+            for name in operands
+            if name not in recipe.types and name not in catalog.canonical_fields
+        )
+
+        if untyped:
+            entries = ", ".join(f"{name!r}: '<type>'" for name in untyped)
+            msg = (
+                f"recipe {recipe.id!r} applies +, -, * or / to {untyped}, which the "
+                "recipe's types: does not name and the catalog does not declare "
+                f"canonically, so the operand would reach the engine untyped. Fix: add "
+                f"{entries} to recipe {recipe.id!r}'s types:"
+            )
+            raise UntypedRecipeOperand(msg, source_path=f"{path}.recipe")
 
     if recipe.expr is None and len(recipe.requires) != 1:
         msg = (

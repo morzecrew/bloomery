@@ -209,6 +209,13 @@ Phase 1 ships only beside phase 2, in one minor release whose changelog records 
 - Paths: `CHANGELOG.md`
 - Consequence: an author whose rows turn NULL finds, in the same release notes, the format that parses them
 
+### S-0091/D-4 — `ASSUMED` (A recipe's operands carry types) — implementation: none
+
+Every catalog in the repository that computes a recipe over a non-canonical operand declares `types:`; the reference pages and the skill's catalog reference document the key, and the changelog marks the refusal as breaking with an upgrade note.
+
+- Paths: `tests/fixtures/` `examples/` `pages/docs/reference/` `skills/bloomery-skills/references/` `CHANGELOG.md`
+- Consequence: the repository's own catalogs compile under D-3, and a user upgrading reads what to add
+
 <!-- /torve:managed -->
 
 <!-- torve:managed root index — rendered from the corpus; do not edit by hand -->
@@ -223,21 +230,22 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `comparisons/dbt/` — 0 decision(s)
 - `comparisons/metricflow/` — 0 decision(s)
 - `comparisons/sqlmesh/` — 0 decision(s)
-- `examples/` — 1 decision(s)
+- `examples/` — 2 decision(s)
 - `examples/lakehouse/` — 8 decision(s)
 - `examples/retrieval/` — 0 decision(s)
 - `examples/targets/` — 2 decision(s)
-- `examples/targets/out/` — 0 decision(s)
 - `fuzz/` — 8 decision(s)
+- `fuzz/fixtures/` — 0 decision(s)
 - `pages/` — 2 decision(s)
 - `pages/docs/` — 1 decision(s)
 - `pages/docs/concepts/` — 12 decision(s)
 - `pages/docs/contributing/` — 0 decision(s)
 - `pages/docs/get-started/` — 0 decision(s)
 - `pages/docs/how-to/` — 9 decision(s)
-- `pages/docs/reference/` — 8 decision(s)
+- `pages/docs/reference/` — 9 decision(s)
 - `skills/` — 9 decision(s)
-- `src/bloomery/` — 110 decision(s)
+- `skills/bloomery-skills/references/` — 1 decision(s)
+- `src/bloomery/` — 111 decision(s)
 - `src/bloomery/cli/` — 49 decision(s)
 - `src/bloomery/dialects/` — 51 decision(s)
 - `src/bloomery/emit/` — 17 decision(s)
@@ -252,10 +260,10 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/bloomery/plan/` — 34 decision(s)
 - `src/bloomery/planner/` — 58 decision(s)
 - `src/bloomery/quality/` — 38 decision(s)
-- `src/bloomery/resolve/` — 103 decision(s)
+- `src/bloomery/resolve/` — 105 decision(s)
 - `src/bloomery/runtime/` — 15 decision(s)
 - `src/bloomery/semantic/` — 69 decision(s)
-- `src/bloomery/spec/` — 125 decision(s)
+- `src/bloomery/spec/` — 126 decision(s)
 - `src/bloomery/steps/` — 13 decision(s)
 - `src/bloomery/transforms/` — 35 decision(s)
 - `src/bloomery/typing/` — 8 decision(s)
@@ -265,7 +273,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `tests/engines/` — 31 decision(s)
 - `tests/equivalence/` — 1 decision(s)
 - `tests/execution/` — 49 decision(s)
-- `tests/fixtures/` — 2 decision(s)
+- `tests/fixtures/` — 3 decision(s)
 - `tests/fixtures/coarsening_rollup/` — 1 decision(s)
 - `tests/fixtures/coverage_check/` — 1 decision(s)
 - `tests/fixtures/cross_mart_branches/` — 1 decision(s)
@@ -337,7 +345,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `tests/golden/roles_of_one_dimension/` — 1 decision(s)
 - `tests/golden/rollup_mart/` — 1 decision(s)
 - `tests/golden/scd2_customers/` — 1 decision(s)
-- `tests/golden/schema/` — 24 decision(s)
+- `tests/golden/schema/` — 25 decision(s)
 - `tests/golden/semi_additive_inventory/` — 1 decision(s)
 - `tests/golden/step_resolution/` — 1 decision(s)
 - `tests/property/` — 27 decision(s)

@@ -42,11 +42,42 @@ __all__ = [
 class Recipe(SpecModel):
     """One alternative derivation path to a canonical field, ordered by
     reliability in the catalog; the compiler validates recorded choices but
-    never chooses (S-0022/D-2)."""
+    never chooses (S-0022/D-2).
+
+    ``types:`` declares the logical type of a required operand, written as a
+    canonical field's ``type:`` is (S-0091/D-1); for a name the catalog also
+    declares canonically, it overrides that field's type. Its operand is a raw source extraction — a bronze column or a
+    nested JSON path — so without a type the recipe's arithmetic reaches the
+    engine as ``numeric / text``. A name either here or among the catalog's
+    canonical fields is typed; under ``expr:`` arithmetic, one that is neither
+    is refused (S-0091/D-3).
+    """
 
     id: str
     requires: tuple[str, ...]
+    #: A type for a required name; for one the catalog declares canonically it
+    #: overrides that field's type. The keys are a subset of :attr:`requires`; a key ``requires`` does not name
+    #: is refused at load (S-0091/D-1), as a surplus ``from:`` alias is.
+    types: dict[str, TypeString] = Field(default_factory=dict)
     expr: SqlText | None = None
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _types_name_required_operands(self) -> Self:
+        """A ``types:`` key outside ``requires`` is a typo caught where written."""
+
+        surplus = sorted(set(self.types) - set(self.requires))
+
+        if surplus:
+            msg = (
+                f"types: names {surplus}, which this recipe's requires: does not — a "
+                "types: key must name a required operand; a name the catalog declares "
+                "canonically needs no entry"
+            )
+            raise ValueError(msg)
+
+        return self
 
 
 # ....................... #

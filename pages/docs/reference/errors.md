@@ -18,7 +18,8 @@ BloomeryError
 │   └── StepContractViolation
 ├── ResolutionError
 │   ├── CircularDerivation
-│   └── MissingReference
+│   ├── MissingReference
+│   └── UntypedRecipeOperand
 ├── GuardrailError
 │   ├── UnitMismatch
 │   ├── TaxBasisMismatch
@@ -94,6 +95,7 @@ BloomeryError
 | `ResolutionError` | resolve | Cross-spec reference and recipe failures over the dependency DAG — batched per stage |
 | `CircularDerivation` | resolve | Any cycle in the dependency DAG; message names the full cycle path |
 | `MissingReference` | resolve | A spec references a nonexistent entity, field, canonical field, template, or relationship end |
+| `UntypedRecipeOperand` | resolve | A recipe's `expr:` applies `+`, `-`, `*` or `/` to an operand its `types:` does not name and the catalog does not declare canonically; the message names the recipe, the operand and the `types:` entry that fixes it |
 | `GuardrailError` | guardrails | The batched aggregate of guardrail violations, sorted by `(source_path, type name)` |
 | `UnitMismatch` | guardrails | `+`/`-` operands with differing declared `unit` (currency + count) |
 | `TaxBasisMismatch` | guardrails | `net` and `gross` — or an unknown basis beside a monetary operand — meeting in additive arithmetic |

@@ -64,7 +64,9 @@ canonical_fields:
     tax_basis: net
     recipes:
       - {id: direct,     requires: [unit_price]}
-      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+      - {id: from_total, requires: [line_total, quantity],
+         types: {line_total: "decimal(12,4)", quantity: "int"},
+         expr: "line_total / quantity"}
 ```
 
 ### EntityModel

@@ -61,10 +61,13 @@ def test_ecom_recipe_lowering_records_the_recipe_id() -> None:
     lowered = next(c for c in order_item.sources[0].columns if c.name == "unit_price")
     # A recipe's `/` is lowered to the divide transform's exactness marker, its
     # dividend cast to a decimal wider than the declared one on both sides,
-    # rather than left as a bare Div (S-0090/D-3).
+    # rather than left as a bare Div (S-0090/D-3). Each operand carries its own
+    # type first (S-0091/D-2): `line_total` from the recipe's `types:`,
+    # `quantity` from the canonical field of the same name.
     assert (
         lowered.expr.sql
-        == "CAST(BLM_EXACT_DIV(CAST(total AS DECIMAL(38, 9)), qty) AS DECIMAL(12, 4))"
+        == "CAST(BLM_EXACT_DIV(CAST(CAST(total AS DECIMAL(12, 4)) AS DECIMAL(38, 9)), "
+        "CAST(qty AS BIGINT)) AS DECIMAL(12, 4))"
     )
     assert lowered.recipe_id == "from_total"
     assert unit_price.type == DecimalType(12, 4)
@@ -117,6 +120,72 @@ def test_ecom_nested_jsonpath_lowering() -> None:
     lowered = next(c for c in order.sources[0].columns if c.name == "customer_id")
     assert lowered.expr.sql == "CAST(JSON_EXTRACT_SCALAR(customer, '$.id') AS TEXT)"
     assert customer_id.type == StringType()
+
+
+# ....................... #
+# Recipe operands are typed before the arithmetic runs (S-0091/D-2)
+
+
+_TYPED_RECIPE_CATALOG = """\
+catalog_version: 1
+vertical: test
+canonical_fields:
+  unit_price:
+    entity: order_item
+    type: decimal(12,4)
+    recipes:
+      - {id: from_total, requires: [line_total, quantity],
+         types: {line_total: "decimal(12,4)", quantity: "int"},
+         expr: "line_total / quantity"}
+"""
+
+_TYPED_RECIPE_MODEL = """\
+spec_version: 1
+entities:
+  order_item:
+    grain: one row per line
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      unit_price: {type: "decimal(12,4)", canonical: unit_price}
+"""
+
+
+def _typed_operand_sql(line_total: str) -> str:
+    """The lowered `unit_price` for a recipe reading its `line_total` operand
+    from ``line_total``, rendered on PostgreSQL."""
+
+    mapping = f"""\
+mapping_version: 1
+source: shop__lines
+target: order_item
+key:
+  order_id: {{from: "$.id", transform: [to_string]}}
+fields:
+  unit_price:
+    recipe: from_total
+    from: {{line_total: "{line_total}", quantity: "$.qty"}}
+"""
+    project = load_project({"entity_model": _TYPED_RECIPE_MODEL, "mapping": mapping})
+    ir = build_project_ir(project, load_catalog(_TYPED_RECIPE_CATALOG))
+    order_item = next(e for e in ir.entities if e.name == "order_item")
+    lowered = next(c for c in order_item.sources[0].columns if c.name == "unit_price")
+    return lowered.expr.ast().sql(dialect="postgres")
+
+
+def test_a_text_operand_lowers_to_a_cast() -> None:
+    """S-0091/D-2: bronze lands as text, so an operand with no cast of its own
+    is cast to the type its recipe declares before the `/` runs."""
+    assert "CAST(total AS DECIMAL(12, 4))" in _typed_operand_sql("$.total")
+
+
+def test_a_nested_json_path_operand_lowers_to_a_cast_of_the_extraction() -> None:
+    """S-0091/D-2: a nested path is a JSON text extraction, not a column. The
+    cast wraps the *extraction* — not the substituted operand — or the `/`
+    would divide text by a number."""
+    assert "CAST(JSON_EXTRACT_PATH_TEXT(payload, 'total') AS DECIMAL(12, 4))" in (
+        _typed_operand_sql("$.payload.total")
+    )
 
 
 def test_materialization_default_derives_from_partitioning() -> None:
@@ -902,7 +971,7 @@ canonical_fields:
     entity: item
     type: decimal(12,4)
     recipes:
-      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+      - {id: from_total, requires: [line_total, quantity], types: {line_total: "decimal(12,4)", quantity: "int"}, expr: "line_total / quantity"}
 """)
     with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(sources), catalog)
@@ -975,7 +1044,7 @@ canonical_fields:
     entity: item
     type: decimal(12,4)
     recipes:
-      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+      - {id: from_total, requires: [line_total, quantity], types: {line_total: "decimal(12,4)", quantity: "int"}, expr: "line_total / quantity"}
 """)
     with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(sources), catalog)
@@ -1050,7 +1119,7 @@ canonical_fields:
     entity: item
     type: decimal(12,4)
     recipes:
-      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+      - {id: from_total, requires: [line_total, quantity], types: {line_total: "decimal(12,4)", quantity: "int"}, expr: "line_total / quantity"}
 """)
     with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(sources), catalog)
@@ -1103,7 +1172,7 @@ canonical_fields:
     entity: item
     type: decimal(12,4)
     recipes:
-      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+      - {id: from_total, requires: [line_total, quantity], types: {line_total: "decimal(12,4)", quantity: "int"}, expr: "line_total / quantity"}
 """)
     with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(sources), catalog)

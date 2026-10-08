@@ -300,6 +300,13 @@ If exactness matters on DuckDB, multiply by the reciprocal instead: `{multiply:
 "0.01"}` rather than `{divide: 100}` stays in decimal arithmetic end to end. The
 shipped examples do exactly that, and say why.
 
+**A catalog recipe's operands are typed before its `expr:` is evaluated.** Each
+operand carries the type the recipe's `types:` names it, or the declared type of
+the canonical field of the same name; an operand under `+`, `-`, `*` or `/` that
+neither types is refused at compile time, naming the `types:` entry that fixes it.
+The cast is what keeps a text-shaped extraction from reaching an engine as text,
+where the dialect would infer a type of its own.
+
 **A catalog recipe's `/` divides as `divide` does.** A recipe's `expr:` is parsed
 SQL rather than a built transform, so the compiler lowers every `/` in it, nested
 ones included, through the marker the `divide` transform carries. The dividend is

@@ -683,6 +683,20 @@ A catalog recipe's `/` is lowered through the `divide` transform's exactness mar
 - Paths: `src/bloomery/resolve/build.py` `src/bloomery/evidence.py` `tests/unit/test_advisories.py`
 - Consequence: a dividing recipe is exact on PostgreSQL and Trino, and no advisory stands where the errors page's rule says a refusal belongs
 
+### S-0091/D-2 — `ASSUMED` (A recipe's operands carry types) — implementation: none
+
+Before a recipe's `expr:` is evaluated, each operand's extraction is cast to its type: the one `types:` names, else the declared type of the canonical field of that name.
+
+- Paths: `src/bloomery/resolve/build.py`
+- Consequence: arithmetic in a recipe runs on the types its catalog declares, so a text-shaped extraction never reaches an engine untyped
+
+### S-0091/D-3 — `ASSUMED` (A recipe's operands carry types) — implementation: none
+
+A recipe whose `expr:` applies `+`, `-`, `*` or `/` to an operand typed neither way is refused at compile time, naming the recipe, the operand and the `types:` entry that fixes it.
+
+- Paths: `src/bloomery/resolve/recipes.py` `src/bloomery/errors.py`
+- Consequence: an untyped operand is a refusal that says what to write, never a model the engine rejects at run time
+
 ## Invariants holding over `src/bloomery/resolve/`
 
 - **S-0079/I-1**: The IR version is declared once, on the dataclass, and every project's fingerprint is stable across processes and `PYTHONHASHSEED` values

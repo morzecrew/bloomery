@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0289
+phase: 1
+attempt: 3
+base: 3ac892db596b3bce9d527952b7e0aff0711a03e8
+commit: 135203e46466774883309eec43350b7e8b3b8ab9
+at: '2026-10-07T17:14:49Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: D-4
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-10-07T16:06:48Z'
+    claim: >-
+      D-4 requires every catalog the repository compiles that computes a recipe over
+      a non-canonical operand to declare `types:`, and its intent enumerates the loci
+      as the fixtures, tests/execution, examples, fuzz and the docs and skill snippets.
+      A catalog is also composed inside tests/unit/test_unresolved.py: ecom_basic's
+      fixture plus a net_revenue recipe `gross - tax`, whose operands the composed
+      catalog types neither way, so D-3 refuses it. That file is outside this phase's
+      scope allow-list, so a recipe-local `types:` cannot be added. Departed: the
+      operands are typed where the composed catalog gets them from — the in-scope
+      ecom_basic fixture now declares gross and tax as canonical fields, which is
+      exactly the fallback D-2 names.
+    evidence: >-
+      tests/unit/test_unresolved.py:210 — LOOP_CATALOG's gross_minus_tax recipe computes
+      `gross - tax` over two names the composed catalog declares canonically nowhere
+    action: departed
+    proposal: >-
+      The phase's scope should list tests/unit/test_unresolved.py, or D-4's enumeration
+      should name inline test catalogs alongside the fixtures; typing operands through
+      the fixture only works while the composed names happen to be canonically declarable
+    notes: >-
+      Both acceptance commands are green with the departure: 6229 passed, 19 skipped;
+      mypy clean. The fixture change is at tests/fixtures/ecom_basic/catalog.yaml:35-41.

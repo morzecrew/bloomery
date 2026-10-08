@@ -44,8 +44,11 @@ canonical_fields:
     unit: currency
     recipes:
       - {id: direct,       requires: [discount]}
-      - {id: from_prices,  requires: [list_price, sale_price], expr: "list_price - sale_price"}
+      - {id: from_prices,  requires: [list_price, sale_price],
+         types: {list_price: "decimal(12,4)", sale_price: "decimal(12,4)"},
+         expr: "list_price - sale_price"}
       - {id: from_pct,     requires: [sale_price, discount_pct],
+         types: {sale_price: "decimal(12,4)", discount_pct: "decimal(6,4)"},
          expr: "sale_price * discount_pct"}
 
 canonical_relationships:
