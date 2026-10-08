@@ -167,7 +167,7 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "sqlmesh" },
-    { name = "torve", extra = ["postgres"], marker = "python_full_version >= '3.13'" },
+    { name = "torve", extra = ["migrate", "postgres"], marker = "python_full_version >= '3.13'" },
     { name = "types-pyyaml" },
     { name = "vulture" },
     { name = "zizmor" },
@@ -216,7 +216,7 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.6" },
     { name = "ruff", specifier = ">=0.11" },
     { name = "sqlmesh", specifier = ">=0.150" },
-    { name = "torve", extras = ["postgres"], marker = "python_full_version >= '3.13'", specifier = ">=0.2,<0.3" },
+    { name = "torve", extras = ["postgres", "migrate"], marker = "python_full_version >= '3.13'", specifier = ">=0.2,<0.3" },
     { name = "types-pyyaml", specifier = ">=6.0.12" },
     { name = "vulture", specifier = ">=2.14" },
     { name = "zizmor", specifier = ">=1.5" },
@@ -2982,6 +2982,9 @@ wheels = [
 ]
 
 [package.optional-dependencies]
+migrate = [
+    { name = "yoyo-migrations", marker = "python_full_version >= '3.13'" },
+]
 postgres = [
     { name = "forze", extra = ["postgres"], marker = "python_full_version >= '3.13'" },
 ]
@@ -3201,6 +3204,19 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c4/0f/270bafe92fde3b069a39bc01e39ee79340895b335640df861d43d2a51885/wrapt-2.3.0-cp314-cp314t-win_amd64.whl", hash = "sha256:42869085687f0aefd57c0f636c3f9354f8ffb321a8ba9cb52d19beb796e561c5", size = 83104, upload-time = "2026-07-28T06:05:52.405Z" },
     { url = "https://files.pythonhosted.org/packages/55/b3/af176d79a8515a8a720eccdad9a96f6e31a30abf2865430c8c42adf2fd13/wrapt-2.3.0-cp314-cp314t-win_arm64.whl", hash = "sha256:b1e5aa486e269b00ed35e64771c7d0ab8096cfd2643405ca8cd60ebedc099a51", size = 81774, upload-time = "2026-07-28T06:05:53.902Z" },
     { url = "https://files.pythonhosted.org/packages/00/39/3daf9f47be208606586de4568ba6713db53ebc8fd7a575aea1fe57983b69/wrapt-2.3.0-py3-none-any.whl", hash = "sha256:d8c7ed08477429752b8c44991f40ad7838b18332a160698740a6bfbc10d998a2", size = 61866, upload-time = "2026-07-28T06:06:12.9Z" },
+]
+
+[[package]]
+name = "yoyo-migrations"
+version = "9.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "importlib-metadata", marker = "python_full_version >= '3.13'" },
+    { name = "sqlparse", marker = "python_full_version >= '3.13'" },
+    { name = "tabulate", marker = "python_full_version >= '3.13'" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8c/5d/9ef7f808ea955eca9f08043c65bdc81a4694e784c978b24ad72022974a97/yoyo_migrations-9.0.0-py3-none-any.whl", hash = "sha256:fc65d3a6d9449c1c54d64ff2ff98e32a27da356057c60e3471010bfb19ede081", size = 49002, upload-time = "2024-08-10T09:43:50.388Z" },
 ]
 
 [[package]]
