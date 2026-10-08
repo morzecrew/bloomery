@@ -56,7 +56,12 @@ export ANTHROPIC_AUTH_TOKEN
 # with `--output-format stream-json` and no `--verbose` refuses to start with
 # "When using --print, --output-format=stream-json requires --verbose". The two
 # are one switch here.
-set -- claude -p "$(cat "$TORVE_PROMPT")" \
+# The prompt goes in on stdin, not as an argument: a contract with a dozen
+# rows and its context pack composes past the kernel's single-argument
+# limit (128 KiB on Linux), and `claude` then dies with "Argument list too
+# long" before it starts — measured, bloomery S-0011 phase 1, 140 KB, three
+# attempts in five seconds. `-p` with no text reads the prompt from stdin.
+set -- claude -p \
     --model "$TORVE_MODEL" \
     --output-format stream-json --verbose \
     --permission-mode "${CLAUDE_PERMISSION_MODE:-bypassPermissions}"
@@ -85,6 +90,19 @@ fi
 # decision someone writes down, not a property of running here.
 if [ -n "${CLAUDE_TOOLS:-}" ]; then
     set -- "$@" --tools "$CLAUDE_TOOLS"
+fi
+
+# The night knobs (S-0079/D-9). The night seat's manifest declares them and
+# torve interprets none; this is where they mean something. A fallback model
+# finishes an attempt its own model is too overloaded for, and a tool nobody
+# will answer before morning (`AskUserQuestion`) is denied rather than waited on.
+# The third, `CLAUDE_CAPACITY_RETRY_SECONDS`, bounds the retry loop below.
+if [ -n "${CLAUDE_FALLBACK_MODEL:-}" ]; then
+    set -- "$@" --fallback-model "$CLAUDE_FALLBACK_MODEL"
+fi
+
+if [ -n "${CLAUDE_DENY_TOOLS:-}" ]; then
+    set -- "$@" --disallowed-tools "$CLAUDE_DENY_TOOLS"
 fi
 
 # The reasoning level the seat asked for (S-0064/D-7). `TORVE_REASONING` is the
@@ -147,8 +165,22 @@ mkdir -p "$(dirname "$TORVE_OUTPUT")"
 rc=/tmp/torve-run.rc
 echo 70 > "$rc"  # EX_SOFTWARE, if nothing overwrites it the pipe lied
 
-{
-    if "$@"; then echo 0 > "$rc"; else echo $? > "$rc"; fi
-} | tee "$TORVE_OUTPUT"
+# A capacity error before any turn is retried until `CLAUDE_CAPACITY_RETRY_SECONDS`
+# runs out (S-0079/D-9): bounded, because a provider down all night must not
+# spend the night on one attempt, and only when `capacity.py` finds the run did
+# nothing, so a rerun cannot repeat half an attempt. Unset, nothing retries.
+deadline=$(( $(date +%s) + ${CLAUDE_CAPACITY_RETRY_SECONDS:-0} ))
+
+while :; do
+    {
+        if "$@" < "$TORVE_PROMPT"; then echo 0 > "$rc"; else echo $? > "$rc"; fi
+    } | tee "$TORVE_OUTPUT"
+
+    [ "$(cat "$rc")" = 0 ] && break
+    python3 /opt/torve/capacity.py "$TORVE_OUTPUT" || break
+    [ "$(date +%s)" -lt "$deadline" ] || break
+    echo "run: capacity error before any turn; retrying in 60s" >&2
+    sleep 60
+done
 
 exit "$(cat "$rc")"
