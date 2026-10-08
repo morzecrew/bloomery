@@ -1878,6 +1878,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#s-0091d-4-assumed-a-recipes-operands-carry-types-implementation-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0091/D-4 — <code>ASSUMED</code> (A recipe's operands carry types) — implementation: none
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1960,6 +1971,12 @@
 <ul>
 <li>Paths: <code>pages/docs/reference/stability.md</code></li>
 <li>Touching these paths owes a divergence entry: <code>torve log owed &lt;task&gt; --touched &lt;files&gt;</code> before you finish</li>
+</ul>
+<h3 id="s-0091d-4-assumed-a-recipes-operands-carry-types-implementation-none">S-0091/D-4 — <code>ASSUMED</code> (A recipe's operands carry types) — implementation: none<a class="headerlink" href="#s-0091d-4-assumed-a-recipes-operands-carry-types-implementation-none" title="Permanent link">&para;</a></h3>
+<p>Every catalog in the repository that computes a recipe over a non-canonical operand declares <code>types:</code>; the reference pages and the skill's catalog reference document the key, and the changelog marks the refusal as breaking with an upgrade note.</p>
+<ul>
+<li>Paths: <code>tests/fixtures/</code> <code>examples/</code> <code>pages/docs/reference/</code> <code>skills/bloomery-skills/references/</code> <code>CHANGELOG.md</code></li>
+<li>Consequence: the repository's own catalogs compile under D-3, and a user upgrading reads what to add</li>
 </ul>
 <!-- /torve:managed -->
 

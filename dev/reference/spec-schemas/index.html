@@ -3422,6 +3422,12 @@ relation, and a shared name makes the emitted predicate compare a column against
 <td>Names the recipe consumes</td>
 </tr>
 <tr>
+<td><code>types</code></td>
+<td>map name → type string</td>
+<td>no (<code>{}</code>)</td>
+<td>Logical type per required name the catalog does not declare canonically; an operand under <code>+</code>, <code>-</code>, <code>*</code> or <code>/</code> that no <code>types:</code> entry or canonical field types is refused, and a key <code>requires</code> does not name is refused at load</td>
+</tr>
+<tr>
 <td><code>expr</code></td>
 <td>string</td>
 <td>no</td>

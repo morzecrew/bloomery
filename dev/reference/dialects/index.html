@@ -2636,6 +2636,12 @@ float, and only for <code>divide</code>.</p>
 <p>If exactness matters on DuckDB, multiply by the reciprocal instead: <code>{multiply:
 "0.01"}</code> rather than <code>{divide: 100}</code> stays in decimal arithmetic end to end. The
 shipped examples do exactly that, and say why.</p>
+<p><strong>A catalog recipe's operands are typed before its <code>expr:</code> is evaluated.</strong> Each
+operand carries the type the recipe's <code>types:</code> names it, or the declared type of
+the canonical field of the same name; an operand under <code>+</code>, <code>-</code>, <code>*</code> or <code>/</code> that
+neither types is refused at compile time, naming the <code>types:</code> entry that fixes it.
+The cast is what keeps a text-shaped extraction from reaching an engine as text,
+where the dialect would infer a type of its own.</p>
 <p><strong>A catalog recipe's <code>/</code> divides as <code>divide</code> does.</strong> A recipe's <code>expr:</code> is parsed
 SQL rather than a built transform, so the compiler lowers every <code>/</code> in it, nested
 ones included, through the marker the <code>divide</code> transform carries. The dividend is

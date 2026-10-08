@@ -2159,7 +2159,8 @@ pulling in any pipeline stage.</p>
 │   └── StepContractViolation
 ├── ResolutionError
 │   ├── CircularDerivation
-│   └── MissingReference
+│   ├── MissingReference
+│   └── UntypedRecipeOperand
 ├── GuardrailError
 │   ├── UnitMismatch
 │   ├── TaxBasisMismatch
@@ -2287,6 +2288,11 @@ pulling in any pipeline stage.</p>
 <td><code>MissingReference</code></td>
 <td>resolve</td>
 <td>A spec references a nonexistent entity, field, canonical field, template, or relationship end</td>
+</tr>
+<tr>
+<td><code>UntypedRecipeOperand</code></td>
+<td>resolve</td>
+<td>A recipe's <code>expr:</code> applies <code>+</code>, <code>-</code>, <code>*</code> or <code>/</code> to an operand its <code>types:</code> does not name and the catalog does not declare canonically; the message names the recipe, the operand and the <code>types:</code> entry that fixes it</td>
 </tr>
 <tr>
 <td><code>GuardrailError</code></td>
