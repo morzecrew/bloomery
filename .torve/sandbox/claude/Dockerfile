@@ -5,7 +5,7 @@ ARG BASE=sandbox-base
 FROM ${BASE}
 # The harness version rides a pinned-default ARG (S-0033/D-3): a bump is a
 # one-line reviewed diff, never a rebuild side effect.
-ARG CLAUDE_VERSION=2.1.252
+ARG CLAUDE_VERSION=2.1.283
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_VERSION} && claude --version
 
 # What this definition puts inside the image (S-0063/D-14): `toolkit/` is
