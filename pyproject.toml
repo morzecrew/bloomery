@@ -110,7 +110,7 @@ dev = [
     # developer's machine resolves to the engine the lock pins, not to
     # whatever `torve` is on PATH. A released 0.x: a minor may break, so the
     # bound stops below the next one.
-    "torve[postgres]>=0.2,<0.3; python_version >= '3.13'",
+    "torve[postgres,migrate]>=0.2,<0.3; python_version >= '3.13'",
 ]
 # Tier-5 engine matrix (S-0026/tier-contracts): opt-in, needs Docker. Kept out of `dev`
 # so the default sync stays light on machines without Docker.
