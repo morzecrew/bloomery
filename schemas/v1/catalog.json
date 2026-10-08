@@ -594,7 +594,7 @@
     },
     "Recipe": {
       "additionalProperties": false,
-      "description": "One alternative derivation path to a canonical field, ordered by\nreliability in the catalog; the compiler validates recorded choices but\nnever chooses (S-0022/D-2).",
+      "description": "One alternative derivation path to a canonical field, ordered by\nreliability in the catalog; the compiler validates recorded choices but\nnever chooses (S-0022/D-2).\n\n``types:`` declares the logical type of a required operand, written as a\ncanonical field's ``type:`` is (S-0091/D-1); for a name the catalog also\ndeclares canonically, it overrides that field's type. Its operand is a raw source extraction \u2014 a bronze column or a\nnested JSON path \u2014 so without a type the recipe's arithmetic reaches the\nengine as ``numeric / text``. A name either here or among the catalog's\ncanonical fields is typed; under ``expr:`` arithmetic, one that is neither\nis refused (S-0091/D-3).",
       "properties": {
         "expr": {
           "anyOf": [
@@ -618,6 +618,14 @@
           },
           "title": "Requires",
           "type": "array"
+        },
+        "types": {
+          "additionalProperties": {
+            "pattern": "^(?:string|int|bool|date|timestamp|variant|decimal\\((\\d{1,3}), ?(\\d{1,3})\\)|vector\\((float32|float16), ?(\\d{1,5})\\))$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "object"
         }
       },
       "required": [
