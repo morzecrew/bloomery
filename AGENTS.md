@@ -209,7 +209,7 @@ Phase 1 ships only beside phase 2, in one minor release whose changelog records 
 - Paths: `CHANGELOG.md`
 - Consequence: an author whose rows turn NULL finds, in the same release notes, the format that parses them
 
-### S-0091/D-4 — `ASSUMED` (A recipe's operands carry types) — implementation: none
+### S-0091/D-4 — `ASSUMED` (A recipe's operands carry types)
 
 Every catalog in the repository that computes a recipe over a non-canonical operand declares `types:`; the reference pages and the skill's catalog reference document the key, and the changelog marks the refusal as breaking with an upgrade note.
 
@@ -234,6 +234,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `examples/lakehouse/` — 8 decision(s)
 - `examples/retrieval/` — 0 decision(s)
 - `examples/targets/` — 2 decision(s)
+- `examples/targets/out/` — 0 decision(s)
 - `fuzz/` — 8 decision(s)
 - `fuzz/fixtures/` — 0 decision(s)
 - `pages/` — 2 decision(s)

@@ -741,7 +741,7 @@ A catalog recipe's `/` is lowered through the `divide` transform's exactness mar
 - Paths: `src/bloomery/resolve/build.py` `src/bloomery/evidence.py` `tests/unit/test_advisories.py`
 - Consequence: a dividing recipe is exact on PostgreSQL and Trino, and no advisory stands where the errors page's rule says a refusal belongs
 
-### S-0091/D-3 — `ASSUMED` (A recipe's operands carry types) — implementation: none
+### S-0091/D-3 — `ASSUMED` (A recipe's operands carry types)
 
 A recipe whose `expr:` applies `+`, `-`, `*` or `/` to an operand typed neither way is refused at compile time, naming the recipe, the operand and the `types:` entry that fixes it.
 

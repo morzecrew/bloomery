@@ -149,7 +149,7 @@ Implementation binding: `StepRegistry` gains `sql_bodies: Mapping[tuple[str, int
 
 - Paths: `src/bloomery/spec/mapping.py` `tests/golden/schema/mapping.json`
 
-### S-0091/D-1 — `ASSUMED` (A recipe's operands carry types) — implementation: none
+### S-0091/D-1 — `ASSUMED` (A recipe's operands carry types)
 
 A catalog recipe may declare `types:`, a mapping from names in its `requires` to logical types written as a canonical field's `type:` is; a key `requires` does not name is refused at load.
 

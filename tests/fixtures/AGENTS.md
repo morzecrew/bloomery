@@ -16,7 +16,7 @@ All six rungs run the shared fixture corpus rather than a per-engine one; a port
 - Paths: `tests/fixtures/**` `tests/engines/**`
 - Consequence: A divergence presents as one fixture behaving differently across ports, which is comparable; departing means an engine surface with genuinely no shared analogue, such as `VARIANT` or `SUPER`
 
-### S-0091/D-4 — `ASSUMED` (A recipe's operands carry types) — implementation: none
+### S-0091/D-4 — `ASSUMED` (A recipe's operands carry types)
 
 Every catalog in the repository that computes a recipe over a non-canonical operand declares `types:`; the reference pages and the skill's catalog reference document the key, and the changelog marks the refusal as breaking with an upgrade note.
 
