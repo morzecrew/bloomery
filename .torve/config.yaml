@@ -70,12 +70,13 @@ tiers:
   reviewer:
     harness: claude-subscription
     profile: review
-    # A different model from the executor's, so a review is not the same model
-    # agreeing with itself; same plan, same route (2026-10-07).
-    model: qwen3.8-flash
-    provider: modelstudio
-    dialect: anthropic
-    reasoning: medium
+    # A strong model from another family than the executor's (2026-10-09): a
+    # lightweight cross-family reviewer misses more than the executor's own
+    # self-review would, and a landing's diff is small enough that review costs
+    # a fraction of the implementation. Trial on the next document; the seat's
+    # findings are compared with the bots' on its pull request.
+    model: claude-opus-5-5
+    provider: anthropic
 
 broker:
   adapter: local
