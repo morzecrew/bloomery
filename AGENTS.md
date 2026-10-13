@@ -249,7 +249,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/bloomery/cli/` — 49 decision(s)
 - `src/bloomery/dialects/` — 51 decision(s)
 - `src/bloomery/emit/` — 17 decision(s)
-- `src/bloomery/emit/cube/` — 18 decision(s)
+- `src/bloomery/emit/cube/` — 19 decision(s)
 - `src/bloomery/emit/dbt/` — 60 decision(s)
 - `src/bloomery/emit/lower/` — 82 decision(s)
 - `src/bloomery/emit/metricflow/` — 20 decision(s)
