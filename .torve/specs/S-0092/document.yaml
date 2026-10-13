@@ -108,3 +108,5 @@ questions:
       expect it, or should query-time division be exact as the build-time `divide`
       is? Lean: intended for ratios and derived metrics, stated in a decision row
       so the reference can cite it.
+    status: settled
+    settled_by: D-8
