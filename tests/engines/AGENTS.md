@@ -217,4 +217,35 @@ The check exists, and it is a **conformance battery at the engine tiers over the
 - Paths: `tests/engines/test_branch_join_engines.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0092/D-2 — `ASSUMED` (Generated SQL agrees with a reference evaluator) — implementation: none
+
+A differential property draws, for each built-in, a declared input type and values of it, NULL and the boundary values included, compiles a one-entity fixture with the transform on one field, runs its silver SQL, and requires every row's value to equal the reference's exactly. The DuckDB half is a `property` test and runs in `just test`; the PostgreSQL 16 half is an `engine("postgres")` test under `tests/engines/` on a session-scoped container from `tests/support/postgres.py`.
+
+- Paths: `tests/property/test_reference_transforms.py` `tests/engines/test_reference_postgres.py` `tests/support/postgres.py`
+- Consequence: both engines are held to one statement on inputs nobody chose, and the DuckDB half guards every pull request
+- Check: `uv run pytest tests/property/test_reference_transforms.py -q` (shadow; runs as `decision:S-0092/D-2`, no log entry owed)
+
+### S-0092/D-4 — `ASSUMED` (Generated SQL agrees with a reference evaluator) — implementation: none
+
+The comparison is exact except where a D-3 row states a bound. Decimals compare after quantizing to the declared scale, timestamps as zoneless UTC, text byte for byte, variants structurally; no tolerance exists anywhere in the differential tests outside the table.
+
+- Paths: `tests/property/test_reference_transforms.py` `tests/engines/test_reference_postgres.py`
+- Consequence: a rounding or widening slip is a failure, not a pass within 0.01
+
+### S-0092/D-6 — `ASSUMED` (Generated SQL agrees with a reference evaluator) — implementation: none
+
+Chains of up to three built-ins, catalog recipes and the marts' time buckets join the differential. A chain's reference is the composition of its steps' references. A recipe's `/` divides a dividend cast to `decimal(min(38, digits + scale), scale)`, where `digits` is the larger of 29 and the declared integer digits and `scale` the larger of the declared scale and `min(9, 38 - digits)` (`resolve/build.py`, S-0090/D-3), and its result is narrowed to the declared type with `ROUND_HALF_UP`; an engine whose internal division scale rounds twice is a D-3 row, not a tolerance. A bucket is `DATE_TRUNC` to day, week, month, quarter or year of a zoneless UTC timestamp, as a `date`.
+
+- Paths: `tests/support/reference.py` `tests/property/test_reference_chains.py` `tests/engines/test_reference_postgres.py`
+- Consequence: the widening and narrowing between steps, and the division a recipe promises, are checked where they compose
+- Check: `uv run pytest tests/property/test_reference_chains.py -q` (shadow; runs as `decision:S-0092/D-6`, no log entry owed)
+
+### S-0092/D-7 — `ASSUMED` (Generated SQL agrees with a reference evaluator) — implementation: none
+
+The rollup aggregates (`count`, `sum`, `min`, `max`) join the differential over generated groups. The emitter aggregates the metric's expression, so `count` is `COUNT(expr)`: a retained group whose expression is NULL on every row counts 0 and sums, minimises and maximises to NULL. A group the filter removes entirely produces no row, and the reference states its absence rather than a value. The rollup SQL adds no `COALESCE` to change either.
+
+- Paths: `tests/support/reference.py` `tests/property/test_reference_rollups.py` `tests/engines/test_reference_postgres.py`
+- Consequence: an empty or all-NULL group's value is a stated fact, not an accident of the engine
+- Check: `uv run pytest tests/property/test_reference_rollups.py -q` (shadow; runs as `decision:S-0092/D-7`, no log entry owed)
+
 <!-- /torve:managed -->

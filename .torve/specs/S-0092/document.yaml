@@ -5,7 +5,7 @@ kind: design
 change:
   type: test
   scope: transforms
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0020, S-0021, S-0045, S-0046, S-0090, S-0091]
 informed_by: []
@@ -84,12 +84,24 @@ design:
       with DuckDB's `divide` (`dialects/base.py`) and DuckDB's `''` for a regex non-match
       (`dialects/postgres.py`). A disagreement no row names fails and prints the input,
       both answers and the reference's.
-tests: ''
+tests: |-
+  - Every built-in transform has a reference function, `json_path` and `convert` included, and a non-text input reaches its transform through the typed setup step (D-1).
+  - On DuckDB, each built-in's compiled silver SQL equals the reference on generated inputs, NULL and boundary values included (D-2, D-4).
+  - On PostgreSQL 16, the same holds under the engine marker, on one session-scoped container whose session time zone is UTC (D-2).
+  - A disagreement no allowed-differences row names fails, printing the input, each engine's answer and the reference's; DuckDB's `divide` passes within one unit of the declared scale and its regex non-match as `''` (D-3).
+  - A decimal beyond its declared precision raises on a plain entity and is NULL on a quality-ruled one (D-1).
+  - Every CI job running property or engine tests uses the `ci` profile, and the engine job's schedule uses `nightly`; a failure prints its reproduction blob (D-5).
+  - A chain that widens then narrows equals the composed reference; a recipe's integer division equals the reference's quotient at the widened dividend scale, narrowed half-up; the first instant of an ISO week, a quarter and a year, and a leap day, bucket alike on both engines (D-6).
+  - A retained all-NULL group counts 0 and sums to NULL, and a group the filter removes has no row, on both engines (D-7).
 docs: ''
 out_of_scope: |-
   - Query-time SQL (MetricFlow, the composed planner), including how a ratio, derived or metric `expr` divides: today those render as engine division, which on PostgreSQL is a `DOUBLE PRECISION` cast (Q-1).
   - Moving the ten existing PostgreSQL modules onto the shared container fixture this adds.
-risks: ''
+risks: |-
+  - The reference can share a misreading with the builder when both follow an ambiguous sentence on the reference page; a disagreement then never appears. The reference cites the page line it implements, so a reviewer can read the two side by side.
+  - The PostgreSQL half runs only in the engine job (nightly, and on pull requests whose paths match), so a regression there surfaces up to a day late; the DuckDB half guards every pull request in the meantime.
+  - Hypothesis can find a real engine difference the table does not name and turn the engine job red overnight; that is the intended outcome, and the fix is a cited table row or a transform fix under its own document.
+  - The torve sandbox has no Docker, so phase 2's acceptance only collects and lints, and its tests first run in CI after landing.
 alternatives:
   - option: >-
       Compare PostgreSQL against DuckDB only, with no reference.

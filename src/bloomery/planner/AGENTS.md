@@ -384,6 +384,13 @@ A `derived:` metric whose inputs carry different restrictions — different own 
 - Paths: `src/bloomery/semantic/additivity.py` `src/bloomery/planner/compose.py`
 - Consequence: admitting a metric's own filter into a composed plan never lets a derived metric fold two row sets into one number, and a derived metric whose inputs agree composes as they do
 
+### S-0092/D-8 — `ASSUMED` (Generated SQL agrees with a reference evaluator) — implementation: none
+
+At query time a metric's `expr`, a ratio, a derived metric and the composed planner divide with the engine's own `/`, guarded by `NULLIF(..., 0)`; on PostgreSQL that is `DOUBLE PRECISION` division. This is intended: S-0020/D-5 bans floats in the IR and in emitted artifacts, not in the arithmetic an engine runs, and only the build-time `divide` and a recipe's `/` are exact (S-0046/D-3, S-0090/D-3). The later query-time reference expects engine division here and cites this row.
+
+- Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/planner/compose.py` `src/bloomery/emit/metricflow/__init__.py`
+- Consequence: a reference for query-time SQL has a stated semantics to hold the planner to, instead of guessing which division is meant
+
 ## Invariants holding over `src/bloomery/planner/`
 
 - **S-0005/I-1**: The same specs produce byte-identical proof and semantic-plan serializations across processes and hash seeds

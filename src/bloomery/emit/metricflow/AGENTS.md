@@ -125,4 +125,11 @@ An exposure emits no MetricFlow `saved_query`, and this is not a refusal: a save
 - Paths: `src/bloomery/emit/metricflow/__init__.py` `tests/unit/test_emit/test_metricflow.py`
 - Consequence: the manifest's `saved_queries` holds only queries someone wrote
 
+### S-0092/D-8 — `ASSUMED` (Generated SQL agrees with a reference evaluator) — implementation: none
+
+At query time a metric's `expr`, a ratio, a derived metric and the composed planner divide with the engine's own `/`, guarded by `NULLIF(..., 0)`; on PostgreSQL that is `DOUBLE PRECISION` division. This is intended: S-0020/D-5 bans floats in the IR and in emitted artifacts, not in the arithmetic an engine runs, and only the build-time `divide` and a recipe's `/` are exact (S-0046/D-3, S-0090/D-3). The later query-time reference expects engine division here and cites this row.
+
+- Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/planner/compose.py` `src/bloomery/emit/metricflow/__init__.py`
+- Consequence: a reference for query-time SQL has a stated semantics to hold the planner to, instead of guessing which division is meant
+
 <!-- /torve:managed -->
