@@ -14,9 +14,9 @@ superseded_by: null
 owner: Lev Litvinov
 schema_version: 4
 summary: |-
-  bloomery's correctness lives in the SQL it emits, and the tests that judge that SQL either compare it with itself (395 golden files, byte for byte) or run it on fixed inputs someone chose (the execution tier on DuckDB, the engine tier on PostgreSQL 16, the three-way equivalence corpus). Nothing states what a transform should return on an input nobody thought of, and nothing compares the engines' answers against that statement. The semantics that go wrong are the quiet ones: NULL in, NULL out or not; exact or float division; a decimal widened, rounded or narrowed; a timestamp that carries an offset; an empty group's aggregate.
+  bloomery's correctness lives in the SQL it emits, and the tests that judge that SQL either compare it with itself (388 golden files, byte for byte) or run it on fixed inputs someone chose (the execution tier on DuckDB, the engine tier on PostgreSQL 16, the three-way equivalence corpus). Nothing states what a transform should return on an input nobody thought of, and nothing compares the engines' answers against that statement. The semantics that go wrong are the quiet ones: NULL in, NULL out or not; exact or float division; a decimal widened, rounded or narrowed; a timestamp that carries an offset; an empty group's aggregate.
 
-  This document adds a reference evaluator: a small Python function per built-in transform, written from the transform reference page and the decision rows rather than from the SQL, over `None`, `int`, `Decimal`, `str`, `bool`, `date` and zoneless UTC `datetime`. Hypothesis generates inputs from each transform's declared input type; the compiled silver SQL runs on PostgreSQL 16 and on DuckDB; each engine's answer must equal the reference's, exactly. Where an engine legitimately differs (DuckDB's inexact `divide`, a regex non-match that DuckDB returns as `''`), the difference is a named row in a table the test reads, citing the decision or line that allows it; a difference the table does not name fails. Chains, recipes, the marts' time buckets and the rollup aggregates follow the same pattern. Query-time SQL (MetricFlow, the composed planner) is a later document.
+  This document adds a reference evaluator: a small Python function per built-in transform, written from the transform reference page and the decision rows rather than from the SQL, over `None`, `int`, `Decimal`, `str`, `bool`, `date`, zoneless UTC `datetime` and parsed JSON for a variant. Hypothesis generates inputs from each transform's declared input type; the compiled silver SQL runs on PostgreSQL 16 and on DuckDB; each engine's answer must equal the reference's, exactly. Where an engine legitimately differs (DuckDB's inexact `divide`, a regex non-match that DuckDB returns as `''`), the difference is a named row in a table the test reads, with the value or the bound the engine is held to instead and the decision or line that allows it; a difference the table does not name fails. Chains, recipes, the marts' time buckets and the rollup aggregates follow the same pattern. Query-time SQL (MetricFlow, the composed planner) is a later document.
 motivation: >-
   Queued by the owner on 2026-10-13 from the research "Should Torve Prove Its Code?"
   (torve artifact WV2nKgN5QSy78B7SUod3o5): differential and property testing against
@@ -49,33 +49,41 @@ design:
     md: |-
       `tests/support/reference.py` maps each built-in's name to a Python function over the logical values a column can hold:
 
-      | Logical type | Python value |
-      |---|---|
-      | NULL | `None` |
-      | integer | `int` |
-      | decimal(p, s) | `Decimal`, quantized to `s` and checked against `p` |
-      | text | `str` |
-      | boolean | `bool` |
-      | date | `datetime.date` |
-      | timestamp | zoneless `datetime.datetime`, UTC by S-0045 |
+      | Logical type | Python value | Equality |
+      |---|---|---|
+      | NULL | `None` | identity |
+      | integer | `int` | `==` |
+      | decimal(p, s) | `Decimal`, quantized to `s` with `ROUND_HALF_UP` | `==` after quantizing; a value beyond `p` is an overflow (below) |
+      | text | `str` | byte for byte |
+      | boolean | `bool` | `==` |
+      | date | `datetime.date` | `==` |
+      | timestamp | zoneless `datetime.datetime`, UTC by S-0045 | `==` |
+      | variant | the parsed JSON value: `dict`, `list`, `str`, `Decimal` for numbers, `bool`, and `JSON_NULL` for JSON `null` | structural, key order ignored; `JSON_NULL` is not `None` |
 
-      Each function is written from `pages/docs/reference/transforms.md` and the decision rows it cites, never by reading the builder, so the two are independent statements of one behaviour. Output types reuse the declared ones the type checker already computes; the reference quantizes to them.
+      `ROUND_HALF_UP` is bloomery's own rounding for decimals (`transforms/_builtins.py`, the literal-fit check), and both engines round a narrowing numeric cast half away from zero. A decimal that does not fit `p` is `Overflow`: on a plain entity the engine must raise, and on an entity with quality rules, where every CAST is a TRY_CAST, it must be NULL.
+
+      Each function is written from `pages/docs/reference/transforms.md` and the decision rows it cites, never by reading the builder, so the two are independent statements of one behaviour. Output types reuse the declared ones the type checker already computes.
+
+      A transform whose input is not text is reached through a typed setup step: the fixture's chain starts with the parse or cast from text to that type (`to_int`, `to_decimal`, `to_bool`, `parse_date`, `parse_ts`, `json_path` for a variant), the generated value is fed as its text form, and the reference applies the same setup before the transform under test. `convert` also takes its context: the fixture generates an `fx_rates` relation of non-overlapping intervals and an anchor date per row, and the reference reads the rate whose interval covers the anchor's date, `NULL` when none does, as the page's rate-relation section states.
   - key: the-differential
     md: >-
       For each transform, a strategy draws a declared input type and values of it,
       NULL and the boundary values included (zero, the decimal's maximum, empty text,
-      DST edges, offset-bearing timestamp text). A one-entity fixture is compiled
-      with the transform on one field, its silver SQL runs on a session-scoped PostgreSQL
-      16 container and on DuckDB, and each row's value must equal the reference's.
-      The comparison is exact: no tolerance.
+      the first and last instant of a day, week, month, quarter and year, a leap day,
+      offset-bearing timestamp text). A one-entity fixture is compiled with the transform
+      on one field, its silver SQL runs on a session-scoped PostgreSQL 16 container
+      and on DuckDB, and each row's value must equal the reference's. The comparison
+      is exact: no tolerance.
   - key: legitimate-differences
     md: >-
       `tests/support/engine_differences.py` is the table of allowed differences: an
-      engine, a transform, a predicate over the input, the value that engine returns
-      instead, and the citation (decision row or `path:line`) that makes it legitimate.
-      It starts with DuckDB's inexact `divide` (`dialects/base.py`) and DuckDB's `''`
-      for a regex non-match (`dialects/postgres.py`). A disagreement no row names
-      fails and prints the input, both answers and the reference's.
+      engine, a transform, a predicate over the input, what that engine is held to
+      instead (a value, or a bound on its answer against the reference's, such as
+      "within one unit of the declared scale" for DuckDB's inexact `divide`), and
+      the citation (decision row or `path:line`) that makes it legitimate. It starts
+      with DuckDB's `divide` (`dialects/base.py`) and DuckDB's `''` for a regex non-match
+      (`dialects/postgres.py`). A disagreement no row names fails and prints the input,
+      both answers and the reference's.
 tests: ''
 docs: ''
 out_of_scope: |-
