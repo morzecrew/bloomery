@@ -151,6 +151,7 @@ decisions:
       - src/bloomery/planner/compose.py
       - src/bloomery/emit/metricflow/__init__.py
       - src/bloomery/emit/cube/__init__.py
+      - src/bloomery/planner/coverage.py
     consequence: >-
       a reference for query-time SQL has a stated semantics to hold the planner to,
       instead of guessing which division is meant
