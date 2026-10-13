@@ -13,7 +13,7 @@ decisions:
       as NULL. A transform whose input is not text is reached through a typed setup
       step the reference also applies, and `convert` receives the fixture's `fx_rates`
       relation and the row's anchor date.
-    paths: [tests/support/reference.py, pages/docs/reference/transforms.md]
+    paths: [tests/support/reference.py]
     consequence: >-
       a transform's behaviour is stated twice, independently, and a test can say which
       statement an engine broke

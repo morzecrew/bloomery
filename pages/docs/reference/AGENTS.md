@@ -64,11 +64,4 @@ Every catalog in the repository that computes a recipe over a non-canonical oper
 - Paths: `tests/fixtures/` `examples/` `pages/docs/reference/` `skills/bloomery-skills/references/` `CHANGELOG.md`
 - Consequence: the repository's own catalogs compile under D-3, and a user upgrading reads what to add
 
-### S-0092/D-1 — `ASSUMED` (Generated SQL agrees with a reference evaluator) — implementation: none
-
-`tests/support/reference.py` states each built-in transform's value semantics as a Python function over `None`, `int`, `Decimal`, `str`, `bool`, `date`, zoneless UTC `datetime` and parsed JSON for a variant (`JSON_NULL` for JSON `null`, compared structurally), written from the transform reference page and the decision rows it cites, never from the SQLGlot builders. Decimals are quantized to the declared output type with `ROUND_HALF_UP`; a value beyond the declared precision is `Overflow`, which a plain entity's engine must raise and a quality-ruled entity's must return as NULL. A transform whose input is not text is reached through a typed setup step the reference also applies, and `convert` receives the fixture's `fx_rates` relation and the row's anchor date.
-
-- Paths: `tests/support/reference.py` `pages/docs/reference/transforms.md`
-- Consequence: a transform's behaviour is stated twice, independently, and a test can say which statement an engine broke
-
 <!-- /torve:managed -->
