@@ -1,0 +1,121 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `tests/support/reference.py` states each built-in transform's value semantics
+      as a Python function over `None`, `int`, `Decimal`, `str`, `bool`, `date` and
+      zoneless UTC `datetime`, written from the transform reference page and the decision
+      rows it cites, never from the SQLGlot builders. Decimal results are quantized
+      to the output type the type checker declares, and a value that does not fit
+      it is the reference's NULL or error exactly as the page says.
+    paths: [tests/support/reference.py, pages/docs/reference/transforms.md]
+    consequence: >-
+      a transform's behaviour is stated twice, independently, and a test can say which
+      statement an engine broke
+    rationale: >-
+      A reference derived from the builder agrees with it by construction, mistakes
+      included.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A differential property draws, for each built-in, a declared input type and
+      values of it, NULL and the boundary values included, compiles a one-entity fixture
+      with the transform on one field, runs its silver SQL, and requires every row's
+      value to equal the reference's exactly. The DuckDB half is a `property` test
+      and runs in `just test`; the PostgreSQL 16 half is an `engine("postgres")` test
+      under `tests/engines/` on a session-scoped container from `tests/support/postgres.py`.
+    paths:
+      - tests/property/test_reference_transforms.py
+      - tests/engines/test_reference_postgres.py
+      - tests/support/postgres.py
+    consequence: >-
+      both engines are held to one statement on inputs nobody chose, and the DuckDB
+      half guards every pull request
+    rationale: >-
+      The engine tier needs Docker and runs nightly and on path-matched pull requests;
+      DuckDB is in-process and costs the required job seconds.
+    check: >-
+      uv run pytest tests/property/test_reference_transforms.py -q
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `tests/support/engine_differences.py` lists every allowed difference as an engine,
+      a transform, a predicate over the input, the value that engine returns instead,
+      and the decision row or `path:line` that makes it legitimate. A disagreement
+      no row names fails, printing the input, each engine's answer and the reference's.
+    paths: [tests/support/engine_differences.py]
+    consequence: >-
+      an engine difference is either a written decision or a defect, never a tolerance
+    rationale: >-
+      DuckDB's inexact `divide` and its `''` for a regex non-match are already known
+      and cited in the dialect code; a table makes the next one a choice someone writes
+      down.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The comparison is exact. Decimals compare after quantizing to the declared scale,
+      timestamps as zoneless UTC, text byte for byte; no absolute or relative tolerance
+      exists anywhere in the differential tests.
+    paths:
+      - tests/property/test_reference_transforms.py
+      - tests/engines/test_reference_postgres.py
+    consequence: >-
+      a rounding or widening slip is a failure, not a pass within 0.01
+    rationale: >-
+      The three-way equivalence corpus's `ATOL = 0.01` is right for float metrics
+      and would hide exactly the decimal errors this exists to find.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      `tests/conftest.py` registers Hypothesis profiles: `dev` (the default), `ci`
+      (fewer examples, derandomized, `print_blob` on) and `nightly` (more examples),
+      chosen by `HYPOTHESIS_PROFILE`. The engine job runs `nightly` on its schedule
+      and `ci` on pull requests.
+    paths: [tests/conftest.py, .github/workflows/ci.yml]
+    consequence: >-
+      a failure in CI prints the blob that reproduces it locally, and the nightly
+      run searches wider than a pull request can afford
+    rationale: >-
+      No profile is registered today, so every property test runs Hypothesis's defaults
+      everywhere.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Chains of up to three built-ins, catalog recipes and the marts' time buckets
+      join the differential: a chain's reference is the composition of its steps'
+      references, a recipe's `/` is exact division over operands cast to their declared
+      types (S-0090/D-3, S-0091), and a bucket is `DATE_TRUNC` to day, week, month,
+      quarter or year of a zoneless UTC timestamp, as a `date`.
+    paths:
+      - tests/support/reference.py
+      - tests/property/test_reference_chains.py
+      - tests/engines/test_reference_postgres.py
+    consequence: >-
+      the widening and narrowing between steps, and the division a recipe promises,
+      are checked where they compose
+    rationale: >-
+      Single transforms pass while their composition narrows twice; the build step
+      is where those meet.
+    check: >-
+      uv run pytest tests/property/test_reference_chains.py -q
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The rollup aggregates (`count`, `sum`, `min`, `max`) join the differential over
+      generated groups, an all-NULL group and a group the filter empties included;
+      the reference states that `count` of nothing is 0 and `sum`, `min` and `max`
+      of nothing are NULL, as SQL does and as the rollup SQL adds no `COALESCE` to
+      change.
+    paths:
+      - tests/support/reference.py
+      - tests/property/test_reference_rollups.py
+      - tests/engines/test_reference_postgres.py
+    consequence: >-
+      an empty or all-NULL group's value is a stated fact, not an accident of the
+      engine
+    rationale: >-
+      Empty groups are where an aggregate's answer is most often assumed and least
+      often tested.
+    check: >-
+      uv run pytest tests/property/test_reference_rollups.py -q

@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      A reference states every built-in, and DuckDB is held to it
+    intent: >-
+      `tests/support/reference.py` (D-1), the allowed-differences table (D-3), the
+      Hypothesis profiles (D-5, conftest only), and the DuckDB differential over every
+      built-in (D-2, D-4). Tests: every built-in has a reference; the DuckDB half
+      passes under the `ci` profile; a deliberately wrong reference value fails naming
+      the input and both answers; a difference the table does not name fails.
+    scope:
+      - tests/support/reference.py
+      - tests/support/engine_differences.py
+      - tests/property/test_reference_transforms.py
+      - tests/conftest.py
+      - tests/README.md
+    acceptance:
+      - >-
+        uv run pytest tests/property/test_reference_transforms.py
+      - uv run ruff check tests
+    character: structural
+  - phase: 2
+    title: PostgreSQL is held to the same reference
+    intent: >-
+      A session-scoped `postgres:16-alpine` container in `tests/support/postgres.py`
+      and the PostgreSQL half of the differential under `tests/engines/` (D-2); the
+      engine job selects the `nightly` profile on its schedule and `ci` on pull requests
+      (D-5). Acceptance here collects and type-checks; the engine job runs it, because
+      the sandbox has no Docker. Tests: the PostgreSQL half collects under the engine
+      marker; the fixture is session-scoped and sets the session time zone to UTC.
+    scope:
+      - tests/support/postgres.py
+      - tests/engines/test_reference_postgres.py
+      - .github/workflows/ci.yml
+    acceptance:
+      - >-
+        uv run pytest --collect-only -q -m engine tests/engines/test_reference_postgres.py
+      - uv run ruff check tests
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: >-
+      Chains, recipes and time buckets compose as their steps say
+    intent: >-
+      Chains of up to three built-ins, recipe division over typed operands, and the
+      marts' time buckets on both engines (D-6). Tests: a chain whose steps widen
+      then narrow equals the composed reference; a recipe dividing two integers is
+      fractional and exact; a timestamp at a DST edge buckets to the same date on
+      both engines and the reference.
+    scope:
+      - tests/support/reference.py
+      - tests/property/test_reference_chains.py
+      - tests/engines/test_reference_postgres.py
+    acceptance:
+      - >-
+        uv run pytest tests/property/test_reference_chains.py tests/property/test_reference_transforms.py
+      - uv run ruff check tests
+    depends_on:
+      - 2
+    character: structural
+  - phase: 4
+    title: >-
+      Rollup aggregates agree on every group, empty ones included
+    intent: >-
+      `count`, `sum`, `min` and `max` over generated groups, an all-NULL group and
+      an emptied group included, on both engines (D-7). Tests: an all-NULL group sums
+      to NULL and counts 0 on both engines and the reference; a group the filter empties
+      is absent or NULL exactly as the reference states.
+    scope:
+      - tests/support/reference.py
+      - tests/property/test_reference_rollups.py
+      - tests/engines/test_reference_postgres.py
+    acceptance:
+      - >-
+        uv run pytest tests/property/test_reference_rollups.py
+      - uv run ruff check tests
+    depends_on:
+      - 3
+    character: routine
