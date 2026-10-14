@@ -287,6 +287,35 @@ def test_postgres_answers_every_builtin_exactly_as_the_reference_does(
 
 
 # ----------------------- #
+# The fixture's own guarantees (D-2)
+
+
+def test_the_container_fixture_is_session_scoped() -> None:
+    """One ``postgres:16-alpine`` container per session (S-0092/D-2), not one
+    per drawn example.
+
+    The fixture's marker is the statement; a regression to function scope — a
+    fresh container for every input — has to fail here rather than go
+    unnoticed. ``_fixture_function_marker`` is the name pytest 9's
+    ``@pytest.fixture`` gives the marker it attaches to the wrapped function.
+    """
+    assert postgres._fixture_function_marker.scope == "session"
+
+
+def test_the_session_time_zone_is_utc(postgres: psycopg.Connection) -> None:
+    """The container's session time zone is UTC (S-0092/D-2).
+
+    Every zoneless-UTC timestamp comparison in the differential (S-0081) reads
+    this wall clock; a dropped ``SET TIME ZONE`` would make those comparisons
+    engine-local without failing anywhere else.
+    """
+    with postgres.cursor() as cursor:
+        cursor.execute("SHOW TIME ZONE")
+        row = cursor.fetchone()
+    assert row == ("UTC",)
+
+
+# ----------------------- #
 # The register, and the battery's own teeth
 
 
