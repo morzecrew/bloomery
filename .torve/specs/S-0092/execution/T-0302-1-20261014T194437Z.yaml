@@ -1,0 +1,155 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0302
+base: 16ce8c3dc283d59c3a9dcb16bacf626d0b6a8066
+commit: 48fc770deda6c59377b203365637e8bcfccfc0d1
+at: '2026-10-14T19:44:37Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: S-0004/D-1
+    grade: LOCKED
+  - id: S-0005/D-4
+    grade: ASSUMED
+  - id: S-0008/D-6
+    grade: ASSUMED
+  - id: S-0009/D-1
+    grade: LOCKED
+  - id: S-0009/D-2
+    grade: LOCKED
+  - id: S-0009/D-3
+    grade: ASSUMED
+  - id: S-0009/D-4
+    grade: ASSUMED
+  - id: S-0009/D-5
+    grade: ASSUMED
+  - id: S-0009/D-6
+    grade: OPEN
+  - id: S-0009/D-9
+    grade: ASSUMED
+  - id: S-0010/D-3
+    grade: ASSUMED
+  - id: S-0010/D-6
+    grade: ASSUMED
+  - id: S-0012/D-1
+    grade: LOCKED
+  - id: S-0012/D-2
+    grade: LOCKED
+  - id: S-0012/D-3
+    grade: LOCKED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0012/D-5
+    grade: LOCKED
+  - id: S-0012/D-6
+    grade: ASSUMED
+  - id: S-0012/D-7
+    grade: ASSUMED
+  - id: S-0012/D-9
+    grade: ASSUMED
+  - id: S-0013/D-3
+    grade: ASSUMED
+  - id: S-0013/D-4
+    grade: ASSUMED
+  - id: S-0013/D-5
+    grade: OPEN
+  - id: S-0013/D-7
+    grade: ASSUMED
+  - id: S-0014/D-4
+    grade: ASSUMED
+  - id: S-0014/D-6
+    grade: ASSUMED
+  - id: S-0016/D-2
+    grade: LOCKED
+  - id: S-0016/D-3
+    grade: LOCKED
+  - id: S-0016/D-5
+    grade: LOCKED
+  - id: S-0016/D-6
+    grade: ASSUMED
+  - id: S-0016/D-10
+    grade: ASSUMED
+  - id: S-0018/D-13
+    grade: ASSUMED
+  - id: S-0026/D-27
+    grade: ASSUMED
+  - id: S-0042/D-27
+    grade: ASSUMED
+  - id: S-0078/D-7
+    grade: LOCKED
+  - id: S-0078/D-9
+    grade: ASSUMED
+  - id: S-0081/D-4
+    grade: ASSUMED
+  - id: S-0091/D-4
+    grade: ASSUMED
+entries:
+  - decision: S-0012/D-1
+    grade: LOCKED
+    at: '2026-10-14T19:27:50Z'
+    claim: >-
+      The change adds two self-checks to tests/engines/test_reference_postgres.py,
+      a module marked engine("postgres") that runs a real postgres:16-alpine container;
+      no emulator, surrogate engine or compatible-wire shim is involved, so nothing
+      added here quotes a sub-authoritative rung as engine conformance.
+    evidence: >-
+      tests/engines/test_reference_postgres.py:277-289 — the added scope and time-zone
+      tests live under the module's real-container engine("postgres") marker (pytestmark
+      at line 41), not under any surrogate.
+    action: decided
+  - decision: S-0012/D-2
+    grade: LOCKED
+    at: '2026-10-14T19:27:50Z'
+    claim: >-
+      The added tests keep the module selected as engine, never surrogate, and add
+      no rung-4 lane or surrogate marker; the engine matrix and rung 4 stay separable.
+    evidence: >-
+      tests/engines/test_reference_postgres.py:41 — the module pytestmark stays pytest.mark.engine("postgres"),
+      so the two new tests report as engine and are unreachable from a surrogate selector.
+    action: decided
+  - decision: S-0012/D-3
+    grade: LOCKED
+    at: '2026-10-14T19:27:50Z'
+    claim: >-
+      The change adds no compile lane and touches no port asset; it only adds two
+      value self-checks to the existing PostgreSQL engine module.
+    evidence: >-
+      tests/engines/test_reference_postgres.py:277-289 — both additions are value
+      checks over the shared container, never an EXPLAIN or dry-run compile rung.
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-10-14T19:27:55Z'
+    claim: >-
+      The reviewer says the S-0092/D-2 check runs only the DuckDB property test, so
+      a missing or broken engine("postgres") test or a function-scoped fixture would
+      still pass it. The tree complies with D-2: the DuckDB half is the offline check
+      the row assigns to the default lane, and the PostgreSQL half runs in the engine
+      job via pytest -m "engine or e2e"; the fixture already sets UTC and is session-scoped,
+      and the two added tests now fail if either property regresses. The row is covered
+      by its design; only the shadow check is narrow, and that is what D-2 intends.
+    evidence: >-
+      .github/workflows/ci.yml:822 — the engine-e2e job runs uv run pytest -m "engine
+      or e2e", which selects tests/engines/test_reference_postgres.py on push, nightly
+      and engine-path pull requests.
+    action: decided
+    proposal: >-
+      No tree change is owed. If the author wants the offline shadow check to assert
+      the PostgreSQL half exists, that is a new decision row naming a collection check
+      over tests/engines/, not a change to D-2, whose split of the two halves across
+      lanes this task leaves as written.
