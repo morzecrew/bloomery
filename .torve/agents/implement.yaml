@@ -14,8 +14,6 @@ equipment:
 - kind: skill
   source: torve:flag-dont-flip
 - kind: skill
-  source: torve:ratchet-what-you-build
-- kind: skill
   source: github:mattpocock/skills
   select: [tdd, diagnosing-bugs, code-review]
 # What the door was carrying (S-0066/D-1, S-0066/D-2). Three harnesses used to

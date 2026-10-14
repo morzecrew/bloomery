@@ -782,6 +782,14 @@
           "title": "Allow",
           "type": "array"
         },
+        "contingent": {
+          "description": "Literal paths the change is likely to reach beyond its phase \u2014 importers,\nimported first-party modules, paired tests, package `__init__` and the\ndocument's other phases' matches (S-0104/D-1). Derived at mint and refresh;\nnever counted for disjointness or sizing.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Contingent",
+          "type": "array"
+        },
         "deny": {
           "description": "Globs the task may not touch; deny wins over allow.",
           "items": {

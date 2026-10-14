@@ -6,8 +6,6 @@ role: review
 equipment:
 - kind: skill
   source: torve:working-rules
-- kind: skill
-  source: torve:ratchet-what-you-build
 # Re-declared where the role wants it (S-0066/D-2): `readable-code` names
 # `review` among its own roles, and a reviewer reading a diff for names,
 # nesting and comments is the seat it was written for. What the door dropped
