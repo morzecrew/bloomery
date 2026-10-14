@@ -1,0 +1,133 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0305
+base: 16ce8c3dc283d59c3a9dcb16bacf626d0b6a8066
+at: '2026-10-14T20:04:40Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: S-0004/D-1
+    grade: LOCKED
+  - id: S-0005/D-4
+    grade: ASSUMED
+  - id: S-0008/D-6
+    grade: ASSUMED
+  - id: S-0009/D-4
+    grade: ASSUMED
+  - id: S-0010/D-1
+    grade: LOCKED
+  - id: S-0010/D-3
+    grade: ASSUMED
+  - id: S-0010/D-5
+    grade: ASSUMED
+  - id: S-0010/D-6
+    grade: ASSUMED
+  - id: S-0012/D-1
+    grade: LOCKED
+  - id: S-0012/D-2
+    grade: LOCKED
+  - id: S-0012/D-3
+    grade: LOCKED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0012/D-5
+    grade: LOCKED
+  - id: S-0012/D-6
+    grade: ASSUMED
+  - id: S-0012/D-7
+    grade: ASSUMED
+  - id: S-0012/D-9
+    grade: ASSUMED
+  - id: S-0013/D-3
+    grade: ASSUMED
+  - id: S-0013/D-4
+    grade: ASSUMED
+  - id: S-0013/D-5
+    grade: OPEN
+  - id: S-0013/D-7
+    grade: ASSUMED
+  - id: S-0016/D-2
+    grade: LOCKED
+  - id: S-0016/D-3
+    grade: LOCKED
+  - id: S-0016/D-5
+    grade: LOCKED
+  - id: S-0016/D-10
+    grade: ASSUMED
+  - id: S-0018/D-13
+    grade: ASSUMED
+  - id: S-0026/D-27
+    grade: ASSUMED
+  - id: S-0042/D-27
+    grade: ASSUMED
+  - id: S-0078/D-7
+    grade: LOCKED
+  - id: S-0078/D-9
+    grade: ASSUMED
+  - id: S-0081/D-4
+    grade: ASSUMED
+  - id: S-0091/D-4
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-10-14T19:48:57Z'
+    claim: >-
+      The finding asserts that tests/property/test_reference_chains.py:17 carries
+      a docstring claiming support.engine_differences is consulted, and that the DuckDB
+      chains test never imports it. That file does not exist in this tree: phase 3
+      of S-0092, whose path this is, is unbuilt, and the row index records S-0092/D-6
+      as implementation: none (tests/property/AGENTS.md:196). With no module there
+      is no docstring to contradict and no import to add, so the claim does not hold
+      against the tree.
+    evidence: >-
+      tests/property/AGENTS.md:196 — the row index marks S-0092/D-6 implementation:
+      none; `ls tests/property/test_reference_chains.py` prints ls: cannot access
+      tests/property/test_reference_chains.py: No such file or directory
+    action: decided
+    proposal: >-
+      When the phase-3 chains differential lands under S-0092/D-6, tests/property/test_reference_chains.py
+      must state its D-3 handling truthfully: either consult support.engine_differences
+      the way tests/property/test_reference_transforms.py:38 and tests/engines/test_reference_postgres.py:37
+      do, or say in the docstring that chains compare exactly and why no register
+      row applies.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-10-14T19:48:57Z'
+    claim: >-
+      The finding asserts that the S-0092/D-6 recipe check does not catch a recipe
+      that skips the dividend widening, citing tests/support/reference.py:684 and
+      a RECIPE_OPERANDS corpus. Neither exists: tests/support/reference.py:684 is
+      a blank line inside the timezone strategies, and a search of tests/ finds no
+      RECIPE_OPERANDS, recipe_quotient, _run_mapping or _assert_exact. The recipe
+      differential is unbuilt (tests/property/AGENTS.md:196 marks S-0092/D-6 implementation:
+      none), so there is no operand corpus to weaken and no edit is possible.
+    evidence: >-
+      tests/support/reference.py:684 — the line is blank, sitting between _SAFE_HOUR
+      and _unambiguous; `grep -rn RECIPE_OPERANDS recipe_quotient _assert_exact tests/`
+      returns no matches
+    action: decided
+    proposal: >-
+      When the recipe differential lands, its operand corpus must include a pair that
+      separates the widened-then-narrowed quotient from a single rounding — a dividend
+      whose magnitude exceeds the declared integer digits at the widened scale, drawn
+      unconditionally rather than inside one branch of a one_of — so that replacing
+      CAST(... AS DECIMAL(38, 9)) with no cast or a narrower one makes the check fail.

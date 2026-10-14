@@ -2,7 +2,7 @@
 task: T-0292
 phase: 1
 base: 50c8a69d4ff55ead29f24bfc2c3ea2bc43e00cf4
-commit: e296e417592d63080391a3db7c5d880c8ce2fc7f
+commit: b5b93dc9b4c4a6a3c68d8636bf1cbd8f5c0827e1
 at: '2026-10-14T17:56:01Z'
 agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
 decisions:
