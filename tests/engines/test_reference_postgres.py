@@ -29,6 +29,7 @@ from typing import Any
 
 import psycopg
 import pytest
+from psycopg.types.string import TextLoader
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
@@ -44,6 +45,7 @@ from support.reference import (
     BUCKET_UNITS,
     CASES,
     CHAIN_CASES,
+    JSON_NULL,
     OVERFLOW,
     RECIPE_OPERANDS,
     ROLLUP_BRONZE_COLUMNS,
@@ -177,14 +179,19 @@ def _run(connection: psycopg.Connection, case: Case, source: str | None) -> Any:
     extra = [fixed for _, _, fixed in fixture.extra_columns]
     placeholders = ", ".join(["%s"] * (2 + len(extra)))
     with connection.cursor() as cursor:
+        # `jsonb` as its text, so a JSON `null` stays distinguishable from SQL
+        # NULL — psycopg's own loader parses both to `None`.
+        cursor.adapters.register_loader("jsonb", TextLoader)
         cursor.execute(
             f"INSERT INTO bronze.raw__probe VALUES ({placeholders})",  # noqa: S608 — SQL we built
             ["probe", source, *extra],
         )
+        # Only SQLSTATE 22003 is the overflow an OVERFLOW reference demands; any
+        # other refusal is a broken query and propagates as one.
         try:
             cursor.execute(select)
             row = cursor.fetchone()
-        except psycopg.Error:
+        except psycopg.errors.NumericValueOutOfRange:
             return _RAISED
         assert row is not None
         names = [column.name for column in cursor.description or ()]
@@ -224,6 +231,17 @@ def _mismatch(case: Case, source: Any, produced: Any, expected: Any) -> str:
     )
 
 
+def _decoded(case: Case, produced: Any) -> Any:
+    """The engine's raw value in the reference's vocabulary, as the DuckDB half
+    reads it: ``_run`` reads ``jsonb`` as text, so a JSON ``null`` is the text
+    ``'null'`` and becomes :data:`JSON_NULL`, while a missing path stays SQL
+    NULL (S-0092/D-1)."""
+    if case.transform == "json_path" and isinstance(produced, str):
+        parsed = json.loads(produced)
+        return JSON_NULL if parsed is None else parsed
+    return _zoneless_utc(produced)
+
+
 def assert_matches(
     case: Case,
     source: Any,
@@ -256,10 +274,7 @@ def assert_matches(
         )
         raise AssertionError(msg)
 
-    # psycopg hands a ``jsonb`` column back already parsed, so — unlike the
-    # DuckDB half, where the engine returns JSON as text — ``json_path`` needs
-    # no decoding here; only the timestamp is normalised.
-    engine_answer = _zoneless_utc(produced)
+    engine_answer = _decoded(case, produced)
     if engine_answer == expected:
         return
 
@@ -303,10 +318,13 @@ def test_the_container_fixture_is_session_scoped() -> None:
 
     The fixture's marker is the statement; a regression to function scope — a
     fresh container for every input — has to fail here rather than go
-    unnoticed. ``_fixture_function_marker`` is the name pytest 9's
-    ``@pytest.fixture`` gives the marker it attaches to the wrapped function.
+    unnoticed. pytest 8.4 and later wrap the function in a definition that
+    carries the marker as ``_fixture_function_marker``; earlier 8.x releases set
+    it on the function as ``_pytestfixturefunction``. The dev floor is
+    ``pytest>=8``, so both are read.
     """
-    assert postgres._fixture_function_marker.scope == "session"
+    marker = getattr(postgres, "_fixture_function_marker", None) or postgres._pytestfixturefunction
+    assert marker.scope == "session"
 
 
 def test_the_session_time_zone_is_utc(postgres: psycopg.Connection) -> None:
