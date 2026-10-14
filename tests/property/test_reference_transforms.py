@@ -318,3 +318,20 @@ def test_a_difference_no_row_names_fails_naming_the_input_and_both_answers() -> 
     assert repr("a") in message
     assert repr("") in message
     assert "None" in message
+
+
+def test_a_null_source_is_not_licensed_as_an_out_of_range_difference() -> None:
+    """The ``split_part`` row licenses ``''`` only over a **present** input.
+
+    A NULL source is NULL on both sides, so an engine that turned it into
+    ``''`` must fail rather than hide inside the row that names the
+    out-of-range difference (S-0092/D-3).
+    """
+    case = next(c for c in CASES if c.transform == "split_part")
+
+    with pytest.raises(AssertionError) as caught:
+        assert_matches(case, None, "", None)
+
+    message = str(caught.value)
+    assert repr("") in message
+    assert "None" in message
