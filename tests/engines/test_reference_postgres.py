@@ -46,12 +46,18 @@ from support.reference import (
     CHAIN_CASES,
     OVERFLOW,
     RECIPE_OPERANDS,
+    ROLLUP_BRONZE_COLUMNS,
+    ROLLUP_METRICS,
+    ROLLUP_RELATION,
+    ROLLUP_SOURCES,
     Case,
     ChainCase,
     Step,
     bucket,
     fold,
     recipe_quotient,
+    rollup,
+    rollup_bronze_rows,
 )
 
 pytestmark = pytest.mark.engine("postgres")
@@ -536,10 +542,14 @@ def _materialize(
     connection: psycopg.Connection, artifacts: tuple[Any, ...]
 ) -> None:
     """CREATE TABLE <namespace>.<relation> AS <the artifact's SELECT> — silver
-    before gold, because mart SELECTs read the silver relations."""
+    before gold, because mart SELECTs read the silver relations, and gold sorted
+    by path so a rollup is built after the mart it names."""
     models = sorted(
         (a for a in artifacts if a.kind is ArtifactKind.MODEL),
-        key=lambda a: (PurePosixPath(a.path).parent.name != "silver",),
+        key=lambda a: (
+            PurePosixPath(a.path).parent.name != "silver",
+            PurePosixPath(a.path),
+        ),
     )
     for artifact in models:
         path = PurePosixPath(artifact.path)
@@ -631,3 +641,105 @@ def test_postgres_time_buckets_match_the_reference(
             f"mart bucket paid_{unit} for {instant.isoformat()} on {ENGINE} landed "
             f"on {produced[unit]!r}, the reference says {expected!r} (S-0092/D-6)"
         )
+
+
+# ----------------------- #
+# Rollup aggregates over generated groups (S-0092/D-7)
+
+
+#: The metric names the rollup projects, read by name rather than by position.
+_ROLLUP_METRICS = tuple(sorted(ROLLUP_METRICS))
+
+#: A group map: key → the metric expression's value on each of its rows. A key
+#: with an empty list is the group a filter removed entirely; a key whose list
+#: is all ``None`` is the retained all-NULL group (S-0092/D-7).
+_ROLLUP_CASES = st.dictionaries(
+    st.sampled_from(["A", "B", "C", "D", "E"]),
+    st.lists(st.one_of(st.none(), st.integers(-(10**6), 10**6)), max_size=6),
+    min_size=1,
+    max_size=4,
+)
+
+
+@functools.lru_cache(maxsize=None)
+def _rollup_artifacts() -> tuple[Any, ...]:
+    """The compiled rollup fixture: silver, the parent mart, and the rollup."""
+    project = load_project(dict(ROLLUP_SOURCES))
+    return compile_project(
+        project, target=Target.SQLMESH, dialect=ENGINE, catalog=None, steps=None
+    )
+
+
+def _run_rollup(
+    connection: psycopg.Connection, groups: dict[str, list[int | None]]
+) -> dict[str, dict[str, int | None]]:
+    """Seed the group map, build the project, and read the rollup as
+    ``{group: {metric: value}}``."""
+    for statement in _RESET_ALL:
+        connection.execute(statement)
+    connection.execute(
+        f"CREATE TABLE bronze.raw__probe ({ROLLUP_BRONZE_COLUMNS})"
+    )
+    rows = rollup_bronze_rows(groups)
+    if rows:
+        with connection.cursor() as cursor:
+            cursor.executemany(
+                "INSERT INTO bronze.raw__probe VALUES (%s, %s, %s, %s)", rows
+            )
+    _materialize(connection, _rollup_artifacts())
+    columns = ", ".join(_ROLLUP_METRICS)
+    result = connection.execute(
+        f"SELECT grp, {columns} FROM gold.{ROLLUP_RELATION}"
+    ).fetchall()
+    return {row[0]: dict(zip(_ROLLUP_METRICS, row[1:], strict=True)) for row in result}
+
+
+def _assert_rollup(
+    groups: dict[str, list[int | None]],
+    produced: dict[str, dict[str, int | None]],
+    expected: dict[str, dict[str, int | None]],
+) -> None:
+    if produced != expected:
+        msg = (
+            f"the rollup on {ENGINE} disagreed with the reference for groups "
+            f"{groups!r}: the engine answered {produced!r}, the reference says "
+            f"{expected!r} (S-0092/D-4)"
+        )
+        raise AssertionError(msg)
+
+
+@given(groups=_ROLLUP_CASES)
+@settings(
+    deadline=None,
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
+)
+def test_postgres_rollup_groups_equal_the_reference_aggregates(
+    postgres: psycopg.Connection, groups: dict[str, list[int | None]]
+) -> None:
+    produced = _run_rollup(postgres, groups)
+    _assert_rollup(groups, produced, rollup(groups))
+
+
+def test_postgres_an_all_null_group_counts_zero_and_sums_to_null(
+    postgres: psycopg.Connection,
+) -> None:
+    """``COUNT(expr)`` skips NULL, so a retained all-NULL group is present and
+    counts 0 with NULL sum, min and max (S-0092/D-7)."""
+    groups = {"A": [None, None, None], "B": [3, 5]}
+    produced = _run_rollup(postgres, groups)
+
+    assert produced["A"] == {"n": 0, "total": None, "lo": None, "hi": None}
+    assert produced["B"] == {"n": 2, "total": 8, "lo": 3, "hi": 5}
+    assert produced == rollup(groups)
+
+
+def test_postgres_a_group_a_filter_removes_has_no_row(
+    postgres: psycopg.Connection,
+) -> None:
+    """A group whose every row is filtered out before the mart has no row; the
+    reference states that absence, not a zero (S-0092/D-7)."""
+    groups = {"A": [1, 2], "GONE": []}
+    produced = _run_rollup(postgres, groups)
+
+    assert "GONE" not in produced
+    assert produced == rollup(groups) == {"A": {"n": 2, "total": 3, "lo": 1, "hi": 2}}

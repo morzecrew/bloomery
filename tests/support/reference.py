@@ -31,6 +31,11 @@ references (:func:`fold`, over :data:`CHAIN_CASES`); a **recipe's** ``/`` over
 typed operands, which widens its dividend before dividing and narrows the
 quotient once (:func:`recipe_quotient`); and a **mart's** time bucket, which is
 ``DATE_TRUNC`` of a zoneless UTC instant as a date (:func:`bucket`).
+
+A **rollup** mart's four aggregates — ``count``, ``sum``, ``min``, ``max`` —
+over generated groups join the differential too (:func:`rollup`, S-0092/D-7):
+a retained all-NULL group counts 0 and sums to NULL, and a group a filter
+removed entirely has no row at all.
 """
 
 from __future__ import annotations
@@ -47,7 +52,7 @@ from zoneinfo import ZoneInfo
 from hypothesis import strategies as st
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     from hypothesis.strategies import SearchStrategy
 
@@ -61,6 +66,11 @@ __all__ = [
     "JSON_NULL",
     "OVERFLOW",
     "RECIPE_OPERANDS",
+    "ROLLUP_ANCHOR",
+    "ROLLUP_BRONZE_COLUMNS",
+    "ROLLUP_METRICS",
+    "ROLLUP_RELATION",
+    "ROLLUP_SOURCES",
     "Case",
     "ChainCase",
     "Fixture",
@@ -71,6 +81,8 @@ __all__ = [
     "converting",
     "fold",
     "recipe_quotient",
+    "rollup",
+    "rollup_bronze_rows",
 ]
 
 
@@ -992,3 +1004,141 @@ def bucket(unit: str, instant: datetime) -> date:
         return date(day.year, 1, 1)
     msg = f"no such bucket unit {unit!r}"
     raise ValueError(msg)
+
+
+# ----------------------- #
+# Rollup aggregates (S-0092/D-7)
+
+
+#: Metric name → the aggregate its rollup column is built with. The rollup
+#: emitter projects a measure with ``<AGG>(<expr>)`` (``emit/lower/rollups.py``
+#: ``ROLLUP_AGGREGATES``), so ``count`` is ``COUNT(expr)`` rather than
+#: ``COUNT(*)``: a group whose expression is NULL on every row counts 0.
+ROLLUP_METRICS: dict[str, str] = {
+    "n": "count",
+    "total": "sum",
+    "lo": "min",
+    "hi": "max",
+}
+
+#: The gold relation the rollup becomes.
+ROLLUP_RELATION = "mart_probes_by_grp"
+
+#: The bronze columns the rollup fixture seeds.
+ROLLUP_BRONZE_COLUMNS = "id VARCHAR, grp VARCHAR, value VARCHAR, paid_at VARCHAR"
+
+#: The instant the date role buckets; the rollup keeps ``grp`` alone, so this
+#: only satisfies the mart's requirement that a measure-carrying mart declare a
+#: date role (S-0027/D-9) and is never asserted on.
+ROLLUP_ANCHOR = "2024-01-02T03:04:05"
+
+
+def _aggregate_over(values: Sequence[int | None]) -> dict[str, int | None]:
+    """The four aggregates over one group's rows, ``COUNT(expr)`` semantics.
+
+    ``SUM``/``MIN``/``MAX`` ignore NULL and answer NULL when every row is NULL,
+    while ``COUNT(expr)`` answers 0 — the two facts D-7 exists to hold an engine
+    to, and the reason the emitted rollup must add no ``COALESCE``.
+    """
+    present = [value for value in values if value is not None]
+    return {
+        "n": len(present),
+        "total": sum(present) if present else None,
+        "lo": min(present) if present else None,
+        "hi": max(present) if present else None,
+    }
+
+
+def rollup(
+    groups: Mapping[str, Sequence[int | None]],
+) -> dict[str, dict[str, int | None]]:
+    """What a rollup holds, from the rows the mart holds per group.
+
+    A group with **no rows** — the one a filter removed entirely — produces no
+    entry: ``GROUP BY`` forms a group only from the rows it is given, so the
+    reference states the absence rather than inventing a zero (S-0092/D-7). A
+    group that is retained but whose expression is NULL on every row is present
+    and answers ``{'n': 0, 'total': None, 'lo': None, 'hi': None}``.
+
+    ``count`` is ``COUNT(expr)``, not ``COUNT(*)``: the emitter aggregates the
+    metric's expression, so an all-NULL group counts 0 rather than its rows.
+    """
+    answered: dict[str, dict[str, int | None]] = {}
+    for key, values in groups.items():
+        if not values:
+            continue
+        answered[key] = _aggregate_over(values)
+    return answered
+
+
+#: The one-entity project the rollup differential compiles, shared by both
+#: engine halves so their fixtures cannot drift. A group column, the metric
+#: expression's value, and the date role a measure-carrying mart requires
+#: (S-0027/D-9).
+ROLLUP_SOURCES: dict[str, str] = {
+    "entity_model": (
+        "spec_version: 1\n"
+        "entities:\n"
+        "  probe:\n"
+        "    grain: one row per probe\n"
+        "    key: [probe_id]\n"
+        "    fields:\n"
+        "      probe_id: {type: string, required: true}\n"
+        "      grp: {type: string}\n"
+        "      value: {type: int}\n"
+        "      paid_at: {type: timestamp}\n"
+    ),
+    "mapping": (
+        "mapping_version: 1\n"
+        "source: raw__probe\n"
+        "target: probe\n"
+        "key:\n"
+        '  probe_id: {from: "$.id", transform: [to_string]}\n'
+        "fields:\n"
+        '  grp: {from: "$.grp", transform: [to_string]}\n'
+        '  value: {from: "$.value", transform: [to_int]}\n'
+        "  paid_at:\n"
+        '    from: "$.paid_at"\n'
+        "    transform: [{parse_ts: ISO8601}]\n"
+        "    zone_in: UTC\n"
+    ),
+    "metrics": (
+        "metrics_version: 1\n"
+        "metrics:\n"
+        "  n: {grain: probe, additivity: additive, agg: count, expr: \"value\"}\n"
+        "  total: {grain: probe, additivity: additive, agg: sum, expr: \"value\"}\n"
+        "  lo: {grain: probe, additivity: additive, agg: min, expr: \"value\"}\n"
+        "  hi: {grain: probe, additivity: additive, agg: max, expr: \"value\"}\n"
+    ),
+    "marts": (
+        "marts_version: 1\n"
+        "marts:\n"
+        "  probes:\n"
+        "    grain: probe\n"
+        "    base: probe\n"
+        "    flatten:\n"
+        "      - {date: paid_at, role: paid}\n"
+        "    measures: [n, total, lo, hi]\n"
+        "rollups:\n"
+        "  probes_by_grp:\n"
+        "    of: probes\n"
+        "    keep: [grp]\n"
+        "    measures: [n, total, lo, hi]\n"
+    ),
+}
+
+
+def rollup_bronze_rows(
+    groups: Mapping[str, Sequence[int | None]],
+) -> tuple[tuple[str, str, str | None, str], ...]:
+    """The bronze rows a group map seeds: one per value, ``None`` as SQL NULL.
+
+    The ids are derived from the group's position and the value's, so the same
+    map seeds the same rows on either engine and a disagreement cannot come
+    from the fixture rather than the rollup.
+    """
+    return tuple(
+        (f"g{g}.r{r}", key, None if value is None else str(value), ROLLUP_ANCHOR)
+        for g, (key, values) in enumerate(groups.items())
+        for r, value in enumerate(values)
+    )
