@@ -24,6 +24,13 @@ reference and the compiled chain walk the same steps in the same order.
 ``convert`` is the one case that cannot be a pure function of the value: it
 reads the fixture's ``fx_rates`` relation and the row's anchor date, so it
 builds its reference from those (:func:`converting`).
+
+Beyond the single transform, three things compose (S-0092/D-6): a **chain** of
+up to three built-ins, whose reference is the composition of its steps'
+references (:func:`fold`, over :data:`CHAIN_CASES`); a **recipe's** ``/`` over
+typed operands, which widens its dividend before dividing and narrows the
+quotient once (:func:`recipe_quotient`); and a **mart's** time bucket, which is
+``DATE_TRUNC`` of a zoneless UTC instant as a date (:func:`bucket`).
 """
 
 from __future__ import annotations
@@ -32,7 +39,7 @@ import json
 import re
 import string
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal, localcontext
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
@@ -45,18 +52,25 @@ if TYPE_CHECKING:
     from hypothesis.strategies import SearchStrategy
 
 __all__ = [
+    "BUCKET_INSTANTS",
+    "BUCKET_UNITS",
     "CASES",
+    "CHAIN_CASES",
     "CONVERT_ANCHOR",
     "FX_RATES",
     "JSON_NULL",
     "OVERFLOW",
+    "RECIPE_OPERANDS",
     "Case",
+    "ChainCase",
     "Fixture",
     "Overflow",
     "SEMANTICS",
     "Step",
+    "bucket",
     "converting",
     "fold",
+    "recipe_quotient",
 ]
 
 
@@ -663,6 +677,31 @@ _ISO_DATE = st.one_of(
 
 _BOOLEAN = st.one_of(st.none(), st.sampled_from(["true", "false", "1", "0", "t", "f"]))
 
+#: The two integer operands a recipe's ``/`` differential draws (S-0092/D-6):
+#: boundary values, ordinary values, and both signs. Zero divisors are
+#: excluded — a division by zero has no stated portable answer to hold an
+#: engine to.
+RECIPE_OPERANDS: SearchStrategy[tuple[int, int]] = st.one_of(
+    st.sampled_from(
+        [
+            (1, 6),
+            (1, 3),
+            (2, 3),
+            (10, 3),
+            (7, 2),
+            (1, 7),
+            (22, 7),
+            (-7, 2),
+            (12345, 10000),
+            (123456789, 2),
+            (100000000, 1),
+            (0, 7),
+        ]
+    ),
+    st.tuples(st.integers(-(10**8), 10**8), st.integers(-(10**4), 10**4).filter(bool)),
+    st.tuples(st.integers(-(10**6), 10**6), st.integers(-(10**6), 10**6).filter(bool)),
+)
+
 #: JSON documents a variant extraction can be asked for: an object, a nested
 #: object, an array, a scalar, a document's ``null`` (distinct from a missing
 #: path, S-0092/D-1), and documents that lack the requested path.
@@ -844,3 +883,112 @@ CASES: tuple[Case, ...] = (
     Case("trim", (("trim", ()),), _TEXT, lambda text: fold((("trim", ()),), text)),
     Case("upper", (("upper", ()),), _TEXT, lambda text: fold((("upper", ()),), text)),
 )
+
+
+# ----------------------- #
+# Chains, recipe division and time buckets (S-0092/D-6)
+
+
+@dataclass(frozen=True)
+class ChainCase:
+    """A chain of up to three built-ins, and the source text drawn for it.
+
+    The reference is the **composition of its steps' references** — exactly
+    :func:`fold`, the same walk the single-transform cases use — so a chain
+    that widens and then narrows is held to the values its steps state, not to
+    a second algebra invented for the chain (S-0092/D-6).
+    """
+
+    name: str
+    chain: tuple[Step, ...]
+    source: SearchStrategy[Any]
+
+    def reference(self, text: str | None) -> Any:
+        return fold(self.chain, text)
+
+
+#: Chains of up to three built-ins. ``widen_then_narrow`` is the one the phase
+#: names: ``multiply`` widens the type to ``decimal(16,4)`` and ``round``
+#: narrows it to ``decimal(14,2)``, so a composer that narrowed between the two
+#: would drop a digit the reference keeps. No chain uses ``divide``: DuckDB's
+#: float division is a D-3 row the composed value cannot attribute to one step.
+CHAIN_CASES: tuple[ChainCase, ...] = (
+    ChainCase("widen_then_narrow", (_T0, ("multiply", (1000,)), ("round", (2,))), _DECIMAL),
+    ChainCase("widen_then_abs", (_T0, ("multiply", (3,)), ("abs", ())), _DECIMAL),
+    ChainCase("three_step_string", (("trim", ()), ("upper", ()), ("concat", ("-X",))), _TEXT),
+)
+
+
+def _dividend_shape(precision: int, scale: int) -> Shape:
+    """The decimal a recipe's dividend is cast to (``resolve/build.py``, S-0090/D-3).
+
+    The same algebra :func:`~bloomery.resolve.build._dividend_type` applies: 29
+    integer digits and 9 fractional (BigQuery's ``NUMERIC``), widened where the
+    declared type needs more integer digits, capped at 38 total.
+    """
+    digits = max(29, precision - scale)
+    widened = max(scale, min(9, 38 - digits))
+    return Shape(min(38, digits + widened), widened)
+
+
+def recipe_quotient(
+    dividend: int | None, divisor: int | None, precision: int, scale: int
+) -> Decimal | Overflow | None:
+    """A recipe's ``/`` over two integer operands (S-0090/D-3, S-0092/D-6).
+
+    The dividend is cast to the widened :func:`_dividend_shape`, the quotient is
+    taken at *that* scale — the dividend's, not the declared one — and the
+    result is narrowed to the declared type ``ROUND_HALF_UP``. Narrowing before
+    the division is the double-rounding slip D-6 exists to catch: it is a D-3
+    row an engine earns, never a tolerance.
+    """
+    if dividend is None or divisor is None:
+        return None
+    widened = _dividend_shape(precision, scale)
+    with localcontext() as ctx:
+        ctx.prec = 60
+        scaled = _quantize(Decimal(dividend), widened.scale)
+        if not _fits(scaled, widened.precision, widened.scale):
+            return OVERFLOW
+        quotient = _quantize(scaled / Decimal(divisor), widened.scale)
+    rounded = _quantize(quotient, scale)
+    return rounded if _fits(rounded, precision, scale) else OVERFLOW
+
+
+#: The units a mart's date role buckets into — exactly the S-0027 ``DATE_BUCKETS``.
+BUCKET_UNITS: tuple[str, ...] = ("day", "week", "month", "quarter", "year")
+
+#: The instants the bucket differential draws (S-0092/D-6): the first instant of
+#: an ISO week, of a quarter and of a year, and a leap day. Each is midnight, so
+#: a truncation reading the wrong field cannot hide behind a time of day; the
+#: leap day sits in the middle of its week, which is what makes ``week`` differ
+#: from ``day``.
+BUCKET_INSTANTS: tuple[datetime, ...] = (
+    datetime(2024, 1, 1),  # a Monday: the first instant of ISO week 2024-W01
+    datetime(2024, 7, 1),  # the first instant of Q3
+    datetime(2026, 1, 1),  # the first instant of the year, a Thursday
+    datetime(2024, 2, 29),  # a leap day, whose ISO week starts 2024-02-26
+)
+
+
+def bucket(unit: str, instant: datetime) -> date:
+    """``DATE_TRUNC(unit, ts)`` as a calendar date, ``ts`` a zoneless UTC
+    instant (S-0092/D-6).
+
+    ``week`` truncates to Monday — ISO's week start, which DuckDB and
+    PostgreSQL share — the one unit whose answer depends on the weekday rather
+    than the calendar field alone.
+    """
+    day = instant.date()
+    if unit == "day":
+        return day
+    if unit == "week":
+        return day - timedelta(days=day.weekday())
+    if unit == "month":
+        return day.replace(day=1)
+    if unit == "quarter":
+        return date(day.year, 3 * ((day.month - 1) // 3) + 1, 1)
+    if unit == "year":
+        return date(day.year, 1, 1)
+    msg = f"no such bucket unit {unit!r}"
+    raise ValueError(msg)

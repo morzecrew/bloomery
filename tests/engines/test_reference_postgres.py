@@ -23,7 +23,8 @@ from __future__ import annotations
 
 import functools
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from pathlib import PurePosixPath
 from typing import Any
 
 import psycopg
@@ -32,11 +33,26 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from bloomery import Target, compile_project, load_catalog, load_project
+from bloomery.emit import ArtifactKind
 from bloomery.transforms import DEFAULT_REGISTRY
 from bloomery.typing import StringType, render_type
+from support.compiling import extract_select
 from support.engine_differences import DIFERENCES, Difference
 from support.postgres import POSTGRES_DIFFERENCES, postgres
-from support.reference import CASES, OVERFLOW, Case, Step
+from support.reference import (
+    BUCKET_INSTANTS,
+    BUCKET_UNITS,
+    CASES,
+    CHAIN_CASES,
+    OVERFLOW,
+    RECIPE_OPERANDS,
+    Case,
+    ChainCase,
+    Step,
+    bucket,
+    fold,
+    recipe_quotient,
+)
 
 pytestmark = pytest.mark.engine("postgres")
 
@@ -300,3 +316,289 @@ def test_postgres_is_held_to_a_named_difference_and_no_other() -> None:
     message = str(caught.value)
     assert repr("a") in message
     assert repr("") in message
+
+
+# ----------------------- #
+# Chains, recipes and time buckets (S-0092/D-6)
+
+
+def _chain_sources(chain: tuple[Step, ...]) -> dict[str, str]:
+    entity = (
+        "spec_version: 1\n"
+        "entities:\n"
+        "  probe:\n"
+        "    grain: one row per probe\n"
+        "    key: [probe_id]\n"
+        "    fields:\n"
+        "      probe_id: {type: string}\n"
+        f'      value: {{type: "{_terminal_type(chain)}"}}\n'
+    )
+    mapping = (
+        "mapping_version: 1\n"
+        "source: raw__probe\n"
+        "target: probe\n"
+        "key:\n"
+        '  probe_id: {from: "$.id", transform: [to_string]}\n'
+        "fields:\n"
+        f'  value: {{from: "$.value", transform: [{_render_chain(chain)}]}}\n'
+    )
+    return {"entity_model": entity, "mapping": mapping}
+
+
+@functools.lru_cache(maxsize=None)
+def _chain_compiled(chain: tuple[Step, ...]) -> tuple[str, str]:
+    """``(silver select, the CREATE TABLE for bronze.raw__probe)``."""
+    project = load_project(_chain_sources(chain))
+    artifacts = compile_project(
+        project, target=Target.SQLMESH, dialect=ENGINE, catalog=None, steps=None
+    )
+    silver = next(a for a in artifacts if a.path.endswith("silver/probe.sql"))
+    select = silver.content.split(");", 1)[1].strip()
+    table = "CREATE TABLE bronze.raw__probe (id VARCHAR, value VARCHAR)"
+    return select, table
+
+
+def _run_chain(
+    connection: psycopg.Connection, chain: tuple[Step, ...], source: str | None
+) -> Any:
+    select, table = _chain_compiled(chain)
+    for statement in (*_RESET, table):
+        connection.execute(statement)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO bronze.raw__probe VALUES (%s, %s)", ["probe", source]
+        )
+        try:
+            cursor.execute(select)
+            row = cursor.fetchone()
+        except psycopg.Error:
+            return _RAISED
+        assert row is not None
+        names = [column.name for column in cursor.description or ()]
+        return row[names.index("value")]
+
+
+_RECIPE_CATALOG = """
+catalog_version: 1
+vertical: probe
+canonical_fields:
+  num: {entity: probe, type: int, recipes: [{id: direct, requires: [num]}]}
+  den: {entity: probe, type: int, recipes: [{id: direct, requires: [den]}]}
+  quotient:
+    entity: probe
+    type: decimal(12,4)
+    recipes:
+      - {id: divide_ints, requires: [num, den], expr: "num / den"}
+"""
+
+_RECIPE_SOURCES = {
+    "entity_model": (
+        "spec_version: 1\n"
+        "entities:\n"
+        "  probe:\n"
+        "    grain: one row per probe\n"
+        "    key: [probe_id]\n"
+        "    fields:\n"
+        "      probe_id: {type: string}\n"
+        "      num: {type: int, canonical: num}\n"
+        "      den: {type: int, canonical: den}\n"
+        '      quotient: {type: "decimal(12,4)", canonical: quotient}\n'
+    ),
+    "mapping": (
+        "mapping_version: 1\n"
+        "source: raw__probe\n"
+        "target: probe\n"
+        "key:\n"
+        '  probe_id: {from: "$.id", transform: [to_string]}\n'
+        "fields:\n"
+        '  num: {from: "$.num", transform: [to_int]}\n'
+        '  den: {from: "$.den", transform: [to_int]}\n'
+        "  quotient:\n"
+        "    recipe: divide_ints\n"
+        '    from: {num: "$.num", den: "$.den"}\n'
+    ),
+}
+
+
+@functools.lru_cache(maxsize=None)
+def _recipe_compiled() -> tuple[str, str]:
+    project = load_project(_RECIPE_SOURCES)
+    artifacts = compile_project(
+        project,
+        target=Target.SQLMESH,
+        dialect=ENGINE,
+        catalog=load_catalog(_RECIPE_CATALOG),
+        steps=None,
+    )
+    silver = next(a for a in artifacts if a.path.endswith("silver/probe.sql"))
+    select = silver.content.split(");", 1)[1].strip()
+    table = "CREATE TABLE bronze.raw__probe (id VARCHAR, num VARCHAR, den VARCHAR)"
+    return select, table
+
+
+def _run_recipe(connection: psycopg.Connection, pair: tuple[int, int]) -> Any:
+    dividend, divisor = pair
+    select, table = _recipe_compiled()
+    for statement in (*_RESET, table):
+        connection.execute(statement)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO bronze.raw__probe VALUES (%s, %s, %s)",
+            ["probe", str(dividend), str(divisor)],
+        )
+        try:
+            cursor.execute(select)
+            row = cursor.fetchone()
+        except psycopg.Error:
+            return _RAISED
+        assert row is not None
+        names = [column.name for column in cursor.description or ()]
+        return row[names.index("quotient")]
+
+
+_BUCKET_SOURCES = {
+    "entity_model": (
+        "spec_version: 1\n"
+        "entities:\n"
+        "  probe:\n"
+        "    grain: one row per probe\n"
+        "    key: [probe_id]\n"
+        "    fields:\n"
+        "      probe_id: {type: string}\n"
+        "      paid_at: {type: timestamp}\n"
+    ),
+    "mapping": (
+        "mapping_version: 1\n"
+        "source: raw__probe\n"
+        "target: probe\n"
+        "key:\n"
+        '  probe_id: {from: "$.id", transform: [to_string]}\n'
+        "fields:\n"
+        "  paid_at:\n"
+        '    from: "$.paid_at"\n'
+        "    transform: [{parse_ts: ISO8601}]\n"
+        "    zone_in: UTC\n"
+    ),
+    "marts": (
+        "marts_version: 1\n"
+        "marts:\n"
+        "  probes:\n"
+        "    grain: probe\n"
+        "    base: probe\n"
+        "    flatten:\n"
+        "      - {date: paid_at, role: paid}\n"
+    ),
+}
+
+
+@functools.lru_cache(maxsize=None)
+def _bucket_artifacts() -> tuple[Any, ...]:
+    project = load_project(_BUCKET_SOURCES)
+    return compile_project(
+        project, target=Target.SQLMESH, dialect=ENGINE, catalog=None, steps=None
+    )
+
+
+#: Bronze, silver and gold — the mart case needs the third schema.
+_RESET_ALL = (*_RESET, "DROP SCHEMA IF EXISTS gold CASCADE", "CREATE SCHEMA gold")
+
+
+def _materialize(
+    connection: psycopg.Connection, artifacts: tuple[Any, ...]
+) -> None:
+    """CREATE TABLE <namespace>.<relation> AS <the artifact's SELECT> — silver
+    before gold, because mart SELECTs read the silver relations."""
+    models = sorted(
+        (a for a in artifacts if a.kind is ArtifactKind.MODEL),
+        key=lambda a: (PurePosixPath(a.path).parent.name != "silver",),
+    )
+    for artifact in models:
+        path = PurePosixPath(artifact.path)
+        connection.execute(
+            f'CREATE TABLE {path.parent.name}."{path.stem}" AS '
+            f"{extract_select(artifact.content)}"
+        )
+
+
+def _run_buckets(connection: psycopg.Connection, instant: datetime) -> dict[str, date]:
+    for statement in _RESET_ALL:
+        connection.execute(statement)
+    connection.execute("CREATE TABLE bronze.raw__probe (id VARCHAR, paid_at VARCHAR)")
+    connection.execute(
+        "INSERT INTO bronze.raw__probe VALUES (%s, %s)", ["probe", instant.isoformat()]
+    )
+    _materialize(connection, _bucket_artifacts())
+    columns = ", ".join(f"paid_{unit}" for unit in BUCKET_UNITS)
+    row = connection.execute(f"SELECT {columns} FROM gold.mart_probes").fetchone()
+    assert row is not None
+    return dict(zip(BUCKET_UNITS, row, strict=True))
+
+
+def _assert_exact(name: str, source: Any, produced: Any, expected: Any) -> None:
+    """The chain/recipe comparison: exact, printing both answers on a
+    disagreement (S-0092/D-4)."""
+    if expected is OVERFLOW:
+        if produced is _RAISED:
+            return
+        msg = (
+            f"{name} on {ENGINE} answered {produced!r} for input {source!r}, but "
+            "the reference says the value overflows its declared type and the "
+            "engine must raise (S-0092/D-1)"
+        )
+        raise AssertionError(msg)
+    if produced is _RAISED:
+        msg = (
+            f"{name} on {ENGINE} refused input {source!r}, but the reference says "
+            f"{expected!r} (S-0092/D-4)"
+        )
+        raise AssertionError(msg)
+    if produced != expected:
+        msg = (
+            f"{name} on {ENGINE} disagreed with the reference for input "
+            f"{source!r}: the engine answered {produced!r}, the reference says "
+            f"{expected!r} (S-0092/D-4)"
+        )
+        raise AssertionError(msg)
+
+
+@pytest.mark.parametrize("case", CHAIN_CASES, ids=lambda case: case.name)
+@given(data=st.data())
+@settings(
+    deadline=None,
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
+)
+def test_postgres_answers_every_chain_exactly_as_the_reference_does(
+    postgres: psycopg.Connection, case: ChainCase, data: Any
+) -> None:
+    source = data.draw(case.source)
+    expected = fold(case.chain, source)
+    produced = _run_chain(postgres, case.chain, source)
+    _assert_exact(case.name, source, produced, expected)
+
+
+@given(pair=RECIPE_OPERANDS)
+@settings(
+    deadline=None,
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
+)
+def test_postgres_recipe_dividing_two_integers_equals_the_widened_quotient(
+    postgres: psycopg.Connection, pair: tuple[int, int]
+) -> None:
+    expected = recipe_quotient(pair[0], pair[1], 12, 4)
+    produced = _run_recipe(postgres, pair)
+    _assert_exact("recipe_quotient", pair, produced, expected)
+
+
+@pytest.mark.parametrize(
+    "instant", BUCKET_INSTANTS, ids=lambda instant: instant.isoformat()
+)
+def test_postgres_time_buckets_match_the_reference(
+    postgres: psycopg.Connection, instant: datetime
+) -> None:
+    produced = _run_buckets(postgres, instant)
+    for unit in BUCKET_UNITS:
+        expected = bucket(unit, instant)
+        assert produced[unit] == expected, (
+            f"mart bucket paid_{unit} for {instant.isoformat()} on {ENGINE} landed "
+            f"on {produced[unit]!r}, the reference says {expected!r} (S-0092/D-6)"
+        )
