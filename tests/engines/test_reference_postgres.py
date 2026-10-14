@@ -47,6 +47,7 @@ from support.reference import (
     OVERFLOW,
     RECIPE_OPERANDS,
     ROLLUP_BRONZE_COLUMNS,
+    ROLLUP_FILTERED_VALUE,
     ROLLUP_METRICS,
     ROLLUP_RELATION,
     ROLLUP_SOURCES,
@@ -684,7 +685,8 @@ def _run_rollup(
     if rows:
         with connection.cursor() as cursor:
             cursor.executemany(
-                "INSERT INTO bronze.raw__probe VALUES (%s, %s, %s, %s)", rows
+                "INSERT INTO bronze.raw__probe VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                rows,
             )
     _materialize(connection, _rollup_artifacts())
     columns = ", ".join(_ROLLUP_METRICS)
@@ -737,9 +739,18 @@ def test_postgres_a_group_a_filter_removes_has_no_row(
     postgres: psycopg.Connection,
 ) -> None:
     """A group whose every row is filtered out before the mart has no row; the
-    reference states that absence, not a zero (S-0092/D-7)."""
+    reference states that absence, not a zero (S-0092/D-7).
+
+    The group's row **is** in bronze — the fixture's quarantine rule is what
+    removes it (S-0092/D-7). Asserted here so the absence is the filter acting
+    on a row that existed, not a row that was never seeded."""
     groups = {"A": [1, 2], "GONE": []}
+    seeded = rollup_bronze_rows(groups)
     produced = _run_rollup(postgres, groups)
 
+    assert any(
+        row[0] == "g1.r0" and row[1] == "GONE" and row[2] == str(ROLLUP_FILTERED_VALUE)
+        for row in seeded
+    )
     assert "GONE" not in produced
     assert produced == rollup(groups) == {"A": {"n": 2, "total": 3, "lo": 1, "hi": 2}}

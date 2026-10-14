@@ -8,9 +8,10 @@ no ``COALESCE`` anywhere. Three facts follow, and all three are held here to
 - a **retained group whose expression is NULL on every row** counts 0 and sums,
   minimises and maximises to NULL — ``COUNT(expr)`` skips NULL, it does not
   count the rows;
-- a **group a filter removed entirely** has no row at all: ``GROUP BY`` forms a
-  group only from the rows it is given, and the rollup adds no date spine to
-  resurrect one, so the reference states the absence rather than a zero;
+- a **group a filter removed entirely** has no row at all, though its bronze
+  row exists: the fixture's quarantine rule drops it before the mart, and the
+  rollup adds no date spine to resurrect one, so the reference states the
+  absence rather than a zero;
 - a group with rows is the ordinary aggregate over the non-NULL ones.
 
 The comparison is exact (:mod:`support.engine_differences` is consulted as
@@ -34,6 +35,7 @@ from bloomery import Target, compile_project, load_project
 from support.execution import materialize, warehouse
 from support.reference import (
     ROLLUP_BRONZE_COLUMNS,
+    ROLLUP_FILTERED_VALUE,
     ROLLUP_METRICS,
     ROLLUP_RELATION,
     ROLLUP_SOURCES,
@@ -88,7 +90,7 @@ def _run(groups: dict[str, list[int | None]]) -> dict[str, dict[str, int | None]
         rows = rollup_bronze_rows(groups)
         if rows:
             connection.executemany(
-                "INSERT INTO bronze.raw__probe VALUES (?, ?, ?, ?)", rows
+                "INSERT INTO bronze.raw__probe VALUES (?, ?, ?, ?, ?, ?, ?)", rows
             )
         materialize(connection, _artifacts())
         columns = ", ".join(_METRICS)
@@ -151,10 +153,20 @@ def test_an_all_null_group_counts_zero_and_sums_to_null() -> None:
 
 def test_a_group_a_filter_removes_has_no_row() -> None:
     """A group whose every row is filtered out before the mart has no row on
-    either engine; the reference states that absence, not a zero."""
+    either engine; the reference states that absence, not a zero.
+
+    The group's row **is** in bronze — the fixture's quarantine rule is what
+    removes it (S-0092/D-7). Asserted here so the absence is the filter acting
+    on a row that existed, not a row that was never seeded: drop the rule and
+    the row would reach the rollup."""
     groups = {"A": [1, 2], "GONE": []}
+    seeded = rollup_bronze_rows(groups)
     produced = _run(groups)
 
+    assert any(
+        row[0] == "g1.r0" and row[1] == "GONE" and row[2] == str(ROLLUP_FILTERED_VALUE)
+        for row in seeded
+    )
     assert "GONE" not in produced
     assert produced == rollup(groups) == {"A": {"n": 2, "total": 3, "lo": 1, "hi": 2}}
 

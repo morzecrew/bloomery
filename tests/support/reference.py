@@ -68,6 +68,7 @@ __all__ = [
     "RECIPE_OPERANDS",
     "ROLLUP_ANCHOR",
     "ROLLUP_BRONZE_COLUMNS",
+    "ROLLUP_FILTERED_VALUE",
     "ROLLUP_METRICS",
     "ROLLUP_RELATION",
     "ROLLUP_SOURCES",
@@ -1024,13 +1025,31 @@ ROLLUP_METRICS: dict[str, str] = {
 #: The gold relation the rollup becomes.
 ROLLUP_RELATION = "mart_probes_by_grp"
 
-#: The bronze columns the rollup fixture seeds.
-ROLLUP_BRONZE_COLUMNS = "id VARCHAR, grp VARCHAR, value VARCHAR, paid_at VARCHAR"
+#: The bronze columns the rollup fixture seeds: the mapped payload plus the
+#: ingestion-metadata contract every quarantining entity's source owes
+#: (S-0033/D-21), which is what lets the fixture's filter act on a real row.
+ROLLUP_BRONZE_COLUMNS = (
+    "id VARCHAR, grp VARCHAR, amount VARCHAR, paid_at VARCHAR, "
+    "_ingested_at VARCHAR, _load_id VARCHAR, _source_row_id VARCHAR"
+)
+
+#: The `_ingested_at` every seeded row carries, and the `_load_id`; the
+#: `_source_row_id` is the row's own id, so no two rows tie.
+ROLLUP_INGESTED_AT = "2024-01-02 03:04:05"
+ROLLUP_LOAD_ID = "l0"
 
 #: The instant the date role buckets; the rollup keeps ``grp`` alone, so this
 #: only satisfies the mart's requirement that a measure-carrying mart declare a
 #: date role (S-0027/D-9) and is never asserted on.
 ROLLUP_ANCHOR = "2024-01-02T03:04:05"
+
+#: The value a bronze row carries to be **removed by the fixture's filter**.
+#: The ``probe`` entity quarantines a row whose ``value`` is this marker, so a
+#: group the filter removes entirely is built from bronze rows that exist and
+#: are then dropped, not from rows that were never seeded (S-0092/D-7). It sits
+#: outside the range :data:`_ROLLUP_CASES` draws from, so a generated case never
+#: carries it by accident.
+ROLLUP_FILTERED_VALUE = 1_000_000_000
 
 
 def _aggregate_over(values: Sequence[int | None]) -> dict[str, int | None]:
@@ -1074,7 +1093,9 @@ def rollup(
 #: The one-entity project the rollup differential compiles, shared by both
 #: engine halves so their fixtures cannot drift. A group column, the metric
 #: expression's value, and the date role a measure-carrying mart requires
-#: (S-0027/D-9).
+#: (S-0027/D-9). The quarantine rule is the fixture's **filter**: it drops a row
+#: whose ``value`` is :data:`ROLLUP_FILTERED_VALUE`, so a group the filter
+#: removes has rows in bronze that silver then discards (S-0092/D-7).
 ROLLUP_SOURCES: dict[str, str] = {
     "entity_model": (
         "spec_version: 1\n"
@@ -1082,6 +1103,10 @@ ROLLUP_SOURCES: dict[str, str] = {
         "  probe:\n"
         "    grain: one row per probe\n"
         "    key: [probe_id]\n"
+        "    quarantine: {retention: 90d}\n"
+        "    quality:\n"
+        f"      - {{rule: expression, name: value_not_filtered,"
+        f" expr: \"value <> {ROLLUP_FILTERED_VALUE}\", on_fail: quarantine}}\n"
         "    fields:\n"
         "      probe_id: {type: string, required: true}\n"
         "      grp: {type: string}\n"
@@ -1096,11 +1121,16 @@ ROLLUP_SOURCES: dict[str, str] = {
         '  probe_id: {from: "$.id", transform: [to_string]}\n'
         "fields:\n"
         '  grp: {from: "$.grp", transform: [to_string]}\n'
-        '  value: {from: "$.value", transform: [to_int]}\n'
+        # The bronze column is ``amount``, not ``value``: the reject table's raw
+        # payload is a ``JSON_OBJECT`` over the bronze columns, and a column
+        # literally named ``value`` is not parseable by the test harness's
+        # dialect reader. It maps to the entity's ``value`` field regardless.
+        '  value: {from: "$.amount", transform: [to_int]}\n'
         "  paid_at:\n"
         '    from: "$.paid_at"\n'
         "    transform: [{parse_ts: ISO8601}]\n"
         "    zone_in: UTC\n"
+        'unmapped: ["$._ingested_at", "$._load_id", "$._source_row_id"]\n'
     ),
     "metrics": (
         "metrics_version: 1\n"
@@ -1130,15 +1160,30 @@ ROLLUP_SOURCES: dict[str, str] = {
 
 def rollup_bronze_rows(
     groups: Mapping[str, Sequence[int | None]],
-) -> tuple[tuple[str, str, str | None, str], ...]:
-    """The bronze rows a group map seeds: one per value, ``None`` as SQL NULL.
+) -> tuple[tuple[str, str, str | None, str, str, str, str], ...]:
+    """The bronze rows a group map seeds: one per value, ``None`` as SQL NULL,
+    each carrying the ingestion-metadata contract.
+
+    A group whose value list is **empty** seeds one row carrying
+    :data:`ROLLUP_FILTERED_VALUE`, which the fixture's quarantine rule removes
+    (S-0092/D-7). The removed group therefore has a bronze row that the filter
+    drops, rather than no row at all: its absence in the rollup is the filter
+    acting, not a row that was never there.
 
     The ids are derived from the group's position and the value's, so the same
     map seeds the same rows on either engine and a disagreement cannot come
     from the fixture rather than the rollup.
     """
     return tuple(
-        (f"g{g}.r{r}", key, None if value is None else str(value), ROLLUP_ANCHOR)
+        (
+            f"g{g}.r{r}",
+            key,
+            None if value is None else str(value),
+            ROLLUP_ANCHOR,
+            ROLLUP_INGESTED_AT,
+            ROLLUP_LOAD_ID,
+            f"g{g}.r{r}",
+        )
         for g, (key, values) in enumerate(groups.items())
-        for r, value in enumerate(values)
+        for r, value in enumerate(values or (ROLLUP_FILTERED_VALUE,))
     )
