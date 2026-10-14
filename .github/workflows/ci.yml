@@ -37,6 +37,14 @@ on:
 permissions:
   contents: read
 
+# Hypothesis profiles (S-0092/D-5). The `ci` profile draws fewer examples,
+# derandomises them and turns `print_blob` on, so a property failure on a pull
+# request carries the blob that reproduces it locally. Workflow-wide because
+# every job that could run a property or engine test needs it; the Docker
+# engine matrix widens to `nightly` on the scheduled lane, below.
+env:
+  HYPOTHESIS_PROFILE: ci
+
 jobs:
   changes:
     name: Detect relevant changes
@@ -761,6 +769,10 @@ jobs:
       # credentials themselves stay bound to the single step that needs them,
       # rather than sitting in the environment of every step after it.
       DOCKERHUB_CONFIGURED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+      # The one job that widens on the nightly schedule (S-0092/D-5): the
+      # Docker tiers run once a day and can afford to search wider than a pull
+      # request. Every other job keeps the workflow's `ci`.
+      HYPOTHESIS_PROFILE: ${{ github.event_name == 'schedule' && 'nightly' || 'ci' }}
 
     steps:
       - name: Harden the runner (Audit all outbound calls)

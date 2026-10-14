@@ -63,6 +63,17 @@ just coverage                      # tiers 1–4 with the coverage floors enforc
   every tier-4 module uses it rather than rolling its own; `support/dirty.py` owns the
   dirty corpus's mandated read flags and the disposition lookup that reads **both**
   sides of the quarantine split.
-- `tests/conftest.py` exists for one thing: the chaos harness's mutation hook.
+- `tests/conftest.py` carries the session-wide hooks that cannot live in a test: the
+  chaos harness's mutation hook, the refusal census (`--refusal-census`), and the
+  Hypothesis profiles `HYPOTHESIS_PROFILE` chooses between — `dev` (default), `ci`
+  (fewer examples, derandomized, `print_blob` on) and `nightly` (wider). CI sets `ci`,
+  except the Docker engine matrix on the nightly schedule, which sets `nightly`
+  (S-0092/D-5).
+- `support/reference.py` states every built-in transform's value semantics in Python, a
+  second independent statement of what the compiler's builders emit (S-0092/D-1), and
+  `support/engine_differences.py` lists the engine differences the differential is
+  allowed to see — each with the decision row or `path:line` that makes it legitimate
+  (S-0092/D-3). `property/test_reference_transforms.py` holds DuckDB to the reference on
+  an unlisted input, and `engines/test_reference_postgres.py` does the same on PostgreSQL 16.
 
 This table will be extended as the tiers land with their milestones (S-0026/phasing).
