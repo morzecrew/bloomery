@@ -74,6 +74,7 @@ just coverage                      # tiers 1–4 with the coverage floors enforc
   `support/engine_differences.py` lists the engine differences the differential is
   allowed to see — each with the decision row or `path:line` that makes it legitimate
   (S-0092/D-3). `property/test_reference_transforms.py` holds DuckDB to the reference on
-  an unlisted input, and `engines/test_reference_postgres.py` does the same on PostgreSQL 16.
+  unlisted inputs. The PostgreSQL 16 half (S-0092/D-2) is `engines/test_reference_postgres.py`
+  over a session-scoped container from `support/postgres.py`; neither file has landed yet.
 
 This table will be extended as the tiers land with their milestones (S-0026/phasing).

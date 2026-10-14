@@ -36,7 +36,7 @@ from bloomery.spec.mapping import TransformStep
 from bloomery.transforms import DEFAULT_REGISTRY
 from bloomery.typing import StringType, render_type
 from support.engine_differences import DIFERENCES, Difference, difference_for
-from support.reference import CASES, OVERFLOW, SEMANTICS, Case, Step
+from support.reference import CASES, JSON_NULL, OVERFLOW, SEMANTICS, Case, Step
 
 pytestmark = pytest.mark.property
 
@@ -177,9 +177,15 @@ def _zoneless_utc(value: Any) -> Any:
 
 
 def _engine_value(case: Case, produced: Any) -> Any:
-    """The engine's raw value in the reference's vocabulary."""
+    """The engine's raw value in the reference's vocabulary.
+
+    A JSON ``null`` comes back as the JSON text ``'null'`` and a missing path as
+    SQL NULL; the first is :data:`JSON_NULL`, the second stays ``None``, so a
+    compiler that swapped them would fail (S-0092/D-1).
+    """
     if case.transform == "json_path" and isinstance(produced, str):
-        return json.loads(produced)
+        parsed = json.loads(produced)
+        return JSON_NULL if parsed is None else parsed
     return _zoneless_utc(produced)
 
 

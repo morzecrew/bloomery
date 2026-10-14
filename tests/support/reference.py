@@ -48,6 +48,7 @@ __all__ = [
     "CASES",
     "CONVERT_ANCHOR",
     "FX_RATES",
+    "JSON_NULL",
     "OVERFLOW",
     "Case",
     "Fixture",
@@ -314,6 +315,30 @@ def nullif(value: Any, sentinel: Any) -> Any:
     return None if value == sentinel else value
 
 
+class _JsonNull:
+    """JSON ``null`` at the requested path, which is a value and not an absence.
+
+    A document's ``null`` and a path the document does not have would both
+    arrive as Python ``None``, and a compiler that swapped one for the other
+    would pass the differential (S-0092/D-1). ``JSON_NULL`` gives the document's
+    ``null`` its own value, compared structurally: equal to itself alone.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "JSON_NULL"
+
+    def __eq__(self, other: object) -> bool:
+        return other is self
+
+    def __hash__(self) -> int:
+        return hash("JSON_NULL")
+
+
+#: The document's ``null`` at the requested path (S-0092/D-1).
+JSON_NULL = _JsonNull()
+
 #: One JSONPath step: a ``.key`` or an ``[index]``.
 _JSON_STEP = re.compile(r"\.([A-Za-z_][A-Za-z0-9_]*)|\[([0-9]+)\]")
 
@@ -332,11 +357,14 @@ def _walk_json(document: Any, path: str) -> Any:
             if not isinstance(current, list) or int(index) >= len(current):
                 return None
             current = current[int(index)]
-    return current
+    return JSON_NULL if current is None else current
 
 
 def json_path(value: str | None, path: str) -> Any:
-    """Extract ``path`` from a JSON document; a missing path is NULL."""
+    """Extract ``path`` from a JSON document.
+
+    A path the document does not have is NULL; a JSON ``null`` at the path is
+    :data:`JSON_NULL`, a value of its own (S-0092/D-1)."""
     if value is None:
         return None
     return _walk_json(json.loads(value), path)
@@ -636,13 +664,15 @@ _ISO_DATE = st.one_of(
 _BOOLEAN = st.one_of(st.none(), st.sampled_from(["true", "false", "1", "0", "t", "f"]))
 
 #: JSON documents a variant extraction can be asked for: an object, a nested
-#: object, an array, a scalar, and documents that lack the requested path.
+#: object, an array, a scalar, a document's ``null`` (distinct from a missing
+#: path, S-0092/D-1), and documents that lack the requested path.
 _JSON = st.one_of(
     st.none(),
     st.just('{"a": 1}'),
     st.just('{"a": {"b": 2}}'),
     st.just('{"a": [10, 20, 30]}'),
     st.just('{"a": "x"}'),
+    st.just('{"a": null}'),
     st.just('{"b": 3}'),
     st.just("[]"),
 )
