@@ -85,7 +85,6 @@ amendments:
           write issues.
       - subject: D-11
         field: text
-        before: null
         after: >-
           The batch runs weekly, on Mondays at 04:00 UTC and on dispatch, not nightly
           as the design first wrote.

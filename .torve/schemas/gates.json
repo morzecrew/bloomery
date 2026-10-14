@@ -120,9 +120,9 @@
       "title": "Gate",
       "type": "object"
     },
-    "Scope": {
+    "ManifestScope": {
       "additionalProperties": false,
-      "description": "allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty\nallow means unconstrained (S-0002/scope-in-detail).",
+      "description": "The manifest's scope (S-0104/D-5): the task scope's `allow`, `deny` and\n`contingent`, plus `derived` \u2014 the files that ride with a source, in both\ndirections. A lock file rides with its manifest, a golden with its\nproducer, a generated schema with its model; a derived path is allowed\nwherever its source is, and its source wherever a derived path is. The\ndefault is the lock-file table the scope gate used to hard-code\n(`DEFAULT_DERIVED`).",
       "properties": {
         "allow": {
           "description": "Globs of what the task may touch, gitwildmatch; empty means unconstrained.",
@@ -132,6 +132,14 @@
           "title": "Allow",
           "type": "array"
         },
+        "contingent": {
+          "description": "Literal paths the change is likely to reach beyond its phase \u2014 importers,\nimported first-party modules, paired tests, package `__init__` and the\ndocument's other phases' matches (S-0104/D-1). Derived at mint and refresh;\nnever counted for disjointness or sizing.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Contingent",
+          "type": "array"
+        },
         "deny": {
           "description": "Globs the task may not touch; deny wins over allow.",
           "items": {
@@ -139,9 +147,20 @@
           },
           "title": "Deny",
           "type": "array"
+        },
+        "derived": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": "Source path -> the files that ride with it; applied both directions.",
+          "title": "Derived",
+          "type": "object"
         }
       },
-      "title": "Scope",
+      "title": "ManifestScope",
       "type": "object"
     },
     "SecretsConfig": {
@@ -162,7 +181,16 @@
     },
     "TestsConfig": {
       "additionalProperties": false,
+      "description": "Which files count as tests, how a module pairs with them, and how they\nrun (S-0106/D-7).",
       "properties": {
+        "pair": {
+          "description": "Templates from a module to its tests over `{dir}` and `{stem}`\n(S-0106/D-7); the default is the Python pairing at any depth under\n`tests/`.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Pair",
+          "type": "array"
+        },
         "patterns": {
           "description": "The globs that say which files are tests, for the no-test-tampering gate.",
           "items": {
@@ -170,6 +198,12 @@
           },
           "title": "Patterns",
           "type": "array"
+        },
+        "run": {
+          "default": "python3 -m pytest -q -p no:cacheprovider",
+          "description": "The command a list of test files is appended to (S-0106/D-7) \u2014 what\nred-on-base runs a qualifying file with. Defaults to pytest over the paths.",
+          "title": "Run",
+          "type": "string"
         }
       },
       "title": "TestsConfig",
@@ -201,8 +235,8 @@
       "type": "integer"
     },
     "scope": {
-      "$ref": "#/$defs/Scope",
-      "description": "The repository-wide scope the scope gate judges a diff against when the run carries\nno task file of its own."
+      "$ref": "#/$defs/ManifestScope",
+      "description": "The repository-wide scope the scope gate judges a diff against when the run carries\nno task file of its own, with the `derived` map the gate reads."
     },
     "secrets": {
       "$ref": "#/$defs/SecretsConfig",
