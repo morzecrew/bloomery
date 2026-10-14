@@ -47,7 +47,7 @@ docs: 'A Fixed entry in the changelog naming #281.'
 out_of_scope: ''
 risks: |-
   - A SQLGlot release that fixes the conversion changes nothing here: the `ValueError` arm is unreachable for this input and the seed still passes.
-  - A `ValueError` SQLGlot raises for a reason not yet seen also becomes a refusal. That is the intent: the try holds only the parse, so nothing of bloomery's own can raise inside it.
+  - A `ValueError` SQLGlot raises for a reason not yet seen is handled as its own errors are: refused where they are refused, and passed on by `_within_sql_depth`, which leaves an unparseable text for a later stage to refuse. That is the intent: the try holds only the parse, so nothing of bloomery's own can raise inside it.
 alternatives:
   - option: Catch `Exception` around each parse.
     rejected_because: >-

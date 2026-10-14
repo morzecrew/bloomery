@@ -8,7 +8,7 @@ phasing:
       handlers; a Fixed entry in the changelog naming #281. Tests: a Tier 2 body `x->1e5`
       and a `sql_macro` body `x->>8e` are refused naming the step; an authored `expr:
       x->1e5` is refused at load with the "not parseable SQL" message; `_within_sql_depth`
-      passes it on. Settles D-1 and D-2.
+      passes it on. Settles D-1.
     scope:
       - src/bloomery/spec/common.py
       - src/bloomery/resolve/steps.py
