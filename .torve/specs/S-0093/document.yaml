@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0093
+title: >-
+  A number SQLGlot cannot convert is a parse failure
+kind: design
+change:
+  type: fix
+  scope: parse
+status: draft
+implementation: none
+depends_on: [S-0008, S-0088]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  SQLGlot raises a bare `ValueError`, not a `SqlglotError`, when a JSON arrow's path is a number it cannot turn into an integer: `x->1e5`, `x->>8e`. Every bloomery handler around a parse catches `SqlglotError` and `RecursionError`, so a registry step body or a `sql_macro` body carrying one crosses the compile boundary as a `ValueError` (#281), and an authored expression is refused at load with SQLGlot's internal text, `invalid literal for int() with base 10: '1e5'`, instead of bloomery's.
+
+  The handlers treat a `ValueError` raised by the parse as the parser's rejection, through one tuple defined beside `SqlText`, and the crash input joins the parse-door seeds.
+motivation: >-
+  Filed by the scheduled fuzz run of 2026-10-12 as #281 (run 38242527815, `parse_doors`
+  under `PYTHONHASHSEED=random`): door 3, a Tier 2 step body whose text holds `->8e`.
+  Reproduced on SQLGlot 30.8.0, the pin, and on 30.22.0, the newest: the JSON-arrow
+  path parser calls `int()` on the number token.
+current_state: >-
+  `resolve/steps.py::_parse_body` and both parses in `resolve/build.py::_macro_parts`
+  catch `(SqlglotError, RecursionError)`. `spec/common.py::_parses_as_sql` catches
+  the same pair around its two parses, and `_within_sql_depth` catches `RecursionError`
+  to refuse and `SqlglotError` to pass the text on. A registry body never passes `SqlText`
+  (S-0008/D-7), so at the three resolve sites the `ValueError` is uncaught; at load,
+  pydantic turns the escaped `ValueError` into a validation error whose text is SQLGlot's.
+goals: |-
+  - A step or macro body SQLGlot cannot parse is a refusal naming the step, whichever exception the parse raises.
+  - An authored expression that hits it is refused at load with bloomery's own "not parseable SQL" message.
+  - The fuzz lane replays the finding on every run.
+non_goals: |-
+  - Fixing SQLGlot. An upstream report is the owner's call.
+  - Catching every class SQLGlot's internals could raise; only the one a reproduction shows.
+tests: |-
+  - A Tier 2 registry body `x->1e5` is refused with a `StepError` naming the step (D-1).
+  - A `sql_macro` registry body `x->>8e` is refused naming the step (D-1).
+  - An authored `expr: x->1e5` is refused at load with the "not parseable SQL" message and without SQLGlot's `int()` text (D-1).
+  - `_within_sql_depth` passes `x->1e5` on rather than refusing it (D-1).
+  - The target replays `json-arrow-exponent` to a refusal and exits clean, through `atheris` as `just fuzz-repro` runs it (D-2).
+docs: 'A Fixed entry in the changelog naming #281.'
+out_of_scope: ''
+risks: |-
+  - A SQLGlot release that fixes the conversion changes nothing here: the `ValueError` arm is unreachable for this input and the seed still passes.
+  - A `ValueError` SQLGlot raises for a reason not yet seen is handled as its own errors are: refused where they are refused, and passed on by `_within_sql_depth`, which leaves an unparseable text for a later stage to refuse. That is the intent: the try holds only the parse, so nothing of bloomery's own can raise inside it.
+alternatives:
+  - option: Catch `Exception` around each parse.
+    rejected_because: >-
+      It would turn a `MemoryError`, or a SQLGlot regression on a body that used to
+      parse, into a refusal that blames the author. S-0008/D-7 widened the catch only
+      to the class a reproduction showed, and this does the same.
+  - option: >-
+      Validate registry bodies with `SqlText` when the registry is built.
+    rejected_because: >-
+      The registry is trusted input assembled in Python (S-0008/D-7), and `SqlText`
+      has the same gap, so it would move the crash rather than close it.
+  - option: >-
+      Hold SQLGlot below the release that introduced the conversion.
+    rejected_because: >-
+      No release tried converts the path safely: 30.8.0 and 30.22.0 both raise.
