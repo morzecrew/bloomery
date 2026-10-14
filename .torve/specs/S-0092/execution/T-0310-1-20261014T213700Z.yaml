@@ -1,0 +1,148 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0310
+base: d79abf2fcecadf94d440c358c68538f4ae6c0dfa
+commit: c3f5bdcf6760d5b79823f1f994d968adb5acd55b
+at: '2026-10-14T21:37:00Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: S-0004/D-1
+    grade: LOCKED
+  - id: S-0005/D-4
+    grade: ASSUMED
+  - id: S-0008/D-6
+    grade: ASSUMED
+  - id: S-0009/D-1
+    grade: LOCKED
+  - id: S-0009/D-2
+    grade: LOCKED
+  - id: S-0009/D-3
+    grade: ASSUMED
+  - id: S-0009/D-4
+    grade: ASSUMED
+  - id: S-0009/D-5
+    grade: ASSUMED
+  - id: S-0009/D-6
+    grade: OPEN
+  - id: S-0009/D-9
+    grade: ASSUMED
+  - id: S-0010/D-1
+    grade: LOCKED
+  - id: S-0010/D-3
+    grade: ASSUMED
+  - id: S-0010/D-5
+    grade: ASSUMED
+  - id: S-0010/D-6
+    grade: ASSUMED
+  - id: S-0012/D-1
+    grade: LOCKED
+  - id: S-0012/D-2
+    grade: LOCKED
+  - id: S-0012/D-3
+    grade: LOCKED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0012/D-5
+    grade: LOCKED
+  - id: S-0012/D-7
+    grade: ASSUMED
+  - id: S-0012/D-9
+    grade: ASSUMED
+  - id: S-0013/D-3
+    grade: ASSUMED
+  - id: S-0013/D-4
+    grade: ASSUMED
+  - id: S-0013/D-5
+    grade: OPEN
+  - id: S-0013/D-7
+    grade: ASSUMED
+  - id: S-0014/D-4
+    grade: ASSUMED
+  - id: S-0014/D-6
+    grade: ASSUMED
+  - id: S-0016/D-2
+    grade: LOCKED
+  - id: S-0016/D-3
+    grade: LOCKED
+  - id: S-0016/D-5
+    grade: LOCKED
+  - id: S-0016/D-6
+    grade: ASSUMED
+  - id: S-0016/D-10
+    grade: ASSUMED
+  - id: S-0018/D-13
+    grade: ASSUMED
+  - id: S-0026/D-9
+    grade: ASSUMED
+  - id: S-0026/D-27
+    grade: ASSUMED
+  - id: S-0042/D-2
+    grade: LOCKED
+  - id: S-0042/D-27
+    grade: ASSUMED
+  - id: S-0078/D-7
+    grade: LOCKED
+  - id: S-0078/D-9
+    grade: ASSUMED
+  - id: S-0081/D-4
+    grade: ASSUMED
+  - id: S-0091/D-4
+    grade: ASSUMED
+entries:
+  - decision: S-0012/D-1
+    grade: LOCKED
+    at: '2026-10-14T21:15:30Z'
+    claim: >-
+      The change to tests/support/engine_differences.py is test-support bookkeeping
+      only: no emulator, surrogate or shim is quoted as a dialect oracle, and the
+      real-engine differential is unchanged in substance.
+    evidence: >-
+      tests/support/engine_differences.py:55 — the split_part row's input predicate
+      now names a present input, still a D-3 register row, not an oracle substitution
+    action: decided
+  - decision: S-0012/D-3
+    grade: LOCKED
+    at: '2026-10-14T21:15:30Z'
+    claim: >-
+      The same file stays what D-3 says it is: the register of written engine differences,
+      each with a predicate over the input and a justification; no row was added or
+      removed.
+    evidence: >-
+      tests/support/engine_differences.py:71 — the regex_extract predicate narrowed
+      to a present input; the register's shape is untouched
+    action: decided
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-10-14T21:15:30Z'
+    claim: >-
+      The change is confined to test support; no engine driver, cloud SDK or Spark
+      session enters src/bloomery or the install path.
+    evidence: >-
+      tests/support/engine_differences.py:49 — the edit is inside the existing Difference
+      table, stdlib-only imports above it unchanged
+    action: decided
+  - decision: S-0010/D-1
+    grade: LOCKED
+    at: '2026-10-14T21:15:30Z'
+    claim: >-
+      The added teeth test for the narrowed predicate lands in the property tier under
+      tests/property/, as D-1 requires, and is not a fuzz target.
+    evidence: >-
+      tests/property/test_reference_transforms.py:323 — the new test sits beside the
+      existing the-table-has-teeth tests in the property module
+    action: decided
