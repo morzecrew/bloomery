@@ -1,0 +1,140 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0308
+base: d79abf2fcecadf94d440c358c68538f4ae6c0dfa
+commit: 0a45e6442f384f617a7d0295acd4c2c93120645f
+at: '2026-10-14T21:11:45Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: S-0004/D-1
+    grade: LOCKED
+  - id: S-0005/D-4
+    grade: ASSUMED
+  - id: S-0008/D-6
+    grade: ASSUMED
+  - id: S-0009/D-4
+    grade: ASSUMED
+  - id: S-0010/D-1
+    grade: LOCKED
+  - id: S-0010/D-3
+    grade: ASSUMED
+  - id: S-0010/D-5
+    grade: ASSUMED
+  - id: S-0010/D-6
+    grade: ASSUMED
+  - id: S-0012/D-1
+    grade: LOCKED
+  - id: S-0012/D-2
+    grade: LOCKED
+  - id: S-0012/D-3
+    grade: LOCKED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0012/D-5
+    grade: LOCKED
+  - id: S-0012/D-6
+    grade: ASSUMED
+  - id: S-0012/D-7
+    grade: ASSUMED
+  - id: S-0012/D-9
+    grade: ASSUMED
+  - id: S-0013/D-3
+    grade: ASSUMED
+  - id: S-0013/D-4
+    grade: ASSUMED
+  - id: S-0013/D-5
+    grade: OPEN
+  - id: S-0013/D-7
+    grade: ASSUMED
+  - id: S-0016/D-2
+    grade: LOCKED
+  - id: S-0016/D-3
+    grade: LOCKED
+  - id: S-0016/D-5
+    grade: LOCKED
+  - id: S-0016/D-10
+    grade: ASSUMED
+  - id: S-0018/D-13
+    grade: ASSUMED
+  - id: S-0026/D-27
+    grade: ASSUMED
+  - id: S-0042/D-27
+    grade: ASSUMED
+  - id: S-0078/D-7
+    grade: LOCKED
+  - id: S-0078/D-9
+    grade: ASSUMED
+  - id: S-0081/D-4
+    grade: ASSUMED
+  - id: S-0091/D-4
+    grade: ASSUMED
+entries:
+  - decision: S-0010/D-1
+    grade: LOCKED
+    at: '2026-10-14T20:59:14Z'
+    claim: >-
+      The change stays in the property tier: it edits the DuckDB rollup property in
+      tests/property/test_reference_rollups.py and its shared fixture in tests/support/reference.py,
+      and creates no fuzz target.
+    evidence: >-
+      tests/property/test_reference_rollups.py:46 — pytestmark = pytest.mark.property,
+      so the edited check is a Hypothesis property, never a fuzz target.
+    action: decided
+  - decision: S-0012/D-1
+    grade: LOCKED
+    at: '2026-10-14T20:59:14Z'
+    claim: >-
+      The touched tests/engines and tests/support files keep the real engine as the
+      oracle: the PostgreSQL half stays marked engine("postgres") over the session
+      container, and the changed support file is the shared reference fixture, not
+      an emulator or surrogate quoted as conformance.
+    evidence: >-
+      tests/engines/test_reference_postgres.py:64 — pytestmark = pytest.mark.engine("postgres"),
+      the authoritative rung; the fixture edit adds no surrogate.
+    action: decided
+  - decision: S-0012/D-2
+    grade: LOCKED
+    at: '2026-10-14T20:59:14Z'
+    claim: >-
+      No surrogate lane is added or selected: the edited engine test keeps engine("postgres")
+      and no surrogate marker is introduced.
+    evidence: >-
+      tests/engines/test_reference_postgres.py:64 — pytestmark = pytest.mark.engine("postgres");
+      no surrogate marker was added.
+    action: decided
+  - decision: S-0012/D-3
+    grade: LOCKED
+    at: '2026-10-14T20:59:14Z'
+    claim: >-
+      No port's authoritative compile rung is touched: the change edits a PostgreSQL
+      execution fixture and its reference, not any surrogate or compile-only lane.
+    evidence: >-
+      tests/engines/test_reference_postgres.py:738 — the edited test executes the
+      real PostgreSQL engine, not a compile-only surrogate rung.
+    action: decided
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-10-14T20:59:14Z'
+    claim: >-
+      The change adds no engine driver, cloud SDK or Spark session to src/bloomery:
+      it edits only tests/support/reference.py and the two rollup test halves, and
+      adds no dependency.
+    evidence: >-
+      tests/support/reference.py:1052 — ROLLUP_FILTERED_VALUE and the fixture edit
+      stay in the test-support layer; src/bloomery is untouched.
+    action: decided
