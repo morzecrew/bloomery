@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      Every handler that turns a SQLGlot parse into a refusal or a pass-on treats
+      a `ValueError` raised by the parse as SQLGlot's own rejection: `_parses_as_sql`
+      and `_within_sql_depth` in `spec/common.py`, `_parse_body` in `resolve/steps.py`
+      and both parses in `_macro_parts` in `resolve/build.py`. The classes are named
+      once, in `spec/common.py`, and each site keeps its `RecursionError` arm as it
+      stands.
+    paths:
+      - src/bloomery/spec/common.py
+      - src/bloomery/resolve/steps.py
+      - src/bloomery/resolve/build.py
+    consequence: >-
+      a body or expression SQLGlot cannot convert is refused like any other unparseable
+      text, at the step or field that carries it, and the next handler that parses
+      SQL takes the classes from one place
+    rationale: >-
+      SQLGlot's JSON-arrow path parser calls `int()` on a number token, so `x->1e5`
+      raises `ValueError` from inside `parse_one` on 30.8.0 and 30.22.0. Each try
+      holds only the parse, so the wider catch cannot swallow bloomery's own errors,
+      the argument S-0008/D-7 made for `RecursionError`.
+    cites: [S-0008/D-7]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The #281 crash input joins `fuzz/fuzz_parse_doors_seed_corpus/` as `json-arrow-exponent`,
+      byte for byte the 41 bytes whose base64 is `LS3/rb64ZW5v+//9ZWNvbV9yZXRhaWz/dOl0af////8xAQAAAAAAAP8=`,
+      and the target's docstring names it beside the `band-*` seeds.
+    paths: [fuzz/fuzz_parse_doors_seed_corpus/, fuzz/fuzz_parse_doors.py]
+    consequence: >-
+      every fuzz run replays the finding first, so a narrowed handler or a SQLGlot
+      change that moves the failure is caught at its door
+    rationale: >-
+      The `band-*` seeds are kept for the same reason: an input a fix refuses is what
+      catches the fix being undone (S-0088/D-3).
+    cites: [S-0088/D-3]
