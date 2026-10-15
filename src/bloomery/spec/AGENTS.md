@@ -841,7 +841,7 @@ A catalog recipe may declare `types:`, a mapping from names in its `requires` to
 - Paths: `src/bloomery/spec/catalog.py` `tests/golden/schema/catalog.json`
 - Consequence: a catalog author can say what each operand is, and a typo in `types:` is caught where it is written
 
-### S-0093/D-1 — `ASSUMED` (A number SQLGlot cannot convert is a parse failure) — implementation: none
+### S-0093/D-1 — `ASSUMED` (A number SQLGlot cannot convert is a parse failure)
 
 Every handler that turns a SQLGlot parse into a refusal or a pass-on treats a `ValueError` raised by the parse as SQLGlot's own rejection: `_parses_as_sql` and `_within_sql_depth` in `spec/common.py`, `_parse_body` in `resolve/steps.py` and both parses in `_macro_parts` in `resolve/build.py`. The classes are named once, in `spec/common.py`, and each site keeps its `RecursionError` arm as it stands.
 
