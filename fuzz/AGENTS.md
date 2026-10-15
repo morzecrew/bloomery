@@ -62,4 +62,11 @@ Neither `resolve/build.py` nor `quality/pattern.py` re-parses a composition of v
 - Paths: `src/bloomery/resolve/build.py` `src/bloomery/quality/pattern.py` `fuzz/fuzz_parse_doors.py`
 - Consequence: The parse-door target's composed shape has no site in these two files, and `_recipe_expr` belongs to its direct shape, where a recipe cleared at load can still meet the stack-position band
 
+### S-0093/D-2 — `ASSUMED` (A number SQLGlot cannot convert is a parse failure) — implementation: none
+
+The #281 crash input joins `fuzz/fuzz_parse_doors_seed_corpus/` as `json-arrow-exponent`, byte for byte the 41 bytes whose base64 is `LS3/rb64ZW5v+//9ZWNvbV9yZXRhaWz/dOl0af////8xAQAAAAAAAP8=`, and the target's docstring names it beside the `band-*` seeds.
+
+- Paths: `fuzz/fuzz_parse_doors.py`
+- Consequence: every fuzz run replays the finding first, so a narrowed handler or a SQLGlot change that moves the failure is caught at its door
+
 <!-- /torve:managed -->

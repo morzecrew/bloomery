@@ -697,6 +697,13 @@ A recipe whose `expr:` applies `+`, `-`, `*` or `/` to an operand typed neither 
 - Paths: `src/bloomery/resolve/recipes.py` `src/bloomery/errors.py`
 - Consequence: an untyped operand is a refusal that says what to write, never a model the engine rejects at run time
 
+### S-0093/D-1 — `ASSUMED` (A number SQLGlot cannot convert is a parse failure) — implementation: none
+
+Every handler that turns a SQLGlot parse into a refusal or a pass-on treats a `ValueError` raised by the parse as SQLGlot's own rejection: `_parses_as_sql` and `_within_sql_depth` in `spec/common.py`, `_parse_body` in `resolve/steps.py` and both parses in `_macro_parts` in `resolve/build.py`. The classes are named once, in `spec/common.py`, and each site keeps its `RecursionError` arm as it stands.
+
+- Paths: `src/bloomery/spec/common.py` `src/bloomery/resolve/steps.py` `src/bloomery/resolve/build.py`
+- Consequence: a body or expression SQLGlot cannot convert is refused like any other unparseable text, at the step or field that carries it, and the next handler that parses SQL takes the classes from one place
+
 ## Invariants holding over `src/bloomery/resolve/`
 
 - **S-0079/I-1**: The IR version is declared once, on the dataclass, and every project's fingerprint is stable across processes and `PYTHONHASHSEED` values

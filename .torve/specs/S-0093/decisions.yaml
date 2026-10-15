@@ -29,7 +29,7 @@ decisions:
       The #281 crash input joins `fuzz/fuzz_parse_doors_seed_corpus/` as `json-arrow-exponent`,
       byte for byte the 41 bytes whose base64 is `LS3/rb64ZW5v+//9ZWNvbV9yZXRhaWz/dOl0af////8xAQAAAAAAAP8=`,
       and the target's docstring names it beside the `band-*` seeds.
-    paths: [fuzz/fuzz_parse_doors_seed_corpus/, fuzz/fuzz_parse_doors.py]
+    paths: [fuzz/fuzz_parse_doors.py]
     consequence: >-
       every fuzz run replays the finding first, so a narrowed handler or a SQLGlot
       change that moves the failure is caught at its door

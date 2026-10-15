@@ -6,7 +6,7 @@ kind: design
 change:
   type: fix
   scope: parse
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0008, S-0088]
 informed_by: []
@@ -37,6 +37,22 @@ goals: |-
 non_goals: |-
   - Fixing SQLGlot. An upstream report is the owner's call.
   - Catching every class SQLGlot's internals could raise; only the one a reproduction shows.
+design:
+  - key: the-classes
+    md: >-
+      `spec/common.py` names the classes once, `(SqlglotError, ValueError)`, beside
+      `SqlText`. `_parses_as_sql`, `_parse_body` and both parses in `_macro_parts`
+      catch them together with the `RecursionError` they already catch, so the refusal
+      each one raises is unchanged and only its reach grows. `_within_sql_depth` keeps
+      its two arms: `RecursionError` is refused as too deep, and the named classes
+      pass the text on for the stage that refuses it.
+  - key: the-seed
+    md: >-
+      The seed is the CI artifact's 41 bytes, written from the base64 in D-2. It decodes
+      to door 3, a Tier 2 step body holding `->8e`, so it reaches `_parse_body` and
+      no other handler. Phase 2 scopes the seed file by name; the managed `AGENTS.md`
+      the projection writes beside it is one more input to the fuzzer, which reads
+      every file in the directory, and is harmless as one.
 tests: |-
   - A Tier 2 registry body `x->1e5` is refused with a `StepError` naming the step (D-1).
   - A `sql_macro` registry body `x->>8e` is refused naming the step (D-1).
