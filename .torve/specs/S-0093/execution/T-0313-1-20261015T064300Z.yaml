@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0313
+phase: 2
+base: 2f515cba3d68802fd86f69fc6b471172bf10efbd
+commit: 5ef65fb80f93af00b854484f9a35a8d359511597
+at: '2026-10-15T06:43:00Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-10-15T06:39:25Z'
+    claim: >-
+      The #281 crash input lands at fuzz/fuzz_parse_doors_seed_corpus/json-arrow-exponent
+      as exactly the 41 bytes D-2 gives, and the target's docstring names it beside
+      the band-* seeds with its just fuzz-repro line. Built as specified; no departure.
+    evidence: >-
+      fuzz/fuzz_parse_doors.py:36-44 — the docstring paragraph naming json-arrow-exponent
+      beside the band-* seeds, with the replay command; the seed file is 41 bytes
+      matching the D-2 base64
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-15T06:39:58Z'
+    claim: >-
+      pages/docs/contributing/fuzzing.md tells the reader fuzz_parse_doors.py carries
+      two known defects, one per band-* seed. D-2 adds a third seed to that target's
+      docstring, so the sentence is stale, and pages/docs/ is in neither this task's
+      allow nor its contingent list, so the change cannot correct it.
+    evidence: >-
+      pages/docs/contributing/fuzzing.md:141 — 'carries two', counting the two band-*
+      seeds as the target's known defects
+    action: decided
+    proposal: >-
+      Reword the page to stop counting the seeds ('names its known defects below')
+      or scope pages/docs/contributing/fuzzing.md into a follow-up so it can say three.
