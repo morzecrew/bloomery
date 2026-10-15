@@ -449,6 +449,18 @@ def test_a_macro_body_too_deep_to_parse_is_refused_rather_than_crashing() -> Non
         build(CALL, registry(body=deep))
 
 
+def test_a_macro_body_sqlglot_cannot_convert_is_a_step_error() -> None:
+    """A JSON arrow whose path is a number SQLGlot cannot turn into an integer
+    makes its parser raise a bare `ValueError`, not a `SqlglotError`, so a body
+    carrying one crossed the compile boundary as a raw exception (#281). It is
+    one of the classes the parse layer names, so the refusal is the usual
+    `StepError` naming the step.
+    """
+    with pytest.raises(StepError, match="does not parse as SQL") as excinfo:
+        build(CALL, registry(body="x->>8e"))
+    assert "extract_domain@1" in str(excinfo.value)
+
+
 def test_a_multi_statement_macro_body_is_refused() -> None:
     """The body is spliced, not executed, so a trailing statement lands inside
     the cast the column is wrapped in — `CAST(SPLIT_PART(email, '@', 2); DROP

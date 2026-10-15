@@ -62,6 +62,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A SQL expression SQLGlot cannot convert is refused as an unparseable one.** SQLGlot's
+  JSON-arrow path parser calls `int()` on a number token, so a text such as `x->1e5` or
+  `x->>8e` makes `parse_one` raise a bare `ValueError` rather than a `SqlglotError`. Every
+  handler around a parse caught the latter (and `RecursionError`), so a step body or a
+  `sql_macro` body carrying one crossed the compile boundary as a raw `ValueError`
+  (#281), and an authored `expr:` was refused at load with SQLGlot's own text instead of
+  bloomery's. The classes are now named once, `(SqlglotError, ValueError)`, in
+  `spec/common.py`, and caught at each of the five parse doors, so such a text is a
+  `StepError` naming the step or a `SpecParseError` naming the field, as any other
+  unparseable text is. `DepthCappedSql` still passes it on for the later stage that owns
+  that field's refusals.
+
 - **A definition's timeline shows an exact division as a division.** Its changes printed
   the internal `BLM_EXACT_DIV(...)` marker wherever a `divide` transform or a catalog
   recipe's `/` moved a body. They now print the division it renders as:

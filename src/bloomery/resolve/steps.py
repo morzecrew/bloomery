@@ -28,7 +28,6 @@ from typing import TYPE_CHECKING, cast
 
 import sqlglot
 from sqlglot import exp
-from sqlglot.errors import SqlglotError
 
 from bloomery.errors import BloomeryError, StepDeterminismError, StepError, UnknownStep
 from bloomery.ir import (
@@ -50,7 +49,12 @@ from bloomery.ir import (
     canon,
     step_sort_key,
 )
-from bloomery.spec.common import MAX_SQL_DEPTH, RESERVED_MEMBER_REASONS, sql_depth
+from bloomery.spec.common import (
+    MAX_SQL_DEPTH,
+    RESERVED_MEMBER_REASONS,
+    SQLGLOT_PARSE_FAILURES,
+    sql_depth,
+)
 from bloomery.steps import EMPTY_REGISTRY
 from bloomery.typing import parse_type
 
@@ -818,7 +822,7 @@ def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[Bloo
     # body does not parse — so the catch widens instead (S-0008/D-7). Safe: the
     # frames have unwound by the time the handler runs, and the only call
     # inside the `try` is the parse itself.
-    except (SqlglotError, RecursionError) as exc:
+    except SQLGLOT_PARSE_FAILURES as exc:
         msg = (
             f"step {wiring.use!r} has a body that does not parse as SQL: {exc}. Bloomery "
             "parses Tier 1 and Tier 2 bodies at compile (S-0034/emission-and-the-dag), so this is a "

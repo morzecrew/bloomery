@@ -662,6 +662,18 @@ def test_a_body_too_deep_to_parse_is_a_step_error_not_a_recursion_error() -> Non
         build(sql_body=body, kind="sql_model", entrypoint=None)
 
 
+def test_a_body_sqlglot_cannot_convert_is_a_step_error_not_a_value_error() -> None:
+    """SQLGlot's JSON-arrow path parser calls `int()` on a number token it
+    cannot turn into an integer, so `x->1e5` raises a bare `ValueError` from
+    inside `parse_one` — a class no handler caught, so the body crossed the
+    compile boundary as one (#281). It is one of the classes the parse layer
+    names, so the refusal is the same `StepError` an unparseable body gets.
+    """
+    with pytest.raises(StepError, match="does not parse as SQL") as excinfo:
+        build(sql_body="x->1e5", kind="sql_model", entrypoint=None)
+    assert "resolve_customers@3" in str(excinfo.value)
+
+
 def _with_produced(column: str) -> dict[str, object]:
     return {
         "customer": {

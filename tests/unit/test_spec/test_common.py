@@ -200,3 +200,18 @@ def test_a_quality_expression_past_the_depth_cap_is_refused_at_load() -> None:
     deep = "(" * 40 + "amount > 0" + ")" * 40
     with pytest.raises(SpecParseError, match="levels deep"):
         load_project({"entity_model": entity_model(deep)})
+
+
+def test_a_quality_expression_the_parser_cannot_convert_is_passed_on() -> None:
+    """`DepthCappedSql` judges only depth, so a text the parser rejects is left
+    for the quality guardrail, which owns this rule's other refusals — the bare
+    `ValueError` SQLGlot's JSON-arrow path parser raises included (#281). It
+    reaches load as authored text, not as a refusal here."""
+    from bloomery import load_project  # noqa: PLC0415
+
+    document = (
+        "spec_version: 1\nentities:\n  e:\n    grain: one e\n    key: [id]\n"
+        "    fields:\n      id: {type: string}\n      amount: {type: int}\n"
+        '    quality:\n      - {rule: expression, name: positive, expr: "x->1e5", on_fail: flag}\n'
+    )
+    assert load_project({"entity_model": document})
