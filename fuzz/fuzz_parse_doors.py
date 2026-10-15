@@ -32,6 +32,16 @@ refused at load, by `SqlText` in `src/bloomery/spec/common.py`, and the second
 at compile, by `_parse_body` in `src/bloomery/resolve/steps.py`, so neither
 reaches a re-parse site at all. They are kept because a cap raised back into that window is
 what they would catch.
+
+`json-arrow-exponent` is the #281 crash input (S-0093/D-2), kept beside them: a
+Tier 2 step body whose JSON arrow carries a number SQLGlot's path parser calls
+`int()` on, so it reaches `_parse_body` at door 3 and no other handler::
+
+    just fuzz-repro parse_doors fuzz/fuzz_parse_doors_seed_corpus/json-arrow-exponent
+
+It replays to a refusal — the parse raises `ValueError`, which every handler
+around a parse treats as the parser's rejection — and it is kept so a narrowed
+handler or a SQLGlot change that moves the failure is caught at its door.
 """
 
 from __future__ import annotations
