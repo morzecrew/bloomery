@@ -78,11 +78,10 @@ Output is libFuzzer's: `cov` is edges reached, `ft` features, `corp` the corpus 
 keeping. A run that ends on `Done` found nothing. A run that ends on a stack trace wrote
 the input that caused it to `fuzz/crashes/<target>-<hash>`.
 
-`parse_doors` currently has one **known open finding** — a `RecursionError` from
-`SqlExpr.ast` in `src/bloomery/ir/nodes.py`, reached through a step body at emit — so a
-run stops on it within a minute or so. Read a trace against the target's module docstring
-before treating it as new; that one is waiting on a follow-up task, and until it lands the
-pull-request check leaves `parse_doors` out (the weekly batch keeps fuzzing it).
+Every target runs in the pull-request check as well as the weekly batch. The seeds a
+target's module docstring names are inputs bloomery once crashed on and now refuses, kept
+so a change that undoes the fix is caught at the door it reaches; a crash on anything else
+is a new finding.
 
 ## Read a crash
 

@@ -317,12 +317,11 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-      # `parse_doors` is left out until its one known open finding is fixed
-      # (see the target's module docstring): a 60s run reaches it, so the leg
-      # would be red on every pull request from day one — the outcome
-      # S-0009/D-5 exists to avoid. The weekly job keeps fuzzing it.
+      # Every target rides the short run. `parse_doors` rejoined once a weekly
+      # batch ran green on the depth cap (S-0088/D-5, 2026-10-05) and the one
+      # finding a later batch filed, #281, was closed (S-0093).
       matrix:
-        target: [cli, load_project, metric_request, compile_determinism, cross_dialect]
+        target: [parse_doors, cli, load_project, metric_request, compile_determinism, cross_dialect]
 
     env:
       CORPUS: fuzz/corpus/${{ matrix.target }}
