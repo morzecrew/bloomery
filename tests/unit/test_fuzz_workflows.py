@@ -130,12 +130,7 @@ def test_every_target_rides_the_short_run(pr_job: dict) -> None:
     """A target written and never added here is one no pull request fuzzes."""
     from fuzz.seeds import targets
 
-    # `parse_doors` is left out while its known open finding stands (the
-    # target's module docstring): a 60s run reaches it, and a leg red on
-    # every pull request from day one is what S-0009/D-5 exists to avoid.
-    assert sorted(pr_job["strategy"]["matrix"]["target"]) == [
-        t for t in targets() if t != "parse_doors"
-    ]
+    assert sorted(pr_job["strategy"]["matrix"]["target"]) == sorted(targets())
     assert "seed" not in pr_job["strategy"]["matrix"], "one seed; D-6's matrix is weekly"
 
 
