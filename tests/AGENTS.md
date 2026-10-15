@@ -15,7 +15,7 @@ The docs floor checks **claims**, not links. A link checker would have passed th
 - Paths: `tests/conftest.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0092/D-5 — `ASSUMED` (Generated SQL agrees with a reference evaluator) — implementation: none
+### S-0092/D-5 — `ASSUMED` (Generated SQL agrees with a reference evaluator)
 
 `tests/conftest.py` registers Hypothesis profiles: `dev` (the default), `ci` (fewer examples, derandomized, `print_blob` on) and `nightly` (more examples), chosen by `HYPOTHESIS_PROFILE`. Every CI job that runs property or engine tests sets `ci`, except the engine job's nightly schedule, which sets `nightly`; the phases' acceptance commands set `ci` too.
 
