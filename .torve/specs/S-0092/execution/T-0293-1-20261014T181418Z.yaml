@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0293
+phase: 2
+base: 6cefefab0715e73fcce3a4677f908bf2f68bdd08
+commit: e370363c951ba76b1cf6579231d3eef73da7695c
+at: '2026-10-14T18:14:18Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: S-0012/D-1
+    grade: LOCKED
+    at: '2026-10-14T18:09:31Z'
+    claim: >-
+      The PostgreSQL half of the differential runs a real postgres:16-alpine container
+      via testcontainers and holds it to the reference value-for-value; no emulator,
+      surrogate or wire shim stands in for the oracle.
+    evidence: >-
+      tests/engines/test_reference_postgres.py:147 — _run executes each case's silver
+      SQL against the container the session fixture starts, and the module claims
+      no surrogate lane
+    action: decided
+  - decision: S-0012/D-2
+    grade: LOCKED
+    at: '2026-10-14T18:09:31Z'
+    claim: >-
+      The new differential is marked engine("postgres"), the real engine through Docker,
+      and is never spelled surrogate; the marker table is unchanged.
+    evidence: >-
+      tests/engines/test_reference_postgres.py:41 — pytestmark = pytest.mark.engine("postgres"),
+      not a surrogate marker
+    action: decided
+  - decision: S-0012/D-3
+    grade: LOCKED
+    at: '2026-10-14T18:09:31Z'
+    claim: >-
+      No cloud port's authoritative compile rung is changed; the new support module
+      starts a local container and renders no SQL, and the differential compiles locally
+      only.
+    evidence: >-
+      tests/support/postgres.py:3 — the module starts a local postgres:16-alpine container
+      and asks no cloud service anything
+    action: decided
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-10-14T18:09:31Z'
+    claim: >-
+      No engine driver, cloud SDK or Spark session enters src/bloomery; psycopg and
+      testcontainers are imported only by the test-support module, and pyproject.toml
+      is untouched.
+    evidence: >-
+      tests/support/postgres.py:21 — psycopg and testcontainers are imported by the
+      test-only support module
+    action: decided
+  - decision: D-3
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-14T18:09:36Z'
+    claim: >-
+      D-3 makes tests/support/engine_differences.py the one register of allowed differences,
+      but PostgreSQL's one difference — split_part answers '' where the portable reading
+      is NULL — cannot be written there: scope.allow names tests/support/postgres.py,
+      not engine_differences.py. The row is written beside the PostgreSQL container
+      and the differential consults both registers.
+    evidence: >-
+      .torve/tasks/T-0293/contract.yaml:22 — scope.allow names tests/support/postgres.py
+      and tests/engines/test_reference_postgres.py, not tests/support/engine_differences.py
+    action: departed
+    proposal: >-
+      Add the PostgreSQL split_part row (engine postgres, transform split_part, held_to
+      '' for a reference NULL) to tests/support/engine_differences.py, or add that
+      file to scope.allow, so a single register carries every engine's differences.

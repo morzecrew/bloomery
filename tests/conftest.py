@@ -1,7 +1,7 @@
 """Suite-wide pytest configuration.
 
-Two jobs, both of which have to run around the whole session rather than inside
-a test.
+Three jobs, all of which have to run around the whole session rather than
+inside a test.
 
 The first is the chaos meta-test's entry point (S-0033/tests-rfc-0009-amendment): when
 ``BLOOMERY_CHAOS_MUTATION`` names a mutation, the lowering is deformed *before
@@ -15,6 +15,13 @@ class that should be deleted or a page that should be — the gate does not care
 which, only that the two agree (D2). It lives here because the claim is about
 the *session*: no single test can observe it.
 
+The third is the **Hypothesis profiles** (S-0092/D-5): `dev` (the default),
+`ci` (fewer examples, derandomized, `print_blob` on) and `nightly` (more
+examples), chosen by `HYPOTHESIS_PROFILE`. They are registered at import
+because a profile must be loaded before any property test runs, and the choice
+is read from the environment here rather than inside a fixture each suite has
+to remember.
+
 The environment variable is read in the **test** process only; ``src/bloomery/``
 reads no environment at all (S-0020), and the determinism guard enforces that.
 """
@@ -25,9 +32,27 @@ import os
 from typing import TYPE_CHECKING
 
 import bloomery.errors as errors_module
+from hypothesis import settings
 
 if TYPE_CHECKING:
     import pytest
+
+#: The Hypothesis profiles `HYPOTHESIS_PROFILE` chooses between (S-0092/D-5).
+#:
+#: ``ci`` is derandomized and prints the reproducing blob, so a failure on a
+#: pull request can be replayed locally from the log alone; ``nightly``
+#: searches wider than a pull request can afford. The environment variable is
+#: read here, in the test process — ``src/bloomery/`` reads no environment at
+#: all (S-0020).
+HYPOTHESIS_PROFILES = {
+    "dev": settings(max_examples=100),
+    "ci": settings(max_examples=25, derandomize=True, print_blob=True),
+    "nightly": settings(max_examples=1000),
+}
+for _name, _profile in HYPOTHESIS_PROFILES.items():
+    settings.register_profile(_name, _profile)
+settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "dev"))
+
 
 #: Set by ``tests/chaos/test_mutation_harness.py`` in a subprocess.
 CHAOS_ENV = "BLOOMERY_CHAOS_MUTATION"

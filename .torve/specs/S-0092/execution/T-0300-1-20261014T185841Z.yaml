@@ -1,0 +1,130 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0300
+base: 6cefefab0715e73fcce3a4677f908bf2f68bdd08
+at: '2026-10-14T18:58:41Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: S-0004/D-1
+    grade: LOCKED
+  - id: S-0005/D-4
+    grade: ASSUMED
+  - id: S-0008/D-6
+    grade: ASSUMED
+  - id: S-0009/D-1
+    grade: LOCKED
+  - id: S-0009/D-2
+    grade: LOCKED
+  - id: S-0009/D-3
+    grade: ASSUMED
+  - id: S-0009/D-4
+    grade: ASSUMED
+  - id: S-0009/D-5
+    grade: ASSUMED
+  - id: S-0009/D-6
+    grade: OPEN
+  - id: S-0009/D-9
+    grade: ASSUMED
+  - id: S-0010/D-3
+    grade: ASSUMED
+  - id: S-0010/D-6
+    grade: ASSUMED
+  - id: S-0012/D-1
+    grade: LOCKED
+  - id: S-0012/D-2
+    grade: LOCKED
+  - id: S-0012/D-3
+    grade: LOCKED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0012/D-5
+    grade: LOCKED
+  - id: S-0012/D-6
+    grade: ASSUMED
+  - id: S-0012/D-7
+    grade: ASSUMED
+  - id: S-0012/D-9
+    grade: ASSUMED
+  - id: S-0013/D-3
+    grade: ASSUMED
+  - id: S-0013/D-4
+    grade: ASSUMED
+  - id: S-0013/D-5
+    grade: OPEN
+  - id: S-0013/D-7
+    grade: ASSUMED
+  - id: S-0014/D-4
+    grade: ASSUMED
+  - id: S-0014/D-6
+    grade: ASSUMED
+  - id: S-0016/D-2
+    grade: LOCKED
+  - id: S-0016/D-3
+    grade: LOCKED
+  - id: S-0016/D-5
+    grade: LOCKED
+  - id: S-0016/D-6
+    grade: ASSUMED
+  - id: S-0016/D-10
+    grade: ASSUMED
+  - id: S-0018/D-13
+    grade: ASSUMED
+  - id: S-0026/D-27
+    grade: ASSUMED
+  - id: S-0042/D-27
+    grade: ASSUMED
+  - id: S-0078/D-7
+    grade: LOCKED
+  - id: S-0078/D-9
+    grade: ASSUMED
+  - id: S-0081/D-4
+    grade: ASSUMED
+  - id: S-0091/D-4
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-10-14T18:43:17Z'
+    claim: >-
+      The claim names `tests/support/postgres.py:62` as carrying a new PostgreSQL
+      `split_part` register row, but no such file exists in the tree and no PostgreSQL
+      register row exists anywhere: the only `split_part` difference row is DuckDB-test-specific
+      at tests/support/engine_differences.py:49-59. Because there is no PostgreSQL
+      differential, the failure the claim predicts cannot occur — a wrong PostgreSQL
+      rendering of NULL fails the differential rather than passing it — and the DuckDB
+      row it resembles is inert, since DuckDB answers NULL for a NULL input, so the
+      exact comparison agrees and `held_to` is never consulted.
+    evidence: >-
+      `ls tests/support/postgres.py tests/engines/test_reference_postgres.py` — ls:
+      cannot access 'tests/support/postgres.py': No such file or directory; ls: cannot
+      access 'tests/engines/test_reference_postgres.py': No such file or directory
+    action: decided
+    proposal: >-
+      No register row is owed for a file that does not exist. When the PostgreSQL
+      half of S-0092/D-2 is built, its `split_part` (and `regex_extract`) register
+      row should carry a predicate narrowed to the input class the difference actually
+      covers — an out-of-range index, not every input — so a rendering regression
+      that turns a NULL input into an empty string cannot be licensed as a legitimate
+      out-of-range difference.
+    notes: >-
+      The analogous DuckDB row (tests/support/engine_differences.py:52 predicate=lambda
+      source: True) is broader than its justification, but causes no false pass today:
+      the reference and DuckDB both answer NULL for a NULL input, so no disagreement
+      arises and the row is never consulted (docstring, tests/support/engine_differences.py:31-36).

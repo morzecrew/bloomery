@@ -1,0 +1,147 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0297
+base: 6cefefab0715e73fcce3a4677f908bf2f68bdd08
+commit: 5487312ed91a91d7b023f9f3806dcf8b25201482
+at: '2026-10-14T18:39:09Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: S-0004/D-1
+    grade: LOCKED
+  - id: S-0005/D-4
+    grade: ASSUMED
+  - id: S-0008/D-6
+    grade: ASSUMED
+  - id: S-0009/D-1
+    grade: LOCKED
+  - id: S-0009/D-2
+    grade: LOCKED
+  - id: S-0009/D-3
+    grade: ASSUMED
+  - id: S-0009/D-4
+    grade: ASSUMED
+  - id: S-0009/D-5
+    grade: ASSUMED
+  - id: S-0009/D-6
+    grade: OPEN
+  - id: S-0009/D-9
+    grade: ASSUMED
+  - id: S-0010/D-1
+    grade: LOCKED
+  - id: S-0010/D-3
+    grade: ASSUMED
+  - id: S-0010/D-5
+    grade: ASSUMED
+  - id: S-0010/D-6
+    grade: ASSUMED
+  - id: S-0012/D-1
+    grade: LOCKED
+  - id: S-0012/D-2
+    grade: LOCKED
+  - id: S-0012/D-3
+    grade: LOCKED
+  - id: S-0012/D-4
+    grade: LOCKED
+  - id: S-0012/D-5
+    grade: LOCKED
+  - id: S-0012/D-7
+    grade: ASSUMED
+  - id: S-0012/D-9
+    grade: ASSUMED
+  - id: S-0013/D-3
+    grade: ASSUMED
+  - id: S-0013/D-4
+    grade: ASSUMED
+  - id: S-0013/D-5
+    grade: OPEN
+  - id: S-0013/D-7
+    grade: ASSUMED
+  - id: S-0014/D-4
+    grade: ASSUMED
+  - id: S-0014/D-6
+    grade: ASSUMED
+  - id: S-0016/D-2
+    grade: LOCKED
+  - id: S-0016/D-3
+    grade: LOCKED
+  - id: S-0016/D-5
+    grade: LOCKED
+  - id: S-0016/D-6
+    grade: ASSUMED
+  - id: S-0016/D-10
+    grade: ASSUMED
+  - id: S-0018/D-13
+    grade: ASSUMED
+  - id: S-0026/D-9
+    grade: ASSUMED
+  - id: S-0026/D-27
+    grade: ASSUMED
+  - id: S-0042/D-2
+    grade: LOCKED
+  - id: S-0042/D-27
+    grade: ASSUMED
+  - id: S-0078/D-7
+    grade: LOCKED
+  - id: S-0078/D-9
+    grade: ASSUMED
+  - id: S-0081/D-4
+    grade: ASSUMED
+  - id: S-0091/D-4
+    grade: ASSUMED
+entries:
+  - decision: S-0010/D-1
+    grade: LOCKED
+    at: '2026-10-14T18:22:45Z'
+    claim: >-
+      tests/property/test_reference_transforms.py is edited only to hold the DuckDB
+      differential to the reference; the JSON null document added there is a property-tier
+      input, never a fuzz target, so generation stays under tests/property/ as the
+      row requires.
+    evidence: >-
+      tests/property/test_reference_transforms.py:183-188 — the engine-side JSON null
+      is mapped to JSON_NULL in the existing property test, no new fuzz seam
+    action: decided
+  - decision: S-0012/D-1
+    grade: LOCKED
+    at: '2026-10-14T18:22:45Z'
+    claim: >-
+      The edit to tests/support/reference.py states json_path value semantics in Python;
+      it substitutes for no engine and quotes no emulator or shim as the dialect oracle.
+    evidence: >-
+      tests/support/reference.py:340-360 — JSON_NULL and _walk_json state a value,
+      not an engine
+    action: decided
+  - decision: S-0012/D-3
+    grade: LOCKED
+    at: '2026-10-14T18:22:45Z'
+    claim: >-
+      No authoritative compile rung is added or removed; the change adds no lane to
+      tests/support/ or tests/engines/.
+    evidence: >-
+      tests/support/reference.py:360 — a Python value function, no compile lane
+    action: decided
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-10-14T18:22:45Z'
+    claim: >-
+      No engine driver, cloud SDK or Spark session enters src/bloomery; tests/support/reference.py
+      remains pure Python stdlib over values.
+    evidence: >-
+      tests/support/reference.py:329-336 — the sentinel is stdlib-only, no driver
+      imported
+    action: decided

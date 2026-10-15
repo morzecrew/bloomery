@@ -1,0 +1,177 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0292
+phase: 1
+base: 50c8a69d4ff55ead29f24bfc2c3ea2bc43e00cf4
+commit: b5b93dc9b4c4a6a3c68d8636bf1cbd8f5c0827e1
+at: '2026-10-14T17:56:01Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: S-0009/D-1
+    grade: LOCKED
+    at: '2026-10-14T17:52:55Z'
+    claim: >-
+      Touching .github/workflows/ci.yml only adds a workflow-scope HYPOTHESIS_PROFILE
+      environment and a nightly override on the engine matrix; the continuous-fuzzing
+      jobs and their plain-Atheris setup are unchanged, so the row still holds.
+    evidence: >-
+      .github/workflows/ci.yml:46 — HYPOTHESIS_PROFILE: ci is the workflow-scope line
+      the diff adds; no fuzzing job steps change
+    action: decided
+  - decision: S-0009/D-2
+    grade: LOCKED
+    at: '2026-10-14T17:52:55Z'
+    claim: >-
+      The replay job place in the fuzzing phase is untouched; the only engine-matrix
+      change is an environment override and no job is reordered.
+    evidence: >-
+      .github/workflows/ci.yml:775 — the engine matrix HYPOTHESIS_PROFILE override;
+      the replay and fuzz jobs keep their phase order
+    action: decided
+  - decision: S-0010/D-1
+    grade: LOCKED
+    at: '2026-10-14T17:52:55Z'
+    claim: >-
+      The new differential is a property test under tests/property/, alongside the
+      existing schema-directed generation, and adds no second suite elsewhere.
+    evidence: >-
+      tests/property/test_reference_transforms.py:251 — the new DuckDB differential
+      is a property test under tests/property/
+    action: decided
+  - decision: S-0012/D-1
+    grade: LOCKED
+    at: '2026-10-14T17:52:55Z'
+    claim: >-
+      No emulator, surrogate engine or wire shim stands in for an oracle: the differential
+      runs a real in-process DuckDB, and the differences register names DuckDB, a
+      supported engine, only.
+    evidence: >-
+      tests/support/engine_differences.py:104 — DIFERENCES lists duckdb rows only;
+      no emulator or shim is treated as the oracle
+    action: decided
+  - decision: S-0012/D-3
+    grade: LOCKED
+    at: '2026-10-14T17:52:55Z'
+    claim: >-
+      No cloud port authoritative compile rung is changed; the support modules added
+      render nothing and ask no engine anything.
+    evidence: >-
+      tests/support/reference.py:501 — fold is pure Python over values; no cloud port
+      compile rung is touched
+    action: decided
+  - decision: S-0012/D-4
+    grade: LOCKED
+    at: '2026-10-14T17:52:55Z'
+    claim: >-
+      No engine driver, cloud SDK or Spark session enters src/bloomery; the support
+      module imports only the standard library and Hypothesis, and the DuckDB driver
+      stays in the test tier.
+    evidence: >-
+      tests/support/reference.py:1 — the module imports only the standard library
+      and Hypothesis; duckdb is imported solely by the test tier
+    action: decided
+  - decision: S-0012/D-5
+    grade: LOCKED
+    at: '2026-10-14T17:52:55Z'
+    claim: >-
+      No cloud credential becomes reachable from an untrusted pull request: the workflow
+      change adds a plain environment value and no secret.
+    evidence: >-
+      .github/workflows/ci.yml:46 — HYPOTHESIS_PROFILE is a literal profile name,
+      not a credential
+    action: decided
+  - decision: S-0016/D-5
+    grade: LOCKED
+    at: '2026-10-14T17:52:55Z'
+    claim: >-
+      No service-principal machine-to-machine OAuth flow is documented or added; the
+      workflow change touches only the Hypothesis profile environment.
+    evidence: >-
+      .github/workflows/ci.yml:46 — the only workflow-scope line added is HYPOTHESIS_PROFILE
+    action: decided
+  - decision: S-0042/D-2
+    grade: LOCKED
+    at: '2026-10-14T17:52:55Z'
+    claim: >-
+      The docs floor still checks claims and not links; the refusal census hook and
+      its pytest_sessionfinish gate are intact, and the Hypothesis profiles register
+      beside them.
+    evidence: >-
+      tests/conftest.py:173 — pytest_sessionfinish still enforces the refusal census;
+      the profiles register at tests/conftest.py:47
+    action: decided
+  - decision: S-0078/D-7
+    grade: LOCKED
+    at: '2026-10-14T17:52:55Z'
+    claim: >-
+      The retired rfcs machinery is untouched; the ci.yml change neither adds nor
+      removes a checker or an index step.
+    evidence: >-
+      .github/workflows/ci.yml:46 — the added env block; no rfcs checker or index
+      step changes
+    action: decided
+  - decision: D-2
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-14T17:52:55Z'
+    claim: >-
+      D-2 requires a PostgreSQL 16 half in tests/engines/test_reference_postgres.py
+      on a session-scoped container from tests/support/postgres.py, but neither path
+      is in scope.allow, so only the DuckDB half is built here; the omission is stated
+      rather than silent.
+    evidence: >-
+      .torve/tasks/T-0292/contract.yaml:20 — scope.allow names neither tests/engines/test_reference_postgres.py
+      nor tests/support/postgres.py, and both are absent from the tree
+    action: departed
+    proposal: >-
+      Add tests/engines/test_reference_postgres.py and tests/support/postgres.py to
+      scope.allow, or move the PostgreSQL half of D-2 into its own task.
+  - decision: D-6
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-14T17:52:55Z'
+    claim: >-
+      D-6 adds chains to the differential; the reference composes steps through fold,
+      but its test file tests/property/test_reference_chains.py is outside scope.allow
+      and does not exist, so the chain differential itself is not built here.
+    evidence: >-
+      .torve/tasks/T-0292/contract.yaml:20 — scope.allow omits tests/property/test_reference_chains.py,
+      which the D-6 check runs and which does not exist
+    action: departed
+    proposal: >-
+      Add tests/property/test_reference_chains.py to scope.allow, or scope the chain
+      differential into its own task.
+  - decision: D-7
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-14T17:52:55Z'
+    claim: >-
+      D-7 adds the rollup aggregates over generated groups; its test file tests/property/test_reference_rollups.py
+      is outside scope.allow and does not exist, and the reference states no rollup
+      semantics, so it is not built here.
+    evidence: >-
+      .torve/tasks/T-0292/contract.yaml:20 — scope.allow omits tests/property/test_reference_rollups.py,
+      which the D-7 check runs and which does not exist
+    action: departed
+    proposal: >-
+      Add tests/property/test_reference_rollups.py to scope.allow, or scope the rollup
+      differential into its own task.
