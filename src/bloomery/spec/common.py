@@ -50,6 +50,8 @@ __all__ = [
     "ParameterValue",
     "PartitionSpecString",
     "RatioSpec",
+    "SQLGLOT_PARSE_FAILURES",
+    "SQLGLOT_REJECTIONS",
     "SeedsRefusal",
     "SemiAdditivePolicy",
     "SpecModel",
@@ -220,7 +222,7 @@ def _within_sql_depth(expr: str) -> str:
             "stage parses it again, deeper in the stack. Fix: flatten the expression"
         )
         raise ValueError(msg) from None
-    except SqlglotError:
+    except SQLGLOT_REJECTIONS:
         return expr
 
     _refuse_too_deep(parsed)
@@ -295,7 +297,7 @@ def _parses_as_sql(expr: str) -> str:
 
     try:
         parsed = parse_one(expr)
-    except (SqlglotError, RecursionError) as exc:
+    except SQLGLOT_PARSE_FAILURES as exc:
         msg = (
             f"not parseable SQL: {exc!s:.120}. Bloomery parses authored expressions at "
             "load, so this is refused here rather than by an engine reading the artifact"
@@ -315,7 +317,7 @@ def _parses_as_sql(expr: str) -> str:
 
     try:
         scalar = parse_one(expr, into=exp.Condition)
-    except (SqlglotError, RecursionError):
+    except SQLGLOT_PARSE_FAILURES:
         scalar = None
 
     if scalar is None or scalar != parsed or isinstance(parsed, exp.Command):
@@ -360,6 +362,25 @@ ZoneName = Annotated[str, StringConstraints(pattern=ZONE_NAME_PATTERN)]
 #: wants a spelling rather than a fact.
 UTC_ZONES = frozenset({"UTC", "Etc/UTC"})
 MemberName = Annotated[str, AfterValidator(_reject_reserved_member)]
+
+#: What a SQLGlot parse raises when it rejects its input: its own error class,
+#: and the bare ``ValueError`` its JSON-arrow path parser raises on a number
+#: token it cannot turn into an integer (``x->1e5``, ``x->>8e``; #281). Named
+#: once here so every door that turns a parse into a refusal or a pass-on
+#: agrees on which exceptions mean "the parser said no" — the same reasoning
+#: S-0008/D-7 gave for widening a narrow catch, held to the class a
+#: reproduction showed rather than to ``Exception``.
+SQLGLOT_REJECTIONS: tuple[type[Exception], ...] = (SqlglotError, ValueError)
+
+#: What every handler around a parse catches: the parser's rejections above,
+#: and the ``RecursionError`` its recursive descent raises on a deeply nested
+#: text instead of a SQLGlot class (S-0008/D-7). The union is computed here
+#: because a starred tuple in an ``except`` is the one spelling mypy will not
+#: read, and every site can then name it once.
+SQLGLOT_PARSE_FAILURES: tuple[type[Exception], ...] = (
+    *SQLGLOT_REJECTIONS,
+    RecursionError,
+)
 
 #: An authored SQL expression — a recipe body, a metric expression, a
 #: derived metric's formula. Proved parseable at load; everything about what

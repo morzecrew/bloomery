@@ -138,4 +138,4 @@ the harness owns the expectation, so a target never writes its own `except` clau
 observed to fail is indistinguishable from one that never fires. Name the defect in the
 module docstring, along with the change that reintroduces it and the seed that drives it,
 so the check is one revert and one `just fuzz-repro` away. `fuzz/fuzz_parse_doors.py`
-carries two.
+names each of its own, with the seed that drives it.

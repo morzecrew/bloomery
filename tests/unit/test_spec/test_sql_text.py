@@ -179,6 +179,20 @@ def test_the_validator_returns_the_authored_text_byte_for_byte() -> None:
     assert loaded.canonical_fields["unit_price"].recipes[0].expr == authored
 
 
+def test_an_expression_sqlglot_cannot_convert_is_refused_at_load() -> None:
+    """SQLGlot's JSON-arrow path parser calls `int()` on a number token it
+    cannot turn into an integer, so `x->1e5` raises a bare `ValueError` from
+    inside `parse_one` — a class no handler here caught, so pydantic surfaced
+    SQLGlot's own text instead of bloomery's (#281). Treated as the parser's
+    rejection, the `expr:` is refused at its authored address like any other
+    unparseable text.
+    """
+    with pytest.raises(SpecParseError) as excinfo:
+        load_catalog(catalog(recipe="x->1e5"))
+    assert "not parseable SQL" in str(excinfo.value)
+    assert excinfo.value.source_path == "catalog: canonical_fields.unit_price.recipes[0].expr"
+
+
 def test_a_second_statement_is_refused() -> None:
     """Parsing is necessary and not sufficient.
 

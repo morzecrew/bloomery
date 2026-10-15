@@ -44,7 +44,6 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, cast
 
 from sqlglot import exp, parse_one
-from sqlglot.errors import SqlglotError
 from sqlglot.expressions.core import Expression
 
 from bloomery.errors import (
@@ -117,7 +116,7 @@ from bloomery.resolve.resolution import Resolution, resolve
 from bloomery.resolve.steps import lower_steps, step_entities
 from bloomery.semantic import Conversion, Refutation, consequence_of, prove_conversion
 from bloomery.spec.catalog import Catalog
-from bloomery.spec.common import MAX_SQL_DEPTH, UTC_ZONES, sql_depth
+from bloomery.spec.common import MAX_SQL_DEPTH, SQLGLOT_PARSE_FAILURES, UTC_ZONES, sql_depth
 from bloomery.spec.mapping import (
     ALIAS_BOUND,
     CurrencyColumn,
@@ -870,7 +869,7 @@ def _macro_parts(
     # exception. `RecursionError` for the reason `spec.common` gives: the
     # parser recurses on nesting depth, so a deeply nested body exhausts the
     # stack rather than raising a SQLGlot error at all.
-    except (SqlglotError, RecursionError) as exc:
+    except SQLGLOT_PARSE_FAILURES as exc:
         msg = (
             f"field references step {use!r}, whose registered macro body does not parse "
             f"as SQL: {exc!s:.120}. The body is spliced into the consuming column "
@@ -915,7 +914,7 @@ def _macro_parts(
     # class, which is why the bare parse above is what reports them.
     try:
         parse_one(body, into=exp.Condition)
-    except (SqlglotError, RecursionError):
+    except SQLGLOT_PARSE_FAILURES:
         msg = (
             f"field references step {use!r}, whose registered macro body is a "
             f"{parsed.key.upper()} statement rather than an expression. The body is "
