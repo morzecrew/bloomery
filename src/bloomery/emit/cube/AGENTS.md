@@ -123,7 +123,7 @@ Cube-to-cube `joins` stay out of this RFC. They reintroduce the query-time joins
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/semantic/additivity.py` `src/bloomery/spec/quality.py` `tests/fixtures/semantic_corpus/008-ratio-rollup/**` `tests/fixtures/semantic_corpus/009-null-denominator/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0092/D-8 — `ASSUMED` (Generated SQL agrees with a reference evaluator) — implementation: none
+### S-0092/D-8 — `ASSUMED` (Generated SQL agrees with a reference evaluator)
 
 Only the build-time `divide` and a recipe's `/` carry the exact-division marker (S-0046/D-3, S-0090/D-3), which every port renders as exact division except DuckDB, whose division is knowingly inexact (`dialects/base.py`); every other division, at query time included, is the engine's own `/`. A ratio metric divides its numerator by `NULLIF(denominator, 0)`, in the composed planner and the Cube emitter alike, and MetricFlow's PostgreSQL rendering of a ratio casts the numerator to `DOUBLE PRECISION`. A metric's `expr` and a `derived:` expression keep their authored SQL: their `/` has no automatic zero guard, and its result type is the engine's for the emitted operand types and casts. This is intended: S-0020/D-5 bans floats in the IR and in emitted artifacts, not in the arithmetic an engine runs. The later query-time reference models these cases as stated here and cites this row.
 
