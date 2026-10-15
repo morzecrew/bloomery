@@ -4,22 +4,16 @@
         <loc>https://morzecrew.github.io/bloomery/dev/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/get-started/introduction/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/AGENTS/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/get-started/installation/</loc>
-      </url>
-      <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/get-started/quickstart/</loc>
-      </url>
-      <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/get-started/examples/</loc>
-      </url>
-      <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/concepts/specs-and-catalog/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/concepts/AGENTS/</loc>
       </url>
       <url>
         <loc>https://morzecrew.github.io/bloomery/dev/concepts/compile-pipeline/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/concepts/data-quality/</loc>
       </url>
       <url>
         <loc>https://morzecrew.github.io/bloomery/dev/concepts/determinism/</loc>
@@ -28,43 +22,52 @@
         <loc>https://morzecrew.github.io/bloomery/dev/concepts/guardrails/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/concepts/what-bloomery-proves/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/concepts/retrieval/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/concepts/data-quality/</loc>
-      </url>
-      <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/concepts/wide-marts/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/concepts/specs-and-catalog/</loc>
       </url>
       <url>
         <loc>https://morzecrew.github.io/bloomery/dev/concepts/step-registry/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/concepts/retrieval/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/concepts/what-bloomery-proves/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/how-to/emit-sqlmesh/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/concepts/wide-marts/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/how-to/emit-cube/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/contributing/AGENTS/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/how-to/emit-dbt/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/contributing/cloud-lanes/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/contributing/fuzzing/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/get-started/AGENTS/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/get-started/examples/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/get-started/installation/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/get-started/introduction/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/get-started/quickstart/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/how-to/AGENTS/</loc>
       </url>
       <url>
         <loc>https://morzecrew.github.io/bloomery/dev/how-to/add-quality-rules/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/how-to/plan-a-metric-request/</loc>
-      </url>
-      <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/how-to/evolve-a-spec/</loc>
-      </url>
-      <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/how-to/evaluate-a-spec/</loc>
-      </url>
-      <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/how-to/reproduce-a-past-artifact-set/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/how-to/annotate-a-spec/</loc>
       </url>
       <url>
         <loc>https://morzecrew.github.io/bloomery/dev/how-to/close-an-open-decision/</loc>
@@ -73,34 +76,49 @@
         <loc>https://morzecrew.github.io/bloomery/dev/how-to/declare-an-exposure/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/how-to/annotate-a-spec/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/how-to/emit-cube/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/how-to/merge-sources/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/how-to/emit-dbt/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/how-to/emit-sqlmesh/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/how-to/evaluate-a-spec/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/how-to/evolve-a-spec/</loc>
       </url>
       <url>
         <loc>https://morzecrew.github.io/bloomery/dev/how-to/import-a-semantic-layer/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/how-to/resolve-identities/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/how-to/merge-sources/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/how-to/trace-lineage/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/how-to/plan-a-metric-request/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/how-to/reproduce-a-past-artifact-set/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/how-to/resolve-identities/</loc>
       </url>
       <url>
         <loc>https://morzecrew.github.io/bloomery/dev/how-to/trace-a-definition-over-time/</loc>
       </url>
       <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/how-to/trace-lineage/</loc>
+      </url>
+      <url>
         <loc>https://morzecrew.github.io/bloomery/dev/how-to/use-the-cli/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/reference/spec-schemas/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/reference/AGENTS/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/reference/json-schema/</loc>
-      </url>
-      <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/reference/transforms/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/reference/api/</loc>
       </url>
       <url>
         <loc>https://morzecrew.github.io/bloomery/dev/reference/dialects/</loc>
@@ -109,15 +127,15 @@
         <loc>https://morzecrew.github.io/bloomery/dev/reference/errors/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/reference/api/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/reference/json-schema/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/reference/spec-schemas/</loc>
       </url>
       <url>
         <loc>https://morzecrew.github.io/bloomery/dev/reference/stability/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/contributing/fuzzing/</loc>
-      </url>
-      <url>
-        <loc>https://morzecrew.github.io/bloomery/dev/contributing/cloud-lanes/</loc>
+        <loc>https://morzecrew.github.io/bloomery/dev/reference/transforms/</loc>
       </url>
 </urlset>
