@@ -237,14 +237,14 @@ A builder is told its **input logical type**. `Builder` becomes `(input type, co
 - Paths: `tests/execution/test_semantic_corpus.py` `tests/support/semantic_corpus.py` `tests/unit/test_semantic_corpus_guard.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0092/D-1 — `ASSUMED` (Generated SQL agrees with a reference evaluator) — implementation: none
+### S-0092/D-1 — `ASSUMED` (Generated SQL agrees with a reference evaluator)
 
 `tests/support/reference.py` states each built-in transform's value semantics as a Python function over `None`, `int`, `Decimal`, `str`, `bool`, `date`, zoneless UTC `datetime` and parsed JSON for a variant (`JSON_NULL` for JSON `null`, compared structurally), written from the transform reference page and the decision rows it cites, never from the SQLGlot builders. Decimals are quantized to the declared output type with `ROUND_HALF_UP`; a value beyond the declared precision is `Overflow`, which a plain entity's engine must raise and a quality-ruled entity's must return as NULL. A transform whose input is not text is reached through a typed setup step the reference also applies, and `convert` receives the fixture's `fx_rates` relation and the row's anchor date.
 
 - Paths: `tests/support/reference.py`
 - Consequence: a transform's behaviour is stated twice, independently, and a test can say which statement an engine broke
 
-### S-0092/D-2 — `ASSUMED` (Generated SQL agrees with a reference evaluator) — implementation: none
+### S-0092/D-2 — `ASSUMED` (Generated SQL agrees with a reference evaluator)
 
 A differential property draws, for each built-in, a declared input type and values of it, NULL and the boundary values included, compiles a one-entity fixture with the transform on one field, runs its silver SQL, and requires every row's value to equal the reference's exactly. The DuckDB half is a `property` test and runs in `just test`; the PostgreSQL 16 half is an `engine("postgres")` test under `tests/engines/` on a session-scoped container from `tests/support/postgres.py`.
 
@@ -252,14 +252,14 @@ A differential property draws, for each built-in, a declared input type and valu
 - Consequence: both engines are held to one statement on inputs nobody chose, and the DuckDB half guards every pull request
 - Check: `uv run pytest tests/property/test_reference_transforms.py -q` (shadow; runs as `decision:S-0092/D-2`, no log entry owed)
 
-### S-0092/D-3 — `ASSUMED` (Generated SQL agrees with a reference evaluator) — implementation: none
+### S-0092/D-3 — `ASSUMED` (Generated SQL agrees with a reference evaluator)
 
 `tests/support/engine_differences.py` lists every allowed difference as an engine, a transform, a predicate over the input, what the engine is held to instead (a value, or a bound on its answer against the reference's), and the decision row or `path:line` that makes it legitimate. A disagreement no row names fails, printing the input, each engine's answer and the reference's.
 
 - Paths: `tests/support/engine_differences.py`
 - Consequence: an engine difference is either a written decision or a defect, never a tolerance
 
-### S-0092/D-6 — `ASSUMED` (Generated SQL agrees with a reference evaluator) — implementation: none
+### S-0092/D-6 — `ASSUMED` (Generated SQL agrees with a reference evaluator)
 
 Chains of up to three built-ins, catalog recipes and the marts' time buckets join the differential. A chain's reference is the composition of its steps' references. A recipe's `/` divides a dividend cast to `decimal(min(38, digits + scale), scale)`, where `digits` is the larger of 29 and the declared integer digits and `scale` the larger of the declared scale and `min(9, 38 - digits)` (`resolve/build.py`, S-0090/D-3), and its result is narrowed to the declared type with `ROUND_HALF_UP`; an engine whose internal division scale rounds twice is a D-3 row, not a tolerance. A bucket is `DATE_TRUNC` to day, week, month, quarter or year of a zoneless UTC timestamp, as a `date`.
 
@@ -267,7 +267,7 @@ Chains of up to three built-ins, catalog recipes and the marts' time buckets joi
 - Consequence: the widening and narrowing between steps, and the division a recipe promises, are checked where they compose
 - Check: `uv run pytest tests/property/test_reference_chains.py -q` (shadow; runs as `decision:S-0092/D-6`, no log entry owed)
 
-### S-0092/D-7 — `ASSUMED` (Generated SQL agrees with a reference evaluator) — implementation: none
+### S-0092/D-7 — `ASSUMED` (Generated SQL agrees with a reference evaluator)
 
 The rollup aggregates (`count`, `sum`, `min`, `max`) join the differential over generated groups. The emitter aggregates the metric's expression, so `count` is `COUNT(expr)`: a retained group whose expression is NULL on every row counts 0 and sums, minimises and maximises to NULL. A group the filter removes entirely produces no row, and the reference states its absence rather than a value. The rollup SQL adds no `COALESCE` to change either.
 
