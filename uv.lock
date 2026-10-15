@@ -216,7 +216,7 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.6" },
     { name = "ruff", specifier = ">=0.11" },
     { name = "sqlmesh", specifier = ">=0.150" },
-    { name = "torve", extras = ["postgres", "migrate"], marker = "python_full_version >= '3.13'", specifier = ">=0.3,<0.4" },
+    { name = "torve", extras = ["postgres", "migrate"], marker = "python_full_version >= '3.13'", specifier = ">=0.3.1,<0.4" },
     { name = "types-pyyaml", specifier = ">=6.0.12" },
     { name = "vulture", specifier = ">=2.14" },
     { name = "zizmor", specifier = ">=1.5" },
@@ -2965,7 +2965,7 @@ wheels = [
 
 [[package]]
 name = "torve"
-version = "0.3.0"
+version = "0.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs", marker = "python_full_version >= '3.13'" },
@@ -2976,9 +2976,9 @@ dependencies = [
     { name = "rich", marker = "python_full_version >= '3.13'" },
     { name = "typer", marker = "python_full_version >= '3.13'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fd/41/89b4001ab4ff9d47acfd809bb9a909d4fbf323284c2655ded8a3147b07d0/torve-0.3.0.tar.gz", hash = "sha256:6d7d3441a6601ea545dcb50cf400f0f892d9a17c12e4254df0f3346472a5fe10", size = 995497, upload-time = "2026-10-14T14:33:57.473Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2a/d0/a27b1aad0eccc4cede5a9c5ed70de74f3929c1c4fe97e3c54377192e5663/torve-0.3.1.tar.gz", hash = "sha256:cbf69e09bd21e59864e9e0ac6bb8782e9a4bb7a7b708b57c83c5354b257a493f", size = 996520, upload-time = "2026-10-15T05:51:15.655Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/00/9e/ac697564fd0e5bab8c606b766a57756809027f4861b23d4f12e70086c08c/torve-0.3.0-py3-none-any.whl", hash = "sha256:c9f12d8234d5845108fdd65b3b57160c3bc43f4c287a68289adadaa4d1e8d36c", size = 967262, upload-time = "2026-10-14T14:33:55.704Z" },
+    { url = "https://files.pythonhosted.org/packages/49/5e/64df5c893f8170515d08c5aa61ffaf78c3c2663d817b3b1082ffdf778428/torve-0.3.1-py3-none-any.whl", hash = "sha256:40c011b568efc8ccef0d7f50641190be61d2f3b031b747889d8e87f2ab0597f2", size = 967937, upload-time = "2026-10-15T05:51:13.577Z" },
 ]
 
 [package.optional-dependencies]

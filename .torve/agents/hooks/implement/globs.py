@@ -19,7 +19,7 @@ from __future__ import annotations
 import fnmatch
 from collections.abc import Iterable
 
-__all__ = ["matches", "overlap"]
+__all__ = ["has_file_in", "matches", "overlap"]
 
 # The two patterns that normalise to a language of their own: every path
 # (`**`, `*` and `/**`) and every path with a slash (`**/` and `*/`).
@@ -137,7 +137,8 @@ def _accepts(pattern: _Pattern, path: tuple[str, ...]) -> bool:
 def matches(path: str, globs: Iterable[str]) -> bool:
     """Whether *path* falls under any of *globs*, in the gitignore reading the
     scope gate uses: the same glob answers the same set of paths everywhere the
-    engine reads it."""
+    engine reads it. A scope glob never starts with `!` (`Scope` refuses it),
+    so gitignore's negation is not read here."""
 
     segments = tuple(part for part in path.split("/") if part)
 
@@ -148,6 +149,42 @@ def matches(path: str, globs: Iterable[str]) -> bool:
         pattern = _normalise(glob)
 
         if pattern is not None and _accepts(pattern, segments):
+            return True
+
+    return False
+
+
+def has_file_in(directory: str, globs: Iterable[str]) -> bool:
+    """Whether some file directly in *directory* can match one of *globs*: the
+    glob meets *directory*'s own segments exactly and has one segment left for
+    the file. A glob that matches *directory* or a directory above it answers
+    true as well, since everything below a match matches."""
+
+    where = tuple(part for part in directory.split("/") if part)
+
+    for glob in globs:
+        pattern = _normalise(glob)
+
+        if pattern is None:
+            continue
+
+        if pattern is _ALL or (pattern is _SLASHED and where):
+            return True
+
+        if pattern is _SLASHED:
+            continue
+
+        states = _epsilon(pattern, {0})
+
+        for segment in where:
+            reached: set[int] = set()
+
+            for state in states:
+                reached |= _epsilon(pattern, _consume(pattern, state, segment))
+
+            states = reached
+
+        if len(pattern) - 1 in states or len(pattern) in states:
             return True
 
     return False
@@ -171,7 +208,12 @@ def _atoms(segment: str) -> list[tuple[str, ...]]:
         elif character == "?":
             atoms.append(("any",))
         elif character == "[":
-            end = segment.find("]", index + 1)
+            # As `fnmatch` reads a class: a `]` right after `[` or `[!` is a
+            # member, not the class's end.
+            start = index + 1
+            start += 1 if segment[start : start + 1] == "!" else 0
+            start += 1 if segment[start : start + 1] == "]" else 0
+            end = segment.find("]", start)
 
             if end == -1:
                 atoms.append(("char", "["))
