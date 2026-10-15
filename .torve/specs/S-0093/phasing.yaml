@@ -32,7 +32,9 @@ phasing:
       from the base64 D-2 gives, and a line in the target's docstring naming it beside
       the `band-*` seeds, with the `just fuzz-repro` command that replays it. Settles
       D-2.
-    scope: [fuzz/fuzz_parse_doors.py, fuzz/fuzz_parse_doors_seed_corpus/**]
+    scope:
+      - fuzz/fuzz_parse_doors.py
+      - fuzz/fuzz_parse_doors_seed_corpus/json-arrow-exponent
     acceptance:
       - >-
         uv run --with 'atheris>=2.3' python fuzz/fuzz_parse_doors.py fuzz/fuzz_parse_doors_seed_corpus/json-arrow-exponent
