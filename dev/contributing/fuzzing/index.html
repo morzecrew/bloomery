@@ -2104,11 +2104,10 @@ not a test input, and nothing reviews it.</p>
 <p>Output is libFuzzer's: <code>cov</code> is edges reached, <code>ft</code> features, <code>corp</code> the corpus it is
 keeping. A run that ends on <code>Done</code> found nothing. A run that ends on a stack trace wrote
 the input that caused it to <code>fuzz/crashes/&lt;target&gt;-&lt;hash&gt;</code>.</p>
-<p><code>parse_doors</code> currently has one <strong>known open finding</strong> — a <code>RecursionError</code> from
-<code>SqlExpr.ast</code> in <code>src/bloomery/ir/nodes.py</code>, reached through a step body at emit — so a
-run stops on it within a minute or so. Read a trace against the target's module docstring
-before treating it as new; that one is waiting on a follow-up task, and until it lands the
-pull-request check leaves <code>parse_doors</code> out (the weekly batch keeps fuzzing it).</p>
+<p>Every target runs in the pull-request check as well as the weekly batch. The seeds a
+target's module docstring names are inputs bloomery once crashed on and now refuses, kept
+so a change that undoes the fix is caught at the door it reaches; a crash on anything else
+is a new finding.</p>
 <h2 id="read-a-crash">Read a crash<a class="headerlink" href="#read-a-crash" title="Permanent link">&para;</a></h2>
 <p>Replay it:</p>
 <div class="highlight"><pre><span></span><code><span class="gp">$ </span>just<span class="w"> </span>fuzz-repro<span class="w"> </span>parse_doors<span class="w"> </span>fuzz/crashes/parse_doors-a1b2c3
