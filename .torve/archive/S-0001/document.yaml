@@ -2,12 +2,12 @@
 id: S-0001
 title: Standing decisions
 kind: design
-status: draft
+status: superseded
 implementation: none
 depends_on: []
 informed_by: []
 supersedes: []
-superseded_by: null
+superseded_by: S-0078
 owner: Lev Litvinov
 schema_version: 4
 summary: |
