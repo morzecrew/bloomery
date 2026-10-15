@@ -116,6 +116,9 @@ def derived_map(root: Path) -> dict[str, list[str]]:
     found: dict[str, list[str]] = {}
     source: str | None = None
     inside = False
+    # The `derived:` key's own indentation: a key back at it or left of it is a
+    # sibling (`allow:`, `deny:`) and ends the block, wherever it is written.
+    level = 0
 
     for line in lines:
         stripped = line.strip()
@@ -123,8 +126,11 @@ def derived_map(root: Path) -> dict[str, list[str]]:
         if not stripped or stripped.startswith("#"):
             continue
 
+        indent = len(line) - len(line.lstrip())
+
         if not inside:
             inside = stripped == "derived:"
+            level = indent
             continue
 
         if stripped.startswith("- "):
@@ -132,7 +138,7 @@ def derived_map(root: Path) -> dict[str, list[str]]:
                 found.setdefault(source, []).append(stripped[2:].strip().strip("'\""))
             continue
 
-        if stripped.endswith(":") and line[:1].isspace():
+        if stripped.endswith(":") and indent > level:
             source = stripped[:-1].strip().strip("'\"")
             continue
 
@@ -141,36 +147,24 @@ def derived_map(root: Path) -> dict[str, list[str]]:
     return found if inside else dict(DEFAULT_DERIVED)
 
 
-def _static_prefix(pattern: str) -> str:
-    """The directory part of *pattern* before its first wildcard."""
-
-    kept: list[str] = []
-
-    for part in pattern.split("/")[:-1]:
-        if any(char in part for char in "*?["):
-            break
-
-        kept.append(part)
-
-    return "/".join(kept)
-
-
-def _beside_scoped(rel: str, patterns: list[str]) -> bool:
-    """Whether *rel* is the managed `AGENTS.md` of a directory an allow glob
-    reaches (S-0104/D-6): the projection sits beside the code it governs."""
+def _beside_scoped(
+    rel: str, patterns: list[str], contingent: list[str] | tuple[str, ...] = ()
+) -> bool:
+    """Whether *rel* is the managed `AGENTS.md` of a directory the scope can
+    write a file directly in (S-0104/D-6): one an allow glob can match, or a
+    contingent path's own. The projection sits beside the code it governs,
+    which the scope gate checks against the files the attempt changed; before
+    a write the hook can only ask whether such a file is possible there."""
 
     if rel.rsplit("/", 1)[-1] != AGENTS_FILE:
         return False
 
     where = rel[: -len(AGENTS_FILE)].rstrip("/")
 
-    for pattern in patterns:
-        prefix = _static_prefix(pattern)
+    if any(path.rpartition("/")[0] == where for path in contingent):
+        return True
 
-        if where == prefix or (prefix and where.startswith(prefix + "/")):
-            return True
-
-    return False
+    return globs.has_file_in(where, patterns)
 
 
 def is_allowed(
@@ -193,13 +187,15 @@ def is_allowed(
     if globs.matches(rel, deny):
         return False
 
-    if globs.matches(rel, contingent):
+    # Contingent paths are literal, as the scope gate holds them: a file name
+    # with `[` or `*` in it is that file, never a glob.
+    if rel in contingent:
         return True
 
     if not patterns or globs.matches(rel, patterns):
         return True
 
-    return _beside_scoped(rel, patterns)
+    return _beside_scoped(rel, patterns, contingent)
 
 
 def refusal(
