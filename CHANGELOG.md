@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-17
+
 ### Added
 
 - **An agent skill for writing bloomery projects.** `npx skills add morzecrew/bloomery`
@@ -2499,7 +2501,8 @@ artifacts explicitly **not** stable across bloomery versions.
 - Documentation: get-started, concepts, how-to guides for every target and the planner,
   full spec/transform/error/API/stability references, and a runnable `examples/quickstart/`.
 
-[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/morzecrew/bloomery/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/morzecrew/bloomery/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/morzecrew/bloomery/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/morzecrew/bloomery/compare/v0.3.0...v0.4.0
