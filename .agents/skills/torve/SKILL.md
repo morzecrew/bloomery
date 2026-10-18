@@ -5,11 +5,10 @@ description: A session operating torve. Read this before running any torve comma
 
 # torve
 
-!`uv run --quiet torve guide torve`
+!`torve guide torve`
 
-If nothing printed above, run `uv run torve guide torve` yourself, or
-`torve guide torve` where torve is on the PATH. Run `torve guide spec-writer`
-the same way before writing a document.
+If nothing printed above, run `torve guide torve` yourself. Run
+`torve guide spec-writer` the same way before writing a document.
 
 ## The owner's rails
 

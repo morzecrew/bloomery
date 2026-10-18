@@ -236,6 +236,11 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-groups
 
+      # torve is a uv tool, not a dependency: `just quality` runs
+      # `torve spec check` from the release `.torve/config.yaml` names.
+      - name: Install torve
+        run: uv tool install 'torve==0.4.0'
+
       - name: Run quality checks
         run: just quality -s
 

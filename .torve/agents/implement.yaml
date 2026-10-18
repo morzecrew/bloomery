@@ -50,4 +50,4 @@ equipment:
 # turns instead of a turn budget (S-0066/D-6). `implement` only, so a red
 # result reads against this declaration and not against the image.
 - kind: hook
-  source: local:.torve/agents/hooks/implement
+  source: torve:hooks/implement

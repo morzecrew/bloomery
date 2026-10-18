@@ -1196,6 +1196,12 @@
       "$ref": "#/$defs/BrokerConfig",
       "description": "The egress broker: which adapter is in force and what it is fed (S-0021/the-port)."
     },
+    "engine": {
+      "default": "",
+      "description": "S-0110/D-2: the release this repository was written for, as `X.Y.Z` \u2014 meaning at\nleast X.Y.Z and below X.(Y+1).0. A command that loads this configuration under a\ntorve outside the range stops, naming the installed version, the range and the\ncommand that installs a release inside it; a configuration naming none loads under\nany version.",
+      "title": "Engine",
+      "type": "string"
+    },
     "intake": {
       "$ref": "#/$defs/IntakeConfig",
       "description": "The drafting run's knobs (S-0020)."

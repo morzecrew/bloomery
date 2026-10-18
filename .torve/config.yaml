@@ -6,6 +6,10 @@
 # repository's process already has — a pull request a person merges.
 schema_version: 1
 
+# The torve release this repository runs on, up to the next minor; a torve
+# outside it stops before it serves.
+engine: "0.4.0"
+
 runtime:
   adapter: docker
   image: python:3.13-slim
