@@ -104,10 +104,10 @@ jobs:
             # `code` on purpose: a document change must run `just quality` —
             # that is where `torve spec check` lives — without pulling the
             # whole test matrix for a change that touches no Python the
-            # package ships.
+            # package ships. All of `.torve/`, because `torve spec check`
+            # also loads `.torve/config.yaml` and its `engine` pin.
             corpus:
-              - ".torve/specs/**"
-              - ".torve/archive/**"
+              - ".torve/**"
               - "tools/**"
               - "justfile"
               - ".github/workflows/ci.yml"
@@ -235,6 +235,11 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --all-groups
+
+      # torve is a uv tool, not a dependency: `just quality` runs
+      # `torve spec check` from the release `.torve/config.yaml` names.
+      - name: Install torve
+        run: uv tool install 'torve==0.4.0'
 
       - name: Run quality checks
         run: just quality -s

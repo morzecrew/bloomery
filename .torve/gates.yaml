@@ -81,7 +81,7 @@ gates:
   # names no row, and a document that does not load, are refused here. Ten
   # seconds over 77 documents.
   - name: spec-valid
-    run: "uv run torve spec check"
+    run: "torve spec check"
     input: worktree
     state: blocking
     origin: structural

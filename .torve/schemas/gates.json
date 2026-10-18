@@ -120,6 +120,28 @@
       "title": "Gate",
       "type": "object"
     },
+    "LayoutConfig": {
+      "additionalProperties": false,
+      "description": "Where the Python project sits (S-0110/D-8, S-0110/D-9). `root` is the\nproject's directory relative to the repository root \u2014 empty when the\nproject is the repository \u2014 and `carried` names top-level directories that\nride with any change, beside `tests` and `.torve`.",
+      "properties": {
+        "carried": {
+          "description": "Top-level directories that ride with any change (S-0110/D-9), beside\n`tests` and `.torve`; the sizer does not count them as modules.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Carried",
+          "type": "array"
+        },
+        "root": {
+          "default": "",
+          "description": "The Python project's directory, relative to the repository root; empty\nfor a project at the root.",
+          "title": "Root",
+          "type": "string"
+        }
+      },
+      "title": "LayoutConfig",
+      "type": "object"
+    },
     "ManifestScope": {
       "additionalProperties": false,
       "description": "The manifest's scope (S-0104/D-5): the task scope's `allow`, `deny` and\n`contingent`, plus `derived` \u2014 the files that ride with a source, in both\ndirections. A lock file rides with its manifest, a golden with its\nproducer, a generated schema with its model; a derived path is allowed\nwherever its source is, and its source wherever a derived path is. The\ndefault is the lock-file table the scope gate used to hard-code\n(`DEFAULT_DERIVED`).",
@@ -219,6 +241,10 @@
       },
       "title": "Gates",
       "type": "array"
+    },
+    "layout": {
+      "$ref": "#/$defs/LayoutConfig",
+      "description": "Where the Python project sits (S-0110/D-8, S-0110/D-9): the directory the source\nroot and the `tests` defaults are read under, and the directories that ride with any\nchange."
     },
     "quarantine": {
       "description": "Acceptance commands that flake; their failures are recorded but stop blocking until\nfixed (S-0002/three-outcomes-gates-need-beyond-pass-and-fail). Maintained by humans\nfrom the flake counters in telemetry until a store exists (S-0003).",
