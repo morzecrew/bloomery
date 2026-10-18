@@ -104,10 +104,10 @@ jobs:
             # `code` on purpose: a document change must run `just quality` —
             # that is where `torve spec check` lives — without pulling the
             # whole test matrix for a change that touches no Python the
-            # package ships.
+            # package ships. All of `.torve/`, because `torve spec check`
+            # also loads `.torve/config.yaml` and its `engine` pin.
             corpus:
-              - ".torve/specs/**"
-              - ".torve/archive/**"
+              - ".torve/**"
               - "tools/**"
               - "justfile"
               - ".github/workflows/ci.yml"
