@@ -854,6 +854,16 @@ def test_the_schema_accepts_a_float_tolerance_the_parser_refuses() -> None:
     assert _parses(SpecKind.ENTITY_MODEL, {**document, "reconcile": [
         {"name": "r", "left": "a", "right": "b", "tolerance": 0, "on_fail": "flag"}
     ]})
+    # The string spelling is the same gap. Pydantic 2.14 renders a Decimal's
+    # string branch with no pattern, so the schema takes any string and the
+    # parser refuses a malformed one; the pattern 2.13 rendered was the unsafe
+    # direction, refusing the exponent form the parser accepts.
+    for spelling, parses in (("0.01", True), ("1e-3", True), ("abc", False)):
+        quoted = {**document, "reconcile": [
+            {"name": "r", "left": "a", "right": "b", "tolerance": spelling, "on_fail": "flag"}
+        ]}
+        assert _validates(SpecKind.ENTITY_MODEL, quoted), spelling
+        assert _parses(SpecKind.ENTITY_MODEL, quoted) is parses, spelling
 
 
 def test_the_schema_accepts_every_authored_transform_spelling() -> None:
