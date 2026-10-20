@@ -305,7 +305,6 @@
                 "type": "number"
               },
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -314,9 +313,6 @@
               },
               {
                 "format": "date-time",
-                "type": "string"
-              },
-              {
                 "type": "string"
               }
             ]
