@@ -1,7 +1,7 @@
 # SQLMesh × 002-average-of-averages
 
-- **System:** SQLMesh `0.236.2`, against DuckDB `1.5.5` through its `duckdb` gateway.
-- **Checked:** 2026-09-28.
+- **System:** SQLMesh `0.236.3`, against DuckDB `1.5.6` through its `duckdb` gateway.
+- **Checked:** 2026-10-20.
 - **Feature set:** a SQLMesh project — `config.yaml` with one gateway, `MODEL (...)` DDL with
   `grain` and `references`, and `METRIC (...)` DDL, including a derived metric written over
   two other metrics. Commands run: `sqlmesh info`, `sqlmesh plan --auto-apply`, `sqlmesh

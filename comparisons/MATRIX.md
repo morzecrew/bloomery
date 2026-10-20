@@ -4,12 +4,12 @@ What each system does with each case of the semantic bug corpus, from a reproduc
 checked in beside it. Read [`README.md`](README.md) first: a cell is a property of a **tested
 configuration**, never of a product, and the six values have precise meanings.
 
-- **Last checked:** 2026-10-05 (all twelve dbt Core bundles, re-run on `1.12.5` with every
-  observation unchanged); 2026-09-29 (the MetricFlow and SQLMesh bundles for `001`, `003`,
-  `004`, `006`, `007`, `010` and `012`); 2026-09-28 (the other five MetricFlow bundles, re-run
-  on `0.213.0`, and the other five SQLMesh bundles, re-run on `0.236.2`, with every observation
-  unchanged). Each bundle's `README.md` pins its own date and version, and those are what a
-  cell rests on.
+- **Last checked:** 2026-10-20 (all twelve SQLMesh bundles, re-run on `0.236.3` against DuckDB
+  `1.5.6` with every observation unchanged); 2026-10-05 (all twelve dbt Core bundles, re-run on
+  `1.12.5` with every observation unchanged); 2026-09-29 (the MetricFlow bundles for `001`,
+  `003`, `004`, `006`, `007`, `010` and `012`); 2026-09-28 (the other five MetricFlow bundles,
+  re-run on `0.213.0` with every observation unchanged). Each bundle's `README.md` pins its own
+  date and version, and those are what a cell rests on.
 - **Coverage:** 26 rows — one per *expectation*, not one per case. S-0056's twelve cases
   pin between one and three apiece, because a case is typically refused in one shape and
   planned correctly in another, and a column that answered only one of those would say
@@ -24,7 +24,7 @@ configuration**, never of a product, and the six values have precise meanings.
 | **bloomery** | this tree | `tests/fixtures/semantic_corpus/<case>/expected/semantic_outcome.json`, executed by `tests/execution/test_semantic_corpus.py` in the default suite |
 | **MetricFlow** | `0.213.0` | [`metricflow/<case>/`](metricflow/) — manifest authored as YAML, rendered against DuckDB `1.5.5` |
 | **dbt Core** | `1.12.5` | [`dbt/<case>/`](dbt/) — a dbt project with `semantic_models:` and `metrics:`, built by `dbt-duckdb` `1.11.0` against DuckDB `1.5.5`; no `dbt-metricflow`, no dbt Cloud |
-| **SQLMesh** | `0.236.2` | [`sqlmesh/<case>/`](sqlmesh/) — `MODEL` and `METRIC` DDL in a project with one `duckdb` gateway, planned and rendered against DuckDB `1.5.5`; no Tobiko Cloud |
+| **SQLMesh** | `0.236.3` | [`sqlmesh/<case>/`](sqlmesh/) — `MODEL` and `METRIC` DDL in a project with one `duckdb` gateway, planned and rendered against DuckDB `1.5.6`; no Tobiko Cloud |
 | **Cube** | not installed | — |
 
 The last is **`UNKNOWN` in every row**. It is listed rather than written out as twenty-six
@@ -34,7 +34,7 @@ that nobody has run it. Cube needs a runtime this repository does not carry, and
 
 ## The table
 
-| Case | Expectation | bloomery | MetricFlow `0.213.0` | dbt Core `1.12.5` | SQLMesh `0.236.2` |
+| Case | Expectation | bloomery | MetricFlow `0.213.0` | dbt Core `1.12.5` | SQLMesh `0.236.3` |
 |---|---|---|---|---|---|
 | `001-order-shipping-fanout` | `refinement` | `NATIVE-PREVENT` <br> `GrainMismatch`, S-0023/D-5 | `NOT-REPRESENTED` <br> a line-grain view returns `57.0000`; validator clean. The same derivation through the normalized models is refused as a fan-out join | `UNKNOWN` <br> not run: no counterpart declared in the bundle | `UNKNOWN` <br> SQLMesh's own join to a line column renders SQL DuckDB refuses; no number, and no grain check |
 | `001-order-shipping-fanout` | `representation` | `NATIVE-PREVENT` <br> `GrainViolation`, S-0027/D-2 | `NOT-REPRESENTED` <br> a line-grain view returns `27.0000`; validator clean | `NOT-REPRESENTED` <br> build clean; a project model returns `27.0000` | `NOT-REPRESENTED` <br> returns `27.0000`; plan and audit clean |
@@ -206,7 +206,7 @@ Twenty-five cells over all twelve cases, and one `UNKNOWN`: `001`'s `refinement`
 bundle ran and which returned no number either way. The first five cases measured say four
 things; the seven measured on 2026-09-29 add three more, at the end.
 
-**SQLMesh `0.236.2` both declares metrics and answers them, in this configuration.** A
+**SQLMesh `0.236.3` both declares metrics and answers them, in this configuration.** A
 `METRIC (...)` block carries a SQL expression; `sqlmesh rewrite "SELECT METRIC(x) FROM
 __semantic.__table"` turns it into a query, collecting the aggregates into a subquery over the
 model they name and composing derived metrics outside it; the query returns the corpus's
