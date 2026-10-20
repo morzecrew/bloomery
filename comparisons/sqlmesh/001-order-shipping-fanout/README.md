@@ -1,7 +1,7 @@
 # SQLMesh × 001-order-shipping-fanout
 
-- **System:** SQLMesh `0.236.2`, against DuckDB `1.5.5` through its `duckdb` gateway.
-- **Checked:** 2026-09-29.
+- **System:** SQLMesh `0.236.3`, against DuckDB `1.5.6` through its `duckdb` gateway.
+- **Checked:** 2026-10-20.
 - **Feature set:** a SQLMesh project — `config.yaml` with one gateway, three `MODEL (...)`
   blocks with `grain` and `references`, and two `METRIC (...)` blocks. Commands run: `sqlmesh
   info`, `sqlmesh plan --auto-apply`, `sqlmesh audit`, `sqlmesh rewrite`, the last for two

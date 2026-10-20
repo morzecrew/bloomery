@@ -18,8 +18,8 @@ Version-pinned and checkable offline, which is what makes it the primary citatio
 | the type-2 kinds that were read and not run | `sqlmesh/core/model/kind.py`, `SCDType2ByTimeKind` and `SCDType2ByColumnKind` |
 
 ```
-python -c "import importlib.metadata as m; print(m.version('sqlmesh'))"   # 0.236.2
-python -c "import importlib.metadata as m; print(m.version('duckdb'))"    # 1.5.5
+python -c "import importlib.metadata as m; print(m.version('sqlmesh'))"   # 0.236.3
+python -c "import importlib.metadata as m; print(m.version('duckdb'))"    # 1.5.6
 ```
 
 ## Secondary — the published documentation
