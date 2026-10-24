@@ -250,6 +250,48 @@
       "title": "Model",
       "type": "object"
     },
+    "NestedConfig": {
+      "additionalProperties": false,
+      "description": "The daemon a sandbox gets under `runtime.docker: nested` (S-0111/D-1): a\nprivileged side container it shares a network namespace with, so a task's\ncontainers, ports and volumes are its own and nothing it starts outlives it.",
+      "properties": {
+        "cache_volume": {
+          "default": "torve-dind",
+          "description": "The base name of the volume holding the side container's `/var/lib/docker`\n(S-0111/D-2). The worker slot is appended, like every slot-suffixed volume: what a\ntask pulled stays pulled for that slot, and two workers never share a daemon's state.",
+          "title": "Cache Volume",
+          "type": "string"
+        },
+        "image": {
+          "default": "docker:29.7.2-dind",
+          "description": "The pinned dind image the privileged side container runs (S-0111/D-1).\nThe engine's major tracks the hosts and CI that build the same images: on\n27, a directory `COPY --chmod=0644` creates came out 0755, on 29 0644, so a\ngate passed what CI then failed.",
+          "title": "Image",
+          "type": "string"
+        },
+        "ready_s": {
+          "default": 60,
+          "description": "How long to wait for the side container's `docker info` to answer before the\nsandbox's creation fails as a runtime error (S-0111/D-3).",
+          "title": "Ready S",
+          "type": "number"
+        },
+        "registry_mirrors": {
+          "description": "Registry mirrors the side container's daemon is started with (S-0111/D-2),\npassed to dockerd as `--registry-mirror=<url>`.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Registry Mirrors",
+          "type": "array"
+        },
+        "roles": {
+          "description": "The roles whose sandboxes get the nested daemon (S-0111/D-4). Defaults to the gates\nalone; the review role is refused \u2014 a judge never starts containers.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Roles",
+          "type": "array"
+        }
+      },
+      "title": "NestedConfig",
+      "type": "object"
+    },
     "NightConfig": {
       "additionalProperties": false,
       "description": "The terms one served night runs under (S-0079/D-5).\n\nBoth refusals below fire at load, while a person is still standing at\nthe terminal. A night with no budget on either axis would run until\nsomething else stopped it, and a stop class nobody can raise is a\ncondition that silently never fires at 04:00 \u2014 which is the one hour\nnobody is there to notice that it did not.",
@@ -662,10 +704,11 @@
         },
         "docker": {
           "default": "",
-          "description": "Docker inside the sandbox (S-0017/docker-inside-the-sandbox, S-0017/D-9). \"socket\"\nmounts the host daemon's socket into every sandbox of the run \u2014 attempt and gates\nalike \u2014 and the image supplies the docker CLI. Host-equivalent capability, granted\nknowingly per repository (S-0017/D-10): a container started over the host socket can\nmount any host path. The nested daemon is the named, deferred stronger mode.\nOpenSandbox refuses any value here.",
+          "description": "Docker inside the sandbox (S-0017/docker-inside-the-sandbox, S-0017/D-9). \"socket\"\nmounts the host daemon's socket into every sandbox of the run \u2014 attempt and gates\nalike \u2014 and the image supplies the docker CLI. Host-equivalent capability, granted\nknowingly per repository (S-0017/D-10): a container started over the host socket can\nmount any host path. \"nested\" (S-0111/D-1) starts a privileged side container running\nits own daemon and joins each sandbox of a role in `nested.roles` to it \u2014 a task's own\ncontainers, ports and volumes. The review role is refused, and so are OpenSandbox and\nsealed broker mode. OpenSandbox refuses any value here.",
           "enum": [
             "",
-            "socket"
+            "socket",
+            "nested"
           ],
           "title": "Docker",
           "type": "string"
@@ -675,6 +718,10 @@
           "description": "The sandbox image every tier that names none of its own runs in (`image_for`).",
           "title": "Image",
           "type": "string"
+        },
+        "nested": {
+          "$ref": "#/$defs/NestedConfig",
+          "description": "The privileged side container a `nested` sandbox shares a network namespace with\n(S-0111/D-1): its image, volume, mirrors, roles and readiness clock."
         },
         "network": {
           "default": "",
@@ -1175,6 +1222,40 @@
       },
       "title": "VcsConfig",
       "type": "object"
+    },
+    "VerifyConfig": {
+      "additionalProperties": false,
+      "description": "The verify pilot's terms (S-0116/D-2): off by default, so an adopter\nthat never sets the block mints exactly the tasks it minted before.\n\n`variant` names the seat under `executor` the verify role runs on, and a\nconfiguration that turns the pilot on without that seat refuses at load \u2014\nwhile a person is still at the terminal, not at the first dispatch of a\nverify task. `types` and `tests_dir` are what the planner reads when it\nmints a verifier; they carry the defaults the decision names.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Whether the planner mints verify tasks ahead of phasing entries (S-0116/D-2).",
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "tests_dir": {
+          "default": "tests/verify",
+          "description": "Where a verifier writes the tests it mints (S-0116/D-4).",
+          "title": "Tests Dir",
+          "type": "string"
+        },
+        "types": {
+          "description": "The document `change.type` values that earn a verifier (S-0116/D-4).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "variant": {
+          "default": "verify",
+          "description": "The dotted variant under `executor` the verify role runs on: the seat is\n`executor.<variant>`, and a configuration with `enabled` and no such tier is\nrefused at load.",
+          "title": "Variant",
+          "type": "string"
+        }
+      },
+      "title": "VerifyConfig",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -1303,6 +1384,10 @@
     "vcs": {
       "$ref": "#/$defs/VcsConfig",
       "description": "Local git at the runner boundary \u2014 the commit signing key (S-0010/signing)."
+    },
+    "verify": {
+      "$ref": "#/$defs/VerifyConfig",
+      "description": "The verify pilot's terms (S-0116/D-2), off by default."
     },
     "worker_slot": {
       "default": 0,

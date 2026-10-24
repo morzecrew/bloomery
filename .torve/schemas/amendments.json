@@ -883,12 +883,13 @@
         },
         "role": {
           "default": "implement",
-          "description": "What the run does: implement, review (S-0005/D-9), revert (S-0010) or draft (S-0020).",
+          "description": "What the run does: implement, review (S-0005/D-9), revert (S-0010), draft\n(S-0020) or verify (S-0116/D-1).",
           "enum": [
             "implement",
             "review",
             "revert",
-            "draft"
+            "draft",
+            "verify"
           ],
           "title": "Role",
           "type": "string"
@@ -932,7 +933,7 @@
           "title": "Spec"
         },
         "targets": {
-          "description": "The tasks a review examines (S-0005/the-review-contract, S-0005/D-9) or the\ntasks and shas a revert undoes (S-0010/revert-as-a-role): the contract shape\nis parameterised by role, no new mechanism. Only those two roles carry targets.",
+          "description": "The tasks a review examines (S-0005/the-review-contract, S-0005/D-9) or the\ntasks and shas a revert undoes (S-0010/revert-as-a-role): the contract shape\nis parameterised by role, no new mechanism. Only those two roles carry targets;\na verify task names none (S-0116/D-1).",
           "items": {
             "type": "string"
           },

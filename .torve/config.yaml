@@ -8,7 +8,7 @@ schema_version: 1
 
 # The torve release this repository runs on, up to the next minor; a torve
 # outside it stops before it serves.
-engine: "0.4.0"
+engine: "0.6.4"
 
 runtime:
   adapter: docker
