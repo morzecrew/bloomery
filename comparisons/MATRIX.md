@@ -4,12 +4,12 @@ What each system does with each case of the semantic bug corpus, from a reproduc
 checked in beside it. Read [`README.md`](README.md) first: a cell is a property of a **tested
 configuration**, never of a product, and the six values have precise meanings.
 
-- **Last checked:** 2026-10-20 (all twelve SQLMesh bundles, re-run on `0.236.3` against DuckDB
-  `1.5.6` with every observation unchanged); 2026-10-05 (all twelve dbt Core bundles, re-run on
-  `1.12.5` with every observation unchanged); 2026-09-29 (the MetricFlow bundles for `001`,
-  `003`, `004`, `006`, `007`, `010` and `012`); 2026-09-28 (the other five MetricFlow bundles,
-  re-run on `0.213.0` with every observation unchanged). Each bundle's `README.md` pins its own
-  date and version, and those are what a cell rests on.
+- **Last checked:** 2026-10-26 (all twelve dbt Core bundles, re-run on `1.12.6` against DuckDB
+  `1.5.6` with every observation unchanged); 2026-10-20 (all twelve SQLMesh bundles, re-run on
+  `0.236.3` against DuckDB `1.5.6` with every observation unchanged); 2026-09-29 (the
+  MetricFlow bundles for `001`, `003`, `004`, `006`, `007`, `010` and `012`); 2026-09-28 (the
+  other five MetricFlow bundles, re-run on `0.213.0` with every observation unchanged). Each
+  bundle's `README.md` pins its own date and version, and those are what a cell rests on.
 - **Coverage:** 26 rows — one per *expectation*, not one per case. S-0056's twelve cases
   pin between one and three apiece, because a case is typically refused in one shape and
   planned correctly in another, and a column that answered only one of those would say
@@ -23,7 +23,7 @@ configuration**, never of a product, and the six values have precise meanings.
 |---|---|---|
 | **bloomery** | this tree | `tests/fixtures/semantic_corpus/<case>/expected/semantic_outcome.json`, executed by `tests/execution/test_semantic_corpus.py` in the default suite |
 | **MetricFlow** | `0.213.0` | [`metricflow/<case>/`](metricflow/) — manifest authored as YAML, rendered against DuckDB `1.5.5` |
-| **dbt Core** | `1.12.5` | [`dbt/<case>/`](dbt/) — a dbt project with `semantic_models:` and `metrics:`, built by `dbt-duckdb` `1.11.0` against DuckDB `1.5.5`; no `dbt-metricflow`, no dbt Cloud |
+| **dbt Core** | `1.12.6` | [`dbt/<case>/`](dbt/) — a dbt project with `semantic_models:` and `metrics:`, built by `dbt-duckdb` `1.11.0` against DuckDB `1.5.6`; no `dbt-metricflow`, no dbt Cloud |
 | **SQLMesh** | `0.236.3` | [`sqlmesh/<case>/`](sqlmesh/) — `MODEL` and `METRIC` DDL in a project with one `duckdb` gateway, planned and rendered against DuckDB `1.5.6`; no Tobiko Cloud |
 | **Cube** | not installed | — |
 
@@ -34,7 +34,7 @@ that nobody has run it. Cube needs a runtime this repository does not carry, and
 
 ## The table
 
-| Case | Expectation | bloomery | MetricFlow `0.213.0` | dbt Core `1.12.5` | SQLMesh `0.236.3` |
+| Case | Expectation | bloomery | MetricFlow `0.213.0` | dbt Core `1.12.6` | SQLMesh `0.236.3` |
 |---|---|---|---|---|---|
 | `001-order-shipping-fanout` | `refinement` | `NATIVE-PREVENT` <br> `GrainMismatch`, S-0023/D-5 | `NOT-REPRESENTED` <br> a line-grain view returns `57.0000`; validator clean. The same derivation through the normalized models is refused as a fan-out join | `UNKNOWN` <br> not run: no counterpart declared in the bundle | `UNKNOWN` <br> SQLMesh's own join to a line column renders SQL DuckDB refuses; no number, and no grain check |
 | `001-order-shipping-fanout` | `representation` | `NATIVE-PREVENT` <br> `GrainViolation`, S-0027/D-2 | `NOT-REPRESENTED` <br> a line-grain view returns `27.0000`; validator clean | `NOT-REPRESENTED` <br> build clean; a project model returns `27.0000` | `NOT-REPRESENTED` <br> returns `27.0000`; plan and audit clean |
@@ -148,7 +148,7 @@ Twenty-four cells over all twelve cases, and two `UNKNOWN`: `001`'s `refinement`
 for either. The cells say three things — one of which is about this column's relationship to
 the one beside it.
 
-**dbt Core `1.12.5` parses metrics; in this configuration it does not answer them.** Every
+**dbt Core `1.12.6` parses metrics; in this configuration it does not answer them.** Every
 `dbt compile --select metric:<name>` invocation across the twelve bundles renders no
 SQL: `Nothing to do.` The metrics are real to dbt — `dbt list --resource-type metric` prints
 them and they reach the manifest — but the engine that turns one into a query ships
@@ -180,7 +180,7 @@ cell is `NOT-REPRESENTED` beside a history that is, in the semantic model, repre
 
 **One difference between the two columns is the vocabulary itself, at the versions pinned.**
 `fill_nulls_with: 0` in a `ratio` metric's denominator — which MetricFlow `0.213.0` accepted,
-changing nothing — is rejected outright by dbt Core `1.12.5`'s parser. The packages move
+changing nothing — is rejected outright by dbt Core `1.12.6`'s parser. The packages move
 independently, and the cells pin the version each was measured at for exactly this reason.
 
 **The comparison is between vocabularies, here too.** bloomery's `NATIVE-PREVENT` rows
