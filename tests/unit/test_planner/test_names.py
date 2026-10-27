@@ -197,3 +197,25 @@ def test_unknown_dimension_column_is_a_planner_error() -> None:
 
 def test_columns_from_is_the_public_reverse_entry() -> None:
     assert callable(columns_from)
+
+
+def test_a_measure_column_is_labelled_by_its_metric_s_label_then_its_description() -> None:
+    """#343: the description had to be the label too, so a caller got a whole
+    sentence as a chart title (S-0094/D-10)."""
+    from dataclasses import replace
+
+    ir = fixture_ir("ecom_basic")
+    (metric,) = (metric for metric in ir.metrics if metric.name == "gross_revenue")
+    request = MetricRequest(metrics=("gross_revenue",), dimensions=("unit_price",))
+
+    def label(described: str | None, labelled: str | None) -> str | None:
+        annotated = replace(metric, description=described, label=labelled)
+        project = replace(
+            ir, metrics=tuple(annotated if m.name == metric.name else m for m in ir.metrics)
+        )
+        plan = make_planner().plan(project, request, dialect="duckdb")
+        (column,) = (column for column in plan.columns if column.role == "measure")
+        return column.label
+
+    assert label("Revenue by order, VAT included", "Revenue") == "Revenue"
+    assert label("Revenue by order, VAT included", None) == "Revenue by order, VAT included"

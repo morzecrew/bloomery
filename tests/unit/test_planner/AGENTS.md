@@ -191,4 +191,11 @@ A request refused because a request filter or the row policy does not reach ever
 - Paths: `src/bloomery/planner/coverage.py` `tests/unit/test_planner/test_coverage.py`
 - Consequence: the refusal says what to change instead of blaming grains
 
+### S-0094/D-10 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
+
+The planner labels a measure column by its metric's `label`, and by its `description` only where no label is authored
+
+- Paths: `src/bloomery/planner/names.py` `tests/unit/test_planner/test_names.py`
+- Consequence: A caller rendering `QueryPlan.columns` gets a chart title rather than the explanation sentence, and a project with no labels sees the description exactly as before
+
 <!-- /torve:managed -->

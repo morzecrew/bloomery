@@ -98,7 +98,7 @@ An exposure's `depends_on` keeps two kinds, `metrics` and `marts`, each optional
 - Paths: `src/bloomery/spec/exposures.py` `tests/unit/test_plan/test_exposures.py` `tests/unit/test_guardrails/test_evidence.py`
 - Consequence: An author lists the mart a dashboard reads directly instead of routing it through a metric, and an impact report cannot omit a consumer that names no metric
 
-### S-0094/D-8 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics) — implementation: partial
+### S-0094/D-8 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
 
 A change to a column's `description`, `label` or `synonyms`, or to a metric's `description`, `label` or `synonyms`, is ADDITIVE, metadata only, with no backfill
 

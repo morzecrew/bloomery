@@ -761,15 +761,18 @@ def _column_pair(
         acc.seeds |= refs
         return
 
-    if old_c.description != new_c.description:
-        acc.changes.append(
-            Change(
-                new_e.name,
-                subject,
-                ChangeClass.ADDITIVE,
-                "description changed (metadata only)",
+    # No SELECT reads any of the three, so none rebuilds anything (S-0094/D-8).
+    for facet, old_value, new_value in (
+        ("description", old_c.description, new_c.description),
+        ("label", old_c.label, new_c.label),
+        ("synonyms", old_c.synonyms, new_c.synonyms),
+    ):
+        if old_value != new_value:
+            acc.changes.append(
+                Change(
+                    new_e.name, subject, ChangeClass.ADDITIVE, f"{facet} changed (metadata only)"
+                )
             )
-        )
 
 
 # ....................... #
@@ -1927,10 +1930,15 @@ def _metric_pair(old_m: MetricIR, new_m: MetricIR, acc: _Acc) -> None:
         acc.seeds.add(new_m.name)
         return
 
-    if old_m.description != new_m.description:
-        acc.changes.append(
-            Change(None, subject, ChangeClass.ADDITIVE, "description changed (metadata only)")
-        )
+    for facet, old_value, new_value in (
+        ("description", old_m.description, new_m.description),
+        ("label", old_m.label, new_m.label),
+        ("synonyms", old_m.synonyms, new_m.synonyms),
+    ):
+        if old_value != new_value:
+            acc.changes.append(
+                Change(None, subject, ChangeClass.ADDITIVE, f"{facet} changed (metadata only)")
+            )
 
 
 # ....................... #

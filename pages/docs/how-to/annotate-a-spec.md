@@ -180,6 +180,35 @@ there would be a restriction in a file that restricts nothing. Compiling a grant
 for Cube fails with a message saying so, rather than dropping the block and letting you
 believe the restriction is in force everywhere.
 
+## `description:`, `label:` and `synonyms:` — what to call it
+
+A field and a metric each take a description, a short label and synonyms. They change no
+SQL; each reaches the slot every target has for it, and no other:
+
+```yaml
+# entity_model.yaml
+unit_price: {type: "decimal(12,4)", canonical: unit_price,
+             description: "Net unit price, before discounts", label: Unit price,
+             synonyms: [price, cost]}
+# metrics.yaml
+gross_revenue: {template: gross_revenue, label: Revenue, synonyms: [turnover, sales]}
+```
+
+| Annotation | MetricFlow | Cube | dbt `schema.yml` |
+|---|---|---|---|
+| field `description` | dimension `description` | dimension `description` | column `description` |
+| field `label` | dimension `label` | dimension `title` | — |
+| field `synonyms` | dimension `config.meta.synonyms` | dimension `meta.synonyms` | column `meta.synonyms` |
+| metric `description` | metric `description` | measure `description` | — |
+| metric `label` | metric `label` | measure `title` | — |
+| metric `synonyms` | metric `config.meta.synonyms` | measure `meta.synonyms` | — |
+
+A field's own description wins over its canonical field's. A mart column carries the
+annotations of the column it was flattened from, prefixed or not. A metric's label is the
+planner's column label too, with its description as the fallback. A label is one line, an
+annotation empty once stripped is refused, and two equal synonyms are refused. Changing any
+of them is an ADDITIVE, metadata-only change in `plan()`.
+
 ## What is not here
 
 **Seeds.** `seeds:` is refused permanently, and the message says "refused, not missing". A

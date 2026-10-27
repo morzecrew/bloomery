@@ -100,7 +100,7 @@ The `HistoricalFanout` fix text leads with the current reading from phase 2 on �
 - Paths: `src/bloomery/marts/flatten.py` `tests/golden/test_refusal_messages.py`
 - Consequence: the refusal sends an author to the current reading only once a rollup over a current-reading mart proves, never from one refusal into another
 
-### S-0094/D-6 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics) — implementation: partial
+### S-0094/D-6 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
 
 Cube emits `description` on its dimensions and measures, so a metric's authored description reaches Cube for the first time
 

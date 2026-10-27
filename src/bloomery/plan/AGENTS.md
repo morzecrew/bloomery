@@ -231,7 +231,7 @@ A dependent at `on_missing: unknown_member` or `flag` of an entity in `replay_sc
 - Paths: `src/bloomery/plan/diff.py` `src/bloomery/cli/render.py`
 - Consequence: an ADDITIVE field on dbt costs a full refresh, and the plan says so before it is applied
 
-### S-0094/D-8 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics) — implementation: partial
+### S-0094/D-8 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
 
 A change to a column's `description`, `label` or `synonyms`, or to a metric's `description`, `label` or `synonyms`, is ADDITIVE, metadata only, with no backfill
 
