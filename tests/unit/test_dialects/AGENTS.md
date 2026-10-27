@@ -80,4 +80,18 @@ The check exists, and it is a **conformance battery at the engine tiers over the
 - Paths: `src/bloomery/dialects/base.py` `tests/unit/test_dialects/test_duckdb.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0096/D-6 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+
+The epoch formats lower to a `BLM_EPOCH_SECONDS` or `BLM_EPOCH_MILLIS` marker that a port declaring `DialectFeature.EPOCH` renders as integer arithmetic from the epoch, never as a zone-aware function. DuckDB declares it with `make_timestamp`; every port that does not declare it refuses the marker as `UnsupportedByTarget` until its spelling is measured on the engine
+
+- Paths: `src/bloomery/dialects/base.py` `src/bloomery/dialects/duckdb.py` `tests/unit/test_dialects/test_base.py` `tests/unit/test_dialects/test_duckdb.py`
+- Consequence: An epoch gives one instant on DuckDB under any session time zone, and a project on a port without the feature learns at compile time that the formats are not there yet
+
+### S-0096/D-7 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+
+PostgreSQL and Trino declare `DialectFeature.EPOCH` with the measured arithmetic spellings, `TIMESTAMP '1970-01-01' + n * INTERVAL '1 second'` and `date_add('second', n, TIMESTAMP '1970-01-01 00:00:00.000000')` and their millisecond forms, held to DuckDB's answers by an engine differential under a UTC and a non-UTC session
+
+- Paths: `src/bloomery/dialects/postgres.py` `src/bloomery/dialects/trino.py` `tests/unit/test_dialects/test_postgres.py` `tests/unit/test_dialects/test_trino.py` `tests/engines/test_epoch_differential.py`
+- Consequence: One bronze row gives one instant on all three shipping ports under any session time zone; Snowflake, BigQuery, Databricks and Redshift still refuse
+
 <!-- /torve:managed -->

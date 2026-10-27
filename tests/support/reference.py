@@ -247,9 +247,12 @@ def prepend(value: str | None, text: str) -> str | None:
 
 
 def enum_map(value: str | None, *pairs: str) -> str | None:
-    """Map values through from/to pairs; unmapped values (and NULL) pass through."""
+    """Map values through from/to pairs; unmapped values (and NULL) pass through,
+    or, under a `"*"` last pair, unmapped values take its target (S-0096/D-1)."""
     if value is None:
         return None
+    if pairs[-2] == "*":
+        return dict(zip(pairs[0:-2:2], pairs[1:-2:2], strict=True)).get(value, pairs[-1])
     mapping = dict(zip(pairs[0::2], pairs[1::2], strict=True))
     return mapping.get(value, value)
 

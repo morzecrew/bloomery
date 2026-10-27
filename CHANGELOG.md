@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **An `enum_map` fallback.** A `"*"` last pair maps every non-NULL value no earlier pair
+  lists to its target: `{enum_map: ["142", won, "143", lost, "*", open]}` reads an open-ended
+  status id as one of three outcomes in one step. NULL stays NULL. Before, unlisted values
+  passed through, so the chain needed a nulling step and a `coalesce`, and the nulling step
+  turned the field's implicit `coercible` rule off. A `"*"` anywhere but the last pair is
+  refused, and so is `in_enum` over a field whose map has a fallback. (#323)
 - **Expression metrics have lineage.** `lineage()` walked upstream from a metric defined
   by an `expr` with no `requires:` to nothing. An `expr` edge now runs from each field of the
   metric's grain entity that its `expr` names, so the walk reaches the entity column and,

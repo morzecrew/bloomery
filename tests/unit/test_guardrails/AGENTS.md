@@ -372,4 +372,18 @@ R018 does not reach a timestamp parsed inside a catalog recipe: a recipe fills n
 - Paths: `src/bloomery/guardrails/zone.py` `tests/unit/test_guardrails/test_zone.py`
 - Consequence: A project whose recipe casts wall-clock text to a timestamp compiles without a zone refusal, and whoever closes the hole needs a declaration site on the catalog side first
 
+### S-0096/D-2 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+
+`in_enum` over a field whose `enum_map` has a fallback is refused at the guardrail stage, naming the fallback
+
+- Paths: `src/bloomery/guardrails/quality.py` `tests/unit/test_guardrails/test_quality.py`
+- Consequence: A rule that could never fire is not emitted as an audit that always passes, and `enum_chain` never reads `"*"` as an admissible spelling
+
+### S-0096/D-5 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+
+An epoch parse is an instant under S-0081/D-2's rules: the zone guard treats its value as never a wall clock, a `to_utc` after it is refused at resolve, and `zone_in:` may only be `UTC`
+
+- Paths: `src/bloomery/guardrails/zone.py` `src/bloomery/resolve/build.py` `tests/unit/test_guardrails/test_zone.py`
+- Consequence: A date role over an epoch column needs no declared zone, and a chain cannot reinterpret the instant as a wall clock somewhere else
+
 <!-- /torve:managed -->

@@ -725,6 +725,13 @@ Every handler that turns a SQLGlot parse into a refusal or a pass-on treats a `V
 - Paths: `src/bloomery/spec/common.py` `src/bloomery/resolve/steps.py` `src/bloomery/resolve/build.py`
 - Consequence: a body or expression SQLGlot cannot convert is refused like any other unparseable text, at the step or field that carries it, and the next handler that parses SQL takes the classes from one place
 
+### S-0096/D-5 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+
+An epoch parse is an instant under S-0081/D-2's rules: the zone guard treats its value as never a wall clock, a `to_utc` after it is refused at resolve, and `zone_in:` may only be `UTC`
+
+- Paths: `src/bloomery/guardrails/zone.py` `src/bloomery/resolve/build.py` `tests/unit/test_guardrails/test_zone.py`
+- Consequence: A date role over an epoch column needs no declared zone, and a chain cannot reinterpret the instant as a wall clock somewhere else
+
 ## Invariants holding over `src/bloomery/resolve/`
 
 - **S-0079/I-1**: The IR version is declared once, on the dataclass, and every project's fingerprint is stable across processes and `PYTHONHASHSEED` values

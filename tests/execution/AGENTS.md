@@ -324,4 +324,18 @@ A `to_utc` whose operand is an ISO wall-clock parse makes the parse zoned: every
 - Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/dialects/base.py` `tests/execution/test_zoneless_utc.py`
 - Consequence: a UTC value is never shifted by a zone's offset a second time; it is NULL, which a quality rule can see
 
+### S-0096/D-1 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+
+A `"*"` as the source of `enum_map`'s last pair is the fallback: a non-NULL value no earlier pair lists yields that pair's target, and NULL stays NULL. A `"*"` in any other pair is refused at typecheck. The arguments stay flat string pairs
+
+- Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/typing/check.py` `tests/unit/test_transforms/test_builtins.py` `tests/support/reference.py` `tests/execution/test_enum_fallback.py`
+- Consequence: An open vocabulary maps onto a closed set in one step, `enum_map` stays non-nulling, and the implicit `coercible` rule stays on for the chain; a spec whose final pair maps a literal `*` changes meaning
+
+### S-0096/D-4 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+
+An epoch count is an optional sign and at most fifteen digits, with spaces around it, naming an instant from `0001-01-01 00:00:00` to `9999-12-31 23:59:59.999`. Any other value yields NULL: a fraction, an exponent, text that is not a number, or a count out of range
+
+- Paths: `src/bloomery/transforms/_builtins.py` `tests/execution/test_epoch.py`
+- Consequence: The guarded cast to `BIGINT` cannot overflow, and the four texts the engines disagree on give NULL everywhere; under the quality system that NULL is a coercion failure `coercible` disposes of, and without it the value is NULL rather than an aborted run
+
 <!-- /torve:managed -->

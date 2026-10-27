@@ -353,18 +353,59 @@ def prepend(col: Expression, text: str) -> Expression:
 # ....................... #
 
 
+#: The source a last ``enum_map`` pair names to make its target the fallback
+#: for every value no earlier pair lists (S-0096/D-1).
+ENUM_FALLBACK = "*"
+
+
+def _fallback_last(_: LogicalType, args: tuple[str | int, ...]) -> LogicalType:
+    """``enum_map`` produces a string, once a fallback ``"*"`` is proven to be
+    the last pair's source: anywhere else it would shadow the pairs after it,
+    and a source that sends a literal ``*`` maps it in any earlier pair."""
+
+    if ENUM_FALLBACK in args[0:-2:2]:
+        msg = (
+            f"enum_map's {ENUM_FALLBACK!r} is the fallback and only the last pair may name it "
+            "(S-0096/D-1). Fix: move the fallback pair last"
+        )
+        raise TypeCheckError(msg)
+
+    return StringType()
+
+
 @transform(
     "enum_map",
     arity=2,
     arg_kinds=(ArgKind.STR, ArgKind.STR),
     input=(StringType,),
-    output=StringType(),
+    output=_fallback_last,
     variadic=True,
 )
 def enum_map(col: Expression, *pairs: str) -> Expression:
     """``{enum_map: [raw, mapped, ...]}`` — flat from/to pairs. Values outside
     the map pass through: disposing of them is the ``in_enum`` quality rule's
-    job (S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-3 — superseding S-0025/D-7), not a chain concern."""
+    job (S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-3 — superseding S-0025/D-7), not a chain concern.
+
+    A ``"*"`` last pair is the fallback instead (S-0096/D-1): an unlisted value
+    yields its target, and NULL stays NULL, which the plain ``CASE x WHEN`` form
+    could not say once its ``ELSE`` is a constant.
+    """
+    if pairs[-2] == ENUM_FALLBACK:
+        listed = zip(pairs[0:-2:2], pairs[1:-2:2], strict=True)
+        return exp.Case(
+            ifs=[
+                exp.If(this=exp.Is(this=col.copy(), expression=exp.Null()), true=exp.Null()),
+                *(
+                    exp.If(
+                        this=exp.EQ(this=col.copy(), expression=exp.Literal.string(source)),
+                        true=exp.Literal.string(mapped),
+                    )
+                    for source, mapped in listed
+                ),
+            ],
+            default=exp.Literal.string(pairs[-1]),
+        )
+
     ifs = [
         exp.If(this=exp.Literal.string(source), true=exp.Literal.string(mapped))
         for source, mapped in zip(pairs[0::2], pairs[1::2], strict=True)

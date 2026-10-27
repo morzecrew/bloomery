@@ -24,7 +24,7 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 | `strip_suffix` | suffix (str) | string → string | `[{strip_suffix: "-eu"}]` — remove a trailing suffix if present |
 | `concat` | text (str) | string → string | `[{concat: "-eu"}]` — append a literal |
 | `prepend` | text (str) | string → string | `[{prepend: "amocrm:"}]` — put a literal in front, as for a key namespaced by source |
-| `enum_map` | from/to pairs (str…, variadic) | string → string | `[{enum_map: [F, female, M, male]}]` — map values; unmapped values pass through |
+| `enum_map` | from/to pairs (str…, variadic) | string → string | `[{enum_map: [F, female, M, male]}]` — map values; unmapped values pass through. A `"*"` last pair is the fallback: `[{enum_map: ["142", won, "143", lost, "*", open]}]` maps every other non-NULL value to `open`, and NULL stays NULL. A `"*"` in any other pair is refused, and so is `in_enum` over a field whose map has a fallback, since it could never fire |
 
 ## Casts and parses
 

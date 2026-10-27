@@ -87,7 +87,7 @@ match.
 | Arithmetic | `multiply`, `divide`, `round`, `abs` |
 | Currency | `convert` |
 
-- `enum_map: [F, female, M, male]` maps pairs; unmapped values pass through.
+- `enum_map: [F, female, M, male]` maps pairs; unmapped values pass through. A `"*"` last pair is the fallback for every other non-NULL value (`["142", won, "143", lost, "*", open]`), so no nulling step and `coalesce` are needed, and the implicit `coercible` rule stays on.
 - Decimal precision is tracked: `multiply` / `divide` widen; crossing 38 digits is an error
   telling you to narrow with `to_decimal`.
 - `divide` is inexact on DuckDB; prefer `{multiply: "0.01"}` to `{divide: 100}`.

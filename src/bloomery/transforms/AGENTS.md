@@ -247,4 +247,25 @@ Only the build-time `divide` and a recipe's `/` carry the exact-division marker 
 - Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/planner/compose.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/planner/coverage.py`
 - Consequence: a reference for query-time SQL has a stated semantics to hold the planner to, instead of guessing which division is meant
 
+### S-0096/D-1 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+
+A `"*"` as the source of `enum_map`'s last pair is the fallback: a non-NULL value no earlier pair lists yields that pair's target, and NULL stays NULL. A `"*"` in any other pair is refused at typecheck. The arguments stay flat string pairs
+
+- Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/typing/check.py` `tests/unit/test_transforms/test_builtins.py` `tests/support/reference.py` `tests/execution/test_enum_fallback.py`
+- Consequence: An open vocabulary maps onto a closed set in one step, `enum_map` stays non-nulling, and the implicit `coercible` rule stays on for the chain; a spec whose final pair maps a literal `*` changes meaning
+
+### S-0096/D-3 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+
+`parse_ts` gains two reserved formats, `UNIX_SECONDS` and `UNIX_MILLIS`, which read a count of seconds or milliseconds since `1970-01-01 00:00:00` UTC. Their input is a `string`, as every `parse_ts` format's is
+
+- Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/transforms/__init__.py` `tests/unit/test_transforms/test_builtins.py`
+- Consequence: An epoch lands as bronze sent it and maps to a `timestamp` in one step, from a text extraction or a typed column, which reaches the chain as its text
+
+### S-0096/D-4 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+
+An epoch count is an optional sign and at most fifteen digits, with spaces around it, naming an instant from `0001-01-01 00:00:00` to `9999-12-31 23:59:59.999`. Any other value yields NULL: a fraction, an exponent, text that is not a number, or a count out of range
+
+- Paths: `src/bloomery/transforms/_builtins.py` `tests/execution/test_epoch.py`
+- Consequence: The guarded cast to `BIGINT` cannot overflow, and the four texts the engines disagree on give NULL everywhere; under the quality system that NULL is a coercion failure `coercible` disposes of, and without it the value is NULL rather than an aborted run
+
 <!-- /torve:managed -->
