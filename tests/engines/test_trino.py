@@ -389,7 +389,11 @@ def test_the_marker_still_marks_a_genuine_coercion_failure(
     `REPLACE` accepts anything, so the guard against over-repair is that the
     cast still refuses a value that is not a timestamp at all — which is what
     keeps the `coercible` rule meaningful rather than always-clean.
+
+    The value is a row's, not a literal: a cast over a constant is not
+    shaped, since no row can fail it (#322).
     """
-    node = DEFAULT_REGISTRY["parse_ts"].builder(exp.Literal.string("last tuesday"), "ISO8601")
+    node = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("x"), "ISO8601")
     shaped = parse_one(_try_cast_shape(node).sql())
-    assert _run(trino_db, f"SELECT {TrinoDialect().render(shaped)}")[0][0] is None
+    rendered = TrinoDialect().render(shaped)
+    assert _run(trino_db, f"SELECT {rendered} FROM (VALUES 'last tuesday') AS t(x)")[0][0] is None
