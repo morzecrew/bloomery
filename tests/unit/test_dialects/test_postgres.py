@@ -304,3 +304,19 @@ def test_a_bare_column_is_read_as_text() -> None:
     reads every mapping from `string`, so a column takes the text guard."""
     node = exp.TryCast(this=exp.column("x"), to=exp.DataType.build("BOOLEAN"))
     assert "PG_INPUT_IS_VALID(CAST(x AS TEXT), 'BOOLEAN')" in _one_line(DIALECT.render(node))
+
+
+def test_a_try_cast_inside_another_is_guarded_too() -> None:
+    """A transform chain shaped for the quality system nests one `TRY_CAST` in
+    another — `to_decimal` then `multiply`. The rewrite replaced the outer one
+    and SQLGlot's `transform` does not descend into a replacement, so the inner
+    one rendered as the plain `CAST` this port spells `TRY_CAST` with, and a
+    bad value aborted the run."""
+    inner = exp.TryCast(this=exp.column("x"), to=exp.DataType.build("DECIMAL(16, 0)"))
+    outer = exp.TryCast(
+        this=exp.Mul(this=inner, expression=exp.Literal.number("0.01")),
+        to=exp.DataType.build("DECIMAL(18, 2)"),
+    )
+    rendered = _one_line(DIALECT.render(outer))
+    assert "PG_INPUT_IS_VALID(CAST(x AS TEXT), 'DECIMAL(16, 0)')" in rendered
+    assert "CAST(x AS DECIMAL(16, 0))" not in rendered

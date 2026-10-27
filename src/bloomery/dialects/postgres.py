@@ -9,11 +9,11 @@ from typing import ClassVar, Final, cast
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
-from sqlglot.optimizer.annotate_types import annotate_types
 
 from bloomery.dialects.base import (
     SQLGlotDialect,
     capture_group,
+    known_type,
     strip_iso_text,
     utc_from_zone,
     utc_instant,
@@ -455,18 +455,21 @@ def _guarded_try_cast(node: Expression) -> Expression:
     if not isinstance(node, exp.TryCast):
         return node
 
-    value = node.this
-    typed = _typed(value)
+    # A shaped chain nests one TRY_CAST in another, and `transform` does not
+    # descend into the replacement this returns, so the operand is guarded
+    # here or its cast renders plain. Its type is read before that rewrite.
+    typed = known_type(node.this)
+    value = node.this.transform(_guarded_try_cast)
 
     if typed is not None and (typed.is_type(_BOOLEAN) or node.to.is_type(_BOOLEAN)):
-        return exp.cast(value.copy(), node.to.copy())
+        return exp.cast(value, node.to.copy())
 
     if (
         typed is not None
         and typed.is_type(*exp.DataType.REAL_TYPES)
         and node.to.is_type(*exp.DataType.INTEGER_TYPES)
     ):
-        value = exp.Round(this=value.copy())
+        value = exp.Round(this=value)
 
     if not _yields_text(value):
         value = exp.cast(value.copy(), exp.DataType.build("TEXT"))
@@ -490,18 +493,6 @@ def _guarded_try_cast(node: Expression) -> Expression:
 
 
 _BOOLEAN: Final = exp.DataType.Type.BOOLEAN
-
-
-def _typed(node: Expression) -> exp.DataType | None:
-    """The type SQLGlot's annotator knows *node* to have, or ``None`` when it
-    is text or unknown — a bare column is unknown, and read as text."""
-
-    found = annotate_types(node.copy()).type
-
-    if found is None or found.is_type(exp.DataType.Type.UNKNOWN, *exp.DataType.TEXT_TYPES):
-        return None
-
-    return found
 
 
 def _yields_text(node: Expression) -> bool:

@@ -15,6 +15,7 @@ from typing import ClassVar, Final, Protocol, cast
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
+from sqlglot.optimizer.annotate_types import annotate_types
 
 from bloomery.errors import UnsupportedByTarget
 from bloomery.transforms import (
@@ -44,6 +45,7 @@ __all__ = [
     "utc_from_zone",
     "utc_instant",
     "capture_group",
+    "known_type",
     "DialectPort",
     "SQLGlotDialect",
 ]
@@ -279,6 +281,27 @@ def utc_instant(aware: Expression) -> Expression:
     return exp.cast(
         exp.func("timezone", exp.Literal.string("UTC"), aware), exp.DataType.build("TIMESTAMP")
     )
+
+
+# ....................... #
+
+
+def known_type(node: Expression) -> exp.DataType | None:
+    """The type SQLGlot's annotator knows *node* to have, or ``None`` when it
+    is text or unknown.
+
+    A port that spells ``TRY_CAST`` through text (PostgreSQL's input guard,
+    Snowflake's string source) reads a typed operand's text, which is not
+    always what the cast reads: ``'true'`` is not integer input. A bare column
+    is unknown, and a compile reads bronze as text, so it stays on that path.
+    """
+
+    found = annotate_types(node.copy()).type
+
+    if found is None or found.is_type(exp.DataType.Type.UNKNOWN, *exp.DataType.TEXT_TYPES):
+        return None
+
+    return found
 
 
 # ....................... #

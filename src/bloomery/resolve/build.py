@@ -341,11 +341,15 @@ def _try_cast_shape(node: Expression) -> Expression:
     Only entities that opt into the quality system are shaped this way (see
     :func:`bloomery.quality.opts_in`); everything else keeps the shipped
     produce-or-raise lowering.
+
+    The operand is shaped before it is wrapped: SQLGlot's ``transform`` does
+    not descend into a node it has just replaced, so without the recursion
+    only the outermost cast was rewritten and an inner one kept raising.
     """
 
     def shaped(child: Expression) -> Expression:
         if type(child) is exp.Cast:
-            return exp.TryCast(this=child.this, to=child.to)
+            return exp.TryCast(this=child.this.transform(shaped), to=child.to)
 
         return child
 

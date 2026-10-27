@@ -227,12 +227,16 @@ def test_the_shadow_takes_the_coercion_shape_of_the_entity_it_lands_on() -> None
     SELECT whose every other cast is `TRY_CAST`, so a `direct:` value that
     would not cast aborted the run with an engine conversion error on an entity
     whose contract is that such a value is routed and reported.
+
+    Every cast, the inner ones included: the derivation's operand casts were
+    pinned plain here while the shaping rewrote only the outermost one.
     """
     ir = build_project_ir(load_project(_CLEANED), load_catalog(_CLEANED_CATALOG))
     (entity,) = ir.entities
     lowered = {column.name: column.expr.sql for column in entity.sources[0].columns}
     assert lowered["net_price"] == (
-        "TRY_CAST(BLM_EXACT_DIV(CAST(CAST(total AS DECIMAL(12, 4)) AS DECIMAL(38, 9)), CAST(qty AS BIGINT)) AS DECIMAL(12, 4))"
+        "TRY_CAST(BLM_EXACT_DIV(TRY_CAST(TRY_CAST(total AS DECIMAL(12, 4)) AS DECIMAL(38, 9)), "
+        "TRY_CAST(qty AS BIGINT)) AS DECIMAL(12, 4))"
     )
     assert lowered["net_price__direct"] == "TRY_CAST(price AS DECIMAL(12, 4))"
 

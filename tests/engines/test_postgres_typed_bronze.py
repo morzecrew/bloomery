@@ -37,11 +37,15 @@ pytestmark = pytest.mark.engine("postgres")
 
 FIXTURE = "semi_additive_inventory"
 
-#: One clean row and one uncastable level. The money chain ends in arithmetic,
-#: so the guard's operand is numeric; the channel is a single-key JSON read.
+#: One clean row, one uncastable level and one uncastable amount. The money
+#: chain ends in arithmetic, so the guard's operand is numeric; the channel is a
+#: single-key JSON read.
 ROWS = [
     ("w1", "2026-01-01", "5", "s1", "12345", '{"channel": "web"}', "L1", "2026-01-01 00:00:00", "r1"),
     ("w2", "2026-01-02", "abc", "s2", "678", '{"channel": "shop"}', "L1", "2026-01-01 00:00:00", "r2"),
+    # A bad value at the chain's *inner* cast, which stayed a plain `CAST`
+    # and aborted the run until every cast in the chain was shaped.
+    ("w3", "2026-01-03", "9", "s3", "abc", '{"channel": "web"}', "L1", "2026-01-01 00:00:00", "r3"),
 ]
 
 
@@ -143,6 +147,7 @@ def test_typed_bronze_builds_and_still_quarantines(
         ).fetchall()
     )
     assert "stock_level_coercible" in rejected["r2"]
+    assert "total_coercible" in rejected["r3"]
 
 
 def test_a_zone_aware_ingested_at_is_flagged_by_the_audit_not_a_crash(
