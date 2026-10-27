@@ -530,3 +530,11 @@ questions:
       unknown and would need a cycle-safe walk.
     status: settled
     settled_by: D-5
+  - id: Q-4
+    text: >-
+      **Should a field change reach an expression metric in `plan().downstream_impact`?**
+      D-9's `expr` edge is lineage only, because `MetricIR.depends_on` holds canonical
+      and metric names and `plan()` compares it as part of a metric's definition.
+      Reaching the metric needs either qualified field names in `depends_on`, which
+      redefines every expression metric once, or an impact walk over the graph instead
+      of `depends_on`.
