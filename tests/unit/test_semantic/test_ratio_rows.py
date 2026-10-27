@@ -956,3 +956,16 @@ def test_a_number_is_one_value_however_it_is_spelled() -> None:
     numerator = ('{dimension: carrier_cost, op: eq, values: ["1.0"]}',)
     denominator = ("{dimension: carrier_cost, op: in, values: [1, 2]}",)
     assert isinstance(_rate(numerator, denominator), Proof)
+
+
+def test_two_numbers_past_the_context_precision_stay_two_values() -> None:
+    """`Decimal.normalize()` rounds to the context's 28 digits, so two filter
+    values differing in the 29th digit read as one and a numerator over other
+    rows passed as a subset. Zero is one value whatever its sign."""
+    numerator = ('{dimension: carrier_cost, op: eq, values: ["0.12345678901234567890123456781"]}',)
+    denominator = ('{dimension: carrier_cost, op: in, values: ["0.12345678901234567890123456782"]}',)
+    assert isinstance(_rate(numerator, denominator), Refutation)
+
+    numerator = ('{dimension: carrier_cost, op: eq, values: ["-0.0"]}',)
+    denominator = ("{dimension: carrier_cost, op: in, values: [0, 1]}",)
+    assert isinstance(_rate(numerator, denominator), Proof)

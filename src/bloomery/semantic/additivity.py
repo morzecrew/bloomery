@@ -22,7 +22,7 @@ guardrail that answers by staying silent cannot do.
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Context, Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
@@ -423,7 +423,13 @@ def _canonical(value: object, *, numeric: bool) -> str:
     if numeric and not isinstance(value, bool):
         number = _numeric(value)
         if number is not None:
-            return format(number.normalize(), "f")
+            if number.is_zero():
+                return "0"
+            # Sized to the value's own digits: under the default context
+            # `normalize()` rounds at 28, and two values differing past it
+            # would read as one.
+            digits = Context(prec=max(len(number.as_tuple().digits), 1))
+            return format(number.normalize(digits), "f")
 
     return str(value)
 
