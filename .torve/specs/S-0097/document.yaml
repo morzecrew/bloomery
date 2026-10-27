@@ -1,0 +1,120 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0097
+title: Bound parameters in planned queries
+kind: design
+change:
+  type: feat
+  scope: planner
+status: draft
+implementation: none
+depends_on: [S-0030, S-0032]
+informed_by: [S-0028, S-0050, S-0071]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: >-
+  `plan(..., paramstyle=...)` binds every request filter and row-policy value instead
+  of inlining it, in the PEP 249 style the caller's driver reads, and `QueryPlan.params`
+  carries the values in placeholder order (#304). The default stays inline literals.
+  The binds travel through MetricFlow as opaque markers, because MetricFlow builds
+  every where-filter with an empty bind set, and are spelled after the SQL is rendered;
+  under `format` and `pyformat` every other `%` in the text is doubled, which is what
+  made a psycopg-binding runtime refuse `LIKE 'con%'`.
+motivation: |-
+  **Inline literals break a binding driver (#304).** `Predicate(dimension="customer_segment", op=Op.LIKE, values=("con%",))` plans to `… LIKE 'con%' ESCAPE '\'` on PostgreSQL. A runtime that executes through psycopg with a parameter set reads every `%` in the statement as a placeholder, so the statement is invalid (`dynamic_read_statement_invalid` in the reporter's runtime). Their adapter doubles every `%` before execution, which is string surgery on generated SQL and is safe only because plan text carries no placeholders today.
+
+  **One plan text per request shape.** With values inlined, `QueryPlan.fingerprint` (`sha256(sql)`) differs for every filter value, so a runtime cannot key a plan cache or a prepared statement on it, and a read-set check over plan text has to parse literals out first.
+current_state: |-
+  - **The plan.** `QueryPlan` (`planner/result.py:141`) is a frozen dataclass: `sql`, `columns`, `mart`, `warnings`, `explanation`, `fingerprint`, `semantic`, `marts`. It is public, built in two places (`planner/metricflow_planner.py:440` composed, `:600` single-mart), and `fingerprint` is `sha256(sql)`. `bloomery explain --format json` dumps every field.
+  - **Request literals.** `filters.to_where` (`planner/filters.py:314`) renders each clause through `_predicate` (`:241`), `_literal` (`:149`) and `_pattern_literal` (`:213`). The row policy is one more clause, prepended (`:337`, S-0030/D-16). Strings are quoted with quotes doubled and braces neutralised for Jinja; dates and timestamps are ISO-validated and rendered as quoted text with no cast (S-0032/D-15); LIKE carries a fixed `ESCAPE '\'` (S-0032/D-13). The rendered clauses become MetricFlow `where_constraints`, which MetricFlow splices in as text.
+  - **MetricFlow's binds.** MetricFlow has a bind mechanism (`SqlStatement.bind_parameter_set`), but it builds every where-filter with `bind_parameters=SqlBindParameterSet()` (`metricflow_semantics/specs/where_filter/where_filter_spec_factory.py:121`), and bloomery reads only `result.sql_statement.sql` (`metricflow_planner.py:582`).
+  - **What is not a request literal.** A metric's spec `filter:` is baked into the manifest at compile time by `emit/lower/predicates.py` (S-0050/D-15, LOCKED). `LIMIT` is a validated integer. There is no OFFSET (S-0032/D-8) and no request time window.
+  - **S-0030/D-8** already reads "values never interpolated raw — typed per-dialect literal renderer or bind parameters".
+
+  **Measured.** The three drivers bloomery's engine tier uses declare `duckdb.paramstyle == "qmark"`, `psycopg.paramstyle == "pyformat"` and `trino.dbapi.paramstyle == "qmark"`. SQLGlot 30.8 renders `exp.Placeholder(this="p1")` as `$p1` on DuckDB, `%(p1)s` on PostgreSQL and Redshift, `:p1` on Trino, Snowflake and Databricks, and `@p1` on BigQuery: the dialect picks one spelling, while the driver is what reads it.
+goals: |-
+  - A runtime executes a plan through a binding driver with the plan's own parameters and no text surgery.
+  - Two requests that differ only in filter values plan to the same text and the same `shape`, while `fingerprint` still tells them apart.
+  - A caller that executes `plan.sql` as it does today sees no change.
+non_goals: |-
+  - **Binding a metric's spec `filter:`.** Its values are compiled into the manifest, are part of the metric's definition, and have one renderer (S-0050/D-15).
+  - **Binding `LIMIT`.** It is a validated integer, and drivers differ on whether a limit may be a parameter.
+  - **Executing plans.** bloomery renders; the caller's driver binds (S-0030/D-1).
+design:
+  - key: the-surface
+    md: |-
+      ```python
+      plan = planner.plan(ir, request, dialect="postgres", paramstyle="pyformat")
+      plan.sql     # … WHERE order__customer_segment LIKE %(p1)s ESCAPE '\'
+      plan.params  # (("p1", "con%"),)
+      cursor.execute(plan.sql, dict(plan.params))
+      ```
+
+      `paramstyle` is one of PEP 249's five: `qmark` (`?`), `numeric` (`:1`), `named` (`:p1`), `format` (`%s`) and `pyformat` (`%(p1)s`). It is the caller's choice rather than the dialect's, because the driver reads the placeholders and two drivers for one engine can disagree. `None`, the default, renders literals inline as today (D-1).
+
+      `QueryPlan.params` is a tuple of `(name, value)` pairs in placeholder order, empty when nothing is bound. Names are `p1`, `p2`, … by order of occurrence, so a positional style takes the values in order and a named style takes `dict(plan.params)` (D-2).
+  - key: what-binds
+    md: |-
+      Every value of a request `Predicate` and of the `RowPolicy` binds, one placeholder per value, so an `in` list of three is three binds. A LIKE pattern binds whole, and `ESCAPE '\'` stays in the text. `is_null` has no value. The spec's metric filters and `LIMIT` stay text (D-3).
+
+      A bound value is a Python value of the dimension's logical type, checked by the same rules the literal renderer applies (`InvalidLiteral`, `FilterTypeMismatch`): a `date` dimension binds a `datetime.date`, a timestamp a `datetime`, a decimal a `Decimal`, and so on. A driver types a bind from its Python type, and an ISO string bound as text against a date column is not what the bare literal was: PostgreSQL coerces the untyped literal `'2024-01-01'`, while a value typed `text` may not compare at all (D-4). Phase 2 measures this on PostgreSQL and Trino (D-7).
+  - key: through-metricflow
+    md: >-
+      The where-constraints MetricFlow receives carry an opaque marker per bind, an
+      identifier no spec name can take, and the planner replaces each marker in the
+      rendered SQL with its placeholder. Under `format` and `pyformat`, every `%`
+      already in the text is doubled before the placeholders go in, because the driver
+      reads every `%` in the statement. Request values never reach the text, so the
+      `%` left is the spec's own: a metric filter's LIKE pattern or a modulo in a
+      measure (D-5).
+  - key: the-fingerprint
+    md: |-
+      `fingerprint` keeps the meaning the planner how-to documents: it identifies the query, and a result cache keys on it together with the data's freshness. Under binds it is therefore `sha256` over the text **and** the bound values in a canonical encoding, so two requests that differ only in values still fingerprint differently and a result cache never returns one filter's rows for another. Inline it is `sha256(sql)`, exactly as today (D-6).
+
+      `QueryPlan.shape` is `sha256(sql)` alone: the text with the values out of it, equal for every request of one shape, which is the key for a prepared statement or a plan cache. Inline, `shape` and `fingerprint` are one value. The paramstyle is part of the text, so one shape has one `shape` per style.
+tests: |-
+  - Unit: `to_where` with each paramstyle over every op, an `in` list, a LIKE pattern carrying `%` and `_`, and the row policy first (D-2, D-3).
+  - Unit: two requests differing only in values plan to one text and one `shape` under binds, with two fingerprints; inline, `shape` equals `fingerprint` and both match today's `sha256(sql)` (D-6).
+  - Unit: under `pyformat`, a metric filter's `%` and a modulo in a measure are doubled, and a request's `%` never reaches the text (D-5).
+  - Execution on DuckDB: every planner execution case runs bound under `qmark` and returns the inline rows (D-1, D-4).
+  - Engine differential on PostgreSQL 16 through psycopg (`pyformat`) and Trino 483 (`qmark`): the same requests, bound and inline, return the same rows, dates, timestamps and decimals included (D-7).
+  - The row-policy audit (`tests/support/planning.py::audit_scans`) and the planner property fuzz accept a placeholder bound to the policy value where they required a literal.
+docs: |-
+  - The planner how-to: executing a plan through a binding driver, with psycopg and DuckDB examples.
+  - The API reference: `paramstyle` and `QueryPlan.params`.
+  - The changelog under Added.
+out_of_scope: |-
+  - BigQuery's `@name` style outside PEP 249; its DB-API module reads `pyformat`.
+  - Prepared-statement management and plan caching, which are the runtime's.
+risks: |-
+  - **A marker MetricFlow rewrites.** The markers pass through MetricFlow's where-filter parsing as text; an upgrade that quoted or reordered them would lose binds. Phase 1 pins that every marker reaches the rendered SQL exactly once.
+  - **Typed binds differ by driver.** A driver may send a `datetime` with a zone or a `Decimal` as float; the engine differential is the guard, and a driver it does not run is the caller's to check.
+  - **Two styles, two texts.** A runtime switching paramstyle sees new shapes and fingerprints, which is correct but can look like a cache bust.
+alternatives:
+  - option: Derive the placeholder style from the dialect.
+    rejected_because: >-
+      The driver reads the placeholders, not the engine: SQLGlot's PostgreSQL spelling
+      is psycopg's, but a runtime on asyncpg reads `$1`, and SQLGlot's Trino spelling
+      `:p1` is not what the Trino client's `qmark` reads.
+  - option: >-
+      Pass binds through MetricFlow's own `SqlBindParameterSet`.
+    rejected_because: >-
+      MetricFlow builds every where-filter with an empty set and exposes no way to
+      supply one from a where-constraint string, so the set would have to be patched
+      inside a dependency.
+  - option: Bind by default.
+    rejected_because: >-
+      Every caller that executes `plan.sql` with no parameters, the CLI and the engine
+      tier among them, would break, and S-0030/D-2 calls `QueryPlan` the stable API
+      a query agent binds to.
+  - option: Leave it to the runtime to double `%`.
+    rejected_because: >-
+      It is the reporter's workaround, safe only while plan text carries no placeholder,
+      and it does not give one text per shape.
+questions:
+  - id: Q-1
+    text: >-
+      Whether the Trino client's `qmark` binding types a `datetime.date` as `DATE`,
+      and a `Decimal` as `DECIMAL` with its scale, or sends text the engine then casts.
+      Phase 2's differential answers it; until then the Trino rows of D-4 are assumed.
