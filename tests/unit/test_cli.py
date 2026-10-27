@@ -1189,12 +1189,14 @@ def test_lineage_upstream_from_a_mart_answers(capsys: pytest.CaptureFixture[str]
 def test_lineage_of_a_leaf_says_so_rather_than_printing_nothing(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """`order_count` is `agg: count` with no `requires`, so it has no upstream.
+    """A bronze column has no upstream: it is where every walk ends.
 
     An empty stdout reads as a command that failed. The reader asked a question
-    and needs to see it came back empty — which is an answer, not a miss.
+    and needs to see it came back empty — which is an answer, not a miss. (The
+    example was `order_count` until its `expr` edge gave it an upstream,
+    S-0048/D-9.)
     """
-    code, out, err = run(capsys, "lineage", ECOM, "--node", "metric.order_count")
+    code, out, err = run(capsys, "lineage", ECOM, "--node", "source.shopify__orders.$.id")
 
     assert code == EXIT_OK, err
     assert "no upstream lineage" in out
@@ -1362,7 +1364,9 @@ def test_a_walk_bounded_to_nothing_never_calls_its_root_a_leaf(
     assert "--max-depth stopped the walk before its first edge" in bounded
 
     # The genuine leaf is still called one — the fix must not cost the other case.
-    code, leaf, err = run(capsys, "lineage", ECOM, "--node", "metric.order_count")
+    # A bronze column: `order_count` was the example until S-0048/D-9 gave it an
+    # upstream.
+    code, leaf, err = run(capsys, "lineage", ECOM, "--node", "source.shopify__orders.$.id")
     assert code == EXIT_OK, err
     assert "leaf in that direction" in leaf
     assert "--max-depth" not in leaf
@@ -1409,7 +1413,13 @@ def test_both_never_describes_itself_as_a_direction(
 
     # The single-direction wording is unchanged — it was already grammatical.
     code, one_way, err = run(
-        capsys, "lineage", ROLE_PLAYING, "--node", "metric.revenue", "--direction", "upstream"
+        capsys,
+        "lineage",
+        ROLE_PLAYING,
+        "--node",
+        "source.oms__orders.$.amount",
+        "--direction",
+        "upstream",
     )
     assert code == EXIT_OK, err
     assert "no upstream lineage" in one_way
