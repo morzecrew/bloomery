@@ -154,7 +154,7 @@ def check_guardrails(
     # draft: an imported node was judged where it was authored, and refusing
     # it again would send an author to a document in another project.
     composed = with_imported(draft)
-    violations = check_arithmetic(derivations, draft.metrics, catalog)
+    violations = check_arithmetic(derivations, draft.metrics, catalog, draft.entities)
     violations.extend(check_grain(derivations, draft, project, catalog))
     violations.extend(check_additivity(draft))
     # A local mart may list an imported metric among its measures, and a
