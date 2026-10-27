@@ -155,7 +155,7 @@ def test_every_definition_the_corpus_produces_flattens_into_the_table(fixture: s
     updated — fails only here, because `_flatten` refuses a record it has no
     field table for.
     """
-    if fixture in {"fanout_trap", "scd2_mart_refusal"}:
+    if fixture in {"fanout_trap", "scd2_mart_refusal", "semi_additive_over_refusal"}:
         pytest.skip("refused at guardrails, so it reaches no IR")
 
     project, catalog = load_fixture(fixture)

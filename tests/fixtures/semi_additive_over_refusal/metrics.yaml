@@ -1,0 +1,13 @@
+# `over:` names the bucket the mart's date role produces rather than the
+# column the role is declared over — the spelling a reader of the mart's
+# columns reaches for. Refused at check time, naming `stock_date`
+# (S-0023/D-13); before that only the MetricFlow emitter noticed.
+metrics_version: 1
+metrics:
+  stock_on_hand:
+    requires: [stock_level]
+    grain: inventory_level
+    additivity: semi_additive
+    agg: sum
+    expr: "stock_level"
+    semi_additive: {over: snapshot_day, rule: last}

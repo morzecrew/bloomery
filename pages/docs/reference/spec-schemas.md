@@ -528,7 +528,7 @@ A metric is a template instantiation (`template:` plus overrides) or fully inlin
 | `agg` | string | no | Aggregation function (`sum`, `count`, …) |
 | `expr` | string | no | Expression over the required names |
 | `ratio` | RatioSpec | required by, and requires, `additivity: ratio` | Additive decomposition to recompute from |
-| `semi_additive` | SemiAdditivePolicy | with `semi_additive` | The dimension and rule |
+| `semi_additive` | SemiAdditivePolicy | with `semi_additive` | The date-role source column and rule |
 | `cumulative` | CumulativeSpec | no | Accumulate this metric's own measure over time |
 | `derived` | DerivedSpec | with `non_additive` | Compute the metric from other metrics, optionally read at an offset |
 | `filter` | list of MetricFilter | no (`[]`) | Restrict the rows the metric aggregates; clauses are ANDed |
@@ -574,8 +574,9 @@ Exactly one of the two.
 Exactly one of the two. The metric keeps its own `agg`/`expr` and its own
 `additivity` — those describe the measure, this describes how it accumulates, and
 a metric with neither `agg` nor `expr` has nothing to accumulate
-(`InvalidMetricShape`). `semi_additive` is refused here: its `over:` dimension is
-a date role and a window accumulates along that same axis.
+(`InvalidMetricShape`). `semi_additive` is refused here: its `over:` names the
+source column of a date role on every mart that lists the metric, and a window
+accumulates along that same axis.
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
@@ -635,7 +636,7 @@ quotes it.
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
-| `over` | dimension name | yes | The dimension the metric is not additive over |
+| `over` | column name | yes | The column the metric is not additive over: the source column of a date role (`stock_date` under `{date: stock_date, role: snapshot}`, never its bucket `snapshot_day`), declared on every mart that lists the metric — a mart without it is `MartMissingTimeDimension` |
 | `rule` | `last` \| `first` \| `avg` \| `min` \| `max` | yes | Rule applied along `over` |
 
 ## MartSet (`marts_version`)

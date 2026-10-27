@@ -91,10 +91,13 @@ inventory_on_hand:
   additivity: semi_additive
   agg: sum
   expr: "units"
-  semi_additive: {over: snapshot_day, rule: last}
+  semi_additive: {over: snapshot_at, rule: last}
 ```
 
-`rule` is `last`, `first`, `avg`, `min` or `max`. The planner's MetricFlow backend lowers
+`over` names the column a date role is declared over — `snapshot_at` for a mart flattening
+`{date: snapshot_at, role: snapshot}` — never a bucket it produces such as `snapshot_day`.
+Every mart listing the metric needs that role, or `check` refuses it
+(`MartMissingTimeDimension`). `rule` is `last`, `first`, `avg`, `min` or `max`. The planner's MetricFlow backend lowers
 `last` and `first`; `avg`, `min` and `max` raise `UnsupportedByTarget` naming the rule.
 
 ## Metrics over time

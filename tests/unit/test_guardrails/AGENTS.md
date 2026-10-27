@@ -119,6 +119,13 @@ Guardrails read the parsed expression with sqlglot's `find_all` over the node ty
 - Paths: `src/bloomery/guardrails/arithmetic.py` `src/bloomery/emit/lower/predicates.py` `tests/golden/test_sqlmesh_duckdb.py` `tests/unit/test_guardrails/test_conflict.py`
 - Consequence: A row where exactly one of the two paths is NULL counts as a disagreement, and changing the reconcile predicate moves the checked-in `path_conflict` audit goldens
 
+### S-0023/D-13 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
+
+The `over` of a semi-additive metric names the source column of a date role — the column a `{date: …, role: …}` flatten step is declared over — never a bucket that role produces (`<role>_day` and the rest), and every mart listing the metric among its measures must declare a date role over that column. A mart that does not is refused at the guardrail stage as `MartMissingTimeDimension`, and the MetricFlow emitter re-refuses it
+
+- Paths: `src/bloomery/guardrails/metrics.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/planner/explain.py` `tests/unit/test_guardrails/test_metrics.py` `tests/fixtures/semi_additive_over_refusal/metrics.yaml` `tests/golden/refusals/semi_additive_over_refusal.txt` `pages/docs/reference/spec-schemas.md`
+- Consequence: `over: snapshot_day` beside `{date: stock_date, role: snapshot}` is refused at `bloomery check`, naming `stock_date`, rather than compiling clean and failing only when the MetricFlow manifest is built; a mart added to a metric's listing without the role is refused even when another mart owns the metric
+
 ### S-0030/D-8 — `ASSUMED` (MetricFlow backend: manifest emitter and planner adapter)
 
 Filters (Jinja `where_constraints`) are the highest-risk surface: values never interpolated raw — typed per-dialect literal renderer or bind parameters; dimension names only from validated `DimensionRef`s via `names.py`; values type-checked against the dimension (`FilterTypeMismatch`); `contains`/`like` escape wildcards. Adversarial fuzz property test (injection strings, template syntax, unicode quotes, newlines) asserts parsed-SQL predicate structure unchanged and scanned relations exactly the expected mart — **merge-blocking**. *(Superseded by D16 — see §5.6 note.)*

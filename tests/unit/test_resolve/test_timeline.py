@@ -785,11 +785,13 @@ def test_the_id_namespaces_are_node_keys_own() -> None:
     assert set(_ID_NAMESPACE.values()) == set(node_keys(project, catalog))
 
 
-#: The two fixtures that exist to be refused, so they reach no IR and cannot be
+#: The fixtures that exist to be refused, so they reach no IR and cannot be
 #: swept below. Named rather than caught: a `try/except` around the sweep would
 #: pass just as green on the day a fixture that used to compile stopped, which
 #: is the failure this list makes visible.
-REFUSED_AT_GUARDRAILS = frozenset({"fanout_trap", "scd2_mart_refusal"})
+REFUSED_AT_GUARDRAILS = frozenset(
+    {"fanout_trap", "scd2_mart_refusal", "semi_additive_over_refusal"}
+)
 
 
 @pytest.mark.parametrize("fixture", spec_fixture_names())

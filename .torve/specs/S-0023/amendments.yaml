@@ -37,3 +37,40 @@ amendments:
       - subject: D-3
         field: fingerprint
         after: b9f4123c3e1992da/436507eea27c0abf
+  - id: A-3
+    at: '2026-10-27T09:24:34Z'
+    title: >-
+      What a semi-additive over: names, and where it is checked
+    changes:
+      - subject: D-13
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-13
+        field: paths
+        before: []
+        after:
+          - src/bloomery/guardrails/metrics.py
+          - src/bloomery/emit/metricflow/__init__.py
+          - src/bloomery/planner/explain.py
+          - tests/unit/test_guardrails/test_metrics.py
+          - tests/fixtures/semi_additive_over_refusal/metrics.yaml
+          - tests/golden/refusals/semi_additive_over_refusal.txt
+          - pages/docs/reference/spec-schemas.md
+      - subject: D-13
+        field: text
+        before: <decision>
+        after: >-
+          The `over` of a semi-additive metric names the source column of a date role
+          — the column a `{date: …, role: …}` flatten step is declared over — never
+          a bucket that role produces (`<role>_day` and the rest), and every mart
+          listing the metric among its measures must declare a date role over that
+          column. A mart that does not is refused at the guardrail stage as `MartMissingTimeDimension`,
+          and the MetricFlow emitter re-refuses it
+      - subject: D-13
+        field: fingerprint
+        after: 0e959dbfdd919a1c/63e8d7d92acc744e
+    md: |-
+      No row said what `over` names, and `bloomery check` accepted any spelling: a bucket such as `snapshot_day`, and a column that is not a date at all. Only the MetricFlow emitter refused, and only for the owning mart (issue #308). D-13 states the rule the emitter already applied and moves the first refusal to the guardrail stage, over every mart that lists the metric, the quantifier S-0050/D-9 fixes for filters. Graded ASSUMED; the owner's merge is the acceptance.
+
+      S-0030's MetricFlow mapping table writes the lowering as `name=over.qualified`, which reads as though `over` were the bucket. The emitter names the day bucket of the date role over `over`; S-0030/A-1 records the correction.

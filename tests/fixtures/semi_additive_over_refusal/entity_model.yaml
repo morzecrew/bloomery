@@ -1,0 +1,11 @@
+# `semi_additive_inventory` with its `over:` misspelled (S-0023/D-13): the
+# same balance, cut to what the refusal needs.
+spec_version: 1
+entities:
+  inventory_level:
+    grain: one row per warehouse per day
+    key: [warehouse_id, stock_date]
+    fields:
+      warehouse_id: {type: string, required: true}
+      stock_date: {type: date, required: true}
+      stock_level: {type: int, canonical: stock_level}

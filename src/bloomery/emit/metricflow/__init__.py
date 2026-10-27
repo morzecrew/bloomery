@@ -135,6 +135,7 @@ from bloomery.emit.lower import (
     metric_filter_sql,
 )
 from bloomery.errors import EmitError, UnsupportedByTarget, guaranteed
+from bloomery.guardrails.metrics import day_columns
 from bloomery.ir import COMPUTED, Additivity, Layer, SemiAdditiveRule
 from bloomery.ir.nodes import with_imported
 
@@ -246,6 +247,8 @@ def _non_additive_dimension(
     day_column = day_by_source.get(policy.over.qualified)
 
     if day_column is None:
+        # The guardrail stage refuses this first (S-0023/D-13); the re-check is
+        # the emitter's own line of defence (S-0023/D-6).
         msg = (
             f"semi-additive metric {metric.name!r} is non-additive over "
             f"{policy.over.qualified!r}, but mart {mart.name!r} declares no date role over "
@@ -261,19 +264,6 @@ def _non_additive_dimension(
 
 
 # ....................... #
-
-
-def _day_columns(mart: MartIR) -> dict[str, str]:
-    """Source date column → the day-bucket column serving it; when two roles
-    bucket the same column, the lexicographically first role wins (columns
-    are sorted by name, so first-seen is first lexicographically)."""
-    day_by_source: dict[str, str] = {}
-
-    for column in mart.columns:
-        if column.ref is not None and column.ref.dimension == "day":
-            day_by_source.setdefault(column.source_column, column.name)
-
-    return day_by_source
 
 
 # MSI's pydantic-v1-shim models declare their optional fields without explicit
@@ -483,7 +473,7 @@ def _semantic_model(
         primary_entity=primary_entity,
         entities=entities,
         dimensions=_dimensions(mart, join_keys, descriptions),
-        measures=_measures(mart, owners, metrics_by_name, _day_columns(mart)),
+        measures=_measures(mart, owners, metrics_by_name, day_columns(mart)),
         defaults=None,
         description=None,
         metadata=None,

@@ -15,6 +15,7 @@ from bloomery import build_project_ir, load_project
 from bloomery.errors import (
     GuardrailError,
     InvalidMetricShape,
+    MartMissingTimeDimension,
     MetricFilterInvalid,
     NonAdditiveWithoutComponents,
 )
@@ -156,6 +157,73 @@ def test_a_semi_additive_cumulative_metric_is_refused() -> None:
     assert isinstance(leaf, InvalidMetricShape)
     assert "'sold_at'" in str(leaf)
     assert "fans the measure out" in str(leaf)
+
+
+# ....................... #
+# A semi-additive metric's over: names a date role's source column (S-0023/D-13)
+
+
+def _balance(over: str) -> str:
+    return (
+        "  balance:\n"
+        "    grain: sale\n"
+        "    additivity: semi_additive\n"
+        "    agg: sum\n"
+        '    expr: "amount"\n'
+        f"    semi_additive: {{over: {over}, rule: last}}\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "over",
+    [
+        # The bucket the `sold` role produces, not the column it buckets: the
+        # spelling a reader of the mart's columns reaches for.
+        "sold_day",
+        # Not a date at all.
+        "channel",
+    ],
+)
+def test_an_over_naming_no_date_role_source_column_is_refused(over: str) -> None:
+    leaf = one_violation(_balance(over), served="balance")
+
+    assert isinstance(leaf, MartMissingTimeDimension)
+    assert leaf.source_path == "metrics: metrics.balance"
+    assert f"'balance' is semi_additive over {over!r}" in str(leaf)
+    assert "mart 'sales'" in str(leaf)
+    assert "Fix:" in str(leaf)
+    assert "['sold_at']" in str(leaf)  # the source columns it could have named
+
+
+def test_every_mart_listing_the_metric_needs_the_date_role() -> None:
+    """Every listing mart, not only the owner (S-0050/D-9's quantifier): the
+    owner is the cheapest mart, so checking only it would let a `cost_hint`
+    edit decide whether the spec is valid."""
+    _project, catalog = load_fixture(FIXTURE)
+    sources = dict(fixture_sources(FIXTURE))
+    sources["metrics"] += _balance("sold_at")
+    sources["marts"] = sources["marts"].replace(_MEASURES, _MEASURES[:-1] + ", balance]") + (
+        "  sales_by_booking:\n"
+        "    grain: sale\n"
+        "    base: sale\n"
+        "    flatten:\n"
+        "      - {date: booked_at, role: booked}\n"
+        "    measures: [balance]\n"
+    )
+
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+    (leaf,) = excinfo.value.collected
+
+    assert isinstance(leaf, MartMissingTimeDimension)
+    assert "mart 'sales_by_booking'" in str(leaf)
+    assert "['booked_at']" in str(leaf)
+
+
+def test_an_over_naming_the_date_role_source_column_compiles() -> None:
+    ir = compile_with(_balance("sold_at"), served="balance")
+
+    assert any(metric.name == "balance" for metric in ir.metrics)
 
 
 # ....................... #

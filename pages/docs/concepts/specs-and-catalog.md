@@ -260,9 +260,9 @@ MetricFlow, whose default is `first`: on a month totalling 257 it reported 100, 
 running total on the first day, which is not month-to-date by any reading. Write
 `period_agg: first` (or `average`) to ask for something else. And **`cumulative:` on a
 `semi_additive` metric is refused**:
-a semi-additive metric may not be summed along its `over:` dimension, which is always a
-date role, and a window accumulates along exactly that one — both lower, and the product
-is a number with no reading.
+a semi-additive metric may not be summed along its `over:` column, which names the source
+column of a date role on every mart that lists the metric, and a window accumulates along
+exactly that one — both lower, and the product is a number with no reading.
 
 What each construct is refused for, and by which error, is in
 [spec schemas](../reference/spec-schemas.md#metric). One target boundary is worth

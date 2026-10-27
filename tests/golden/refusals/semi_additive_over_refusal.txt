@@ -1,0 +1,5 @@
+stage: GUARDRAILS
+
+MartMissingTimeDimension
+source: metrics: metrics.stock_on_hand
+metric 'stock_on_hand' is semi_additive over 'snapshot_day', but mart 'inventory', which lists it, declares no date role over a column of that name — over: names the column a {date: ..., role: ...} flatten step is declared over, not a bucket it produces, on every mart listing the metric (S-0023/D-13). Fix: set over: to one of the columns mart 'inventory' declares a date role over, ['stock_date'], or add a date role over the column you meant

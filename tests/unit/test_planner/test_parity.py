@@ -84,12 +84,13 @@ pytestmark = pytest.mark.unit
 #: Fixtures whose IR does not build, named rather than skipped by catching.
 #: A broad `except: continue` around the build would turn a resolver regression
 #: into a smaller corpus that still reports green — and a floor like "at least
-#: 500 requests" cannot tell 531 from 455. Two refuse on purpose (they exist to
-#: be refused) and two need a step registry this suite does not wire.
+#: 500 requests" cannot tell 531 from 455. Three refuse on purpose (they exist
+#: to be refused) and two need a step registry this suite does not wire.
 UNBUILDABLE = frozenset(
     {
         "fanout_trap",  # GuardrailError, deliberately — it is the fan-out trap
         "scd2_mart_refusal",  # GuardrailError, deliberately
+        "semi_additive_over_refusal",  # GuardrailError, deliberately (S-0023/D-13)
         "identity_resolution",  # UnknownStep: needs `registry_for`
         "step_resolution",  # UnknownStep: needs `registry_for`
     }
