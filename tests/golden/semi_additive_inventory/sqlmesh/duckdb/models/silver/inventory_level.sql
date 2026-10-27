@@ -58,7 +58,10 @@ FROM (
     FROM bronze.wms__stock_levels
     QUALIFY
       ROW_NUMBER() OVER (
-        PARTITION BY warehouse_id, stock_date
+        PARTITION BY warehouse_id, stock_date, CASE
+          WHEN _branch_stock_date_coercible OR _branch_warehouse_id_coercible
+          THEN _source_row_id
+        END
         ORDER BY _ingested_at DESC, _load_id DESC, _source_row_id DESC
       ) = 1
   ) AS _extract

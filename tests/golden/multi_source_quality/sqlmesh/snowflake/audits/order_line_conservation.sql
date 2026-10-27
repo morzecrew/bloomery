@@ -158,7 +158,10 @@ WITH _survivors AS (
   ) AS _extract
   QUALIFY
     ROW_NUMBER() OVER (
-      PARTITION BY order_id, line_no
+      PARTITION BY order_id, line_no, CASE WHEN _branch_line_no_coercible OR _branch_order_id_coercible THEN _source END, CASE
+        WHEN _branch_line_no_coercible OR _branch_order_id_coercible
+        THEN _source_row_id
+      END
       ORDER BY placed_at DESC NULLS LAST, line_no DESC NULLS LAST, _source DESC NULLS LAST, _source_row_id DESC NULLS LAST
     ) = 1
 )

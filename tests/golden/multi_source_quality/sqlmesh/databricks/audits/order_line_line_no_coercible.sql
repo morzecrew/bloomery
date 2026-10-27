@@ -158,7 +158,10 @@ FROM (
   ) AS _extract
   QUALIFY
     ROW_NUMBER() OVER (
-      PARTITION BY order_id, line_no
+      PARTITION BY order_id, line_no, CASE WHEN _branch_line_no_coercible OR _branch_order_id_coercible THEN _source END, CASE
+        WHEN _branch_line_no_coercible OR _branch_order_id_coercible
+        THEN _source_row_id
+      END
       ORDER BY placed_at DESC, line_no DESC, _source DESC, _source_row_id DESC
     ) = 1
 ) AS _extract

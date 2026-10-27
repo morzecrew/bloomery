@@ -1850,3 +1850,30 @@ decisions:
       is a change to measure on the live lane before making
     cites: [D-3, S-0015/D-4]
     fingerprint: 0e5a745ff94ac952/a2649a7c31bd38b4
+  - id: D-102
+    grade: ASSUMED
+    text: >-
+      A row whose key part failed its cast is partitioned in the dedupe window by its
+      own identity as well as its key, so it is never another row's duplicate: the
+      partition gains `CASE WHEN <a key part's coercible verdict> THEN <identity> END`
+      per term of the order's identity tail (`_source` on a merged entity, then
+      `_source_row_id`)
+    paths:
+      - src/bloomery/quality/dedupe.py
+      - src/bloomery/emit/lower/silver.py
+      - tests/execution/test_dedupe_uncastable_keys.py
+      - tests/engines/test_postgres_dedupe_unread_keys.py
+    consequence: >-
+      Every coercion failure in a key reaches its disposition: two bronze rows with
+      different uncastable keys are two quarantined rows, where one was kept and the
+      other dropped as a dedupe loser, recorded nowhere. A row re-sent with the same
+      uncastable key is quarantined once per delivery. Rows whose key part is NULL in
+      bronze still share a partition, which this row does not decide
+    rationale: >-
+      Every failed key coerces to the same NULL, so partitioning by the coerced key alone
+      made unrelated failures duplicates (#315). Partitioning by the raw key text instead
+      would also split clean keys spelled two ways that coerce to one value. A row whose
+      key cannot be read has no key to be a duplicate under, and its identity is already
+      the order's last term, unique by D-21's contract. Replay's winner-per-key is unchanged:
+      a candidate whose key still fails is still quarantined
+    cites: [D-6, D-20, D-21, S-0041/D-35]
