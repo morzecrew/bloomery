@@ -1872,3 +1872,80 @@ def test_a_filter_on_an_imported_metric_is_checked_against_the_local_mart() -> N
     assert any(isinstance(leaf, MetricFilterInvalid) for leaf in caught.value.collected), (
         caught.value.collected
     )
+
+
+# ....................... #
+# Descriptions, labels and synonyms reach the IR (S-0094/D-2, D-3, D-4, D-9)
+
+
+def _annotated() -> dict[str, str]:
+    sources = fixture_sources("ecom_basic")
+    old = "      unit_price: {type: \"decimal(12,4)\", canonical: unit_price}\n"
+    assert sources["entity_model"].count(old) == 1, "the fixture no longer declares unit_price so"
+    sources["entity_model"] = sources["entity_model"].replace(
+        old,
+        '      unit_price: {type: "decimal(12,4)", canonical: unit_price, '
+        'description: "Net unit price", label: Unit price, synonyms: [price, cost]}\n',
+    )
+    old = "    template: gross_revenue\n"
+    assert sources["metrics"].count(old) == 1
+    sources["metrics"] = sources["metrics"].replace(
+        old, old + "    label: Revenue\n    synonyms: [turnover, sales]\n"
+    )
+    return sources
+
+
+def test_a_field_s_annotations_reach_its_column() -> None:
+    """The field's own description wins over its canonical's; the label and the
+    synonyms come from the field alone, synonyms sorted."""
+    _project, catalog = load_fixture("ecom_basic")
+    ir = build_project_ir(load_project(_annotated()), catalog)
+    (column,) = (
+        column
+        for entity in ir.entities
+        if entity.name == "order_item"
+        for column in entity.columns
+        if column.name == "unit_price"
+    )
+
+    assert (column.description, column.label, column.synonyms) == (
+        "Net unit price",
+        "Unit price",
+        ("cost", "price"),
+    )
+
+
+def test_a_metric_s_label_and_synonyms_reach_its_ir_beside_the_template_s_description() -> None:
+    _project, catalog = load_fixture("ecom_basic")
+    ir = build_project_ir(load_project(_annotated()), catalog)
+    (metric,) = (metric for metric in ir.metrics if metric.name == "gross_revenue")
+
+    assert (metric.label, metric.synonyms) == ("Revenue", ("sales", "turnover"))
+
+
+def test_a_template_s_synonyms_fill_an_absent_list_and_an_empty_one_clears_them() -> None:
+    _project, catalog = load_fixture("ecom_basic")
+    templated = catalog.model_copy(
+        update={
+            "metric_templates": {
+                name: (
+                    template.model_copy(update={"synonyms": ("sales",), "label": "Gross"})
+                    if name == "gross_revenue"
+                    else template
+                )
+                for name, template in catalog.metric_templates.items()
+            }
+        }
+    )
+    sources = fixture_sources("ecom_basic")
+    inherited = build_project_ir(load_project(sources), templated)
+    old = "    template: gross_revenue\n"
+    sources["metrics"] = sources["metrics"].replace(old, old + "    synonyms: []\n")
+    cleared = build_project_ir(load_project(sources), templated)
+
+    def annotations(ir):  # noqa: ANN001, ANN202
+        (metric,) = (metric for metric in ir.metrics if metric.name == "gross_revenue")
+        return metric.label, metric.synonyms
+
+    assert annotations(inherited) == ("Gross", ("sales",))
+    assert annotations(cleared) == ("Gross", ())

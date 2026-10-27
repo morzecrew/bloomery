@@ -33,11 +33,13 @@ from pydantic import BeforeValidator, Field, StringConstraints, model_validator
 from bloomery.spec.common import (
     AdditivityName,
     DimensionName,
+    Label,
     MemberName,
     RatioSpec,
     SemiAdditivePolicy,
     SpecModel,
     SqlText,
+    Synonyms,
 )
 
 # ----------------------- #
@@ -362,6 +364,10 @@ class Metric(SpecModel):
     id: str | None = Field(default=None, min_length=1)
     template: str | None = None
     description: str | None = None
+    #: A short display name; the description is the explanation (S-0094/D-3).
+    label: Label | None = None
+    #: ``None`` takes the template's, and an authored ``[]`` clears them (S-0094/D-3).
+    synonyms: Synonyms | None = None
     requires: tuple[str, ...] = ()
     requires_metrics: tuple[str, ...] = ()
     grain: str | None = None

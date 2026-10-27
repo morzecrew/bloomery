@@ -69,4 +69,11 @@ Three-valued logic: each rule defines a violation predicate and fires only when 
 - Paths: `src/bloomery/ir/nodes.py` `tests/unit/test_ir/test_nodes.py`
 - Consequence: An IR stamped 20 or later carries `role_of`; one stamped 19 may or may not, so an IR serialized between the two landings is the one pair `plan()`'s version check cannot tell apart
 
+### S-0094/D-4 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics) — implementation: partial
+
+`ColumnIR` gains `label` and `synonyms`, and `MetricIR` gains `label` and `synonyms`. `bloomery_ir_version` moves by one with them
+
+- Paths: `src/bloomery/ir/nodes.py` `tests/unit/test_ir/**`
+- Consequence: Every project's fingerprint moves once, and `plan()` refuses to diff across the versions. A project's first plan after upgrading cannot be shown as metadata-only
+
 <!-- /torve:managed -->

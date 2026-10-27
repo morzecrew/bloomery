@@ -725,6 +725,27 @@ Every handler that turns a SQLGlot parse into a refusal or a pass-on treats a `V
 - Paths: `src/bloomery/spec/common.py` `src/bloomery/resolve/steps.py` `src/bloomery/resolve/build.py`
 - Consequence: a body or expression SQLGlot cannot convert is refused like any other unparseable text, at the step or field that carries it, and the next handler that parses SQL takes the classes from one place
 
+### S-0094/D-2 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics) — implementation: partial
+
+`Field` gains optional `description` and `label`. A field's own description wins over its bound canonical field's, and the label comes from the field alone. Each string is refused empty after stripping, and a label is refused if it holds a line break
+
+- Paths: `src/bloomery/spec/entity.py` `src/bloomery/resolve/build.py` `tests/golden/schema/entity_model.json`
+- Consequence: A column is described without binding a catalog field, and a project that binds one keeps the catalog's text until it writes its own
+
+### S-0094/D-3 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics) — implementation: partial
+
+`Metric` and `MetricTemplate` gain optional `label` and `synonyms`, beside their `description`. Both merge from a template as `description` does, the authored value first. An absent `synonyms` takes the template's, and an authored empty list clears it. `synonyms` is a list of distinct non-empty strings, refused when two are equal, and stored sorted in the IR
+
+- Paths: `src/bloomery/spec/metrics.py` `src/bloomery/spec/catalog.py` `src/bloomery/resolve/metrics.py` `tests/golden/schema/metrics.json` `tests/golden/schema/catalog.json`
+- Consequence: A natural-language front end reads a metric's alternative names from one list instead of parsing them out of its description, and two projects listing the same synonyms in different orders compile to the same bytes
+
+### S-0094/D-9 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics) — implementation: partial
+
+`Field` gains optional `synonyms`, under D-3's rules for a metric's: distinct non-empty strings, refused when two are equal, stored sorted. They route to a MetricFlow dimension's `config.meta.synonyms`, a Cube dimension's `meta.synonyms` and a dbt column's `meta.synonyms`, and a mart column carries its source field's
+
+- Paths: `src/bloomery/spec/entity.py` `src/bloomery/resolve/build.py` `tests/golden/schema/entity_model.json`
+- Consequence: A natural-language front end matches a user's words to dimensions as it does to metrics, and `product_brand` answers to «бренд» without its description carrying the list as prose
+
 ## Invariants holding over `src/bloomery/resolve/`
 
 - **S-0079/I-1**: The IR version is declared once, on the dataclass, and every project's fingerprint is stable across processes and `PYTHONHASHSEED` values

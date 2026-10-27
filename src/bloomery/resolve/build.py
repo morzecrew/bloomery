@@ -679,9 +679,12 @@ def _column_pair(
             tax_basis=tax_basis,
             renamed_from=field.renamed_from,
             required=field.required,
-            description=description,
+            # The field's own description wins over its canonical's (S-0094/D-2).
+            description=field.description or description,
             classification=field.classification,
             determines=field.determines,
+            label=field.label,
+            synonyms=tuple(sorted(field.synonyms)),
         ),
         SourceColumnIR(
             name=name,
@@ -2478,6 +2481,8 @@ def _build_metrics(
                 derived=_derived(metric.derived),
                 filter=_metric_filters(metric.filter),
                 description=metric.description,
+                label=metric.label,
+                synonyms=metric.synonyms,
                 depends_on=tuple(sorted({*metric.requires, *metric.requires_metrics})),
                 owner=metric.owner,
             )

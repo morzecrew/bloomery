@@ -16,12 +16,14 @@ from bloomery.spec.common import (
     AdditivityName,
     CardinalityName,
     CurrencyCode,
+    Label,
     MemberName,
     RatioSpec,
     RelationName,
     SemiAdditivePolicy,
     SpecModel,
     SqlText,
+    Synonyms,
     TypeString,
 )
 from bloomery.spec.metrics import CumulativeSpec, DerivedSpec, MetricFilter
@@ -224,6 +226,8 @@ class MetricTemplate(SpecModel):
     template value: the metric's own wins, the template's is the fallback."""
 
     description: str | None = None
+    label: Label | None = None
+    synonyms: Synonyms = ()
     requires: tuple[str, ...] = ()
     requires_metrics: tuple[str, ...] = ()
     grain: str | None = None
