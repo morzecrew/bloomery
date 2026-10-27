@@ -323,6 +323,13 @@ blocking audit: none of the three may be null, `_source_row_id` must be unique p
 source row, and `_ingested_at` must cast to timestamp. The audit is emitted only for
 dialects with `TRY_CAST`; on the others the entity is `UnsupportedByTarget`.
 
+On PostgreSQL a loader may land these columns as text or typed (`_ingested_at` as
+`timestamp`), and a JSON-shaped bronze column as `text`, `json` or `jsonb`: the emitted
+SQL casts what it reads. A zone-aware `_ingested_at` (PostgreSQL `timestamptz`, DuckDB
+`TIMESTAMPTZ`) is refused: read as text it carries an offset, which the offset refusal
+counts as uncastable, so the audit flags every row. Land the UTC wall clock as a
+zone-less `timestamp`, or as ISO text without an offset.
+
 ### Freshness
 
 A staleness threshold for the mapping's bronze relation. bloomery emits it; the framework

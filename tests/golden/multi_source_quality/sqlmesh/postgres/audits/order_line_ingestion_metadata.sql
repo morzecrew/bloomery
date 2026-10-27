@@ -23,27 +23,27 @@ WHERE
     )
     AND CASE
       WHEN PG_INPUT_IS_VALID(
-        CASE
+        CAST(CASE
           WHEN SUBSTRING(CAST(_ingested_at AS VARCHAR) FROM 11) LIKE '%+%'
           OR SUBSTRING(CAST(_ingested_at AS VARCHAR) FROM 11) LIKE '%-%'
           THEN NULL
           ELSE _ingested_at
-        END,
+        END AS TEXT),
         'TIMESTAMP'
       )
       AND NOT LOWER(
-        CASE
+        CAST(CASE
           WHEN SUBSTRING(CAST(_ingested_at AS VARCHAR) FROM 11) LIKE '%+%'
           OR SUBSTRING(CAST(_ingested_at AS VARCHAR) FROM 11) LIKE '%-%'
           THEN NULL
           ELSE _ingested_at
-        END
+        END AS TEXT)
       ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-      THEN CAST(CASE
+      THEN CAST(CAST(CASE
         WHEN SUBSTRING(CAST(_ingested_at AS VARCHAR) FROM 11) LIKE '%+%'
         OR SUBSTRING(CAST(_ingested_at AS VARCHAR) FROM 11) LIKE '%-%'
         THEN NULL
         ELSE _ingested_at
-      END AS TIMESTAMP)
+      END AS TEXT) AS TIMESTAMP)
     END IS NULL
   )

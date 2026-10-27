@@ -47,10 +47,12 @@ def test_physical_type_for_every_logical_type(logical: LogicalType, physical: st
 def test_render_lowers_neutral_json_extraction_to_postgres() -> None:
     # Parsed like an IR ``SqlExpr`` (canonical neutral text re-parsed at
     # emit), so the JSONPath is a structured node the generator can lower.
-    # The ``->>`` operator is polymorphic over json AND jsonb — the function
-    # form JSON_EXTRACT_PATH_TEXT exists only for json (verified live).
+    # The ``->>`` operator is polymorphic over json AND jsonb but not text,
+    # and a bronze column may be landed as text (#305), so the operand is
+    # cast to json as the deep path's always was. Over a json or jsonb column
+    # the cast is a no-op or one conversion (verified live).
     node = parse_one("customer ->> '$.id'")
-    assert DIALECT.render(node) == "customer ->> 'id'"
+    assert DIALECT.render(node) == "CAST(customer AS JSON) ->> 'id'"
 
 
 def test_render_casts_deep_json_paths_to_json() -> None:
@@ -219,9 +221,52 @@ def test_a_lowered_extraction_renders_as_a_path_and_not_as_a_quoted_key() -> Non
     a lookup of a key literally spelled ``$.position``.
     """
     assert DIALECT.render(extraction("$.payload.a.b")) == "JSON_EXTRACT_PATH_TEXT(CAST(payload AS JSON), 'a', 'b')"
-    assert DIALECT.render(_from_payload(exp.column("position"))) == "raw ->> 'position'"
+    assert DIALECT.render(_from_payload(exp.column("position"))) == "CAST(raw AS JSON) ->> 'position'"
     # A nested bronze path read back out of the payload: the inner read yields
     # text, which `->>` does not take, so it is cast to `json` first.
     assert DIALECT.render(_from_payload(extraction("$.properties.gift_note"))) == (
-        "CAST(raw ->> 'properties' AS JSON) ->> 'gift_note'"
+        "CAST(CAST(raw AS JSON) ->> 'properties' AS JSON) ->> 'gift_note'"
+    )
+
+
+# ....................... #
+# The TRY_CAST guard takes text (S-0033/D-84)
+
+
+def _one_line(sql: str) -> str:
+    """The generator lays a ``CASE`` out over lines; the tests read one."""
+    return " ".join(sql.split())
+
+
+def test_the_input_guard_is_handed_a_text_operand() -> None:
+    """``pg_input_is_valid`` takes text only, and the guard handed it its
+    operand raw: a chain ending in arithmetic is numeric (#306), and a loader
+    may land ``_ingested_at`` typed (#307), so the run aborted with ``42883``.
+
+    The operand is cast to text once, and that one value is what the guard
+    checks *and* what the branch casts — so D-84's equivalence with ``CAST``
+    still holds by construction. The rule is Snowflake's ``_string_try_cast``.
+    """
+    node = exp.TryCast(this=exp.column("line_no"), to=exp.DataType.build("BIGINT"))
+    assert _one_line(DIALECT.render(node)) == (
+        "CASE WHEN PG_INPUT_IS_VALID(CAST(line_no AS TEXT), 'BIGINT') "
+        "THEN CAST(CAST(line_no AS TEXT) AS BIGINT) END"
+    )
+    temporal = exp.TryCast(this=exp.column("_ingested_at"), to=exp.DataType.build("TIMESTAMP"))
+    rendered = _one_line(DIALECT.render(temporal))
+    assert "PG_INPUT_IS_VALID(CAST(_ingested_at AS TEXT), 'TIMESTAMP')" in rendered
+    assert "LOWER(CAST(_ingested_at AS TEXT))" in rendered
+    assert "THEN CAST(CAST(_ingested_at AS TEXT) AS TIMESTAMP)" in rendered
+
+
+def test_an_operand_that_is_already_text_is_not_cast_twice() -> None:
+    """A chain's ``to_string`` step already hands the guard text; a second
+    identical cast around it would be noise in every artifact."""
+    node = exp.TryCast(
+        this=exp.cast(exp.column("raw"), exp.DataType.build("TEXT")),
+        to=exp.DataType.build("BIGINT"),
+    )
+    assert _one_line(DIALECT.render(node)) == (
+        "CASE WHEN PG_INPUT_IS_VALID(CAST(raw AS TEXT), 'BIGINT') "
+        "THEN CAST(CAST(raw AS TEXT) AS BIGINT) END"
     )

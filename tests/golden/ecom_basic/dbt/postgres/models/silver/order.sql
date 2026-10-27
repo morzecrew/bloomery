@@ -3,7 +3,7 @@
 {{ config(materialized='table') }}
 
 SELECT
-  CAST(customer ->> 'id' AS TEXT) AS customer_id,
+  CAST(CAST(customer AS JSON) ->> 'id' AS TEXT) AS customer_id,
   CAST(id AS TEXT) AS order_id,
   CAST(ARRAY[] AS TEXT[]) AS _quality_flags,
   TRUE AS _quality_ok

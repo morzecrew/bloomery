@@ -8,11 +8,11 @@ SELECT
   COUNT(DISTINCT _source) AS sources
 FROM (
   SELECT
-    CAST(properties ->> 'gift_note' AS TEXT) AS gift_note,
+    CAST(CAST(properties AS JSON) ->> 'gift_note' AS TEXT) AS gift_note,
     CAST(position AS BIGINT) AS line_no,
-    CAST("order" ->> 'id' AS TEXT) AS order_id,
+    CAST(CAST("order" AS JSON) ->> 'id' AS TEXT) AS order_id,
     CAST(quantity AS BIGINT) AS quantity,
-    CAST(variant ->> 'sku' AS TEXT) AS sku,
+    CAST(CAST(variant AS JSON) ->> 'sku' AS TEXT) AS sku,
     'shopify__order_lines' AS _source
   FROM {{ source('bronze', 'shopify__order_lines') }}
   UNION ALL

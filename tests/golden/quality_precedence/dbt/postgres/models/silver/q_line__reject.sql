@@ -128,49 +128,67 @@ FROM (
       FROM (
         SELECT
           CASE
-            WHEN PG_INPUT_IS_VALID(amount, 'DECIMAL(38, 9)')
-            THEN CAST(amount AS DECIMAL(38, 9))
+            WHEN PG_INPUT_IS_VALID(CAST(amount AS TEXT), 'DECIMAL(38, 9)')
+            THEN CAST(CAST(amount AS TEXT) AS DECIMAL(38, 9))
           END AS amount,
-          CASE WHEN PG_INPUT_IS_VALID(code, 'TEXT') THEN CAST(code AS TEXT) END AS code,
-          CASE WHEN PG_INPUT_IS_VALID(line_no, 'BIGINT') THEN CAST(line_no AS BIGINT) END AS line_no,
+          CASE WHEN PG_INPUT_IS_VALID(CAST(code AS TEXT), 'TEXT') THEN CAST(code AS TEXT) END AS code,
           CASE
-            WHEN PG_INPUT_IS_VALID(order_date, 'DATE')
-            AND NOT LOWER(order_date) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-            THEN CAST(order_date AS DATE)
+            WHEN PG_INPUT_IS_VALID(CAST(line_no AS TEXT), 'BIGINT')
+            THEN CAST(CAST(line_no AS TEXT) AS BIGINT)
+          END AS line_no,
+          CASE
+            WHEN PG_INPUT_IS_VALID(CAST(order_date AS TEXT), 'DATE')
+            AND NOT LOWER(CAST(order_date AS TEXT)) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+            THEN CAST(CAST(order_date AS TEXT) AS DATE)
           END AS order_date,
-          CASE WHEN PG_INPUT_IS_VALID(order_id, 'TEXT') THEN CAST(order_id AS TEXT) END AS order_id,
-          CASE WHEN PG_INPUT_IS_VALID(status, 'TEXT') THEN CAST(status AS TEXT) END AS status,
+          CASE
+            WHEN PG_INPUT_IS_VALID(CAST(order_id AS TEXT), 'TEXT')
+            THEN CAST(order_id AS TEXT)
+          END AS order_id,
+          CASE
+            WHEN PG_INPUT_IS_VALID(CAST(status AS TEXT), 'TEXT')
+            THEN CAST(status AS TEXT)
+          END AS status,
           _ingested_at,
           _load_id,
           _source_row_id,
           CASE
-            WHEN PG_INPUT_IS_VALID(amount, 'DECIMAL(38, 9)')
-            THEN CAST(amount AS DECIMAL(38, 9))
+            WHEN PG_INPUT_IS_VALID(CAST(amount AS TEXT), 'DECIMAL(38, 9)')
+            THEN CAST(CAST(amount AS TEXT) AS DECIMAL(38, 9))
           END IS NULL
           AND (
             NOT amount IS NULL
           ) AS _branch_amount_coercible,
-          CASE WHEN PG_INPUT_IS_VALID(code, 'TEXT') THEN CAST(code AS TEXT) END IS NULL
+          CASE WHEN PG_INPUT_IS_VALID(CAST(code AS TEXT), 'TEXT') THEN CAST(code AS TEXT) END IS NULL
           AND (
             NOT code IS NULL
           ) AS _branch_code_coercible,
-          CASE WHEN PG_INPUT_IS_VALID(line_no, 'BIGINT') THEN CAST(line_no AS BIGINT) END IS NULL
+          CASE
+            WHEN PG_INPUT_IS_VALID(CAST(line_no AS TEXT), 'BIGINT')
+            THEN CAST(CAST(line_no AS TEXT) AS BIGINT)
+          END IS NULL
           AND (
             NOT line_no IS NULL
           ) AS _branch_line_no_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(order_date, 'DATE')
-            AND NOT LOWER(order_date) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-            THEN CAST(order_date AS DATE)
+            WHEN PG_INPUT_IS_VALID(CAST(order_date AS TEXT), 'DATE')
+            AND NOT LOWER(CAST(order_date AS TEXT)) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+            THEN CAST(CAST(order_date AS TEXT) AS DATE)
           END IS NULL
           AND (
             NOT order_date IS NULL
           ) AS _branch_order_date_coercible,
-          CASE WHEN PG_INPUT_IS_VALID(order_id, 'TEXT') THEN CAST(order_id AS TEXT) END IS NULL
+          CASE
+            WHEN PG_INPUT_IS_VALID(CAST(order_id AS TEXT), 'TEXT')
+            THEN CAST(order_id AS TEXT)
+          END IS NULL
           AND (
             NOT order_id IS NULL
           ) AS _branch_order_id_coercible,
-          CASE WHEN PG_INPUT_IS_VALID(status, 'TEXT') THEN CAST(status AS TEXT) END IS NULL
+          CASE
+            WHEN PG_INPUT_IS_VALID(CAST(status AS TEXT), 'TEXT')
+            THEN CAST(status AS TEXT)
+          END IS NULL
           AND (
             NOT status IS NULL
           ) AS _branch_status_coercible,
@@ -207,7 +225,13 @@ FROM (
           'q__lines->q_line' AS mapping,
           1 AS mapping_version,
           ROW_NUMBER() OVER (
-            PARTITION BY CASE WHEN PG_INPUT_IS_VALID(order_id, 'TEXT') THEN CAST(order_id AS TEXT) END, CASE WHEN PG_INPUT_IS_VALID(line_no, 'BIGINT') THEN CAST(line_no AS BIGINT) END
+            PARTITION BY CASE
+              WHEN PG_INPUT_IS_VALID(CAST(order_id AS TEXT), 'TEXT')
+              THEN CAST(order_id AS TEXT)
+            END, CASE
+              WHEN PG_INPUT_IS_VALID(CAST(line_no AS TEXT), 'BIGINT')
+              THEN CAST(CAST(line_no AS TEXT) AS BIGINT)
+            END
             ORDER BY _ingested_at DESC NULLS LAST, _load_id DESC NULLS LAST, _source_row_id DESC NULLS LAST
           ) AS _w
         FROM {{ source('bronze', 'q__lines') }}
@@ -346,49 +370,67 @@ FROM (
     FROM (
       SELECT
         CASE
-          WHEN PG_INPUT_IS_VALID(amount, 'DECIMAL(38, 9)')
-          THEN CAST(amount AS DECIMAL(38, 9))
+          WHEN PG_INPUT_IS_VALID(CAST(amount AS TEXT), 'DECIMAL(38, 9)')
+          THEN CAST(CAST(amount AS TEXT) AS DECIMAL(38, 9))
         END AS amount,
-        CASE WHEN PG_INPUT_IS_VALID(code, 'TEXT') THEN CAST(code AS TEXT) END AS code,
-        CASE WHEN PG_INPUT_IS_VALID(line_no, 'BIGINT') THEN CAST(line_no AS BIGINT) END AS line_no,
+        CASE WHEN PG_INPUT_IS_VALID(CAST(code AS TEXT), 'TEXT') THEN CAST(code AS TEXT) END AS code,
         CASE
-          WHEN PG_INPUT_IS_VALID(order_date, 'DATE')
-          AND NOT LOWER(order_date) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-          THEN CAST(order_date AS DATE)
+          WHEN PG_INPUT_IS_VALID(CAST(line_no AS TEXT), 'BIGINT')
+          THEN CAST(CAST(line_no AS TEXT) AS BIGINT)
+        END AS line_no,
+        CASE
+          WHEN PG_INPUT_IS_VALID(CAST(order_date AS TEXT), 'DATE')
+          AND NOT LOWER(CAST(order_date AS TEXT)) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+          THEN CAST(CAST(order_date AS TEXT) AS DATE)
         END AS order_date,
-        CASE WHEN PG_INPUT_IS_VALID(order_id, 'TEXT') THEN CAST(order_id AS TEXT) END AS order_id,
-        CASE WHEN PG_INPUT_IS_VALID(status, 'TEXT') THEN CAST(status AS TEXT) END AS status,
+        CASE
+          WHEN PG_INPUT_IS_VALID(CAST(order_id AS TEXT), 'TEXT')
+          THEN CAST(order_id AS TEXT)
+        END AS order_id,
+        CASE
+          WHEN PG_INPUT_IS_VALID(CAST(status AS TEXT), 'TEXT')
+          THEN CAST(status AS TEXT)
+        END AS status,
         _ingested_at,
         _load_id,
         _source_row_id,
         CASE
-          WHEN PG_INPUT_IS_VALID(amount, 'DECIMAL(38, 9)')
-          THEN CAST(amount AS DECIMAL(38, 9))
+          WHEN PG_INPUT_IS_VALID(CAST(amount AS TEXT), 'DECIMAL(38, 9)')
+          THEN CAST(CAST(amount AS TEXT) AS DECIMAL(38, 9))
         END IS NULL
         AND (
           NOT amount IS NULL
         ) AS _branch_amount_coercible,
-        CASE WHEN PG_INPUT_IS_VALID(code, 'TEXT') THEN CAST(code AS TEXT) END IS NULL
+        CASE WHEN PG_INPUT_IS_VALID(CAST(code AS TEXT), 'TEXT') THEN CAST(code AS TEXT) END IS NULL
         AND (
           NOT code IS NULL
         ) AS _branch_code_coercible,
-        CASE WHEN PG_INPUT_IS_VALID(line_no, 'BIGINT') THEN CAST(line_no AS BIGINT) END IS NULL
+        CASE
+          WHEN PG_INPUT_IS_VALID(CAST(line_no AS TEXT), 'BIGINT')
+          THEN CAST(CAST(line_no AS TEXT) AS BIGINT)
+        END IS NULL
         AND (
           NOT line_no IS NULL
         ) AS _branch_line_no_coercible,
         CASE
-          WHEN PG_INPUT_IS_VALID(order_date, 'DATE')
-          AND NOT LOWER(order_date) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-          THEN CAST(order_date AS DATE)
+          WHEN PG_INPUT_IS_VALID(CAST(order_date AS TEXT), 'DATE')
+          AND NOT LOWER(CAST(order_date AS TEXT)) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+          THEN CAST(CAST(order_date AS TEXT) AS DATE)
         END IS NULL
         AND (
           NOT order_date IS NULL
         ) AS _branch_order_date_coercible,
-        CASE WHEN PG_INPUT_IS_VALID(order_id, 'TEXT') THEN CAST(order_id AS TEXT) END IS NULL
+        CASE
+          WHEN PG_INPUT_IS_VALID(CAST(order_id AS TEXT), 'TEXT')
+          THEN CAST(order_id AS TEXT)
+        END IS NULL
         AND (
           NOT order_id IS NULL
         ) AS _branch_order_id_coercible,
-        CASE WHEN PG_INPUT_IS_VALID(status, 'TEXT') THEN CAST(status AS TEXT) END IS NULL
+        CASE
+          WHEN PG_INPUT_IS_VALID(CAST(status AS TEXT), 'TEXT')
+          THEN CAST(status AS TEXT)
+        END IS NULL
         AND (
           NOT status IS NULL
         ) AS _branch_status_coercible,
@@ -425,7 +467,13 @@ FROM (
         'q__lines->q_line' AS mapping,
         1 AS mapping_version,
         ROW_NUMBER() OVER (
-          PARTITION BY CASE WHEN PG_INPUT_IS_VALID(order_id, 'TEXT') THEN CAST(order_id AS TEXT) END, CASE WHEN PG_INPUT_IS_VALID(line_no, 'BIGINT') THEN CAST(line_no AS BIGINT) END
+          PARTITION BY CASE
+            WHEN PG_INPUT_IS_VALID(CAST(order_id AS TEXT), 'TEXT')
+            THEN CAST(order_id AS TEXT)
+          END, CASE
+            WHEN PG_INPUT_IS_VALID(CAST(line_no AS TEXT), 'BIGINT')
+            THEN CAST(CAST(line_no AS TEXT) AS BIGINT)
+          END
           ORDER BY _ingested_at DESC NULLS LAST, _load_id DESC NULLS LAST, _source_row_id DESC NULLS LAST
         ) AS _w
       FROM {{ source('bronze', 'q__lines') }}

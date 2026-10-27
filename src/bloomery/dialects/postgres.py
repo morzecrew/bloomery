@@ -103,9 +103,10 @@ class PostgresDialect(SQLGlotDialect):
         ``JSON_EXTRACT_PATH_TEXT(...)``, which exists only for the ``json``
         type — bloomery's ``variant`` is ``JSONB`` (verified live: the
         engine tier fails without this). A bronze path's ``->>`` extraction is
-        declared ``string`` and stays on the ``json`` functions; the
-        ``json_path`` transform is declared ``variant`` and goes through
-        :func:`_jsonb_extraction` instead.
+        declared ``string`` and stays on the ``json`` functions, over an
+        operand cast to ``json``: a bronze column may be landed as text, which
+        neither form takes (#305). The ``json_path`` transform is declared
+        ``variant`` and goes through :func:`_jsonb_extraction` instead.
 
         The ISO-text marker strips to nothing: Postgres' own cast takes both
         ISO spellings, so there is nothing for this port to add (S-0044).
@@ -138,18 +139,15 @@ class PostgresDialect(SQLGlotDialect):
             path = extract.args.get("expression")
             if not isinstance(path, exp.JSONPath):
                 continue
+            # Both spellings take `json`, and neither takes text: a bronze
+            # column landed as text (#305), and a read over another read — the
+            # replay's `raw` payload holds a bronze column's JSON *as text* —
+            # are type errors without the cast. Over a `json` column the
+            # planner drops it; over `jsonb` it is one conversion.
+            extract.set("this", exp.cast(extract.this, exp.DataType.build("JSON")))
             parts = path.expressions
-            nested = isinstance(extract.this, exp.JSONExtractScalar)
-            if nested:
-                # A read over another read: the replay's `raw` payload holds a
-                # bronze column's JSON *as text*, and `->>` over text is a
-                # type error here, so the inner extraction is cast back to
-                # `json` before the outer key is read.
-                extract.set("this", exp.cast(extract.this, exp.DataType.build("JSON")))
             if len(parts) == 2 and isinstance(parts[1], exp.JSONPathKey):
                 extract.set("only_json_types", True)  # ``->``/``->>`` form
-            elif not nested:
-                extract.set("this", exp.cast(extract.this, exp.DataType.build("JSON")))
 
         rewritten = rewritten.transform(_jsonb_extraction)
         return super().render(rewritten)
@@ -431,6 +429,14 @@ def _guarded_try_cast(node: Expression) -> Expression:
     Those are excluded, making such a cell a coercion failure instead of a
     silently unstable value.
 
+    ``pg_input_is_valid`` takes text only, so the operand is cast to text
+    first: a chain ending in arithmetic hands it a number (#306), and a loader
+    may land ``_ingested_at`` typed (#307). The one text value is what the
+    guard checks *and* what the branch casts, so the equivalence above is
+    still by construction. An operand that is already text — a cast to a text
+    type, or a ``->>`` read — is left alone, as Snowflake's
+    ``_string_try_cast`` does.
+
     The rewrite is safe against constant folding only because the input is a
     column. Over a folded constant Postgres evaluates the ``THEN`` branch at
     plan time and raises — which is how this was nearly mismeasured.
@@ -440,6 +446,10 @@ def _guarded_try_cast(node: Expression) -> Expression:
         return node
 
     value = node.this
+
+    if not _yields_text(value):
+        value = exp.cast(value.copy(), exp.DataType.build("TEXT"))
+
     type_name = node.to.sql(dialect="postgres")
     valid = cast(
         "Expression",
@@ -456,3 +466,13 @@ def _guarded_try_cast(node: Expression) -> Expression:
         valid = exp.And(this=valid, expression=stable)
 
     return exp.Case(ifs=[exp.If(this=valid, true=exp.cast(value.copy(), node.to.copy()))])
+
+
+def _yields_text(node: Expression) -> bool:
+    """Whether *node* is text whatever its input: a cast to a text type, or a
+    ``->>`` read, which returns text over ``json`` and ``jsonb`` alike."""
+
+    if isinstance(node, exp.JSONExtractScalar):
+        return True
+
+    return isinstance(node, exp.Cast) and node.to.is_type(*exp.DataType.TEXT_TYPES)
