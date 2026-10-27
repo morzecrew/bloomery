@@ -1888,10 +1888,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#s-0077d-19-assumed-a-ratio-over-one-row-set-implementation-partial" class="md-nav__link">
+  <a href="#s-0077d-19-assumed-a-ratio-over-one-row-set" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        S-0077/D-19 — <code>ASSUMED</code> (A ratio over one row set) — implementation: partial
+        S-0077/D-19 — <code>ASSUMED</code> (A ratio over one row set)
       </span>
     </span>
   </a>
@@ -2033,11 +2033,11 @@
 <li>Paths: <code>pages/docs/concepts/what-bloomery-proves.md</code> <code>src/bloomery/guardrails/evidence.py</code> <code>tests/unit/test_guardrails/test_evidence.py</code></li>
 <li>Touching these paths owes a divergence entry: <code>torve log owed &lt;task&gt; --touched &lt;files&gt;</code> before you finish</li>
 </ul>
-<h3 id="s-0077d-19-assumed-a-ratio-over-one-row-set-implementation-partial">S-0077/D-19 — <code>ASSUMED</code> (A ratio over one row set) — implementation: partial<a class="headerlink" href="#s-0077d-19-assumed-a-ratio-over-one-row-set-implementation-partial" title="Permanent link">&para;</a></h3>
+<h3 id="s-0077d-19-assumed-a-ratio-over-one-row-set">S-0077/D-19 — <code>ASSUMED</code> (A ratio over one row set)<a class="headerlink" href="#s-0077d-19-assumed-a-ratio-over-one-row-set" title="Permanent link">&para;</a></h3>
 <p><strong>Leg 2 admits a numerator restricted to a subset of the denominator's rows.</strong> The operands agree when every clause of the denominator's restriction is implied by a clause of the numerator's on the same resolved column: the same clause, an <code>eq</code> whose value an <code>in</code> list holds, or an <code>in</code> list another contains. The numerator's rows are then among the denominator's, the ratio is about the denominator's rows, and leg 1 is asked as before. Any other difference still refuses: a denominator clause no numerator clause implies, and an ordering, negated or <code>column:</code> clause that is not identical</p>
 <ul>
 <li>Paths: <code>src/bloomery/semantic/additivity.py</code> <code>tests/unit/test_semantic/test_ratio_rows.py</code> <code>pages/docs/concepts/guardrails.md</code></li>
-<li>Consequence: <code>converted_leads</code> (<code>outcome eq converted</code>) over an unrestricted <code>leads</code>, and <code>won</code> (<code>status eq won</code>) over <code>closed</code> (<code>status in [won, lost]</code>), check clean and plan. <code>won</code> over <code>lost</code>, and a numerator missing one of the denominator's clauses, are still <code>RatioOperandsDisagree</code>. The rows proof names the implication, so a reader of the explanation sees which clauses made the numerator a subset</li>
+<li>Consequence: <code>converted_leads</code> (<code>outcome eq converted</code>) over an unrestricted <code>leads</code>, and <code>won</code> (<code>status eq won</code>) over <code>closed</code> (<code>status in [won, lost]</code>), check clean and plan. <code>won</code> over <code>lost</code>, and a numerator missing one of the denominator's clauses, are still <code>RatioOperandsDisagree</code>. The rows proof names the clauses that made the numerator a subset, and a plan's derivation shows the numerator's own restriction scoped to it (<code>Filter(store = 'Acme' on acme_orders)</code>); R019's proofs reach no plan of their own, for this ratio or any other</li>
 </ul>
 <h3 id="s-0083d-5-assumed-a-declared-key-is-checked">S-0083/D-5 — <code>ASSUMED</code> (A declared key is checked)<a class="headerlink" href="#s-0083d-5-assumed-a-declared-key-is-checked" title="Permanent link">&para;</a></h3>
 <p>The claims page says a declared key is a <code>LOCKED</code> premise that the build checks, and the data quality page lists the generated audit and how <code>dedupe</code> removes it</p>
