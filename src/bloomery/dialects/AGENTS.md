@@ -211,6 +211,27 @@ Ingestion metadata contract: entities using `quarantine` or `dedupe` require bro
 
 - Paths: `src/bloomery/dialects/postgres.py`
 
+### S-0033/D-98 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+
+On an entity in the quality system, a bronze column read through a JSON path is guarded by the port's JSON validity check, so a value that is not JSON reads NULL instead of aborting the run. Outside the quality system the read stays produce-or-raise, as a plain cast does (D-3, D-24)
+
+- Paths: `src/bloomery/resolve/build.py` `src/bloomery/dialects/base.py`
+- Consequence: A malformed bronze payload no longer stops a quality-carrying entity's run on DuckDB, PostgreSQL or Trino; it reaches the marker of D-99 instead. An entity outside the quality system still aborts on it, which is what it does on a value that will not cast
+
+### S-0033/D-100 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+
+`DialectPort.json_valid` is each port's check: DuckDB's `json_valid(x)`, PostgreSQL's `pg_input_is_valid(CAST(x AS TEXT), 'json')` and Trino's `TRY(json_parse(x)) IS NOT NULL`, each measured in the engine tier against one malformed corpus. PostgreSQL reads the column's text because `pg_input_is_valid` takes text only, so a bronze column landed as `json` or `jsonb` passes as the valid JSON it is. Snowflake, BigQuery, Databricks and Redshift keep today's behaviour until a check is measured on each engine, and D-99 does not apply there
+
+- Paths: `src/bloomery/dialects/duckdb.py` `src/bloomery/dialects/postgres.py` `src/bloomery/dialects/trino.py` `tests/unit/test_dialects/test_base.py`
+- Consequence: The three engines a contributor runs locally quarantine the same rows for the same malformed corpus. The cloud ports keep their current behaviour, which on Redshift is a silent NULL (D-101), until each is measured
+
+### S-0033/D-101 — `OPEN` (Data quality: declarative cleansing, dispositions, quarantine)
+
+Whether Redshift stops passing `null_if_invalid` to `JSON_EXTRACT_PATH_TEXT` outside the quality system. With it, a malformed value reads NULL silently on Redshift alone, against produce-or-raise everywhere else; without it, Redshift raises as the others do. Decided on the Redshift live lane, where the change can be measured
+
+- Paths: `src/bloomery/dialects/redshift.py`
+- Consequence: Until it is decided, a Redshift entity outside the quality system reads a malformed value as NULL with nothing reported, the one port where that happens
+
 ### S-0044/D-1 — `LOCKED` (ISO 8601 timestamps across dialects)
 
 `{parse_ts: ISO8601}` must accept the `T` separator on every shipping dialect. The argument names a standard; a whitelisted transform that implements it on two ports of three is a defect in the transform, not a caveat for the docs.
