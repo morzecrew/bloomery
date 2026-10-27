@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   integer rounds, and a cast between `boolean` and `int` stays plain. A zone-aware
   `_ingested_at` stays refused, as on DuckDB: the metadata audit flags every row. (#305,
   #306, #307)
+- **Every cast in a quality-carrying chain is NULL-on-failure, not only the last.** The
+  `Cast → TryCast` shaping rewrote only a chain's outermost cast, because SQLGlot's
+  `transform` does not descend into a node it has replaced. A bad value at an inner cast,
+  such as `'abc'` under `{to_decimal: [16, 0]}` then `{multiply: "0.01"}`, therefore
+  aborted the run on every engine instead of being quarantined. PostgreSQL's guard and
+  Snowflake's string source had the same blind spot for a nested `TRY_CAST`. A cast from a
+  boolean keeps its plain spelling on both, since it cannot fail and its string is not
+  numeric input.
 
 ## [0.7.0] - 2026-10-17
 

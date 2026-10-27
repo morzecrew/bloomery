@@ -23,6 +23,7 @@ from sqlglot.expressions.core import Expression
 from bloomery.dialects.base import (
     DialectFeature,
     SQLGlotDialect,
+    known_type,
     space_separated,
     strip_iso_text,
     utc_from_zone,
@@ -445,7 +446,17 @@ def _string_try_cast(node: Expression) -> Expression:
     if not isinstance(node, exp.TryCast):
         return node
 
-    value = node.this.copy()
+    # A shaped chain nests one TRY_CAST in another, and `transform` does not
+    # descend into the replacement this returns, so the operand is rewritten
+    # here or its cast renders plain. Its type is read before that rewrite.
+    typed = known_type(node.this)
+    value = node.this.transform(_string_try_cast)
+
+    # A boolean's string is not numeric input, so `[to_bool, to_int]` would
+    # read NULL for every row. Its cast cannot fail, and the plain spelling is
+    # the one this pairing shipped with while inner casts went unshaped.
+    if typed is not None and typed.is_type(exp.DataType.Type.BOOLEAN):
+        return exp.cast(value, node.to.copy())
 
     if not (isinstance(value, exp.Cast) and value.to.is_type(*exp.DataType.TEXT_TYPES)):
         value = exp.cast(value, exp.DataType.build("VARCHAR"))

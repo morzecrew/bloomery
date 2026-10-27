@@ -520,3 +520,39 @@ def test_two_macros_under_the_cap_cannot_compose_past_it() -> None:
     assert build(once, reg)
     with pytest.raises(StepError, match=f"past the {MAX_SQL_DEPTH} authored SQL may nest: each macro"):
         build(twice, reg)
+
+
+def test_a_macro_s_declared_type_reaches_the_cast_after_it() -> None:
+    """A port that spells `TRY_CAST` through text reads the operand's type to
+    know when the text is not what the cast reads: `'true'` is not integer
+    input. A macro body is opaque SQL, so a UDF's result has no type a reader
+    can see, and once the chain's inner casts are shaped, `[macro -> bool,
+    to_int]` read NULL for every row on PostgreSQL and Snowflake.
+
+    The macro's manifest is the only thing that knows its type, so a chain
+    that continues past it states that type as a cast.
+    """
+    from bloomery.dialects import get_dialect
+
+    truthy = registry(
+        body="IS_TRUTHY(:v)",
+        accepts={"v": "string"},
+        outputs={"value": {"grain": "row", "key": ["v"], "produces": {"v": {"type": "bool"}}}},
+    )
+    field = (
+        '    from: "$.email"\n'
+        "    transform: [{step: extract_domain@1}, to_int]\n"
+        "    quality: [{rule: not_null, on_fail: flag}]\n"
+    )
+    entity_model = ENTITY_MODEL.replace(
+        "email_domain: {type: string}", "email_domain: {type: int}"
+    ) + "    quarantine: {retention: 90d}\n"
+    metadata = 'unmapped: ["$._ingested_at", "$._load_id", "$._source_row_id"]\n'
+    project = load_project({"entity_model": entity_model, "mapping": mapping(field) + metadata})
+    (entity,) = [e for e in build_project_ir(project, steps=truthy).entities if e.name == "customer"]
+    (column,) = [c for c in entity.sources[0].columns if c.name == "email_domain"]
+    tree = column.expr.ast()
+    postgres = " ".join(get_dialect("postgres").render(tree).split())
+    snowflake = get_dialect("snowflake").render(tree)
+    assert "'INT')" not in postgres  # no text guard on the boolean's cast to INT
+    assert "AS VARCHAR) AS INT)" not in snowflake
