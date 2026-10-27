@@ -15,6 +15,7 @@
         <link rel="canonical" href="https://morzecrew.github.io/bloomery/dev/reference/spec-schemas/">
       
       
+      
         <link rel="prev" href="../../how-to/use-the-cli/">
       
       
@@ -25,7 +26,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.67">
+      <meta name="generator" content="zensical-0.0.71">
     
     
       
@@ -36,12 +37,12 @@
       
         
       
-      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.4ae390e2.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.e442bf79.min.css">
       
         
           
         
-        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.96d1a7e4.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.b60ce83d.min.css">
       
       
 
@@ -83,14 +84,11 @@
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
     <div data-md-component="skip">
-      
-        
-        <a href="#spec-schemas" class="md-skip">
-          Skip to content
-        </a>
-      
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
     </div>
     <div data-md-component="announce">
       
@@ -3135,6 +3133,7 @@
 
               
               <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
                 
                   
 
@@ -4008,6 +4007,16 @@ mapping states they exist by listing them in <code>unmapped:</code>; their absen
 blocking audit: none of the three may be null, <code>_source_row_id</code> must be unique per
 source row, and <code>_ingested_at</code> must cast to timestamp. The audit is emitted only for
 dialects with <code>TRY_CAST</code>; on the others the entity is <code>UnsupportedByTarget</code>.</p>
+<p>On PostgreSQL a loader may land these columns as text or typed (<code>_ingested_at</code> as
+<code>timestamp</code>), and a JSON-shaped bronze column as <code>text</code>, <code>json</code> or <code>jsonb</code>: the emitted
+SQL casts what it reads. A zone-aware <code>_ingested_at</code> (PostgreSQL <code>timestamptz</code>, DuckDB
+<code>TIMESTAMPTZ</code>) is refused: read as text it carries an offset, which the offset refusal
+counts as uncastable, so the audit flags every row. Land the UTC wall clock as a
+zone-less <code>timestamp</code>, or as ISO text without an offset.</p>
+<p>A column a mapping reads is read as text, whatever it was landed as: a compile cannot
+see a bronze type, and every transform chain starts from <code>string</code>. On PostgreSQL a
+<code>numeric</code> column holding <code>1.0</code> is therefore not integer input to <code>to_int</code>, and its row
+is quarantined, where the same value landed as the text <code>1</code> passes.</p>
 <h3 id="freshness">Freshness<a class="headerlink" href="#freshness" title="Permanent link">&para;</a></h3>
 <p>A staleness threshold for the mapping's bronze relation. bloomery emits it; the framework
 measures it — <code>dbt source freshness</code> runs <code>SELECT MAX(_ingested_at)</code>, and nothing in the
@@ -5605,7 +5614,8 @@ guardrail questions — see
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+      
+<div class="md-progress" data-md-component="progress" role="progressbar" aria-label="Loading"></div>
     
     
     
@@ -5615,10 +5625,10 @@ guardrail questions — see
       
         
         
-      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"redirect":null,"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"redirect":null,"search":"../../assets/javascripts/workers/search.c47bb847.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.67a597eb.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a2388154.min.js"></script>
       
     
   </body>
