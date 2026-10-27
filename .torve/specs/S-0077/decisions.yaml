@@ -220,8 +220,10 @@ decisions:
       `converted_leads` (`outcome eq converted`) over an unrestricted `leads`, and
       `won` (`status eq won`) over `closed` (`status in [won, lost]`), check clean
       and plan. `won` over `lost`, and a numerator missing one of the denominator's
-      clauses, are still `RatioOperandsDisagree`. The rows proof names the implication,
-      so a reader of the explanation sees which clauses made the numerator a subset
+      clauses, are still `RatioOperandsDisagree`. The rows proof names the clauses
+      that made the numerator a subset, and a plan's derivation shows the numerator's
+      own restriction scoped to it (`Filter(store = 'Acme' on acme_orders)`); R019's
+      proofs reach no plan of their own, for this ratio or any other
     rationale: >-
       R019's premise is about the numerator's rows: each must contribute to the denominator.
       Identity was a sufficient condition chosen because it was cheap to canonicalise

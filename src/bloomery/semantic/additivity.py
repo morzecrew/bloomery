@@ -437,6 +437,54 @@ def _restriction(
 # ....................... #
 
 
+#: The operators whose clauses read as set membership over their values, the
+#: only ones an implication is read between (S-0077/D-19).
+_MEMBERSHIP: Final[frozenset[str]] = frozenset({"eq", "in"})
+
+
+def _implies(
+    clause: tuple[str, str, tuple[str, ...], str], other: tuple[str, str, tuple[str, ...], str]
+) -> bool:
+    """Whether every row ``clause`` keeps, ``other`` keeps too (S-0077/D-19).
+
+    The same clause, or two membership clauses on one resolved column whose
+    values are one inside the other: ``eq won`` keeps only rows ``in [won,
+    lost]`` keeps. Nothing else is read. An ordering's values are compared as
+    text, so ``gt 5`` would not read as inside ``gt 0`` here even where it is,
+    and a negation over strings depends on the engine's collation.
+    """
+
+    if clause == other:
+        return True
+
+    dimension, op, values, column = clause
+    other_dimension, other_op, other_values, other_column = other
+
+    return (
+        dimension == other_dimension
+        and not column
+        and not other_column
+        and op in _MEMBERSHIP
+        and other_op in _MEMBERSHIP
+        and set(values) <= set(other_values)
+    )
+
+
+def _within(
+    numerator: tuple[tuple[str, str, tuple[str, ...], str], ...],
+    denominator: tuple[tuple[str, str, tuple[str, ...], str], ...],
+) -> bool:
+    """Whether a numerator restricted by ``numerator`` keeps only rows the
+    denominator's restriction keeps: each denominator clause is implied by
+    some numerator clause. The clauses are ANDed, so a row the numerator keeps
+    satisfies every clause the denominator asks for (S-0077/D-19)."""
+
+    return all(any(_implies(mine, theirs) for mine in numerator) for theirs in denominator)
+
+
+# ....................... #
+
+
 def _excludes_zero_of(metric: MetricIR, column: str) -> bool:
     """Whether ``metric``'s own restriction removes the rows where ``column``
     is zero."""
@@ -618,13 +666,19 @@ def prove_ratio_rows(metric: MetricIR, project: ProjectIR) -> Proof | Refutation
         # a question nobody may rely on.
         raise ValueError("prove_ratio_rows needs a ratio whose operands are declared metrics")
 
-    if _restriction(numerator, project) != _restriction(denominator, project):
+    numerator_restriction = _restriction(numerator, project)
+    denominator_restriction = _restriction(denominator, project)
+
+    if not _within(numerator_restriction, denominator_restriction):
         return Refutation(
             reason=RatioRowsRefusal.OPERANDS_DISAGREE.value,
             judgement=judgement,
             obligations=(
                 Obligation(
-                    required=f"{numerator.name} and {denominator.name} restricted to one row set",
+                    required=(
+                        f"{numerator.name} restricted to {denominator.name}'s rows or a "
+                        "subset of them"
+                    ),
                     found=(
                         f"{numerator.name} is restricted by {_rendered(numerator)} and "
                         f"{denominator.name} by {_rendered(denominator)}"
@@ -632,8 +686,10 @@ def prove_ratio_rows(metric: MetricIR, project: ProjectIR) -> Proof | Refutation
                 ),
             ),
             remediation=(
-                "restrict both operands the same way, or neither — a quotient of two "
-                "quantities about different row sets is not a rate of anything"
+                "restrict the numerator by every clause the denominator has, or by one "
+                "that implies it (an `eq` its `in` list holds), adding clauses of its own "
+                "if the numerator is a subset — a quotient of two quantities about "
+                "different row sets is not a rate of anything"
             ),
             rejected=(
                 SemanticFact(
@@ -647,17 +703,32 @@ def prove_ratio_rows(metric: MetricIR, project: ProjectIR) -> Proof | Refutation
             ),
         )
 
+    # A numerator over a subset of the denominator's rows says so in the proof,
+    # because the rows the ratio is about are the denominator's and a reader
+    # should see which clauses narrowed the numerator (S-0077/D-19).
+    subset = (
+        None
+        if numerator_restriction == denominator_restriction
+        else (
+            f"{numerator.name} is restricted to a subset of {denominator.name}'s rows: "
+            f"{_rendered(numerator)} implies {_rendered(denominator)}"
+        )
+    )
+
     if metric.ratio.includes_zero_denominator:
         return _rows_proof(
             metric,
             f"{metric.name} is declared to include rows whose {denominator.name} is zero",
+            subset=subset,
         )
 
     origin = _origin_column(denominator, project)
     column = origin[1] if origin is not None else denominator.name
 
-    # The denominator alone, and deliberately: leg 2 has already proved the two
-    # restrictions are the *same* one, so asking the numerator again adds
+    # The denominator alone, and deliberately: leg 2 has already proved every
+    # row the numerator keeps is one the denominator keeps (the same restriction,
+    # or a subset of it: S-0077/D-19), so a zero the denominator excludes is
+    # excluded from the numerator's rows too, and asking the numerator again adds
     # nothing — and it adds it wrongly. `_excludes_zero_of` matches on the
     # authored dimension name, which differs between marts for one column
     # (`region` and `order_region` are the same column flattened twice), so a
@@ -668,7 +739,9 @@ def prove_ratio_rows(metric: MetricIR, project: ProjectIR) -> Proof | Refutation
     if _excludes_zero_of(denominator, column):
         return _rows_proof(
             metric,
-            f"both operands are restricted to rows whose {column!r} is not zero",
+            f"{denominator.name}, and so every row of {numerator.name}, is restricted to "
+            f"rows whose {column!r} is not zero",
+            subset=subset,
         )
 
     counted = _counts_every_row(denominator, project)
@@ -677,6 +750,7 @@ def prove_ratio_rows(metric: MetricIR, project: ProjectIR) -> Proof | Refutation
         return _rows_proof(
             metric,
             f"{denominator.name} counts every row of the set it is over: {counted}",
+            subset=subset,
         )
 
     positive = _positive_by_construction(denominator, project)
@@ -685,6 +759,7 @@ def prove_ratio_rows(metric: MetricIR, project: ProjectIR) -> Proof | Refutation
         return _rows_proof(
             metric,
             f"{denominator.name} reads {column!r}, which every row declares positive: {positive}",
+            subset=subset,
         )
 
     # A counting denominator misses a row when its column is *null*, not when
@@ -824,17 +899,22 @@ def _rendered(metric: MetricIR) -> str:
 # ....................... #
 
 
-def _rows_proof(metric: MetricIR, statement: str) -> Proof:
-    """R019 discharged, naming *which* declaration discharged it."""
+def _rows_proof(metric: MetricIR, statement: str, *, subset: str | None = None) -> Proof:
+    """R019 discharged, naming *which* declaration discharged it, and, for a
+    numerator over a subset of the denominator's rows, which clauses made it
+    one (S-0077/D-19)."""
+
+    statements = (statement,) if subset is None else (subset, statement)
 
     return Proof(
         rule="R019",
         conclusion=_rows_judgement(metric.name),
-        facts=(
+        facts=tuple(
             SemanticFact(
                 source=f"metric:{metric.name}",
                 provenance=Provenance.DECLARED,
-                statement=statement,
-            ),
+                statement=text,
+            )
+            for text in statements
         ),
     )

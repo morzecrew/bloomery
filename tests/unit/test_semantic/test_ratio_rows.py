@@ -814,3 +814,126 @@ def test_two_column_comparisons_against_different_columns_are_different_restrict
 
     assert isinstance(refutation, Refutation)
     assert refutation.reason == RatioRowsRefusal.OPERANDS_DISAGREE.value
+
+
+# ....................... #
+# A numerator over a subset of the denominator's rows (S-0077/D-19)
+
+RATE_MARTS = """
+marts_version: 1
+marts:
+  shipments:
+    grain: shipment
+    base: shipment
+    measures: [flagged, shipments]
+    flatten:
+      - {date: shipped_on, role: shipped}
+"""
+
+#: Two counts over a required column, so leg 1 is discharged by construction
+#: and only leg 2 is under test.
+RATE = """
+metrics_version: 1
+metrics:
+  flagged:
+    grain: shipment
+    additivity: additive
+    agg: count
+    expr: "shipment_id"
+{numerator}
+  shipments:
+    grain: shipment
+    additivity: additive
+    agg: count
+    expr: "shipment_id"
+{denominator}
+  flagged_rate:
+    grain: shipment
+    additivity: ratio
+    ratio: {{numerator: flagged, denominator: shipments}}
+"""
+
+
+def _filter(*clauses: str) -> str:
+    if not clauses:
+        return ""
+    return "    filter:\n" + "".join(f"      - {clause}\n" for clause in clauses)
+
+
+def _rate(numerator: tuple[str, ...], denominator: tuple[str, ...]) -> Proof | Refutation:
+    metrics = RATE.format(numerator=_filter(*numerator), denominator=_filter(*denominator))
+    project = load_project(
+        {"entity_model": ENTITY_MODEL, "mapping": MAPPING, "marts": RATE_MARTS, "metrics": metrics}
+    )
+    ir = _drafted(project)
+    (ratio,) = (metric for metric in ir.metrics if metric.ratio is not None)
+    return prove_ratio_rows(ratio, ir)
+
+
+LATE = '{dimension: note, op: eq, values: ["late"]}'
+WON = '{dimension: note, op: eq, values: ["won"]}'
+WON_OR_LOST = '{dimension: note, op: in, values: ["won", "lost"]}'
+LOST = '{dimension: note, op: eq, values: ["lost"]}'
+SOME_PARCELS = "{dimension: parcels, op: gt, values: [0]}"
+MANY_PARCELS = "{dimension: parcels, op: gt, values: [5]}"
+
+
+@pytest.mark.parametrize(
+    ("numerator", "denominator"),
+    [
+        # Converted leads over leads: the denominator is unrestricted.
+        ((LATE,), ()),
+        # Won over closed: `eq` whose value the `in` list holds.
+        ((WON,), (WON_OR_LOST,)),
+        # An `in` list contained in the other's.
+        (('{dimension: note, op: in, values: ["won"]}',), (WON_OR_LOST,)),
+        # The same clause, plus one more on the numerator.
+        ((SOME_PARCELS, WON), (SOME_PARCELS,)),
+    ],
+)
+def test_a_numerator_over_a_subset_of_the_denominator_s_rows_is_admitted(
+    numerator: tuple[str, ...], denominator: tuple[str, ...]
+) -> None:
+    """Clauses are ANDed and a row is kept only where the predicate is true, so
+    a numerator carrying a clause that implies each of the denominator's keeps
+    only rows the denominator keeps — a conversion rate, refused until D-19."""
+    assert isinstance(_rate(numerator, denominator), Proof)
+
+
+@pytest.mark.parametrize(
+    ("numerator", "denominator"),
+    [
+        # Two row sets that are not one inside the other.
+        ((WON,), (LOST,)),
+        # The denominator restricted, the numerator not.
+        ((), (WON,)),
+        # A value outside the denominator's list.
+        (('{dimension: note, op: in, values: ["won", "void"]}',), (WON_OR_LOST,)),
+        # An ordering is compared as text, so `gt 5` is not read as inside `gt 0`.
+        ((MANY_PARCELS,), (SOME_PARCELS,)),
+        # A negation over strings depends on the engine's collation.
+        ((WON,), ('{dimension: note, op: ne, values: ["lost"]}',)),
+    ],
+)
+def test_a_numerator_whose_restriction_does_not_imply_the_denominator_s_is_refused(
+    numerator: tuple[str, ...], denominator: tuple[str, ...]
+) -> None:
+    refutation = _rate(numerator, denominator)
+    assert isinstance(refutation, Refutation)
+    assert refutation.reason == RatioRowsRefusal.OPERANDS_DISAGREE.value
+
+
+def test_the_proof_names_the_clauses_that_make_the_numerator_a_subset() -> None:
+    """D-19's consequence: a reader of the explanation sees which clauses made
+    the numerator a subset, rather than a proof that reads as identity."""
+    proof = _rate((WON,), (WON_OR_LOST,))
+    assert isinstance(proof, Proof)
+    statements = " ".join(fact.statement for fact in proof.facts)
+    assert "flagged" in statements and "subset" in statements
+    assert "note eq ['won']" in statements
+
+
+def test_identical_restrictions_still_say_nothing_about_a_subset() -> None:
+    proof = _rate((WON,), (WON,))
+    assert isinstance(proof, Proof)
+    assert "subset" not in " ".join(fact.statement for fact in proof.facts)

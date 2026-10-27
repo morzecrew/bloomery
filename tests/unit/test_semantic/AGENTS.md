@@ -105,12 +105,12 @@ No semantic-corpus case evidences the cumulative shape. R016 is evidenced by pla
 - Paths: `tests/unit/test_semantic/test_plan.py` `tests/fixtures/semantic_corpus/README.md` `src/bloomery/marts/rollup.py`
 - Consequence: The corpus stays limited to cases where valid SQL returns a wrong number, and a change to R016 or to the rollup refusal meets a unit test rather than a fixture
 
-### S-0077/D-19 — `ASSUMED` (A ratio over one row set) — implementation: partial
+### S-0077/D-19 — `ASSUMED` (A ratio over one row set)
 
 **Leg 2 admits a numerator restricted to a subset of the denominator's rows.** The operands agree when every clause of the denominator's restriction is implied by a clause of the numerator's on the same resolved column: the same clause, an `eq` whose value an `in` list holds, or an `in` list another contains. The numerator's rows are then among the denominator's, the ratio is about the denominator's rows, and leg 1 is asked as before. Any other difference still refuses: a denominator clause no numerator clause implies, and an ordering, negated or `column:` clause that is not identical
 
 - Paths: `src/bloomery/semantic/additivity.py` `tests/unit/test_semantic/test_ratio_rows.py` `pages/docs/concepts/guardrails.md`
-- Consequence: `converted_leads` (`outcome eq converted`) over an unrestricted `leads`, and `won` (`status eq won`) over `closed` (`status in [won, lost]`), check clean and plan. `won` over `lost`, and a numerator missing one of the denominator's clauses, are still `RatioOperandsDisagree`. The rows proof names the implication, so a reader of the explanation sees which clauses made the numerator a subset
+- Consequence: `converted_leads` (`outcome eq converted`) over an unrestricted `leads`, and `won` (`status eq won`) over `closed` (`status in [won, lost]`), check clean and plan. `won` over `lost`, and a numerator missing one of the denominator's clauses, are still `RatioOperandsDisagree`. The rows proof names the clauses that made the numerator a subset, and a plan's derivation shows the numerator's own restriction scoped to it (`Filter(store = 'Acme' on acme_orders)`); R019's proofs reach no plan of their own, for this ratio or any other
 
 ### S-0080/D-4 — `ASSUMED` (A mart may read the current version of a type2 entity)
 
