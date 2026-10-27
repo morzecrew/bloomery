@@ -68,8 +68,8 @@ decisions:
   - id: D-4
     grade: ASSUMED
     text: >-
-      `ColumnIR` gains `label`, and `MetricIR` gains `label` and `synonyms`. `bloomery_ir_version`
-      moves by one with them
+      `ColumnIR` gains `label` and `synonyms`, and `MetricIR` gains `label` and `synonyms`.
+      `bloomery_ir_version` moves by one with them
     paths: [src/bloomery/ir/nodes.py, tests/unit/test_ir/**]
     consequence: >-
       Every project's fingerprint moves once, and `plan()` refuses to diff across
@@ -137,8 +137,8 @@ decisions:
   - id: D-8
     grade: ASSUMED
     text: >-
-      A change to a column's `description` or `label`, or to a metric's `description`,
-      `label` or `synonyms`, is ADDITIVE, metadata only, with no backfill
+      A change to a column's `description`, `label` or `synonyms`, or to a metric's
+      `description`, `label` or `synonyms`, is ADDITIVE, metadata only, with no backfill
     paths: [src/bloomery/plan/diff.py, tests/unit/test_plan/**]
     consequence: >-
       Moving a column's description from a canonical binding to its own key, with
@@ -148,3 +148,25 @@ decisions:
       change this way, and the new keys change no value any more than it does. The
       vocabulary stays S-0024/D-1's five members
     cites: [S-0024/D-1, S-0024/D-4]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      `Field` gains optional `synonyms`, under D-3's rules for a metric's: distinct
+      non-empty strings, refused when two are equal, stored sorted. They route to
+      a MetricFlow dimension's `config.meta.synonyms`, a Cube dimension's `meta.synonyms`
+      and a dbt column's `meta.synonyms`, and a mart column carries its source field's
+    paths:
+      - src/bloomery/spec/entity.py
+      - src/bloomery/resolve/build.py
+      - tests/golden/schema/entity_model.json
+    consequence: >-
+      A natural-language front end matches a user's words to dimensions as it does
+      to metrics, and `product_brand` answers to «бренд» without its description carrying
+      the list as prose
+    rationale: >-
+      Q-1 asked whether S-0011/D-1 (LOCKED) forbids the key, since it keeps retrieval
+      semantics off the entity model. S-0011/D-15 says what D-1 means: how a corpus
+      is embedded, indexed and ranked. The names a person uses for a column are annotations,
+      the same kind of key as `classification:` (S-0062/D-13). A field has no template
+      to merge from, so absence and an empty list mean the same thing here
+    cites: [D-3, D-5, D-7, S-0011/D-15]

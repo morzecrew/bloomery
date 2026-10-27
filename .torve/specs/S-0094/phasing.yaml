@@ -3,13 +3,13 @@ phasing:
   - phase: 1
     title: The keys, the IR fields and the version
     intent: >-
-      `Field.description` and `Field.label`, and `Metric.label` and `Metric.synonyms`,
-      with their load-time refusals (D-2, D-3). `ColumnIR.label`, `MetricIR.label`
-      and `MetricIR.synonyms`, filled by `build_project_ir`: a field's own description
-      wins over its canonical field's, and a metric template's label and synonyms
-      merge under the authored ones. `bloomery_ir_version` moves by one (D-4). Tests
-      drive `load_project` and `build_project_ir`, and the JSON schema goldens change
-      with the models.
+      `Field.description`, `Field.label` and `Field.synonyms`, and `Metric.label`
+      and `Metric.synonyms`, with their load-time refusals (D-2, D-3). `ColumnIR.label`,
+      `MetricIR.label` and `MetricIR.synonyms`, filled by `build_project_ir`: a field's
+      own description wins over its canonical field's, and a metric template's label
+      and synonyms merge under the authored ones. `bloomery_ir_version` moves by one
+      (D-4). Tests drive `load_project` and `build_project_ir`, and the JSON schema
+      goldens change with the models.
     scope:
       - src/bloomery/spec/entity.py
       - src/bloomery/spec/metrics.py

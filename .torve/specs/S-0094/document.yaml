@@ -15,7 +15,7 @@ superseded_by: null
 owner: Lev Litvinov
 schema_version: 4
 summary: |-
-  Descriptions, labels and synonyms as annotations that route to their targets' own slots. An entity field gains `description:` and `label:`, a metric gains `label:` and `synonyms:`, and each reaches the slot its target has for it: MetricFlow's `description`, `label` and `config.meta`, Cube's `description`, `title` and `meta`, dbt's column `description`. None of them changes a SELECT, and a change to any of them is metadata-only in a plan.
+  Descriptions, labels and synonyms as annotations that route to their targets' own slots. An entity field gains `description:`, `label:` and `synonyms:`, a metric gains `label:` and `synonyms:`, and each reaches the slot its target has for it: MetricFlow's `description`, `label` and `config.meta`, Cube's `description`, `title` and `meta`, dbt's column `description`. None of them changes a SELECT, and a change to any of them is metadata-only in a plan.
 
   Today a field's description arrives only through a bound `canonical:` field, which restates the column's history to add a sentence, and Cube receives no description at all, not even a metric's.
 motivation: |-
@@ -35,12 +35,11 @@ current_state: |-
   - **SQLMesh.** No description is written.
   - **Plan.** A change to `ColumnIR.description` is already ADDITIVE, "description changed (metadata only)", with no backfill (`plan/diff.py:763`).
 goals: |-
-  - A field states its own description and label, and a metric its label and synonyms, without binding a catalog field.
+  - A field states its own description, label and synonyms, and a metric its label and synonyms, without binding a catalog field.
   - Each reaches every target that has a slot for it, through that slot and no other, and Cube gains the descriptions it has never had, metrics' included.
-  - A mart column carries its source field's description and label, as MetricFlow already does for descriptions.
+  - A mart column carries its source field's description, label and synonyms, as MetricFlow already does for descriptions.
   - No SELECT changes, and a change to any of the three is metadata-only in a plan.
 non_goals: |-
-  - **Synonyms on dimensions.** S-0011/D-1 (LOCKED) keeps retrieval semantics off the entity model, and S-0011's own phasing names the lexical side as retrieval. Whether a field's synonyms are retrieval semantics is the owner's reading to make (Q-1); until then synonyms are a metric key only, which the metric set carries without touching the entity model.
   - **A free `meta:` passthrough.** S-0062/D-3 (LOCKED) prefers routed keys to an open map, because a key nobody routes cannot be refused when a target has no slot for it.
   - **A per-mart override of a column's description.** A mart has no per-column authoring surface (S-0027/D-6), and a description belongs to the data, which is the same column under any prefix.
   - **Localisation.** One label and one description per field or metric; a translated catalog is a different design.
@@ -55,6 +54,7 @@ design:
           type: string
           description: The brand printed on the product, as the supplier spells it
           label: Brand
+          synonyms: [бренд, марка, производитель]
 
       # metrics.yaml
       metrics:
@@ -68,7 +68,7 @@ design:
           synonyms: [продажи, оборот, сколько заработали]
       ```
 
-      `description` and `label` are optional strings on `Field`; `label` and `synonyms` are optional on `Metric`, beside its existing `description`. Each string is refused empty after stripping, and `label` is refused if it holds a line break, because every target renders it as a single-line title. `synonyms` is a list of distinct non-empty strings, refused when two are equal. The IR stores it sorted, so the authored order never reaches an artifact's bytes (S-0020). A metric template (`MetricTemplate`, in `spec/catalog.py`) gains the same two keys, and they merge like its `description`: the authored value wins, and an absent one takes the template's. For `synonyms` absence is `None`, not an empty list, so a metric can write `synonyms: []` to drop a template's.
+      `description`, `label` and `synonyms` are optional on `Field`; `label` and `synonyms` are optional on `Metric`, beside its existing `description`. Each string is refused empty after stripping, and `label` is refused if it holds a line break, because every target renders it as a single-line title. `synonyms` is a list of distinct non-empty strings, refused when two are equal. The IR stores it sorted, so the authored order never reaches an artifact's bytes (S-0020). A metric template (`MetricTemplate`, in `spec/catalog.py`) gains the same two keys, and they merge like its `description`: the authored value wins, and an absent one takes the template's. For `synonyms` absence is `None`, not an empty list, so a metric can write `synonyms: []` to drop a template's.
   - key: precedence-with-the-catalog
     md: >-
       `ColumnIR.description` is the field's own `description:` when it has one, and
@@ -83,6 +83,7 @@ design:
       |---|---|---|---|---|
       | field `description` | dimension `description` (as today) | dimension `description` | column `description` | — |
       | field `label` | dimension `label` | dimension `title` | — | — |
+      | field `synonyms` | dimension `config.meta.synonyms` | dimension `meta.synonyms` | column `meta.synonyms` | — |
       | metric `description` | metric `description` (as today) | measure `description` | — | — |
       | metric `label` | metric `label` | measure `title` | — | — |
       | metric `synonyms` | metric `config.meta.synonyms` | measure `meta.synonyms` | — | — |
@@ -90,40 +91,40 @@ design:
       A metric has no dbt schema entry and no SQLMesh model of its own (the `_metric_meta` comment says so), so those columns stay empty. SQLMesh has `column_descriptions` and is left out until someone asks for it, since no consumer of the SQLMesh artifacts has. Synonyms never go into `label` or `description`: `label` is one display string, and the complaint in #311 is exactly that prose and synonyms share one slot.
   - key: through-the-flatten
     md: >-
-      A mart column carries the description and label of the column it was flattened
-      from, prefixed or not, and a date role's buckets carry their source column's.
-      MetricFlow already does this for descriptions by looking the column up through
-      `(source_entity, source_column)`, and Cube and dbt marts use the same lookup.
-      This is not the inheritance S-0062/D-2 refuses for `owner`. An owner is a claim
-      about who answers for a relation, and a mart is a different relation; a description
-      is a claim about the data, and a prefixed column is the same data.
+      A mart column carries the description, label and synonyms of the column it was
+      flattened from, prefixed or not, and a date role's buckets carry their source
+      column's. MetricFlow already does this for descriptions by looking the column
+      up through `(source_entity, source_column)`, and Cube and dbt marts use the
+      same lookup. This is not the inheritance S-0062/D-2 refuses for `owner`. An
+      owner is a claim about who answers for a relation, and a mart is a different
+      relation; a description is a claim about the data, and a prefixed column is
+      the same data.
   - key: the-ir-and-the-plan
     md: >-
-      `ColumnIR` gains `label: str | None`, and `MetricIR` gains `label: str | None`
-      and `synonyms: tuple[str, ...]`. `bloomery_ir_version` moves by one with them,
-      because the canonical encoder writes field names and counts, so every fingerprint
-      moves whether or not a project declares anything (S-0079/D-2's reasoning). In
-      `plan/diff.py`, a change to a column's `label`, or to a metric's `description`,
-      `label` or `synonyms`, joins the column description's existing branch: ADDITIVE,
-      metadata only, no backfill. Moving a description from a canonical binding to
-      the field's own key is a metadata change. Only the `canonical:` link itself
-      moving is RESTATING (S-0024/D-4).
+      `ColumnIR` gains `label: str | None` and `synonyms: tuple[str, ...]`, and `MetricIR`
+      gains `label: str | None` and `synonyms: tuple[str, ...]`. `bloomery_ir_version`
+      moves by one with them, because the canonical encoder writes field names and
+      counts, so every fingerprint moves whether or not a project declares anything
+      (S-0079/D-2's reasoning). In `plan/diff.py`, a change to a column's `label`
+      or `synonyms`, or to a metric's `description`, `label` or `synonyms`, joins
+      the column description's existing branch: ADDITIVE, metadata only, no backfill.
+      Moving a description from a canonical binding to the field's own key is a metadata
+      change. Only the `canonical:` link itself moving is RESTATING (S-0024/D-4).
 tests: |-
   - Load: each new key is accepted where it belongs and refused elsewhere, an empty string and a label with a line break are refused, duplicate synonyms are refused, and a template's label and synonyms merge under the authored ones (D-2, D-3).
   - IR: a field's own description wins over its canonical field's, synonyms are sorted, and `bloomery_ir_version` is the bumped value (D-2, D-4).
   - Emit: one fixture declaring every annotation compiles for every target, and each value appears in exactly the slots of the routing table. Every existing golden's SQL is byte-identical, which is the assertion D-1 makes, not an assumption (D-1, D-5, D-6).
   - Cube: a fixture's metric description now reaches its measure (D-6).
-  - Flatten: a prefixed mart column and a day bucket carry their source's description and label on MetricFlow, Cube and dbt (D-7).
+  - Flatten: a prefixed mart column and a day bucket carry their source's description, label and synonyms on MetricFlow, Cube and dbt (D-7).
   - Plan: a description, label or synonyms change is ADDITIVE metadata-only with an empty backfill, and moving a description off a canonical binding without changing the link restates nothing (D-8).
 docs: |-
   - `spec-schemas.md`: the new keys on `Field` and `Metric`.
   - `annotate-a-spec.md`: the routing table, beside owner and classification.
   - `emit-cube.md` and `emit-dbt.md`: what each annotation becomes there; the MetricFlow slots go in `annotate-a-spec.md`'s table, since no page is the MetricFlow target's own.
-  - The agent skill's metrics and entity references: synonyms on a metric instead of in its description.
+  - The agent skill's metrics and entity references: synonyms on a metric or a field instead of in its description.
   - A changelog entry naming the IR version bump.
-out_of_scope: |-
+out_of_scope: >-
   - SQLMesh `column_descriptions`, until a consumer of the SQLMesh artifacts asks.
-  - Synonyms on entity fields and mart dimensions (Q-1).
 risks: |-
   - **Every Cube golden whose fixture describes a metric moves**, gaining a `description:` line. That is the D-6 change landing, not drift, and the review should read it as such.
   - **Every fingerprint moves once** with the IR version, and `plan()` refuses to diff across it. A project's first plan after upgrading cannot be shown as metadata-only.
@@ -165,3 +166,5 @@ questions:
       where. Either S-0011's retrieval kind carries them, or `Field` does and S-0011/D-1
       (LOCKED) is amended to say lexical aliases are not retrieval semantics. The
       owner's reading to make.
+    status: settled
+    settled_by: D-9
