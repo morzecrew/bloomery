@@ -441,6 +441,17 @@ def test_every_cast_in_a_chain_is_shaped_not_only_the_outermost() -> None:
     assert not [node for node in shaped.find_all(exp.Cast) if type(node) is exp.Cast]
 
 
+def test_a_cast_over_a_constant_is_not_shaped() -> None:
+    """A literal reads no row, so it has no value that can fail to coerce: a
+    `coalesce` fallback the engine cannot cast is the author's mistake, and
+    shaped it went NULL silently on DuckDB. On Postgres it put the guard
+    around a constant, which D-84 records as unsafe (#322)."""
+    chain = DEFAULT_REGISTRY["coalesce"].builder(
+        exp.cast(exp.column("x"), exp.DataType.build("BIGINT")), 0, input_type=IntType()
+    )
+    assert _try_cast_shape(chain).sql() == "COALESCE(TRY_CAST(x AS BIGINT), CAST(0 AS BIGINT))"
+
+
 # ....................... #
 # S-0081/D-2, D-3: the instant format and zone directives
 

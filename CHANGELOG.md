@@ -40,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Snowflake's string source had the same blind spot for a nested `TRY_CAST`. A cast from a
   boolean keeps its plain spelling on both, since it cannot fail and its string is not
   numeric input.
+- **A cast over a constant is not shaped.** A `coalesce` fallback after a cast, as in
+  `[to_int, {coalesce: 0}]`, became `TRY_CAST(0 AS BIGINT)` on a quality-carrying entity.
+  On PostgreSQL 0.7.0 that put `pg_input_is_valid` around the literal and the run failed
+  with `42883`. Elsewhere, a fallback the engine cannot cast (`{coalesce: abc}` over an
+  `int`) went NULL silently. A cast that reads no column now stays a `CAST`, so a bad
+  fallback fails the run, as it already did on an entity without quality rules. (#322)
 - **A semi-additive metric's `over:` is checked at `check`.** Nothing validated it before
   emission: `over: snapshot_day` (the bucket a `snapshot` role produces, not the column
   it is declared over) and `over: warehouse_id` (not a date) both checked clean, and only
