@@ -228,7 +228,11 @@ lead_conversion:
   ratio: {numerator: converted_leads, denominator: leads}
 ```
 
-No flag column has to be landed for this; the condition reads the entity's own field.
+The denominator passes the zero-row check because it counts a column declared `required:
+true` on the entity (`lead_id: {type: string, required: true}`), so it counts every row the
+numerator sums. Over an optional column the count can miss a row, and the ratio is refused as
+`UndeclaredRatioRows` until the column is required or carries a `not_null` rule that removes
+the row. No flag column has to be landed for this; the condition reads the entity's own field.
 
 ## Path conflict: the guardrail that does not raise
 
