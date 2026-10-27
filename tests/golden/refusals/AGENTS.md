@@ -8,7 +8,7 @@ Currency codes are checked only when both operands declare one; distinct declare
 
 - Paths: `src/bloomery/guardrails/arithmetic.py` `src/bloomery/resolve/build.py` `tests/fixtures/semantic_corpus/004-currency-mix/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/004-currency-mix/problem.md` `tests/golden/refusals/example-mixed-currency.txt` `tests/unit/test_guardrails/test_arithmetic.py`
 
-### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions)
+### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
 
 Measure grain must strictly equal mart grain; coarser or finer is `GrainViolation`. Resolves D2's prose/example contradiction to the strict reading; relaxation is a future additive change.
 

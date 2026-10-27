@@ -41,3 +41,43 @@ amendments:
       Answered by a later row, which the row now names:
       - D-6 is answered by S-0077/D-8: The row is marked 'Superseded by D8'; D-8 says R019 reads declarations only, so no mart discharges the premise.
       - D-7 is answered by S-0077/D-9: The row is marked 'Superseded by D9'; D-9 leaves the redundant declaration alone.
+  - id: A-2
+    at: '2026-10-27T10:07:50Z'
+    title: >-
+      A numerator over a subset of the denominator's rows
+    changes:
+      - subject: D-19
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-19
+        field: paths
+        before: []
+        after:
+          - src/bloomery/semantic/additivity.py
+          - tests/unit/test_semantic/test_ratio_rows.py
+          - pages/docs/concepts/guardrails.md
+      - subject: D-19
+        field: text
+        before: <decision>
+        after: >-
+          **Leg 2 admits a numerator restricted to a subset of the denominator's rows.**
+          The operands agree when every clause of the denominator's restriction is
+          implied by a clause of the numerator's on the same resolved column: the
+          same clause, an `eq` whose value an `in` list holds, or an `in` list another
+          contains. The numerator's rows are then among the denominator's, the ratio
+          is about the denominator's rows, and leg 1 is asked as before. Any other
+          difference still refuses: a denominator clause no numerator clause implies,
+          and an ordering, negated or `column:` clause that is not identical
+      - subject: D-19
+        field: fingerprint
+        after: baef1b415c14a0c6/76db2669ebdf188d
+    md: |-
+      Issue #309: a conversion rate written the natural way, `converted_leads` filtered to `outcome eq converted` over an unfiltered `leads`, is refused as `RatioOperandsDisagree`, because leg 2 asks for operands restricted *identically*. D-19 relaxes that to the numerator's restriction implying the denominator's. The sentence in `operand-restrictions-must-agree-whether-or-not-zero-is-invol` stands as written, and D-19 is the correction to it.
+
+      Rejected while writing D-19:
+      - Requiring the same `agg` and `expr` on both operands. Leg 2 never asked it of identical restrictions, where `sum(revenue) / count(order_id)` is the common correct ratio, and a subset makes the operands no more about different things than identity does.
+      - Admitting orderings and negations. `gt` and `lte` values are compared as text, and `ne` or `not_in` over a string column depends on the engine's collation; each would need a typed comparison the canonical restriction does not make.
+      - Relaxing `derived:` (S-0082/D-4) in the same row. A derived expression is not a quotient, and "the numerator's rows are among the denominator's" means nothing for `a - b`.
+
+      Until D-19 is implemented, the guardrails page shows the form that already passes: count the subset in the numerator's expression, over an unfiltered count.

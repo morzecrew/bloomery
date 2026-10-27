@@ -14,7 +14,7 @@ Floats are banned in IR and emission; `Decimal`/int only.
 
 - Paths: `src/bloomery/planner/result.py` `tests/equivalence/test_three_way.py` `tests/support/equivalence.py` `tests/unit/test_planner/test_names.py`
 
-### S-0027/D-8 — `ASSUMED` (Marts and role-playing dimensions)
+### S-0027/D-8 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
 
 `cost_hint` (int, default 1) is a tie-breaking scan-cost hint only; selection ties break lexicographically (S-0020 determinism).
 

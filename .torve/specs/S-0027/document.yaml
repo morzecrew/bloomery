@@ -6,7 +6,7 @@ change:
   type: feat
   scope: marts
 status: accepted
-implementation: complete
+implementation: partial
 depends_on: []
 informed_by: []
 supersedes: []

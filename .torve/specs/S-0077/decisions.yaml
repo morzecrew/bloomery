@@ -201,3 +201,42 @@ decisions:
       `error` and `rule` inside `expected/semantic_outcome.json`, exactly as S-0076's
       conversion did. The pinning §6 asks for is unchanged and is machine-readable
       — see `logs/T-0063.md` (unlisted, 16:45Z).
+  - id: D-19
+    grade: ASSUMED
+    text: >-
+      **Leg 2 admits a numerator restricted to a subset of the denominator's rows.**
+      The operands agree when every clause of the denominator's restriction is implied
+      by a clause of the numerator's on the same resolved column: the same clause,
+      an `eq` whose value an `in` list holds, or an `in` list another contains. The
+      numerator's rows are then among the denominator's, the ratio is about the denominator's
+      rows, and leg 1 is asked as before. Any other difference still refuses: a denominator
+      clause no numerator clause implies, and an ordering, negated or `column:` clause
+      that is not identical
+    paths:
+      - src/bloomery/semantic/additivity.py
+      - tests/unit/test_semantic/test_ratio_rows.py
+      - pages/docs/concepts/guardrails.md
+    consequence: >-
+      `converted_leads` (`outcome eq converted`) over an unrestricted `leads`, and
+      `won` (`status eq won`) over `closed` (`status in [won, lost]`), check clean
+      and plan. `won` over `lost`, and a numerator missing one of the denominator's
+      clauses, are still `RatioOperandsDisagree`. The rows proof names the implication,
+      so a reader of the explanation sees which clauses made the numerator a subset
+    rationale: >-
+      R019's premise is about the numerator's rows: each must contribute to the denominator.
+      Identity was a sufficient condition chosen because it was cheap to canonicalise
+      (D-10), and it refused the most common rate there is (#309), whose numerator
+      is the denominator's rows narrowed further. Clauses are ANDed and a row is kept
+      only where the predicate is true, so a numerator carrying a clause that implies
+      each of the denominator's keeps only rows the denominator keeps, NULLs included.
+      Only implications that hold without a type or a collation are admitted: identity
+      and membership over the literal values, compared as the canonical restriction
+      already compares them (D-10, D-17). An ordering is compared as text and would
+      prove `gt 9` stronger than `gt 10`, and a negation over strings depends on the
+      engine's collation, so neither is admitted. Leg 1's discharges read the denominator
+      alone and each stays sound over a subset: a restriction excluding the zeros
+      excludes them from every row the numerator keeps, a count counts each of those
+      rows, and a positivity rule holds on each. Nothing here chooses which rows the
+      ratio is about (D-1): the author wrote the subset
+    cites: [D-1, D-4, D-10, D-12, D-17]
+    fingerprint: baef1b415c14a0c6/76db2669ebdf188d

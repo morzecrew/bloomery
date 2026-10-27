@@ -52,7 +52,7 @@ Tenant-agnosticism is a named guard alongside the determinism guard (D9): `grep 
 
 - Paths: `src/bloomery/quality/mart.py`
 
-### S-0027/D-9 — `ASSUMED` (Marts and role-playing dimensions)
+### S-0027/D-9 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
 
 (Amended for `_bloomery-metricflow-pivot.md`) Marts are the emission source for MetricFlow semantic models — one mart = exactly one semantic model (S-0030 R1); a measure-carrying mart must declare a date role (`MartMissingTimeDimension` otherwise). Marts and role-playing are *more* load-bearing after the pivot, not less.
 

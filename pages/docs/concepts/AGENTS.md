@@ -15,6 +15,13 @@ Additivity: `non_additive` metrics are never materialized as stored numbers (com
 
 - Paths: `pages/docs/concepts/guardrails.md` `src/bloomery/guardrails/additivity.py` `src/bloomery/planner/coverage.py` `tests/fixtures/semantic_corpus/002-average-of-averages/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/002-average-of-averages/problem.md` `tests/fixtures/semantic_corpus/005-semi-additive-balance/problem.md` `tests/unit/test_guardrails/test_additivity.py`
 
+### S-0027/D-11 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+
+**A `date:` step may name a column flattened through a `many_to_one` or `one_to_one` step, not only a base column.** The column is looked up among those flattened before the step, the base entity's own and every prefixed one, and must still be `date` or `timestamp` typed. Its buckets trace to the joined entity's column, so the zone guard reads that entity's clock. A `date:` naming a column a later step flattens is refused as a column that does not exist yet. `as_of` stays base-only (S-0040/D-8)
+
+- Paths: `src/bloomery/marts/flatten.py` `tests/unit/test_marts/test_flatten.py` `pages/docs/concepts/wide-marts.md`
+- Consequence: A line-grain mart flattening `line_of_order` with `prefix: order_` can declare `{date: order_ordered_at, role: ordered}`, and a project no longer copies the document's date onto every line at ingestion. A line whose order is missing gets a NULL bucket from the LEFT JOIN, as a NULL base date already does; a `referential` rule on the line's order key is how a project rules that out
+
 ### S-0034/D-57 — `ASSUMED` (The step registry: referenced implementations)
 
 A step input's `requires` is a lower bound the compile checks: when the wiring binds the input to an entity the project declares or to another step's output, every required column is one of that relation's columns — the entity's fields, or the output's `produces` — or the compile refuses with a `StepError` naming the step, the input, the relation and what is missing. A relation the project does not declare, and a reserved column name, are not checked
@@ -56,6 +63,13 @@ A step input's `requires` is a lower bound the compile checks: when the wiring b
 
 - Paths: `pages/docs/concepts/what-bloomery-proves.md` `src/bloomery/guardrails/evidence.py` `tests/unit/test_guardrails/test_evidence.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0077/D-19 — `ASSUMED` (A ratio over one row set) — implementation: partial
+
+**Leg 2 admits a numerator restricted to a subset of the denominator's rows.** The operands agree when every clause of the denominator's restriction is implied by a clause of the numerator's on the same resolved column: the same clause, an `eq` whose value an `in` list holds, or an `in` list another contains. The numerator's rows are then among the denominator's, the ratio is about the denominator's rows, and leg 1 is asked as before. Any other difference still refuses: a denominator clause no numerator clause implies, and an ordering, negated or `column:` clause that is not identical
+
+- Paths: `src/bloomery/semantic/additivity.py` `tests/unit/test_semantic/test_ratio_rows.py` `pages/docs/concepts/guardrails.md`
+- Consequence: `converted_leads` (`outcome eq converted`) over an unrestricted `leads`, and `won` (`status eq won`) over `closed` (`status in [won, lost]`), check clean and plan. `won` over `lost`, and a numerator missing one of the denominator's clauses, are still `RatioOperandsDisagree`. The rows proof names the implication, so a reader of the explanation sees which clauses made the numerator a subset
 
 ### S-0083/D-5 — `ASSUMED` (A declared key is checked)
 
