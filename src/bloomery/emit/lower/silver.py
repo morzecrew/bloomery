@@ -877,7 +877,15 @@ def _extract_select(
     # That level is also where D6's pipeline order is visible: union first,
     # then dedupe, then the rules.
     level = _dedupe_level(union) if isinstance(union, exp.Union) else union
-    return _stage(with_dedupe_qualify(level, entity.dedupe, entity.key, merged=merged), entity)
+    unread = tuple(
+        branch_alias(rule)
+        for rule in entity.quality
+        if rule.kind == "coercible" and rule.column in entity.key
+    )
+    return _stage(
+        with_dedupe_qualify(level, entity.dedupe, entity.key, merged=merged, unread=unread),
+        entity,
+    )
 
 
 # ....................... #

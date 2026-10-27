@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Expression metrics have lineage.** `lineage()` walked upstream from a metric defined
+  by an `expr` with no `requires:` to nothing. An `expr` edge now runs from each field of the
+  metric's grain entity that its `expr` names, so the walk reaches the entity column and,
+  through its mapping, bronze. The edge is lineage only: `depends_on`, reachability and
+  `plan()` are unchanged, and no artifact or fingerprint moves. (#330)
 - **A `prepend` transform.** `{prepend: "amocrm:"}` puts a literal in front of a string,
   as `concat` puts one after it, so a key two sources feed can be namespaced as
   `amocrm:31234567`, which sorts and groups by source. NULL stays NULL. (#325)
@@ -48,6 +53,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **Upgrade note.** A project whose field is spelled differently from its canonical
   re-fingerprints once. A measure naming a column its mart does not carry, which failed at
   query time before, no longer compiles.
+- **Every row whose dedupe key fails to cast reaches quarantine.** The dedupe window
+  partitioned by the coerced key, and every key that fails its cast coerces to the same
+  NULL. Two bronze rows with different uncastable keys therefore shared a partition: one was
+  quarantined and the other was dropped as a dedupe loser, in neither the entity nor its
+  reject table. Such a row is now partitioned by its own identity as well, so each failure
+  is recorded. Genuine duplicates still collapse to their latest row. (#315)
 - **A ratio's operands are lineage edges.** `lineage()` walked upstream from a ratio to
   nothing unless `requires_metrics` repeated its numerator and denominator, and
   `plan().downstream_impact` could not reach it from a change to either. The operands are

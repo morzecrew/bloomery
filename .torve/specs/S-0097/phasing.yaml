@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: Binds, the markers and DuckDB
+    intent: >-
+      `Planner.plan(..., paramstyle=...)` (D-1), `QueryPlan.params` (D-2), the bound
+      clauses in `filters.to_where` (D-3) with typed values (D-4), the markers through
+      MetricFlow and the `%` doubling (D-5), and the fingerprint across values (D-6),
+      on both the single-mart and the composed path. Tests drive `Planner.plan` with
+      each paramstyle, the DuckDB execution cases bound under `qmark` against their
+      inline rows, the row-policy audit and the property fuzz reading a placeholder
+      bound to the policy value, and `explain --format json` showing `params`.
+    scope:
+      - src/bloomery/planner/metricflow_planner.py
+      - src/bloomery/planner/__init__.py
+      - src/bloomery/planner/result.py
+      - src/bloomery/planner/filters.py
+      - src/bloomery/planner/compose.py
+      - tests/unit/test_planner/**
+      - tests/execution/test_planner_binds.py
+      - tests/support/planning.py
+      - tests/property/test_planner_properties.py
+      - pages/docs/how-to/**
+      - pages/docs/reference/api.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_planner tests/execution/test_planner_binds.py
+        tests/property/test_planner_properties.py -q
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      PostgreSQL and Trino drivers, bound against inline
+    intent: >-
+      An engine differential on PostgreSQL 16 through psycopg (`pyformat`) and Trino
+      483 through its client (`qmark`): the planner execution requests, dates, timestamps
+      and decimals among them, bound and inline, must return the same rows (D-7),
+      which settles Q-1. Engine-tier, so it runs in CI's engine matrix job; the acceptance
+      below judges the bound text offline.
+    scope: [tests/engines/test_planner_binds_differential.py]
+    acceptance:
+      - uv run pytest tests/unit/test_planner -q
+    depends_on:
+      - 1
+    character: structural

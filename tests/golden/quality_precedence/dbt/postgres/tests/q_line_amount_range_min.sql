@@ -111,6 +111,22 @@ FROM (
           END, CASE
             WHEN PG_INPUT_IS_VALID(CAST(line_no AS TEXT), 'BIGINT')
             THEN CAST(CAST(line_no AS TEXT) AS BIGINT)
+          END, CASE
+            WHEN CASE
+              WHEN PG_INPUT_IS_VALID(CAST(line_no AS TEXT), 'BIGINT')
+              THEN CAST(CAST(line_no AS TEXT) AS BIGINT)
+            END IS NULL
+            AND (
+              NOT line_no IS NULL
+            )
+            OR CASE
+              WHEN PG_INPUT_IS_VALID(CAST(order_id AS TEXT), 'TEXT')
+              THEN CAST(order_id AS TEXT)
+            END IS NULL
+            AND (
+              NOT order_id IS NULL
+            )
+            THEN _source_row_id
           END
           ORDER BY _ingested_at DESC NULLS LAST, _load_id DESC NULLS LAST, _source_row_id DESC NULLS LAST
         ) AS _w

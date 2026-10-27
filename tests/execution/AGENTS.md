@@ -161,6 +161,13 @@ Replay merge semantics: replay applies the **same dedupe ordering** as the pipel
 - Paths: `src/bloomery/spec/quality.py` `src/bloomery/quality/predicates.py` `tests/execution/test_pattern_anchoring.py`
 - Consequence: A `pattern` result on a huge partition is exact, like every other rule's, and an author worried about its cost writes a cheaper regex rather than asking for a sample
 
+### S-0033/D-102 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+
+A row whose key part failed its cast is partitioned in the dedupe window by its own identity as well as its key, so it is never another row's duplicate: the partition gains `CASE WHEN <a key part's coercible verdict> THEN <identity> END` per term of the order's identity tail (`_source` on a merged entity, then `_source_row_id`)
+
+- Paths: `src/bloomery/quality/dedupe.py` `src/bloomery/emit/lower/silver.py` `tests/execution/test_dedupe_uncastable_keys.py` `tests/engines/test_postgres_dedupe_unread_keys.py`
+- Consequence: Every coercion failure in a key reaches its disposition: two bronze rows with different uncastable keys are two quarantined rows, where one was kept and the other dropped as a dedupe loser, recorded nowhere. A row re-sent with the same uncastable key is quarantined once per delivery. Rows whose key part is NULL in bronze still share a partition, which this row does not decide
+
 ### S-0034/D-16 — `ASSUMED` (The step registry: referenced implementations)
 
 Multi-output emission resolved — **supersedes the draft §10 entry and its execute-exactly-once constraint** (recorded honestly: that constraint is dropped, not satisfied): each declared output gets its own generated wrapper model, each executing the step and returning its own output; safe **for correctly declared steps** — nondeterministic steps are compile-refused and seeded steps re-execute with the same recorded seed (pure/seeded ⇒ identical results); residual risk recorded: a *misdeclared* step slips the compile check and, under N executions, can produce disagreeing sibling outputs within one run (behavioral gates catch run-to-run, not intra-run, divergence) — accepted for v1, with a cross-output consistency audit named as the demand-gated mitigation. `assert_step_contract` runs in every wrapper against **all** declared outputs, catching partial-output lies wherever the run starts. The N-executions-for-N-outputs cost is documented; a single-execution staging optimization is a demand-gated, named escape hatch — not built.

@@ -91,6 +91,7 @@ Each edge carries a **label** saying how one node feeds the next. The vocabulary
 | `canonical` | entity field → canonical field | the field links to a catalog canonical |
 | `requires` | canonical field → metric | a metric's leaf requirement |
 | `requires_metrics` | metric → metric | a metric composed of metrics |
+| `expr` | entity field → metric | a grain-entity column an expression metric's `expr` names; lineage only |
 | `step_input` | entity field → step | a step reading a mapped entity, whole |
 | `step_input` | step → step | a step reading another step's output |
 | `step_output` | step → entity field | a step's declared output |
