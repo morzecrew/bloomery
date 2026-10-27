@@ -249,6 +249,13 @@ Replay merge semantics: replay applies the **same dedupe ordering** as the pipel
 
 - Paths: `src/bloomery/emit/lower/reconcile.py` `src/bloomery/spec/quality.py`
 
+### S-0033/D-102 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+
+A row whose key part failed its cast is partitioned in the dedupe window by its own identity as well as its key, so it is never another row's duplicate: the partition gains `CASE WHEN <a key part's coercible verdict> THEN <identity> END` per term of the order's identity tail (`_source` on a merged entity, then `_source_row_id`)
+
+- Paths: `src/bloomery/quality/dedupe.py` `src/bloomery/emit/lower/silver.py` `tests/execution/test_dedupe_uncastable_keys.py` `tests/engines/test_postgres_dedupe_unread_keys.py`
+- Consequence: Every coercion failure in a key reaches its disposition: two bronze rows with different uncastable keys are two quarantined rows, where one was kept and the other dropped as a dedupe loser, recorded nowhere. A row re-sent with the same uncastable key is quarantined once per delivery. Rows whose key part is NULL in bronze still share a partition, which this row does not decide
+
 ### S-0035/D-6 — `ASSUMED` (Public surface and stability policy)
 
 **Deep imports outside a declared `__all__` carry no promise**, stated in the policy. This is what makes decision 3 a fix rather than a courtesy, and what keeps the subpackage layering meaningful.

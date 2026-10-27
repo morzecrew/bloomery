@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Every row whose dedupe key fails to cast reaches quarantine.** The dedupe window
+  partitioned by the coerced key, and every key that fails its cast coerces to the same
+  NULL. Two bronze rows with different uncastable keys therefore shared a partition: one was
+  quarantined and the other was dropped as a dedupe loser, in neither the entity nor its
+  reject table. Such a row is now partitioned by its own identity as well, so each failure
+  is recorded. Genuine duplicates still collapse to their latest row. (#315)
 - **A ratio's operands are lineage edges.** `lineage()` walked upstream from a ratio to
   nothing unless `requires_metrics` repeated its numerator and denominator, and
   `plan().downstream_impact` could not reach it from a change to either. The operands are

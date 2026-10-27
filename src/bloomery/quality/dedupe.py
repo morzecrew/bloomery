@@ -91,17 +91,39 @@ def dedupe_order(
 
 
 def dedupe_row_number(
-    dedupe: DedupeIR, key: tuple[str, ...], *, table: str | None = None, merged: bool = False
+    dedupe: DedupeIR,
+    key: tuple[str, ...],
+    *,
+    table: str | None = None,
+    merged: bool = False,
+    unread: tuple[str, ...] = (),
 ) -> Expression:
     """``ROW_NUMBER() OVER (PARTITION BY <key> ORDER BY <total order>)``.
 
     Partitioning is by the **entity key** — dedupe keeps one row per key, and
     replay merges by the same key (S-0033/spec-schema).
+
+    ``unread`` names the verdict columns of the key parts' ``coercible`` rules.
+    A row whose key failed its cast has no key to be a duplicate under, and
+    every such key coerces to the same NULL: in one partition, one failure was
+    kept and the others dropped as losers, recorded nowhere (S-0033/D-102). Such a row
+    is also partitioned by its own identity, the order's tail, so each one
+    reaches its disposition; for every other row the extra terms are NULL.
     """
+
+    partition = [exp.column(name, table=table) for name in key]
+
+    if unread:
+        failed = exp.or_(*(exp.column(name, table=table) for name in unread))
+        identity = (*((SOURCE_COLUMN,) if merged else ()), ROW_ID_COLUMN)
+        partition.extend(
+            exp.Case(ifs=[exp.If(this=failed.copy(), true=exp.column(name, table=table))])
+            for name in identity
+        )
 
     return exp.Window(
         this=exp.RowNumber(),
-        partition_by=[exp.column(name, table=table) for name in key],
+        partition_by=partition,
         order=exp.Order(expressions=list(dedupe_order(dedupe, table=table, merged=merged))),
     )
 
@@ -110,12 +132,18 @@ def dedupe_row_number(
 
 
 def with_dedupe_qualify(
-    select: exp.Select, dedupe: DedupeIR, key: tuple[str, ...], *, merged: bool = False
+    select: exp.Select,
+    dedupe: DedupeIR,
+    key: tuple[str, ...],
+    *,
+    merged: bool = False,
+    unread: tuple[str, ...] = (),
 ) -> exp.Select:
     """Attach the winner-takes-all ``QUALIFY`` to a SELECT (stage 3 of the
     fixed pipeline order). Returns a new SELECT; the input is not mutated."""
     winner = exp.EQ(
-        this=dedupe_row_number(dedupe, key, merged=merged), expression=exp.Literal.number(1)
+        this=dedupe_row_number(dedupe, key, merged=merged, unread=unread),
+        expression=exp.Literal.number(1),
     )
     qualified = select.copy()
     qualified.set("qualify", exp.Qualify(this=winner))
