@@ -4440,7 +4440,7 @@ above is what carries the portability claim.</p>
 <td><code>semi_additive</code></td>
 <td>SemiAdditivePolicy</td>
 <td>with <code>semi_additive</code></td>
-<td>The dimension and rule</td>
+<td>The date-role source column and rule</td>
 </tr>
 <tr>
 <td><code>cumulative</code></td>
@@ -4566,8 +4566,9 @@ dependency edges; they need not be repeated in <code>requires_metrics</code>.</p
 <p>Exactly one of the two. The metric keeps its own <code>agg</code>/<code>expr</code> and its own
 <code>additivity</code> — those describe the measure, this describes how it accumulates, and
 a metric with neither <code>agg</code> nor <code>expr</code> has nothing to accumulate
-(<code>InvalidMetricShape</code>). <code>semi_additive</code> is refused here: its <code>over:</code> dimension is
-a date role and a window accumulates along that same axis.</p>
+(<code>InvalidMetricShape</code>). <code>semi_additive</code> is refused here: its <code>over:</code> names the
+source column of a date role on every mart that lists the metric, and a window
+accumulates along that same axis.</p>
 <table>
 <thead>
 <tr>
@@ -4688,9 +4689,9 @@ quotes it.</p>
 <tbody>
 <tr>
 <td><code>over</code></td>
-<td>dimension name</td>
+<td>column name</td>
 <td>yes</td>
-<td>The dimension the metric is not additive over</td>
+<td>The column the metric is not additive over: the source column of a date role (<code>stock_date</code> under <code>{date: stock_date, role: snapshot}</code>, never its bucket <code>snapshot_day</code>), declared on every mart that lists the metric — a mart without it is <code>MartMissingTimeDimension</code></td>
 </tr>
 <tr>
 <td><code>rule</code></td>

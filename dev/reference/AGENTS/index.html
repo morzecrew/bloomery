@@ -1811,6 +1811,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#s-0023d-13-assumed-guardrails-refusing-plausible-but-wrong-arithmetic" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0023/D-13 — <code>ASSUMED</code> (Guardrails: refusing plausible-but-wrong arithmetic)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1937,6 +1948,12 @@
 <ul>
 <li>Paths: <code>src/bloomery/spec/retrieval.py</code> <code>pages/docs/reference/stability.md</code></li>
 <li>Consequence: a retrieval spec written against 0.3.0 keeps compiling under the same promise as every other kind, the two refusals the stability page names included</li>
+</ul>
+<h3 id="s-0023d-13-assumed-guardrails-refusing-plausible-but-wrong-arithmetic">S-0023/D-13 — <code>ASSUMED</code> (Guardrails: refusing plausible-but-wrong arithmetic)<a class="headerlink" href="#s-0023d-13-assumed-guardrails-refusing-plausible-but-wrong-arithmetic" title="Permanent link">&para;</a></h3>
+<p>The <code>over</code> of a semi-additive metric names the source column of a date role — the column a <code>{date: …, role: …}</code> flatten step is declared over — never a bucket that role produces (<code>&lt;role&gt;_day</code> and the rest), and every mart listing the metric among its measures must declare a date role over that column. A mart that does not is refused at the guardrail stage as <code>MartMissingTimeDimension</code>, and the MetricFlow emitter re-refuses it</p>
+<ul>
+<li>Paths: <code>src/bloomery/guardrails/metrics.py</code> <code>src/bloomery/emit/metricflow/__init__.py</code> <code>src/bloomery/planner/explain.py</code> <code>tests/unit/test_guardrails/test_metrics.py</code> <code>tests/fixtures/semi_additive_over_refusal/metrics.yaml</code> <code>tests/golden/refusals/semi_additive_over_refusal.txt</code> <code>pages/docs/reference/spec-schemas.md</code></li>
+<li>Consequence: <code>over: snapshot_day</code> beside <code>{date: stock_date, role: snapshot}</code> is refused at <code>bloomery check</code>, naming <code>stock_date</code>, rather than compiling clean and failing only when the MetricFlow manifest is built; a mart added to a metric's listing without the role is refused even when another mart owns the metric</li>
 </ul>
 <h3 id="s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine">S-0033/D-30 — <code>ASSUMED</code> (Data quality: declarative cleansing, dispositions, quarantine)<a class="headerlink" href="#s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine" title="Permanent link">&para;</a></h3>
 <p><em>(2026-08-08, M12; closed by D84)</em> <strong>Postgres cannot host quality-carrying entities.</strong> <code>coercible</code> needs a real NULL-on-failure cast (<code>DialectFeature.TRY_CAST</code>); sqlglot renders <code>TRY_CAST</code> on Postgres as a plain <code>CAST</code>, which aborts the run instead of marking the row, so the dialect declares the feature gap and compiling a quality-carrying entity for it raises <code>UnsupportedByTarget</code> — loud, never a silent degradation into an aborted run. Consequence for §6's dialect matrix: there is no Postgres dirty-corpus tier to add until either sqlglot renders a real <code>TRY_CAST</code> or the lowering grows a per-type <code>CASE</code>-based fallback whose semantics are proven equal to <code>TRY_CAST</code>'s on the corpus. Named as the escape hatch, not built.</p>
