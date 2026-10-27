@@ -1159,6 +1159,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#executing-the-sql" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Executing the SQL
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#reading-the-derivation-back" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2023,6 +2034,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#executing-the-sql" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Executing the SQL
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#reading-the-derivation-back" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2273,7 +2295,7 @@ malformed <code>nulls</code>, <code>limit</code>, or <code>offset</code> value i
 <tbody>
 <tr>
 <td><code>sql</code></td>
-<td>The rendered SQL text — runnable as-is on the requested dialect</td>
+<td>The rendered SQL text — a complete statement, runnable as-is on the requested dialect. Filter values are inlined as escaped literals and bloomery adds no bind placeholders, so <a href="#executing-the-sql">execute it with no parameters</a></td>
 </tr>
 <tr>
 <td><code>columns</code></td>
@@ -2305,6 +2327,17 @@ malformed <code>nulls</code>, <code>limit</code>, or <code>offset</code> value i
 </tr>
 </tbody>
 </table>
+<h3 id="executing-the-sql">Executing the SQL<a class="headerlink" href="#executing-the-sql" title="Permanent link">&para;</a></h3>
+<p><code>plan.sql</code> needs no parameters, and for some drivers an empty parameter set is not the same
+as none. psycopg reads placeholders only when it is given parameters: <code>execute(plan.sql)</code>
+sends the text as written, while <code>execute(plan.sql, {})</code> reads the <code>%</code> in a filter's
+<code>LIKE 'con%'</code> as a placeholder and refuses the statement. Call your driver's parameterless
+form. If your runtime always binds, escape the text for its placeholder syntax; for
+psycopg, <code>%</code> becomes <code>%%</code>. A <code>RowPolicy</code> predicate is SQL you wrote, so it carries whatever
+placeholders you put in it.</p>
+<p>The fingerprint is <code>sha256(sql)</code>, and the literals are part of that text: two requests that
+differ only in a filter value get different fingerprints, which is what makes it safe as a
+result-cache key.</p>
 <p>The explanation is generated from the plan, never from a model — every number ships
 with how it was computed:</p>
 <div class="highlight"><pre><span></span><code>revenue

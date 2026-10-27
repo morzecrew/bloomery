@@ -2299,6 +2299,26 @@ sounds.</p>
 <p><strong>The operands must also agree with each other.</strong> A numerator restricted to one row set and
 a denominator to another is a quotient of two quantities about different things, refused
 whether or not a zero is involved.</p>
+<p>That includes a rate whose numerator is a subset of the denominator: a <code>filter:</code> on the
+numerator alone is refused as <code>RatioOperandsDisagree</code>, even though every converted lead is
+also a lead. Count the subset inside the expression instead, so both operands range over
+the same rows:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">converted_leads</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lead</span>
+<span class="w">  </span><span class="nt">additivity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">additive</span>
+<span class="w">  </span><span class="nt">agg</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sum</span>
+<span class="w">  </span><span class="nt">expr</span><span class="p">:</span><span class="w"> </span><span class="s">"CASE</span><span class="nv"> </span><span class="s">WHEN</span><span class="nv"> </span><span class="s">outcome</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">'converted'</span><span class="nv"> </span><span class="s">THEN</span><span class="nv"> </span><span class="s">1</span><span class="nv"> </span><span class="s">ELSE</span><span class="nv"> </span><span class="s">0</span><span class="nv"> </span><span class="s">END"</span>
+<span class="nt">leads</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="nv">lead</span><span class="p p-Indicator">,</span><span class="nt"> additivity</span><span class="p">:</span><span class="w"> </span><span class="nv">additive</span><span class="p p-Indicator">,</span><span class="nt"> agg</span><span class="p">:</span><span class="w"> </span><span class="nv">count</span><span class="p p-Indicator">,</span><span class="nt"> expr</span><span class="p">:</span><span class="w"> </span><span class="nv">lead_id</span><span class="p p-Indicator">}</span>
+<span class="nt">lead_conversion</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lead</span>
+<span class="w">  </span><span class="nt">additivity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ratio</span>
+<span class="w">  </span><span class="nt">ratio</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">numerator</span><span class="p">:</span><span class="w"> </span><span class="nv">converted_leads</span><span class="p p-Indicator">,</span><span class="nt"> denominator</span><span class="p">:</span><span class="w"> </span><span class="nv">leads</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p>The denominator passes the zero-row check because it counts a column declared <code>required:
+true</code> on the entity (<code>lead_id: {type: string, required: true}</code>), so it counts every row the
+numerator sums. Over an optional column the count can miss a row, and the ratio is refused as
+<code>UndeclaredRatioRows</code> until the column is required or carries a <code>not_null</code> rule that removes
+the row. No flag column has to be landed for this; the condition reads the entity's own field.</p>
 <h2 id="path-conflict-the-guardrail-that-does-not-raise">Path conflict: the guardrail that does not raise<a class="headerlink" href="#path-conflict-the-guardrail-that-does-not-raise" title="Permanent link">&para;</a></h2>
 <p>When a field has both a direct source column and a satisfiable recorded derivation, any
 silent choice is wrong — the two can disagree, and whichever the compiler picked, the
