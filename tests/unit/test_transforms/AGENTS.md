@@ -21,6 +21,13 @@ Starter set is exactly: `trim upper lower to_string to_int to_decimal to_bool pa
 - Paths: `src/bloomery/typing/types.py` `src/bloomery/transforms/registry.py` `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py`
 - Consequence: A transform with structured arguments repeats scalar kinds through `variadic` or earns a new `ArgKind` by amendment, and a second variadic transform turns `test_enum_map_is_the_only_variadic_transform` red
 
+### S-0021/D-9 — `ASSUMED` (Logical types and the transform registry)
+
+The default registry grows past D-3's starter set by `prepend`, one `STR` argument, string to string, lowering to `'<text>' || x`: `concat`'s mirror, putting the literal in front
+
+- Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py` `tests/unit/test_transforms/test_registry.py` `tests/support/reference.py` `tests/support/type_conformance.py`
+- Consequence: A key two sources feed can be namespaced as `amocrm:31234567`, which sorts and groups by source and reads as a namespaced id, without a step or a macro; NULL stays NULL, as under `concat`, and `test_default_registry_is_exactly_the_starter_set` now pins D-3's set plus this row's
+
 ### S-0025/D-3 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
 
 Capability mismatch behavior is fail-loud: `UnsupportedByTarget` naming entity + feature. Silent degradation is forbidden.

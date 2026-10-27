@@ -23,6 +23,7 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 | `strip_prefix` | prefix (str) | string → string | `[{strip_prefix: "ord-"}]` — remove a leading prefix if present |
 | `strip_suffix` | suffix (str) | string → string | `[{strip_suffix: "-eu"}]` — remove a trailing suffix if present |
 | `concat` | text (str) | string → string | `[{concat: "-eu"}]` — append a literal |
+| `prepend` | text (str) | string → string | `[{prepend: "amocrm:"}]` — put a literal in front, as for a key namespaced by source |
 | `enum_map` | from/to pairs (str…, variadic) | string → string | `[{enum_map: [F, female, M, male]}]` — map values; unmapped values pass through |
 
 ## Casts and parses

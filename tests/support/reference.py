@@ -242,6 +242,10 @@ def concat(value: str | None, text: str) -> str | None:
     return None if value is None else value + text
 
 
+def prepend(value: str | None, text: str) -> str | None:
+    return None if value is None else text + value
+
+
 def enum_map(value: str | None, *pairs: str) -> str | None:
     """Map values through from/to pairs; unmapped values (and NULL) pass through."""
     if value is None:
@@ -529,6 +533,7 @@ SEMANTICS: dict[str, Callable[..., Any]] = {
     "strip_prefix": strip_prefix,
     "strip_suffix": strip_suffix,
     "concat": concat,
+    "prepend": prepend,
     "enum_map": enum_map,
     "to_string": to_string,
     "to_int": to_int,
@@ -806,6 +811,9 @@ _T0: Step = ("to_decimal", (12, 4))
 CASES: tuple[Case, ...] = (
     Case("abs", (_T0, ("abs", ())), _DECIMAL, lambda text: fold((_T0, ("abs", ())), text)),
     Case("concat", (("concat", ("-eu",)),), _TEXT, lambda text: fold((("concat", ("-eu",)),), text)),
+    Case(
+        "prepend", (("prepend", ("eu-",)),), _TEXT, lambda text: fold((("prepend", ("eu-",)),), text)
+    ),
     Case(
         "convert",
         (_T0, ("convert", ("EUR", "USD", "paid_at"))),

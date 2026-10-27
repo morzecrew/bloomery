@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A `prepend` transform.** `{prepend: "amocrm:"}` puts a literal in front of a string,
+  as `concat` puts one after it, so a key two sources feed can be namespaced as
+  `amocrm:31234567`, which sorts and groups by source. NULL stays NULL. (#325)
 - **A date role may name a column flattened through a to-one step.** A line-grain mart
   flattening its order can declare `{date: order_placed_at, role: placed}`, where before a
   role had to name a base column and projects copied the order's date onto every line at

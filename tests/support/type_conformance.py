@@ -120,6 +120,7 @@ CASES: tuple[Case, ...] = (
     Case("strip_prefix", StringType(), "sku-42", ("sku-",)),
     Case("strip_suffix", StringType(), "42-eu", ("-eu",)),
     Case("concat", StringType(), "42", ("-eu",)),
+    Case("prepend", StringType(), "42", ("eu-",)),
     Case("enum_map", StringType(), "a", ("a", "alpha", "b", "beta")),
     # ....................... casts and parses
     Case("to_string", StringType(), "value"),

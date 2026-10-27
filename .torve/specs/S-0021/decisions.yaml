@@ -82,3 +82,26 @@ decisions:
       of scalars, so parse and typecheck read one shape, and the typechecker refuses
       a list whose length is not a positive multiple of two (`test_enum_map_requires_pairs`)
     cites: [D-2]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      The default registry grows past D-3's starter set by `prepend`, one `STR`
+      argument, string to string, lowering to `'<text>' || x`: `concat`'s mirror,
+      putting the literal in front
+    paths:
+      - src/bloomery/transforms/_builtins.py
+      - tests/unit/test_transforms/test_builtins.py
+      - tests/unit/test_transforms/test_registry.py
+      - tests/support/reference.py
+      - tests/support/type_conformance.py
+    consequence: >-
+      A key two sources feed can be namespaced as `amocrm:31234567`, which sorts and
+      groups by source and reads as a namespaced id, without a step or a macro;
+      NULL stays NULL, as under `concat`, and `test_default_registry_is_exactly_the_starter_set`
+      now pins D-3's set plus this row's
+    rationale: >-
+      `concat` only appends, so the one alternative was a suffix (`31234567@amocrm`)
+      (#325). A new name rather than a `{concat: {before: ...}}` form keeps D-8's
+      rule that a step's arguments are scalar kinds, and the lowering is the same
+      `||` every dialect already renders for `concat`
+    cites: [D-3, D-8]

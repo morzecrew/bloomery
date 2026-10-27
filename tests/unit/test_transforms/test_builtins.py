@@ -63,6 +63,7 @@ CASES: dict[str, tuple[tuple[str | int, ...], LogicalType, tuple[type, ...], Log
     "round": ((2,), DecimalType(12, 4), (IntType, DecimalType), DecimalType(10, 2)),
     "abs": ((), DecimalType(12, 4), (IntType, DecimalType), DecimalType(12, 4)),
     "concat": (("!",), StringType(), (StringType,), StringType()),
+    "prepend": (("amocrm:",), StringType(), (StringType,), StringType()),
     "json_path": (("$.a.b",), VariantType(), (VariantType, StringType), VariantType()),
     "convert": (("EUR", "USD", "paid_at"), DecimalType(12, 4), (DecimalType,), DecimalType(12, 4)),
 }
@@ -471,3 +472,11 @@ def test_a_zone_directive_is_refused_naming_the_instant_format(fmt: str) -> None
 @pytest.mark.parametrize("fmt", ["%Y-%m-%d %H:%M:%S%%z", "%Y-%m-%d%%Z", "%Y-%m-%d %H:%M:%S"])
 def test_an_escaped_zone_directive_is_literal_text(fmt: str) -> None:
     assert DEFAULT_REGISTRY["parse_ts"].output_type(StringType(), (fmt,)) == TimestampType()
+
+
+def test_prepend_puts_the_literal_in_front() -> None:
+    """`concat`'s mirror, for a namespaced key such as `amocrm:31234567`, which
+    sorts and groups by source where a suffix does not (S-0021/D-9, #325)."""
+    built = DEFAULT_REGISTRY["prepend"].builder(exp.column("x"), "amocrm:")
+
+    assert built.sql() == "'amocrm:' || x"

@@ -343,6 +343,16 @@ def concat(col: Expression, text: str) -> Expression:
 # ....................... #
 
 
+@transform("prepend", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=StringType())
+def prepend(col: Expression, text: str) -> Expression:
+    """``concat``'s mirror: the literal goes in front (S-0021/D-9)."""
+
+    return exp.DPipe(this=exp.Literal.string(text), expression=col)
+
+
+# ....................... #
+
+
 @transform(
     "enum_map",
     arity=2,
