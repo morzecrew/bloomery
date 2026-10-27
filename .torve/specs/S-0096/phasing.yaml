@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The enum_map fallback
+    intent: >-
+      The `"*"` last pair on `enum_map` (D-1), its typecheck refusal anywhere but
+      the last pair, and the guardrail refusing `in_enum` over a field whose `enum_map`
+      has a fallback (D-2). Tests drive `load_project` and `compile_project` through
+      the mapping `transform:` list: the reporter's outcome chain on DuckDB, NULL
+      kept NULL, the implicit `coercible` rule present on the field, the two refusals,
+      and the reference semantics.
+    scope:
+      - src/bloomery/transforms/_builtins.py
+      - src/bloomery/typing/check.py
+      - src/bloomery/guardrails/quality.py
+      - tests/unit/test_transforms/**
+      - tests/unit/test_typing/**
+      - tests/unit/test_guardrails/test_quality.py
+      - tests/support/reference.py
+      - tests/execution/test_enum_fallback.py
+      - pages/docs/reference/transforms.md
+      - skills/bloomery-skills/references/mappings-and-transforms.md
+      - /CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_transforms tests/unit/test_typing tests/unit/test_guardrails/test_quality.py
+        tests/execution/test_enum_fallback.py -q
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: Epoch formats, their guard and DuckDB
+    intent: >-
+      `parse_ts: UNIX_SECONDS` and `UNIX_MILLIS` (D-3), the guarded count (D-4), the
+      instant rules through the zone guard and resolve (D-5), and the `BLM_EPOCH_*`
+      markers with the base render's refusal and the DuckDB port's spelling (D-6).
+      Tests drive `compile_project` and the DuckDB execution harness over the thirteen
+      measured texts under a UTC and an Asia/Tokyo session, the `to_utc` and `zone_in:`
+      refusals, the refusal on an undeclaring port, and the reference semantics of
+      both formats.
+    scope:
+      - src/bloomery/transforms/_builtins.py
+      - src/bloomery/transforms/__init__.py
+      - tests/unit/test_transforms/**
+      - tests/support/reference.py
+      - src/bloomery/guardrails/zone.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/dialects/base.py
+      - src/bloomery/dialects/duckdb.py
+      - tests/unit/test_guardrails/test_zone.py
+      - tests/unit/test_dialects/test_base.py
+      - tests/unit/test_dialects/test_duckdb.py
+      - tests/execution/test_epoch.py
+      - tests/support/type_conformance.py
+      - tests/golden/schema/mapping.json
+      - pages/docs/how-to/**
+      - pages/docs/reference/transforms.md
+      - pages/docs/reference/dialects.md
+      - skills/bloomery-skills/references/mappings-and-transforms.md
+      - /CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_transforms tests/unit/test_guardrails/test_zone.py
+        tests/unit/test_dialects tests/execution/test_epoch.py -q
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: PostgreSQL and Trino, held to DuckDB's answers
+    intent: >-
+      `DialectFeature.EPOCH` on the PostgreSQL and Trino ports with the measured arithmetic
+      spellings (D-7), and an engine differential replaying phase 2's thirteen texts
+      on PostgreSQL 16 and Trino 483 under both session zones, requiring DuckDB's
+      answers exactly. The differential is engine-tier and runs in CI's engine matrix
+      job; the acceptance below judges the port spellings offline.
+    scope:
+      - src/bloomery/dialects/postgres.py
+      - src/bloomery/dialects/trino.py
+      - tests/unit/test_dialects/test_postgres.py
+      - tests/unit/test_dialects/test_trino.py
+      - tests/engines/test_epoch_differential.py
+      - pages/docs/reference/dialects.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_dialects/test_postgres.py tests/unit/test_dialects/test_trino.py
+        -q
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural

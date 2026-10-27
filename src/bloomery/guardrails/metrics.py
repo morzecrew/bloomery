@@ -593,10 +593,14 @@ def _check_ratio_rows(metric: MetricIR, draft: ProjectIR, path: str) -> list[Gua
 
     # An operand that names no metric is a different refusal with a message
     # written for it (R012), and asking R019 about a ratio half of which does
-    # not exist would mean two rules claiming one defect.
+    # not exist would mean two rules claiming one defect. It is also
+    # `prove_ratio_rows`' caller contract, which raises rather than prove over
+    # a missing half. Since S-0022/D-9 no compile reaches it: the reference
+    # stage refuses an unknown operand, and a ratio over an unreachable one is
+    # unreachable itself, so it is not in `draft.metrics`.
     declared = {one.name for one in draft.metrics}
 
-    if not {metric.ratio.numerator, metric.ratio.denominator} <= declared:
+    if not {metric.ratio.numerator, metric.ratio.denominator} <= declared:  # pragma: no cover
         return []
 
     answer = prove_ratio_rows(metric, draft)
