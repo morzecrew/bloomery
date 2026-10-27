@@ -103,6 +103,13 @@ A canonical field is available iff some mapped field links to it via `canonical:
 
 - Paths: `src/bloomery/evidence.py` `src/bloomery/ir/nodes.py` `src/bloomery/resolve/reach.py` `tests/unit/test_evidence.py` `tests/unit/test_unresolved.py`
 
+### S-0022/D-10 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
+
+A metric's `expr` is written over its `requires:` canonicals, and the IR build binds each to the grain entity's column that links it where the two are spelled differently, so the emitted expression reads the mart's column. A canonical no grain column links, or two do, is left as written. The units guard looks a bound column up as its canonical
+
+- Paths: `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `src/bloomery/guardrails/arithmetic.py` `tests/unit/test_resolve/test_canonical_binding.py`
+- Consequence: A catalog template works for a project whose field is spelled otherwise, the case `canonical:` links exist for: `unit_price * quantity` over a field `qty` emits `unit_price * qty`, and S-0034/D-49's step-output link counts `canonical_id` rather than a `customer_ref` the mart lacks. `MetricIR.expr` moves only where a spelling differs, so those projects re-fingerprint once
+
 ### S-0023/D-7 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
 Path conflict does not raise (`PathConflict` is not an error class): the compiler emits the derived column, a `<name>__direct` shadow, and a `RECONCILE` `AuditIR`. The forbidden thing is the silent choice; both paths are valid, so the refusal targets the silence, not the spec.

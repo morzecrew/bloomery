@@ -214,3 +214,24 @@ decisions:
     paths:
       - src/bloomery/emit/lower/predicates.py
       - tests/unit/test_emit/test_period_over_period.py
+  - id: D-16
+    grade: ASSUMED
+    text: >-
+      A measure whose `expr`, after S-0022/D-10's binding, names an unqualified column
+      a mart carrying it lacks is refused at the guardrail stage as `InvalidMetricShape`,
+      checked against every mart listing the metric
+    paths:
+      - src/bloomery/guardrails/metrics.py
+      - src/bloomery/errors.py
+      - tests/unit/test_guardrails/test_metrics.py
+    consequence: >-
+      A typo in an `expr`, or a canonical bound on a joined entity whose column the
+      mart prefixes, is a refusal at `check` naming the column and the mart rather
+      than a query that fails in Cube or MetricFlow; the corpus raises none
+    rationale: >-
+      The expression reaches MetricFlow, Cube and the rollups as written and is read
+      against the mart's columns, so a name the mart lacks is decidable at compile
+      time. D-9 checks a filter's dimension against every listing mart for the same
+      reason, and binding cannot reach a joined entity's column, whose name depends
+      on each mart's prefix
+    cites: [D-9, S-0022/D-10, S-0025/D-3]

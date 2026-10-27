@@ -89,7 +89,9 @@ from bloomery.ir import (
     TimeWindow,
     TransformStepIR,
     Unit,
+    bind_columns,
     canon,
+    canonical_bindings,
     extraction,
     partition_specs,
     project_fingerprint,
@@ -2429,9 +2431,13 @@ def _metric_filters(filters: tuple[MetricFilter, ...]) -> tuple[MetricFilterIR, 
 
 
 def _build_metrics(
-    project: Project, catalog: Catalog | None, reachable: tuple[str, ...]
+    project: Project,
+    catalog: Catalog | None,
+    reachable: tuple[str, ...],
+    entities: tuple[EntityIR, ...],
 ) -> tuple[MetricIR, ...]:
     reachable_set = set(reachable)
+    columns = {entity.name: entity.columns for entity in entities}
     built: list[MetricIR] = []
 
     for metric in effective_metrics(project, catalog):  # sorted by name
@@ -2452,7 +2458,16 @@ def _build_metrics(
                 expr=(
                     # ``parse_one`` is annotated with the ``Expr`` base, but
                     # every node it returns is an ``Expression`` (cf. ir.nodes).
-                    canon(cast("Expression", parse_one(metric.expr)))
+                    # The canonicals the expression names read the grain's
+                    # fields that link them (S-0022/D-10).
+                    canon(
+                        bind_columns(
+                            cast("Expression", parse_one(metric.expr)),
+                            canonical_bindings(
+                                metric.requires, columns.get(metric.grain or "", ())
+                            ),
+                        )
+                    )
                     if metric.expr is not None
                     else None
                 ),
@@ -2783,7 +2798,7 @@ def _lower_draft(
     )
     draft = ProjectIR(
         entities=entities,
-        metrics=_build_metrics(project, catalog, resolution.reachable_metrics),
+        metrics=_build_metrics(project, catalog, resolution.reachable_metrics, entities),
         unreachable=resolution.unreachable_metrics,
         relationships=_build_relationships(project),
         exports=_build_exports(project),

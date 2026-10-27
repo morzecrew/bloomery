@@ -21,7 +21,8 @@ from bloomery.errors import (
 )
 from bloomery.ir import ProjectIR
 from bloomery.guardrails.additivity import _REMEDIES, _UNKNOWN_REMEDY
-from support.compiling import fixture_sources, load_fixture
+from support.compiling import fixture_sources, load_fixture, spec_fixture_names
+from support.steps import registry_for
 
 pytestmark = pytest.mark.unit
 
@@ -714,3 +715,46 @@ def test_a_column_the_mart_does_not_carry_is_refused() -> None:
     (leaf,) = excinfo.value.collected
     assert isinstance(leaf, MetricFilterInvalid)
     assert "does not flatten" in str(leaf)
+
+
+# ....................... #
+# A measure's expression reads the columns of every mart carrying it (S-0050/D-16, #338)
+
+
+def test_a_measure_naming_a_column_its_mart_lacks_is_refused() -> None:
+    """A measure's `expr` is emitted as written and read against the mart's
+    columns, so a name the mart does not carry compiled clean and failed at
+    query time in Cube and MetricFlow (#338)."""
+    sources = fixture_sources("ecom_basic")
+    old = "    template: gross_revenue\n"
+    assert sources["metrics"].count(old) == 1
+    sources["metrics"] = sources["metrics"].replace(
+        old, old + '    expr: "unit_price * quantityy"\n'
+    )
+    _project, catalog = load_fixture("ecom_basic")
+
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+    leaves = [leaf for leaf in excinfo.value.collected if "S-0050/D-16" in str(leaf)]
+
+    assert len(leaves) == 1
+    assert isinstance(leaves[0], InvalidMetricShape)
+    assert "'quantityy'" in str(leaves[0])
+    assert "mart 'order_items'" in str(leaves[0])
+    assert leaves[0].source_path == "metrics: metrics.gross_revenue"
+
+
+def test_no_fixture_s_measure_reads_a_column_its_mart_lacks() -> None:
+    """The check refuses nothing in the corpus: a hit here would be a refusal
+    of a project that runs. A fixture refused for another reason is still read,
+    so its other leaves are checked for this one."""
+    hits = []
+    for name in spec_fixture_names():
+        try:
+            build_project_ir(*load_fixture(name), steps=registry_for(name))
+        except GuardrailError as error:
+            hits.extend(
+                (name, str(leaf)) for leaf in error.collected or [error] if "S-0050/D-16" in str(leaf)
+            )
+
+    assert hits == []

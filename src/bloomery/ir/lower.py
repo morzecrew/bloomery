@@ -21,13 +21,15 @@ import re
 from sqlglot import exp, jsonpath
 from sqlglot.expressions.core import Expression
 
-from bloomery.ir.nodes import PartitionSpec, SqlExpr
+from bloomery.ir.nodes import ColumnIR, PartitionSpec, SqlExpr
 from bloomery.spec.common import PARTITION_SPEC_PATTERN
 
 # ----------------------- #
 
 __all__ = [
+    "bind_columns",
     "canon",
+    "canonical_bindings",
     "extraction",
     "partition_specs",
 ]
@@ -39,6 +41,46 @@ def canon(node: Expression) -> SqlExpr:
     """Canonical dialect-neutral text (S-0020/sql-expressions-in-the-ir-sqlexpr)."""
 
     return SqlExpr(node.sql(pretty=False))
+
+
+# ....................... #
+
+
+def canonical_bindings(names: tuple[str, ...], columns: tuple[ColumnIR, ...]) -> dict[str, str]:
+    """Each of ``names`` that one of ``columns`` links as its canonical, to that
+    column's name, where the two are spelled differently (S-0022/D-10).
+
+    A metric's ``expr`` is written over its ``requires:`` canonicals, and these
+    are the grain entity's spellings of them. A canonical two columns link is
+    left unbound, since neither is the one the expression means.
+    """
+
+    linked: dict[str, list[str]] = {}
+
+    for column in columns:
+        if column.canonical is not None and column.canonical in names:
+            linked.setdefault(column.canonical, []).append(column.name)
+
+    return {
+        canonical: fields[0]
+        for canonical, fields in sorted(linked.items())
+        if len(fields) == 1 and fields[0] != canonical
+    }
+
+
+# ....................... #
+
+
+def bind_columns(node: Expression, bindings: dict[str, str]) -> Expression:
+    """``node`` with each unqualified column ``bindings`` names renamed."""
+
+    def renamed(child: Expression) -> Expression:
+        if isinstance(child, exp.Column) and not child.table and child.name in bindings:
+            return exp.column(bindings[child.name])
+
+        return child
+
+    return node.transform(renamed)
 
 
 # ....................... #

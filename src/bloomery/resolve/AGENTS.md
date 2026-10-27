@@ -183,6 +183,13 @@ A ratio's `numerator` and `denominator` are unioned into `requires_metrics` by t
 - Paths: `src/bloomery/resolve/metrics.py` `src/bloomery/resolve/refs.py` `tests/unit/test_resolve/test_metrics.py` `tests/unit/test_resolve/test_refs.py`
 - Consequence: `lineage()` walks from a ratio to its operands, and `depends_on`, reachability and `plan().downstream_impact` follow them, without an author repeating the operands in `requires_metrics`; a ratio whose operand is unreachable is itself unreachable, and a typo'd operand is a `MissingReference` where before it compiled clean
 
+### S-0022/D-10 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
+
+A metric's `expr` is written over its `requires:` canonicals, and the IR build binds each to the grain entity's column that links it where the two are spelled differently, so the emitted expression reads the mart's column. A canonical no grain column links, or two do, is left as written. The units guard looks a bound column up as its canonical
+
+- Paths: `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `src/bloomery/guardrails/arithmetic.py` `tests/unit/test_resolve/test_canonical_binding.py`
+- Consequence: A catalog template works for a project whose field is spelled otherwise, the case `canonical:` links exist for: `unit_price * quantity` over a field `qty` emits `unit_price * qty`, and S-0034/D-49's step-output link counts `canonical_id` rather than a `customer_ref` the mart lacks. `MetricIR.expr` moves only where a spelling differs, so those projects re-fingerprint once
+
 ### S-0023/D-2 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
 Violations are batched project-wide: leaf errors (`UnitMismatch`, `TaxBasisMismatch`, `CurrencyMismatch`, `GrainMismatch`, `AdditivityViolation`, `AssertLoweringError`) are collected and raised as one `GuardrailError` aggregate, sorted by `(source_path, type)`. Matches S-0019/D-6.
