@@ -282,7 +282,7 @@ The rollup aggregates (`count`, `sum`, `min`, `max`) join the differential over 
 - Consequence: an empty or all-NULL group's value is a stated fact, not an accident of the engine
 - Check: `uv run pytest tests/property/test_reference_rollups.py -q` (shadow; runs as `decision:S-0092/D-7`, no log entry owed)
 
-### S-0096/D-1 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+### S-0096/D-1 — `ASSUMED` (An enum_map fallback and epoch timestamps)
 
 A `"*"` as the source of `enum_map`'s last pair is the fallback: a non-NULL value no earlier pair lists yields that pair's target, and NULL stays NULL. A `"*"` in any other pair is refused at typecheck. The arguments stay flat string pairs
 

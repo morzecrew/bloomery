@@ -337,3 +337,22 @@ def test_a_chain_of_guarded_casts_grows_linearly() -> None:
     rendered = DIALECT.render(node)
     assert rendered.count("x") <= 3, len(rendered)
     assert rendered.count("PG_INPUT_IS_VALID") == 1
+
+
+def test_an_epoch_count_is_interval_arithmetic_never_to_timestamp() -> None:
+    """`to_timestamp` returns a `timestamptz` whose cast reads the session zone,
+    and a millisecond count multiplies exactly only once split into whole
+    seconds (S-0096/D-7)."""
+    seconds = PostgresDialect().render(
+        DEFAULT_REGISTRY["parse_ts"].builder(exp.column("x"), "UNIX_SECONDS")
+    )
+    millis = PostgresDialect().render(
+        DEFAULT_REGISTRY["parse_ts"].builder(exp.column("x"), "UNIX_MILLIS")
+    )
+
+    flat = " ".join(millis.split())
+
+    assert "TO_TIMESTAMP" not in (seconds + millis).upper()
+    assert "INTERVAL '1 second'" in seconds
+    assert "/ 1000 ) * INTERVAL '1 second'" in flat
+    assert "% 1000 ) * INTERVAL '1 millisecond'" in flat

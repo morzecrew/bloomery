@@ -229,3 +229,17 @@ def test_the_rewrite_survives_an_operand_that_is_not_text() -> None:
 def test_partition_transform_is_the_connectors_singular(transform: str, spelled: str) -> None:
     """S-0087/D-8: Trino's Iceberg connector refuses the spec's plural."""
     assert DIALECT.partition_transform(transform) == spelled
+
+
+@pytest.mark.parametrize(("fmt", "unit"), [("UNIX_SECONDS", "second"), ("UNIX_MILLIS", "millisecond")])
+def test_an_epoch_count_is_date_add_never_from_unixtime(fmt: str, unit: str) -> None:
+    """`from_unixtime` returns a zoned value read in the session zone;
+    `date_add` over a six-digit zoneless literal does not (S-0096/D-7)."""
+    from bloomery.dialects import TrinoDialect
+    from bloomery.transforms import DEFAULT_REGISTRY
+
+    rendered = TrinoDialect().render(DEFAULT_REGISTRY["parse_ts"].builder(exp.column("x"), fmt))
+
+    assert f"DATE_ADD( '{unit}'," in " ".join(rendered.split())
+    assert "FROM_UNIXTIME" not in rendered.upper()
+    assert "TIMESTAMP(6)" in rendered

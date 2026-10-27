@@ -654,14 +654,14 @@ The unit check refuses `+` or `-` only where each side declares exactly one unit
 - Paths: `pages/docs/concepts/guardrails.md` `src/bloomery/guardrails/arithmetic.py`
 - Consequence: the page and the code agree, money beside an undeclared or explicitly unknown basis is refused, and arithmetic on unitless tenant-native fields compiles
 
-### S-0096/D-2 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+### S-0096/D-2 — `ASSUMED` (An enum_map fallback and epoch timestamps)
 
 `in_enum` over a field whose `enum_map` has a fallback is refused at the guardrail stage, naming the fallback
 
 - Paths: `src/bloomery/guardrails/quality.py` `tests/unit/test_guardrails/test_quality.py`
 - Consequence: A rule that could never fire is not emitted as an audit that always passes, and `enum_chain` never reads `"*"` as an admissible spelling
 
-### S-0096/D-5 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+### S-0096/D-5 — `ASSUMED` (An enum_map fallback and epoch timestamps)
 
 An epoch parse is an instant under S-0081/D-2's rules: the zone guard treats its value as never a wall clock, a `to_utc` after it is refused at resolve, and `zone_in:` may only be `UTC`
 

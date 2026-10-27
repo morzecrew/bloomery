@@ -72,14 +72,14 @@ A `parse_ts` format carrying a `%z` or `%Z` directive is refused at parse, namin
 - Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py`
 - Consequence: no format parses a zone and then drops it
 
-### S-0096/D-1 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+### S-0096/D-1 — `ASSUMED` (An enum_map fallback and epoch timestamps)
 
 A `"*"` as the source of `enum_map`'s last pair is the fallback: a non-NULL value no earlier pair lists yields that pair's target, and NULL stays NULL. A `"*"` in any other pair is refused at typecheck. The arguments stay flat string pairs
 
 - Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/typing/check.py` `tests/unit/test_transforms/test_builtins.py` `tests/support/reference.py` `tests/execution/test_enum_fallback.py`
 - Consequence: An open vocabulary maps onto a closed set in one step, `enum_map` stays non-nulling, and the implicit `coercible` rule stays on for the chain; a spec whose final pair maps a literal `*` changes meaning
 
-### S-0096/D-3 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+### S-0096/D-3 — `ASSUMED` (An enum_map fallback and epoch timestamps)
 
 `parse_ts` gains two reserved formats, `UNIX_SECONDS` and `UNIX_MILLIS`, which read a count of seconds or milliseconds since `1970-01-01 00:00:00` UTC. Their input is a `string`, as every `parse_ts` format's is
 

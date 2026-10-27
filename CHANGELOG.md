@@ -14,8 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instant, so `to_utc` after it is refused and `zone_in:` may only be `UTC`. The count must
   be an integer of at most fifteen digits in year 1 to 9999; anything else is NULL, which
   a quality-carrying entity quarantines. It lowers to integer arithmetic from 1970 and
-  reads the same under any session zone. DuckDB only for now; other ports refuse it until
-  measured. (#324)
+  reads the same under any session zone on DuckDB, PostgreSQL and Trino, held to one set
+  of answers by an engine differential; other ports refuse it until measured. (#324)
 - **An `enum_map` fallback.** A `"*"` last pair maps every non-NULL value no earlier pair
   lists to its target: `{enum_map: ["142", won, "143", lost, "*", open]}` reads an open-ended
   status id as one of three outcomes in one step. NULL stays NULL. Before, unlisted values

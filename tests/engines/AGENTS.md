@@ -255,7 +255,7 @@ The rollup aggregates (`count`, `sum`, `min`, `max`) join the differential over 
 - Consequence: an empty or all-NULL group's value is a stated fact, not an accident of the engine
 - Check: `uv run pytest tests/property/test_reference_rollups.py -q` (shadow; runs as `decision:S-0092/D-7`, no log entry owed)
 
-### S-0096/D-7 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+### S-0096/D-7 — `ASSUMED` (An enum_map fallback and epoch timestamps)
 
 PostgreSQL and Trino declare `DialectFeature.EPOCH` with the measured arithmetic spellings, `TIMESTAMP '1970-01-01' + n * INTERVAL '1 second'` and `date_add('second', n, TIMESTAMP '1970-01-01 00:00:00.000000')` and their millisecond forms, held to DuckDB's answers by an engine differential under a UTC and a non-UTC session
 
