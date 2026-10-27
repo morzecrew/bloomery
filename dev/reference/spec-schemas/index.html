@@ -4404,7 +4404,7 @@ above is what carries the portability claim.</p>
 <td><code>requires_metrics</code></td>
 <td>list of metric names</td>
 <td>no (<code>[]</code>)</td>
-<td>Metrics a derived metric reads</td>
+<td>Further metrics this one reads; a ratio's operands and a derived metric's inputs are added on their own</td>
 </tr>
 <tr>
 <td><code>grain</code></td>
@@ -4481,6 +4481,8 @@ above is what carries the portability claim.</p>
 </tr>
 </tbody>
 </table>
+<p>The operands are also the metric's dependency edges, so <code>lineage()</code> and <code>plan()</code> reach
+them; they need not be repeated in <code>requires_metrics</code>.</p>
 <h3 id="derivedspec">DerivedSpec<a class="headerlink" href="#derivedspec" title="Permanent link">&para;</a></h3>
 <p>A metric with no measure of its own, computed by an expression over others. The
 alias is the mapping key rather than a field, because the expression references it.</p>
