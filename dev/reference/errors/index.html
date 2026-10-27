@@ -2357,7 +2357,7 @@ pulling in any pipeline stage.</p>
 <tr>
 <td><code>InvalidMetricShape</code></td>
 <td>guardrails</td>
-<td>A metric whose declaration contradicts itself — <code>derived:</code> beside <code>cumulative:</code>, a derived metric declared additive, a cumulative one with no measure to accumulate, or a derived expression referencing an alias its <code>inputs:</code> do not declare</td>
+<td>A metric whose declaration contradicts itself — <code>derived:</code> beside <code>cumulative:</code>, a derived metric declared additive, a cumulative one with no measure to accumulate, a derived expression referencing an alias its <code>inputs:</code> do not declare, or a measure whose <code>expr</code> names a column a mart carrying it lacks</td>
 </tr>
 <tr>
 <td><code>MetricFilterInvalid</code></td>
