@@ -106,3 +106,25 @@ decisions:
       kind list predates `step`, `freshness` and `rollup`, which `diff.py` emits in
       the same grammar
     cites: [D-1, D-6]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      A mart's dimensions classify by presence, keyed by their `DimensionRef`, as
+      its columns and measures do: a dimension only `new` has is ADDITIVE
+      (`dimension '<qualified>' added`), one only `old` has is BREAKING
+      (`removed`), and one both have that reads another column is BREAKING
+      (`re-pointed`)
+    paths:
+      - src/bloomery/plan/diff.py
+      - tests/unit/test_plan/test_diff.py
+    consequence: >-
+      One more field on an entity a mart flattens leaves `plan().breaking` empty,
+      where the whole-tuple comparison reported `dimensions changed` as BREAKING
+      beside the additive column; a removed or re-pointed dimension still breaks
+      the queries that grouped by it
+    rationale: >-
+      The diff's presence rule (in `new` only is ADDITIVE, in `old` only is BREAKING)
+      already governed every other diffed collection, and the phasing note's
+      "flatten changes are BREAKING" was read as covering a dimension set that
+      only grew, which breaks no query that ran before (#331)
+    cites: [D-1, D-9]
