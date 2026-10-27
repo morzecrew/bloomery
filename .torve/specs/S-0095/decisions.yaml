@@ -64,9 +64,12 @@ decisions:
       by DuckDB, PostgreSQL and Trino, each rewriting the marker into a spelling measured
       against the same edge cases. PostgreSQL compares the field as text through an
       ordered `jsonb_array_elements` subquery, not through jsonpath `==`, over an
-      input it has first checked with `pg_input_is_valid(<x>, 'jsonb')`. Every port
-      reads the field and the take only when they are scalars, because DuckDB's and
-      PostgreSQL's `->>` turn an object or an array into its text
+      input it has first checked is JSON (`pg_input_is_valid(<x>, 'jsonb')`) and a
+      top-level array (`jsonb_typeof`), because `jsonb_array_elements` raises on an
+      object. Trino parses text with a guarded `json_parse` before casting it to `ARRAY(JSON)`,
+      which takes a JSON value and not its text. Every port reads the field and the
+      take only when they are scalars, because DuckDB's and PostgreSQL's `->>` turn
+      an object or an array into its text
     paths:
       - src/bloomery/dialects/base.py
       - src/bloomery/dialects/duckdb.py

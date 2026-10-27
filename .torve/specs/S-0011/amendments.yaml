@@ -105,3 +105,31 @@ amendments:
       retrieval over a corpus's text fields with a declared analyser; synonyms are
       the names a person uses for a column. D-15 says which one D-1 means, so D-1
       itself is not reworded. The owner settled it in review of #321.
+  - id: A-5
+    at: '2026-10-27T14:47:28Z'
+    title: D-15 names where each annotation lives
+    changes:
+      - subject: D-15
+        field: text
+        before: >-
+          **D-1's retrieval semantics are how a corpus is embedded, indexed and ranked**:
+          semantic spaces, vector fields, retrieval profiles, their lexical fields
+          and analysers. The names a person uses for a field or a metric, its description,
+          label and synonyms (S-0094), are annotations rather than retrieval semantics,
+          and are keys on the entity model's `Field`. D-1's text stands
+        after: >-
+          **D-1's retrieval semantics are how a corpus is embedded, indexed and ranked**:
+          semantic spaces, vector fields, retrieval profiles, their lexical fields
+          and analysers. The names a person uses for a field or a metric, its description,
+          label and synonyms (S-0094), are annotations rather than retrieval semantics:
+          a field's are keys on the entity model's `Field`, and a metric's on `Metric`
+          in the metric set. D-1's text stands
+      - subject: D-15
+        field: fingerprint
+        before: 532683950897dccb/721c02e4b0a1ab0a
+        after: ec7012da21d8d936/721c02e4b0a1ab0a
+    md: >-
+      Review of #321 (CodeRabbit): D-15 said a metric's description, label and synonyms
+      are keys on `Field`. They are keys on `Metric` (S-0094/D-3); only a field's
+      annotations live on `Field`. The rule, that annotations are not retrieval semantics,
+      is unchanged.

@@ -7,8 +7,11 @@ phasing:
       (D-2), the `BLM_PICK` marker and the base render's refusal of it on a port without
       `DialectFeature.PICK` (D-4, D-5), and the DuckDB port's spelling. Tests drive
       `load_project` and `compile_project` through the mapping `transform:` list:
-      the ten measured edge cases on DuckDB, the load-time refusals, the refusal on
-      an undeclaring port, and a type-conformance case per input type.
+      the ten measured edge cases on DuckDB plus three found in review (text that
+      is not JSON, a composite match field, and valid JSON that is not a list, each
+      NULL), the input as JSON text as a `from:` extraction yields it, the load-time
+      refusals, the refusal on an undeclaring port, and a type-conformance case per
+      input type.
     scope:
       - src/bloomery/transforms/_builtins.py
       - src/bloomery/spec/mapping.py
@@ -30,8 +33,8 @@ phasing:
     title: PostgreSQL and Trino, held to DuckDB's answers
     intent: >-
       `DialectFeature.PICK` on the PostgreSQL and Trino ports (D-4), with an engine
-      differential replaying phase 1's edge cases on PostgreSQL 16 and Trino 483 and
-      requiring DuckDB's answers exactly, plus a numeric match field the measurement
+      differential replaying phase 1's thirteen edge cases on PostgreSQL 16 and Trino
+      483 and requiring DuckDB's answers exactly, plus a numeric match field the measurement
       did not cover. The differential is engine-tier: it needs Docker, so it runs
       in CI's engine matrix job, and the acceptance below judges the port spellings
       offline.

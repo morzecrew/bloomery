@@ -214,8 +214,9 @@ decisions:
       **D-1's retrieval semantics are how a corpus is embedded, indexed and ranked**:
       semantic spaces, vector fields, retrieval profiles, their lexical fields and
       analysers. The names a person uses for a field or a metric, its description,
-      label and synonyms (S-0094), are annotations rather than retrieval semantics,
-      and are keys on the entity model's `Field`. D-1's text stands
+      label and synonyms (S-0094), are annotations rather than retrieval semantics:
+      a field's are keys on the entity model's `Field`, and a metric's on `Metric`
+      in the metric set. D-1's text stands
     paths: [src/bloomery/spec/entity.py]
     consequence: >-
       A field may carry `synonyms:` beside its `description:` and `label:` without
@@ -231,7 +232,7 @@ decisions:
       model already carries. Read as forbidding it, D-1 would send a display annotation
       into a spec kind whose guardrails are about vector dimensions and encoders
     cites: [D-1, S-0062/D-13]
-    fingerprint: 532683950897dccb/721c02e4b0a1ab0a
+    fingerprint: ec7012da21d8d936/721c02e4b0a1ab0a
 invariants:
   - id: I-1
     statement: >-

@@ -179,7 +179,7 @@ The retrieval kind carries the same spec-YAML promise as every kind from its fir
 
 ### S-0011/D-15 — `ASSUMED` (Retrieval semantics)
 
-**D-1's retrieval semantics are how a corpus is embedded, indexed and ranked**: semantic spaces, vector fields, retrieval profiles, their lexical fields and analysers. The names a person uses for a field or a metric, its description, label and synonyms (S-0094), are annotations rather than retrieval semantics, and are keys on the entity model's `Field`. D-1's text stands
+**D-1's retrieval semantics are how a corpus is embedded, indexed and ranked**: semantic spaces, vector fields, retrieval profiles, their lexical fields and analysers. The names a person uses for a field or a metric, its description, label and synonyms (S-0094), are annotations rather than retrieval semantics: a field's are keys on the entity model's `Field`, and a metric's on `Metric` in the metric set. D-1's text stands
 
 - Paths: `src/bloomery/spec/entity.py`
 - Consequence: A field may carry `synonyms:` beside its `description:` and `label:` without a retrieval document, and a project that declares no retrieval kind is still untouched by S-0011. A synonym list is never an input to a retrieval profile's lexical side, which reads the corpus's fields

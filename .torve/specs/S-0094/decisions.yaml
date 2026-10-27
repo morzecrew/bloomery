@@ -88,7 +88,10 @@ decisions:
       `description` and `label`, a Cube dimension's `description` and `title`, and
       a dbt column's `description`. A metric's label becomes MetricFlow's `label`
       and Cube's `title`, and its synonyms become `config.meta.synonyms` and `meta.synonyms`.
-      Synonyms never go into a label or a description
+      Synonyms never go into a label or a description. dbt writes an entity's or a
+      mart's `schema.yml` entry, and lists a column in it, whenever the column carries
+      an annotation, whether or not it also has tests, a classification, an owner
+      or grants
     paths:
       - src/bloomery/emit/metricflow/__init__.py
       - src/bloomery/emit/cube/__init__.py

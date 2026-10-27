@@ -88,7 +88,7 @@ design:
       | metric `label` | metric `label` | measure `title` | — | — |
       | metric `synonyms` | metric `config.meta.synonyms` | measure `meta.synonyms` | — | — |
 
-      A metric has no dbt schema entry and no SQLMesh model of its own (the `_metric_meta` comment says so), so those columns stay empty. SQLMesh has `column_descriptions` and is left out until someone asks for it, since no consumer of the SQLMesh artifacts has. Synonyms never go into `label` or `description`: `label` is one display string, and the complaint in #311 is exactly that prose and synonyms share one slot.
+      A metric has no dbt schema entry and no SQLMesh model of its own (the `_metric_meta` comment says so), so those columns stay empty. The dbt emitter writes a model's `schema.yml` entry today only for a column with tests or a classification (`emit/dbt/__init__.py:1223`), and a mart's only when it has an owner or grants, so an annotated column is a third reason for an entry and a mart's columns are listed for the first time. SQLMesh has `column_descriptions` and is left out until someone asks for it, since no consumer of the SQLMesh artifacts has. Synonyms never go into `label` or `description`: `label` is one display string, and the complaint in #311 is exactly that prose and synonyms share one slot.
   - key: through-the-flatten
     md: >-
       A mart column carries the description, label and synonyms of the column it was
@@ -113,6 +113,7 @@ design:
 tests: |-
   - Load: each new key is accepted where it belongs and refused elsewhere, an empty string and a label with a line break are refused, duplicate synonyms are refused, and a template's label and synonyms merge under the authored ones (D-2, D-3).
   - IR: a field's own description wins over its canonical field's, synonyms are sorted, and `bloomery_ir_version` is the bumped value (D-2, D-4).
+  - dbt: an entity whose only column metadata is an annotation, and an unowned mart without grants, both get `schema.yml` entries listing the annotated columns (D-5).
   - Emit: one fixture declaring every annotation compiles for every target, and each value appears in exactly the slots of the routing table. Every existing golden's SQL is byte-identical, which is the assertion D-1 makes, not an assumption (D-1, D-5, D-6).
   - Cube: a fixture's metric description now reaches its measure (D-6).
   - Flatten: a prefixed mart column and a day bucket carry their source's description, label and synonyms on MetricFlow, Cube and dbt (D-7).

@@ -34,7 +34,7 @@ current_state: |-
   - **Markers.** A transform a port must spell itself builds a marker, and the base render refuses any marker that survives to SQL generation as `UnsupportedByTarget` (`dialects/base.py:549`, the S-0044 pattern).
   - **Lineage.** A mapped field's source node is `source.<relation>.<path>` (`resolve/graph.py:156`), so two fields read from one list would share one node.
 
-  **Measured spellings**, over ten edge cases on DuckDB 1.5.6, PostgreSQL 16 and Trino 483:
+  **Measured spellings**, over ten edge cases on DuckDB 1.5.6, PostgreSQL 16 and Trino 483. `x` was the list as a JSON value (`json_extract(payload, '$.attributes')`), not the text a `from:` extraction yields, so the ports' spellings over text differ from these (`the-ports`):
 
   ```sql
   -- DuckDB
@@ -105,7 +105,11 @@ design:
       subquery comparing `e ->> '<field>'` instead, and phase 2's differential measures
       that spelling against the other two. It checks its input with `pg_input_is_valid(<x>,
       'jsonb')` before casting, because the cast raises on text that is not JSON where
-      DuckDB's `TRY_CAST` returns NULL. Every port compares the field, and returns
+      DuckDB's `TRY_CAST` returns NULL, and it checks the value is a top-level array
+      (`jsonb_typeof`) before expanding it, because `jsonb_array_elements` raises
+      on an object such as `{}`. Trino parses text with `TRY(json_parse(<x>))` before
+      the `ARRAY(JSON)` cast, which takes a JSON value rather than its text; the measured
+      spelling above was over a JSON value. Every port compares the field, and returns
       the take, only when it is a scalar: DuckDB's and PostgreSQL's `->>` turn an
       object into its text, so `{"name": {"a": 1}}` matched the text `{"a":1}` on
       DuckDB, while Trino's `json_extract_scalar` gives NULL. A port that does not
@@ -125,7 +129,7 @@ design:
       S-0048/D-6's closed label vocabulary is unchanged.
 tests: |-
   - Load: `pick` with three strings is accepted, a take path outside its grammar and an empty match text are refused, and `from:` still refuses a subscript or a filter (D-2, D-3).
-  - A DuckDB execution test over the ten measured edge cases pins each answer, plus two found in review: text that is not JSON, and a composite match field, both NULL (D-1).
+  - A DuckDB execution test over the ten measured edge cases pins each answer, plus three found in review: text that is not JSON, a composite match field, and valid JSON that is not a list, each NULL. The input arrives as JSON text, as a `from:` extraction yields it (D-1).
   - An engine differential on PostgreSQL 16 and Trino 483 replays the same cases and requires the DuckDB answers exactly, the non-scalar case included (D-1, D-4). It is engine-tier, so it needs Docker and runs in CI's engine matrix job rather than in a phase's acceptance commands, which planning keeps to commands that read no host service.
   - Every unmeasured port refuses a mapping that uses `pick`, with `UnsupportedByTarget` naming the transform (D-5).
   - Lineage: two fields picked from one list are two source nodes, and the edge label is `direct` (D-6).
