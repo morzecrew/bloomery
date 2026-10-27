@@ -1,0 +1,117 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `Planner.plan` takes `paramstyle`, one of PEP 249's `qmark`, `numeric`, `named`,
+      `format` and `pyformat`, or `None`. `None` is the default and renders request
+      literals inline as today; any style binds them
+    paths:
+      - src/bloomery/planner/metricflow_planner.py
+      - src/bloomery/planner/__init__.py
+      - tests/unit/test_planner/test_metricflow_planner.py
+    consequence: >-
+      A runtime on a binding driver names the driver's style and executes the plan
+      with its parameters; every caller that executes `plan.sql` alone is unchanged
+    rationale: >-
+      The driver reads placeholders, and drivers for one engine disagree (psycopg
+      reads `pyformat`, asyncpg `$1`), so the style is the caller's fact, not the
+      dialect's. Binding by default would break every caller that runs `plan.sql`
+      with no parameters
+    cites: [S-0030/D-2, S-0030/D-8]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `QueryPlan.params` is a tuple of `(name, value)` pairs in placeholder order,
+      empty when nothing is bound; names are `p1`, `p2`, … by order of occurrence
+      in the text
+    paths: [src/bloomery/planner/result.py, tests/unit/test_planner/test_result.py]
+    consequence: >-
+      A positional style takes the values in order and a named style takes `dict(plan.params)`;
+      `explain --format json` shows them, since it dumps every field
+    rationale: >-
+      One shape serves both families of style, and a tuple keeps the plan a frozen,
+      comparable value as every other field is
+    cites: [S-0028/D-2, S-0071/D-1]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      What binds is every value of a request `Predicate` and of the `RowPolicy`, one
+      placeholder per value; a LIKE pattern binds whole with `ESCAPE '\'` kept in
+      the text. A metric's spec `filter:` and `LIMIT` stay text
+    paths:
+      - src/bloomery/planner/filters.py
+      - tests/unit/test_planner/test_filters.py
+    consequence: >-
+      No request value reaches the plan text, so two requests differing only in values
+      plan alike, and a caller's `%` or quote never meets the driver's parser
+    rationale: >-
+      Request values are the caller's and change per request; a metric filter is part
+      of the compiled definition with one renderer (S-0050/D-15, LOCKED), and a limit
+      is a validated integer some drivers will not bind
+    cites: [S-0030/D-16, S-0032/D-13, S-0050/D-15]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A bound value is a Python value of the dimension's logical type, checked by
+      the literal renderer's own rules: `datetime.date` for a date, `datetime` for
+      a timestamp, `Decimal` for a decimal, `int`, `bool` or `str` otherwise
+    paths: [src/bloomery/planner/filters.py, tests/execution/test_planner_binds.py]
+    consequence: >-
+      The driver types each bind as the column it is compared to, and a value the
+      literal renderer refuses is refused bound too
+    rationale: >-
+      An inline `'2024-01-01'` is an untyped literal the engine coerces to the column;
+      the same text bound as a `str` is typed by the driver and may not compare with
+      a date. DuckDB is measured in phase 1 and the other drivers by D-7
+    cites: [S-0032/D-5, S-0032/D-6, S-0032/D-15]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Binds travel through MetricFlow's where-constraints as opaque markers that no
+      spec name can take, and the planner spells each as its placeholder in the rendered
+      SQL. Under `format` and `pyformat` every `%` already in the text is doubled
+      first
+    paths:
+      - src/bloomery/planner/filters.py
+      - src/bloomery/planner/metricflow_planner.py
+      - src/bloomery/planner/compose.py
+      - tests/unit/test_planner/test_binds.py
+    consequence: >-
+      The bind mechanism needs nothing from MetricFlow, and a psycopg-style driver
+      reads a metric filter's `%` or a modulo in a measure as the character it is
+    rationale: >-
+      MetricFlow builds every where-filter with an empty bind set (`where_filter_spec_factory.py:121`),
+      so binds cannot ride its own mechanism; and a `pyformat` driver reads every
+      `%` in the statement, which is the failure #304 reported
+    cites: [D-3]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `QueryPlan.fingerprint` stays `sha256(sql)`; under binds it is equal for requests
+      that differ only in bound values
+    paths:
+      - src/bloomery/planner/metricflow_planner.py
+      - tests/unit/test_planner/test_binds.py
+    consequence: >-
+      A runtime keys a plan cache or a prepared statement on the fingerprint; inline,
+      the fingerprint is what it is today
+    rationale: >-
+      The definition already names the text, and with values out of the text the text
+      is the shape. A second fingerprint field would be two names for one hash
+    cites: [S-0028/D-2]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      On PostgreSQL through psycopg (`pyformat`) and on Trino through its client (`qmark`),
+      every planner execution request returns the same rows bound as inline, dates,
+      timestamps and decimals included, checked by an engine differential
+    paths: [tests/engines/test_planner_binds_differential.py]
+    consequence: >-
+      D-4's typed values are evidence on the two server engines the tier runs, and
+      Q-1 is settled by the same run
+    rationale: >-
+      How a driver types a bind is the driver's, and only running it shows whether
+      a `datetime.date` or a `Decimal` reaches the engine as the column's type. A
+      row of its own because the differential lands in its own phase
+    cites: [D-4, S-0012/D-2]
