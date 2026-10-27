@@ -181,7 +181,8 @@ def _check_measure_columns(metric: MetricIR, mart: MartIR, path: str) -> list[Gu
     to the fields they link, so `unit_price * quantity` over a mart that spells
     the field `qty` compiled clean and failed at query time (#338). Only an
     unqualified name is checked: a qualified one names a relation this mart
-    does not have either, and is not this check's claim.
+    does not have either, and is not this check's claim, and nor is a column
+    inside a subquery, which reads its own relation.
     """
 
     if metric.expr is None:
@@ -192,7 +193,9 @@ def _check_measure_columns(metric: MetricIR, mart: MartIR, path: str) -> list[Gu
         {
             column.name
             for column in metric.expr.ast().find_all(exp.Column)
-            if not column.table and column.name not in carried
+            if not column.table
+            and column.name not in carried
+            and column.find_ancestor(exp.Select) is None
         }
     )
 

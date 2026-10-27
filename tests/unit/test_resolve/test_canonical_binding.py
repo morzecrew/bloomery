@@ -10,11 +10,14 @@ mart that spells the field `qty`, and compiled clean.
 from __future__ import annotations
 
 import pytest
+from sqlglot import parse_one
 from support.compiling import fixture_sources, load_fixture
 from support.steps import registry_for
 
 from bloomery import Target, build_project_ir, compile_project, load_project
 from bloomery.errors import GuardrailError, UnitMismatch
+from bloomery.ir import ColumnIR, bind_columns, canonical_bindings
+from bloomery.typing import IntType
 
 pytestmark = pytest.mark.unit
 
@@ -80,3 +83,42 @@ def test_the_units_guard_still_reads_a_bound_operand() -> None:
         build_project_ir(load_project(sources), catalog)
 
     assert any(isinstance(leaf, UnitMismatch) for leaf in excinfo.value.collected)
+
+
+def _column(name: str, canonical: str | None) -> ColumnIR:
+    return ColumnIR(
+        name=name,
+        type=IntType(),
+        canonical=canonical,
+        unit=None,
+        tax_basis=None,
+        renamed_from=None,
+        required=False,
+    )
+
+
+def test_a_binding_onto_a_name_the_expression_still_reads_is_not_made() -> None:
+    """Canonical `a` links a field spelled `b`, and canonical `b` stays unbound
+    (two columns link it): binding `a` would make `a + b` read `b + b`, one
+    operand silently lost and the mart check satisfied by it."""
+    columns = (_column("b", "a"), _column("c", "b"), _column("d", "b"))
+
+    assert canonical_bindings(("a", "b"), columns) == {}
+
+
+def test_a_chain_of_bindings_resolves_simultaneously() -> None:
+    """`a → b` and `b → c` together read `a + b` as `b + c`: each name is
+    respelled once, so no binding lands on a name another respells."""
+    columns = (_column("b", "a"), _column("c", "b"))
+    bindings = canonical_bindings(("a", "b"), columns)
+
+    assert bindings == {"a": "b", "b": "c"}
+    assert bind_columns(parse_one("a + b"), bindings).sql() == "b + c"
+
+
+def test_a_subquery_s_own_columns_are_not_respelled() -> None:
+    """A scalar subquery reads its own relation, whose column happens to share
+    a canonical's name; only the outer expression reads the mart."""
+    node = parse_one("quantity * (SELECT MAX(quantity) FROM other)")
+
+    assert bind_columns(node, {"quantity": "qty"}).sql() == "qty * (SELECT MAX(quantity) FROM other)"

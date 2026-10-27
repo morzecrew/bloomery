@@ -744,6 +744,20 @@ def test_a_measure_naming_a_column_its_mart_lacks_is_refused() -> None:
     assert leaves[0].source_path == "metrics: metrics.gross_revenue"
 
 
+def test_a_subquery_s_own_column_is_not_the_mart_s() -> None:
+    """A scalar subquery reads its own relation; its columns are not the mart's
+    to carry, so they are not checked against it."""
+    sources = fixture_sources("ecom_basic")
+    old = "    template: gross_revenue\n"
+    assert sources["metrics"].count(old) == 1
+    sources["metrics"] = sources["metrics"].replace(
+        old, old + '    expr: "unit_price * quantity * (SELECT MAX(weight) FROM other)"\n'
+    )
+    _project, catalog = load_fixture("ecom_basic")
+
+    assert build_project_ir(load_project(sources), catalog) is not None
+
+
 def test_no_fixture_s_measure_reads_a_column_its_mart_lacks() -> None:
     """The check refuses nothing in the corpus: a hit here would be a refusal
     of a project that runs. A fixture refused for another reason is still read,

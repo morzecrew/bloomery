@@ -54,7 +54,11 @@ def canonical_bindings(names: tuple[str, ...], columns: tuple[ColumnIR, ...]) ->
 
     A metric's ``expr`` is written over its ``requires:`` canonicals, and these
     are the grain entity's spellings of them. A canonical two columns link is
-    left unbound, since neither is the one the expression means.
+    left unbound, since neither is the one the expression means. So is one whose
+    spelling is a name the expression still reads as written: binding ``a`` to a
+    field ``b`` while canonical ``b`` stays unbound would read ``a + b`` as
+    ``b + b``. Dropping one binding can strand another on the name it freed, so
+    the drop runs until nothing changes.
     """
 
     linked: dict[str, list[str]] = {}
@@ -63,21 +67,38 @@ def canonical_bindings(names: tuple[str, ...], columns: tuple[ColumnIR, ...]) ->
         if column.canonical is not None and column.canonical in names:
             linked.setdefault(column.canonical, []).append(column.name)
 
-    return {
+    bindings = {
         canonical: fields[0]
         for canonical, fields in sorted(linked.items())
         if len(fields) == 1 and fields[0] != canonical
     }
+
+    while stranded := {
+        canonical
+        for canonical, field in bindings.items()
+        if field in names and field not in bindings
+    }:
+        bindings = {
+            canonical: field for canonical, field in bindings.items() if canonical not in stranded
+        }
+
+    return bindings
 
 
 # ....................... #
 
 
 def bind_columns(node: Expression, bindings: dict[str, str]) -> Expression:
-    """``node`` with each unqualified column ``bindings`` names renamed."""
+    """``node`` with each unqualified column ``bindings`` names renamed, outside
+    any subquery: a scalar subquery reads its own relation, not the mart."""
 
     def renamed(child: Expression) -> Expression:
-        if isinstance(child, exp.Column) and not child.table and child.name in bindings:
+        if (
+            isinstance(child, exp.Column)
+            and not child.table
+            and child.name in bindings
+            and child.find_ancestor(exp.Select) is None
+        ):
             return exp.column(bindings[child.name])
 
         return child
