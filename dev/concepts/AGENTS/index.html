@@ -1811,10 +1811,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#s-0027d-11-assumed-marts-and-role-playing-dimensions-implementation-partial" class="md-nav__link">
+  <a href="#s-0027d-11-assumed-marts-and-role-playing-dimensions" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        S-0027/D-11 — <code>ASSUMED</code> (Marts and role-playing dimensions) — implementation: partial
+        S-0027/D-11 — <code>ASSUMED</code> (Marts and role-playing dimensions)
       </span>
     </span>
   </a>
@@ -1991,7 +1991,7 @@
 <ul>
 <li>Paths: <code>pages/docs/concepts/guardrails.md</code> <code>src/bloomery/guardrails/additivity.py</code> <code>src/bloomery/planner/coverage.py</code> <code>tests/fixtures/semantic_corpus/002-average-of-averages/expected/semantic_outcome.json</code> <code>tests/fixtures/semantic_corpus/002-average-of-averages/problem.md</code> <code>tests/fixtures/semantic_corpus/005-semi-additive-balance/problem.md</code> <code>tests/unit/test_guardrails/test_additivity.py</code></li>
 </ul>
-<h3 id="s-0027d-11-assumed-marts-and-role-playing-dimensions-implementation-partial">S-0027/D-11 — <code>ASSUMED</code> (Marts and role-playing dimensions) — implementation: partial<a class="headerlink" href="#s-0027d-11-assumed-marts-and-role-playing-dimensions-implementation-partial" title="Permanent link">&para;</a></h3>
+<h3 id="s-0027d-11-assumed-marts-and-role-playing-dimensions">S-0027/D-11 — <code>ASSUMED</code> (Marts and role-playing dimensions)<a class="headerlink" href="#s-0027d-11-assumed-marts-and-role-playing-dimensions" title="Permanent link">&para;</a></h3>
 <p><strong>A <code>date:</code> step may name a column flattened through a <code>many_to_one</code> or <code>one_to_one</code> step, not only a base column.</strong> The column is looked up among those flattened before the step, the base entity's own and every prefixed one, and must still be <code>date</code> or <code>timestamp</code> typed. Its buckets trace to the joined entity's column, so the zone guard reads that entity's clock. A <code>date:</code> naming a column a later step flattens is refused as a column that does not exist yet. <code>as_of</code> stays base-only (S-0040/D-8)</p>
 <ul>
 <li>Paths: <code>src/bloomery/marts/flatten.py</code> <code>tests/unit/test_marts/test_flatten.py</code> <code>pages/docs/concepts/wide-marts.md</code></li>

@@ -2234,6 +2234,17 @@ column collisions are errors, never auto-renames; and a mart that carries measur
 declare at least one date role (<code>MartMissingTimeDimension</code>). Fan-out is refused where
 it would be <em>built</em>, not detected where it would be <em>summed</em> — the
 <a href="../guardrails/">guardrails</a> page shows the exact messages.</p>
+<p>A date role may name any column flattened before it, not only a base column. A line rarely
+carries its document's date, so a line-grain mart takes the order's:</p>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="nt">flatten</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">via</span><span class="p">:</span><span class="w"> </span><span class="nv">item_of_order</span><span class="p p-Indicator">,</span><span class="nt"> prefix</span><span class="p">:</span><span class="w"> </span><span class="nv">order_</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">date</span><span class="p">:</span><span class="w"> </span><span class="nv">order_placed_at</span><span class="p p-Indicator">,</span><span class="nt"> role</span><span class="p">:</span><span class="w"> </span><span class="nv">placed</span><span class="p p-Indicator">}</span><span class="w">   </span><span class="c1"># the order's date, at line grain</span>
+</code></pre></div>
+<p>The step is <code>many_to_one</code>, so each line has one order and one <code>placed_at</code>, and the buckets
+stay at the line grain. They trace to <code>order.placed_at</code>, so a wall-clock timestamp there
+needs its zone declared on the order's mapping. A line whose order is missing gets NULL
+buckets from the LEFT JOIN, as a NULL base date would. The <code>date:</code> step has to come after the
+<code>via:</code> step that flattens its column.</p>
 <h2 id="historical-dimensions-need-an-anchor">Historical dimensions need an anchor<a class="headerlink" href="#historical-dimensions-need-an-anchor" title="Permanent link">&para;</a></h2>
 <p>An entity declared <code>scd: type2</code> keeps its history: the silver relation holds one row per
 version per key. A mart can flatten one, and must say <strong>as of when</strong>:</p>
