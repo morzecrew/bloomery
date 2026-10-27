@@ -176,6 +176,13 @@ All cross-spec reference validation lives here, not parse (S-0019/D-4): mapping 
 - Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/refs.py` `tests/unit/test_resolve/test_graph.py` `tests/unit/test_resolve/test_refs.py`
 - Consequence: A new reference check is one more pass appending to the shared list, and a traversal that needs adjacency derives it locally rather than adding an index to `Graph`
 
+### S-0022/D-9 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
+
+A ratio's `numerator` and `denominator` are unioned into `requires_metrics` by the template merge, as derived inputs are under S-0050/D-3, and the reference stage checks each operand names a metric (`metrics.<name>.ratio.<operand>`) before the merge reads it
+
+- Paths: `src/bloomery/resolve/metrics.py` `src/bloomery/resolve/refs.py` `tests/unit/test_resolve/test_metrics.py` `tests/unit/test_resolve/test_refs.py`
+- Consequence: `lineage()` walks from a ratio to its operands, and `depends_on`, reachability and `plan().downstream_impact` follow them, without an author repeating the operands in `requires_metrics`; a ratio whose operand is unreachable is itself unreachable, and a typo'd operand is a `MissingReference` where before it compiled clean
+
 ### S-0023/D-2 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
 Violations are batched project-wide: leaf errors (`UnitMismatch`, `TaxBasisMismatch`, `CurrencyMismatch`, `GrainMismatch`, `AdditivityViolation`, `AssertLoweringError`) are collected and raised as one `GuardrailError` aggregate, sorted by `(source_path, type)`. Matches S-0019/D-6.

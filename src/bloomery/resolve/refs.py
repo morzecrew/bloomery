@@ -324,6 +324,21 @@ def _check_metrics(project: Project, catalog: Catalog | None, errors: list[Bloom
                             source_path=f"{path}.derived.inputs.{alias}",
                         )
                     )
+        # A ratio's operands join `requires_metrics` in the merge too
+        # (S-0022/D-9); one `requires_metrics` names as well is reported there.
+        ratio = metric.ratio or (template.ratio if template else None)
+        if ratio is not None:
+            for operand, name in (
+                ("numerator", ratio.numerator),
+                ("denominator", ratio.denominator),
+            ):
+                if name not in metric_names and name not in requires_metrics:
+                    errors.append(
+                        MissingReference(
+                            f"ratio reads unknown metric {name!r}",
+                            source_path=f"{path}.ratio.{operand}",
+                        )
+                    )
 
 
 # ....................... #

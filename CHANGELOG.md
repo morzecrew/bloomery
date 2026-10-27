@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A ratio's operands are lineage edges.** `lineage()` walked upstream from a ratio to
+  nothing unless `requires_metrics` repeated its numerator and denominator, and
+  `plan().downstream_impact` could not reach it from a change to either. The operands are
+  now unioned into `requires_metrics`, as a derived metric's inputs already were, and an
+  operand naming no metric is a `MissingReference` at `metrics.<name>.ratio.<operand>`,
+  where before it compiled clean. A ratio over an unreachable operand is now unreachable
+  itself. (#330)
 - **PostgreSQL reads bronze landed as text or typed.** A single-key JSON read
   (`$.payload.channel`) over a `text` column failed with `operator does not exist: text
   ->> unknown`; every read's operand is now cast to `json`, as deeper paths already were.

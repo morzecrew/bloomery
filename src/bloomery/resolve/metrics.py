@@ -74,14 +74,18 @@ def _merge(name: str, metric: Metric, template: MetricTemplate | None) -> Effect
         raise ResolutionError(msg, source_path=source_path)
 
     derived = metric.derived or (template.derived if template else None)
+    ratio = metric.ratio or (template.ratio if template else None)
     declared = metric.requires_metrics or (template.requires_metrics if template else ())
     # S-0050/D-3: a derived metric's inputs *are* its metric dependencies, so
     # they are unioned in here rather than written twice by the author. The DAG,
     # reachability, cycle detection and `MetricIR.depends_on` then need no
     # knowledge of `derived:` at all — they read `requires_metrics` as always.
-    requires_metrics = (
-        tuple(sorted({*declared, *derived.input_metrics})) if derived is not None else declared
+    # A ratio's operands are the same kind of dependency (S-0022/D-9, #330).
+    named = (
+        *(derived.input_metrics if derived is not None else ()),
+        *((ratio.numerator, ratio.denominator) if ratio is not None else ()),
     )
+    requires_metrics = tuple(sorted({*declared, *named})) if named else declared
 
     return EffectiveMetric(
         name=name,
@@ -91,7 +95,7 @@ def _merge(name: str, metric: Metric, template: MetricTemplate | None) -> Effect
         additivity=additivity,
         agg=metric.agg or (template.agg if template else None),
         expr=metric.expr or (template.expr if template else None),
-        ratio=metric.ratio or (template.ratio if template else None),
+        ratio=ratio,
         semi_additive=metric.semi_additive or (template.semi_additive if template else None),
         cumulative=metric.cumulative or (template.cumulative if template else None),
         derived=derived,

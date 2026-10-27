@@ -121,6 +121,26 @@ def test_an_explicit_requires_metrics_is_kept_alongside_the_inputs() -> None:
     assert merged["revenue_yoy"].requires_metrics == ("other", "revenue")
 
 
+RATIO_METRICS = """\
+metrics_version: 1
+metrics:
+  revenue: {grain: order, additivity: additive, agg: sum, expr: order_id}
+  order_count: {grain: order, additivity: additive, agg: count, expr: order_id}
+  average_order_value:
+    additivity: ratio
+    ratio: {numerator: revenue, denominator: order_count}
+"""
+
+
+def test_a_ratio_s_operands_are_unioned_into_requires_metrics() -> None:
+    """As a derived metric's inputs are: the author names the operands once,
+    and lineage walks from the ratio to them without a `requires_metrics`
+    repeating them (#330)."""
+    merged = _effective(RATIO_METRICS)
+
+    assert merged["average_order_value"].requires_metrics == ("order_count", "revenue")
+
+
 def test_a_template_can_carry_the_derived_block() -> None:
     """The S-0050 forms merge like every other template value, and the
     inputs of a *template's* derived block become edges the same way."""
