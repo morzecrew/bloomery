@@ -721,7 +721,7 @@ flatten:
 | via | `prefix` | string, non-empty | yes | Prefix on every flattened column — mandatory, collisions are errors |
 | via | `as_of` | base date/timestamp column | on `scd: type2`, unless `reading` | The anchor: the instant the joined entity is read as of. A historical dimension needs it or `reading: current`; refused on any other, and beside `reading` |
 | via | `reading` | `current` | no | Reads only the joined entity's current version (`valid_to IS NULL` in the join condition) in place of an anchor. Refused on a non-historical entity and beside `as_of`; the mart must then be `materialization: full` |
-| date | `date` | field name | yes | A date/timestamp column of the base entity |
+| date | `date` | column name | yes | A date/timestamp column flattened before this step: the base entity's own, or a prefixed one a `via` step brought in |
 | date | `role` | member name | yes | Expands to `<role>_day` … `<role>_year` bucket columns (`metric_time` reserved) |
 
 ## ExposureSet (`exposures_version`)

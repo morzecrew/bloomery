@@ -37,8 +37,12 @@ if TYPE_CHECKING:
 
 def _column_owner(mart: MartIR, column: MartColumnIR) -> str:
     """The join alias owning a flattened column: the base entity for its own
-    (and date-role, and ``has_quality_flags``) columns, else the prefix of the
-    join that flattened it."""
+    (and its date roles', and ``has_quality_flags``) columns, the join a date
+    role's bucket records for a flattened date (S-0027/D-12), else the prefix of
+    the join that flattened it."""
+
+    if column.ref is not None and column.via is not None:
+        return column.via
 
     if column.source_entity == mart.base and (
         column.ref is not None

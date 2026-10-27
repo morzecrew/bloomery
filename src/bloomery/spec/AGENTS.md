@@ -299,25 +299,25 @@ Quarantine is an emitter convention (`<entity>__quarantine` artifact), not IR su
 
 - Paths: `src/bloomery/emit/lower/marts.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/catalog.py` `src/bloomery/spec/metrics.py` `tests/execution/test_marts.py` `tests/fixtures/ecom_basic/catalog.yaml` `tests/golden/schema/catalog.json` `tests/unit/test_emit/test_sqlmesh.py` `tests/unit/test_fixtures.py` `tests/unit/test_resolve/test_build.py` `tests/unit/test_spec/test_metrics.py`
 
-### S-0027/D-3 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-3 — `ASSUMED` (Marts and role-playing dimensions)
 
 `flatten` via-steps require declared `many_to_one`/`one_to_one` relationships (else `FanoutRisk`); chains flatten transitively in authored order; prefixes mandatory; collisions are errors, never auto-renames.
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/marts/flatten.py` `src/bloomery/spec/marts.py` `tests/golden/schema/marts.json` `tests/unit/test_marts/test_flatten.py` `tests/unit/test_spec/test_marts.py`
 
-### S-0027/D-4 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-4 — `ASSUMED` (Marts and role-playing dimensions)
 
 Date roles expand to exactly `{day, week, month, quarter, year}` bucket columns named `<role>_<bucket>`; `hour` is deliberately not expanded.
 
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/lower/marts.py` `src/bloomery/marts/flatten.py` `src/bloomery/planner/coverage.py` `src/bloomery/planner/request.py` `src/bloomery/spec/marts.py` `src/bloomery/spec/metrics.py` `tests/golden/schema/marts.json`
 
-### S-0027/D-7 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-7 — `ASSUMED` (Marts and role-playing dimensions)
 
 Marts are optional: a project without a `marts:` document compiles silver only; the planner then refuses everything with `UnreachableAtGrain` (no marts, no serving surface).
 
 - Paths: `src/bloomery/marts/flatten.py` `src/bloomery/spec/marts.py` `tests/golden/schema/marts.json`
 
-### S-0027/D-8 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-8 — `ASSUMED` (Marts and role-playing dimensions)
 
 `cost_hint` (int, default 1) is a tie-breaking scan-cost hint only; selection ties break lexicographically (S-0020 determinism).
 

@@ -431,13 +431,22 @@ def _flatten_date(
 
     state.roles.append(step.role)
     date_path = f"{path}.flatten[{index}].date"
-    source = next((c for c in base.columns if c.name == step.date), None)
+    # Any column flattened so far, the base's own or one a to-one step brought
+    # in: its value is single per base row, so its buckets keep the mart's
+    # grain (S-0027/D-11). A bucket of another role, and the derived quality
+    # flag, are not columns a role can be declared over.
+    candidates = {
+        name: column
+        for name, column in state.columns.items()
+        if column.ref is None and name != HAS_QUALITY_FLAGS
+    }
+    source = candidates.get(step.date)
 
     if source is None:
-        known = sorted(c.name for c in base.columns)
         msg = (
             f"date role {step.role!r} names column {step.date!r}, which is not a column "
-            f"of base entity {base.name!r}; known columns: {known}"
+            f"of base entity {base.name!r} or one flattened before this step "
+            f"(S-0027/D-11); known columns: {sorted(candidates)}"
         )
         return [GuardrailError(msg, source_path=date_path)]
 
@@ -448,6 +457,25 @@ def _flatten_date(
             "date or timestamp column (S-0027/date-roles)"
         )
         return [GuardrailError(msg, source_path=date_path)]
+
+    # The join whose column the buckets truncate; the base's own is `None`. A
+    # flattened column is named after its join's prefix, which is how
+    # `emit.lower.marts` finds an attribute's owner and why a bucket, named
+    # after its role, has to carry it (S-0027/D-12).
+    via = (
+        None
+        if source.source_entity == base.name and source.name == source.source_column
+        else guaranteed(
+            (
+                join.prefix
+                for join in state.joins
+                if join.entity == source.source_entity
+                and source.name == f"{join.prefix}{source.source_column}"
+            ),
+            expected=f"the join that flattened column {source.name!r}",
+            by="the via step that put the column in the mart, which names it after its prefix",
+        )
+    )
 
     violations: list[GuardrailError] = []
 
@@ -465,9 +493,12 @@ def _flatten_date(
         state.columns[name] = MartColumnIR(
             name=name,
             type=DateType(),  # buckets are calendar dates; emitters cast (S-0027/D-4)
-            source_entity=base.name,
-            source_column=step.date,
+            # Traced to the entity column itself, so the zone guard reads the
+            # clock of the entity the date belongs to (S-0027/D-11).
+            source_entity=source.source_entity,
+            source_column=source.source_column,
             ref=DimensionRef(dimension=bucket, role=step.role),
+            via=via,
         )
 
     return violations

@@ -1128,6 +1128,12 @@ class MartColumnIR:
     are roles of one dimension when they agree on ``role_of`` **and**
     ``source_column`` — ``billing_region`` and ``shipping_city`` share a
     dimension and are still two different members of it.
+
+    ``via`` is the prefix of the join whose column a date bucket truncates, or
+    ``None`` for a bucket of a base column (S-0027/D-12). A bucket's name is
+    its role's, never its source column's, so the join that owns it cannot be
+    read off its name the way a flattened attribute's can, and the joined
+    entity alone does not name the join when it is flattened twice.
     """
 
     name: str
@@ -1136,6 +1142,7 @@ class MartColumnIR:
     source_column: str
     ref: DimensionRef | None = None
     role_of: str | None = None
+    via: str | None = None
 
 
 # ....................... #
@@ -1792,9 +1799,14 @@ class ProjectIR:
     arrival lag a SQLMesh time-range model carries as ``lookback``. Every
     project encodes the field, ``None`` where no lag is declared, so every
     fingerprint moves once.
+
+    Version 27 (S-0027/D-12) adds ``MartColumnIR.via``, the join that owns a
+    date bucket a role declares over a flattened column. Every project with a
+    mart encodes the field, ``None`` for every bucket of a base column, so every
+    such fingerprint moves once.
     """
 
-    bloomery_ir_version: int = 26
+    bloomery_ir_version: int = 27
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

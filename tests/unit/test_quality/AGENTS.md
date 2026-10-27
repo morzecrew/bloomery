@@ -26,7 +26,7 @@ Coverage: branch on, `fail_under=80` overall, per-package floors ratcheting up (
 
 - Paths: `src/bloomery/guardrails/quality.py` `tests/README.md` `tests/unit/test_quality/test_coverage.py`
 
-### S-0027/D-9 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-9 — `ASSUMED` (Marts and role-playing dimensions)
 
 (Amended for `_bloomery-metricflow-pivot.md`) Marts are the emission source for MetricFlow semantic models — one mart = exactly one semantic model (S-0030 R1); a measure-carrying mart must declare a date role (`MartMissingTimeDimension` otherwise). Marts and role-playing are *more* load-bearing after the pivot, not less.
 
