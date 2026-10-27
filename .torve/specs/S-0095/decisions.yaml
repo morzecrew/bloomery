@@ -1,0 +1,115 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `{pick: [<field>, <text>, <take>]}` yields, from a JSON list, the `<take>` of
+      the first element, in list order, that is an object whose `<field>` read as
+      scalar text equals `<text>`. The result is a `string`. It is NULL when the input
+      is not a list, text that is not JSON included, when nothing matches, or when
+      the taken value is NULL or not a scalar. A field that is not a scalar never
+      matches. The transform is declared `nullifies`
+    paths:
+      - src/bloomery/transforms/_builtins.py
+      - tests/unit/test_transforms/test_builtins.py
+      - tests/execution/test_pick.py
+    consequence: >-
+      One bronze row gives one answer on every port that ships `pick`, the non-scalar
+      case included, and a row with no matching attribute is a NULL, not a coercion
+      failure
+    rationale: >-
+      These are the answers DuckDB, PostgreSQL and Trino gave for ten edge cases,
+      except the non-scalar one, where the three gave three texts. NULL is the only
+      answer all three can give without guessing a formatting. `nullifies` is the
+      flag S-0033's `coercible` rule reads so that a deliberate NULL is not quarantined
+      as a failed cast
+    cites: [S-0033/D-3]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `<field>` is one identifier, `<text>` is any non-empty string, and `<take>`
+      is a path relative to the element: dotted identifiers, each optionally followed
+      by `[n]` subscripts. The grammar is `pick`'s own, and the shared `JsonPath`
+      type is not widened
+    paths:
+      - src/bloomery/transforms/_builtins.py
+      - src/bloomery/spec/mapping.py
+      - tests/golden/schema/mapping.json
+    consequence: >-
+      amoCRM's `values[0].value` is reachable through the take path, while a subscript
+      in `from:`, `unmapped:` or `redact:` is still refused
+    rationale: >-
+      `JsonPath` serves a key's and a field's `from:`, a recipe's `from:` and `direct:`,
+      a step's inputs, `unmapped:` and the quarantine `redact:` list. Widening it
+      for one transform would let six fields accept paths nothing lowers for them
+    cites: [D-1]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The JSONPath filter form in `from:`, `[?(@.<field> == '<text>')]`, is declined
+    paths: [src/bloomery/spec/common.py]
+    consequence: >-
+      A spec written with the filter form keeps being refused at load, by the path
+      pattern it already fails
+    rationale: >-
+      SQLGlot parses the filter as a `JSONPathSelector`, and every one of the seven
+      generators bloomery targets raises `Unsupported expression type JSONPathSelector`
+      for it, measured on the pinned SQLGlot. Supporting it would mean translating
+      a general filter language per port to serve one shape of it
+    cites: [D-2]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The builder returns a `BLM_PICK` marker, and `DialectFeature.PICK` is declared
+      by DuckDB, PostgreSQL and Trino, each rewriting the marker into a spelling measured
+      against the same edge cases. PostgreSQL compares the field as text through an
+      ordered `jsonb_array_elements` subquery, not through jsonpath `==`, over an
+      input it has first checked is JSON (`pg_input_is_valid(<x>, 'jsonb')`) and a
+      top-level array (`jsonb_typeof`), because `jsonb_array_elements` raises on an
+      object. Trino parses text with a guarded `json_parse` before casting it to `ARRAY(JSON)`,
+      which takes a JSON value and not its text. Every port reads the field and the
+      take only when they are scalars, because DuckDB's and PostgreSQL's `->>` turn
+      an object or an array into its text
+    paths:
+      - src/bloomery/dialects/base.py
+      - src/bloomery/dialects/duckdb.py
+      - src/bloomery/dialects/postgres.py
+      - src/bloomery/dialects/trino.py
+      - tests/engines/test_pick_engines.py
+    consequence: >-
+      The three engines a contributor can run locally agree byte for byte on `pick`'s
+      answers, and a disagreement is a red engine test rather than a field report
+    rationale: >-
+      The jsonpath spelling compares JSON values, so a numeric field would not match
+      its text on PostgreSQL alone, and PostgreSQL 16 has no `.string()` method to
+      compare text. The other two compare text already
+    cites: [D-1, S-0025/D-5]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      A port that does not declare `DialectFeature.PICK` refuses a mapping using `pick`
+      as `UnsupportedByTarget`, naming the transform and the dialect. Snowflake, BigQuery,
+      Databricks and Redshift refuse until a spelling is measured on each engine
+    paths: [src/bloomery/dialects/base.py, tests/unit/test_dialects/test_base.py]
+    consequence: >-
+      A project that moves to a cloud port learns at compile time that `pick` is not
+      there yet, rather than at run time from its warehouse
+    rationale: >-
+      S-0025/D-3 fails loud rather than approximating. An emulator or a surrogate
+      is evidence and never the oracle (S-0012/D-1), and no Snowflake rewrite is inherited
+      without measurement on Snowflake (S-0013/D-2)
+    cites: [S-0025/D-3, S-0012/D-1, S-0013/D-2, S-0015/D-4]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      A picked field's source node in lineage is `source.<relation>.<path>[<field>=<text>].<take>`,
+      and its edge stays `direct`
+    paths: [src/bloomery/resolve/graph.py, tests/unit/test_resolve/test_graph.py]
+    consequence: >-
+      Two attributes read from one list are two lineage nodes, and a reader sees which
+      attribute a field comes from
+    rationale: >-
+      `source_column_node` names a node by the extraction path alone, so two picks
+      from one list would collapse into one node. Naming the selection changes no
+      edge label, so S-0048/D-6's closed vocabulary is untouched
+    cites: [S-0048/D-6]
