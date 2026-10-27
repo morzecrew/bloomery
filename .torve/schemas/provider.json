@@ -30,6 +30,18 @@
           "title": "Id",
           "type": "string"
         },
+        "list_price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Price"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The vendor's published rate card, for a seat that is not billed by it \u2014 a\nsubscription. `torve ledger` prices the seat's attempts at it from their token counts and\nmarks the figure an estimate; the attempt's own cost stays unreported, and no budget\nreads it."
+        },
         "max_tokens": {
           "default": 0,
           "description": "The cap on one response's tokens; 0 is unstated.",

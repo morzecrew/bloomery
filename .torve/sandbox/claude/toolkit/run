@@ -119,6 +119,16 @@ if [ -n "${TORVE_REASONING:-}" ]; then
     set -- "$@" --effort "$TORVE_REASONING"
 fi
 
+# The window the provider record states for the model. claude sizes a model
+# it does not recognise at 200,000 tokens and compacts against that, so a
+# 1M-token model routed through this seat compacted far short of its window.
+# `CLAUDE_CODE_MAX_CONTEXT_TOKENS` is the window claude uses for such a model,
+# and auto-compact follows it; a Claude model's own window is unaffected.
+if [ -n "${TORVE_CONTEXT_WINDOW:-}" ]; then
+    CLAUDE_CODE_MAX_CONTEXT_TOKENS="$TORVE_CONTEXT_WINDOW"
+    export CLAUDE_CODE_MAX_CONTEXT_TOKENS
+fi
+
 # The door (S-0066/D-1). The worktree arrives carrying files other readers
 # wrote — `.mcp.json`, `.claude/skills`, `.claude/agents`, `CLAUDE.md` — and
 # claude reads every one of them unasked. None is equipment, none is pinned,
