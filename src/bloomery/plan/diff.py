@@ -2273,8 +2273,31 @@ def _mart_pair(old_m: MartIR, new_m: MartIR, acc: _Acc) -> None:
         acc.changes.append(Change(None, subject, ChangeClass.BREAKING, f"measure {name!r} removed"))
         acc.dropped_measures.append((new_m.name, name))
 
-    if old_m.dimensions != new_m.dimensions:
-        acc.changes.append(Change(None, subject, ChangeClass.BREAKING, "dimensions changed"))
+    # Classified by presence, as columns are: one more dimension breaks no
+    # query that ran before (S-0024/D-10).
+    old_dims = {dimension.ref: dimension.column for dimension in old_m.dimensions}
+    new_dims = {dimension.ref: dimension.column for dimension in new_m.dimensions}
+
+    for ref in sorted(old_dims.keys() | new_dims.keys(), key=lambda r: (r.qualified, r.dimension)):
+        if ref not in old_dims:
+            acc.changes.append(
+                Change(None, subject, ChangeClass.ADDITIVE, f"dimension {ref.qualified!r} added")
+            )
+        elif ref not in new_dims:
+            acc.changes.append(
+                Change(None, subject, ChangeClass.BREAKING, f"dimension {ref.qualified!r} removed")
+            )
+        elif old_dims[ref] != new_dims[ref]:
+            acc.changes.append(
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.BREAKING,
+                    f"dimension {ref.qualified!r} re-pointed",
+                    old=old_dims[ref],
+                    new=new_dims[ref],
+                )
+            )
 
     if old_m.joins != new_m.joins:
         acc.changes.append(Change(None, subject, ChangeClass.BREAKING, "joins changed"))

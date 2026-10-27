@@ -911,23 +911,83 @@ def test_mart_measure_removal_is_fine_when_another_mart_serves_it() -> None:
     assert any(change.detail == "measure 'm2' removed" for change in result.changes)
 
 
-def test_mart_dimension_and_join_changes_are_breaking() -> None:
-    ref = DimensionRef(dimension="date", role="ordered")
+def test_mart_join_changes_are_breaking() -> None:
     old = plan_ir.project(marts=(plan_ir.mart(),))
     new = plan_ir.project(
         marts=(
             plan_ir.mart(
-                dimensions=(MartDimensionIR(ref=ref, column="ordered_day"),),
                 joins=(MartJoinIR(relationship="r", entity="order", prefix="order_", on=(("a", "b"),)),),
             ),
         )
     )
     result = plan(old, new)
-    assert sorted(change.detail for change in result.changes) == [
-        "dimensions changed",
-        "joins changed",
+    assert [(change.change_class, change.detail) for change in result.changes] == [
+        (ChangeClass.BREAKING, "joins changed")
     ]
-    assert {change.change_class for change in result.changes} == {ChangeClass.BREAKING}
+
+
+def test_a_mart_dimension_is_classified_by_presence() -> None:
+    """A dimension only `new` has is one more to group by, and every query
+    that ran before still runs, so it is ADDITIVE; one `old` had that is gone
+    or reads another column is BREAKING (S-0024/D-10, #331)."""
+    ordered, placed, region = (
+        DimensionRef(dimension="date", role="ordered"),
+        DimensionRef(dimension="date", role="placed"),
+        DimensionRef(dimension="region"),
+    )
+    old = plan_ir.project(
+        marts=(
+            plan_ir.mart(
+                dimensions=(
+                    MartDimensionIR(ref=ordered, column="ordered_day"),
+                    MartDimensionIR(ref=region, column="region"),
+                )
+            ),
+        )
+    )
+    new = plan_ir.project(
+        marts=(
+            plan_ir.mart(
+                dimensions=(
+                    MartDimensionIR(ref=ordered, column="ordered_month"),
+                    MartDimensionIR(ref=placed, column="placed_day"),
+                )
+            ),
+        )
+    )
+    assert sorted((change.detail, change.change_class) for change in plan(old, new).changes) == [
+        ("dimension 'ordered_date' re-pointed", ChangeClass.BREAKING),
+        ("dimension 'placed_date' added", ChangeClass.ADDITIVE),
+        ("dimension 'region' removed", ChangeClass.BREAKING),
+    ]
+
+
+def test_a_field_a_mart_flattens_adds_to_the_mart_without_breaking_it() -> None:
+    """The reported plan: one more optional field on an entity a mart
+    flattens read `dimensions changed` as BREAKING beside the additive
+    column, so `breaking` was non-empty for the most common change (#331)."""
+    base = build_project_ir(*load_fixture("ecom_basic"))
+    _project, catalog = load_fixture("ecom_basic")
+    sources = dict(fixture_sources("ecom_basic"))
+    for key, old_text, new_text in (
+        (
+            "entity_model",
+            "      customer_id: {type: string, classification: pii}\n",
+            "      customer_id: {type: string, classification: pii}\n      channel: {type: string}\n",
+        ),
+        (
+            "mapping_orders",
+            '  customer_id: {from: "$.customer.id", transform: [to_string]}\n',
+            '  customer_id: {from: "$.customer.id", transform: [to_string]}\n'
+            '  channel: {from: "$.channel"}\n',
+        ),
+    ):
+        assert sources[key].count(old_text) == 1, old_text
+        sources[key] = sources[key].replace(old_text, new_text)
+
+    result = plan(base, build_project_ir(load_project(sources), catalog))
+    assert result.breaking == ()
+    assert "dimension 'order_channel' added" in {change.detail for change in result.changes}
 
 
 def test_mart_partition_and_cost_hint_changes_are_additive_metadata() -> None:

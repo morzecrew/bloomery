@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A dimension added to a mart is ADDITIVE in `plan()`.** One more optional field on an
+  entity a mart flattens reported `dimensions changed` as BREAKING beside the additive
+  `flattened column … added`, so `plan().breaking` was non-empty for a change no query
+  could notice. A mart's dimensions now classify by presence, as its columns do:
+  `dimension '<name>' added` is ADDITIVE, and `removed` or `re-pointed` (the same
+  dimension reading another column) is BREAKING. (#331)
 - **PostgreSQL reads bronze landed as text or typed.** A single-key JSON read
   (`$.payload.channel`) over a `text` column failed with `operator does not exist: text
   ->> unknown`; every read's operand is now cast to `json`, as deeper paths already were.
