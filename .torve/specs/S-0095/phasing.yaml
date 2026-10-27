@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The transform, its grammar and DuckDB
+    intent: >-
+      The `pick` transform in the default registry (D-1) with its take-path grammar
+      (D-2), the `BLM_PICK` marker and the base render's refusal of it on a port without
+      `DialectFeature.PICK` (D-4, D-5), and the DuckDB port's spelling. Tests drive
+      `load_project` and `compile_project` through the mapping `transform:` list:
+      the ten measured edge cases on DuckDB, the load-time refusals, the refusal on
+      an undeclaring port, and a type-conformance case per input type.
+    scope:
+      - src/bloomery/transforms/_builtins.py
+      - src/bloomery/spec/mapping.py
+      - src/bloomery/dialects/base.py
+      - src/bloomery/dialects/duckdb.py
+      - tests/unit/test_transforms/**
+      - tests/unit/test_dialects/test_base.py
+      - tests/unit/test_dialects/test_duckdb.py
+      - tests/execution/test_pick.py
+      - tests/support/type_conformance.py
+      - tests/golden/schema/mapping.json
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_transforms tests/unit/test_dialects tests/execution/test_pick.py
+        -q
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: PostgreSQL and Trino, held to DuckDB's answers
+    intent: >-
+      `DialectFeature.PICK` on the PostgreSQL and Trino ports (D-4), with an engine
+      differential replaying phase 1's edge cases on PostgreSQL 16 and Trino 483 and
+      requiring DuckDB's answers exactly, plus a numeric match field the measurement
+      did not cover.
+    scope:
+      - src/bloomery/dialects/postgres.py
+      - src/bloomery/dialects/trino.py
+      - tests/unit/test_dialects/test_postgres.py
+      - tests/unit/test_dialects/test_trino.py
+      - tests/engines/test_pick_engines.py
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_dialects/test_postgres.py tests/unit/test_dialects/test_trino.py
+        -q
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: Lineage and the docs
+    intent: >-
+      `build_graph` names a picked field's source node by its selection (D-6), and
+      the transforms reference, the schema reference, the dialects table, the agent
+      skill and the changelog describe `pick`.
+    scope:
+      - src/bloomery/resolve/graph.py
+      - tests/unit/test_resolve/test_graph.py
+      - pages/docs/reference/transforms.md
+      - pages/docs/reference/dialects.md
+      - pages/docs/reference/spec-schemas.md
+      - skills/bloomery-skills/references/**
+      - /CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_resolve/test_graph.py tests/unit/test_docs_floor.py
+        tests/unit/test_skills.py -q
+    depends_on:
+      - 2
+    character: routine
