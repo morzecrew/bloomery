@@ -37,6 +37,7 @@ import json
 import os
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -187,6 +188,10 @@ def compile_entries(
 # ....................... #
 
 
+#: How many whole-corpus compiles run at once (see `main`).
+_CONCURRENT_RUNS = 3
+
+
 def _run(entries: list[Entry], *, seed: str, reverse: bool) -> dict[str, list[list[str]]]:
     """One compile of the whole corpus, in its own process under `seed`."""
     plan = [[entry.kind, entry.path] for entry in entries]
@@ -274,15 +279,20 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"replay: {len(entries)} entries x {len(TARGETS)} targets x {len(DIALECTS)} dialects")
 
-    reference = _run(entries, seed=seeds[0], reverse=False)
-    differing = 0
-    for seed in seeds[1:]:
-        differing += _report(
-            f"PYTHONHASHSEED {seeds[0]} vs {seed}", reference, _run(entries, seed=seed, reverse=False)
+    # The runs are independent processes, so they run at once: one after
+    # another they outgrew the job's 30-minute ceiling once the corpus held a
+    # few weeks of fuzzing, and the comparison below needs only their results.
+    # Three at a time, the default two seeds and the reversed run, so a long
+    # `--seed` list queues rather than starting a full-corpus process per seed.
+    runs = [(seed, False) for seed in seeds] + [(seeds[0], True)]
+    with ThreadPoolExecutor(max_workers=min(len(runs), _CONCURRENT_RUNS)) as pool:
+        reference, *by_seed, reordered = pool.map(
+            lambda run: _run(entries, seed=run[0], reverse=run[1]), runs
         )
-    differing += _report(
-        "compile order", reference, _run(entries, seed=seeds[0], reverse=True)
-    )
+    differing = 0
+    for seed, result in zip(seeds[1:], by_seed, strict=True):
+        differing += _report(f"PYTHONHASHSEED {seeds[0]} vs {seed}", reference, result)
+    differing += _report("compile order", reference, reordered)
 
     if differing:
         print(f"replay: {differing} differing entries", file=sys.stderr)
