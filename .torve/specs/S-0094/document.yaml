@@ -8,8 +8,8 @@ change:
   scope: spec
 status: draft
 implementation: none
-depends_on: [S-0024, S-0062]
-informed_by: [S-0011, S-0027, S-0030, S-0079]
+depends_on: [S-0024]
+informed_by: [S-0011, S-0027, S-0030, S-0062, S-0079]
 supersedes: []
 superseded_by: null
 owner: Lev Litvinov
