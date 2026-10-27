@@ -133,6 +133,7 @@ from bloomery.emit.lower import (
     measure_metrics,
     measure_owners,
     metric_filter_sql,
+    source_columns,
 )
 from bloomery.errors import EmitError, UnsupportedByTarget, guaranteed
 from bloomery.guardrails.metrics import day_columns
@@ -142,6 +143,7 @@ from bloomery.ir.nodes import with_imported
 if TYPE_CHECKING:
     from bloomery.emit.base import EmitContext
     from bloomery.ir import (
+        ColumnIR,
         DateDimensionIR,
         EntityIR,
         MartIR,
@@ -342,12 +344,17 @@ def _entities(
 
 
 def _dimensions(
-    mart: MartIR, join_keys: frozenset[str], descriptions: dict[tuple[str, str], str | None]
+    mart: MartIR, join_keys: frozenset[str], sources: dict[tuple[str, str], ColumnIR]
 ) -> list[PydanticDimension]:
     dimensions: list[PydanticDimension] = []
 
     for column in mart.columns:  # sorted by name on MartIR
-        description = descriptions.get((column.source_entity, column.source_column))
+        # The source column's annotations, prefixed or not (S-0094/D-5, D-7).
+        # Metadata only: no SELECT reads them (S-0094/D-1).
+        source = sources.get((column.source_entity, column.source_column))
+        description = source.description if source is not None else None
+        label = source.label if source is not None else None
+        config = _config(None, source.synonyms if source is not None else ())
         if column.ref is not None:
             if column.ref.dimension != "day":
                 continue  # coarser grains derive from the day dimension
@@ -358,7 +365,8 @@ def _dimensions(
                     type_params=PydanticDimensionTypeParams(time_granularity=TimeGranularity.DAY),
                     description=description,
                     metadata=None,
-                    config=None,
+                    label=label,
+                    config=config,
                 )
             )
         elif column.name not in join_keys:
@@ -369,7 +377,8 @@ def _dimensions(
                     description=description,
                     type_params=None,
                     metadata=None,
-                    config=None,
+                    label=label,
+                    config=config,
                 )
             )
 
@@ -444,13 +453,19 @@ def _agg_time_dimension(mart: MartIR) -> str:
 # ....................... #
 
 
-def _config(owner: str | None) -> PydanticSemanticLayerElementConfig | None:
-    """The owner as ``config.meta.owner`` (S-0087/D-1), or no config at all —
-    an unowned node serializes byte for byte as before."""
+def _config(
+    owner: str | None, synonyms: tuple[str, ...] = ()
+) -> PydanticSemanticLayerElementConfig | None:
+    """The owner as ``config.meta.owner`` (S-0087/D-1) and the synonyms as
+    ``config.meta.synonyms`` (S-0094/D-5), or no config at all: a node with
+    neither serializes byte for byte as before."""
 
-    if owner is None:
-        return None
-    return PydanticSemanticLayerElementConfig(meta={"owner": owner})
+    meta: dict[str, object] = {}
+    if owner is not None:
+        meta["owner"] = owner
+    if synonyms:
+        meta["synonyms"] = list(synonyms)
+    return PydanticSemanticLayerElementConfig(meta=meta) if meta else None
 
 
 # ....................... #
@@ -461,7 +476,7 @@ def _semantic_model(
     ir: ProjectIR,
     owners: dict[str, MartIR],
     metrics_by_name: dict[str, MetricIR],
-    descriptions: dict[tuple[str, str], str | None],
+    descriptions: dict[tuple[str, str], ColumnIR],
     naming: NamingPolicy,
 ) -> PydanticSemanticModel:
     base = next((entity for entity in ir.entities if entity.name == mart.base), None)
@@ -676,7 +691,8 @@ def _metric(
             ),
             filter=None,
             metadata=None,
-            config=_config(metric.owner),
+            label=metric.label,
+            config=_config(metric.owner, metric.synonyms),
         )
 
     if metric.additivity is Additivity.RATIO:
@@ -695,7 +711,8 @@ def _metric(
             ),
             filter=None,
             metadata=None,
-            config=_config(metric.owner),
+            label=metric.label,
+            config=_config(metric.owner, metric.synonyms),
         )
 
     measure = PydanticMetricInputMeasure(name=metric.name, filter=None, alias=None)
@@ -709,7 +726,8 @@ def _metric(
             type_params=_type_params(measure=measure),
             filter=where,
             metadata=None,
-            config=_config(metric.owner),
+            label=metric.label,
+            config=_config(metric.owner, metric.synonyms),
         )
 
     return PydanticMetric(
@@ -732,7 +750,8 @@ def _metric(
         ),
         filter=where,
         metadata=None,
-        config=_config(metric.owner),
+        label=metric.label,
+        config=_config(metric.owner, metric.synonyms),
     )
 
 
@@ -830,11 +849,7 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
 
     owners = measure_owners(ir)
     metrics_by_name = measure_metrics(ir)
-    descriptions = {
-        (entity.name, column.name): column.description
-        for entity in ir.entities
-        for column in entity.columns
-    }
+    descriptions = source_columns(ir)
     manifest = PydanticSemanticManifest(
         semantic_models=[
             _semantic_model(mart, ir, owners, metrics_by_name, descriptions, naming)

@@ -18,6 +18,7 @@ from bloomery.errors import EmitError, guaranteed
 from bloomery.ir import (
     VALID_FROM,
     VALID_TO,
+    ColumnIR,
     DateDimensionIR,
     Layer,
     MartColumnIR,
@@ -239,6 +240,23 @@ def dim_date_select(dim: DateDimensionIR) -> Expression:
 # surfaces cannot disagree. It lived in emit/metricflow/ and made Cube
 # import a sibling target — the one violation of S-0036's contract 3
 # on the tree it was written against.
+
+
+# ....................... #
+
+
+def source_columns(ir: ProjectIR) -> dict[tuple[str, str], ColumnIR]:
+    """Every entity column by ``(entity, column)``: the lookup a mart column's
+    ``(source_entity, source_column)`` reads its description, label and
+    synonyms through, prefixed or not, a date bucket included (S-0094/D-7).
+
+    Shared by every target that annotates a mart, so a mart's view of a
+    column cannot drift from the entity's on one target only.
+    """
+
+    return {
+        (entity.name, column.name): column for entity in ir.entities for column in entity.columns
+    }
 
 
 # ....................... #

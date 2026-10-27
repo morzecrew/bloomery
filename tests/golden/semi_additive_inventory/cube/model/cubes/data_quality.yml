@@ -61,30 +61,37 @@ cubes:
       granularity: year
   measures:
   - name: quality_rows_deduped
+    description: Rows dedupe removed before the rules ran (per entity).
     type: sum
     sql: rows_deduped
     meta:
       additivity: additive
       grain: data_quality
   - name: quality_rows_evaluated
+    description: Rows the entity's rules were evaluated over (survivors of dedupe), reported once per
+      entity.
     type: sum
     sql: rows_evaluated
     meta:
       additivity: additive
       grain: data_quality
   - name: quality_rows_failed
+    description: Rows whose violation predicate fired, whatever its disposition.
     type: sum
     sql: rows_failed
     meta:
       additivity: additive
       grain: data_quality
   - name: quality_rows_quarantined
+    description: Rows the split diverted to the entity's reject table, counted once per row however many
+      rules diverted it.
     type: sum
     sql: rows_quarantined
     meta:
       additivity: additive
       grain: data_quality
   - name: quality_quarantine_rate
+    description: Quarantined rows as a share of rows evaluated.
     type: number
     sql: '{quality_rows_quarantined} / NULLIF({quality_rows_evaluated}, 0)'
     meta:

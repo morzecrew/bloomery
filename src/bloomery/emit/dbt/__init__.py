@@ -116,6 +116,7 @@ Artifacts:
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Final
 
 import jinja2
@@ -157,6 +158,7 @@ from bloomery.emit.lower import (
     reject_select,
     replay_statements,
     rollup_select,
+    source_columns,
 )
 from bloomery.emit.lower.silver import key_unique_audit, key_unique_audit_select
 from bloomery.emit.steps import (
@@ -171,6 +173,7 @@ from bloomery.ir import (
     VALID_FROM,
     VALID_TO,
     AuditIR,
+    ColumnIR,
     DateDimensionIR,
     EntityIR,
     FreshnessIR,
@@ -1209,23 +1212,16 @@ def _schema_entry(entity: EntityIR, name: str, ctx: EmitContext) -> dict[str, ob
     if model_tests:
         entry["data_tests"] = model_tests
 
-    # Tests and classifications are two reasons for a column to appear, and the
-    # entry is one list — a column with both must be one entry carrying both,
-    # not two entries dbt would read as a duplicate.
-    classified = {
-        column.name: column.classification
-        for column in entity.columns
-        if column.classification is not None
-    }
-    named = sorted(set(column_tests) | set(classified))
+    # Tests, classifications and annotations are three reasons for a column to
+    # appear, and the entry is one list — a column with several must be one
+    # entry carrying them all, not entries dbt would read as duplicates.
+    by_name = {column.name: column for column in entity.columns}
+    named = sorted(set(column_tests) | {name for name, column in by_name.items() if _noted(column)})
 
     if named:
         entry["columns"] = [
             {
-                "name": column,
-                **(
-                    {"meta": {"classification": classified[column]}} if column in classified else {}
-                ),
+                **_column_entry(column, by_name[column]),
                 **({"data_tests": column_tests[column]} if column in column_tests else {}),
             }
             for column in named
@@ -1237,7 +1233,41 @@ def _schema_entry(entity: EntityIR, name: str, ctx: EmitContext) -> dict[str, ob
 # ....................... #
 
 
-def _mart_metadata_entry(mart: MartIR, ctx: EmitContext) -> dict[str, object]:
+def _noted(column: ColumnIR) -> bool:
+    """Whether a column carries anything `schema.yml` writes about it besides
+    tests: a classification, a description or synonyms (S-0094/D-5). A label
+    has no dbt slot."""
+
+    return (
+        column.classification is not None or column.description is not None or bool(column.synonyms)
+    )
+
+
+# ....................... #
+
+
+def _column_entry(name: str, column: ColumnIR) -> dict[str, object]:
+    """``{name, description?, meta?}`` for one column, ``meta`` holding its
+    classification and synonyms (S-0062, S-0094/D-5). Synonyms never go into
+    the description, and no model's SQL reads any of it (S-0094/D-1)."""
+
+    meta = {
+        **({"classification": column.classification} if column.classification is not None else {}),
+        **({"synonyms": list(column.synonyms)} if column.synonyms else {}),
+    }
+    return {
+        "name": name,
+        **({"description": column.description} if column.description is not None else {}),
+        **({"meta": meta} if meta else {}),
+    }
+
+
+# ....................... #
+
+
+def _mart_metadata_entry(
+    mart: MartIR, ctx: EmitContext, sources: dict[tuple[str, str], ColumnIR]
+) -> dict[str, object]:
     """A mart's `schema.yml` entry — the metadata half only.
 
     A mart carries no schema entry otherwise: its tests are singular tests of
@@ -1254,6 +1284,18 @@ def _mart_metadata_entry(mart: MartIR, ctx: EmitContext) -> dict[str, object]:
 
     if mart.grants is not None:
         entry["config"] = {"grants": {"select": list(mart.grants.select)}}
+
+    # A mart column carries the description and synonyms of the column it was
+    # flattened from, prefixed or not, listed for the first time (S-0094/D-7).
+    # Its classification stays the entity's, as S-0062 already routes it.
+    annotated = [
+        _column_entry(column.name, replace(source, classification=None))
+        for column in mart.columns  # sorted by name on MartIR
+        if (source := sources.get((column.source_entity, column.source_column))) is not None
+        and (source.description is not None or source.synonyms)
+    ]
+    if annotated:
+        entry["columns"] = annotated
 
     return entry
 
@@ -1275,7 +1317,7 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
             not entity.audits
             and entity.owner is None
             and entity.grants is None
-            and all(column.classification is None for column in entity.columns)
+            and not any(_noted(column) for column in entity.columns)
         ):
             continue
         if entity.scd is SCDKind.TYPE2:
@@ -1311,10 +1353,11 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
     # early. Here the quoting is the YAML dumper's. Marts carry no schema entry
     # otherwise, so one appears only for a mart that declares an owner; the
     # quality mart and rollups have no authored node and so never do.
+    sources = source_columns(ir)
     models.extend(
-        _mart_metadata_entry(mart, ctx)
+        mart_entry
         for mart in ir.marts
-        if mart.owner is not None or mart.grants is not None
+        if (mart_entry := _mart_metadata_entry(mart, ctx, sources)).keys() - {"name"}
     )
 
     # A rollup declares its own audience (S-0062/D-12) and does not inherit
