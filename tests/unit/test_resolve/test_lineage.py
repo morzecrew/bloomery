@@ -395,8 +395,9 @@ def test_two_nodes_sharing_a_name_have_separate_lineages() -> None:
 
     The two walks are genuinely different here: the entity field reaches back to
     the source column it is mapped from, while the metric `revenue` is an
-    `agg: count` over `metric_id` with no `requires`, so its upstream is empty
-    and a bare root is the right answer (S-0048/cli).
+    `agg: count` over `metric_id` with no `requires`, so its upstream is the
+    `expr` edge from the field it counts and that field's own source
+    (S-0048/cli, S-0048/D-9).
     """
     graph = resolve(load_project(COLLIDING_ID_SOURCES)).graph
 
@@ -407,7 +408,11 @@ def test_two_nodes_sharing_a_name_have_separate_lineages() -> None:
         "metric.revenue",
         "source.raw__metrics.$.revenue",
     ]
-    assert [n.name for n in metric.nodes] == ["metric.revenue"]
+    assert sorted(n.name for n in metric.nodes) == [
+        "metric.metric_id",
+        "metric.revenue",
+        "source.raw__metrics.$.id",
+    ]
 
 
 def test_a_ratio_walks_upstream_to_its_operands() -> None:
@@ -430,3 +435,40 @@ def test_a_ratio_walks_upstream_to_its_operands() -> None:
         ("metric.gross_revenue", "requires_metrics"),
         ("metric.order_count", "requires_metrics"),
     }
+
+
+def test_an_expression_metric_walks_upstream_to_bronze() -> None:
+    """The other half of #330: `order_count` is `expr: order_id` over the
+    `order` grain with no `requires:`, and walked to nothing. Its `expr` edge
+    reaches the entity column, and the mapped field's edge reaches bronze
+    (S-0048/D-9)."""
+    walk = lineage(
+        resolve(*load_fixture("ecom_basic")).graph,
+        node("metric.order_count", NodeKind.METRIC),
+        Direction.UPSTREAM,
+    )
+
+    assert {(edge.src.name, edge.dst.name, edge.label) for edge in walk.edges} >= {
+        ("order.order_id", "metric.order_count", "expr"),
+    }
+    assert any(n.kind is NodeKind.SOURCE_COLUMN for n in walk.nodes)
+
+
+def test_a_name_that_is_no_field_of_the_grain_draws_no_edge() -> None:
+    """An `expr` may name a flattened mart column or a function's argument
+    that is no field of the grain entity; only the grain's fields are what the
+    edge claims the metric reads."""
+    sources = fixture_sources("ecom_basic")
+    old = '    expr: "order_id"\n'
+    assert sources["metrics"].count(old) == 1
+    sources["metrics"] = sources["metrics"].replace(old, '    expr: "COALESCE(order_id, nowhere)"\n')
+    _project, catalog = load_fixture("ecom_basic")
+
+    walk = lineage(
+        resolve(load_project(sources), catalog).graph,
+        node("metric.order_count", NodeKind.METRIC),
+        Direction.UPSTREAM,
+        max_depth=1,
+    )
+
+    assert {(edge.src.name, edge.label) for edge in walk.edges} == {("order.order_id", "expr")}

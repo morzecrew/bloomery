@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Expression metrics have lineage.** `lineage()` walked upstream from a metric defined
+  by an `expr` with no `requires:` to nothing. An `expr` edge now runs from each field of the
+  metric's grain entity that its `expr` names, so the walk reaches the entity column and,
+  through its mapping, bronze. The edge is lineage only: `depends_on`, reachability and
+  `plan()` are unchanged, and no artifact or fingerprint moves. (#330)
 - **A `prepend` transform.** `{prepend: "amocrm:"}` puts a literal in front of a string,
   as `concat` puts one after it, so a key two sources feed can be namespaced as
   `amocrm:31234567`, which sorts and groups by source. NULL stays NULL. (#325)

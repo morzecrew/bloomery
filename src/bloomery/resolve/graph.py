@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
+from sqlglot import exp, parse_one
+
 from bloomery.spec.catalog import Catalog
 from bloomery.spec.mapping import ALIAS_BOUND, RecipeFieldMapping
 from bloomery.spec.project import Project, key, node_keys
@@ -112,6 +114,8 @@ _EDGE_SHAPES: Final[frozenset[tuple[str, NodeKind, NodeKind]]] = frozenset(
         ("canonical", NodeKind.ENTITY_FIELD, NodeKind.CANONICAL_FIELD),
         ("requires", NodeKind.CANONICAL_FIELD, NodeKind.METRIC),
         ("requires_metrics", NodeKind.METRIC, NodeKind.METRIC),
+        # An expression metric reads its grain entity's columns (S-0048/D-9).
+        ("expr", NodeKind.ENTITY_FIELD, NodeKind.METRIC),
         # A step reads a mapped entity whole, or another step's output. The
         # second form includes the self-edge a self-referencing binding emits
         # so that cycle detection has something to find — which means it is a
@@ -581,6 +585,33 @@ def node_labels(project: Project, catalog: Catalog | None) -> dict[str, str]:
 # ....................... #
 
 
+def _expr_fields(metric: EffectiveMetric, project: Project) -> tuple[str, ...]:
+    """The fields of a metric's grain entity its ``expr`` names, sorted
+    (S-0048/D-9).
+
+    A measure's ``expr`` is emitted verbatim against the mart's columns, which
+    keep the base entity's field names, so these are what it reads. A name
+    that is no field of the grain (a flattened column, a qualified one) draws
+    nothing, and nor does an imported grain: this graph has no field nodes for
+    an entity the project does not declare. Lineage only: ``depends_on`` and
+    reachability never read these edges.
+    """
+
+    entity = project.entity_model.entities.get(metric.grain or "")
+
+    if metric.expr is None or entity is None:
+        return ()
+
+    named = {
+        column.name for column in parse_one(metric.expr).find_all(exp.Column) if not column.table
+    }
+
+    return tuple(sorted(named & entity.fields.keys()))
+
+
+# ....................... #
+
+
 def build_graph(
     project: Project,
     catalog: Catalog | None,
@@ -615,6 +646,10 @@ def build_graph(
         edges.extend(
             Edge(src=metric_node(key(required, ids["metric"])), dst=dst, label="requires_metrics")
             for required in metric.requires_metrics
+        )
+        edges.extend(
+            Edge(src=entity_field_node(metric.grain or "", name), dst=dst, label="expr")
+            for name in _expr_fields(metric, project)
         )
 
     if project.exposures is not None:
