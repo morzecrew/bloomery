@@ -14,10 +14,13 @@ routes:
 
 models:
   # The levels are the ones the endpoint enumerates: there is no `none`, so the
-  # model cannot be asked to stop reasoning. No `context_window`, `max_tokens`
-  # or `price`: neither bound is observable from the endpoint, and the plan is
-  # a prepaid weekly quota rather than per-token billing.
+  # model cannot be asked to stop reasoning. No `max_tokens` or `price`: the
+  # bound is not observable from the endpoint, and the plan is a prepaid weekly
+  # quota rather than per-token billing. The window is the vendor's stated 1M:
+  # unstated, the claude seat sizes the model at 200,000 tokens and compacts
+  # far short of what it holds.
   deepseek-v4.1-flash:
+    context_window: 1000000
     reasoning: [minimal, low, medium, high, xhigh, max, ultra]
   # The reviewer's model. Levels enumerated by the endpoint's own 400; the
   # window and output cap are the vendor's figures, as torve's record has them.
