@@ -260,6 +260,13 @@ Ingestion metadata contract: entities using `quarantine` or `dedupe` require bro
 
 - Paths: `src/bloomery/guardrails/quality.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/common.py` `tests/unit/test_spec/test_sql_text.py`
 
+### S-0033/D-98 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+
+On an entity in the quality system, a bronze column read through a JSON path is guarded by the port's JSON validity check, so a value that is not JSON reads NULL instead of aborting the run. Outside the quality system the read stays produce-or-raise, as a plain cast does (D-3, D-24)
+
+- Paths: `src/bloomery/resolve/build.py` `src/bloomery/dialects/base.py`
+- Consequence: A malformed bronze payload no longer stops a quality-carrying entity's run on DuckDB, PostgreSQL or Trino; it reaches the marker of D-99 instead. An entity outside the quality system still aborts on it, which is what it does on a value that will not cast
+
 ### S-0034/D-8 — `ASSUMED` (The step registry: referenced implementations)
 
 Emission: `sql_macro` splices into the entity SELECT (one query); `sql_model` emits an ordinary model artifact from the registry body; `python_model` emits a generated SQLMesh Python-model `.py` artifact (S-0025/D-2 file-shaped) wrapping the impl + contract assertion. Step outputs are DAG entities with manifest grain; two steps writing one output is a compile error (settles Document 5 §11.5).

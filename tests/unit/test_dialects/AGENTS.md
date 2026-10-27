@@ -59,6 +59,13 @@ Ingestion metadata contract: entities using `quarantine` or `dedupe` require bro
 
 - Paths: `pages/docs/how-to/add-quality-rules.md` `src/bloomery/compile.py` `src/bloomery/dialects/__init__.py` `src/bloomery/quality/pattern.py` `tests/unit/test_compile.py` `tests/unit/test_dialects/test_base.py` `tests/unit/test_guardrails/test_quality.py` `tests/unit/test_quality/test_edges.py`
 
+### S-0033/D-100 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
+
+`DialectPort.json_valid` is each port's check: DuckDB's `json_valid(x)`, PostgreSQL's `pg_input_is_valid(x, 'json')` and Trino's `TRY(json_parse(x)) IS NOT NULL`, each measured in the engine tier against one malformed corpus. Snowflake, BigQuery, Databricks and Redshift keep today's behaviour until a check is measured on each engine
+
+- Paths: `src/bloomery/dialects/duckdb.py` `src/bloomery/dialects/postgres.py` `src/bloomery/dialects/trino.py` `tests/unit/test_dialects/test_base.py`
+- Consequence: The three engines a contributor runs locally quarantine the same rows for the same malformed corpus. The cloud ports keep their current behaviour, which on Redshift is a silent NULL (D-101), until each is measured
+
 ### S-0045/D-5 — `LOCKED` (`timestamp` is zoneless UTC, on every port)
 
 The check exists, and it is a **conformance battery at the engine tiers over the transform registry** — not an emit-time assertion. Emit has no engine to ask and no usable static model of one; and a type-shaped check at emit invites a cast-shaped fix, which would have made this defect's type right and its value no less wrong. §7 has the measurement.
