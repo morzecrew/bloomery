@@ -12,6 +12,9 @@ type nothing states (#305, #306, #307).
   its operand raw — a numeric chain (``to_decimal`` then ``multiply``) or a
   typed ``_ingested_at``, and the run aborted with ``42883``.
 
+A ``coalesce`` fallback's cast was guarded as well, so ``pg_input_is_valid``
+ran over a constant, which S-0033/D-84 records as unsafe (#322).
+
 What stays refused, on purpose: a zone-aware ``_ingested_at``. Its text spells
 an offset, and S-0052's offset refusal nulls it, so the D-21 metadata audit
 flags the row — as it already does on DuckDB. A loader lands ``timestamp`` or
@@ -62,7 +65,8 @@ def _artifacts() -> dict[str, str]:
         "      stock_level: {type: int, canonical: stock_level}\n",
         "      stock_level: {type: int, canonical: stock_level}\n"
         '      total: {type: "decimal(18,2)"}\n'
-        "      channel: {type: string}\n",
+        "      channel: {type: string}\n"
+        "      units: {type: int}\n",
     )
     sources["mapping"] = _replaced(
         sources["mapping"],
@@ -71,7 +75,8 @@ def _artifacts() -> dict[str, str]:
         "  total:\n"
         '    from: "$.sum"\n'
         '    transform: [{to_decimal: [16, 0]}, {multiply: "0.01"}]\n'
-        '  channel: {from: "$.payload.channel"}\n',
+        '  channel: {from: "$.payload.channel"}\n'
+        '  units: {from: "$.payload.units", transform: [to_int, {coalesce: 0}]}\n',
     )
     catalog = load_catalog((FIXTURES / FIXTURE / "catalog.yaml").read_text(encoding="utf-8"))
     artifacts = compile_project(
@@ -137,10 +142,12 @@ def test_typed_bronze_builds_and_still_quarantines(
     postgres: psycopg.Connection, payload: str, ingested_at: str
 ) -> None:
     assert _run(postgres, payload=payload, ingested_at=ingested_at) == 0
+    # `units` is absent from every payload, so the kept row reads the
+    # fallback, whose cast stays plain rather than guarding a constant (#322).
     kept = postgres.execute(
-        'SELECT _source_row_id, total, channel FROM silver."inventory_level" ORDER BY 1'
+        'SELECT _source_row_id, total, channel, units FROM silver."inventory_level" ORDER BY 1'
     ).fetchall()
-    assert kept == [("r1", Decimal("123.45"), "web")]
+    assert kept == [("r1", Decimal("123.45"), "web", 0)]
     rejected = dict(
         postgres.execute(
             'SELECT _source_row_id, failed_rules FROM silver."inventory_level__reject"'

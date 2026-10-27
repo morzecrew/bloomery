@@ -64,12 +64,12 @@ A step input's `requires` is a lower bound the compile checks: when the wiring b
 - Paths: `pages/docs/concepts/what-bloomery-proves.md` `src/bloomery/guardrails/evidence.py` `tests/unit/test_guardrails/test_evidence.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0077/D-19 — `ASSUMED` (A ratio over one row set) — implementation: partial
+### S-0077/D-19 — `ASSUMED` (A ratio over one row set)
 
 **Leg 2 admits a numerator restricted to a subset of the denominator's rows.** The operands agree when every clause of the denominator's restriction is implied by a clause of the numerator's on the same resolved column: the same clause, an `eq` whose value an `in` list holds, or an `in` list another contains. The numerator's rows are then among the denominator's, the ratio is about the denominator's rows, and leg 1 is asked as before. Any other difference still refuses: a denominator clause no numerator clause implies, and an ordering, negated or `column:` clause that is not identical
 
 - Paths: `src/bloomery/semantic/additivity.py` `tests/unit/test_semantic/test_ratio_rows.py` `pages/docs/concepts/guardrails.md`
-- Consequence: `converted_leads` (`outcome eq converted`) over an unrestricted `leads`, and `won` (`status eq won`) over `closed` (`status in [won, lost]`), check clean and plan. `won` over `lost`, and a numerator missing one of the denominator's clauses, are still `RatioOperandsDisagree`. The rows proof names the implication, so a reader of the explanation sees which clauses made the numerator a subset
+- Consequence: `converted_leads` (`outcome eq converted`) over an unrestricted `leads`, and `won` (`status eq won`) over `closed` (`status in [won, lost]`), check clean and plan. `won` over `lost`, and a numerator missing one of the denominator's clauses, are still `RatioOperandsDisagree`. The rows proof names the clauses that made the numerator a subset, and a plan's derivation shows the numerator's own restriction scoped to it (`Filter(store = 'Acme' on acme_orders)`); R019's proofs reach no plan of their own, for this ratio or any other
 
 ### S-0083/D-5 — `ASSUMED` (A declared key is checked)
 

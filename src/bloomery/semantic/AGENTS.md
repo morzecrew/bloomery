@@ -431,47 +431,47 @@ The grades are a total function of `Provenance` and every member maps to exactly
 - Paths: `src/bloomery/semantic/denomination.py` `src/bloomery/spec/mapping.py` `src/bloomery/transforms/_builtins.py` `src/bloomery/typing/types.py` `tests/fixtures/semantic_corpus/011-timezone-boundary/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0077/D-1 — `LOCKED` (A ratio over one row set) — implementation: partial
+### S-0077/D-1 — `LOCKED` (A ratio over one row set)
 
 **bloomery does not choose which rows a ratio is about.** Both readings — per unit over units that exist, and total over units with overheads included — are metrics somebody wants, and the defect is that they are spelled identically. The rule refuses until the author says; it never picks. Locked because every cheaper design is a compiler making a decision about somebody's business, and the wrong one is invisible in the output.
 
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/semantic/additivity.py` `src/bloomery/spec/quality.py` `tests/fixtures/semantic_corpus/008-ratio-rollup/**` `tests/fixtures/semantic_corpus/009-null-denominator/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0077/D-3 — `LOCKED` (A ratio over one row set) — implementation: partial
+### S-0077/D-3 — `LOCKED` (A ratio over one row set)
 
 **A `flag` disposition does not discharge the positivity premise.** A flagged row stays in the relation, so the range rule asserts nothing about what the ratio sums. The disposition is the premise, not the rule's presence — reading the rule alone would be a proof that is true of a project where the rows are still there.
 
 - Paths: `src/bloomery/semantic/additivity.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0077/D-13 — `LOCKED` (A ratio over one row set) — implementation: partial
+### S-0077/D-13 — `LOCKED` (A ratio over one row set)
 
 **`repair` does not discharge the positivity premise either.** D3 names only `flag`; this is D3's own sentence applied to the member it did not name. A repaired row stays in the relation carrying a fallback the rule cannot bound, because its recipe is a step and its fallback is whatever the author wrote. Only `quarantine` and `fail` discharge, because only those remove the row. Locked with D3: departing would mean proving a fallback is positive, which needs the step registry's output and is not a compile-time fact — see `logs/T-0063.md` (unlisted, 15:15Z).
 
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/semantic/additivity.py` `src/bloomery/spec/quality.py` `tests/fixtures/semantic_corpus/008-ratio-rollup/**` `tests/fixtures/semantic_corpus/009-null-denominator/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0077/D-14 — `LOCKED` (A ratio over one row set) — implementation: partial
+### S-0077/D-14 — `LOCKED` (A ratio over one row set)
 
 *Superseded by D16.* **A fourth discharge: the denominator counts a column that cannot be NULL.** §5.1's three discharges refuse every ratio in this repository — eight projects, including the two corpus cases §6 calls untouched — and five of the eight are counts, where the premise holds by construction and no declaration could add anything. A count counts the very rows the numerator sums, so a row contributing to the numerator contributes 1. Without this the rule refuses `revenue / order_count`, and §9's claim that a well-declared project is not inconvenienced is false for every project in the tree — see `logs/T-0063.md` (unlisted, 15:40Z).
 
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/semantic/additivity.py` `src/bloomery/spec/quality.py` `tests/fixtures/semantic_corpus/008-ratio-rollup/**` `tests/fixtures/semantic_corpus/009-null-denominator/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0077/D-16 — `LOCKED` (A ratio over one row set) — implementation: partial
+### S-0077/D-16 — `LOCKED` (A ratio over one row set)
 
 **`count` and `count_distinct` over a column that cannot be null both discharge.** Supersedes D14, which excluded the second on the grounds that a distinct count is about the group rather than the row — true, and not the premise. What R019 refuses is a denominator whose *per-row* contribution can be zero while the numerator's is not, and that is a property of a sum over a numeric column; a count of either kind is at least one for any non-empty row set. The exclusion was admitted wrong on the evidence of the message it produced: "nothing restricts … to rows with a non-zero `customer_id`" about a string column, telling the author to filter `customer_id > 0` — see `logs/T-0063.md` (unlisted, 15:55Z, attempt 2).
 
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/semantic/additivity.py` `src/bloomery/spec/quality.py` `tests/fixtures/semantic_corpus/008-ratio-rollup/**` `tests/fixtures/semantic_corpus/009-null-denominator/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0077/D-19 — `ASSUMED` (A ratio over one row set) — implementation: partial
+### S-0077/D-19 — `ASSUMED` (A ratio over one row set)
 
 **Leg 2 admits a numerator restricted to a subset of the denominator's rows.** The operands agree when every clause of the denominator's restriction is implied by a clause of the numerator's on the same resolved column: the same clause, an `eq` whose value an `in` list holds, or an `in` list another contains. The numerator's rows are then among the denominator's, the ratio is about the denominator's rows, and leg 1 is asked as before. Any other difference still refuses: a denominator clause no numerator clause implies, and an ordering, negated or `column:` clause that is not identical
 
 - Paths: `src/bloomery/semantic/additivity.py` `tests/unit/test_semantic/test_ratio_rows.py` `pages/docs/concepts/guardrails.md`
-- Consequence: `converted_leads` (`outcome eq converted`) over an unrestricted `leads`, and `won` (`status eq won`) over `closed` (`status in [won, lost]`), check clean and plan. `won` over `lost`, and a numerator missing one of the denominator's clauses, are still `RatioOperandsDisagree`. The rows proof names the implication, so a reader of the explanation sees which clauses made the numerator a subset
+- Consequence: `converted_leads` (`outcome eq converted`) over an unrestricted `leads`, and `won` (`status eq won`) over `closed` (`status in [won, lost]`), check clean and plan. `won` over `lost`, and a numerator missing one of the denominator's clauses, are still `RatioOperandsDisagree`. The rows proof names the clauses that made the numerator a subset, and a plan's derivation shows the numerator's own restriction scoped to it (`Filter(store = 'Acme' on acme_orders)`); R019's proofs reach no plan of their own, for this ratio or any other
 
 ### S-0080/D-4 — `ASSUMED` (A mart may read the current version of a type2 entity)
 

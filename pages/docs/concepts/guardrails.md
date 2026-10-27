@@ -207,20 +207,21 @@ is nothing to declare — which is most ratios, and the reason this refusal is r
 sounds.
 
 **The operands must also agree with each other.** A numerator restricted to one row set and
-a denominator to another is a quotient of two quantities about different things, refused
-whether or not a zero is involved.
+a denominator to another is a quotient of two quantities about different things, refused as
+`RatioOperandsDisagree` whether or not a zero is involved.
 
-That includes a rate whose numerator is a subset of the denominator: a `filter:` on the
-numerator alone is refused as `RatioOperandsDisagree`, even though every converted lead is
-also a lead. Count the subset inside the expression instead, so both operands range over
-the same rows:
+A numerator over a **subset** of the denominator's rows is a rate, and is admitted. Every
+clause of the denominator's restriction must be implied by one of the numerator's, on the
+same column: the same clause, an `eq` whose value an `in` list holds, or an `in` list inside
+another. The numerator may add clauses of its own:
 
 ```yaml
 converted_leads:
   grain: lead
   additivity: additive
-  agg: sum
-  expr: "CASE WHEN outcome = 'converted' THEN 1 ELSE 0 END"
+  agg: count
+  expr: lead_id
+  filter: [{dimension: outcome, op: eq, values: [converted]}]
 leads: {grain: lead, additivity: additive, agg: count, expr: lead_id}
 lead_conversion:
   grain: lead
@@ -228,11 +229,20 @@ lead_conversion:
   ratio: {numerator: converted_leads, denominator: leads}
 ```
 
-The denominator passes the zero-row check because it counts a column declared `required:
-true` on the entity (`lead_id: {type: string, required: true}`), so it counts every row the
-numerator sums. Over an optional column the count can miss a row, and the ratio is refused as
-`UndeclaredRatioRows` until the column is required or carries a `not_null` rule that removes
-the row. No flag column has to be landed for this; the condition reads the entity's own field.
+A win rate works the same way: `status eq won` on the numerator implies `status in [won,
+lost]` on the denominator.
+
+Only membership is read as implying anything. An ordering (`gt`, `lte` and the rest) and a
+negation (`ne`, `not_in`) must be the same clause on both operands: values are compared as
+text, so `gt 5` cannot be read as inside `gt 0`, and what a negation keeps over a string
+column depends on the engine's collation. `won` over `lost` is two row sets, and is still
+refused.
+
+The denominator above passes the zero-row check because it counts a column declared
+`required: true` on the entity (`lead_id: {type: string, required: true}`), so it counts every
+row the numerator counts. Over an optional column the count can miss a row, and the ratio is
+refused as `UndeclaredRatioRows` until the column is required or carries a `not_null` rule
+that removes the row.
 
 ## Path conflict: the guardrail that does not raise
 

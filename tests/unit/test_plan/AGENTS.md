@@ -33,6 +33,13 @@ Entity-level `grain`/`key`/`scd`/`materialization` changes are BREAKING at the e
 - Paths: `src/bloomery/plan/model.py` `src/bloomery/plan/diff.py` `tests/unit/test_plan/test_diff.py`
 - Consequence: Plans stay byte-comparable across runs, and a newly diffable kind extends the same `<kind>:<name>` grammar rather than inventing a second subject shape
 
+### S-0024/D-10 — `ASSUMED` (Plan: spec diff and change classification)
+
+A mart's dimensions classify by presence, keyed by their `DimensionRef`, as its columns and measures do: a dimension only `new` has is ADDITIVE (`dimension '<qualified>' added`), one only `old` has is BREAKING (`removed`), and one both have that reads another column is BREAKING (`re-pointed`)
+
+- Paths: `src/bloomery/plan/diff.py` `tests/unit/test_plan/test_diff.py`
+- Consequence: One more field on an entity a mart flattens leaves `plan().breaking` empty, where the whole-tuple comparison reported `dimensions changed` as BREAKING beside the additive column; a removed or re-pointed dimension still breaks the queries that grouped by it
+
 ### S-0033/D-2 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 `OnFail = flag | quarantine | fail` (v1 — `repair` deferred, decision 17; landed in D87), explicit per rule, never a global default. Deliberately no `drop`: quarantine is drop plus recoverability; deletion happens via retention policy, with a paper trail.

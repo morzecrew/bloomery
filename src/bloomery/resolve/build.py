@@ -345,10 +345,15 @@ def _try_cast_shape(node: Expression) -> Expression:
     The operand is shaped before it is wrapped: SQLGlot's ``transform`` does
     not descend into a node it has just replaced, so without the recursion
     only the outermost cast was rewritten and an inner one kept raising.
+
+    A cast that reads no column stays a ``CAST``: a constant, such as a
+    ``coalesce`` fallback, is not a value a row can fail to coerce. Shaped,
+    an unparseable fallback went NULL silently, and Postgres's guard ran over
+    a constant, which S-0033/D-84 records as unsafe (#322).
     """
 
     def shaped(child: Expression) -> Expression:
-        if type(child) is exp.Cast:
+        if type(child) is exp.Cast and child.this.find(exp.Column) is not None:
             return exp.TryCast(this=child.this.transform(shaped), to=child.to)
 
         return child
