@@ -9,6 +9,7 @@ from typing import ClassVar, Final, cast
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
+from sqlglot.optimizer.annotate_types import annotate_types
 
 from bloomery.dialects.base import (
     SQLGlotDialect,
@@ -437,6 +438,15 @@ def _guarded_try_cast(node: Expression) -> Expression:
     type, or a ``->>`` read — is left alone, as Snowflake's
     ``_string_try_cast`` does.
 
+    A typed operand's text is not always what the cast reads, so two typed
+    shapes are told apart by the operand's annotated type. A fractional number
+    rounds when it is cast to an integer, but its text (``'3.5'``) is not
+    integer input, so the guard reads the rounded value's text instead. And a
+    cast to or from ``boolean`` cannot fail between the types the transforms
+    build it from (``int4`` and ``boolean``), while ``'true'`` is not integer
+    input, so that cast stays plain. A bare column's type is not known to a
+    compile, and bronze is read as text, so it takes the text guard.
+
     The rewrite is safe against constant folding only because the input is a
     column. Over a folded constant Postgres evaluates the ``THEN`` branch at
     plan time and raises — which is how this was nearly mismeasured.
@@ -446,6 +456,17 @@ def _guarded_try_cast(node: Expression) -> Expression:
         return node
 
     value = node.this
+    typed = _typed(value)
+
+    if typed is not None and (typed.is_type(_BOOLEAN) or node.to.is_type(_BOOLEAN)):
+        return exp.cast(value.copy(), node.to.copy())
+
+    if (
+        typed is not None
+        and typed.is_type(*exp.DataType.REAL_TYPES)
+        and node.to.is_type(*exp.DataType.INTEGER_TYPES)
+    ):
+        value = exp.Round(this=value.copy())
 
     if not _yields_text(value):
         value = exp.cast(value.copy(), exp.DataType.build("TEXT"))
@@ -466,6 +487,21 @@ def _guarded_try_cast(node: Expression) -> Expression:
         valid = exp.And(this=valid, expression=stable)
 
     return exp.Case(ifs=[exp.If(this=valid, true=exp.cast(value.copy(), node.to.copy()))])
+
+
+_BOOLEAN: Final = exp.DataType.Type.BOOLEAN
+
+
+def _typed(node: Expression) -> exp.DataType | None:
+    """The type SQLGlot's annotator knows *node* to have, or ``None`` when it
+    is text or unknown — a bare column is unknown, and read as text."""
+
+    found = annotate_types(node.copy()).type
+
+    if found is None or found.is_type(exp.DataType.Type.UNKNOWN, *exp.DataType.TEXT_TYPES):
+        return None
+
+    return found
 
 
 def _yields_text(node: Expression) -> bool:

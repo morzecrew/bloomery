@@ -270,3 +270,37 @@ def test_an_operand_that_is_already_text_is_not_cast_twice() -> None:
         "CASE WHEN PG_INPUT_IS_VALID(CAST(raw AS TEXT), 'BIGINT') "
         "THEN CAST(CAST(raw AS TEXT) AS BIGINT) END"
     )
+
+
+def test_a_fractional_number_is_guarded_on_its_rounded_text() -> None:
+    """A cast to an integer rounds `3.5` to 4, but `'3.5'` is not integer
+    input, so a guard over the operand's text quarantined a value the cast
+    keeps (and every other engine's `TRY_CAST` keeps). The engine battery
+    `test_a_quality_shaped_case_returns_what_the_plain_one_does_on_postgres`
+    measures the agreement; this pins the spelling."""
+    decimal = exp.cast(exp.column("x"), exp.DataType.build("DECIMAL(12, 4)"))
+    node = exp.TryCast(this=decimal, to=exp.DataType.build("BIGINT"))
+    assert _one_line(DIALECT.render(node)) == (
+        "CASE WHEN PG_INPUT_IS_VALID(CAST(ROUND(CAST(x AS DECIMAL(12, 4))) AS TEXT), 'BIGINT') "
+        "THEN CAST(CAST(ROUND(CAST(x AS DECIMAL(12, 4))) AS TEXT) AS BIGINT) END"
+    )
+
+
+@pytest.mark.parametrize(
+    ("source", "target"),
+    [("BOOLEAN", "INT"), ("INT", "BOOLEAN")],
+)
+def test_a_cast_between_boolean_and_int_stays_plain(source: str, target: str) -> None:
+    """`CAST(true AS INT)` is 1 and cannot fail, but `'true'` is not integer
+    input, so a guard over the text made every row NULL. Between `int4` and
+    `boolean`, the only pairing the transforms build, the cast is total."""
+    operand = exp.cast(exp.column("x"), exp.DataType.build(source))
+    node = exp.TryCast(this=operand, to=exp.DataType.build(target))
+    assert DIALECT.render(node) == f"CAST(CAST(x AS {source}) AS {target})"
+
+
+def test_a_bare_column_is_read_as_text() -> None:
+    """A compile cannot know a bronze column's type, and the chain checker
+    reads every mapping from `string`, so a column takes the text guard."""
+    node = exp.TryCast(this=exp.column("x"), to=exp.DataType.build("BOOLEAN"))
+    assert "PG_INPUT_IS_VALID(CAST(x AS TEXT), 'BOOLEAN')" in _one_line(DIALECT.render(node))

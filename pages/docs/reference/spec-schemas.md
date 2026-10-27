@@ -330,6 +330,11 @@ SQL casts what it reads. A zone-aware `_ingested_at` (PostgreSQL `timestamptz`, 
 counts as uncastable, so the audit flags every row. Land the UTC wall clock as a
 zone-less `timestamp`, or as ISO text without an offset.
 
+A column a mapping reads is read as text, whatever it was landed as: a compile cannot
+see a bronze type, and every transform chain starts from `string`. On PostgreSQL a
+`numeric` column holding `1.0` is therefore not integer input to `to_int`, and its row
+is quarantined, where the same value landed as the text `1` passes.
+
 ### Freshness
 
 A staleness threshold for the mapping's bronze relation. bloomery emits it; the framework

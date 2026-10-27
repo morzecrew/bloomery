@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **PostgreSQL reads bronze landed as text or typed.** A single-key JSON read
+  (`$.payload.channel`) over a `text` column failed with `operator does not exist: text
+  ->> unknown`; every read's operand is now cast to `json`, as deeper paths already were.
+  The `TRY_CAST` guard handed `pg_input_is_valid`, which takes text only, an operand of any
+  type, so a quality-carrying entity whose chain ends in arithmetic, or whose `_ingested_at`
+  is a `timestamp`, aborted the run with `42883`. The guard now reads the operand's text,
+  and over a typed operand it keeps the cast's own result: a fractional number cast to an
+  integer rounds, and a cast between `boolean` and `int` stays plain. A zone-aware
+  `_ingested_at` stays refused, as on DuckDB: the metadata audit flags every row. (#305,
+  #306, #307)
+
 ## [0.7.0] - 2026-10-17
 
 ### Added
