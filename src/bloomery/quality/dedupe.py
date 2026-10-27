@@ -111,7 +111,7 @@ def dedupe_row_number(
     reaches its disposition; for every other row the extra terms are NULL.
     """
 
-    partition = [exp.column(name, table=table) for name in key]
+    partition: list[Expression] = [exp.column(name, table=table) for name in key]
 
     if unread:
         failed = exp.or_(*(exp.column(name, table=table) for name in unread))
