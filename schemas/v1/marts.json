@@ -198,10 +198,6 @@
               "type": "number"
             },
             {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-              "type": "string"
-            },
-            {
               "type": "string"
             },
             {
@@ -222,10 +218,6 @@
             },
             {
               "type": "number"
-            },
-            {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-              "type": "string"
             },
             {
               "type": "string"
