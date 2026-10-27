@@ -100,7 +100,7 @@ tests: |-
   - Typecheck: a `"*"` last pair is accepted, a `"*"` in an earlier pair is refused, and `in_enum` over a field whose `enum_map` has a fallback is refused (D-1, D-2).
   - Execution on DuckDB: the reporter's outcome chain with the fallback, NULL kept NULL, and the implicit `coercible` rule present on the field (D-1).
   - Execution on DuckDB: the thirteen measured texts for both epoch formats, each answer pinned, under a UTC and an Asia/Tokyo session (D-3, D-4, D-6).
-  - An engine differential on PostgreSQL 16 and Trino 483 replays the thirteen texts and requires DuckDB's answers exactly (D-6).
+  - An engine differential on PostgreSQL 16 and Trino 483 replays the thirteen texts and requires DuckDB's answers exactly (D-7).
   - Typecheck: both epoch formats are accepted over a `string` input, `to_utc` after an epoch parse is refused, and `zone_in:` other than `UTC` is refused (D-3, D-5).
   - Every unmeasured port refuses a mapping that uses an epoch format with `UnsupportedByTarget` (D-6).
   - The reference semantics and the type-conformance corpus gain the fallback and both formats.

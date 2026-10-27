@@ -19,6 +19,8 @@ phasing:
       - tests/support/reference.py
       - tests/execution/test_enum_fallback.py
       - pages/docs/reference/transforms.md
+      - skills/bloomery-skills/references/mappings-and-transforms.md
+      - /CHANGELOG.md
     acceptance:
       - >-
         uv run pytest tests/unit/test_transforms tests/unit/test_typing tests/unit/test_guardrails/test_quality.py
@@ -51,6 +53,10 @@ phasing:
       - tests/support/type_conformance.py
       - tests/golden/schema/mapping.json
       - pages/docs/how-to/**
+      - pages/docs/reference/transforms.md
+      - pages/docs/reference/dialects.md
+      - skills/bloomery-skills/references/mappings-and-transforms.md
+      - /CHANGELOG.md
     acceptance:
       - >-
         uv run pytest tests/unit/test_transforms tests/unit/test_guardrails/test_zone.py
@@ -73,6 +79,7 @@ phasing:
       - tests/unit/test_dialects/test_postgres.py
       - tests/unit/test_dialects/test_trino.py
       - tests/engines/test_epoch_differential.py
+      - pages/docs/reference/dialects.md
     acceptance:
       - >-
         uv run pytest tests/unit/test_dialects/test_postgres.py tests/unit/test_dialects/test_trino.py
