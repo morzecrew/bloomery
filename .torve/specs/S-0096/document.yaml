@@ -1,0 +1,151 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0096
+title: An enum_map fallback and epoch timestamps
+kind: design
+change:
+  type: feat
+  scope: transforms
+status: draft
+implementation: none
+depends_on: [S-0021, S-0081]
+informed_by: [S-0012, S-0033, S-0041, S-0044, S-0095]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: >-
+  Two transform arguments for the way CRM sources spell values: a `"*"` last pair
+  that gives `enum_map` a fallback for every value it does not list (#323), and `parse_ts:
+  UNIX_SECONDS` and `UNIX_MILLIS`, which read an epoch count as the UTC instant it
+  names (#324). The fallback keeps `enum_map` from nulling, so the implicit `coercible`
+  rule stays on; the epoch formats lower to integer arithmetic from 1970, never to
+  a zone-aware function, because the obvious spellings were measured to move with
+  the session time zone.
+motivation: |-
+  **A closed set over an open vocabulary (#323).** amoCRM closes every pipeline in two system statuses, 142 (won) and 143 (lost), and any other status id means the deal is open. `enum_map` passes an unlisted value through, so the reporter's chain needs a nulling step ahead of it for `coalesce` to catch:
+
+  ```yaml
+  outcome:
+    from: "$.payload.status_id"
+    transform: [{regex_extract: ["^(14[23])$", 1]}, {enum_map: ["142", won, "143", lost]}, {coalesce: open}]
+  ```
+
+  `regex_extract` is declared `nullifies`, which turns the implicit `<field>_coercible` rule off (S-0033/D-73). The entity is fed by a second mapping, Bitrix24's, and the two must carry the same rules, so the Bitrix24 chain gained a `nullif: ""` it does not need. Every Bitrix24 workspace's fingerprint moved without a number changing.
+
+  **Epoch counts (#324).** amoCRM, and many other APIs, send times as Unix seconds (`"created_at": 1761561600`). `parse_ts` reads only text formats, so the reporter's connector copies every `*_at` integer into an ISO instant at load time and maps that with `ISO8601_INSTANT`. That puts a format conversion into ingestion, which should land only what the source sent.
+current_state: |-
+  - **`enum_map`** takes flat from/to pairs and lowers to `CASE x WHEN 'a' THEN 'alpha' … ELSE x END`: an unlisted value passes through (`transforms/_builtins.py:354`). It is the one `variadic` transform, with `arg_kinds` `(STR, STR)` (S-0021/D-8), and typecheck refuses an odd-length list (`typing/check.py:84`).
+  - **`in_enum`** reads its admissible set off the chain's `enum_map` steps, the spellings and the targets both (`quality/lower.py:148`, S-0033/D-49), and the guardrail refuses a step after the `enum_map` other than `to_string` (`guardrails/quality.py:555`).
+  - **`parse_ts`** takes one format string over a `string` input (`transforms/_builtins.py:534`). `ISO8601_INSTANT` (S-0081/D-2) is the one format that reads an instant: the zone guard treats its value as never a wall clock (`guardrails/zone.py:106`), and `to_utc` after it is refused.
+  - **Arguments** are positional strings and integers (`spec/mapping.py:61`); S-0095 declined a mapping-shaped argument for the same reason this document does.
+
+  **Measured epoch spellings**, over thirteen texts on DuckDB 1.5.6, PostgreSQL 16 and Trino 483, each under a UTC session and an Asia/Tokyo session. The input was a text column, as a `from:` extraction yields it.
+
+  | Spelling | DuckDB | PostgreSQL | Trino |
+  |---|---|---|---|
+  | `to_timestamp(n)` / `from_unixtime(n)`, cast to `TIMESTAMP` | moves with the session zone | moves with the session zone | moves with the session zone |
+  | `to_timestamp(n) AT TIME ZONE 'UTC'`, `from_unixtime(n, 'UTC')` | — | zone-stable | zone-stable |
+  | integer arithmetic from `1970-01-01` | zone-stable (`make_timestamp(n * 1000000)`, interval) | zone-stable (`+ n * INTERVAL '1 second'`) | zone-stable (`date_add('second', n, …)`) |
+
+  On the zone-stable spellings the engines agree for an integer count (`1761561600`, `0`, `-1`, ` 1761561600 ` with spaces, NULL, `0001-01-01` and `9999-12-31 23:59:59`), seconds and milliseconds alike. They disagree on four texts:
+  - `1761561600.5`: DuckDB's `BIGINT` cast rounds it to `…601`, a different instant; PostgreSQL raises; Trino's `TRY_CAST` gives NULL.
+  - `1.7615616E9`: DuckDB reads it as `1761561600`; PostgreSQL raises; Trino gives NULL.
+  - `253402300800`, the first second of year 10000: DuckDB returns it, PostgreSQL raises `timestamp too large`, and Trino returns a value its client cannot represent.
+  - `99999999999999999`: every engine raises, on interval or multiplication overflow.
+goals: |-
+  - An open vocabulary maps onto a closed set in one `enum_map` step, without a nulling step, so the implicit `coercible` rule stays on.
+  - A Unix epoch in seconds or milliseconds maps to a `timestamp` without reshaping bronze.
+  - The same bronze gives the same instant on every port that ships the epoch formats, under any session time zone.
+non_goals: |-
+  - **Relaxing rule parity across an entity's mappings**, the reporter's second suggestion. A rule is entity-grained (S-0041/D-32, LOCKED), and the fallback removes the nulling step that made the rule sets differ.
+  - **Fractional epoch seconds.** The engines disagree on a fractional count's text (`current_state`), and a source sending sub-second precision sends milliseconds.
+  - **A mapping-shaped `enum_map` argument** (`alternatives`).
+design:
+  - key: the-fallback
+    md: |-
+      ```yaml
+      outcome:
+        from: "$.payload.status_id"
+        transform: [{enum_map: ["142", won, "143", lost, "*", open]}]
+      ```
+
+      A `"*"` as the source of the **last** pair is the fallback: a non-NULL value no earlier pair lists yields its target, and NULL stays NULL. The lowering is the `CASE` it is today with the fallback as its `ELSE`, inside a `CASE WHEN x IS NULL THEN NULL` (D-1). A `"*"` in any other pair is refused at typecheck, beside the odd-length refusal, so a project whose source sends a literal `*` maps it in any position but the last and writes no fallback. The arguments stay flat string pairs, so S-0021/D-8 and the mapping schema are unchanged.
+
+      `enum_map` with a fallback is still not `nullifies`: its output is NULL only where its input is. The implicit `coercible` rule therefore stays on for the reporter's chain, which is the point of #323. `in_enum` over a field whose `enum_map` has a fallback is refused, because every non-NULL value is then admissible and the rule could never fire (D-2).
+  - key: the-epoch-formats
+    md: |-
+      ```yaml
+      created_at:
+        from: "$.payload.created_at"
+        transform: [{parse_ts: UNIX_SECONDS}]
+      ```
+
+      `UNIX_SECONDS` and `UNIX_MILLIS` are two more reserved `parse_ts` formats, beside `ISO8601` and `ISO8601_INSTANT` (D-3). The input is the text a `from:` extraction yields, or an `int`, so a loader that landed the column typed needs no `to_string`; the two formats are the only ones an `int` input is accepted by.
+
+      The count is an optional sign and at most fifteen digits, with spaces around it, and it must name an instant from `0001-01-01 00:00:00` to `9999-12-31 23:59:59.999` (D-4). Fifteen digits is the widest count the range admits (`253402300799999` milliseconds), so the guarded cast to `BIGINT` cannot overflow. Anything else yields NULL: a fraction, an exponent, text that is not a number, or a count out of range. Under the quality system that NULL is a coercion failure the `coercible` rule disposes of, as it is for `ISO8601_INSTANT` over zoneless text, because `parse_ts` is not `nullifies`.
+
+      The value is an instant, so S-0081/D-2's rules apply unchanged: the zone guard treats it as never a wall clock, a `to_utc` after it is refused at resolve, and `zone_in:` may only be `UTC` (D-5).
+  - key: the-ports
+    md: |-
+      The builder returns a `BLM_EPOCH_SECONDS` or `BLM_EPOCH_MILLIS` marker over the guarded count, and a port declaring `DialectFeature.EPOCH` renders it as integer arithmetic from the epoch (D-6):
+
+      | Port | Seconds | Milliseconds |
+      |---|---|---|
+      | DuckDB | `make_timestamp(n * 1000000)` | `make_timestamp(n * 1000)` |
+      | PostgreSQL | `TIMESTAMP '1970-01-01' + n * INTERVAL '1 second'` | `… + n * INTERVAL '1 millisecond'` |
+      | Trino | `date_add('second', n, TIMESTAMP '1970-01-01 00:00:00.000000')` | `date_add('millisecond', n, …)` |
+
+      A zone-aware function is never the spelling, even with a `UTC` argument where the engine takes one: arithmetic on a zoneless timestamp has no zone to read, while a function that returns a zoned value is one session setting away from the wrong hour, which is what the measurement found on all three engines. A port that does not declare the feature lets the marker reach the base render, which refuses it as `UnsupportedByTarget`, naming the format and the dialect (the S-0044 pattern). Snowflake, BigQuery, Databricks and Redshift declare it when their spelling is measured on the engine (S-0012/D-2).
+tests: |-
+  - Typecheck: a `"*"` last pair is accepted, a `"*"` in an earlier pair is refused, and `in_enum` over a field whose `enum_map` has a fallback is refused (D-1, D-2).
+  - Execution on DuckDB: the reporter's outcome chain with the fallback, NULL kept NULL, and the implicit `coercible` rule present on the field (D-1).
+  - Execution on DuckDB: the thirteen measured texts for both epoch formats, each answer pinned, under a UTC and an Asia/Tokyo session (D-3, D-4, D-6).
+  - An engine differential on PostgreSQL 16 and Trino 483 replays the thirteen texts and requires DuckDB's answers exactly (D-6).
+  - Typecheck: an `int` input is accepted by the epoch formats and refused by every other format; `to_utc` after an epoch parse is refused, and `zone_in:` other than `UTC` is refused (D-3, D-5).
+  - Every unmeasured port refuses a mapping that uses an epoch format with `UnsupportedByTarget` (D-6).
+  - The reference semantics and the type-conformance corpus gain the fallback and both formats.
+docs: |-
+  - The transforms reference: the fallback pair, and the two epoch formats with what yields NULL.
+  - The zones how-to: an epoch is an instant, beside `ISO8601_INSTANT`.
+  - The dialects table: one row for the epoch formats, with the refusing ports named.
+  - The agent skill's mapping reference, and the changelog under Added.
+out_of_scope: |-
+  - Microsecond and nanosecond epochs; no reporter has asked, and both widen the fifteen-digit bound.
+  - Snowflake, BigQuery, Databricks and Redshift spellings, until each is measured on its engine.
+risks: |-
+  - **A literal `*` in the last pair now means something.** A spec mapping `"*"` as its final pair today changes meaning. No fixture or example does, and the refusal of `"*"` elsewhere makes the new meaning visible in review.
+  - **Out-of-range and malformed epochs are NULL on an entity without quality rules**, rather than aborting the run as a failed `CAST` does. That matches `ISO8601_INSTANT` over zoneless text, and the quality system marks them.
+  - **The refusal is per port**, so a project on Snowflake learns at compile time that the epoch formats are not there yet. That is the S-0025/D-3 trade, and the alternative is an unmeasured spelling that may move with the session zone.
+alternatives:
+  - option: >-
+      A mapping-shaped step, `{enum_map: {"142": won, "143": lost}, default: open}`,
+      as the reporter suggested.
+    rejected_because: >-
+      A step is a bare name or a single-key mapping, and its arguments are positional
+      strings and integers. A second key or a mapping argument changes the parser
+      and the JSON schema for every transform to serve one, the reason S-0095 declined
+      the same shape.
+    cites: [S-0021/D-8, S-0095]
+  - option: >-
+      An odd-length `enum_map` list whose last element is the fallback.
+    rejected_because: >-
+      It needs no new token, but a pair missing one element, refused today, would
+      silently become a fallback: the typo check is lost for a spelling a reviewer
+      cannot tell from the mistake.
+  - option: >-
+      `to_timestamp(n)` or `from_unixtime(n)`, the engines' own epoch functions.
+    rejected_because: >-
+      Measured to return a different wall clock under a different session time zone
+      on DuckDB, PostgreSQL and Trino, which breaks S-0020's same-input, same-output
+      rule at run time.
+  - option: >-
+      Read a fractional count through a `DECIMAL` cast, which DuckDB and PostgreSQL
+      agree on.
+    rejected_because: >-
+      Trino's spelling over the decimal failed on every case measured, and no reporter
+      sends fractional seconds; a source with sub-second precision sends milliseconds.
+questions:
+  - id: Q-1
+    text: >-
+      Whether the epoch formats should also accept a `decimal` input, for a loader
+      that lands a JSON number as `numeric`. The measurement covered text only.
