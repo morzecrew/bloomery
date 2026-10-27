@@ -1776,11 +1776,14 @@ decisions:
   - id: D-99
     grade: ASSUMED
     text: >-
-      `coercible` counts a JSON-path source as present when its bronze column is present
-      and not valid JSON. A row whose column is not JSON then fails `coercible` on
-      every field read through that column, at that rule's disposition (default `quarantine`),
-      while a NULL column and a missing key stay legitimate NULLs. No rule kind is
-      added (D-5)
+      On a port that declares the check of D-100, `coercible` gains a disjunct for
+      a JSON-path source: its bronze column is present and not valid JSON. It holds
+      whatever the projection is, so a chain that replaces a NULL (`coalesce`) cannot
+      hide it, and a field whose chain nulls on purpose, which carries no `coercible`
+      under D-73, gains one that reads this disjunct alone. A row whose column is
+      not JSON then fails `coercible` on every field read through that column, at
+      that rule's disposition (default `quarantine`), while a NULL column and a missing
+      key stay legitimate NULLs. No rule kind is added (D-5)
     paths:
       - src/bloomery/quality/predicates.py
       - tests/unit/test_quality/test_predicates.py
@@ -1790,21 +1793,26 @@ decisions:
       NULL, or valid JSON without the key, reads NULL with no rule fired, as now
     rationale: >-
       The marker reads 'the projection is NULL although every raw extraction was not'.
-      A guarded extraction over malformed text is NULL, so without this the marker
-      reads the column as absent and the row keeps a silent NULL, which is worse than
-      the abort it replaces. Counting 'present but not JSON' as evidence makes the
-      failure visible through the rule that already owns coercion, so D-5's catalogue
-      stays closed
-    cites: [D-3, D-5, D-19, D-98]
-    fingerprint: 460d1c948018de06/3edb8b9bee8b37b8
+      A guarded extraction over malformed text is NULL, so without a disjunct of its
+      own the marker reads the column as absent and the row keeps a silent NULL, which
+      is worse than the abort it replaces. The disjunct is direct evidence rather
+      than an inference from the projection, so it holds whatever the chain does next:
+      `coalesce` replacing the NULL with a fallback cannot mask it, and D-73's reason
+      for dropping `coercible` on a nulling chain (a deliberate NULL is not a failed
+      cast) does not reach it. Counting 'present but not JSON' through the rule that
+      already owns coercion keeps D-5's catalogue closed
+    cites: [D-3, D-5, D-19, D-73, D-98, D-100]
+    fingerprint: d1a0f3897ac6de31/3edb8b9bee8b37b8
   - id: D-100
     grade: ASSUMED
     text: >-
       `DialectPort.json_valid` is each port's check: DuckDB's `json_valid(x)`, PostgreSQL's
-      `pg_input_is_valid(x, 'json')` and Trino's `TRY(json_parse(x)) IS NOT NULL`,
-      each measured in the engine tier against one malformed corpus. Snowflake, BigQuery,
-      Databricks and Redshift keep today's behaviour until a check is measured on
-      each engine
+      `pg_input_is_valid(CAST(x AS TEXT), 'json')` and Trino's `TRY(json_parse(x))
+      IS NOT NULL`, each measured in the engine tier against one malformed corpus.
+      PostgreSQL reads the column's text because `pg_input_is_valid` takes text only,
+      so a bronze column landed as `json` or `jsonb` passes as the valid JSON it is.
+      Snowflake, BigQuery, Databricks and Redshift keep today's behaviour until a
+      check is measured on each engine, and D-99 does not apply there
     paths:
       - src/bloomery/dialects/duckdb.py
       - src/bloomery/dialects/postgres.py
@@ -1822,7 +1830,7 @@ decisions:
       engine test before they are declared. No cloud check is inherited without measurement
       on its engine (S-0012/D-1, S-0013/D-2)
     cites: [D-98, D-99, S-0012/D-1, S-0013/D-2]
-    fingerprint: 13d260a53fe94ded/a55987d95d7cf37c
+    fingerprint: 6e90aeb9dc7890e3/a55987d95d7cf37c
   - id: D-101
     grade: OPEN
     text: >-

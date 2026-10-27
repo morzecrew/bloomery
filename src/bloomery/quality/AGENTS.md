@@ -193,7 +193,7 @@ Ingestion metadata contract: entities using `quarantine` or `dedupe` require bro
 
 ### S-0033/D-99 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
-`coercible` counts a JSON-path source as present when its bronze column is present and not valid JSON. A row whose column is not JSON then fails `coercible` on every field read through that column, at that rule's disposition (default `quarantine`), while a NULL column and a missing key stay legitimate NULLs. No rule kind is added (D-5)
+On a port that declares the check of D-100, `coercible` gains a disjunct for a JSON-path source: its bronze column is present and not valid JSON. It holds whatever the projection is, so a chain that replaces a NULL (`coalesce`) cannot hide it, and a field whose chain nulls on purpose, which carries no `coercible` under D-73, gains one that reads this disjunct alone. A row whose column is not JSON then fails `coercible` on every field read through that column, at that rule's disposition (default `quarantine`), while a NULL column and a missing key stay legitimate NULLs. No rule kind is added (D-5)
 
 - Paths: `src/bloomery/quality/predicates.py` `tests/unit/test_quality/test_predicates.py`
 - Consequence: `failed_rules` names the `<field>_coercible` of every field read from the malformed column, which tells an operator which source column was bad. A column that is NULL, or valid JSON without the key, reads NULL with no rule fired, as now

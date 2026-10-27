@@ -164,3 +164,68 @@ amendments:
     md: >-
       Left open: the one port that already reads malformed JSON as NULL, outside the
       quality system too.
+  - id: A-9
+    at: '2026-10-27T14:50:36Z'
+    title: 'Review: what the marker reads, and which ports'
+    changes:
+      - subject: D-99
+        field: text
+        before: >-
+          `coercible` counts a JSON-path source as present when its bronze column
+          is present and not valid JSON. A row whose column is not JSON then fails
+          `coercible` on every field read through that column, at that rule's disposition
+          (default `quarantine`), while a NULL column and a missing key stay legitimate
+          NULLs. No rule kind is added (D-5)
+        after: >-
+          On a port that declares the check of D-100, `coercible` gains a disjunct
+          for a JSON-path source: its bronze column is present and not valid JSON.
+          It holds whatever the projection is, so a chain that replaces a NULL (`coalesce`)
+          cannot hide it, and a field whose chain nulls on purpose, which carries
+          no `coercible` under D-73, gains one that reads this disjunct alone. A row
+          whose column is not JSON then fails `coercible` on every field read through
+          that column, at that rule's disposition (default `quarantine`), while a
+          NULL column and a missing key stay legitimate NULLs. No rule kind is added
+          (D-5)
+      - subject: D-99
+        field: fingerprint
+        before: 460d1c948018de06/3edb8b9bee8b37b8
+        after: d1a0f3897ac6de31/3edb8b9bee8b37b8
+    md: >-
+      Review of #328 (codeant). D-99 promised a failure on every field read through
+      a malformed column, and two cases broke it. A `coalesce` replaces the guarded
+      NULL, and the marker fired only on a NULL projection. A nulling chain (`nullif`,
+      `split_part`, `regex_extract`, `convert`) carries no `coercible` at all under
+      D-73. The malformed-JSON condition is now a disjunct of its own, independent
+      of the projection, and a nulling chain's field gains a `coercible` reading that
+      disjunct alone. D-99 also says it applies only on a port with D-100's check:
+      on Redshift a malformed read is already a silent NULL (D-101), and the marker
+      sees no evidence there.
+  - id: A-10
+    at: '2026-10-27T14:50:43Z'
+    title: 'Review: what the marker reads, and which ports'
+    changes:
+      - subject: D-100
+        field: text
+        before: >-
+          `DialectPort.json_valid` is each port's check: DuckDB's `json_valid(x)`,
+          PostgreSQL's `pg_input_is_valid(x, 'json')` and Trino's `TRY(json_parse(x))
+          IS NOT NULL`, each measured in the engine tier against one malformed corpus.
+          Snowflake, BigQuery, Databricks and Redshift keep today's behaviour until
+          a check is measured on each engine
+        after: >-
+          `DialectPort.json_valid` is each port's check: DuckDB's `json_valid(x)`,
+          PostgreSQL's `pg_input_is_valid(CAST(x AS TEXT), 'json')` and Trino's `TRY(json_parse(x))
+          IS NOT NULL`, each measured in the engine tier against one malformed corpus.
+          PostgreSQL reads the column's text because `pg_input_is_valid` takes text
+          only, so a bronze column landed as `json` or `jsonb` passes as the valid
+          JSON it is. Snowflake, BigQuery, Databricks and Redshift keep today's behaviour
+          until a check is measured on each engine, and D-99 does not apply there
+      - subject: D-100
+        field: fingerprint
+        before: 13d260a53fe94ded/a55987d95d7cf37c
+        after: 6e90aeb9dc7890e3/a55987d95d7cf37c
+    md: >-
+      Review of #328 (codeant): `pg_input_is_valid` takes text only, the lesson of
+      #306, so a bronze column landed as `json` or `jsonb` would have made the check
+      itself fail. The PostgreSQL check reads the column's text. D-100 also says outright
+      that D-99 does not apply on the ports it does not reach.

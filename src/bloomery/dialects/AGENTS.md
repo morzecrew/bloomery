@@ -220,7 +220,7 @@ On an entity in the quality system, a bronze column read through a JSON path is 
 
 ### S-0033/D-100 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
-`DialectPort.json_valid` is each port's check: DuckDB's `json_valid(x)`, PostgreSQL's `pg_input_is_valid(x, 'json')` and Trino's `TRY(json_parse(x)) IS NOT NULL`, each measured in the engine tier against one malformed corpus. Snowflake, BigQuery, Databricks and Redshift keep today's behaviour until a check is measured on each engine
+`DialectPort.json_valid` is each port's check: DuckDB's `json_valid(x)`, PostgreSQL's `pg_input_is_valid(CAST(x AS TEXT), 'json')` and Trino's `TRY(json_parse(x)) IS NOT NULL`, each measured in the engine tier against one malformed corpus. PostgreSQL reads the column's text because `pg_input_is_valid` takes text only, so a bronze column landed as `json` or `jsonb` passes as the valid JSON it is. Snowflake, BigQuery, Databricks and Redshift keep today's behaviour until a check is measured on each engine, and D-99 does not apply there
 
 - Paths: `src/bloomery/dialects/duckdb.py` `src/bloomery/dialects/postgres.py` `src/bloomery/dialects/trino.py` `tests/unit/test_dialects/test_base.py`
 - Consequence: The three engines a contributor runs locally quarantine the same rows for the same malformed corpus. The cloud ports keep their current behaviour, which on Redshift is a silent NULL (D-101), until each is measured
