@@ -461,7 +461,14 @@ def _guarded_try_cast(node: Expression) -> Expression:
     typed = known_type(node.this)
     value = node.this.transform(_guarded_try_cast)
 
-    if typed is not None and (typed.is_type(_BOOLEAN) or node.to.is_type(_BOOLEAN)):
+    # An operand built on a guarded cast is already a typed value, whose text
+    # the inner guard has checked; this cast can then fail only by overflowing,
+    # and guarding it would copy the inner guard into every outer one, three
+    # times a level (a chain of ten casts rendered 1.4 MB). It stays plain, as
+    # every inner cast did before chains were shaped whole.
+    nested = any(True for _ in node.this.find_all(exp.TryCast))
+
+    if nested or (typed is not None and (typed.is_type(_BOOLEAN) or node.to.is_type(_BOOLEAN))):
         return exp.cast(value, node.to.copy())
 
     if (

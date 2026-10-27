@@ -320,3 +320,20 @@ def test_a_try_cast_inside_another_is_guarded_too() -> None:
     rendered = _one_line(DIALECT.render(outer))
     assert "PG_INPUT_IS_VALID(CAST(x AS TEXT), 'DECIMAL(16, 0)')" in rendered
     assert "CAST(x AS DECIMAL(16, 0))" not in rendered
+
+
+def test_a_chain_of_guarded_casts_grows_linearly() -> None:
+    """The guard reads its operand two or three times (the check, the
+    temporal deny-list, the cast), so guarding every cast of a chain copied the
+    inner guards into each outer one: a chain eight casts deep rendered 205 KB,
+    and nothing caps a chain's length. A cast over an already-guarded operand
+    is over a typed value, which can fail only by overflowing, so it stays a
+    plain cast and the operand appears once."""
+    node: exp.Expression = exp.column("x")
+    for index in range(10):
+        node = exp.TryCast(
+            this=node, to=exp.DataType.build("TIMESTAMP" if index % 2 == 0 else "TEXT")
+        )
+    rendered = DIALECT.render(node)
+    assert rendered.count("x") <= 3, len(rendered)
+    assert rendered.count("PG_INPUT_IS_VALID") == 1
