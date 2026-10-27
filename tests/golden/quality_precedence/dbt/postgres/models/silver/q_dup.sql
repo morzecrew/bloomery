@@ -26,21 +26,33 @@ FROM (
     END AS _quality_flags
   FROM (
     SELECT
-      CASE WHEN PG_INPUT_IS_VALID(group_id, 'TEXT') THEN CAST(group_id AS TEXT) END AS group_id,
-      CASE WHEN PG_INPUT_IS_VALID(note, 'TEXT') THEN CAST(note AS TEXT) END AS note,
-      CASE WHEN PG_INPUT_IS_VALID(status, 'TEXT') THEN CAST(status AS TEXT) END AS status,
+      CASE
+        WHEN PG_INPUT_IS_VALID(CAST(group_id AS TEXT), 'TEXT')
+        THEN CAST(group_id AS TEXT)
+      END AS group_id,
+      CASE WHEN PG_INPUT_IS_VALID(CAST(note AS TEXT), 'TEXT') THEN CAST(note AS TEXT) END AS note,
+      CASE
+        WHEN PG_INPUT_IS_VALID(CAST(status AS TEXT), 'TEXT')
+        THEN CAST(status AS TEXT)
+      END AS status,
       _ingested_at,
       _load_id,
       _source_row_id,
-      CASE WHEN PG_INPUT_IS_VALID(group_id, 'TEXT') THEN CAST(group_id AS TEXT) END IS NULL
+      CASE
+        WHEN PG_INPUT_IS_VALID(CAST(group_id AS TEXT), 'TEXT')
+        THEN CAST(group_id AS TEXT)
+      END IS NULL
       AND (
         NOT group_id IS NULL
       ) AS _branch_group_id_coercible,
-      CASE WHEN PG_INPUT_IS_VALID(note, 'TEXT') THEN CAST(note AS TEXT) END IS NULL
+      CASE WHEN PG_INPUT_IS_VALID(CAST(note AS TEXT), 'TEXT') THEN CAST(note AS TEXT) END IS NULL
       AND (
         NOT note IS NULL
       ) AS _branch_note_coercible,
-      CASE WHEN PG_INPUT_IS_VALID(status, 'TEXT') THEN CAST(status AS TEXT) END IS NULL
+      CASE
+        WHEN PG_INPUT_IS_VALID(CAST(status AS TEXT), 'TEXT')
+        THEN CAST(status AS TEXT)
+      END IS NULL
       AND (
         NOT status IS NULL
       ) AS _branch_status_coercible

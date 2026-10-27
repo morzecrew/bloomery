@@ -79,75 +79,75 @@ USING (
         FROM (
           SELECT
             CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'amount', 'DECIMAL(38, 9)')
-              THEN CAST(raw ->> 'amount' AS DECIMAL(38, 9))
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'amount', 'DECIMAL(38, 9)')
+              THEN CAST(CAST(raw AS JSON) ->> 'amount' AS DECIMAL(38, 9))
             END AS amount,
             CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'code', 'TEXT')
-              THEN CAST(raw ->> 'code' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'code', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'code' AS TEXT)
             END AS code,
             CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'line_no', 'BIGINT')
-              THEN CAST(raw ->> 'line_no' AS BIGINT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'line_no', 'BIGINT')
+              THEN CAST(CAST(raw AS JSON) ->> 'line_no' AS BIGINT)
             END AS line_no,
             CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'order_date', 'DATE')
-              AND NOT LOWER(raw ->> 'order_date') ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-              THEN CAST(raw ->> 'order_date' AS DATE)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'order_date', 'DATE')
+              AND NOT LOWER(CAST(raw AS JSON) ->> 'order_date') ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+              THEN CAST(CAST(raw AS JSON) ->> 'order_date' AS DATE)
             END AS order_date,
             CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'order_id', 'TEXT')
-              THEN CAST(raw ->> 'order_id' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'order_id', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'order_id' AS TEXT)
             END AS order_id,
             CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'status', 'TEXT')
-              THEN CAST(raw ->> 'status' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'status', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'status' AS TEXT)
             END AS status,
             _ingested_at,
             _load_id,
             _source_row_id,
             CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'amount', 'DECIMAL(38, 9)')
-              THEN CAST(raw ->> 'amount' AS DECIMAL(38, 9))
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'amount', 'DECIMAL(38, 9)')
+              THEN CAST(CAST(raw AS JSON) ->> 'amount' AS DECIMAL(38, 9))
             END IS NULL
             AND (
-              NOT raw ->> 'amount' IS NULL
+              NOT CAST(raw AS JSON) ->> 'amount' IS NULL
             ) AS _branch_amount_coercible,
             CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'code', 'TEXT')
-              THEN CAST(raw ->> 'code' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'code', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'code' AS TEXT)
             END IS NULL
             AND (
-              NOT raw ->> 'code' IS NULL
+              NOT CAST(raw AS JSON) ->> 'code' IS NULL
             ) AS _branch_code_coercible,
             CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'line_no', 'BIGINT')
-              THEN CAST(raw ->> 'line_no' AS BIGINT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'line_no', 'BIGINT')
+              THEN CAST(CAST(raw AS JSON) ->> 'line_no' AS BIGINT)
             END IS NULL
             AND (
-              NOT raw ->> 'line_no' IS NULL
+              NOT CAST(raw AS JSON) ->> 'line_no' IS NULL
             ) AS _branch_line_no_coercible,
             CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'order_date', 'DATE')
-              AND NOT LOWER(raw ->> 'order_date') ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-              THEN CAST(raw ->> 'order_date' AS DATE)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'order_date', 'DATE')
+              AND NOT LOWER(CAST(raw AS JSON) ->> 'order_date') ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+              THEN CAST(CAST(raw AS JSON) ->> 'order_date' AS DATE)
             END IS NULL
             AND (
-              NOT raw ->> 'order_date' IS NULL
+              NOT CAST(raw AS JSON) ->> 'order_date' IS NULL
             ) AS _branch_order_date_coercible,
             CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'order_id', 'TEXT')
-              THEN CAST(raw ->> 'order_id' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'order_id', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'order_id' AS TEXT)
             END IS NULL
             AND (
-              NOT raw ->> 'order_id' IS NULL
+              NOT CAST(raw AS JSON) ->> 'order_id' IS NULL
             ) AS _branch_order_id_coercible,
             CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'status', 'TEXT')
-              THEN CAST(raw ->> 'status' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'status', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'status' AS TEXT)
             END IS NULL
             AND (
-              NOT raw ->> 'status' IS NULL
+              NOT CAST(raw AS JSON) ->> 'status' IS NULL
             ) AS _branch_status_coercible
           FROM {{ ref('q_line__reject') }}
           WHERE
@@ -371,75 +371,75 @@ USING (
     FROM (
       SELECT
         CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'amount', 'DECIMAL(38, 9)')
-          THEN CAST(raw ->> 'amount' AS DECIMAL(38, 9))
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'amount', 'DECIMAL(38, 9)')
+          THEN CAST(CAST(raw AS JSON) ->> 'amount' AS DECIMAL(38, 9))
         END AS amount,
         CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'code', 'TEXT')
-          THEN CAST(raw ->> 'code' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'code', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'code' AS TEXT)
         END AS code,
         CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'line_no', 'BIGINT')
-          THEN CAST(raw ->> 'line_no' AS BIGINT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'line_no', 'BIGINT')
+          THEN CAST(CAST(raw AS JSON) ->> 'line_no' AS BIGINT)
         END AS line_no,
         CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'order_date', 'DATE')
-          AND NOT LOWER(raw ->> 'order_date') ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-          THEN CAST(raw ->> 'order_date' AS DATE)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'order_date', 'DATE')
+          AND NOT LOWER(CAST(raw AS JSON) ->> 'order_date') ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+          THEN CAST(CAST(raw AS JSON) ->> 'order_date' AS DATE)
         END AS order_date,
         CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'order_id', 'TEXT')
-          THEN CAST(raw ->> 'order_id' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'order_id', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'order_id' AS TEXT)
         END AS order_id,
         CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'status', 'TEXT')
-          THEN CAST(raw ->> 'status' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'status', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'status' AS TEXT)
         END AS status,
         _ingested_at,
         _load_id,
         _source_row_id,
         CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'amount', 'DECIMAL(38, 9)')
-          THEN CAST(raw ->> 'amount' AS DECIMAL(38, 9))
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'amount', 'DECIMAL(38, 9)')
+          THEN CAST(CAST(raw AS JSON) ->> 'amount' AS DECIMAL(38, 9))
         END IS NULL
         AND (
-          NOT raw ->> 'amount' IS NULL
+          NOT CAST(raw AS JSON) ->> 'amount' IS NULL
         ) AS _branch_amount_coercible,
         CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'code', 'TEXT')
-          THEN CAST(raw ->> 'code' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'code', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'code' AS TEXT)
         END IS NULL
         AND (
-          NOT raw ->> 'code' IS NULL
+          NOT CAST(raw AS JSON) ->> 'code' IS NULL
         ) AS _branch_code_coercible,
         CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'line_no', 'BIGINT')
-          THEN CAST(raw ->> 'line_no' AS BIGINT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'line_no', 'BIGINT')
+          THEN CAST(CAST(raw AS JSON) ->> 'line_no' AS BIGINT)
         END IS NULL
         AND (
-          NOT raw ->> 'line_no' IS NULL
+          NOT CAST(raw AS JSON) ->> 'line_no' IS NULL
         ) AS _branch_line_no_coercible,
         CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'order_date', 'DATE')
-          AND NOT LOWER(raw ->> 'order_date') ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-          THEN CAST(raw ->> 'order_date' AS DATE)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'order_date', 'DATE')
+          AND NOT LOWER(CAST(raw AS JSON) ->> 'order_date') ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+          THEN CAST(CAST(raw AS JSON) ->> 'order_date' AS DATE)
         END IS NULL
         AND (
-          NOT raw ->> 'order_date' IS NULL
+          NOT CAST(raw AS JSON) ->> 'order_date' IS NULL
         ) AS _branch_order_date_coercible,
         CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'order_id', 'TEXT')
-          THEN CAST(raw ->> 'order_id' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'order_id', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'order_id' AS TEXT)
         END IS NULL
         AND (
-          NOT raw ->> 'order_id' IS NULL
+          NOT CAST(raw AS JSON) ->> 'order_id' IS NULL
         ) AS _branch_order_id_coercible,
         CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'status', 'TEXT')
-          THEN CAST(raw ->> 'status' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'status', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'status' AS TEXT)
         END IS NULL
         AND (
-          NOT raw ->> 'status' IS NULL
+          NOT CAST(raw AS JSON) ->> 'status' IS NULL
         ) AS _branch_status_coercible
       FROM {{ ref('q_line__reject') }}
       WHERE

@@ -59,40 +59,40 @@ USING (
       FROM (
         SELECT
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'group_id', 'TEXT')
-            THEN CAST(raw ->> 'group_id' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'group_id', 'TEXT')
+            THEN CAST(CAST(raw AS JSON) ->> 'group_id' AS TEXT)
           END AS group_id,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'note', 'TEXT')
-            THEN CAST(raw ->> 'note' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'note', 'TEXT')
+            THEN CAST(CAST(raw AS JSON) ->> 'note' AS TEXT)
           END AS note,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'status', 'TEXT')
-            THEN CAST(raw ->> 'status' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'status', 'TEXT')
+            THEN CAST(CAST(raw AS JSON) ->> 'status' AS TEXT)
           END AS status,
           _ingested_at,
           _load_id,
           _source_row_id,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'group_id', 'TEXT')
-            THEN CAST(raw ->> 'group_id' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'group_id', 'TEXT')
+            THEN CAST(CAST(raw AS JSON) ->> 'group_id' AS TEXT)
           END IS NULL
           AND (
-            NOT raw ->> 'group_id' IS NULL
+            NOT CAST(raw AS JSON) ->> 'group_id' IS NULL
           ) AS _branch_group_id_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'note', 'TEXT')
-            THEN CAST(raw ->> 'note' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'note', 'TEXT')
+            THEN CAST(CAST(raw AS JSON) ->> 'note' AS TEXT)
           END IS NULL
           AND (
-            NOT raw ->> 'note' IS NULL
+            NOT CAST(raw AS JSON) ->> 'note' IS NULL
           ) AS _branch_note_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'status', 'TEXT')
-            THEN CAST(raw ->> 'status' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'status', 'TEXT')
+            THEN CAST(CAST(raw AS JSON) ->> 'status' AS TEXT)
           END IS NULL
           AND (
-            NOT raw ->> 'status' IS NULL
+            NOT CAST(raw AS JSON) ->> 'status' IS NULL
           ) AS _branch_status_coercible
         FROM {{ ref('q_dup__reject') }}
         WHERE
@@ -214,40 +214,40 @@ USING (
   FROM (
     SELECT
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'group_id', 'TEXT')
-        THEN CAST(raw ->> 'group_id' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'group_id', 'TEXT')
+        THEN CAST(CAST(raw AS JSON) ->> 'group_id' AS TEXT)
       END AS group_id,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'note', 'TEXT')
-        THEN CAST(raw ->> 'note' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'note', 'TEXT')
+        THEN CAST(CAST(raw AS JSON) ->> 'note' AS TEXT)
       END AS note,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'status', 'TEXT')
-        THEN CAST(raw ->> 'status' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'status', 'TEXT')
+        THEN CAST(CAST(raw AS JSON) ->> 'status' AS TEXT)
       END AS status,
       _ingested_at,
       _load_id,
       _source_row_id,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'group_id', 'TEXT')
-        THEN CAST(raw ->> 'group_id' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'group_id', 'TEXT')
+        THEN CAST(CAST(raw AS JSON) ->> 'group_id' AS TEXT)
       END IS NULL
       AND (
-        NOT raw ->> 'group_id' IS NULL
+        NOT CAST(raw AS JSON) ->> 'group_id' IS NULL
       ) AS _branch_group_id_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'note', 'TEXT')
-        THEN CAST(raw ->> 'note' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'note', 'TEXT')
+        THEN CAST(CAST(raw AS JSON) ->> 'note' AS TEXT)
       END IS NULL
       AND (
-        NOT raw ->> 'note' IS NULL
+        NOT CAST(raw AS JSON) ->> 'note' IS NULL
       ) AS _branch_note_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'status', 'TEXT')
-        THEN CAST(raw ->> 'status' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'status', 'TEXT')
+        THEN CAST(CAST(raw AS JSON) ->> 'status' AS TEXT)
       END IS NULL
       AND (
-        NOT raw ->> 'status' IS NULL
+        NOT CAST(raw AS JSON) ->> 'status' IS NULL
       ) AS _branch_status_coercible
     FROM {{ ref('q_dup__reject') }}
     WHERE

@@ -71,53 +71,53 @@ USING (
       FROM (
         SELECT
           CASE
-            WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note', 'TEXT')
-            THEN CAST(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(CAST(raw AS JSON) ->> 'properties' AS JSON) ->> 'gift_note', 'TEXT')
+            THEN CAST(CAST(CAST(raw AS JSON) ->> 'properties' AS JSON) ->> 'gift_note' AS TEXT)
           END AS gift_note,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'position', 'BIGINT')
-            THEN CAST(raw ->> 'position' AS BIGINT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'position', 'BIGINT')
+            THEN CAST(CAST(raw AS JSON) ->> 'position' AS BIGINT)
           END AS line_no,
           CASE
-            WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'order' AS JSON) ->> 'id', 'TEXT')
-            THEN CAST(CAST(raw ->> 'order' AS JSON) ->> 'id' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(CAST(raw AS JSON) ->> 'order' AS JSON) ->> 'id', 'TEXT')
+            THEN CAST(CAST(CAST(raw AS JSON) ->> 'order' AS JSON) ->> 'id' AS TEXT)
           END AS order_id,
           CASE
             WHEN PG_INPUT_IS_VALID(
-              CASE
-                WHEN SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
-                OR SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
+              CAST(CASE
+                WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
                 THEN NULL
-                ELSE raw ->> 'created_at'
-              END,
+                ELSE CAST(raw AS JSON) ->> 'created_at'
+              END AS TEXT),
               'TIMESTAMP'
             )
             AND NOT LOWER(
-              CASE
-                WHEN SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
-                OR SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
+              CAST(CASE
+                WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
                 THEN NULL
-                ELSE raw ->> 'created_at'
-              END
+                ELSE CAST(raw AS JSON) ->> 'created_at'
+              END AS TEXT)
             ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-            THEN CAST(CASE
-              WHEN SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
-              OR SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
+            THEN CAST(CAST(CASE
+              WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
               THEN NULL
-              ELSE raw ->> 'created_at'
-            END AS TIMESTAMP)
+              ELSE CAST(raw AS JSON) ->> 'created_at'
+            END AS TEXT) AS TIMESTAMP)
           END AS placed_at,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'quantity', 'BIGINT')
-            THEN CAST(raw ->> 'quantity' AS BIGINT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'quantity', 'BIGINT')
+            THEN CAST(CAST(raw AS JSON) ->> 'quantity' AS BIGINT)
           END AS quantity,
           CASE
-            WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'variant' AS JSON) ->> 'sku', 'TEXT')
-            THEN CAST(CAST(raw ->> 'variant' AS JSON) ->> 'sku' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(CAST(raw AS JSON) ->> 'variant' AS JSON) ->> 'sku', 'TEXT')
+            THEN CAST(CAST(CAST(raw AS JSON) ->> 'variant' AS JSON) ->> 'sku' AS TEXT)
           END AS sku,
           CASE CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
-              THEN CAST(raw ->> 'financial_status' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'financial_status', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'financial_status' AS TEXT)
             END
             WHEN 'pending'
             THEN 'open'
@@ -126,79 +126,79 @@ USING (
             WHEN 'refunded'
             THEN 'reversed'
             ELSE CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
-              THEN CAST(raw ->> 'financial_status' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'financial_status', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'financial_status' AS TEXT)
             END
           END AS status,
           _ingested_at,
           _load_id,
           _source_row_id,
           CASE
-            WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note', 'TEXT')
-            THEN CAST(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(CAST(raw AS JSON) ->> 'properties' AS JSON) ->> 'gift_note', 'TEXT')
+            THEN CAST(CAST(CAST(raw AS JSON) ->> 'properties' AS JSON) ->> 'gift_note' AS TEXT)
           END IS NULL
           AND (
-            NOT CAST(raw ->> 'properties' AS JSON) ->> 'gift_note' IS NULL
+            NOT CAST(CAST(raw AS JSON) ->> 'properties' AS JSON) ->> 'gift_note' IS NULL
           ) AS _branch_gift_note_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'position', 'BIGINT')
-            THEN CAST(raw ->> 'position' AS BIGINT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'position', 'BIGINT')
+            THEN CAST(CAST(raw AS JSON) ->> 'position' AS BIGINT)
           END IS NULL
           AND (
-            NOT raw ->> 'position' IS NULL
+            NOT CAST(raw AS JSON) ->> 'position' IS NULL
           ) AS _branch_line_no_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'order' AS JSON) ->> 'id', 'TEXT')
-            THEN CAST(CAST(raw ->> 'order' AS JSON) ->> 'id' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(CAST(raw AS JSON) ->> 'order' AS JSON) ->> 'id', 'TEXT')
+            THEN CAST(CAST(CAST(raw AS JSON) ->> 'order' AS JSON) ->> 'id' AS TEXT)
           END IS NULL
           AND (
-            NOT CAST(raw ->> 'order' AS JSON) ->> 'id' IS NULL
+            NOT CAST(CAST(raw AS JSON) ->> 'order' AS JSON) ->> 'id' IS NULL
           ) AS _branch_order_id_coercible,
           CASE
             WHEN PG_INPUT_IS_VALID(
-              CASE
-                WHEN SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
-                OR SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
+              CAST(CASE
+                WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
                 THEN NULL
-                ELSE raw ->> 'created_at'
-              END,
+                ELSE CAST(raw AS JSON) ->> 'created_at'
+              END AS TEXT),
               'TIMESTAMP'
             )
             AND NOT LOWER(
-              CASE
-                WHEN SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
-                OR SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
+              CAST(CASE
+                WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
                 THEN NULL
-                ELSE raw ->> 'created_at'
-              END
+                ELSE CAST(raw AS JSON) ->> 'created_at'
+              END AS TEXT)
             ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-            THEN CAST(CASE
-              WHEN SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
-              OR SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
+            THEN CAST(CAST(CASE
+              WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
               THEN NULL
-              ELSE raw ->> 'created_at'
-            END AS TIMESTAMP)
+              ELSE CAST(raw AS JSON) ->> 'created_at'
+            END AS TEXT) AS TIMESTAMP)
           END IS NULL
           AND (
-            NOT raw ->> 'created_at' IS NULL
+            NOT CAST(raw AS JSON) ->> 'created_at' IS NULL
           ) AS _branch_placed_at_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'quantity', 'BIGINT')
-            THEN CAST(raw ->> 'quantity' AS BIGINT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'quantity', 'BIGINT')
+            THEN CAST(CAST(raw AS JSON) ->> 'quantity' AS BIGINT)
           END IS NULL
           AND (
-            NOT raw ->> 'quantity' IS NULL
+            NOT CAST(raw AS JSON) ->> 'quantity' IS NULL
           ) AS _branch_quantity_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'variant' AS JSON) ->> 'sku', 'TEXT')
-            THEN CAST(CAST(raw ->> 'variant' AS JSON) ->> 'sku' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(CAST(raw AS JSON) ->> 'variant' AS JSON) ->> 'sku', 'TEXT')
+            THEN CAST(CAST(CAST(raw AS JSON) ->> 'variant' AS JSON) ->> 'sku' AS TEXT)
           END IS NULL
           AND (
-            NOT CAST(raw ->> 'variant' AS JSON) ->> 'sku' IS NULL
+            NOT CAST(CAST(raw AS JSON) ->> 'variant' AS JSON) ->> 'sku' IS NULL
           ) AS _branch_sku_coercible,
           CASE CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
-              THEN CAST(raw ->> 'financial_status' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'financial_status', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'financial_status' AS TEXT)
             END
             WHEN 'pending'
             THEN 'open'
@@ -207,16 +207,16 @@ USING (
             WHEN 'refunded'
             THEN 'reversed'
             ELSE CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
-              THEN CAST(raw ->> 'financial_status' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'financial_status', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'financial_status' AS TEXT)
             END
           END IS NULL
           AND (
-            NOT raw ->> 'financial_status' IS NULL
+            NOT CAST(raw AS JSON) ->> 'financial_status' IS NULL
           ) AS _branch_status_coercible,
           NOT CASE CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
-              THEN CAST(raw ->> 'financial_status' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'financial_status', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'financial_status' AS TEXT)
             END
             WHEN 'pending'
             THEN 'open'
@@ -225,8 +225,8 @@ USING (
             WHEN 'refunded'
             THEN 'reversed'
             ELSE CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
-              THEN CAST(raw ->> 'financial_status' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'financial_status', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'financial_status' AS TEXT)
             END
           END IN ('closed', 'open', 'reversed') AS _branch_status_in_enum,
           'shopify__order_lines' AS _source
@@ -237,57 +237,57 @@ USING (
         SELECT
           CAST(NULL AS TEXT) AS gift_note,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'item_index', 'BIGINT')
-            THEN CAST(raw ->> 'item_index' AS BIGINT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'item_index', 'BIGINT')
+            THEN CAST(CAST(raw AS JSON) ->> 'item_index' AS BIGINT)
           END AS line_no,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'order_number', 'TEXT')
-            THEN CAST(raw ->> 'order_number' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'order_number', 'TEXT')
+            THEN CAST(CAST(raw AS JSON) ->> 'order_number' AS TEXT)
           END AS order_id,
           CASE
             WHEN PG_INPUT_IS_VALID(
-              CASE
-                WHEN SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
-                OR SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
+              CAST(CASE
+                WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
                 THEN NULL
-                ELSE raw ->> 'created'
-              END,
+                ELSE CAST(raw AS JSON) ->> 'created'
+              END AS TEXT),
               'TIMESTAMP'
             )
             AND NOT LOWER(
-              CASE
-                WHEN SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
-                OR SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
+              CAST(CASE
+                WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
                 THEN NULL
-                ELSE raw ->> 'created'
-              END
+                ELSE CAST(raw AS JSON) ->> 'created'
+              END AS TEXT)
             ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-            THEN CAST(CASE
-              WHEN SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
-              OR SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
+            THEN CAST(CAST(CASE
+              WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
               THEN NULL
-              ELSE raw ->> 'created'
-            END AS TIMESTAMP)
+              ELSE CAST(raw AS JSON) ->> 'created'
+            END AS TEXT) AS TIMESTAMP)
           END AS placed_at,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'qty', 'BIGINT')
-            THEN CAST(raw ->> 'qty' AS BIGINT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'qty', 'BIGINT')
+            THEN CAST(CAST(raw AS JSON) ->> 'qty' AS BIGINT)
           END AS quantity,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'product_sku', 'TEXT')
-            THEN CAST(raw ->> 'product_sku' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'product_sku', 'TEXT')
+            THEN CAST(CAST(raw AS JSON) ->> 'product_sku' AS TEXT)
           END AS sku,
           CASE CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'state', 'TEXT')
-              THEN CAST(raw ->> 'state' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'state', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'state' AS TEXT)
             END
             WHEN 'PROCESSING'
             THEN 'open'
             WHEN 'COMPLETE'
             THEN 'closed'
             ELSE CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'state', 'TEXT')
-              THEN CAST(raw ->> 'state' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'state', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'state' AS TEXT)
             END
           END AS status,
           _ingested_at,
@@ -295,88 +295,88 @@ USING (
           _source_row_id,
           FALSE AS _branch_gift_note_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'item_index', 'BIGINT')
-            THEN CAST(raw ->> 'item_index' AS BIGINT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'item_index', 'BIGINT')
+            THEN CAST(CAST(raw AS JSON) ->> 'item_index' AS BIGINT)
           END IS NULL
           AND (
-            NOT raw ->> 'item_index' IS NULL
+            NOT CAST(raw AS JSON) ->> 'item_index' IS NULL
           ) AS _branch_line_no_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'order_number', 'TEXT')
-            THEN CAST(raw ->> 'order_number' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'order_number', 'TEXT')
+            THEN CAST(CAST(raw AS JSON) ->> 'order_number' AS TEXT)
           END IS NULL
           AND (
-            NOT raw ->> 'order_number' IS NULL
+            NOT CAST(raw AS JSON) ->> 'order_number' IS NULL
           ) AS _branch_order_id_coercible,
           CASE
             WHEN PG_INPUT_IS_VALID(
-              CASE
-                WHEN SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
-                OR SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
+              CAST(CASE
+                WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
                 THEN NULL
-                ELSE raw ->> 'created'
-              END,
+                ELSE CAST(raw AS JSON) ->> 'created'
+              END AS TEXT),
               'TIMESTAMP'
             )
             AND NOT LOWER(
-              CASE
-                WHEN SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
-                OR SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
+              CAST(CASE
+                WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
                 THEN NULL
-                ELSE raw ->> 'created'
-              END
+                ELSE CAST(raw AS JSON) ->> 'created'
+              END AS TEXT)
             ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-            THEN CAST(CASE
-              WHEN SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
-              OR SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
+            THEN CAST(CAST(CASE
+              WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
               THEN NULL
-              ELSE raw ->> 'created'
-            END AS TIMESTAMP)
+              ELSE CAST(raw AS JSON) ->> 'created'
+            END AS TEXT) AS TIMESTAMP)
           END IS NULL
           AND (
-            NOT raw ->> 'created' IS NULL
+            NOT CAST(raw AS JSON) ->> 'created' IS NULL
           ) AS _branch_placed_at_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'qty', 'BIGINT')
-            THEN CAST(raw ->> 'qty' AS BIGINT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'qty', 'BIGINT')
+            THEN CAST(CAST(raw AS JSON) ->> 'qty' AS BIGINT)
           END IS NULL
           AND (
-            NOT raw ->> 'qty' IS NULL
+            NOT CAST(raw AS JSON) ->> 'qty' IS NULL
           ) AS _branch_quantity_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(raw ->> 'product_sku', 'TEXT')
-            THEN CAST(raw ->> 'product_sku' AS TEXT)
+            WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'product_sku', 'TEXT')
+            THEN CAST(CAST(raw AS JSON) ->> 'product_sku' AS TEXT)
           END IS NULL
           AND (
-            NOT raw ->> 'product_sku' IS NULL
+            NOT CAST(raw AS JSON) ->> 'product_sku' IS NULL
           ) AS _branch_sku_coercible,
           CASE CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'state', 'TEXT')
-              THEN CAST(raw ->> 'state' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'state', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'state' AS TEXT)
             END
             WHEN 'PROCESSING'
             THEN 'open'
             WHEN 'COMPLETE'
             THEN 'closed'
             ELSE CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'state', 'TEXT')
-              THEN CAST(raw ->> 'state' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'state', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'state' AS TEXT)
             END
           END IS NULL
           AND (
-            NOT raw ->> 'state' IS NULL
+            NOT CAST(raw AS JSON) ->> 'state' IS NULL
           ) AS _branch_status_coercible,
           NOT CASE CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'state', 'TEXT')
-              THEN CAST(raw ->> 'state' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'state', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'state' AS TEXT)
             END
             WHEN 'PROCESSING'
             THEN 'open'
             WHEN 'COMPLETE'
             THEN 'closed'
             ELSE CASE
-              WHEN PG_INPUT_IS_VALID(raw ->> 'state', 'TEXT')
-              THEN CAST(raw ->> 'state' AS TEXT)
+              WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'state', 'TEXT')
+              THEN CAST(CAST(raw AS JSON) ->> 'state' AS TEXT)
             END
           END IN ('closed', 'open') AS _branch_status_in_enum,
           'woo__order_lines' AS _source
@@ -602,53 +602,53 @@ USING (
   FROM (
     SELECT
       CASE
-        WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note', 'TEXT')
-        THEN CAST(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(CAST(raw AS JSON) ->> 'properties' AS JSON) ->> 'gift_note', 'TEXT')
+        THEN CAST(CAST(CAST(raw AS JSON) ->> 'properties' AS JSON) ->> 'gift_note' AS TEXT)
       END AS gift_note,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'position', 'BIGINT')
-        THEN CAST(raw ->> 'position' AS BIGINT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'position', 'BIGINT')
+        THEN CAST(CAST(raw AS JSON) ->> 'position' AS BIGINT)
       END AS line_no,
       CASE
-        WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'order' AS JSON) ->> 'id', 'TEXT')
-        THEN CAST(CAST(raw ->> 'order' AS JSON) ->> 'id' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(CAST(raw AS JSON) ->> 'order' AS JSON) ->> 'id', 'TEXT')
+        THEN CAST(CAST(CAST(raw AS JSON) ->> 'order' AS JSON) ->> 'id' AS TEXT)
       END AS order_id,
       CASE
         WHEN PG_INPUT_IS_VALID(
-          CASE
-            WHEN SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
-            OR SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
+          CAST(CASE
+            WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
             THEN NULL
-            ELSE raw ->> 'created_at'
-          END,
+            ELSE CAST(raw AS JSON) ->> 'created_at'
+          END AS TEXT),
           'TIMESTAMP'
         )
         AND NOT LOWER(
-          CASE
-            WHEN SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
-            OR SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
+          CAST(CASE
+            WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
             THEN NULL
-            ELSE raw ->> 'created_at'
-          END
+            ELSE CAST(raw AS JSON) ->> 'created_at'
+          END AS TEXT)
         ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-        THEN CAST(CASE
-          WHEN SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
-          OR SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
+        THEN CAST(CAST(CASE
+          WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
+          OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
           THEN NULL
-          ELSE raw ->> 'created_at'
-        END AS TIMESTAMP)
+          ELSE CAST(raw AS JSON) ->> 'created_at'
+        END AS TEXT) AS TIMESTAMP)
       END AS placed_at,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'quantity', 'BIGINT')
-        THEN CAST(raw ->> 'quantity' AS BIGINT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'quantity', 'BIGINT')
+        THEN CAST(CAST(raw AS JSON) ->> 'quantity' AS BIGINT)
       END AS quantity,
       CASE
-        WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'variant' AS JSON) ->> 'sku', 'TEXT')
-        THEN CAST(CAST(raw ->> 'variant' AS JSON) ->> 'sku' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(CAST(raw AS JSON) ->> 'variant' AS JSON) ->> 'sku', 'TEXT')
+        THEN CAST(CAST(CAST(raw AS JSON) ->> 'variant' AS JSON) ->> 'sku' AS TEXT)
       END AS sku,
       CASE CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
-          THEN CAST(raw ->> 'financial_status' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'financial_status', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'financial_status' AS TEXT)
         END
         WHEN 'pending'
         THEN 'open'
@@ -657,79 +657,79 @@ USING (
         WHEN 'refunded'
         THEN 'reversed'
         ELSE CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
-          THEN CAST(raw ->> 'financial_status' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'financial_status', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'financial_status' AS TEXT)
         END
       END AS status,
       _ingested_at,
       _load_id,
       _source_row_id,
       CASE
-        WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note', 'TEXT')
-        THEN CAST(CAST(raw ->> 'properties' AS JSON) ->> 'gift_note' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(CAST(raw AS JSON) ->> 'properties' AS JSON) ->> 'gift_note', 'TEXT')
+        THEN CAST(CAST(CAST(raw AS JSON) ->> 'properties' AS JSON) ->> 'gift_note' AS TEXT)
       END IS NULL
       AND (
-        NOT CAST(raw ->> 'properties' AS JSON) ->> 'gift_note' IS NULL
+        NOT CAST(CAST(raw AS JSON) ->> 'properties' AS JSON) ->> 'gift_note' IS NULL
       ) AS _branch_gift_note_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'position', 'BIGINT')
-        THEN CAST(raw ->> 'position' AS BIGINT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'position', 'BIGINT')
+        THEN CAST(CAST(raw AS JSON) ->> 'position' AS BIGINT)
       END IS NULL
       AND (
-        NOT raw ->> 'position' IS NULL
+        NOT CAST(raw AS JSON) ->> 'position' IS NULL
       ) AS _branch_line_no_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'order' AS JSON) ->> 'id', 'TEXT')
-        THEN CAST(CAST(raw ->> 'order' AS JSON) ->> 'id' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(CAST(raw AS JSON) ->> 'order' AS JSON) ->> 'id', 'TEXT')
+        THEN CAST(CAST(CAST(raw AS JSON) ->> 'order' AS JSON) ->> 'id' AS TEXT)
       END IS NULL
       AND (
-        NOT CAST(raw ->> 'order' AS JSON) ->> 'id' IS NULL
+        NOT CAST(CAST(raw AS JSON) ->> 'order' AS JSON) ->> 'id' IS NULL
       ) AS _branch_order_id_coercible,
       CASE
         WHEN PG_INPUT_IS_VALID(
-          CASE
-            WHEN SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
-            OR SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
+          CAST(CASE
+            WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
             THEN NULL
-            ELSE raw ->> 'created_at'
-          END,
+            ELSE CAST(raw AS JSON) ->> 'created_at'
+          END AS TEXT),
           'TIMESTAMP'
         )
         AND NOT LOWER(
-          CASE
-            WHEN SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
-            OR SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
+          CAST(CASE
+            WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
             THEN NULL
-            ELSE raw ->> 'created_at'
-          END
+            ELSE CAST(raw AS JSON) ->> 'created_at'
+          END AS TEXT)
         ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-        THEN CAST(CASE
-          WHEN SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
-          OR SUBSTRING(CAST(raw ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
+        THEN CAST(CAST(CASE
+          WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%+%'
+          OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created_at' AS VARCHAR) FROM 11) LIKE '%-%'
           THEN NULL
-          ELSE raw ->> 'created_at'
-        END AS TIMESTAMP)
+          ELSE CAST(raw AS JSON) ->> 'created_at'
+        END AS TEXT) AS TIMESTAMP)
       END IS NULL
       AND (
-        NOT raw ->> 'created_at' IS NULL
+        NOT CAST(raw AS JSON) ->> 'created_at' IS NULL
       ) AS _branch_placed_at_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'quantity', 'BIGINT')
-        THEN CAST(raw ->> 'quantity' AS BIGINT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'quantity', 'BIGINT')
+        THEN CAST(CAST(raw AS JSON) ->> 'quantity' AS BIGINT)
       END IS NULL
       AND (
-        NOT raw ->> 'quantity' IS NULL
+        NOT CAST(raw AS JSON) ->> 'quantity' IS NULL
       ) AS _branch_quantity_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(CAST(raw ->> 'variant' AS JSON) ->> 'sku', 'TEXT')
-        THEN CAST(CAST(raw ->> 'variant' AS JSON) ->> 'sku' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(CAST(raw AS JSON) ->> 'variant' AS JSON) ->> 'sku', 'TEXT')
+        THEN CAST(CAST(CAST(raw AS JSON) ->> 'variant' AS JSON) ->> 'sku' AS TEXT)
       END IS NULL
       AND (
-        NOT CAST(raw ->> 'variant' AS JSON) ->> 'sku' IS NULL
+        NOT CAST(CAST(raw AS JSON) ->> 'variant' AS JSON) ->> 'sku' IS NULL
       ) AS _branch_sku_coercible,
       CASE CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
-          THEN CAST(raw ->> 'financial_status' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'financial_status', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'financial_status' AS TEXT)
         END
         WHEN 'pending'
         THEN 'open'
@@ -738,16 +738,16 @@ USING (
         WHEN 'refunded'
         THEN 'reversed'
         ELSE CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
-          THEN CAST(raw ->> 'financial_status' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'financial_status', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'financial_status' AS TEXT)
         END
       END IS NULL
       AND (
-        NOT raw ->> 'financial_status' IS NULL
+        NOT CAST(raw AS JSON) ->> 'financial_status' IS NULL
       ) AS _branch_status_coercible,
       NOT CASE CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
-          THEN CAST(raw ->> 'financial_status' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'financial_status', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'financial_status' AS TEXT)
         END
         WHEN 'pending'
         THEN 'open'
@@ -756,8 +756,8 @@ USING (
         WHEN 'refunded'
         THEN 'reversed'
         ELSE CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'financial_status', 'TEXT')
-          THEN CAST(raw ->> 'financial_status' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'financial_status', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'financial_status' AS TEXT)
         END
       END IN ('closed', 'open', 'reversed') AS _branch_status_in_enum,
       'shopify__order_lines' AS _source
@@ -768,57 +768,57 @@ USING (
     SELECT
       CAST(NULL AS TEXT) AS gift_note,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'item_index', 'BIGINT')
-        THEN CAST(raw ->> 'item_index' AS BIGINT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'item_index', 'BIGINT')
+        THEN CAST(CAST(raw AS JSON) ->> 'item_index' AS BIGINT)
       END AS line_no,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'order_number', 'TEXT')
-        THEN CAST(raw ->> 'order_number' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'order_number', 'TEXT')
+        THEN CAST(CAST(raw AS JSON) ->> 'order_number' AS TEXT)
       END AS order_id,
       CASE
         WHEN PG_INPUT_IS_VALID(
-          CASE
-            WHEN SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
-            OR SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
+          CAST(CASE
+            WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
             THEN NULL
-            ELSE raw ->> 'created'
-          END,
+            ELSE CAST(raw AS JSON) ->> 'created'
+          END AS TEXT),
           'TIMESTAMP'
         )
         AND NOT LOWER(
-          CASE
-            WHEN SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
-            OR SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
+          CAST(CASE
+            WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
             THEN NULL
-            ELSE raw ->> 'created'
-          END
+            ELSE CAST(raw AS JSON) ->> 'created'
+          END AS TEXT)
         ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-        THEN CAST(CASE
-          WHEN SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
-          OR SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
+        THEN CAST(CAST(CASE
+          WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
+          OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
           THEN NULL
-          ELSE raw ->> 'created'
-        END AS TIMESTAMP)
+          ELSE CAST(raw AS JSON) ->> 'created'
+        END AS TEXT) AS TIMESTAMP)
       END AS placed_at,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'qty', 'BIGINT')
-        THEN CAST(raw ->> 'qty' AS BIGINT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'qty', 'BIGINT')
+        THEN CAST(CAST(raw AS JSON) ->> 'qty' AS BIGINT)
       END AS quantity,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'product_sku', 'TEXT')
-        THEN CAST(raw ->> 'product_sku' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'product_sku', 'TEXT')
+        THEN CAST(CAST(raw AS JSON) ->> 'product_sku' AS TEXT)
       END AS sku,
       CASE CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'state', 'TEXT')
-          THEN CAST(raw ->> 'state' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'state', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'state' AS TEXT)
         END
         WHEN 'PROCESSING'
         THEN 'open'
         WHEN 'COMPLETE'
         THEN 'closed'
         ELSE CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'state', 'TEXT')
-          THEN CAST(raw ->> 'state' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'state', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'state' AS TEXT)
         END
       END AS status,
       _ingested_at,
@@ -826,88 +826,88 @@ USING (
       _source_row_id,
       FALSE AS _branch_gift_note_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'item_index', 'BIGINT')
-        THEN CAST(raw ->> 'item_index' AS BIGINT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'item_index', 'BIGINT')
+        THEN CAST(CAST(raw AS JSON) ->> 'item_index' AS BIGINT)
       END IS NULL
       AND (
-        NOT raw ->> 'item_index' IS NULL
+        NOT CAST(raw AS JSON) ->> 'item_index' IS NULL
       ) AS _branch_line_no_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'order_number', 'TEXT')
-        THEN CAST(raw ->> 'order_number' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'order_number', 'TEXT')
+        THEN CAST(CAST(raw AS JSON) ->> 'order_number' AS TEXT)
       END IS NULL
       AND (
-        NOT raw ->> 'order_number' IS NULL
+        NOT CAST(raw AS JSON) ->> 'order_number' IS NULL
       ) AS _branch_order_id_coercible,
       CASE
         WHEN PG_INPUT_IS_VALID(
-          CASE
-            WHEN SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
-            OR SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
+          CAST(CASE
+            WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
             THEN NULL
-            ELSE raw ->> 'created'
-          END,
+            ELSE CAST(raw AS JSON) ->> 'created'
+          END AS TEXT),
           'TIMESTAMP'
         )
         AND NOT LOWER(
-          CASE
-            WHEN SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
-            OR SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
+          CAST(CASE
+            WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
             THEN NULL
-            ELSE raw ->> 'created'
-          END
+            ELSE CAST(raw AS JSON) ->> 'created'
+          END AS TEXT)
         ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-        THEN CAST(CASE
-          WHEN SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
-          OR SUBSTRING(CAST(raw ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
+        THEN CAST(CAST(CASE
+          WHEN SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%+%'
+          OR SUBSTRING(CAST(CAST(raw AS JSON) ->> 'created' AS VARCHAR) FROM 11) LIKE '%-%'
           THEN NULL
-          ELSE raw ->> 'created'
-        END AS TIMESTAMP)
+          ELSE CAST(raw AS JSON) ->> 'created'
+        END AS TEXT) AS TIMESTAMP)
       END IS NULL
       AND (
-        NOT raw ->> 'created' IS NULL
+        NOT CAST(raw AS JSON) ->> 'created' IS NULL
       ) AS _branch_placed_at_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'qty', 'BIGINT')
-        THEN CAST(raw ->> 'qty' AS BIGINT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'qty', 'BIGINT')
+        THEN CAST(CAST(raw AS JSON) ->> 'qty' AS BIGINT)
       END IS NULL
       AND (
-        NOT raw ->> 'qty' IS NULL
+        NOT CAST(raw AS JSON) ->> 'qty' IS NULL
       ) AS _branch_quantity_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(raw ->> 'product_sku', 'TEXT')
-        THEN CAST(raw ->> 'product_sku' AS TEXT)
+        WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'product_sku', 'TEXT')
+        THEN CAST(CAST(raw AS JSON) ->> 'product_sku' AS TEXT)
       END IS NULL
       AND (
-        NOT raw ->> 'product_sku' IS NULL
+        NOT CAST(raw AS JSON) ->> 'product_sku' IS NULL
       ) AS _branch_sku_coercible,
       CASE CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'state', 'TEXT')
-          THEN CAST(raw ->> 'state' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'state', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'state' AS TEXT)
         END
         WHEN 'PROCESSING'
         THEN 'open'
         WHEN 'COMPLETE'
         THEN 'closed'
         ELSE CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'state', 'TEXT')
-          THEN CAST(raw ->> 'state' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'state', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'state' AS TEXT)
         END
       END IS NULL
       AND (
-        NOT raw ->> 'state' IS NULL
+        NOT CAST(raw AS JSON) ->> 'state' IS NULL
       ) AS _branch_status_coercible,
       NOT CASE CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'state', 'TEXT')
-          THEN CAST(raw ->> 'state' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'state', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'state' AS TEXT)
         END
         WHEN 'PROCESSING'
         THEN 'open'
         WHEN 'COMPLETE'
         THEN 'closed'
         ELSE CASE
-          WHEN PG_INPUT_IS_VALID(raw ->> 'state', 'TEXT')
-          THEN CAST(raw ->> 'state' AS TEXT)
+          WHEN PG_INPUT_IS_VALID(CAST(raw AS JSON) ->> 'state', 'TEXT')
+          THEN CAST(CAST(raw AS JSON) ->> 'state' AS TEXT)
         END
       END IN ('closed', 'open') AS _branch_status_in_enum,
       'woo__order_lines' AS _source
