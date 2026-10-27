@@ -35,7 +35,7 @@ current_state: |-
   **Measured.** The three drivers bloomery's engine tier uses declare `duckdb.paramstyle == "qmark"`, `psycopg.paramstyle == "pyformat"` and `trino.dbapi.paramstyle == "qmark"`. SQLGlot 30.8 renders `exp.Placeholder(this="p1")` as `$p1` on DuckDB, `%(p1)s` on PostgreSQL and Redshift, `:p1` on Trino, Snowflake and Databricks, and `@p1` on BigQuery: the dialect picks one spelling, while the driver is what reads it.
 goals: |-
   - A runtime executes a plan through a binding driver with the plan's own parameters and no text surgery.
-  - Two requests that differ only in filter values plan to the same text and the same fingerprint.
+  - Two requests that differ only in filter values plan to the same text and the same `shape`, while `fingerprint` still tells them apart.
   - A caller that executes `plan.sql` as it does today sees no change.
 non_goals: |-
   - **Binding a metric's spec `filter:`.** Its values are compiled into the manifest, are part of the metric's definition, and have one renderer (S-0050/D-15).
@@ -69,14 +69,13 @@ design:
       `%` left is the spec's own: a metric filter's LIKE pattern or a modulo in a
       measure (D-5).
   - key: the-fingerprint
-    md: >-
-      `fingerprint` stays `sha256(sql)`. With binds the text no longer carries values,
-      so the fingerprint names the request's shape and is equal across values; inline,
-      it is what it is today (D-6). The paramstyle is part of the text, so one shape
-      has one fingerprint per style.
+    md: |-
+      `fingerprint` keeps the meaning the planner how-to documents: it identifies the query, and a result cache keys on it together with the data's freshness. Under binds it is therefore `sha256` over the text **and** the bound values in a canonical encoding, so two requests that differ only in values still fingerprint differently and a result cache never returns one filter's rows for another. Inline it is `sha256(sql)`, exactly as today (D-6).
+
+      `QueryPlan.shape` is `sha256(sql)` alone: the text with the values out of it, equal for every request of one shape, which is the key for a prepared statement or a plan cache. Inline, `shape` and `fingerprint` are one value. The paramstyle is part of the text, so one shape has one `shape` per style.
 tests: |-
   - Unit: `to_where` with each paramstyle over every op, an `in` list, a LIKE pattern carrying `%` and `_`, and the row policy first (D-2, D-3).
-  - Unit: two requests differing only in values plan to one text and one fingerprint under binds, and to two inline (D-6).
+  - Unit: two requests differing only in values plan to one text and one `shape` under binds, with two fingerprints; inline, `shape` equals `fingerprint` and both match today's `sha256(sql)` (D-6).
   - Unit: under `pyformat`, a metric filter's `%` and a modulo in a measure are doubled, and a request's `%` never reaches the text (D-5).
   - Execution on DuckDB: every planner execution case runs bound under `qmark` and returns the inline rows (D-1, D-4).
   - Engine differential on PostgreSQL 16 through psycopg (`pyformat`) and Trino 483 (`qmark`): the same requests, bound and inline, return the same rows, dates, timestamps and decimals included (D-7).
@@ -91,7 +90,7 @@ out_of_scope: |-
 risks: |-
   - **A marker MetricFlow rewrites.** The markers pass through MetricFlow's where-filter parsing as text; an upgrade that quoted or reordered them would lose binds. Phase 1 pins that every marker reaches the rendered SQL exactly once.
   - **Typed binds differ by driver.** A driver may send a `datetime` with a zone or a `Decimal` as float; the engine differential is the guard, and a driver it does not run is the caller's to check.
-  - **Two styles, two texts.** A runtime switching paramstyle sees new fingerprints, which is correct but can look like a cache bust.
+  - **Two styles, two texts.** A runtime switching paramstyle sees new shapes and fingerprints, which is correct but can look like a cache bust.
 alternatives:
   - option: Derive the placeholder style from the dialect.
     rejected_because: >-

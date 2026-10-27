@@ -88,17 +88,23 @@ decisions:
   - id: D-6
     grade: ASSUMED
     text: >-
-      `QueryPlan.fingerprint` stays `sha256(sql)`; under binds it is equal for requests
-      that differ only in bound values
+      `QueryPlan.fingerprint` identifies the query including its bound values: `sha256`
+      over the text and the params in a canonical encoding under binds, `sha256(sql)`
+      inline. `QueryPlan.shape` is `sha256(sql)` alone, equal for requests that differ
+      only in bound values
     paths:
       - src/bloomery/planner/metricflow_planner.py
+      - src/bloomery/planner/result.py
       - tests/unit/test_planner/test_binds.py
     consequence: >-
-      A runtime keys a plan cache or a prepared statement on the fingerprint; inline,
-      the fingerprint is what it is today
+      A result cache keyed on `fingerprint` with the data's freshness, as the planner
+      how-to documents, never serves one filter's rows for another; a runtime keys
+      a prepared statement or a plan cache on `shape`; inline, both are today's fingerprint
     rationale: >-
-      The definition already names the text, and with values out of the text the text
-      is the shape. A second fingerprint field would be two names for one hash
+      The how-to's contract is that the fingerprint identifies the query, and a result
+      cache rests on it: with values out of the text, `sha256(sql)` alone would collide
+      across filters. The shape the issue asks for is a different fact, so it is a
+      different field
     cites: [S-0028/D-2]
   - id: D-7
     grade: ASSUMED
