@@ -48,3 +48,184 @@ amendments:
       S-0084, accepted by the owner on 2026-10-01, answers S-0033/Q-5 in S-0084/D-2:
       `coverage:` counts admitted rows on both sides and has no 'exists' form, so
       a check phrased 'has an order' is correct and D-90 stands.
+  - id: A-5
+    at: '2026-10-27T12:13:14Z'
+    title: Malformed JSON in bronze is a coercion failure
+    changes:
+      - subject: D-98
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-98
+        field: paths
+        before: []
+        after: [src/bloomery/resolve/build.py, src/bloomery/dialects/base.py]
+      - subject: D-98
+        field: text
+        before: <decision>
+        after: >-
+          On an entity in the quality system, a bronze column read through a JSON
+          path is guarded by the port's JSON validity check, so a value that is not
+          JSON reads NULL instead of aborting the run. Outside the quality system
+          the read stays produce-or-raise, as a plain cast does (D-3, D-24)
+      - subject: D-98
+        field: fingerprint
+        after: 602fffe58ee3013b/1dfc0b036c094a77
+    md: >-
+      Reported in review of #316 (CodeRabbit) and taken up by the owner: malformed
+      JSON in a bronze column aborts the run on DuckDB and PostgreSQL, even inside
+      the quality system, where a bad value is meant to become a quarantined row.
+      D-98 to D-101 make it a coercion failure on a quality-carrying entity, through
+      the rule that already owns coercion. The `json_path` transform over a `string`
+      input is out of scope: it is declared `nullifies` (D-73), so `coercible` already
+      skips it, and whether a malformed input to it should fail the row is a separate
+      question. D-98 to D-100 are implemented by the change that follows this amendment;
+      the document's phases all landed before it, so its implementation field stays
+      `complete`, as torve's spec check asks of a document whose phases have landed.
+  - id: A-6
+    at: '2026-10-27T12:13:21Z'
+    title: Malformed JSON in bronze is a coercion failure
+    changes:
+      - subject: D-99
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-99
+        field: paths
+        before: []
+        after:
+          - src/bloomery/quality/predicates.py
+          - tests/unit/test_quality/test_predicates.py
+      - subject: D-99
+        field: text
+        before: <decision>
+        after: >-
+          `coercible` counts a JSON-path source as present when its bronze column
+          is present and not valid JSON. A row whose column is not JSON then fails
+          `coercible` on every field read through that column, at that rule's disposition
+          (default `quarantine`), while a NULL column and a missing key stay legitimate
+          NULLs. No rule kind is added (D-5)
+      - subject: D-99
+        field: fingerprint
+        after: 460d1c948018de06/3edb8b9bee8b37b8
+    md: >-
+      The marker half of A-5: without it, the guard of D-98 would turn an abort into
+      a silent NULL.
+  - id: A-7
+    at: '2026-10-27T12:13:28Z'
+    title: Malformed JSON in bronze is a coercion failure
+    changes:
+      - subject: D-100
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-100
+        field: paths
+        before: []
+        after:
+          - src/bloomery/dialects/duckdb.py
+          - src/bloomery/dialects/postgres.py
+          - src/bloomery/dialects/trino.py
+          - tests/unit/test_dialects/test_base.py
+      - subject: D-100
+        field: text
+        before: <decision>
+        after: >-
+          `DialectPort.json_valid` is each port's check: DuckDB's `json_valid(x)`,
+          PostgreSQL's `pg_input_is_valid(x, 'json')` and Trino's `TRY(json_parse(x))
+          IS NOT NULL`, each measured in the engine tier against one malformed corpus.
+          Snowflake, BigQuery, Databricks and Redshift keep today's behaviour until
+          a check is measured on each engine
+      - subject: D-100
+        field: fingerprint
+        after: 13d260a53fe94ded/a55987d95d7cf37c
+    md: >-
+      The per-port check behind D-98 and D-99, and the ports it does not yet reach.
+  - id: A-8
+    at: '2026-10-27T12:13:35Z'
+    title: Malformed JSON in bronze is a coercion failure
+    changes:
+      - subject: D-101
+        field: paths
+        before: []
+        after: [src/bloomery/dialects/redshift.py]
+      - subject: D-101
+        field: text
+        before: <decision>
+        after: >-
+          Whether Redshift stops passing `null_if_invalid` to `JSON_EXTRACT_PATH_TEXT`
+          outside the quality system. With it, a malformed value reads NULL silently
+          on Redshift alone, against produce-or-raise everywhere else; without it,
+          Redshift raises as the others do. Decided on the Redshift live lane, where
+          the change can be measured
+      - subject: D-101
+        field: fingerprint
+        after: 0e5a745ff94ac952/a2649a7c31bd38b4
+    md: >-
+      Left open: the one port that already reads malformed JSON as NULL, outside the
+      quality system too.
+  - id: A-9
+    at: '2026-10-27T14:50:36Z'
+    title: 'Review: what the marker reads, and which ports'
+    changes:
+      - subject: D-99
+        field: text
+        before: >-
+          `coercible` counts a JSON-path source as present when its bronze column
+          is present and not valid JSON. A row whose column is not JSON then fails
+          `coercible` on every field read through that column, at that rule's disposition
+          (default `quarantine`), while a NULL column and a missing key stay legitimate
+          NULLs. No rule kind is added (D-5)
+        after: >-
+          On a port that declares the check of D-100, `coercible` gains a disjunct
+          for a JSON-path source: its bronze column is present and not valid JSON.
+          It holds whatever the projection is, so a chain that replaces a NULL (`coalesce`)
+          cannot hide it, and a field whose chain nulls on purpose, which carries
+          no `coercible` under D-73, gains one that reads this disjunct alone. A row
+          whose column is not JSON then fails `coercible` on every field read through
+          that column, at that rule's disposition (default `quarantine`), while a
+          NULL column and a missing key stay legitimate NULLs. No rule kind is added
+          (D-5)
+      - subject: D-99
+        field: fingerprint
+        before: 460d1c948018de06/3edb8b9bee8b37b8
+        after: d1a0f3897ac6de31/3edb8b9bee8b37b8
+    md: >-
+      Review of #328 (codeant). D-99 promised a failure on every field read through
+      a malformed column, and two cases broke it. A `coalesce` replaces the guarded
+      NULL, and the marker fired only on a NULL projection. A nulling chain (`nullif`,
+      `split_part`, `regex_extract`, `convert`) carries no `coercible` at all under
+      D-73. The malformed-JSON condition is now a disjunct of its own, independent
+      of the projection, and a nulling chain's field gains a `coercible` reading that
+      disjunct alone. D-99 also says it applies only on a port with D-100's check:
+      on Redshift a malformed read is already a silent NULL (D-101), and the marker
+      sees no evidence there.
+  - id: A-10
+    at: '2026-10-27T14:50:43Z'
+    title: 'Review: what the marker reads, and which ports'
+    changes:
+      - subject: D-100
+        field: text
+        before: >-
+          `DialectPort.json_valid` is each port's check: DuckDB's `json_valid(x)`,
+          PostgreSQL's `pg_input_is_valid(x, 'json')` and Trino's `TRY(json_parse(x))
+          IS NOT NULL`, each measured in the engine tier against one malformed corpus.
+          Snowflake, BigQuery, Databricks and Redshift keep today's behaviour until
+          a check is measured on each engine
+        after: >-
+          `DialectPort.json_valid` is each port's check: DuckDB's `json_valid(x)`,
+          PostgreSQL's `pg_input_is_valid(CAST(x AS TEXT), 'json')` and Trino's `TRY(json_parse(x))
+          IS NOT NULL`, each measured in the engine tier against one malformed corpus.
+          PostgreSQL reads the column's text because `pg_input_is_valid` takes text
+          only, so a bronze column landed as `json` or `jsonb` passes as the valid
+          JSON it is. Snowflake, BigQuery, Databricks and Redshift keep today's behaviour
+          until a check is measured on each engine, and D-99 does not apply there
+      - subject: D-100
+        field: fingerprint
+        before: 13d260a53fe94ded/a55987d95d7cf37c
+        after: 6e90aeb9dc7890e3/a55987d95d7cf37c
+    md: >-
+      Review of #328 (codeant): `pg_input_is_valid` takes text only, the lesson of
+      #306, so a bronze column landed as `json` or `jsonb` would have made the check
+      itself fail. The PostgreSQL check reads the column's text. D-100 also says outright
+      that D-99 does not apply on the ports it does not reach.
