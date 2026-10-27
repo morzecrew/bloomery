@@ -131,7 +131,7 @@ malformed `nulls`, `limit`, or `offset` value is `InvalidRequest`).
 
 | Field | What it carries |
 |---|---|
-| `sql` | The rendered SQL text — runnable as-is on the requested dialect |
+| `sql` | The rendered SQL text — a complete statement, runnable as-is on the requested dialect. Filter values are inlined as escaped literals and bloomery adds no bind placeholders, so [execute it with no parameters](#executing-the-sql) |
 | `columns` | Self-describing output envelope: one `ColumnDescriptor(name, type, role)` per output column, in bloomery names (`ordered_month`, never MetricFlow's internal names) |
 | `mart` | The serving mart's logical name — the first of `marts` |
 | `marts` | Every mart the plan read: one name, or one per branch when the measures span grains |
@@ -139,6 +139,20 @@ malformed `nulls`, `limit`, or `offset` value is `InvalidRequest`).
 | `explanation` | Deterministic provenance — `explanation.render()` gives the human-readable block |
 | `fingerprint` | `sha256(sql)`: identical requests over identical specs give the same value, so it identifies the query; a result cache keys on it together with the data's freshness |
 | `semantic` | The derivation: what bloomery decided to compute, and the rule authorizing each step |
+
+### Executing the SQL
+
+`plan.sql` needs no parameters, and for some drivers an empty parameter set is not the same
+as none. psycopg reads placeholders only when it is given parameters: `execute(plan.sql)`
+sends the text as written, while `execute(plan.sql, {})` reads the `%` in a filter's
+`LIKE 'con%'` as a placeholder and refuses the statement. Call your driver's parameterless
+form. If your runtime always binds, escape the text for its placeholder syntax; for
+psycopg, `%` becomes `%%`. A `RowPolicy` predicate is SQL you wrote, so it carries whatever
+placeholders you put in it.
+
+The fingerprint is `sha256(sql)`, and the literals are part of that text: two requests that
+differ only in a filter value get different fingerprints, which is what makes it safe as a
+result-cache key.
 
 The explanation is generated from the plan, never from a model — every number ships
 with how it was computed:
