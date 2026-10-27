@@ -122,3 +122,32 @@ def test_a_subquery_s_own_columns_are_not_respelled() -> None:
     node = parse_one("quantity * (SELECT MAX(quantity) FROM other)")
 
     assert bind_columns(node, {"quantity": "qty"}).sql() == "qty * (SELECT MAX(quantity) FROM other)"
+
+
+def test_the_build_and_its_readers_bind_from_one_set_of_names() -> None:
+    """A required metric named like the bound field (`qty`) strands the binding
+    of `quantity` for any reader that sees `requires_metrics` too. The build
+    used `requires` alone and bound it, while the units guard and `unbound` read
+    `depends_on` and did not, so money beside `qty` went unchecked. Bound from
+    one set, the expression keeps `quantity`, which the mart lacks: refused by
+    name rather than passed blind (CodeRabbit on #341)."""
+    sources = _renamed()
+    sources["metrics"] += (
+        "  qty: {grain: order_item, additivity: additive, agg: count, expr: line_no}\n"
+        "  priced:\n"
+        "    requires: [unit_price, quantity]\n"
+        "    requires_metrics: [qty]\n"
+        "    grain: order_item\n"
+        "    additivity: additive\n"
+        "    agg: sum\n"
+        '    expr: "unit_price + quantity"\n'
+    )
+    sources["marts"] = sources["marts"].replace(
+        "measures: [gross_revenue]", "measures: [gross_revenue, priced]", 1
+    )
+    _project, catalog = load_fixture("ecom_basic")
+
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+
+    assert any("'quantity'" in str(leaf) and "S-0050/D-16" in str(leaf) for leaf in excinfo.value.collected)

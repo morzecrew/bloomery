@@ -2463,8 +2463,13 @@ def _build_metrics(
                     canon(
                         bind_columns(
                             cast("Expression", parse_one(metric.expr)),
+                            # From `depends_on`'s names, which the units guard and
+                            # `unbound` read too: bound from `requires` alone, a
+                            # required metric named like the bound field stranded
+                            # the binding for them and not for this.
                             canonical_bindings(
-                                metric.requires, columns.get(metric.grain or "", ())
+                                tuple(sorted({*metric.requires, *metric.requires_metrics})),
+                                columns.get(metric.grain or "", ()),
                             ),
                         )
                     )
