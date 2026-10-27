@@ -136,3 +136,62 @@ decisions:
       Settled at implementation: the question's current answer was kept, and `test_every_flattened_column_is_a_requestable_dimension`
       pins dimensions equal to columns for plain and bucket columns alike
     cites: [D-5, D-6]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      **A `date:` step may name a column flattened through a `many_to_one` or `one_to_one`
+      step, not only a base column.** The column is looked up among those flattened
+      before the step, the base entity's own and every prefixed one, and must still
+      be `date` or `timestamp` typed. Its buckets trace to the joined entity's column,
+      so the zone guard reads that entity's clock. A `date:` naming a column a later
+      step flattens is refused as a column that does not exist yet. `as_of` stays
+      base-only (S-0040/D-8)
+    paths:
+      - src/bloomery/marts/flatten.py
+      - tests/unit/test_marts/test_flatten.py
+      - pages/docs/concepts/wide-marts.md
+    consequence: >-
+      A line-grain mart flattening `line_of_order` with `prefix: order_` can declare
+      `{date: order_ordered_at, role: ordered}`, and a project no longer copies the
+      document's date onto every line at ingestion. A line whose order is missing
+      gets a NULL bucket from the LEFT JOIN, as a NULL base date already does; a `referential`
+      rule on the line's order key is how a project rules that out
+    rationale: >-
+      No row required a base column. The date-roles section and validation item 4
+      say only that the source is date or timestamp typed, and the lookup in `marts/flatten.py`
+      has read `base.columns` since the first mart commit without a stated reason.
+      A column flattened through a to-one step is single-valued per base row by the
+      cardinality S-0007/D-1 makes the author declare and D-3 enforces, and it is
+      already a requestable dimension (D-10), so truncating it keeps the mart at its
+      base grain. The bucket traces to the joined entity because the zone guard finds
+      a timestamp's declared clock through the column's entity: recording the prefixed
+      name on the base would let an undeclared clock on the joined entity pass unrefused
+    cites: [D-3, D-4, D-10, S-0007/D-1, S-0040/D-8]
+    fingerprint: da2250c300fb94e0/c74bf6caccf51e59
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      **`MartColumnIR` records the join that owns a date bucket, and `bloomery_ir_version`
+      moves 26 → 27 with the field.** `via: str | None` is the prefix of the join
+      whose column a bucket truncates, `None` for the base. The emitters read it rather
+      than guessing the owner from the entity, which is ambiguous when one entity
+      is flattened twice under two prefixes
+    paths:
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/emit/lower/marts.py
+      - tests/unit/test_ir/**
+    consequence: >-
+      Every project's fingerprint moves once, and `plan()` refuses to diff a version
+      26 IR against a version 27 one, which is the refusal that makes the change loud.
+      A base bucket carries `via: None` and its SQL does not change
+    rationale: >-
+      `_column_owner` in `emit/lower/marts.py` answers the base for every bucket and
+      looks a prefixed column's join up by its name, which a bucket (`ordered_day`)
+      does not carry. The joined entity alone does not name the join when an entity
+      is flattened twice, `billing_` and `shipping_` over one address, so the owner
+      has to be recorded where the flattener knows it. The canonical encoder writes
+      each dataclass's field names and count, so the field moves every fingerprint
+      whether or not a project uses it, and every IR addition of this shape has bumped
+      the version (S-0079/D-2)
+    cites: [D-11, S-0020/D-3, S-0079/D-2]
+    fingerprint: 1d2f3194b3e147c6/2359deb9b293a7cb

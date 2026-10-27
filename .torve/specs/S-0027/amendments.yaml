@@ -15,3 +15,74 @@ amendments:
       Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
 
       - D-10 answers Q-1.
+  - id: A-2
+    at: '2026-10-27T10:07:59Z'
+    title: >-
+      A date role over a column flattened through a to-one step
+    changes:
+      - subject: D-11
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-11
+        field: paths
+        before: []
+        after:
+          - src/bloomery/marts/flatten.py
+          - tests/unit/test_marts/test_flatten.py
+          - pages/docs/concepts/wide-marts.md
+      - subject: D-11
+        field: text
+        before: <decision>
+        after: >-
+          **A `date:` step may name a column flattened through a `many_to_one` or
+          `one_to_one` step, not only a base column.** The column is looked up among
+          those flattened before the step, the base entity's own and every prefixed
+          one, and must still be `date` or `timestamp` typed. Its buckets trace to
+          the joined entity's column, so the zone guard reads that entity's clock.
+          A `date:` naming a column a later step flattens is refused as a column that
+          does not exist yet. `as_of` stays base-only (S-0040/D-8)
+      - subject: D-11
+        field: fingerprint
+        after: da2250c300fb94e0/c74bf6caccf51e59
+    md: |-
+      Issue #310: a line-grain mart cannot use its order's date as a date role, so a project copies the document's date onto every line at ingestion, spreading one fact across many rows and across the mapping. D-11 lets a `date:` step name a column a to-one step flattened. No row required a base column; the lookup in `marts/flatten.py` did.
+
+      `as_of` (S-0040/D-8) is not touched. It anchors a type 2 join, and whether a joined entity's column may anchor one is a separate question.
+
+      The date-roles section's sentence on the source column's type stands; D-11 adds where the column may come from.
+  - id: A-3
+    at: '2026-10-27T10:08:38Z'
+    title: A date bucket records the join that owns it
+    changes:
+      - subject: D-12
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-12
+        field: paths
+        before: []
+        after:
+          - src/bloomery/ir/nodes.py
+          - src/bloomery/emit/lower/marts.py
+          - tests/unit/test_ir/**
+      - subject: D-12
+        field: text
+        before: <decision>
+        after: >-
+          **`MartColumnIR` records the join that owns a date bucket, and `bloomery_ir_version`
+          moves 26 → 27 with the field.** `via: str | None` is the prefix of the join
+          whose column a bucket truncates, `None` for the base. The emitters read
+          it rather than guessing the owner from the entity, which is ambiguous when
+          one entity is flattened twice under two prefixes
+      - subject: D-12
+        field: fingerprint
+        after: 1d2f3194b3e147c6/2359deb9b293a7cb
+    md: >-
+      The SQLMesh and dbt lowerings find a column's owning join through `_column_owner`,
+      which answers the base for every bucket. D-12 records the owner on the column
+      instead. Measured while triaging #310, with the lookup relaxed in a scratch
+      copy and a spec that declares its zone: MetricFlow and Cube compiled unchanged,
+      and SQLMesh and dbt stopped in `_column_owner` with `InvariantViolated`. On
+      a spec that did not declare its zone, the zone guard refused the joined entity's
+      wall clock, which is the refusal D-11's tracing keeps.
