@@ -30,26 +30,50 @@ FROM (
     ) AS _win_code_quar_unique
   FROM (
     SELECT
-      CASE WHEN PG_INPUT_IS_VALID(code_fail, 'TEXT') THEN CAST(code_fail AS TEXT) END AS code_fail,
-      CASE WHEN PG_INPUT_IS_VALID(code_flag, 'TEXT') THEN CAST(code_flag AS TEXT) END AS code_flag,
-      CASE WHEN PG_INPUT_IS_VALID(code_id, 'TEXT') THEN CAST(code_id AS TEXT) END AS code_id,
-      CASE WHEN PG_INPUT_IS_VALID(code_quar, 'TEXT') THEN CAST(code_quar AS TEXT) END AS code_quar,
+      CASE
+        WHEN PG_INPUT_IS_VALID(CAST(code_fail AS TEXT), 'TEXT')
+        THEN CAST(code_fail AS TEXT)
+      END AS code_fail,
+      CASE
+        WHEN PG_INPUT_IS_VALID(CAST(code_flag AS TEXT), 'TEXT')
+        THEN CAST(code_flag AS TEXT)
+      END AS code_flag,
+      CASE
+        WHEN PG_INPUT_IS_VALID(CAST(code_id AS TEXT), 'TEXT')
+        THEN CAST(code_id AS TEXT)
+      END AS code_id,
+      CASE
+        WHEN PG_INPUT_IS_VALID(CAST(code_quar AS TEXT), 'TEXT')
+        THEN CAST(code_quar AS TEXT)
+      END AS code_quar,
       _ingested_at,
       _load_id,
       _source_row_id,
-      CASE WHEN PG_INPUT_IS_VALID(code_fail, 'TEXT') THEN CAST(code_fail AS TEXT) END IS NULL
+      CASE
+        WHEN PG_INPUT_IS_VALID(CAST(code_fail AS TEXT), 'TEXT')
+        THEN CAST(code_fail AS TEXT)
+      END IS NULL
       AND (
         NOT code_fail IS NULL
       ) AS _branch_code_fail_coercible,
-      CASE WHEN PG_INPUT_IS_VALID(code_flag, 'TEXT') THEN CAST(code_flag AS TEXT) END IS NULL
+      CASE
+        WHEN PG_INPUT_IS_VALID(CAST(code_flag AS TEXT), 'TEXT')
+        THEN CAST(code_flag AS TEXT)
+      END IS NULL
       AND (
         NOT code_flag IS NULL
       ) AS _branch_code_flag_coercible,
-      CASE WHEN PG_INPUT_IS_VALID(code_id, 'TEXT') THEN CAST(code_id AS TEXT) END IS NULL
+      CASE
+        WHEN PG_INPUT_IS_VALID(CAST(code_id AS TEXT), 'TEXT')
+        THEN CAST(code_id AS TEXT)
+      END IS NULL
       AND (
         NOT code_id IS NULL
       ) AS _branch_code_id_coercible,
-      CASE WHEN PG_INPUT_IS_VALID(code_quar, 'TEXT') THEN CAST(code_quar AS TEXT) END IS NULL
+      CASE
+        WHEN PG_INPUT_IS_VALID(CAST(code_quar AS TEXT), 'TEXT')
+        THEN CAST(code_quar AS TEXT)
+      END IS NULL
       AND (
         NOT code_quar IS NULL
       ) AS _branch_code_quar_coercible

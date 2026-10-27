@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **PostgreSQL reads bronze landed as text or typed.** A single-key JSON read
+  (`$.payload.channel`) over a `text` column failed with `operator does not exist: text
+  ->> unknown`; every read's operand is now cast to `json`, as deeper paths already were.
+  The `TRY_CAST` guard handed `pg_input_is_valid`, which takes text only, an operand of any
+  type, so a quality-carrying entity whose chain ends in arithmetic, or whose `_ingested_at`
+  is a `timestamp`, aborted the run with `42883`. The guard now reads the operand's text,
+  and over a typed operand it keeps the cast's own result: a fractional number cast to an
+  integer rounds, and a cast between `boolean` and `int` stays plain. A zone-aware
+  `_ingested_at` stays refused, as on DuckDB: the metadata audit flags every row. (#305,
+  #306, #307)
+- **Every cast in a quality-carrying chain is NULL-on-failure, not only the last.** The
+  `Cast → TryCast` shaping rewrote only a chain's outermost cast, because SQLGlot's
+  `transform` does not descend into a node it has replaced. A bad value at an inner cast,
+  such as `'abc'` under `{to_decimal: [16, 0]}` then `{multiply: "0.01"}`, therefore
+  aborted the run on every engine instead of being quarantined. PostgreSQL's guard and
+  Snowflake's string source had the same blind spot for a nested `TRY_CAST`. A cast from a
+  boolean keeps its plain spelling on both, since it cannot fail and its string is not
+  numeric input.
 - **A semi-additive metric's `over:` is checked at `check`.** Nothing validated it before
   emission: `over: snapshot_day` (the bucket a `snapshot` role produces, not the column
   it is declared over) and `over: warehouse_id` (not a date) both checked clean, and only

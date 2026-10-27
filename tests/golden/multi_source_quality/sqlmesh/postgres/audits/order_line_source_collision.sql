@@ -17,46 +17,52 @@ SELECT
 FROM (
   SELECT
     CASE
-      WHEN PG_INPUT_IS_VALID(properties ->> 'gift_note', 'TEXT')
-      THEN CAST(properties ->> 'gift_note' AS TEXT)
+      WHEN PG_INPUT_IS_VALID(CAST(properties AS JSON) ->> 'gift_note', 'TEXT')
+      THEN CAST(CAST(properties AS JSON) ->> 'gift_note' AS TEXT)
     END AS gift_note,
-    CASE WHEN PG_INPUT_IS_VALID(position, 'BIGINT') THEN CAST(position AS BIGINT) END AS line_no,
     CASE
-      WHEN PG_INPUT_IS_VALID("order" ->> 'id', 'TEXT')
-      THEN CAST("order" ->> 'id' AS TEXT)
+      WHEN PG_INPUT_IS_VALID(CAST(position AS TEXT), 'BIGINT')
+      THEN CAST(CAST(position AS TEXT) AS BIGINT)
+    END AS line_no,
+    CASE
+      WHEN PG_INPUT_IS_VALID(CAST("order" AS JSON) ->> 'id', 'TEXT')
+      THEN CAST(CAST("order" AS JSON) ->> 'id' AS TEXT)
     END AS order_id,
     CASE
       WHEN PG_INPUT_IS_VALID(
-        CASE
+        CAST(CASE
           WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
           OR SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%-%'
           THEN NULL
           ELSE created_at
-        END,
+        END AS TEXT),
         'TIMESTAMP'
       )
       AND NOT LOWER(
-        CASE
+        CAST(CASE
           WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
           OR SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%-%'
           THEN NULL
           ELSE created_at
-        END
+        END AS TEXT)
       ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-      THEN CAST(CASE
+      THEN CAST(CAST(CASE
         WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
         OR SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%-%'
         THEN NULL
         ELSE created_at
-      END AS TIMESTAMP)
+      END AS TEXT) AS TIMESTAMP)
     END AS placed_at,
-    CASE WHEN PG_INPUT_IS_VALID(quantity, 'BIGINT') THEN CAST(quantity AS BIGINT) END AS quantity,
     CASE
-      WHEN PG_INPUT_IS_VALID(variant ->> 'sku', 'TEXT')
-      THEN CAST(variant ->> 'sku' AS TEXT)
+      WHEN PG_INPUT_IS_VALID(CAST(quantity AS TEXT), 'BIGINT')
+      THEN CAST(CAST(quantity AS TEXT) AS BIGINT)
+    END AS quantity,
+    CASE
+      WHEN PG_INPUT_IS_VALID(CAST(variant AS JSON) ->> 'sku', 'TEXT')
+      THEN CAST(CAST(variant AS JSON) ->> 'sku' AS TEXT)
     END AS sku,
     CASE CASE
-        WHEN PG_INPUT_IS_VALID(financial_status, 'TEXT')
+        WHEN PG_INPUT_IS_VALID(CAST(financial_status AS TEXT), 'TEXT')
         THEN CAST(financial_status AS TEXT)
       END
       WHEN 'pending'
@@ -66,7 +72,7 @@ FROM (
       WHEN 'refunded'
       THEN 'reversed'
       ELSE CASE
-        WHEN PG_INPUT_IS_VALID(financial_status, 'TEXT')
+        WHEN PG_INPUT_IS_VALID(CAST(financial_status AS TEXT), 'TEXT')
         THEN CAST(financial_status AS TEXT)
       END
     END AS status,
@@ -74,64 +80,70 @@ FROM (
     _load_id,
     _source_row_id,
     CASE
-      WHEN PG_INPUT_IS_VALID(properties ->> 'gift_note', 'TEXT')
-      THEN CAST(properties ->> 'gift_note' AS TEXT)
+      WHEN PG_INPUT_IS_VALID(CAST(properties AS JSON) ->> 'gift_note', 'TEXT')
+      THEN CAST(CAST(properties AS JSON) ->> 'gift_note' AS TEXT)
     END IS NULL
     AND (
-      NOT properties ->> 'gift_note' IS NULL
+      NOT CAST(properties AS JSON) ->> 'gift_note' IS NULL
     ) AS _branch_gift_note_coercible,
-    CASE WHEN PG_INPUT_IS_VALID(position, 'BIGINT') THEN CAST(position AS BIGINT) END IS NULL
+    CASE
+      WHEN PG_INPUT_IS_VALID(CAST(position AS TEXT), 'BIGINT')
+      THEN CAST(CAST(position AS TEXT) AS BIGINT)
+    END IS NULL
     AND (
       NOT position IS NULL
     ) AS _branch_line_no_coercible,
     CASE
-      WHEN PG_INPUT_IS_VALID("order" ->> 'id', 'TEXT')
-      THEN CAST("order" ->> 'id' AS TEXT)
+      WHEN PG_INPUT_IS_VALID(CAST("order" AS JSON) ->> 'id', 'TEXT')
+      THEN CAST(CAST("order" AS JSON) ->> 'id' AS TEXT)
     END IS NULL
     AND (
-      NOT "order" ->> 'id' IS NULL
+      NOT CAST("order" AS JSON) ->> 'id' IS NULL
     ) AS _branch_order_id_coercible,
     CASE
       WHEN PG_INPUT_IS_VALID(
-        CASE
+        CAST(CASE
           WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
           OR SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%-%'
           THEN NULL
           ELSE created_at
-        END,
+        END AS TEXT),
         'TIMESTAMP'
       )
       AND NOT LOWER(
-        CASE
+        CAST(CASE
           WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
           OR SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%-%'
           THEN NULL
           ELSE created_at
-        END
+        END AS TEXT)
       ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-      THEN CAST(CASE
+      THEN CAST(CAST(CASE
         WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
         OR SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%-%'
         THEN NULL
         ELSE created_at
-      END AS TIMESTAMP)
+      END AS TEXT) AS TIMESTAMP)
     END IS NULL
     AND (
       NOT created_at IS NULL
     ) AS _branch_placed_at_coercible,
-    CASE WHEN PG_INPUT_IS_VALID(quantity, 'BIGINT') THEN CAST(quantity AS BIGINT) END IS NULL
+    CASE
+      WHEN PG_INPUT_IS_VALID(CAST(quantity AS TEXT), 'BIGINT')
+      THEN CAST(CAST(quantity AS TEXT) AS BIGINT)
+    END IS NULL
     AND (
       NOT quantity IS NULL
     ) AS _branch_quantity_coercible,
     CASE
-      WHEN PG_INPUT_IS_VALID(variant ->> 'sku', 'TEXT')
-      THEN CAST(variant ->> 'sku' AS TEXT)
+      WHEN PG_INPUT_IS_VALID(CAST(variant AS JSON) ->> 'sku', 'TEXT')
+      THEN CAST(CAST(variant AS JSON) ->> 'sku' AS TEXT)
     END IS NULL
     AND (
-      NOT variant ->> 'sku' IS NULL
+      NOT CAST(variant AS JSON) ->> 'sku' IS NULL
     ) AS _branch_sku_coercible,
     CASE CASE
-        WHEN PG_INPUT_IS_VALID(financial_status, 'TEXT')
+        WHEN PG_INPUT_IS_VALID(CAST(financial_status AS TEXT), 'TEXT')
         THEN CAST(financial_status AS TEXT)
       END
       WHEN 'pending'
@@ -141,7 +153,7 @@ FROM (
       WHEN 'refunded'
       THEN 'reversed'
       ELSE CASE
-        WHEN PG_INPUT_IS_VALID(financial_status, 'TEXT')
+        WHEN PG_INPUT_IS_VALID(CAST(financial_status AS TEXT), 'TEXT')
         THEN CAST(financial_status AS TEXT)
       END
     END IS NULL
@@ -149,7 +161,7 @@ FROM (
       NOT financial_status IS NULL
     ) AS _branch_status_coercible,
     NOT CASE CASE
-        WHEN PG_INPUT_IS_VALID(financial_status, 'TEXT')
+        WHEN PG_INPUT_IS_VALID(CAST(financial_status AS TEXT), 'TEXT')
         THEN CAST(financial_status AS TEXT)
       END
       WHEN 'pending'
@@ -159,7 +171,7 @@ FROM (
       WHEN 'refunded'
       THEN 'reversed'
       ELSE CASE
-        WHEN PG_INPUT_IS_VALID(financial_status, 'TEXT')
+        WHEN PG_INPUT_IS_VALID(CAST(financial_status AS TEXT), 'TEXT')
         THEN CAST(financial_status AS TEXT)
       END
     END IN ('closed', 'open', 'reversed') AS _branch_status_in_enum,
@@ -169,60 +181,72 @@ FROM (
   SELECT
     CAST(NULL AS TEXT) AS gift_note,
     CASE
-      WHEN PG_INPUT_IS_VALID(item_index, 'BIGINT')
-      THEN CAST(item_index AS BIGINT)
+      WHEN PG_INPUT_IS_VALID(CAST(item_index AS TEXT), 'BIGINT')
+      THEN CAST(CAST(item_index AS TEXT) AS BIGINT)
     END AS line_no,
     CASE
-      WHEN PG_INPUT_IS_VALID(order_number, 'TEXT')
+      WHEN PG_INPUT_IS_VALID(CAST(order_number AS TEXT), 'TEXT')
       THEN CAST(order_number AS TEXT)
     END AS order_id,
     CASE
       WHEN PG_INPUT_IS_VALID(
-        CASE
+        CAST(CASE
           WHEN SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%+%'
           OR SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%-%'
           THEN NULL
           ELSE created
-        END,
+        END AS TEXT),
         'TIMESTAMP'
       )
       AND NOT LOWER(
-        CASE
+        CAST(CASE
           WHEN SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%+%'
           OR SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%-%'
           THEN NULL
           ELSE created
-        END
+        END AS TEXT)
       ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-      THEN CAST(CASE
+      THEN CAST(CAST(CASE
         WHEN SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%+%'
         OR SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%-%'
         THEN NULL
         ELSE created
-      END AS TIMESTAMP)
+      END AS TEXT) AS TIMESTAMP)
     END AS placed_at,
-    CASE WHEN PG_INPUT_IS_VALID(qty, 'BIGINT') THEN CAST(qty AS BIGINT) END AS quantity,
-    CASE WHEN PG_INPUT_IS_VALID(product_sku, 'TEXT') THEN CAST(product_sku AS TEXT) END AS sku,
-    CASE CASE WHEN PG_INPUT_IS_VALID(state, 'TEXT') THEN CAST(state AS TEXT) END
+    CASE
+      WHEN PG_INPUT_IS_VALID(CAST(qty AS TEXT), 'BIGINT')
+      THEN CAST(CAST(qty AS TEXT) AS BIGINT)
+    END AS quantity,
+    CASE
+      WHEN PG_INPUT_IS_VALID(CAST(product_sku AS TEXT), 'TEXT')
+      THEN CAST(product_sku AS TEXT)
+    END AS sku,
+    CASE CASE
+        WHEN PG_INPUT_IS_VALID(CAST(state AS TEXT), 'TEXT')
+        THEN CAST(state AS TEXT)
+      END
       WHEN 'PROCESSING'
       THEN 'open'
       WHEN 'COMPLETE'
       THEN 'closed'
-      ELSE CASE WHEN PG_INPUT_IS_VALID(state, 'TEXT') THEN CAST(state AS TEXT) END
+      ELSE CASE
+        WHEN PG_INPUT_IS_VALID(CAST(state AS TEXT), 'TEXT')
+        THEN CAST(state AS TEXT)
+      END
     END AS status,
     _ingested_at,
     _load_id,
     _source_row_id,
     FALSE AS _branch_gift_note_coercible,
     CASE
-      WHEN PG_INPUT_IS_VALID(item_index, 'BIGINT')
-      THEN CAST(item_index AS BIGINT)
+      WHEN PG_INPUT_IS_VALID(CAST(item_index AS TEXT), 'BIGINT')
+      THEN CAST(CAST(item_index AS TEXT) AS BIGINT)
     END IS NULL
     AND (
       NOT item_index IS NULL
     ) AS _branch_line_no_coercible,
     CASE
-      WHEN PG_INPUT_IS_VALID(order_number, 'TEXT')
+      WHEN PG_INPUT_IS_VALID(CAST(order_number AS TEXT), 'TEXT')
       THEN CAST(order_number AS TEXT)
     END IS NULL
     AND (
@@ -230,56 +254,74 @@ FROM (
     ) AS _branch_order_id_coercible,
     CASE
       WHEN PG_INPUT_IS_VALID(
-        CASE
+        CAST(CASE
           WHEN SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%+%'
           OR SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%-%'
           THEN NULL
           ELSE created
-        END,
+        END AS TEXT),
         'TIMESTAMP'
       )
       AND NOT LOWER(
-        CASE
+        CAST(CASE
           WHEN SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%+%'
           OR SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%-%'
           THEN NULL
           ELSE created
-        END
+        END AS TEXT)
       ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-      THEN CAST(CASE
+      THEN CAST(CAST(CASE
         WHEN SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%+%'
         OR SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%-%'
         THEN NULL
         ELSE created
-      END AS TIMESTAMP)
+      END AS TEXT) AS TIMESTAMP)
     END IS NULL
     AND (
       NOT created IS NULL
     ) AS _branch_placed_at_coercible,
-    CASE WHEN PG_INPUT_IS_VALID(qty, 'BIGINT') THEN CAST(qty AS BIGINT) END IS NULL
+    CASE
+      WHEN PG_INPUT_IS_VALID(CAST(qty AS TEXT), 'BIGINT')
+      THEN CAST(CAST(qty AS TEXT) AS BIGINT)
+    END IS NULL
     AND (
       NOT qty IS NULL
     ) AS _branch_quantity_coercible,
-    CASE WHEN PG_INPUT_IS_VALID(product_sku, 'TEXT') THEN CAST(product_sku AS TEXT) END IS NULL
+    CASE
+      WHEN PG_INPUT_IS_VALID(CAST(product_sku AS TEXT), 'TEXT')
+      THEN CAST(product_sku AS TEXT)
+    END IS NULL
     AND (
       NOT product_sku IS NULL
     ) AS _branch_sku_coercible,
-    CASE CASE WHEN PG_INPUT_IS_VALID(state, 'TEXT') THEN CAST(state AS TEXT) END
+    CASE CASE
+        WHEN PG_INPUT_IS_VALID(CAST(state AS TEXT), 'TEXT')
+        THEN CAST(state AS TEXT)
+      END
       WHEN 'PROCESSING'
       THEN 'open'
       WHEN 'COMPLETE'
       THEN 'closed'
-      ELSE CASE WHEN PG_INPUT_IS_VALID(state, 'TEXT') THEN CAST(state AS TEXT) END
+      ELSE CASE
+        WHEN PG_INPUT_IS_VALID(CAST(state AS TEXT), 'TEXT')
+        THEN CAST(state AS TEXT)
+      END
     END IS NULL
     AND (
       NOT state IS NULL
     ) AS _branch_status_coercible,
-    NOT CASE CASE WHEN PG_INPUT_IS_VALID(state, 'TEXT') THEN CAST(state AS TEXT) END
+    NOT CASE CASE
+        WHEN PG_INPUT_IS_VALID(CAST(state AS TEXT), 'TEXT')
+        THEN CAST(state AS TEXT)
+      END
       WHEN 'PROCESSING'
       THEN 'open'
       WHEN 'COMPLETE'
       THEN 'closed'
-      ELSE CASE WHEN PG_INPUT_IS_VALID(state, 'TEXT') THEN CAST(state AS TEXT) END
+      ELSE CASE
+        WHEN PG_INPUT_IS_VALID(CAST(state AS TEXT), 'TEXT')
+        THEN CAST(state AS TEXT)
+      END
     END IN ('closed', 'open') AS _branch_status_in_enum,
     'woo__order_lines' AS _source
   FROM bronze.woo__order_lines

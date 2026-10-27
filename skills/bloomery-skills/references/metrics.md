@@ -77,6 +77,10 @@ it.
   components at query time. `non_additive` with nothing to recompute from is refused.
 - `ratio:` under any other additivity, and `additivity: ratio` without `ratio:`, are both
   refused.
+- A ratio's operands must be restricted to the same rows (`RatioOperandsDisagree`), so a
+  rate over a subset does not filter its numerator. Count the subset in the expression
+  instead: `agg: sum` with `expr: "CASE WHEN outcome = 'converted' THEN 1 ELSE 0 END"`,
+  over an unfiltered `agg: count` of a column declared `required: true`.
 - The metric's grain must equal the grain of every mart that serves it (`GrainViolation`).
 
 ## Semi-additive

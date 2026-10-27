@@ -13,6 +13,7 @@ from sqlglot.expressions.core import Expression
 from bloomery.dialects.base import (
     SQLGlotDialect,
     capture_group,
+    known_type,
     strip_iso_text,
     utc_from_zone,
     utc_instant,
@@ -103,9 +104,10 @@ class PostgresDialect(SQLGlotDialect):
         ``JSON_EXTRACT_PATH_TEXT(...)``, which exists only for the ``json``
         type — bloomery's ``variant`` is ``JSONB`` (verified live: the
         engine tier fails without this). A bronze path's ``->>`` extraction is
-        declared ``string`` and stays on the ``json`` functions; the
-        ``json_path`` transform is declared ``variant`` and goes through
-        :func:`_jsonb_extraction` instead.
+        declared ``string`` and stays on the ``json`` functions, over an
+        operand cast to ``json``: a bronze column may be landed as text, which
+        neither form takes (#305). The ``json_path`` transform is declared
+        ``variant`` and goes through :func:`_jsonb_extraction` instead.
 
         The ISO-text marker strips to nothing: Postgres' own cast takes both
         ISO spellings, so there is nothing for this port to add (S-0044).
@@ -138,18 +140,15 @@ class PostgresDialect(SQLGlotDialect):
             path = extract.args.get("expression")
             if not isinstance(path, exp.JSONPath):
                 continue
+            # Both spellings take `json`, and neither takes text: a bronze
+            # column landed as text (#305), and a read over another read — the
+            # replay's `raw` payload holds a bronze column's JSON *as text* —
+            # are type errors without the cast. Over a `json` column the
+            # planner drops it; over `jsonb` it is one conversion.
+            extract.set("this", exp.cast(extract.this, exp.DataType.build("JSON")))
             parts = path.expressions
-            nested = isinstance(extract.this, exp.JSONExtractScalar)
-            if nested:
-                # A read over another read: the replay's `raw` payload holds a
-                # bronze column's JSON *as text*, and `->>` over text is a
-                # type error here, so the inner extraction is cast back to
-                # `json` before the outer key is read.
-                extract.set("this", exp.cast(extract.this, exp.DataType.build("JSON")))
             if len(parts) == 2 and isinstance(parts[1], exp.JSONPathKey):
                 extract.set("only_json_types", True)  # ``->``/``->>`` form
-            elif not nested:
-                extract.set("this", exp.cast(extract.this, exp.DataType.build("JSON")))
 
         rewritten = rewritten.transform(_jsonb_extraction)
         return super().render(rewritten)
@@ -431,6 +430,23 @@ def _guarded_try_cast(node: Expression) -> Expression:
     Those are excluded, making such a cell a coercion failure instead of a
     silently unstable value.
 
+    ``pg_input_is_valid`` takes text only, so the operand is cast to text
+    first: a chain ending in arithmetic hands it a number (#306), and a loader
+    may land ``_ingested_at`` typed (#307). The one text value is what the
+    guard checks *and* what the branch casts, so the equivalence above is
+    still by construction. An operand that is already text — a cast to a text
+    type, or a ``->>`` read — is left alone, as Snowflake's
+    ``_string_try_cast`` does.
+
+    A typed operand's text is not always what the cast reads, so two typed
+    shapes are told apart by the operand's annotated type. A fractional number
+    rounds when it is cast to an integer, but its text (``'3.5'``) is not
+    integer input, so the guard reads the rounded value's text instead. And a
+    cast to or from ``boolean`` cannot fail between the types the transforms
+    build it from (``int4`` and ``boolean``), while ``'true'`` is not integer
+    input, so that cast stays plain. A bare column's type is not known to a
+    compile, and bronze is read as text, so it takes the text guard.
+
     The rewrite is safe against constant folding only because the input is a
     column. Over a folded constant Postgres evaluates the ``THEN`` branch at
     plan time and raises — which is how this was nearly mismeasured.
@@ -439,7 +455,32 @@ def _guarded_try_cast(node: Expression) -> Expression:
     if not isinstance(node, exp.TryCast):
         return node
 
-    value = node.this
+    # A shaped chain nests one TRY_CAST in another, and `transform` does not
+    # descend into the replacement this returns, so the operand is guarded
+    # here or its cast renders plain. Its type is read before that rewrite.
+    typed = known_type(node.this)
+    value = node.this.transform(_guarded_try_cast)
+
+    # An operand built on a guarded cast is already a typed value, whose text
+    # the inner guard has checked; this cast can then fail only by overflowing,
+    # and guarding it would copy the inner guard into every outer one, three
+    # times a level (a chain of ten casts rendered 1.4 MB). It stays plain, as
+    # every inner cast did before chains were shaped whole.
+    nested = any(True for _ in node.this.find_all(exp.TryCast))
+
+    if nested or (typed is not None and (typed.is_type(_BOOLEAN) or node.to.is_type(_BOOLEAN))):
+        return exp.cast(value, node.to.copy())
+
+    if (
+        typed is not None
+        and typed.is_type(*exp.DataType.REAL_TYPES)
+        and node.to.is_type(*exp.DataType.INTEGER_TYPES)
+    ):
+        value = exp.Round(this=value)
+
+    if not _yields_text(value):
+        value = exp.cast(value.copy(), exp.DataType.build("TEXT"))
+
     type_name = node.to.sql(dialect="postgres")
     valid = cast(
         "Expression",
@@ -456,3 +497,16 @@ def _guarded_try_cast(node: Expression) -> Expression:
         valid = exp.And(this=valid, expression=stable)
 
     return exp.Case(ifs=[exp.If(this=valid, true=exp.cast(value.copy(), node.to.copy()))])
+
+
+_BOOLEAN: Final = exp.DataType.Type.BOOLEAN
+
+
+def _yields_text(node: Expression) -> bool:
+    """Whether *node* is text whatever its input: a cast to a text type, or a
+    ``->>`` read, which returns text over ``json`` and ``jsonb`` alike."""
+
+    if isinstance(node, exp.JSONExtractScalar):
+        return True
+
+    return isinstance(node, exp.Cast) and node.to.is_type(*exp.DataType.TEXT_TYPES)

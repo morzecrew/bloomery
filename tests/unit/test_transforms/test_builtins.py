@@ -421,6 +421,26 @@ def test_the_narrowing_cast_becomes_a_try_cast_inside_the_quality_system() -> No
     assert _try_cast_shape(node).sql() == "TRY_CAST(x * 2 AS DECIMAL(13, 4))"
 
 
+def test_every_cast_in_a_chain_is_shaped_not_only_the_outermost() -> None:
+    """`_try_cast_shape` promises the whole chain, because an inner cast that
+    raises aborts the run before the outer one can mark anything. SQLGlot's
+    `transform` does not descend into a node it has just replaced, so only the
+    outermost cast was shaped: `{to_decimal: [16, 0]}` then `{multiply: "0.01"}`
+    over `'abc'` raised on every engine instead of quarantining the row.
+
+    The old check, that the column's SQL contains `TRY_CAST` somewhere, held
+    either way, which is why this counts the casts that stayed plain.
+    """
+    chain = DEFAULT_REGISTRY["multiply"].builder(
+        exp.cast(exp.column("x"), exp.DataType.build("DECIMAL(16, 0)")),
+        "0.01",
+        input_type=DecimalType(16, 0),
+    )
+    shaped = _try_cast_shape(chain)
+    assert shaped.sql() == "TRY_CAST(TRY_CAST(x AS DECIMAL(16, 0)) * 0.01 AS DECIMAL(18, 2))"
+    assert not [node for node in shaped.find_all(exp.Cast) if type(node) is exp.Cast]
+
+
 # ....................... #
 # S-0081/D-2, D-3: the instant format and zone directives
 

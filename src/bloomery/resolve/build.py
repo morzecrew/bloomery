@@ -341,11 +341,15 @@ def _try_cast_shape(node: Expression) -> Expression:
     Only entities that opt into the quality system are shaped this way (see
     :func:`bloomery.quality.opts_in`); everything else keeps the shipped
     produce-or-raise lowering.
+
+    The operand is shaped before it is wrapped: SQLGlot's ``transform`` does
+    not descend into a node it has just replaced, so without the recursion
+    only the outermost cast was rewritten and an inner one kept raising.
     """
 
     def shaped(child: Expression) -> Expression:
         if type(child) is exp.Cast:
-            return exp.TryCast(this=child.this, to=child.to)
+            return exp.TryCast(this=child.this.transform(shaped), to=child.to)
 
         return child
 
@@ -397,10 +401,16 @@ def _lower_chain(
 
     uses: list[str] = []
 
-    for step in steps:
+    for index, step in enumerate(steps):
         if step.step is not None:
             uses.append(step.step)
             node, current = _splice_link(step.step, node, macros, source_path=source_path)
+            # The body is opaque SQL, so its type is only in the manifest. A
+            # chain that continues states it: a port that spells TRY_CAST
+            # through text reads the operand's type to know `'true'` is not
+            # what a boolean's cast to INT reads.
+            if index < len(steps) - 1 and not isinstance(current, StringType):
+                node = exp.cast(node, neutral_type(current))
             # Measured after every splice, not only at the end: the next splice
             # deep-copies the running expression, recursively, so a chain past
             # the cap would overflow there before a final check ran.

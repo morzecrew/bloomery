@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import pytest
+from sqlglot import exp
 from support.compiling import fixture_sources, load_fixture
 
 from bloomery import build_project_ir, load_project
@@ -141,11 +142,17 @@ def test_the_entity_blocks_reach_the_ir() -> None:
 
 
 def test_the_transform_chain_lowers_try_cast_shaped() -> None:
-    """Stage 2 changes from produce-or-raise to produce-a-marker (§5.2, D3)."""
+    """Stage 2 changes from produce-or-raise to produce-a-marker (§5.2, D3) —
+    for every cast in the chain. Asserting that `TRY_CAST` appears somewhere
+    held while an inner cast stayed plain and aborted the run, so this counts
+    the plain ones instead."""
     project, catalog = load_fixture("semi_additive_inventory")
     ir = build_project_ir(project, catalog)
     (entity,) = ir.entities
-    assert all("TRY_CAST" in column.expr.sql for column in entity.sources[0].columns)
+    for column in entity.sources[0].columns:
+        tree = column.expr.ast()
+        assert any(isinstance(node, exp.TryCast) for node in tree.walk())
+        assert not [node for node in tree.find_all(exp.Cast) if type(node) is exp.Cast], column
 
 
 def test_a_quality_free_project_keeps_plain_casts() -> None:

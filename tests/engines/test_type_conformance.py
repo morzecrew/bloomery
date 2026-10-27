@@ -18,12 +18,26 @@ from collections.abc import Iterator
 import psycopg
 import pytest
 import trino
-from support.type_conformance import assert_matches_known, canonical, measure, source_columns
+from sqlglot import exp
+from support.type_conformance import (
+    CASES,
+    UNRUNNABLE,
+    Case,
+    assert_matches_known,
+    canonical,
+    column_of,
+    measure,
+    source_columns,
+)
 from testcontainers.community.postgres import PostgresContainer
 from testcontainers.community.trino import TrinoContainer
 
 from bloomery.dialects import get_dialect
 from bloomery.dialects.base import DialectPort
+from bloomery.ir.lower import canon
+from bloomery.resolve.build import _try_cast_shape
+from bloomery.transforms import DEFAULT_REGISTRY, neutral_type
+from bloomery.typing import StringType
 
 #: Pinned, matching the sibling engine modules: a tier whose engine version can
 #: change under it cannot tell a regression from an upgrade.
@@ -91,6 +105,55 @@ def test_declared_types_are_what_postgres_produces(postgres: psycopg.Connection)
         return canonical(row[0], dialect="postgres")
 
     assert_matches_known(measure(port, run), port="postgres")
+
+
+@pytest.mark.engine("postgres")
+def test_a_quality_shaped_case_returns_what_the_plain_one_does_on_postgres(
+    postgres: psycopg.Connection,
+) -> None:
+    """Inside the quality system a chain's casts are `TRY_CAST` (S-0033 §5.2,
+    D-3), and PostgreSQL has none, so the port spells one as a guard (D-84).
+    The guard is handed text, and a typed operand's text is not what the cast
+    reads: `to_int` over `3.5` is 4 as a cast and was NULL as a guard,
+    quarantining a value every other engine keeps.
+
+    Over a value the plain form accepts, the shaped form must return the same
+    thing — whatever the operand's type. A typed operand reaches a chain's cast
+    from the step before it, so a non-string source is that step's cast; a bare
+    column is bronze, which a compile reads as text.
+    """
+    port = get_dialect("postgres")
+
+    def chained(case: Case) -> exp.Expression:
+        spec = DEFAULT_REGISTRY[case.transform]
+        extra = {"input_type": case.source} if spec.types else {}
+        source: exp.Expression = exp.column(column_of(case))
+        if not isinstance(case.source, StringType):
+            source = exp.cast(source, neutral_type(case.source))
+        return canon(spec.builder(source, *case.args, **extra)).ast()
+
+    def value(expression: exp.Expression) -> object:
+        sql = port.render(exp.select(exp.alias_(expression, "probe")).from_("probe"))
+        row = postgres.execute(sql).fetchone()
+        assert row is not None
+        return row[0]
+
+    differing: dict[str, tuple[object, object]] = {}
+    for case in CASES:
+        if case.transform in UNRUNNABLE:
+            continue
+        expression = chained(case)
+        try:
+            plain = value(expression)
+        except psycopg.Error:
+            continue  # a plain form the engine refuses has nothing to agree with
+        try:
+            shaped = value(_try_cast_shape(expression))
+        except psycopg.Error as error:
+            shaped = f"error:{error.sqlstate}"
+        if shaped != plain:
+            differing[case.id] = (plain, shaped)
+    assert differing == {}
 
 
 # ....................... #

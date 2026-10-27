@@ -202,7 +202,7 @@ Coverage: branch on, `fail_under=80` overall, per-package floors ratcheting up (
 
 - Paths: `src/bloomery/guardrails/quality.py` `tests/README.md` `tests/unit/test_quality/test_coverage.py`
 
-### S-0027/D-8 — `ASSUMED` (Marts and role-playing dimensions)
+### S-0027/D-8 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
 
 `cost_hint` (int, default 1) is a tie-breaking scan-cost hint only; selection ties break lexicographically (S-0020 determinism).
 

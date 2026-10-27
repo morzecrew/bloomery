@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/fixtures/semantic_corpus/010-many-to-many-bridge/expected/`
 
-### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions)
+### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
 
 Measure grain must strictly equal mart grain; coarser or finer is `GrainViolation`. Resolves D2's prose/example contradiction to the strict reading; relaxation is a future additive change.
 

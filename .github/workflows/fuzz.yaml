@@ -55,8 +55,10 @@ jobs:
     # Every seed project x 3 targets x 3 dialects, compiled in three processes
     # (S-0009/D-8), measured at 1m24s on a developer machine when the corpus
     # held 66 projects. The ceiling is here so a lane nobody watches cannot run
-    # until the six-hour job cap stops it, and it has an order of magnitude of
-    # headroom for the corpus to grow into.
+    # until the six-hour job cap stops it. By 2026-10-27 the cached fuzz corpus
+    # had grown the job to 22-30 minutes with the processes run one after
+    # another, and three pull requests hit the ceiling; they now run at once,
+    # which measured 75s down to 26s on the seed projects alone.
     timeout-minutes: 30
     permissions:
       contents: read

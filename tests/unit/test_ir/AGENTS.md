@@ -29,6 +29,13 @@ Path conflict does not raise (`PathConflict` is not an error class): the compile
 
 - Paths: `src/bloomery/emit/lower/predicates.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/guardrails/conflict.py` `src/bloomery/guardrails/quality.py` `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/mapping.py` `tests/fixtures/path_conflict/entity_model.yaml` `tests/fixtures/path_conflict/mapping.yaml` `tests/unit/test_emit/test_sqlmesh.py` `tests/unit/test_guardrails/test_conflict.py` `tests/unit/test_guardrails/test_quality.py` `tests/unit/test_ir/test_lower.py` `tests/unit/test_spec/test_mapping.py`
 
+### S-0027/D-12 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+
+**`MartColumnIR` records the join that owns a date bucket, and `bloomery_ir_version` moves 26 → 27 with the field.** `via: str | None` is the prefix of the join whose column a bucket truncates, `None` for the base. The emitters read it rather than guessing the owner from the entity, which is ambiguous when one entity is flattened twice under two prefixes
+
+- Paths: `src/bloomery/ir/nodes.py` `src/bloomery/emit/lower/marts.py` `tests/unit/test_ir/**`
+- Consequence: Every project's fingerprint moves once, and `plan()` refuses to diff a version 26 IR against a version 27 one, which is the refusal that makes the change loud. A base bucket carries `via: None` and its SQL does not change
+
 ### S-0033/D-2 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 `OnFail = flag | quarantine | fail` (v1 — `repair` deferred, decision 17; landed in D87), explicit per rule, never a global default. Deliberately no `drop`: quarantine is drop plus recoverability; deletion happens via retention policy, with a paper trail.

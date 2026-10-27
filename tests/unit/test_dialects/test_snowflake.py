@@ -278,6 +278,32 @@ def test_an_operand_that_is_already_text_is_not_cast_twice() -> None:
     assert _rendered(node) == "TRY_CAST(CAST(raw AS VARCHAR) AS DATE)"
 
 
+def test_a_boolean_operand_keeps_its_plain_cast() -> None:
+    """`[to_bool, to_int]` casts a boolean to `INT`. Through a string source
+    that is `TRY_CAST('true' AS INT)`, NULL for every row, once inner casts are
+    shaped too. The cast cannot fail, and the plain spelling is the one this
+    pairing shipped with."""
+    boolean = exp.TryCast(this=exp.column("x"), to=exp.DataType.build("BOOLEAN"))
+    node = exp.TryCast(this=boolean, to=exp.DataType.build("INT"))
+    assert _rendered(node) == "CAST(TRY_CAST(CAST(x AS VARCHAR) AS BOOLEAN) AS INT)"
+
+
+def test_a_try_cast_inside_another_keeps_its_keyword() -> None:
+    """A chain shaped for the quality system nests one `TRY_CAST` in another.
+    The rewrite replaced the outer one and SQLGlot's `transform` does not
+    descend into a replacement, so the inner one never got `requires_string`
+    and the generator rendered it as a plain `CAST`, the degradation above."""
+    inner = exp.TryCast(this=exp.column("x"), to=exp.DataType.build("DECIMAL(16, 0)"))
+    outer = exp.TryCast(
+        this=exp.Mul(this=inner, expression=exp.Literal.number("0.01")),
+        to=exp.DataType.build("DECIMAL(18, 2)"),
+    )
+    assert _rendered(outer) == (
+        "TRY_CAST(CAST(TRY_CAST(CAST(x AS VARCHAR) AS DECIMAL(16, 0)) * 0.01 AS VARCHAR) "
+        "AS DECIMAL(18, 2))"
+    )
+
+
 # ....................... #
 # Rewrite point 4: regexp capture-group numbering — nothing port-specific
 
