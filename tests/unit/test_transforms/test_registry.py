@@ -30,7 +30,7 @@ registry_module = importlib.import_module("bloomery.transforms.registry")
 
 pytestmark = pytest.mark.unit
 
-#: The starter set, exactly S-0021/D-3.
+#: The starter set, exactly S-0021/D-3, and what was added since (S-0021/D-9).
 STARTER_SET = [
     "abs",
     "coalesce",
@@ -44,6 +44,7 @@ STARTER_SET = [
     "nullif",
     "parse_date",
     "parse_ts",
+    "prepend",
     "regex_extract",
     "round",
     "split_part",

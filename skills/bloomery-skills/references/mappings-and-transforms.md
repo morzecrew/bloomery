@@ -81,7 +81,7 @@ match.
 
 | Group | Transforms |
 |---|---|
-| String | `trim`, `upper`, `lower`, `split_part`, `regex_extract`, `strip_prefix`, `strip_suffix`, `concat`, `enum_map` |
+| String | `trim`, `upper`, `lower`, `split_part`, `regex_extract`, `strip_prefix`, `strip_suffix`, `concat`, `prepend`, `enum_map` |
 | Casts and parses | `to_string`, `to_int`, `to_decimal`, `to_bool`, `parse_ts`, `parse_date`, `to_utc` |
 | Nulls and JSON | `coalesce`, `nullif`, `json_path` |
 | Arithmetic | `multiply`, `divide`, `round`, `abs` |
