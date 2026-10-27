@@ -6,8 +6,9 @@ decisions:
       `{pick: [<field>, <text>, <take>]}` yields, from a JSON list, the `<take>` of
       the first element, in list order, that is an object whose `<field>` read as
       scalar text equals `<text>`. The result is a `string`. It is NULL when the input
-      is not a list, nothing matches, or the taken value is NULL or not a scalar.
-      The transform is declared `nullifies`
+      is not a list, text that is not JSON included, when nothing matches, or when
+      the taken value is NULL or not a scalar. A field that is not a scalar never
+      matches. The transform is declared `nullifies`
     paths:
       - src/bloomery/transforms/_builtins.py
       - tests/unit/test_transforms/test_builtins.py
@@ -62,7 +63,10 @@ decisions:
       The builder returns a `BLM_PICK` marker, and `DialectFeature.PICK` is declared
       by DuckDB, PostgreSQL and Trino, each rewriting the marker into a spelling measured
       against the same edge cases. PostgreSQL compares the field as text through an
-      ordered `jsonb_array_elements` subquery, not through jsonpath `==`
+      ordered `jsonb_array_elements` subquery, not through jsonpath `==`, over an
+      input it has first checked with `pg_input_is_valid(<x>, 'jsonb')`. Every port
+      reads the field and the take only when they are scalars, because DuckDB's and
+      PostgreSQL's `->>` turn an object or an array into its text
     paths:
       - src/bloomery/dialects/base.py
       - src/bloomery/dialects/duckdb.py

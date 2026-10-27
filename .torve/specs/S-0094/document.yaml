@@ -68,7 +68,7 @@ design:
           synonyms: [продажи, оборот, сколько заработали]
       ```
 
-      `description` and `label` are optional strings on `Field`; `label` and `synonyms` are optional on `Metric`, beside its existing `description`. Each string is refused empty after stripping, and `label` is refused if it holds a line break, because every target renders it as a single-line title. `synonyms` is a list of distinct non-empty strings, refused when two are equal. The IR stores it sorted, so the authored order never reaches an artifact's bytes (S-0020). A metric template's `label` and `synonyms` merge like its `description`: the authored value wins, and an absent one takes the template's.
+      `description` and `label` are optional strings on `Field`; `label` and `synonyms` are optional on `Metric`, beside its existing `description`. Each string is refused empty after stripping, and `label` is refused if it holds a line break, because every target renders it as a single-line title. `synonyms` is a list of distinct non-empty strings, refused when two are equal. The IR stores it sorted, so the authored order never reaches an artifact's bytes (S-0020). A metric template (`MetricTemplate`, in `spec/catalog.py`) gains the same two keys, and they merge like its `description`: the authored value wins, and an absent one takes the template's. For `synonyms` absence is `None`, not an empty list, so a metric can write `synonyms: []` to drop a template's.
   - key: precedence-with-the-catalog
     md: >-
       `ColumnIR.description` is the field's own `description:` when it has one, and

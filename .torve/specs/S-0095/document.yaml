@@ -79,8 +79,8 @@ design:
       ```
 
       `pick` takes three positional strings, as every transform does: the field to match on, the text to match, and the path to take from the matching element. Its input is the list, as `string` (JSON text, which is what a `from:` extraction yields) or `variant`. Its output is a `string`. The match reads the element's field as scalar text, so a numeric field matches the text of its number, and the first match in list order wins. The result is NULL when:
-      - the input is not a list;
-      - no element is an object whose field equals the text;
+      - the input is not a list, which includes text that is not JSON at all;
+      - no element is an object whose field is a scalar equal to the text;
       - the taken value is NULL;
       - the taken value is not a scalar.
 
@@ -103,15 +103,20 @@ design:
       above, because its `==` compares JSON values and PostgreSQL 16 has no `.string()`
       method to compare text. It reads the list through an ordered `jsonb_array_elements`
       subquery comparing `e ->> '<field>'` instead, and phase 2's differential measures
-      that spelling against the other two. A port that does not declare the feature
-      lets the marker reach the base render, which refuses it as `UnsupportedByTarget`,
-      naming `pick` and the dialect. That is the existing marker refusal, given its
-      own message. DuckDB, PostgreSQL and Trino declare the feature in this design.
-      Snowflake, BigQuery and Databricks declare it when their spelling is measured
-      on the engine (S-0012/D-2, and S-0013/D-2 for Snowflake). Redshift already refuses
-      `json_path`, because its `SUPER` navigation is PartiQL rather than a JSON path
-      (S-0015/D-4), and it refuses `pick` on the same terms until a spelling is measured
-      there.
+      that spelling against the other two. It checks its input with `pg_input_is_valid(<x>,
+      'jsonb')` before casting, because the cast raises on text that is not JSON where
+      DuckDB's `TRY_CAST` returns NULL. Every port compares the field, and returns
+      the take, only when it is a scalar: DuckDB's and PostgreSQL's `->>` turn an
+      object into its text, so `{"name": {"a": 1}}` matched the text `{"a":1}` on
+      DuckDB, while Trino's `json_extract_scalar` gives NULL. A port that does not
+      declare the feature lets the marker reach the base render, which refuses it
+      as `UnsupportedByTarget`, naming `pick` and the dialect. That is the existing
+      marker refusal, given its own message. DuckDB, PostgreSQL and Trino declare
+      the feature in this design. Snowflake, BigQuery and Databricks declare it when
+      their spelling is measured on the engine (S-0012/D-2, and S-0013/D-2 for Snowflake).
+      Redshift already refuses `json_path`, because its `SUPER` navigation is PartiQL
+      rather than a JSON path (S-0015/D-4), and it refuses `pick` on the same terms
+      until a spelling is measured there.
   - key: lineage
     md: >-
       A picked field's source node names its selection, `source.<relation>.<path>[<field>=<text>].<take>`.
@@ -120,8 +125,8 @@ design:
       S-0048/D-6's closed label vocabulary is unchanged.
 tests: |-
   - Load: `pick` with three strings is accepted, a take path outside its grammar and an empty match text are refused, and `from:` still refuses a subscript or a filter (D-2, D-3).
-  - A DuckDB execution test over the ten measured edge cases pins each answer (D-1).
-  - An engine differential on PostgreSQL 16 and Trino 483 replays the same cases and requires the DuckDB answers exactly, the non-scalar case included (D-1, D-4).
+  - A DuckDB execution test over the ten measured edge cases pins each answer, plus two found in review: text that is not JSON, and a composite match field, both NULL (D-1).
+  - An engine differential on PostgreSQL 16 and Trino 483 replays the same cases and requires the DuckDB answers exactly, the non-scalar case included (D-1, D-4). It is engine-tier, so it needs Docker and runs in CI's engine matrix job rather than in a phase's acceptance commands, which planning keeps to commands that read no host service.
   - Every unmeasured port refuses a mapping that uses `pick`, with `UnsupportedByTarget` naming the transform (D-5).
   - Lineage: two fields picked from one list are two source nodes, and the edge label is `direct` (D-6).
   - The type-conformance corpus gains a `pick` case for each input type, because `uncovered()` fails otherwise.

@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       Descriptions, labels and synonyms change no SELECT. They reach metadata slots
       only, and every existing golden's SQL is byte-identical with them absent, asserted
@@ -16,8 +16,8 @@ decisions:
     rationale: >-
       The rule S-0062/D-1 gives owner, classification and grants, for the same reason:
       an annotation that changed a query would be a semantics change wearing a documentation
-      key. Graded ASSUMED as drafted; whether it should be LOCKED like its S-0062
-      counterpart is the owner's call
+      key. Locked by the owner, like its S-0062 counterpart: reversing it reaches
+      every artifact a described project emits
     cites: [S-0062/D-1]
   - id: D-2
     grade: ASSUMED
@@ -41,14 +41,17 @@ decisions:
   - id: D-3
     grade: ASSUMED
     text: >-
-      `Metric` gains optional `label` and `synonyms`, beside its `description`. Both
-      merge from a template as `description` does, the authored value first. `synonyms`
-      is a list of distinct non-empty strings, refused when two are equal, and stored
-      sorted in the IR
+      `Metric` and `MetricTemplate` gain optional `label` and `synonyms`, beside their
+      `description`. Both merge from a template as `description` does, the authored
+      value first. An absent `synonyms` takes the template's, and an authored empty
+      list clears it. `synonyms` is a list of distinct non-empty strings, refused
+      when two are equal, and stored sorted in the IR
     paths:
       - src/bloomery/spec/metrics.py
+      - src/bloomery/spec/catalog.py
       - src/bloomery/resolve/metrics.py
       - tests/golden/schema/metrics.json
+      - tests/golden/schema/catalog.json
     consequence: >-
       A natural-language front end reads a metric's alternative names from one list
       instead of parsing them out of its description, and two projects listing the
@@ -56,8 +59,11 @@ decisions:
     rationale: >-
       The authored order carries no meaning and must not reach an artifact's bytes
       (S-0020). A duplicate in an author's list is a typo the loader can name. The
-      metric set is its own spec kind, so the key does not touch the entity model
-      that S-0011/D-1 keeps retrieval semantics off
+      merge cannot test the list for truth, as `description`'s does, because an empty
+      list is then indistinguishable from an absent one and a metric could never drop
+      a template's synonyms; absence is `None`. The metric set is its own spec kind,
+      so the key does not touch the entity model that S-0011/D-1 keeps retrieval semantics
+      off
     cites: [S-0011/D-1]
   - id: D-4
     grade: ASSUMED

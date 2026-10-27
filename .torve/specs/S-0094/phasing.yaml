@@ -13,6 +13,7 @@ phasing:
     scope:
       - src/bloomery/spec/entity.py
       - src/bloomery/spec/metrics.py
+      - src/bloomery/spec/catalog.py
       - src/bloomery/resolve/build.py
       - src/bloomery/resolve/metrics.py
       - src/bloomery/ir/nodes.py

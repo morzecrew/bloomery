@@ -32,7 +32,9 @@ phasing:
       `DialectFeature.PICK` on the PostgreSQL and Trino ports (D-4), with an engine
       differential replaying phase 1's edge cases on PostgreSQL 16 and Trino 483 and
       requiring DuckDB's answers exactly, plus a numeric match field the measurement
-      did not cover.
+      did not cover. The differential is engine-tier: it needs Docker, so it runs
+      in CI's engine matrix job, and the acceptance below judges the port spellings
+      offline.
     scope:
       - src/bloomery/dialects/postgres.py
       - src/bloomery/dialects/trino.py
