@@ -20,7 +20,7 @@ Mart-level fan-out guard runs at compile time (_bloomery-changes.md D2, S-0027):
 
 - Paths: `src/bloomery/guardrails/grain.py` `src/bloomery/guardrails/stage.py` `src/bloomery/resolve/build.py` `tests/execution/test_as_of_join.py` `tests/execution/test_fanout_trap.py` `tests/fixtures/fanout_trap/marts.yaml` `tests/unit/test_guardrails/test_stage.py`
 
-### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions)
 
 Measure grain must strictly equal mart grain; coarser or finer is `GrainViolation`. Resolves D2's prose/example contradiction to the strict reading; relaxation is a future additive change.
 

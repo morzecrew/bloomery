@@ -29,7 +29,7 @@ Path conflict does not raise (`PathConflict` is not an error class): the compile
 
 - Paths: `src/bloomery/emit/lower/predicates.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/guardrails/conflict.py` `src/bloomery/guardrails/quality.py` `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/mapping.py` `tests/fixtures/path_conflict/entity_model.yaml` `tests/fixtures/path_conflict/mapping.yaml` `tests/unit/test_emit/test_sqlmesh.py` `tests/unit/test_guardrails/test_conflict.py` `tests/unit/test_guardrails/test_quality.py` `tests/unit/test_ir/test_lower.py` `tests/unit/test_spec/test_mapping.py`
 
-### S-0027/D-12 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-12 — `ASSUMED` (Marts and role-playing dimensions)
 
 **`MartColumnIR` records the join that owns a date bucket, and `bloomery_ir_version` moves 26 → 27 with the field.** `via: str | None` is the prefix of the join whose column a bucket truncates, `None` for the base. The emitters read it rather than guessing the owner from the entity, which is ambiguous when one entity is flattened twice under two prefixes
 

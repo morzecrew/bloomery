@@ -1330,3 +1330,115 @@ def test_a_current_reading_hop_in_an_incremental_mart_is_refused() -> None:
     lowering = _historical("customer", marts + "    materialization: incremental_by_partition\n")
     assert lowering.marts == ()
     assert [v.source_path for v in lowering.violations] == ["marts: marts.items.materialization"]
+
+
+# ....................... #
+# A date role over a column flattened through a to-one step (S-0027/D-11, D-12)
+
+
+def _with_order_date() -> dict[str, str]:
+    """``_SOURCES`` with the order carrying its own date, which a line-grain
+    mart reaches only by flattening the order (#310)."""
+
+    entity_anchor = "      warehouse_id: {type: string}\n  customer:\n"
+    mapping_anchor = '  customer_id: {from: "$.cid", transform: [to_string]}\n'
+    assert entity_anchor in _SOURCES["entity_model"]
+    assert mapping_anchor in _SOURCES["mapping_orders"]
+    return {
+        **_SOURCES,
+        "entity_model": _SOURCES["entity_model"].replace(
+            entity_anchor, "      warehouse_id: {type: string}\n      placed_on: {type: date}\n  customer:\n"
+        ),
+        "mapping_orders": _SOURCES["mapping_orders"].replace(
+            mapping_anchor,
+            mapping_anchor + '  placed_on: {from: "$.placed", transform: [{parse_date: ISO8601}]}\n',
+        ),
+    }
+
+
+def _lower_with_order_date(marts_yaml: str) -> MartLowering:
+    sources = _with_order_date()
+    project = load_project({**sources, "marts": marts_yaml})
+    assert project.marts is not None
+    return lower_marts(project.marts, build_project_ir(load_project(sources)))
+
+
+def test_a_date_role_may_name_a_column_flattened_through_a_to_one_step() -> None:
+    """The line's own date is not the document's: a line-grain mart gets the
+    order's date by flattening the order, and its buckets keep the line grain
+    because the step is many_to_one (#310)."""
+
+    lowering = _lower_with_order_date(
+        """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_}
+      - {date: order_placed_on, role: placed}
+"""
+    )
+    assert lowering.violations == ()
+    (mart,) = lowering.marts
+    buckets = {column.name: column for column in mart.columns if column.ref is not None}
+    assert set(buckets) == {f"placed_{bucket}" for bucket in DATE_BUCKETS}
+    day = buckets["placed_day"]
+    # Traced to the joined entity's own column, so the zone guard reads the
+    # order's clock, and owned by the join that flattened it (D-12).
+    assert (day.source_entity, day.source_column, day.via) == ("order", "placed_on", "order_")
+
+
+def test_a_base_date_role_is_owned_by_the_base() -> None:
+    lowering = _lower_with_order_date(
+        """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {date: order_date, role: dated}
+"""
+    )
+    (mart,) = lowering.marts
+    day = next(column for column in mart.columns if column.name == "dated_day")
+    assert (day.source_entity, day.via) == ("order_item", None)
+
+
+def test_a_date_role_before_the_step_that_flattens_its_column_is_refused() -> None:
+    lowering = _lower_with_order_date(
+        """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {date: order_placed_on, role: placed}
+      - {via: item_of_order, prefix: order_}
+"""
+    )
+    assert lowering.marts == ()
+    (violation,) = lowering.violations
+    assert violation.source_path == "marts: marts.items.flatten[0].date"
+    assert "flattened before this step" in str(violation)
+
+
+def test_a_flattened_column_that_is_not_a_date_cannot_be_a_date_role() -> None:
+    lowering = _lower_with_order_date(
+        """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_}
+      - {date: order_customer_id, role: customered}
+"""
+    )
+    assert lowering.marts == ()
+    (violation,) = lowering.violations
+    assert "date or timestamp" in str(violation)

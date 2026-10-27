@@ -121,20 +121,20 @@ Path conflict does not raise (`PathConflict` is not an error class): the compile
 
 - Paths: `src/bloomery/emit/lower/marts.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/catalog.py` `src/bloomery/spec/metrics.py` `tests/execution/test_marts.py` `tests/fixtures/ecom_basic/catalog.yaml` `tests/golden/schema/catalog.json` `tests/unit/test_emit/test_sqlmesh.py` `tests/unit/test_fixtures.py` `tests/unit/test_resolve/test_build.py` `tests/unit/test_spec/test_metrics.py`
 
-### S-0027/D-1 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-1 — `ASSUMED` (Marts and role-playing dimensions)
 
 Gold is wide pre-joined marts declared in a fifth spec kind (`marts_version: 1`); no query-time joins on the common path. One `MartIR` is read by both the mart builder (SQLMesh, joins at build) and the planner (no joins) — they cannot disagree.
 
 - Paths: `src/bloomery/ir/nodes.py`
 
-### S-0027/D-10 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-10 — `ASSUMED` (Marts and role-playing dimensions)
 
 Every flattened mart column is a requestable dimension: `_mart_ir` builds one `MartDimensionIR` per column, a date bucket keeping its role's `DimensionRef` and a plain attribute getting `DimensionRef(dimension=<column>)`, and nothing narrows the set
 
 - Paths: `src/bloomery/marts/flatten.py` `src/bloomery/ir/nodes.py` `tests/unit/test_marts/test_flatten.py`
 - Consequence: A column that `flatten:` adds to a mart is requestable by every consumer that reads `MartIR.dimensions`, so narrowing a noisy surface is a new decision rather than a filter in one consumer
 
-### S-0027/D-12 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-12 — `ASSUMED` (Marts and role-playing dimensions)
 
 **`MartColumnIR` records the join that owns a date bucket, and `bloomery_ir_version` moves 26 → 27 with the field.** `via: str | None` is the prefix of the join whose column a bucket truncates, `None` for the base. The emitters read it rather than guessing the owner from the entity, which is ambiguous when one entity is flattened twice under two prefixes
 

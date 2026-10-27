@@ -8,7 +8,7 @@ Grain guard: derivation operands must share the derivation's grain or the expres
 
 - Paths: `src/bloomery/guardrails/grain.py` `tests/execution/test_fanout_trap.py` `tests/fixtures/fanout_trap/catalog.yaml` `tests/fixtures/semantic_corpus/001-order-shipping-fanout/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/001-order-shipping-fanout/problem.md` `tests/unit/test_guardrails/test_grain.py`
 
-### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions)
 
 Measure grain must strictly equal mart grain; coarser or finer is `GrainViolation`. Resolves D2's prose/example contradiction to the strict reading; relaxation is a future additive change.
 
