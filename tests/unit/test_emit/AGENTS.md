@@ -76,19 +76,19 @@ Emitter/dialect registries mirror the transform registry: immutable defaults + e
 
 - Paths: `src/bloomery/emit/dbt/__init__.py` `tests/unit/test_emit/test_dbt.py`
 
-### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions)
 
 Measure grain must strictly equal mart grain; coarser or finer is `GrainViolation`. Resolves D2's prose/example contradiction to the strict reading; relaxation is a future additive change.
 
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/errors.py` `src/bloomery/marts/flatten.py` `src/bloomery/planner/semantic_plan.py` `src/bloomery/semantic/proof.py` `src/bloomery/semantic/rollup.py` `tests/fixtures/fanout_trap/marts.yaml` `tests/fixtures/fanout_trap/metrics.yaml` `tests/fixtures/semantic_corpus/001-order-shipping-fanout/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/001-order-shipping-fanout/problem.md` `tests/fixtures/semantic_corpus/010-many-to-many-bridge/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/010-many-to-many-bridge/problem.md` `tests/golden/refusals/example-wrong-grain.txt` `tests/golden/refusals/fanout_trap.txt` `tests/support/semantic_corpus.py` `tests/unit/test_emit/test_period_over_period.py` `tests/unit/test_semantic_corpus_guard.py`
 
-### S-0027/D-8 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-8 — `ASSUMED` (Marts and role-playing dimensions)
 
 `cost_hint` (int, default 1) is a tie-breaking scan-cost hint only; selection ties break lexicographically (S-0020 determinism).
 
 - Paths: `src/bloomery/emit/lower/marts.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/guardrails/metrics.py` `src/bloomery/spec/marts.py` `tests/golden/schema/marts.json` `tests/unit/test_emit/test_metricflow.py` `tests/unit/test_planner/test_coverage.py`
 
-### S-0027/D-9 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-9 — `ASSUMED` (Marts and role-playing dimensions)
 
 (Amended for `_bloomery-metricflow-pivot.md`) Marts are the emission source for MetricFlow semantic models — one mart = exactly one semantic model (S-0030 R1); a measure-carrying mart must declare a date role (`MartMissingTimeDimension` otherwise). Marts and role-playing are *more* load-bearing after the pivot, not less.
 

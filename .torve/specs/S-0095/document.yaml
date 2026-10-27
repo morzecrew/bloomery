@@ -1,0 +1,183 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0095
+title: Picking a list element by a field
+kind: design
+change:
+  type: feat
+  scope: transforms
+status: draft
+implementation: none
+depends_on: [S-0025, S-0033]
+informed_by: [S-0012, S-0013, S-0044, S-0048]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A `pick` transform that selects one element of a JSON list by the value of one of its fields, for sources that keep custom attributes as name and value pairs. `{pick: [name, "Источник заказа", value]}` reads the first object in the list whose `name` is `Источник заказа` and yields its `value` as text, or NULL. It ships on DuckDB, PostgreSQL and Trino, whose spellings were measured to agree, and every other port refuses it by name until it is measured on its own engine.
+
+  The JSONPath filter form, `$.attributes[?(@.name == 'X')].value`, is declined: no SQLGlot generator renders it, and the path grammar it would widen is shared by six other spec fields.
+motivation: |-
+  **Three sources keep custom fields as lists of pairs (#312).**
+  - МойСклад: `attributes: [{"name": "Источник заказа", "type": "string", "value": "Сайт"}, …]`.
+  - amoCRM: `custom_fields_values: [{"field_code": "UTM_SOURCE", "values": [{"value": "google"}]}, …]`.
+  - Bitrix24 smart processes return user fields much the same way.
+
+  A mapping's `from:` takes a dotted path, so none of these values can be mapped, and an attribute's position in the list is not stable, so an index would not help even if the grammar allowed one.
+
+  **The workaround moves bronze away from the source.** The reporter copies each list into an object keyed by a slug of the name (`attrs.istochnik_zakaza`) at load time. Bronze then no longer holds what the source sent, every connector has to do the same, and a renamed attribute silently becomes a new key.
+current_state: |-
+  - **Paths.** `from:` is JSONPath-lite, dotted identifiers only (`spec/common.py:89`, typed as `JsonPath` at `:340`): no subscript, no filter. The same type serves a key's and a field's `from:`, a recipe's `from:` and `direct:`, a step's inputs and `unmapped:` (`spec/mapping.py:137`, `:158`, `:197`, `:198`, `:227`, `:366`), and the quarantine `redact:` list (`spec/quality.py`).
+  - **Extraction.** A path lowers to `JSONExtractScalar`, which is text (`ir/lower.py:47`).
+  - **SQLGlot.** It parses `[?(@.name == 'X')]` as a `JSONPathSelector`, and all seven generators bloomery targets refuse to render one: `Unsupported expression type JSONPathSelector` (measured on the pinned SQLGlot).
+  - **Transforms.** Arguments are positional strings and integers (`spec/mapping.py:47`). `json_path` returns a `variant` and is declared `nullifies` (`transforms/_builtins.py:649`).
+  - **Markers.** A transform a port must spell itself builds a marker, and the base render refuses any marker that survives to SQL generation as `UnsupportedByTarget` (`dialects/base.py:549`, the S-0044 pattern).
+  - **Lineage.** A mapped field's source node is `source.<relation>.<path>` (`resolve/graph.py:156`), so two fields read from one list would share one node.
+
+  **Measured spellings**, over ten edge cases on DuckDB 1.5.6, PostgreSQL 16 and Trino 483. `x` was the list as a JSON value (`json_extract(payload, '$.attributes')`), not the text a `from:` extraction yields, so the ports' spellings over text differ from these (`the-ports`):
+
+  ```sql
+  -- DuckDB
+  list_filter(TRY_CAST(x AS JSON[]), lambda e: e ->> '$.name' = 'Источник заказа')[1] ->> '$.value'
+  -- PostgreSQL
+  jsonb_path_query_first(CAST(x AS JSONB), '$[*] ? (@.name == $v).value',
+                         jsonb_build_object('v', 'Источник заказа')) #>> '{}'
+  -- Trino
+  json_extract_scalar(element_at(filter(TRY_CAST(x AS ARRAY(JSON)),
+                      e -> json_extract_scalar(e, '$.name') = 'Источник заказа'), 1), '$.value')
+  ```
+
+  The three engines agree on:
+  - a scalar value, and a numeric one;
+  - no match, an empty list and a missing key, which are all NULL;
+  - a value that is not a list, which is NULL;
+  - duplicate matches, where the first wins;
+  - non-object elements, which are skipped;
+  - a NULL value.
+
+  They disagree on a non-scalar value: DuckDB returns `{"deep":1}`, PostgreSQL `{"deep": 1}` with a space, and Trino NULL. A non-list value aborted the run on DuckDB until the cast was a `TRY_CAST`. The PostgreSQL spelling also compares JSON values where the other two compare text, so a numeric `name: 5` would not match the text `5` there. No measured case had a numeric match field, which is why they agreed.
+goals: |-
+  - A mapping reads one attribute of a pairs list by the attribute's name, in a spelling a reader of the spec can follow.
+  - The same bronze gives the same value on every port that ships it.
+  - Bronze stays what the source sent.
+  - Lineage tells two attributes read from one list apart.
+non_goals: |-
+  - **A JSONPath filter in `from:`.** No generator renders one, and the grammar is shared (`alternatives`).
+  - **Matching by anything but equality of text.** No prefix, no case folding, no regular expression; a project that needs one normalises the source in a step.
+  - **Returning a non-scalar value.** Engines disagree on its text, so it is NULL (D-1), and a nested value is reached through `pick`'s path instead.
+  - **The cloud ports, in this design.** Each ships when it is measured on its engine (D-5).
+design:
+  - key: the-transform
+    md: |-
+      ```yaml
+      channel:
+        from: "$.payload.attributes"
+        transform: [{pick: [name, "Источник заказа", value]}, trim]
+      utm_source:
+        from: "$.payload.custom_fields_values"
+        transform: [{pick: [field_code, UTM_SOURCE, "values[0].value"]}]
+      ```
+
+      `pick` takes three positional strings, as every transform does: the field to match on, the text to match, and the path to take from the matching element. Its input is the list, as `string` (JSON text, which is what a `from:` extraction yields) or `variant`. Its output is a `string`. The match reads the element's field as scalar text, so a numeric field matches the text of its number, and the first match in list order wins. The result is NULL when:
+      - the input is not a list, which includes text that is not JSON at all;
+      - no element is an object whose field is a scalar equal to the text;
+      - the taken value is NULL;
+      - the taken value is not a scalar.
+
+      `pick` is declared `nullifies`, because a row with no match yields NULL from a non-NULL list on purpose. S-0033's `coercible` rule then does not read the NULL as a failed cast.
+  - key: the-take-path
+    md: >-
+      The take path is relative to the matched element: dotted identifiers, each optionally
+      followed by `[n]` subscripts, such as `value` or `values[0].value`. The grammar
+      is `pick`'s own, checked when the mapping loads. The shared `JsonPath` type
+      is not widened, because six other fields read it and none of them asked for
+      subscripts (D-2). The match field is a single identifier, and the match text
+      is any non-empty string, rendered as a string literal by SQLGlot, so a quote
+      in an attribute's name needs no escaping by the author.
+  - key: the-ports
+    md: >-
+      The builder returns a `BLM_PICK` marker. A port that declares `DialectFeature.PICK`
+      rewrites it into its measured spelling, guarding the take so that a non-scalar
+      value is NULL: DuckDB and PostgreSQL would otherwise return JSON text, with
+      different spacing. The PostgreSQL port cannot use the jsonpath spelling measured
+      above, because its `==` compares JSON values and PostgreSQL 16 has no `.string()`
+      method to compare text. It reads the list through an ordered `jsonb_array_elements`
+      subquery comparing `e ->> '<field>'` instead, and phase 2's differential measures
+      that spelling against the other two. It checks its input with `pg_input_is_valid(<x>,
+      'jsonb')` before casting, because the cast raises on text that is not JSON where
+      DuckDB's `TRY_CAST` returns NULL, and it checks the value is a top-level array
+      (`jsonb_typeof`) before expanding it, because `jsonb_array_elements` raises
+      on an object such as `{}`. Trino parses text with `TRY(json_parse(<x>))` before
+      the `ARRAY(JSON)` cast, which takes a JSON value rather than its text; the measured
+      spelling above was over a JSON value. Every port compares the field, and returns
+      the take, only when it is a scalar: DuckDB's and PostgreSQL's `->>` turn an
+      object into its text, so `{"name": {"a": 1}}` matched the text `{"a":1}` on
+      DuckDB, while Trino's `json_extract_scalar` gives NULL. A port that does not
+      declare the feature lets the marker reach the base render, which refuses it
+      as `UnsupportedByTarget`, naming `pick` and the dialect. That is the existing
+      marker refusal, given its own message. DuckDB, PostgreSQL and Trino declare
+      the feature in this design. Snowflake, BigQuery and Databricks declare it when
+      their spelling is measured on the engine (S-0012/D-2, and S-0013/D-2 for Snowflake).
+      Redshift already refuses `json_path`, because its `SUPER` navigation is PartiQL
+      rather than a JSON path (S-0015/D-4), and it refuses `pick` on the same terms
+      until a spelling is measured there.
+  - key: lineage
+    md: >-
+      A picked field's source node names its selection, `source.<relation>.<path>[<field>=<text>].<take>`.
+      Two attributes read from one list are then two nodes, and a reader of `bloomery
+      lineage` sees which attribute a field comes from. The edge stays `direct`, so
+      S-0048/D-6's closed label vocabulary is unchanged.
+tests: |-
+  - Load: `pick` with three strings is accepted, a take path outside its grammar and an empty match text are refused, and `from:` still refuses a subscript or a filter (D-2, D-3).
+  - A DuckDB execution test over the ten measured edge cases pins each answer, plus three found in review: text that is not JSON, a composite match field, and valid JSON that is not a list, each NULL. The input arrives as JSON text, as a `from:` extraction yields it (D-1).
+  - An engine differential on PostgreSQL 16 and Trino 483 replays the same cases and requires the DuckDB answers exactly, the non-scalar case included (D-1, D-4). It is engine-tier, so it needs Docker and runs in CI's engine matrix job rather than in a phase's acceptance commands, which planning keeps to commands that read no host service.
+  - Every unmeasured port refuses a mapping that uses `pick`, with `UnsupportedByTarget` naming the transform (D-5).
+  - Lineage: two fields picked from one list are two source nodes, and the edge label is `direct` (D-6).
+  - The type-conformance corpus gains a `pick` case for each input type, because `uncovered()` fails otherwise.
+docs: |-
+  - The transforms reference: `pick`, its arguments, and what yields NULL.
+  - The schema reference's mapping section: the pairs-list example, and why the path filter is not the spelling.
+  - The dialects table: one row, with the refusing ports named.
+  - The agent skill's mapping reference, and the changelog.
+out_of_scope: |-
+  - Snowflake, BigQuery, Databricks and Redshift spellings, until each is measured on its engine.
+  - Matching on more than one field, which a project can express today as two picks over the same list only when the fields agree.
+risks: |-
+  - **Engines disagree on what counts as text.** The match reads a number as its text, and engines can format a number differently: `5` and `5.0` are not one string. The differential pins integers. A source that sends a float as a match field is a case the corpus does not hold yet.
+  - **A list with thousands of elements is scanned per row.** That is the cost of not reshaping bronze, and it is the engine's work, not the compiler's.
+  - **The refusal is per port**, so a project moving from DuckDB to Snowflake learns at compile time that `pick` is not there yet. That is the S-0025/D-3 trade, fail loud, accepted again.
+sections:
+  - key: about
+    md: >-
+      Raised by #312. Triaged against `main` at `89185408`; the spellings were measured
+      in throwaway containers, and the scripts are not part of the repository.
+alternatives:
+  - option: >-
+      A JSONPath filter in `from:`, `$.payload.attributes[?(@.name == 'X')].value`.
+    rejected_because: >-
+      SQLGlot parses it as a `JSONPathSelector` that none of the seven generators
+      bloomery targets renders, so every port would need its own translation of a
+      general filter language. The same `JsonPath` type serves six other spec fields,
+      which would all accept filters nothing can lower.
+  - option: >-
+      A nested argument form, `{pick: {where: {name: X}, take: value}}`.
+    rejected_because: >-
+      Transform arguments are positional strings and integers, and a mapping argument
+      would change the parser and the JSON schema for every transform to serve one.
+      Three positions carry the same meaning.
+  - option: Reshape the list into an object at load time.
+    rejected_because: >-
+      It is the reporter's workaround: bronze stops being what the source sent, every
+      connector repeats it, and a renamed attribute silently becomes a new key.
+  - option: >-
+      Return the taken value as a `variant` for any shape.
+    rejected_because: >-
+      The three measured engines give a non-scalar value three different texts, so
+      the same bronze would give different values per port. A nested value is reached
+      through the take path instead, which returns a scalar.
+questions:
+  - id: Q-1
+    text: >-
+      Whether the match should also read a boolean or a number field by its JSON type
+      rather than its text. Text equality is what all three engines agree on today,
+      and a typed match would need its own differential.

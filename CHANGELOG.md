@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A date role may name a column flattened through a to-one step.** A line-grain mart
+  flattening its order can declare `{date: order_placed_at, role: placed}`, where before a
+  role had to name a base column and projects copied the order's date onto every line at
+  ingestion. The buckets trace to the joined entity's column, so the zone guard reads that
+  entity's clock, and `MartColumnIR.via` records the join that owns them. A `date:` step
+  naming a column a later step flattens is refused. (#310)
+
+  **Upgrade note.** `bloomery_ir_version` moves 26 → 27 with the new field, so every
+  project with a mart re-fingerprints once, and `plan()` refuses to diff across the
+  versions. No artifact's SQL changes.
+
 ### Changed
 
 - **A ratio's numerator may range over a subset of its denominator's rows.** A conversion

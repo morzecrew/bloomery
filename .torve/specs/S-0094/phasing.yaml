@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The keys, the IR fields and the version
+    intent: >-
+      `Field.description`, `Field.label` and `Field.synonyms`, and `Metric.label`
+      and `Metric.synonyms`, with their load-time refusals (D-2, D-3, D-9). `ColumnIR.label`,
+      `ColumnIR.synonyms`, `MetricIR.label` and `MetricIR.synonyms`, filled by `build_project_ir`:
+      a field's own description wins over its canonical field's, and a metric template's
+      label and synonyms merge under the authored ones. `bloomery_ir_version` moves
+      by one (D-4). Tests drive `load_project` and `build_project_ir`, and the JSON
+      schema goldens change with the models.
+    scope:
+      - src/bloomery/spec/entity.py
+      - src/bloomery/spec/metrics.py
+      - src/bloomery/spec/catalog.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/resolve/metrics.py
+      - src/bloomery/ir/nodes.py
+      - tests/unit/test_spec/**
+      - tests/unit/test_ir/**
+      - tests/unit/test_resolve/test_build.py
+      - tests/golden/schema/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_spec tests/unit/test_ir tests/unit/test_resolve/test_build.py
+        tests/golden/test_spec_schemas.py -q
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      Every target routes the annotations to its own slots
+    intent: >-
+      `compile_project` routes each annotation by the table in `where-each-lands`
+      (D-5): MetricFlow dimension and metric `description`, `label` and `config.meta.synonyms`;
+      Cube `description`, `title` and `meta.synonyms`, with metric descriptions reaching
+      Cube for the first time (D-6); dbt column `description` and `meta.synonyms`,
+      with an entity's or a mart's schema entry written for annotation-only columns
+      too. Mart columns and date buckets take their source column's annotations (D-7).
+      Tests compile one fixture declaring every annotation for every target, and assert
+      each existing golden's SQL unchanged (D-1).
+    scope:
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/emit/cube/__init__.py
+      - src/bloomery/emit/dbt/__init__.py
+      - tests/unit/test_emit/**
+      - tests/golden/**/cube/**
+      - tests/golden/**/metricflow/**
+      - tests/golden/**/dbt/**
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_emit tests/golden -q
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: The plan and the docs
+    intent: >-
+      `plan()` classifies a change to a column's description, label or synonyms, or
+      a metric's description, label or synonyms, as ADDITIVE metadata-only with an
+      empty backfill (D-8). The schema reference, `annotate-a-spec.md`, `emit-cube.md`,
+      `emit-dbt.md`, the agent skill and the changelog describe the keys and where
+      each lands.
+    scope:
+      - src/bloomery/plan/diff.py
+      - tests/unit/test_plan/**
+      - pages/docs/reference/spec-schemas.md
+      - pages/docs/how-to/annotate-a-spec.md
+      - pages/docs/how-to/emit-cube.md
+      - pages/docs/how-to/emit-dbt.md
+      - skills/bloomery-skills/references/**
+      - /CHANGELOG.md
+    acceptance:
+      - >-
+        uv run pytest tests/unit/test_plan tests/unit/test_docs_floor.py tests/unit/test_skills.py
+        -q
+    depends_on:
+      - 2
+    character: routine

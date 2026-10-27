@@ -229,7 +229,7 @@ The dependency basis has four members, not five: composition is not a basis, bec
 - Consequence: What D-3 admits is unchanged — transitive closure is still admitted and still proved. What is removed is a spelling with no producer, and the cost of keeping it was concrete: a consumer guard was written against a basis table holding a row nothing could fill, which made one branch of it unreachable and its provenance row a fiction a test could invent back
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions)
 
 Measure grain must strictly equal mart grain; coarser or finer is `GrainViolation`. Resolves D2's prose/example contradiction to the strict reading; relaxation is a future additive change.
 

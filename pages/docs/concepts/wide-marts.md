@@ -51,6 +51,21 @@ declare at least one date role (`MartMissingTimeDimension`). Fan-out is refused 
 it would be *built*, not detected where it would be *summed* — the
 [guardrails](guardrails.md) page shows the exact messages.
 
+A date role may name any column flattened before it, not only a base column. A line rarely
+carries its document's date, so a line-grain mart takes the order's:
+
+```yaml
+    flatten:
+      - {via: item_of_order, prefix: order_}
+      - {date: order_placed_at, role: placed}   # the order's date, at line grain
+```
+
+The step is `many_to_one`, so each line has one order and one `placed_at`, and the buckets
+stay at the line grain. They trace to `order.placed_at`, so a wall-clock timestamp there
+needs its zone declared on the order's mapping. A line whose order is missing gets NULL
+buckets from the LEFT JOIN, as a NULL base date would. The `date:` step has to come after the
+`via:` step that flattens its column.
+
 ## Historical dimensions need an anchor
 
 An entity declared `scd: type2` keeps its history: the silver relation holds one row per

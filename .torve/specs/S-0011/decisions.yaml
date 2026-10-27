@@ -208,6 +208,31 @@ decisions:
       The kind shipped in 0.3.0 under the general promise and its first change after
       release was kept additive so the version did not move, which is the answer in
       practice.
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      **D-1's retrieval semantics are how a corpus is embedded, indexed and ranked**:
+      semantic spaces, vector fields, retrieval profiles, their lexical fields and
+      analysers. The names a person uses for a field or a metric, its description,
+      label and synonyms (S-0094), are annotations rather than retrieval semantics:
+      a field's are keys on the entity model's `Field`, and a metric's on `Metric`
+      in the metric set. D-1's text stands
+    paths: [src/bloomery/spec/entity.py]
+    consequence: >-
+      A field may carry `synonyms:` beside its `description:` and `label:` without
+      a retrieval document, and a project that declares no retrieval kind is still
+      untouched by S-0011. A synonym list is never an input to a retrieval profile's
+      lexical side, which reads the corpus's fields
+    rationale: >-
+      D-1's rationale is that every optional key on the entity model is one every
+      future reader must know about, and its subject is the retrieval design: how
+      an embedding corpus is declared and searched. A list of alternative names for
+      a column says nothing about how its data is embedded, indexed or ranked; it
+      is the same kind of key as `classification:` (S-0062/D-13), which the entity
+      model already carries. Read as forbidding it, D-1 would send a display annotation
+      into a spec kind whose guardrails are about vector dimensions and encoders
+    cites: [D-1, S-0062/D-13]
+    fingerprint: ec7012da21d8d936/721c02e4b0a1ab0a
 invariants:
   - id: I-1
     statement: >-

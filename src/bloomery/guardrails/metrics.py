@@ -251,12 +251,16 @@ def day_columns(mart: MartIR) -> dict[str, str]:
     wins: columns are sorted by name, so first-seen is first. One copy, read by
     this guard, the MetricFlow emitter and the planner's explanation, so the
     three cannot disagree about which column ``over:`` names.
+
+    A base column's buckets only: ``over`` names a column of the metric's own
+    entity, and the buckets of a date flattened from a joined entity trace to
+    that entity's column, whose name could be the same (S-0027/D-11).
     """
 
     day_by_source: dict[str, str] = {}
 
     for column in mart.columns:
-        if column.ref is not None and column.ref.dimension == "day":
+        if column.ref is not None and column.ref.dimension == "day" and column.via is None:
             day_by_source.setdefault(column.source_column, column.name)
 
     return day_by_source

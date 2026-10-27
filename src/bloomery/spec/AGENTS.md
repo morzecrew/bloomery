@@ -177,6 +177,13 @@ The retrieval kind carries the same spec-YAML promise as every kind from its fir
 - Paths: `src/bloomery/spec/retrieval.py` `pages/docs/reference/stability.md`
 - Consequence: a retrieval spec written against 0.3.0 keeps compiling under the same promise as every other kind, the two refusals the stability page names included
 
+### S-0011/D-15 — `ASSUMED` (Retrieval semantics)
+
+**D-1's retrieval semantics are how a corpus is embedded, indexed and ranked**: semantic spaces, vector fields, retrieval profiles, their lexical fields and analysers. The names a person uses for a field or a metric, its description, label and synonyms (S-0094), are annotations rather than retrieval semantics: a field's are keys on the entity model's `Field`, and a metric's on `Metric` in the metric set. D-1's text stands
+
+- Paths: `src/bloomery/spec/entity.py`
+- Consequence: A field may carry `synonyms:` beside its `description:` and `label:` without a retrieval document, and a project that declares no retrieval kind is still untouched by S-0011. A synonym list is never an input to a retrieval profile's lexical side, which reads the corpus's fields
+
 ### S-0019/D-2 — `ASSUMED` (Spec layer and error model)
 
 Loaders are pure text-in: `load_catalog(text)`, `load_project(sources: Mapping[str, str])`. No path/file API will be added to the core package — I/O belongs to callers.
@@ -292,25 +299,25 @@ Quarantine is an emitter convention (`<entity>__quarantine` artifact), not IR su
 
 - Paths: `src/bloomery/emit/lower/marts.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/catalog.py` `src/bloomery/spec/metrics.py` `tests/execution/test_marts.py` `tests/fixtures/ecom_basic/catalog.yaml` `tests/golden/schema/catalog.json` `tests/unit/test_emit/test_sqlmesh.py` `tests/unit/test_fixtures.py` `tests/unit/test_resolve/test_build.py` `tests/unit/test_spec/test_metrics.py`
 
-### S-0027/D-3 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-3 — `ASSUMED` (Marts and role-playing dimensions)
 
 `flatten` via-steps require declared `many_to_one`/`one_to_one` relationships (else `FanoutRisk`); chains flatten transitively in authored order; prefixes mandatory; collisions are errors, never auto-renames.
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/marts/flatten.py` `src/bloomery/spec/marts.py` `tests/golden/schema/marts.json` `tests/unit/test_marts/test_flatten.py` `tests/unit/test_spec/test_marts.py`
 
-### S-0027/D-4 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-4 — `ASSUMED` (Marts and role-playing dimensions)
 
 Date roles expand to exactly `{day, week, month, quarter, year}` bucket columns named `<role>_<bucket>`; `hour` is deliberately not expanded.
 
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/lower/marts.py` `src/bloomery/marts/flatten.py` `src/bloomery/planner/coverage.py` `src/bloomery/planner/request.py` `src/bloomery/spec/marts.py` `src/bloomery/spec/metrics.py` `tests/golden/schema/marts.json`
 
-### S-0027/D-7 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-7 — `ASSUMED` (Marts and role-playing dimensions)
 
 Marts are optional: a project without a `marts:` document compiles silver only; the planner then refuses everything with `UnreachableAtGrain` (no marts, no serving surface).
 
 - Paths: `src/bloomery/marts/flatten.py` `src/bloomery/spec/marts.py` `tests/golden/schema/marts.json`
 
-### S-0027/D-8 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-8 — `ASSUMED` (Marts and role-playing dimensions)
 
 `cost_hint` (int, default 1) is a tie-breaking scan-cost hint only; selection ties break lexicographically (S-0020 determinism).
 

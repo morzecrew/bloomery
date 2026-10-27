@@ -15,7 +15,7 @@ Additivity: `non_additive` metrics are never materialized as stored numbers (com
 
 - Paths: `pages/docs/concepts/guardrails.md` `src/bloomery/guardrails/additivity.py` `src/bloomery/planner/coverage.py` `tests/fixtures/semantic_corpus/002-average-of-averages/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/002-average-of-averages/problem.md` `tests/fixtures/semantic_corpus/005-semi-additive-balance/problem.md` `tests/unit/test_guardrails/test_additivity.py`
 
-### S-0027/D-11 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-11 — `ASSUMED` (Marts and role-playing dimensions)
 
 **A `date:` step may name a column flattened through a `many_to_one` or `one_to_one` step, not only a base column.** The column is looked up among those flattened before the step, the base entity's own and every prefixed one, and must still be `date` or `timestamp` typed. Its buckets trace to the joined entity's column, so the zone guard reads that entity's clock. A `date:` naming a column a later step flattens is refused as a column that does not exist yet. `as_of` stays base-only (S-0040/D-8)
 

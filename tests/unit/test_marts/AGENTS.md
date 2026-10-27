@@ -2,20 +2,20 @@
 
 ## Decisions governing `tests/unit/test_marts/`
 
-### S-0027/D-3 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-3 — `ASSUMED` (Marts and role-playing dimensions)
 
 `flatten` via-steps require declared `many_to_one`/`one_to_one` relationships (else `FanoutRisk`); chains flatten transitively in authored order; prefixes mandatory; collisions are errors, never auto-renames.
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/marts/flatten.py` `src/bloomery/spec/marts.py` `tests/golden/schema/marts.json` `tests/unit/test_marts/test_flatten.py` `tests/unit/test_spec/test_marts.py`
 
-### S-0027/D-10 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-10 — `ASSUMED` (Marts and role-playing dimensions)
 
 Every flattened mart column is a requestable dimension: `_mart_ir` builds one `MartDimensionIR` per column, a date bucket keeping its role's `DimensionRef` and a plain attribute getting `DimensionRef(dimension=<column>)`, and nothing narrows the set
 
 - Paths: `src/bloomery/marts/flatten.py` `src/bloomery/ir/nodes.py` `tests/unit/test_marts/test_flatten.py`
 - Consequence: A column that `flatten:` adds to a mart is requestable by every consumer that reads `MartIR.dimensions`, so narrowing a noisy surface is a new decision rather than a filter in one consumer
 
-### S-0027/D-11 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-11 — `ASSUMED` (Marts and role-playing dimensions)
 
 **A `date:` step may name a column flattened through a `many_to_one` or `one_to_one` step, not only a base column.** The column is looked up among those flattened before the step, the base entity's own and every prefixed one, and must still be `date` or `timestamp` typed. Its buckets trace to the joined entity's column, so the zone guard reads that entity's clock. A `date:` naming a column a later step flattens is refused as a column that does not exist yet. `as_of` stays base-only (S-0040/D-8)
 

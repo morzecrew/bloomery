@@ -264,7 +264,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/bloomery/resolve/` — 106 decision(s)
 - `src/bloomery/runtime/` — 15 decision(s)
 - `src/bloomery/semantic/` — 70 decision(s)
-- `src/bloomery/spec/` — 127 decision(s)
+- `src/bloomery/spec/` — 128 decision(s)
 - `src/bloomery/steps/` — 13 decision(s)
 - `src/bloomery/transforms/` — 36 decision(s)
 - `src/bloomery/typing/` — 8 decision(s)

@@ -155,7 +155,7 @@ Emitters produce file-shaped text artifacts as data (settles open question #1). 
 
 - Paths: `src/bloomery/planner/result.py` `tests/equivalence/test_three_way.py` `tests/support/equivalence.py` `tests/unit/test_planner/test_names.py`
 
-### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions)
 
 Measure grain must strictly equal mart grain; coarser or finer is `GrainViolation`. Resolves D2's prose/example contradiction to the strict reading; relaxation is a future additive change.
 
