@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The planner binds request values.** `plan(..., paramstyle="pyformat")`, or any of PEP
+  249's five styles, puts a placeholder where each request filter value and the row
+  policy's value went, and `QueryPlan.params` carries the values in placeholder order. Each
+  value is typed as its dimension is, so a driver binds a `date` as a date. A runtime on
+  psycopg, which reads every `%` once it is given parameters, can now pass them: under the
+  percent styles a `%` in the text is doubled. `QueryPlan.shape` is `sha256(sql)`, shared
+  by requests that differ only in values; `fingerprint` still covers the values. Without a
+  `paramstyle`, nothing changes. (#304)
 - **Expression metrics have lineage.** `lineage()` walked upstream from a metric defined
   by an `expr` with no `requires:` to nothing. An `expr` edge now runs from each field of the
   metric's grain entity that its `expr` names, so the walk reaches the entity column and,

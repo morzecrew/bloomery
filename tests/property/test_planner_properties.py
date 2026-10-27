@@ -32,6 +32,7 @@ from bloomery.emit.metricflow import emit_manifest
 from bloomery.errors import InvalidLiteral, InvalidRequest
 from bloomery.naming import DefaultNaming
 from bloomery.planner.filters import to_where
+from bloomery.planner.result import QueryPlan
 from bloomery.planner.names import (
     ResolvedDimension,
     bloomery_dimension_name,
@@ -142,6 +143,33 @@ def test_adversarial_filter_values_stay_literals(value: str, op: Op) -> None:
     normalized = value.replace("\r\n", "\n").replace("\r", "\n")
     literals = {literal.this for literal in tree.find_all(exp.Literal) if literal.is_string}
     assert normalized in literals
+
+
+@settings(max_examples=60, deadline=None)
+@given(value=_value_strategy, op=st.sampled_from([Op.EQ, Op.LIKE, Op.ILIKE]))
+@example(value="' OR 1=1 --", op=Op.EQ)
+@example(value="100% _done_ %(p1)s", op=Op.LIKE)
+@example(value="__bloomery_bind_1__", op=Op.EQ)
+def test_adversarial_filter_values_bind_whole(value: str, op: Op) -> None:
+    """Bound, no value reaches the text at all: every value plans the very SQL
+    a benign one does, and the driver receives it verbatim (S-0097/D-3)."""
+    if "\x00" in value or (op in (Op.LIKE, Op.ILIKE) and not _pattern_is_valid(value)):
+        return  # refused before binding, as inline; asserted above
+    plan = _bound_plan(value, op)
+
+    assert plan.sql == _bound_plan("baseline", op).sql
+    assert plan.params == (("p1", value),)
+
+
+def _bound_plan(value: str, op: Op) -> QueryPlan:
+    request = MetricRequest(
+        metrics=("revenue",),
+        dimensions=("store",),
+        filters=(Predicate("store", op, (value,)),),
+    )
+    return PLANNER.plan(
+        fixture_ir("non_additive_aov"), request, dialect="duckdb", paramstyle="pyformat"
+    )
 
 
 def test_nul_byte_is_refused() -> None:

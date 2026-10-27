@@ -131,13 +131,15 @@ malformed `nulls`, `limit`, or `offset` value is `InvalidRequest`).
 
 | Field | What it carries |
 |---|---|
-| `sql` | The rendered SQL text — a complete statement, runnable as-is on the requested dialect. Filter values are inlined as escaped literals and bloomery adds no bind placeholders, so [execute it with no parameters](#executing-the-sql) |
+| `sql` | The rendered SQL text — a complete statement on the requested dialect. By default filter values are inlined as escaped literals, so [execute it with no parameters](#executing-the-sql); with a `paramstyle`, each value is a placeholder instead ([bind the values](#bind-the-values)) |
 | `columns` | Self-describing output envelope: one `ColumnDescriptor(name, type, role)` per output column, in bloomery names (`ordered_month`, never MetricFlow's internal names) |
 | `mart` | The serving mart's logical name — the first of `marts` |
 | `marts` | Every mart the plan read: one name, or one per branch when the measures span grains |
 | `warnings` | Non-fatal notices: a clamped `limit`, a `time_grain` with nothing to apply to |
 | `explanation` | Deterministic provenance — `explanation.render()` gives the human-readable block |
-| `fingerprint` | `sha256(sql)`: identical requests over identical specs give the same value, so it identifies the query; a result cache keys on it together with the data's freshness |
+| `params` | The bound values as `(name, value)` pairs in placeholder order, named `p1`, `p2`, …; empty unless you passed a `paramstyle` |
+| `fingerprint` | Identifies the query, its values included: identical requests over identical specs give the same value, so a result cache keys on it together with the data's freshness |
+| `shape` | `sha256(sql)` alone: under a `paramstyle`, requests that differ only in their values share it, so a prepared-statement or plan cache keys on it. Inline, it equals `fingerprint` |
 | `semantic` | The derivation: what bloomery decided to compute, and the rule authorizing each step |
 
 ### Executing the SQL
@@ -146,13 +148,41 @@ malformed `nulls`, `limit`, or `offset` value is `InvalidRequest`).
 as none. psycopg reads placeholders only when it is given parameters: `execute(plan.sql)`
 sends the text as written, while `execute(plan.sql, {})` reads the `%` in a filter's
 `LIKE 'con%'` as a placeholder and refuses the statement. Call your driver's parameterless
-form. If your runtime always binds, escape the text for its placeholder syntax; for
-psycopg, `%` becomes `%%`. A `RowPolicy` predicate is SQL you wrote, so it carries whatever
-placeholders you put in it.
+form, or plan with a `paramstyle` and pass `plan.params`.
 
-The fingerprint is `sha256(sql)`, and the literals are part of that text: two requests that
-differ only in a filter value get different fingerprints, which is what makes it safe as a
-result-cache key.
+Inline, the fingerprint is `sha256(sql)`, and the literals are part of that text: two
+requests that differ only in a filter value get different fingerprints, which is what
+makes it safe as a result-cache key.
+
+### Bind the values
+
+Pass `paramstyle` to have every request filter value and the row policy's value bound
+instead of inlined. It is one of PEP 249's five styles, the one your driver reads:
+
+| `paramstyle` | Placeholder | Pass |
+|---|---|---|
+| `qmark` | `?` | `[value for _, value in plan.params]` |
+| `numeric` | `:1` | the same list |
+| `named` | `:p1` | `dict(plan.params)` |
+| `format` | `%s` | the list |
+| `pyformat` | `%(p1)s` | `dict(plan.params)` |
+
+```python
+plan = planner.plan(ir, request, dialect="postgres", paramstyle="pyformat")
+rows = connection.execute(plan.sql, dict(plan.params)).fetchall()  # psycopg
+```
+
+Each value is the Python value of its dimension's type: a `datetime.date` for a date, a
+`datetime` for a timestamp, a `Decimal` for a decimal, and `int`, `bool` or `str`
+otherwise, so the driver types the bind as the column it is compared with. A LIKE pattern
+binds whole, with its `ESCAPE '\'` left in the text. A metric's own `filter:` and the
+`LIMIT` stay in the text. Under `format` and `pyformat`, every `%` already in the text,
+such as a metric filter's, is doubled, because the driver reads each one.
+
+Under a `paramstyle`, the values are out of the text, so `sql` is the same for requests
+that differ only in their values. `shape` is its digest, the key for a prepared statement;
+`fingerprint` still covers the values, so a result cache keyed on it never serves one
+filter's rows for another.
 
 The explanation is generated from the plan, never from a model — every number ships
 with how it was computed:

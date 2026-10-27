@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-27T21:43:41Z'
+    title: >-
+      The differential holds both engines to DuckDB's rows
+    changes:
+      - subject: D-7
+        field: text
+        before: >-
+          On PostgreSQL through psycopg (`pyformat`) and on Trino through its client
+          (`qmark`), every planner execution request returns the same rows bound as
+          inline, dates, timestamps and decimals included, checked by an engine differential
+        after: >-
+          On PostgreSQL through psycopg (`pyformat`) and on Trino through its client
+          (`qmark`), every planner bind request returns DuckDB's inline rows when
+          bound, dates, timestamps and decimals included, and inline wherever the
+          engine runs the inline plan; Trino refuses an inline request filter on a
+          date or a timestamp (#351), so those cases are strict expected failures
+          there, checked by an engine differential
+      - subject: D-7
+        field: fingerprint
+        after: abdda825ba28152a/9dbede4b19bcbad6
+    md: |-
+      Measured in phase 2, which also settles Q-1. Trino's client spells each bound value as a typed literal: a `date` as `DATE '…'`, a naive `datetime` as `TIMESTAMP '…'` with microseconds, and a `Decimal` as `DECIMAL '…'` in fixed notation, so its scale survives. psycopg sends a `date` and a `Decimal` with their own types. DuckDB coerces a bound `str` to the column's type, so phase 1's DuckDB rows cannot tell a typed bind from its text; the unit tier asserts the values are typed, and only Trino refused a text bind when that was sabotaged.
+
+      The original row compared bound rows to inline rows on the same engine. On Trino the inline plan of a request filter on a date or a timestamp does not run: the planner renders that literal as untyped text, and Trino refuses `date >= varchar(10)`. That defect predates this document and is filed as #351. The differential therefore holds both engines, bound and inline, to the rows DuckDB's inline plan returns, and marks Trino's three inline cases as strict expected failures, so fixing #351 turns them red until the marker is removed.

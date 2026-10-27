@@ -110,8 +110,10 @@ decisions:
     grade: ASSUMED
     text: >-
       On PostgreSQL through psycopg (`pyformat`) and on Trino through its client (`qmark`),
-      every planner execution request returns the same rows bound as inline, dates,
-      timestamps and decimals included, checked by an engine differential
+      every planner bind request returns DuckDB's inline rows when bound, dates, timestamps
+      and decimals included, and inline wherever the engine runs the inline plan;
+      Trino refuses an inline request filter on a date or a timestamp (#351), so those
+      cases are strict expected failures there, checked by an engine differential
     paths: [tests/engines/test_planner_binds_differential.py]
     consequence: >-
       D-4's typed values are evidence on the two server engines the tier runs, and
@@ -121,3 +123,4 @@ decisions:
       a `datetime.date` or a `Decimal` reaches the engine as the column's type. A
       row of its own because the differential lands in its own phase
     cites: [D-4, S-0012/D-2]
+    fingerprint: abdda825ba28152a/9dbede4b19bcbad6

@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from bloomery.planner.request import Scalar
 from bloomery.semantic import SemanticPlan
 from bloomery.typing import LogicalType
 
@@ -144,7 +145,9 @@ class QueryPlan:
 
     ``mart`` is the serving mart's logical name; ``warnings`` carries
     non-fatal notices (limit clamping, ignored ``time_grain``);
-    ``fingerprint`` is the sha256 hex digest of ``sql``.
+    ``fingerprint`` identifies the query, bound values included, and
+    ``shape`` is the sha256 hex digest of ``sql`` alone (S-0097/D-6); inline,
+    the two are equal.
     """
 
     sql: str
@@ -187,9 +190,20 @@ class QueryPlan:
     #: a `QueryPlan` directly — the emitter tests do — would otherwise have to
     #: restate a name it already passed, and the two could disagree.
     marts: tuple[str, ...] = ()
+    #: The bound request values as ``(name, value)`` pairs in placeholder
+    #: order, named ``p1``, ``p2``, … by occurrence; empty inline (S-0097/D-2).
+    #: A positional paramstyle takes the values in order, a named one
+    #: ``dict(params)``.
+    params: tuple[tuple[str, Scalar], ...] = ()
+    #: ``sha256(sql)``: equal for requests that differ only in bound values,
+    #: the key for a prepared statement or a plan cache (S-0097/D-6). Filled
+    #: from ``fingerprint`` when not given, which inline is the same digest.
+    shape: str = ""
 
     # ....................... #
 
     def __post_init__(self) -> None:
         if not self.marts:
             object.__setattr__(self, "marts", (self.mart,))
+        if not self.shape:
+            object.__setattr__(self, "shape", self.fingerprint)
