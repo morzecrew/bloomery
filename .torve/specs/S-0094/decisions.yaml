@@ -1,0 +1,144 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      Descriptions, labels and synonyms change no SELECT. They reach metadata slots
+      only, and every existing golden's SQL is byte-identical with them absent, asserted
+      rather than assumed
+    paths:
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/emit/cube/__init__.py
+      - src/bloomery/emit/dbt/__init__.py
+    consequence: >-
+      A project can add or edit any of the three without its models rebuilding or
+      its fingerprinted SQL moving, beyond the one IR version bump of D-4
+    rationale: >-
+      The rule S-0062/D-1 gives owner, classification and grants, for the same reason:
+      an annotation that changed a query would be a semantics change wearing a documentation
+      key. Graded ASSUMED as drafted; whether it should be LOCKED like its S-0062
+      counterpart is the owner's call
+    cites: [S-0062/D-1]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `Field` gains optional `description` and `label`. A field's own description
+      wins over its bound canonical field's, and the label comes from the field alone.
+      Each string is refused empty after stripping, and a label is refused if it holds
+      a line break
+    paths:
+      - src/bloomery/spec/entity.py
+      - src/bloomery/resolve/build.py
+      - tests/golden/schema/entity_model.json
+    consequence: >-
+      A column is described without binding a catalog field, and a project that binds
+      one keeps the catalog's text until it writes its own
+    rationale: >-
+      Authored over inherited is the order metrics already use against their templates
+      (`resolve/metrics.py:99`). Binding `canonical:` only to get a description is
+      RESTATING with a backfill (S-0024/D-4), which #313 reports as the workaround
+    cites: [S-0024/D-4, S-0062/D-13]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `Metric` gains optional `label` and `synonyms`, beside its `description`. Both
+      merge from a template as `description` does, the authored value first. `synonyms`
+      is a list of distinct non-empty strings, refused when two are equal, and stored
+      sorted in the IR
+    paths:
+      - src/bloomery/spec/metrics.py
+      - src/bloomery/resolve/metrics.py
+      - tests/golden/schema/metrics.json
+    consequence: >-
+      A natural-language front end reads a metric's alternative names from one list
+      instead of parsing them out of its description, and two projects listing the
+      same synonyms in different orders compile to the same bytes
+    rationale: >-
+      The authored order carries no meaning and must not reach an artifact's bytes
+      (S-0020). A duplicate in an author's list is a typo the loader can name. The
+      metric set is its own spec kind, so the key does not touch the entity model
+      that S-0011/D-1 keeps retrieval semantics off
+    cites: [S-0011/D-1]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `ColumnIR` gains `label`, and `MetricIR` gains `label` and `synonyms`. `bloomery_ir_version`
+      moves by one with them
+    paths: [src/bloomery/ir/nodes.py, tests/unit/test_ir/**]
+    consequence: >-
+      Every project's fingerprint moves once, and `plan()` refuses to diff across
+      the versions. A project's first plan after upgrading cannot be shown as metadata-only
+    rationale: >-
+      The canonical encoder writes each dataclass's field names and count, so a field
+      with a default still moves every fingerprint, and every IR addition of this
+      shape has bumped the version (S-0079/D-2). `ColumnIR.description` already exists,
+      so descriptions add no field
+    cites: [S-0020/D-3, S-0079/D-2]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Each annotation reaches exactly the slots of the routing table in `where-each-lands`
+      and no other. A field's description and label become a MetricFlow dimension's
+      `description` and `label`, a Cube dimension's `description` and `title`, and
+      a dbt column's `description`. A metric's label becomes MetricFlow's `label`
+      and Cube's `title`, and its synonyms become `config.meta.synonyms` and `meta.synonyms`.
+      Synonyms never go into a label or a description
+    paths:
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/emit/cube/__init__.py
+      - src/bloomery/emit/dbt/__init__.py
+    consequence: >-
+      A reader of an artifact finds each annotation in the one place its target defines
+      for it. SQLMesh carries none, until a consumer of its artifacts asks for `column_descriptions`
+    rationale: >-
+      Routed keys rather than a passthrough, as S-0062/D-3 decided for classification.
+      `config.meta` and `meta` are where `owner` already goes on these targets (S-0087/D-1,
+      `_metric_meta`), and neither target has a synonyms slot of its own
+    cites: [D-1, S-0062/D-3, S-0087/D-1]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Cube emits `description` on its dimensions and measures, so a metric's authored
+      description reaches Cube for the first time
+    paths: [src/bloomery/emit/cube/__init__.py, tests/golden/**/cube/**]
+    consequence: >-
+      Every Cube golden whose fixture describes a metric gains a `description:` line,
+      and no other line of it moves
+    rationale: >-
+      A search of the Cube emitter and its goldens finds no `description` and no `title`.
+      A metric's description has reached MetricFlow since it was introduced and Cube
+      never, which is the gap #313 names for dimensions, and it is the same one
+    cites: [D-5]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      A mart column carries the description and label of the entity column it was
+      flattened from, prefixed or not, and a date role's buckets carry their source
+      column's. Every target looks a mart column up by `(source_entity, source_column)`,
+      as MetricFlow already does for descriptions
+    paths:
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/emit/cube/__init__.py
+      - src/bloomery/emit/dbt/__init__.py
+    consequence: >-
+      `product_brand` on a wide mart shows the `brand` field's description, and no
+      mart can describe one column differently from another
+    rationale: >-
+      Not the inheritance S-0062/D-2 refuses for `owner`. An owner is a claim about
+      who answers for a relation, and a mart is another relation; a description is
+      a claim about the data, and a prefixed column is the same data
+    cites: [S-0062/D-2, S-0027/D-6]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      A change to a column's `description` or `label`, or to a metric's `description`,
+      `label` or `synonyms`, is ADDITIVE, metadata only, with no backfill
+    paths: [src/bloomery/plan/diff.py, tests/unit/test_plan/**]
+    consequence: >-
+      Moving a column's description from a canonical binding to its own key, with
+      the link unchanged, restates nothing. Only the `canonical:` link moving is RESTATING
+    rationale: >-
+      The column description's branch in `plan/diff.py` already classifies its own
+      change this way, and the new keys change no value any more than it does. The
+      vocabulary stays S-0024/D-1's five members
+    cites: [S-0024/D-1, S-0024/D-4]
