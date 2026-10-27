@@ -39,6 +39,7 @@ from bloomery.semantic.proof import (
     SemanticFact,
     SemanticJudgement,
 )
+from bloomery.typing import DecimalType, IntType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -398,6 +399,38 @@ def _dimension_source(metric: MetricIR, project: ProjectIR) -> dict[str, str]:
 # ....................... #
 
 
+def _numeric_dimensions(metric: MetricIR, project: ProjectIR) -> frozenset[str]:
+    """The dimensions of the marts listing ``metric`` whose column is a number.
+
+    A value on one of these is compared by what it is, not by how it was
+    written: a quoted ``"1.0"`` and a bare ``1`` reach the IR as a string and an
+    int and are one value in SQL (S-0077/D-19).
+    """
+
+    return frozenset(
+        column.name
+        for mart in project.marts
+        if metric.name in mart.measures
+        for column in mart.columns
+        if isinstance(column.type, (IntType, DecimalType))
+    )
+
+
+def _canonical(value: object, *, numeric: bool) -> str:
+    """A filter value as a restriction compares it: a number by its value, so
+    ``1``, ``1.0`` and ``"1.00"`` are one, and anything else by its text."""
+
+    if numeric and not isinstance(value, bool):
+        number = _numeric(value)
+        if number is not None:
+            return format(number.normalize(), "f")
+
+    return str(value)
+
+
+# ....................... #
+
+
 def _restriction(
     metric: MetricIR, project: ProjectIR
 ) -> tuple[tuple[str, str, tuple[str, ...], str], ...]:
@@ -417,13 +450,19 @@ def _restriction(
     """
 
     source = _dimension_source(metric, project)
+    numeric = _numeric_dimensions(metric, project)
 
     return tuple(
         sorted(
             (
                 source.get(clause.dimension, clause.dimension),
                 clause.op,
-                tuple(sorted(str(value) for value in clause.values)),
+                tuple(
+                    sorted(
+                        _canonical(value, numeric=clause.dimension in numeric)
+                        for value in clause.values
+                    )
+                ),
                 # A `column:` clause (S-0007/D-9) carries no values; its other
                 # column is the restriction, resolved the way the dimension is,
                 # or `a = column b` and `a = column c` would read as one.
@@ -706,12 +745,18 @@ def prove_ratio_rows(metric: MetricIR, project: ProjectIR) -> Proof | Refutation
     # A numerator over a subset of the denominator's rows says so in the proof,
     # because the rows the ratio is about are the denominator's and a reader
     # should see which clauses narrowed the numerator (S-0077/D-19).
+    # The numerator's fact, under the numerator's source: `Proof` keeps one fact
+    # per source, and the ratio's own source carries leg 1's discharge.
     subset = (
         None
         if numerator_restriction == denominator_restriction
-        else (
-            f"{numerator.name} is restricted to a subset of {denominator.name}'s rows: "
-            f"{_rendered(numerator)} implies {_rendered(denominator)}"
+        else SemanticFact(
+            source=f"metric:{numerator.name}",
+            provenance=Provenance.DECLARED,
+            statement=(
+                f"{numerator.name} is restricted to a subset of {denominator.name}'s rows: "
+                f"{_rendered(numerator)} implies {_rendered(denominator)}"
+            ),
         )
     )
 
@@ -899,22 +944,19 @@ def _rendered(metric: MetricIR) -> str:
 # ....................... #
 
 
-def _rows_proof(metric: MetricIR, statement: str, *, subset: str | None = None) -> Proof:
+def _rows_proof(metric: MetricIR, statement: str, *, subset: SemanticFact | None = None) -> Proof:
     """R019 discharged, naming *which* declaration discharged it, and, for a
     numerator over a subset of the denominator's rows, which clauses made it
     one (S-0077/D-19)."""
 
-    statements = (statement,) if subset is None else (subset, statement)
+    discharge = SemanticFact(
+        source=f"metric:{metric.name}",
+        provenance=Provenance.DECLARED,
+        statement=statement,
+    )
 
     return Proof(
         rule="R019",
         conclusion=_rows_judgement(metric.name),
-        facts=tuple(
-            SemanticFact(
-                source=f"metric:{metric.name}",
-                provenance=Provenance.DECLARED,
-                statement=text,
-            )
-            for text in statements
-        ),
+        facts=(discharge,) if subset is None else (subset, discharge),
     )

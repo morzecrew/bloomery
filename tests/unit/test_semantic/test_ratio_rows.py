@@ -937,3 +937,22 @@ def test_identical_restrictions_still_say_nothing_about_a_subset() -> None:
     proof = _rate((WON,), (WON,))
     assert isinstance(proof, Proof)
     assert "subset" not in " ".join(fact.statement for fact in proof.facts)
+
+
+def test_a_subset_proof_keeps_its_discharge_too() -> None:
+    """`Proof` keeps one fact per source, and the subset fact shared the
+    ratio's source with the fact naming how leg 1 was discharged, so the proof
+    kept one of the two. The subset fact is the numerator's to state."""
+    proof = _rate((WON,), (WON_OR_LOST,))
+    assert isinstance(proof, Proof)
+    sources = {fact.source: fact.statement for fact in proof.facts}
+    assert "subset" in sources["metric:flagged"]
+    assert "counts every row" in sources["metric:flagged_rate"]
+
+
+def test_a_number_is_one_value_however_it_is_spelled() -> None:
+    """`1` and `1.0` on a numeric column are one value in SQL, and the
+    restriction compared their text, refusing a subset that holds."""
+    numerator = ('{dimension: carrier_cost, op: eq, values: ["1.0"]}',)
+    denominator = ("{dimension: carrier_cost, op: in, values: [1, 2]}",)
+    assert isinstance(_rate(numerator, denominator), Proof)
