@@ -185,10 +185,10 @@ A ratio's `numerator` and `denominator` are unioned into `requires_metrics` by t
 
 ### S-0022/D-10 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
 
-A metric's `expr` is written over its `requires:` canonicals, and the IR build binds each to the grain entity's column that links it where the two are spelled differently, so the emitted expression reads the mart's column. A canonical no grain column links, or two do, is left as written. The units guard looks a bound column up as its canonical
+A metric's `expr` is written over its `requires:` canonicals, and the IR build binds each to the grain entity's column that links it where the two are spelled differently, so the emitted expression reads the mart's column. A canonical no grain column links, or two do, is left as written. The units guard looks a bound column up as its canonical. `plan()` and `timeline` compare a metric unbound, in the spelling it was authored in
 
-- Paths: `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `src/bloomery/guardrails/arithmetic.py` `tests/unit/test_resolve/test_canonical_binding.py`
-- Consequence: A catalog template works for a project whose field is spelled otherwise, the case `canonical:` links exist for: `unit_price * quantity` over a field `qty` emits `unit_price * qty`, and S-0034/D-49's step-output link counts `canonical_id` rather than a `customer_ref` the mart lacks. `MetricIR.expr` moves only where a spelling differs, so those projects re-fingerprint once
+- Paths: `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `src/bloomery/guardrails/arithmetic.py` `tests/unit/test_resolve/test_canonical_binding.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/timeline.py`
+- Consequence: A catalog template works for a project whose field is spelled otherwise, the case `canonical:` links exist for: `unit_price * quantity` over a field `qty` emits `unit_price * qty`, and S-0034/D-49's step-output link counts `canonical_id` rather than a `customer_ref` the mart lacks. `MetricIR.expr` moves only where a spelling differs, so those projects re-fingerprint once; a field renamed under a metric respells it and does not restate it, as S-0024's v2 to v3 case requires
 
 ### S-0023/D-2 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 

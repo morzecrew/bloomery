@@ -17,11 +17,12 @@ one definition and two spellings for callers to disagree over.
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 
 from sqlglot import exp, jsonpath
 from sqlglot.expressions.core import Expression
 
-from bloomery.ir.nodes import ColumnIR, PartitionSpec, SqlExpr
+from bloomery.ir.nodes import ColumnIR, EntityIR, MetricIR, PartitionSpec, SqlExpr
 from bloomery.spec.common import PARTITION_SPEC_PATTERN
 
 # ----------------------- #
@@ -32,6 +33,7 @@ __all__ = [
     "canonical_bindings",
     "extraction",
     "partition_specs",
+    "unbound",
 ]
 
 _PARTITION_RE = re.compile(PARTITION_SPEC_PATTERN)
@@ -81,6 +83,34 @@ def bind_columns(node: Expression, bindings: dict[str, str]) -> Expression:
         return child
 
     return node.transform(renamed)
+
+
+# ....................... #
+
+
+def unbound(metric: MetricIR, entities: tuple[EntityIR, ...]) -> MetricIR:
+    """``metric`` with its expression back in the canonical spelling it was
+    written in, undoing :func:`canonical_bindings` against this IR's own grain.
+
+    Binding follows the field: renaming a linked field respells every metric
+    bound to it and changes no number. Two versions compared in this form agree
+    wherever the authored expression does, which is what ``plan()`` and
+    ``timeline`` mean by a metric that did not move (S-0022/D-10).
+    """
+
+    if metric.expr is None:
+        return metric
+
+    columns = next((entity.columns for entity in entities if entity.name == metric.grain), ())
+    spelled = {
+        field: canonical
+        for canonical, field in canonical_bindings(metric.depends_on, columns).items()
+    }
+
+    if not spelled:
+        return metric
+
+    return replace(metric, expr=canon(bind_columns(metric.expr.ast(), spelled)))
 
 
 # ....................... #

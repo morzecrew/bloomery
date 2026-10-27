@@ -258,7 +258,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/bloomery/guardrails/` — 100 decision(s)
 - `src/bloomery/ir/` — 82 decision(s)
 - `src/bloomery/marts/` — 35 decision(s)
-- `src/bloomery/plan/` — 35 decision(s)
+- `src/bloomery/plan/` — 36 decision(s)
 - `src/bloomery/planner/` — 60 decision(s)
 - `src/bloomery/quality/` — 39 decision(s)
 - `src/bloomery/resolve/` — 110 decision(s)

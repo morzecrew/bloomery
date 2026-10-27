@@ -3,7 +3,14 @@ normalized IR nodes plus the ``blm1:`` content fingerprint."""
 
 from bloomery.ir.fingerprint import project_fingerprint
 from bloomery.ir.json import ir_from_json, ir_json
-from bloomery.ir.lower import bind_columns, canon, canonical_bindings, extraction, partition_specs
+from bloomery.ir.lower import (
+    bind_columns,
+    canon,
+    canonical_bindings,
+    extraction,
+    partition_specs,
+    unbound,
+)
 from bloomery.ir.nodes import (
     COMPUTED,
     FLAGS_COLUMN,
@@ -158,6 +165,7 @@ __all__ = [
     "ir_from_json",
     "ir_json",
     "partition_specs",
+    "unbound",
     "project_fingerprint",
     "quality_sort_key",
 ]

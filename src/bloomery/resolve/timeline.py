@@ -41,7 +41,7 @@ from bloomery.errors import InvariantViolated
 # requires a public annotation to resolve at run time —
 # `tests/unit/test_signature_closure.py` calls `get_type_hints` on every
 # export and a guarded name fails it.
-from bloomery.ir import ProjectIR
+from bloomery.ir import ProjectIR, unbound
 from bloomery.resolve.build import StageProgress, pipeline
 from bloomery.resolve.facets import FacetDelta, facets
 from bloomery.resolve.graph import Node, NodeKind
@@ -416,7 +416,8 @@ def _definition(kind: NodeKind, spelling: str, ir: ProjectIR, catalog: Catalog |
         case NodeKind.METRIC:
             metric = next((one for one in ir.metrics if one.name == spelling), None)
             if metric is not None:
-                return metric
+                # As authored: binding follows a renamed field (S-0022/D-10).
+                return unbound(metric, ir.entities)
             return next((one for one in ir.unreachable if one.name == spelling), None)
         case NodeKind.MART:
             mart = next((one for one in ir.marts if one.name == spelling), None)
