@@ -286,3 +286,27 @@ def test_each_unknown_derived_input_names_its_own_alias() -> None:
         "metrics: metrics.revenue_yoy.derived.inputs.current",
         "metrics: metrics.revenue_yoy.derived.inputs.prior",
     }
+
+
+def test_a_ratio_reading_an_unknown_metric_is_a_missing_reference() -> None:
+    """The merge unions a ratio's operands into `requires_metrics` (#330), so
+    this stage checks them as it checks derived inputs: before it, a typo'd
+    operand compiled clean, and after the union alone it crashed the graph."""
+    metrics = (
+        "metrics_version: 1\n"
+        "metrics:\n"
+        "  revenue: {grain: order_item, additivity: additive, agg: sum, expr: unit_price}\n"
+        "  share:\n"
+        "    additivity: ratio\n"
+        "    ratio: {numerator: revenu, denominator: revenue}\n"
+    )
+    project = load_project({"entity_model": ENTITY_MODEL, "mapping": MAPPING, "metrics": metrics})
+    with pytest.raises(ResolutionError) as excinfo:
+        resolve(project, None)
+    (leaf,) = [error for error in excinfo.value.collected if "ratio reads" in str(error)] or [
+        excinfo.value
+    ]
+
+    assert isinstance(leaf, MissingReference)
+    assert "unknown metric 'revenu'" in str(leaf)
+    assert leaf.source_path == "metrics: metrics.share.ratio.numerator"

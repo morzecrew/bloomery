@@ -686,6 +686,10 @@ def test_a_rename_moves_the_label_and_not_the_node() -> None:
         "requires_metrics: [revenue_gross, order_count]",
         1,
     )
+    # The ratio's numerator names it as well, and is an edge since #330.
+    sources["metrics"] = sources["metrics"].replace(
+        "numerator: gross_revenue", "numerator: revenue_gross", 1
+    )
     # An exposure names a metric from a third document, so a rename reaches
     # here too — and that is the half of S-0067/node-id-construction the edge into an
     # exposure exercises: the id belongs to the definition, so this reference

@@ -522,7 +522,7 @@ A metric is a template instantiation (`template:` plus overrides) or fully inlin
 | `template` | string | no | Catalog template to instantiate; own values win over the template's |
 | `description` | string | no | Carried into semantic-layer emissions |
 | `requires` | list of canonical field names | no (`[]`) | Leaves the metric reads |
-| `requires_metrics` | list of metric names | no (`[]`) | Metrics a derived metric reads |
+| `requires_metrics` | list of metric names | no (`[]`) | Further metrics this one reads; a ratio's operands and a derived metric's inputs are added on their own |
 | `grain` | string | no | Entity grain the metric aggregates from |
 | `additivity` | `additive` \| `semi_additive` \| `non_additive` \| `ratio` \| `distinct_count` | effectively yes (inline or via template) | Aggregation class, enforced by guardrails; `distinct_count` requires `agg: count_distinct` and an `expr` naming the counted identity |
 | `agg` | string | no | Aggregation function (`sum`, `count`, …) |
@@ -538,6 +538,9 @@ A metric is a template instantiation (`template:` plus overrides) or fully inlin
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `numerator` / `denominator` | metric name | yes | The additive components |
+
+The operands are also the metric's dependency edges, so `lineage()` and `plan()` reach
+them; they need not be repeated in `requires_metrics`.
 
 ### DerivedSpec
 

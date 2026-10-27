@@ -20,7 +20,12 @@ from bloomery import build_project_ir, load_catalog, load_project
 from bloomery.resolve import pipeline
 from support.compiling import fixture_sources
 from support.planning import variant_ir
-from bloomery.errors import GuardrailError, RatioOperandsDisagree, UndeclaredRatioRows
+from bloomery.errors import (
+    GuardrailError,
+    MissingReference,
+    RatioOperandsDisagree,
+    UndeclaredRatioRows,
+)
 from bloomery.semantic import RULES, Proof, Refutation, prove_ratio_rows
 from bloomery.ir import OnFail
 from bloomery.semantic.additivity import (
@@ -627,19 +632,19 @@ def test_a_counted_expression_that_is_not_a_column_discharges_nothing() -> None:
     assert refutation.reason == RatioRowsRefusal.UNDECLARED_ROWS.value
 
 
-def test_a_ratio_naming_an_operand_that_does_not_exist_is_left_to_r012() -> None:
+def test_a_ratio_naming_an_operand_that_does_not_exist_is_reported_once() -> None:
     """Two rules must not claim one defect.
 
-    A ratio whose denominator names nothing is already reported where it
-    belongs — the metric is unreachable, and R012 refuses the reconstruction
-    with the message written for it. R019 stays silent rather than adding a
-    second leaf telling the author to declare a row set for a metric that is
-    not there.
+    A ratio whose denominator names nothing is reported where it belongs: the
+    reference stage refuses the operand (S-0022/D-9), alone, so R019 never
+    adds a second leaf telling the author to declare a row set for a metric
+    that is not there.
     """
 
     metrics = METRICS.replace("denominator: parcels}", "denominator: nowhere}")
 
-    assert build(metrics=metrics) is not None
+    with pytest.raises(MissingReference, match="ratio reads unknown metric 'nowhere'"):
+        build(metrics=metrics)
 
 
 def test_an_expression_naming_no_column_of_the_entity_resolves_to_nothing() -> None:

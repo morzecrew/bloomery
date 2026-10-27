@@ -33,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A ratio's operands are lineage edges.** `lineage()` walked upstream from a ratio to
+  nothing unless `requires_metrics` repeated its numerator and denominator, and
+  `plan().downstream_impact` could not reach it from a change to either. The operands are
+  now unioned into `requires_metrics`, as a derived metric's inputs already were, and an
+  operand naming no metric is a `MissingReference` at `metrics.<name>.ratio.<operand>`,
+  where before it compiled clean. A ratio over an unreachable operand is now unreachable
+  itself. (#330)
 - **A dimension added to a mart is ADDITIVE in `plan()`.** One more optional field on an
   entity a mart flattens reported `dimensions changed` as BREAKING beside the additive
   `flattened column … added`, so `plan().breaking` was non-empty for a change no query

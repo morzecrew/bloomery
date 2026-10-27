@@ -103,3 +103,28 @@ decisions:
       one list still batch across kinds as `test_reference_failures_are_batched_across_kinds`
       requires
     cites: [D-1, D-7, S-0020/D-4]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      A ratio's `numerator` and `denominator` are unioned into `requires_metrics`
+      by the template merge, as derived inputs are under S-0050/D-3, and the
+      reference stage checks each operand names a metric
+      (`metrics.<name>.ratio.<operand>`) before the merge reads it
+    paths:
+      - src/bloomery/resolve/metrics.py
+      - src/bloomery/resolve/refs.py
+      - tests/unit/test_resolve/test_metrics.py
+      - tests/unit/test_resolve/test_refs.py
+    consequence: >-
+      `lineage()` walks from a ratio to its operands, and `depends_on`,
+      reachability and `plan().downstream_impact` follow them, without an author
+      repeating the operands in `requires_metrics`; a ratio whose operand is
+      unreachable is itself unreachable, and a typo'd operand is a
+      `MissingReference` where before it compiled clean
+    rationale: >-
+      The operands are metric names the spec already declares, and every fixture
+      and doc example repeated them in `requires_metrics` to get the edges; a
+      project that did not had no path from a ratio to anything (#330). D-1's one
+      graph is what lineage, reachability and the plan read, so the union belongs
+      at the merge rather than in each reader
+    cites: [D-1, D-3, D-7, S-0050/D-3]

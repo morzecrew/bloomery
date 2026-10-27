@@ -13,7 +13,7 @@ import pytest
 
 from bloomery import Direction, Lineage, lineage, load_project, resolve
 from bloomery.resolve.graph import Edge, Graph, Node, NodeKind
-from support.compiling import COLLIDING_ID_SOURCES
+from support.compiling import COLLIDING_ID_SOURCES, fixture_sources, load_fixture
 
 pytestmark = pytest.mark.unit
 
@@ -408,3 +408,25 @@ def test_two_nodes_sharing_a_name_have_separate_lineages() -> None:
         "source.raw__metrics.$.revenue",
     ]
     assert [n.name for n in metric.nodes] == ["metric.revenue"]
+
+
+def test_a_ratio_walks_upstream_to_its_operands() -> None:
+    """The reported walk: a ratio with no `requires_metrics` reached nothing
+    upstream, so "where does this number come from?" had no answer (#330)."""
+    sources = fixture_sources("ecom_basic")
+    declared = "    requires_metrics: [gross_revenue, order_count]\n"
+    assert sources["metrics"].count(declared) == 1
+    sources["metrics"] = sources["metrics"].replace(declared, "")
+    _project, catalog = load_fixture("ecom_basic")
+
+    walk = lineage(
+        resolve(load_project(sources), catalog).graph,
+        node("metric.average_order_value", NodeKind.METRIC),
+        Direction.UPSTREAM,
+        max_depth=1,
+    )
+
+    assert {(edge.src.name, edge.label) for edge in walk.edges} == {
+        ("metric.gross_revenue", "requires_metrics"),
+        ("metric.order_count", "requires_metrics"),
+    }
