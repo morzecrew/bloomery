@@ -44,19 +44,19 @@ decisions:
     text: >-
       `parse_ts` gains two reserved formats, `UNIX_SECONDS` and `UNIX_MILLIS`, which
       read a count of seconds or milliseconds since `1970-01-01 00:00:00` UTC. Their
-      input is a `string` or an `int`; an `int` input is refused by every other format
+      input is a `string`, as every `parse_ts` format's is
     paths:
       - src/bloomery/transforms/_builtins.py
       - src/bloomery/transforms/__init__.py
       - tests/unit/test_transforms/test_builtins.py
-      - tests/unit/test_typing/test_check.py
     consequence: >-
       An epoch lands as bronze sent it and maps to a `timestamp` in one step, from
-      a text extraction or a typed column
+      a text extraction or a typed column, which reaches the chain as its text
     rationale: >-
       `parse_ts` is where an author looks for a timestamp's format, and it is how
-      the reporter asked for it (#324). A typed `bigint` column is the other common
-      landing, and requiring `to_string` before a parse of a number would be ceremony
+      the reporter asked for it (#324). A chain starts as `string` whatever the bronze
+      column's type (`resolve/build.py:493`), so an `int` input would be reachable
+      only after a `to_int`, which buys nothing
     cites: [S-0081/D-2]
   - id: D-4
     grade: ASSUMED
@@ -100,23 +100,43 @@ decisions:
     text: >-
       The epoch formats lower to a `BLM_EPOCH_SECONDS` or `BLM_EPOCH_MILLIS` marker
       that a port declaring `DialectFeature.EPOCH` renders as integer arithmetic from
-      the epoch, never as a zone-aware function. DuckDB, PostgreSQL and Trino declare
-      it; every other port refuses the marker as `UnsupportedByTarget` until its spelling
-      is measured on the engine
+      the epoch, never as a zone-aware function. DuckDB declares it with `make_timestamp`;
+      every port that does not declare it refuses the marker as `UnsupportedByTarget`
+      until its spelling is measured on the engine
     paths:
       - src/bloomery/dialects/base.py
       - src/bloomery/dialects/duckdb.py
-      - src/bloomery/dialects/postgres.py
-      - src/bloomery/dialects/trino.py
-      - tests/unit/test_dialects/**
-      - tests/engines/test_epoch_differential.py
+      - tests/unit/test_dialects/test_base.py
+      - tests/unit/test_dialects/test_duckdb.py
     consequence: >-
-      One bronze row gives one instant on every shipping port under any session time
-      zone, and a project on Snowflake, BigQuery, Databricks or Redshift learns at
-      compile time that the formats are not there yet
+      An epoch gives one instant on DuckDB under any session time zone, and a project
+      on a port without the feature learns at compile time that the formats are not
+      there yet
     rationale: >-
       `to_timestamp(n)` and `from_unixtime(n)` were measured to move with the session
       zone on all three engines, and the arithmetic spellings were zone-stable and
       agreed for every integer count in range. A marker refused by the base render
       is the S-0044 pattern for a transform a port must spell itself
     cites: [S-0012/D-2, S-0044, S-0020]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      PostgreSQL and Trino declare `DialectFeature.EPOCH` with the measured arithmetic
+      spellings, `TIMESTAMP '1970-01-01' + n * INTERVAL '1 second'` and `date_add('second',
+      n, TIMESTAMP '1970-01-01 00:00:00.000000')` and their millisecond forms, held
+      to DuckDB's answers by an engine differential under a UTC and a non-UTC session
+    paths:
+      - src/bloomery/dialects/postgres.py
+      - src/bloomery/dialects/trino.py
+      - tests/unit/test_dialects/test_postgres.py
+      - tests/unit/test_dialects/test_trino.py
+      - tests/engines/test_epoch_differential.py
+    consequence: >-
+      One bronze row gives one instant on all three shipping ports under any session
+      time zone; Snowflake, BigQuery, Databricks and Redshift still refuse
+    rationale: >-
+      These spellings were zone-stable and agreed with DuckDB's for every integer
+      count in range when measured. A row of its own because the ports land in their
+      own phase, and a row whose paths span two phases mints a contract that contradicts
+      itself
+    cites: [D-6, S-0012/D-2]

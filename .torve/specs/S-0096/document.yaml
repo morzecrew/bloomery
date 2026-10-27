@@ -80,14 +80,14 @@ design:
         transform: [{parse_ts: UNIX_SECONDS}]
       ```
 
-      `UNIX_SECONDS` and `UNIX_MILLIS` are two more reserved `parse_ts` formats, beside `ISO8601` and `ISO8601_INSTANT` (D-3). The input is the text a `from:` extraction yields, or an `int`, so a loader that landed the column typed needs no `to_string`; the two formats are the only ones an `int` input is accepted by.
+      `UNIX_SECONDS` and `UNIX_MILLIS` are two more reserved `parse_ts` formats, beside `ISO8601` and `ISO8601_INSTANT` (D-3). The input is the text a `from:` extraction yields, as for every `parse_ts` format. A chain starts as `string` whatever type the loader landed the column in (`resolve/build.py:493`), so a typed `bigint` column reaches the formats as its text too, and no other input type is needed.
 
       The count is an optional sign and at most fifteen digits, with spaces around it, and it must name an instant from `0001-01-01 00:00:00` to `9999-12-31 23:59:59.999` (D-4). Fifteen digits is the widest count the range admits (`253402300799999` milliseconds), so the guarded cast to `BIGINT` cannot overflow. Anything else yields NULL: a fraction, an exponent, text that is not a number, or a count out of range. Under the quality system that NULL is a coercion failure the `coercible` rule disposes of, as it is for `ISO8601_INSTANT` over zoneless text, because `parse_ts` is not `nullifies`.
 
       The value is an instant, so S-0081/D-2's rules apply unchanged: the zone guard treats it as never a wall clock, a `to_utc` after it is refused at resolve, and `zone_in:` may only be `UTC` (D-5).
   - key: the-ports
     md: |-
-      The builder returns a `BLM_EPOCH_SECONDS` or `BLM_EPOCH_MILLIS` marker over the guarded count, and a port declaring `DialectFeature.EPOCH` renders it as integer arithmetic from the epoch (D-6):
+      The builder returns a `BLM_EPOCH_SECONDS` or `BLM_EPOCH_MILLIS` marker over the guarded count, and a port declaring `DialectFeature.EPOCH` renders it as integer arithmetic from the epoch (D-6, and D-7 for PostgreSQL and Trino):
 
       | Port | Seconds | Milliseconds |
       |---|---|---|
@@ -101,7 +101,7 @@ tests: |-
   - Execution on DuckDB: the reporter's outcome chain with the fallback, NULL kept NULL, and the implicit `coercible` rule present on the field (D-1).
   - Execution on DuckDB: the thirteen measured texts for both epoch formats, each answer pinned, under a UTC and an Asia/Tokyo session (D-3, D-4, D-6).
   - An engine differential on PostgreSQL 16 and Trino 483 replays the thirteen texts and requires DuckDB's answers exactly (D-6).
-  - Typecheck: an `int` input is accepted by the epoch formats and refused by every other format; `to_utc` after an epoch parse is refused, and `zone_in:` other than `UTC` is refused (D-3, D-5).
+  - Typecheck: both epoch formats are accepted over a `string` input, `to_utc` after an epoch parse is refused, and `zone_in:` other than `UTC` is refused (D-3, D-5).
   - Every unmeasured port refuses a mapping that uses an epoch format with `UnsupportedByTarget` (D-6).
   - The reference semantics and the type-conformance corpus gain the fallback and both formats.
 docs: |-
@@ -147,5 +147,6 @@ alternatives:
 questions:
   - id: Q-1
     text: >-
-      Whether the epoch formats should also accept a `decimal` input, for a loader
-      that lands a JSON number as `numeric`. The measurement covered text only.
+      Whether a count spelled with a zero fraction, such as `1761561600.000`, should
+      be accepted. It is the text a `numeric` bronze column yields to the chain, and
+      D-4 reads it as a fraction, so NULL. The measurement covered integer text only.
