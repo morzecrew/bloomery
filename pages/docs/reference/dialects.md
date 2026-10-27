@@ -219,6 +219,18 @@ engines truncate a `+01:00` identically, so the refusal lives in the shared rend
 path and every port inherits the same guard around whatever its own cast spelling is. It is documented with the transform, in
 [Transforms](transforms.md#a-timestamp-that-states-its-own-offset).
 
+### `parse_ts: UNIX_SECONDS` and `UNIX_MILLIS`
+
+An epoch count lowers to integer arithmetic from 1970 on a zoneless timestamp, never to the
+engine's own epoch function: DuckDB's and PostgreSQL's `to_timestamp` and Trino's
+`from_unixtime` were measured to answer a different wall clock under a different session
+zone (S-0096).
+
+| Port | Spelling |
+|---|---|
+| `duckdb` | `make_timestamp(n * 1000000)`, or `* 1000` for milliseconds |
+| every other port | refused as `UnsupportedByTarget` until its spelling is measured |
+
 ### `to_utc`, the zone argument, and the zone that came back
 
 Two problems, one after the other, both now closed.

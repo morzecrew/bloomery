@@ -20,6 +20,8 @@ from sqlglot.optimizer.annotate_types import annotate_types
 from bloomery.errors import UnsupportedByTarget
 from bloomery.transforms import (
     DIVIDE_MARKER,
+    EPOCH_MILLIS_MARKER,
+    EPOCH_SECONDS_MARKER,
     ISO_INSTANT_TEXT_MARKER,
     ISO_TEXT_MARKER,
     ISO_ZONED_TEXT_MARKER,
@@ -41,6 +43,7 @@ from bloomery.typing import (
 __all__ = [
     "DialectFeature",
     "space_separated",
+    "epoch_timestamps",
     "strip_iso_text",
     "utc_from_zone",
     "utc_instant",
@@ -62,6 +65,10 @@ _ISO_MARKERS = frozenset({ISO_TEXT_MARKER, ISO_ZONED_TEXT_MARKER})
 
 #: Every marker a port must replace before SQL generation.
 _ALL_ISO_MARKERS = _ISO_MARKERS | {ISO_INSTANT_TEXT_MARKER}
+
+#: The markers an epoch parse lowers to, each with its counts per second
+#: (S-0096/D-6).
+_EPOCH_MARKERS = {EPOCH_SECONDS_MARKER: 1, EPOCH_MILLIS_MARKER: 1000}
 
 
 def _without_offset(text: Expression, parsed: Expression, *, zoned: bool = False) -> Expression:
@@ -236,6 +243,33 @@ def strip_iso_text(
             text = child.expressions[0]
             zoned = child.name.upper() == ISO_ZONED_TEXT_MARKER
             return _without_offset(text.copy(), spelling(text), zoned=zoned)
+
+        return child
+
+    return node.transform(replace)
+
+
+# ....................... #
+
+
+def epoch_timestamps(
+    node: Expression, spelling: Callable[[Expression, int], Expression]
+) -> Expression:
+    """Each epoch marker as the port's ``spelling(count, per_second)``: the
+    guarded ``BIGINT`` count, and 1 for seconds or 1000 for milliseconds
+    (S-0096/D-6).
+
+    The spelling must be integer arithmetic from 1970 on a zoneless timestamp,
+    never the engine's own epoch function: DuckDB's ``to_timestamp``,
+    PostgreSQL's ``to_timestamp`` and Trino's ``from_unixtime`` were measured
+    to answer a different wall clock under a different session zone. A port
+    that does not call this leaves the marker for :meth:`SQLGlotDialect.render`
+    to refuse.
+    """
+
+    def replace(child: Expression) -> Expression:
+        if isinstance(child, exp.Anonymous) and child.name.upper() in _EPOCH_MARKERS:
+            return spelling(child.expressions[0], _EPOCH_MARKERS[child.name.upper()])
 
         return child
 
@@ -577,6 +611,26 @@ class SQLGlotDialect:
             ),
             None,
         )
+
+        epoch = next(
+            (
+                child
+                for child in node.find_all(exp.Anonymous)
+                if child.name.upper() in _EPOCH_MARKERS
+            ),
+            None,
+        )
+
+        if epoch is not None:
+            fmt = "UNIX_SECONDS" if epoch.name.upper() == EPOCH_SECONDS_MARKER else "UNIX_MILLIS"
+            msg = (
+                f"parse_ts: {fmt} is not measured on dialect {self.name!r} (S-0096/D-6): an "
+                "engine's own epoch function can answer a different wall clock under a "
+                "different session zone, so a port ships the format only once its integer "
+                "arithmetic from 1970 is measured against DuckDB's. Fix: parse the epoch on "
+                "a port that has it, or convert it to ISO text upstream"
+            )
+            raise UnsupportedByTarget(msg)
 
         if surviving is not None:
             msg = (
