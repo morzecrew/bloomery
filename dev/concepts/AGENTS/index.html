@@ -1811,6 +1811,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#s-0027d-11-assumed-marts-and-role-playing-dimensions-implementation-partial" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0027/D-11 — <code>ASSUMED</code> (Marts and role-playing dimensions) — implementation: partial
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#s-0034d-57-assumed-the-step-registry-referenced-implementations" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1870,6 +1881,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         S-0075/D-1 — <code>LOCKED</code> (Mechanical imports and per-relationship provenance)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#s-0077d-19-assumed-a-ratio-over-one-row-set-implementation-partial" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0077/D-19 — <code>ASSUMED</code> (A ratio over one row set) — implementation: partial
       </span>
     </span>
   </a>
@@ -1969,6 +1991,12 @@
 <ul>
 <li>Paths: <code>pages/docs/concepts/guardrails.md</code> <code>src/bloomery/guardrails/additivity.py</code> <code>src/bloomery/planner/coverage.py</code> <code>tests/fixtures/semantic_corpus/002-average-of-averages/expected/semantic_outcome.json</code> <code>tests/fixtures/semantic_corpus/002-average-of-averages/problem.md</code> <code>tests/fixtures/semantic_corpus/005-semi-additive-balance/problem.md</code> <code>tests/unit/test_guardrails/test_additivity.py</code></li>
 </ul>
+<h3 id="s-0027d-11-assumed-marts-and-role-playing-dimensions-implementation-partial">S-0027/D-11 — <code>ASSUMED</code> (Marts and role-playing dimensions) — implementation: partial<a class="headerlink" href="#s-0027d-11-assumed-marts-and-role-playing-dimensions-implementation-partial" title="Permanent link">&para;</a></h3>
+<p><strong>A <code>date:</code> step may name a column flattened through a <code>many_to_one</code> or <code>one_to_one</code> step, not only a base column.</strong> The column is looked up among those flattened before the step, the base entity's own and every prefixed one, and must still be <code>date</code> or <code>timestamp</code> typed. Its buckets trace to the joined entity's column, so the zone guard reads that entity's clock. A <code>date:</code> naming a column a later step flattens is refused as a column that does not exist yet. <code>as_of</code> stays base-only (S-0040/D-8)</p>
+<ul>
+<li>Paths: <code>src/bloomery/marts/flatten.py</code> <code>tests/unit/test_marts/test_flatten.py</code> <code>pages/docs/concepts/wide-marts.md</code></li>
+<li>Consequence: A line-grain mart flattening <code>line_of_order</code> with <code>prefix: order_</code> can declare <code>{date: order_ordered_at, role: ordered}</code>, and a project no longer copies the document's date onto every line at ingestion. A line whose order is missing gets a NULL bucket from the LEFT JOIN, as a NULL base date already does; a <code>referential</code> rule on the line's order key is how a project rules that out</li>
+</ul>
 <h3 id="s-0034d-57-assumed-the-step-registry-referenced-implementations">S-0034/D-57 — <code>ASSUMED</code> (The step registry: referenced implementations)<a class="headerlink" href="#s-0034d-57-assumed-the-step-registry-referenced-implementations" title="Permanent link">&para;</a></h3>
 <p>A step input's <code>requires</code> is a lower bound the compile checks: when the wiring binds the input to an entity the project declares or to another step's output, every required column is one of that relation's columns — the entity's fields, or the output's <code>produces</code> — or the compile refuses with a <code>StepError</code> naming the step, the input, the relation and what is missing. A relation the project does not declare, and a reserved column name, are not checked</p>
 <ul>
@@ -2004,6 +2032,12 @@
 <ul>
 <li>Paths: <code>pages/docs/concepts/what-bloomery-proves.md</code> <code>src/bloomery/guardrails/evidence.py</code> <code>tests/unit/test_guardrails/test_evidence.py</code></li>
 <li>Touching these paths owes a divergence entry: <code>torve log owed &lt;task&gt; --touched &lt;files&gt;</code> before you finish</li>
+</ul>
+<h3 id="s-0077d-19-assumed-a-ratio-over-one-row-set-implementation-partial">S-0077/D-19 — <code>ASSUMED</code> (A ratio over one row set) — implementation: partial<a class="headerlink" href="#s-0077d-19-assumed-a-ratio-over-one-row-set-implementation-partial" title="Permanent link">&para;</a></h3>
+<p><strong>Leg 2 admits a numerator restricted to a subset of the denominator's rows.</strong> The operands agree when every clause of the denominator's restriction is implied by a clause of the numerator's on the same resolved column: the same clause, an <code>eq</code> whose value an <code>in</code> list holds, or an <code>in</code> list another contains. The numerator's rows are then among the denominator's, the ratio is about the denominator's rows, and leg 1 is asked as before. Any other difference still refuses: a denominator clause no numerator clause implies, and an ordering, negated or <code>column:</code> clause that is not identical</p>
+<ul>
+<li>Paths: <code>src/bloomery/semantic/additivity.py</code> <code>tests/unit/test_semantic/test_ratio_rows.py</code> <code>pages/docs/concepts/guardrails.md</code></li>
+<li>Consequence: <code>converted_leads</code> (<code>outcome eq converted</code>) over an unrestricted <code>leads</code>, and <code>won</code> (<code>status eq won</code>) over <code>closed</code> (<code>status in [won, lost]</code>), check clean and plan. <code>won</code> over <code>lost</code>, and a numerator missing one of the denominator's clauses, are still <code>RatioOperandsDisagree</code>. The rows proof names the implication, so a reader of the explanation sees which clauses made the numerator a subset</li>
 </ul>
 <h3 id="s-0083d-5-assumed-a-declared-key-is-checked">S-0083/D-5 — <code>ASSUMED</code> (A declared key is checked)<a class="headerlink" href="#s-0083d-5-assumed-a-declared-key-is-checked" title="Permanent link">&para;</a></h3>
 <p>The claims page says a declared key is a <code>LOCKED</code> premise that the build checks, and the data quality page lists the generated audit and how <code>dedupe</code> removes it</p>
