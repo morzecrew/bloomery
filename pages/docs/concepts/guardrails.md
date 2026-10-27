@@ -210,6 +210,26 @@ sounds.
 a denominator to another is a quotient of two quantities about different things, refused
 whether or not a zero is involved.
 
+That includes a rate whose numerator is a subset of the denominator: a `filter:` on the
+numerator alone is refused as `RatioOperandsDisagree`, even though every converted lead is
+also a lead. Count the subset inside the expression instead, so both operands range over
+the same rows:
+
+```yaml
+converted_leads:
+  grain: lead
+  additivity: additive
+  agg: sum
+  expr: "CASE WHEN outcome = 'converted' THEN 1 ELSE 0 END"
+leads: {grain: lead, additivity: additive, agg: count, expr: lead_id}
+lead_conversion:
+  grain: lead
+  additivity: ratio
+  ratio: {numerator: converted_leads, denominator: leads}
+```
+
+No flag column has to be landed for this; the condition reads the entity's own field.
+
 ## Path conflict: the guardrail that does not raise
 
 When a field has both a direct source column and a satisfiable recorded derivation, any
