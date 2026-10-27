@@ -35,48 +35,55 @@ Parse validates shape and grammar only; reference existence (entities, transform
 
 - Paths: `src/bloomery/emit/lower/silver.py` `src/bloomery/ir/nodes.py` `src/bloomery/marts/flatten.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/entity.py` `tests/unit/test_emit/test_quality_artifacts.py` `tests/unit/test_resolve/test_build.py` `tests/unit/test_spec/test_entity.py`
 
-### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions)
+### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
 
 Measure grain must strictly equal mart grain; coarser or finer is `GrainViolation`. Resolves D2's prose/example contradiction to the strict reading; relaxation is a future additive change.
 
 - Paths: `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/errors.py` `src/bloomery/marts/flatten.py` `src/bloomery/planner/semantic_plan.py` `src/bloomery/semantic/proof.py` `src/bloomery/semantic/rollup.py` `tests/fixtures/fanout_trap/marts.yaml` `tests/fixtures/fanout_trap/metrics.yaml` `tests/fixtures/semantic_corpus/001-order-shipping-fanout/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/001-order-shipping-fanout/problem.md` `tests/fixtures/semantic_corpus/010-many-to-many-bridge/expected/semantic_outcome.json` `tests/fixtures/semantic_corpus/010-many-to-many-bridge/problem.md` `tests/golden/refusals/example-wrong-grain.txt` `tests/golden/refusals/fanout_trap.txt` `tests/support/semantic_corpus.py` `tests/unit/test_emit/test_period_over_period.py` `tests/unit/test_semantic_corpus_guard.py`
 
-### S-0027/D-3 — `ASSUMED` (Marts and role-playing dimensions)
+### S-0027/D-3 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
 
 `flatten` via-steps require declared `many_to_one`/`one_to_one` relationships (else `FanoutRisk`); chains flatten transitively in authored order; prefixes mandatory; collisions are errors, never auto-renames.
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/marts/flatten.py` `src/bloomery/spec/marts.py` `tests/golden/schema/marts.json` `tests/unit/test_marts/test_flatten.py` `tests/unit/test_spec/test_marts.py`
 
-### S-0027/D-4 — `ASSUMED` (Marts and role-playing dimensions)
+### S-0027/D-4 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
 
 Date roles expand to exactly `{day, week, month, quarter, year}` bucket columns named `<role>_<bucket>`; `hour` is deliberately not expanded.
 
 - Paths: `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/lower/marts.py` `src/bloomery/marts/flatten.py` `src/bloomery/planner/coverage.py` `src/bloomery/planner/request.py` `src/bloomery/spec/marts.py` `src/bloomery/spec/metrics.py` `tests/golden/schema/marts.json`
 
-### S-0027/D-6 — `ASSUMED` (Marts and role-playing dimensions)
+### S-0027/D-6 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
 
 Mart flattening is resolved at IR build (`bloomery/marts/`, pure): consumers see the wide schema, never the recipe. `ProjectIR.marts` is fingerprint-covered.
 
 - Paths: `src/bloomery/marts/flatten.py` `src/bloomery/resolve/build.py` `tests/unit/test_evidence.py` `tests/unit/test_resolve/test_build.py`
 
-### S-0027/D-7 — `ASSUMED` (Marts and role-playing dimensions)
+### S-0027/D-7 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
 
 Marts are optional: a project without a `marts:` document compiles silver only; the planner then refuses everything with `UnreachableAtGrain` (no marts, no serving surface).
 
 - Paths: `src/bloomery/marts/flatten.py` `src/bloomery/spec/marts.py` `tests/golden/schema/marts.json`
 
-### S-0027/D-9 — `ASSUMED` (Marts and role-playing dimensions)
+### S-0027/D-9 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
 
 (Amended for `_bloomery-metricflow-pivot.md`) Marts are the emission source for MetricFlow semantic models — one mart = exactly one semantic model (S-0030 R1); a measure-carrying mart must declare a date role (`MartMissingTimeDimension` otherwise). Marts and role-playing are *more* load-bearing after the pivot, not less.
 
 - Paths: `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/marts/flatten.py` `src/bloomery/quality/mart.py` `src/bloomery/resolve/graph.py` `tests/fixtures/ecom_basic/marts.yaml` `tests/fixtures/quality_precedence/entity_model.yaml` `tests/unit/test_emit/test_quality_mart.py` `tests/unit/test_fixtures.py` `tests/unit/test_quality/test_mart.py` `tests/unit/test_resolve/test_graph.py`
 
-### S-0027/D-10 — `ASSUMED` (Marts and role-playing dimensions)
+### S-0027/D-10 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
 
 Every flattened mart column is a requestable dimension: `_mart_ir` builds one `MartDimensionIR` per column, a date bucket keeping its role's `DimensionRef` and a plain attribute getting `DimensionRef(dimension=<column>)`, and nothing narrows the set
 
 - Paths: `src/bloomery/marts/flatten.py` `src/bloomery/ir/nodes.py` `tests/unit/test_marts/test_flatten.py`
 - Consequence: A column that `flatten:` adds to a mart is requestable by every consumer that reads `MartIR.dimensions`, so narrowing a noisy surface is a new decision rather than a filter in one consumer
+
+### S-0027/D-11 — `ASSUMED` (Marts and role-playing dimensions) — implementation: partial
+
+**A `date:` step may name a column flattened through a `many_to_one` or `one_to_one` step, not only a base column.** The column is looked up among those flattened before the step, the base entity's own and every prefixed one, and must still be `date` or `timestamp` typed. Its buckets trace to the joined entity's column, so the zone guard reads that entity's clock. A `date:` naming a column a later step flattens is refused as a column that does not exist yet. `as_of` stays base-only (S-0040/D-8)
+
+- Paths: `src/bloomery/marts/flatten.py` `tests/unit/test_marts/test_flatten.py` `pages/docs/concepts/wide-marts.md`
+- Consequence: A line-grain mart flattening `line_of_order` with `prefix: order_` can declare `{date: order_ordered_at, role: ordered}`, and a project no longer copies the document's date onto every line at ingestion. A line whose order is missing gets a NULL bucket from the LEFT JOIN, as a NULL base date already does; a `referential` rule on the line's order key is how a project rules that out
 
 ### S-0033/D-9 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 

@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/fixtures/semantic_corpus/009-null-denominator/bloomery/inclusive/`
 
-### S-0077/D-2 — `LOCKED` (A ratio over one row set)
+### S-0077/D-2 — `LOCKED` (A ratio over one row set) — implementation: partial
 
 **The inclusive reading stays reachable and is spelled out loud.** Without it the rule reduces to "exclude zero rows", which is D1 reversed with extra steps: an author who means `4.00` must be able to say so, and be seen to have said so.
 
