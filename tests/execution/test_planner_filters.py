@@ -37,7 +37,7 @@ from sqlglot import expressions as exp
 from bloomery import AnyOf, MetricRequest, Op, OrderSpec, Predicate, RowPolicy
 from support.compiling import compile_fixture
 from support.execution import materialize, warehouse
-from support.planning import audit_scans, fixture_ir, make_planner
+from support.planning import audit_scans, fixture_ir, make_planner, variant_ir
 
 pytestmark = pytest.mark.execution
 
@@ -204,3 +204,39 @@ def test_multi_pattern_like_is_an_or_match(conn: duckdb.DuckDBPyConnection) -> N
     assert _revenue(conn, Predicate("store", Op.LIKE, ("Acme", "50\\%off"))) == Decimal(
         "107.00"
     )
+
+
+# ....................... #
+# A ratio over a subset of its denominator's rows (S-0077/D-19)
+
+
+def test_a_rate_over_a_subset_of_the_denominator_s_rows_plans_and_answers(
+    conn: duckdb.DuckDBPyConnection,
+) -> None:
+    """A conversion-rate shape, refused as `RatioOperandsDisagree` until
+    S-0077/D-19: the numerator counts the orders of one store, the denominator
+    every order. One order in four is `Acme`'s, so the share is a quarter — and
+    the denominator's count reads every order, not only the numerator's."""
+    _seed(conn)
+    metrics = (
+        "  average_order_value:\n",
+        "  acme_orders:\n"
+        "    grain: order\n"
+        "    additivity: additive\n"
+        "    agg: count\n"
+        '    expr: "order_id"\n'
+        "    filter:\n"
+        '      - {dimension: store, op: eq, values: ["Acme"]}\n'
+        "  acme_share:\n"
+        "    additivity: ratio\n"
+        "    ratio: {numerator: acme_orders, denominator: order_count}\n"
+        "  average_order_value:\n",
+    )
+    marts = ("    measures: [order_count, revenue]", "    measures: [acme_orders, order_count, revenue]")
+    ir = variant_ir("non_additive_aov", metrics=metrics, marts=marts)
+    plan = PLANNER.plan(ir, MetricRequest(metrics=("acme_share",)), dialect="duckdb")
+    ((share,),) = conn.execute(plan.sql).fetchall()
+    assert Decimal(str(share)) == Decimal("0.25")
+    # The derivation shows the numerator's own clause scoped to it, which is
+    # what makes it a subset of the denominator's rows.
+    assert "Filter(store = 'Acme' on acme_orders)" in plan.semantic.render()

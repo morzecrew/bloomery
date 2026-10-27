@@ -77,10 +77,11 @@ it.
   components at query time. `non_additive` with nothing to recompute from is refused.
 - `ratio:` under any other additivity, and `additivity: ratio` without `ratio:`, are both
   refused.
-- A ratio's operands must be restricted to the same rows (`RatioOperandsDisagree`), so a
-  rate over a subset does not filter its numerator. Count the subset in the expression
-  instead: `agg: sum` with `expr: "CASE WHEN outcome = 'converted' THEN 1 ELSE 0 END"`,
-  over an unfiltered `agg: count` of a column declared `required: true`.
+- A ratio's numerator must range over the denominator's rows or a subset of them
+  (`RatioOperandsDisagree`). A conversion rate filters its numerator
+  (`filter: [{dimension: outcome, op: eq, values: [converted]}]`) over an unfiltered count
+  of a column declared `required: true`. Each denominator clause needs a numerator clause
+  that implies it: the same clause, or an `eq` whose value the denominator's `in` holds.
 - The metric's grain must equal the grain of every mart that serves it (`GrainViolation`).
 
 ## Semi-additive

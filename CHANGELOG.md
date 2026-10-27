@@ -20,6 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   project with a mart re-fingerprints once, and `plan()` refuses to diff across the
   versions. No artifact's SQL changes.
 
+### Changed
+
+- **A ratio's numerator may range over a subset of its denominator's rows.** A conversion
+  rate, `converted_leads` filtered to `outcome eq converted` over an unfiltered `leads`, was
+  refused as `RatioOperandsDisagree`, because the two operands had to be restricted
+  identically. Each clause of the denominator's restriction now only has to be implied by
+  one of the numerator's, on the same column: the same clause, an `eq` whose value an `in`
+  list holds, or an `in` list inside another. Orderings and negations must still be the same
+  clause on both sides. A win rate, `status eq won` over `status in [won, lost]`, is a subset
+  too; won over lost is not. (#309)
+
 ### Fixed
 
 - **PostgreSQL reads bronze landed as text or typed.** A single-key JSON read
