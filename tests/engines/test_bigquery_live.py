@@ -74,10 +74,17 @@ pytestmark = pytest.mark.engine("bigquery")
 
 #: Fixtures that exist to be refused, and never reach a dialect at all: a
 #: `convert` with no rate relation (S-0040/D-4), a fan-out trap, a mart over an
-#: SCD2 entity. Named rather than caught, because `except: continue` around a
-#: corpus sweep turns a resolver regression into a smaller sweep that still
-#: passes.
-REFUSED_BY_DESIGN = frozenset({"currency_convert_refusal", "fanout_trap", "scd2_mart_refusal"})
+#: SCD2 entity, a semi-additive `over:` naming no date role (S-0023/D-13).
+#: Named rather than caught, because `except: continue` around a corpus sweep
+#: turns a resolver regression into a smaller sweep that still passes.
+REFUSED_BY_DESIGN = frozenset(
+    {
+        "currency_convert_refusal",
+        "fanout_trap",
+        "scd2_mart_refusal",
+        "semi_additive_over_refusal",
+    }
+)
 
 CORPUS = tuple(name for name in spec_fixture_names() if name not in REFUSED_BY_DESIGN)
 

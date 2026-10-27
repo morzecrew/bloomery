@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A semi-additive metric's `over:` is checked at `check`.** Nothing validated it before
+  emission: `over: snapshot_day` (the bucket a `snapshot` role produces, not the column
+  it is declared over) and `over: warehouse_id` (not a date) both checked clean, and only
+  the MetricFlow emitter refused them, for the owning mart alone. The guardrail stage now
+  refuses a semi-additive metric on every mart that lists it without a date role over the
+  column `over:` names, as `MartMissingTimeDimension`, naming the mart's date-role
+  columns.
+
+  **Upgrade note.** A spec whose `over:` names a bucket or a non-date column, or that lists
+  a semi-additive metric on a mart without the role, no longer compiles; set `over:` to
+  the column the date role is declared over.
+
 ## [0.7.0] - 2026-10-17
 
 ### Added

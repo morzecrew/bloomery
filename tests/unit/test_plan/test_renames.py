@@ -415,10 +415,12 @@ def test_a_renamed_step_is_a_rename() -> None:
 # The sweep that proves the relabelling is total
 
 
-#: The two fixtures that exist to be refused, so they reach no IR and cannot be
+#: The fixtures that exist to be refused, so they reach no IR and cannot be
 #: swept. Named rather than caught: a `try/except` around the sweep passes just
 #: as green on the day a fixture that used to compile stopped.
-REFUSED_AT_GUARDRAILS = frozenset({"fanout_trap", "scd2_mart_refusal"})
+REFUSED_AT_GUARDRAILS = frozenset(
+    {"fanout_trap", "scd2_mart_refusal", "semi_additive_over_refusal"}
+)
 
 
 @pytest.mark.parametrize("fixture", spec_fixture_names())

@@ -1,0 +1,10 @@
+# The snapshot role buckets `stock_date` into `snapshot_day`, `snapshot_week`
+# and the rest; the column the role is declared over is `stock_date`.
+marts_version: 1
+marts:
+  inventory:
+    grain: inventory_level
+    base: inventory_level
+    flatten:
+      - {date: stock_date, role: snapshot}
+    measures: [stock_on_hand]

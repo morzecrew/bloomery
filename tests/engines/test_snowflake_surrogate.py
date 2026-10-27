@@ -53,8 +53,8 @@ from bloomery.errors import BloomeryError
 pytestmark = pytest.mark.surrogate("snowflake_emulator")
 
 #: The fixtures that never reach the emulator because the Snowflake port
-#: refuses them at compile, by name and by reason. Three are dialect-blind —
-#: two guardrail refusals and ``convert``, which S-0040/D-4 refuses on every
+#: refuses them at compile, by name and by reason. Four are dialect-blind —
+#: three guardrail refusals and ``convert``, which S-0040/D-4 refuses on every
 #: dialect — and one is this port's own: ``normalize`` has no Snowflake
 #: spelling, so the capability flag refuses it at emit rather than letting it
 #: compile clean and die on a function the engine never defined (S-0013/D-2).
@@ -63,6 +63,7 @@ COMPILE_REFUSED = {
     "dirty_corpus",
     "fanout_trap",
     "scd2_mart_refusal",
+    "semi_additive_over_refusal",
 }
 
 #: The emulator has no relations at all, so every statement that gets past its

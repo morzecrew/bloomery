@@ -186,3 +186,36 @@ decisions:
       form and the dbt assertion form of the reconcile check side by side so the two
       targets cannot drift
     cites: [D-2, D-7]
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      The `over` of a semi-additive metric names the source column of a date role
+      — the column a `{date: …, role: …}` flatten step is declared over — never a
+      bucket that role produces (`<role>_day` and the rest), and every mart listing
+      the metric among its measures must declare a date role over that column. A mart
+      that does not is refused at the guardrail stage as `MartMissingTimeDimension`,
+      and the MetricFlow emitter re-refuses it
+    paths:
+      - src/bloomery/guardrails/metrics.py
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/planner/explain.py
+      - tests/unit/test_guardrails/test_metrics.py
+      - tests/fixtures/semi_additive_over_refusal/metrics.yaml
+      - tests/golden/refusals/semi_additive_over_refusal.txt
+      - pages/docs/reference/spec-schemas.md
+    consequence: >-
+      `over: snapshot_day` beside `{date: stock_date, role: snapshot}` is refused
+      at `bloomery check`, naming `stock_date`, rather than compiling clean and failing
+      only when the MetricFlow manifest is built; a mart added to a metric's listing
+      without the role is refused even when another mart owns the metric
+    rationale: >-
+      Until this row nothing said what `over` names: the guardrail stage checked only
+      that the policy existed and that the expression did not aggregate `over` away,
+      and the MetricFlow emitter alone looked the name up, by the date role's source
+      column and on the owning mart only. Every listing mart rather than the owner
+      for S-0050/D-9's reason — ownership is the cheapest mart, so checking it alone
+      would let a `cost_hint` edit flip validity. `MartMissingTimeDimension` rather
+      than a new class: the mart lacks the date role a measure on it needs, which
+      is that class's case narrowed to one column
+    cites: [D-6, D-11, S-0050/D-9]
+    fingerprint: 0e959dbfdd919a1c/63e8d7d92acc744e

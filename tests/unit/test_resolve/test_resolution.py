@@ -96,9 +96,10 @@ def test_every_mapped_field_appears_exactly_once() -> None:
     # five and two, and S-0066/phasing (P-2)'s `currency_convert_per_row` one of five,
     # and S-0003/P-1's `scd2_replay` two of two and five, and S-0079/D-8's
     # `coarsening_rollup` two of three and five, and S-0080/phasing (P-1)'s
-    # `scd2_current` two of three and four: the number moves with the
+    # `scd2_current` two of three and four, and S-0023/D-13's
+    # `semi_additive_over_refusal` one of three: the number moves with the
     # corpus, which is exactly what this is meant to notice.
-    assert swept == 246, f"{swept} mapped (entity, field, mapping) triples across the corpus"
+    assert swept == 249, f"{swept} mapped (entity, field, mapping) triples across the corpus"
 
 
 def test_every_mappings_document_is_a_real_document() -> None:

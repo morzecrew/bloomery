@@ -35,7 +35,7 @@ CASES = Path(__file__).resolve().parents[2] / "examples" / "refusals" / "cases"
 #: The spec fixtures that refuse at ``evaluate`` with no step registry — each
 #: pinned here so a fixture that quietly starts compiling fails this test
 #: rather than snapshotting an empty refusal list.
-REFUSING_FIXTURES = ("fanout_trap", "scd2_mart_refusal")
+REFUSING_FIXTURES = ("fanout_trap", "scd2_mart_refusal", "semi_additive_over_refusal")
 
 #: The example cases, pinned for the same reason ``run.py`` refuses a case
 #: that compiles: an example claiming a refusal that no longer happens.

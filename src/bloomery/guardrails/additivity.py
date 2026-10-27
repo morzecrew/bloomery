@@ -161,7 +161,9 @@ def _check_semi_additive(metric: MetricIR, path: str) -> list[GuardrailError]:
             f"metric {metric.name!r} is semi_additive but declares no semi_additive: "
             "{over, rule} policy — without the over: dimension the only-aggregate-over-"
             "other-dimensions invariant is unenforceable (S-0023/D-11). Fix: add "
-            "semi_additive: {over: <date dimension>, rule: last|first|avg|min|max}"
+            "semi_additive: {over: <date column>, rule: last|first|avg|min|max}, where "
+            "<date column> is the column a date role is declared over on every mart "
+            "listing the metric (S-0023/D-13)"
         )
         return [AdditivityViolation(msg, source_path=path)]
 

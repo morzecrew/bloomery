@@ -25,6 +25,7 @@ from sqlglot import exp
 from bloomery.errors import (
     GuardrailError,
     InvalidMetricShape,
+    MartMissingTimeDimension,
     MetricFilterInvalid,
     RatioOperandsDisagree,
     UndeclaredRatioRows,
@@ -50,6 +51,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "check_metrics",
+    "day_columns",
     "mart_roles",
 ]
 
@@ -239,6 +241,54 @@ def mart_roles(mart: MartIR) -> dict[str, tuple[str, str]]:
         for column in mart.columns
         if column.role_of is not None
     }
+
+
+def day_columns(mart: MartIR) -> dict[str, str]:
+    """Each date-role source column of ``mart`` → the day-bucket column serving
+    it, the lookup a semi-additive ``over:`` goes through (S-0023/D-13).
+
+    When two roles bucket the same column the lexicographically first role
+    wins: columns are sorted by name, so first-seen is first. One copy, read by
+    this guard, the MetricFlow emitter and the planner's explanation, so the
+    three cannot disagree about which column ``over:`` names.
+    """
+
+    day_by_source: dict[str, str] = {}
+
+    for column in mart.columns:
+        if column.ref is not None and column.ref.dimension == "day":
+            day_by_source.setdefault(column.source_column, column.name)
+
+    return day_by_source
+
+
+def _check_over(metric: MetricIR, mart: MartIR, path: str) -> list[GuardrailError]:
+    """A semi-additive ``over:`` against one mart listing the metric (S-0023/D-13).
+
+    Every listing mart rather than the owner, for S-0050/D-9's reason: the
+    owner is the cheapest mart, so checking it alone would let a ``cost_hint``
+    edit decide whether the spec is valid.
+    """
+
+    if metric.additivity is not Additivity.SEMI_ADDITIVE or metric.semi_additive is None:
+        return []
+
+    over = metric.semi_additive.over.qualified
+    day_by_source = day_columns(mart)
+
+    if over in day_by_source:
+        return []
+
+    msg = (
+        f"metric {metric.name!r} is semi_additive over {over!r}, but mart {mart.name!r}, "
+        "which lists it, declares no date role over a column of that name — over: names "
+        "the column a {date: ..., role: ...} flatten step is declared over, not a bucket "
+        "it produces, on every mart listing the metric (S-0023/D-13). Fix: set over: to "
+        f"one of the columns mart {mart.name!r} declares a date role over, "
+        f"{sorted(day_by_source)}, or add a date role over the column you meant"
+    )
+
+    return [MartMissingTimeDimension(msg, source_path=path)]
 
 
 def _check_comparison(
@@ -524,14 +574,15 @@ def _check_ratio_rows(metric: MetricIR, draft: ProjectIR, path: str) -> list[Gua
 
 
 def check_metrics(draft: ProjectIR) -> list[GuardrailError]:
-    """Every metric-shape and metric-filter violation across the draft.
+    """Every metric-shape, metric-filter and semi-additive ``over:`` violation
+    across the draft.
 
-    Filters are checked against **every** mart listing the metric among its
-    measures, rather than against the one that will own it: ownership is the
-    cheapest-mart rule of S-0027/D-8, which lives in the lowering package a
-    layer above this one, and checking every candidate is a superset of what
-    correctness needs (S-0050/D-9). A metric no mart lists carries no
-    checkable filter and none is claimed.
+    Filters and ``over:`` are checked against **every** mart listing the
+    metric among its measures, rather than against the one that will own it:
+    ownership is the cheapest-mart rule of S-0027/D-8, which lives in the
+    lowering package a layer above this one, and checking every candidate is a
+    superset of what correctness needs (S-0050/D-9, S-0023/D-13). A metric no
+    mart lists carries nothing checkable against a mart and none is claimed.
     """
 
     violations: list[GuardrailError] = []
@@ -544,6 +595,7 @@ def check_metrics(draft: ProjectIR) -> list[GuardrailError]:
         for mart in draft.marts:
             if metric.name not in mart.measures:
                 continue
+            violations.extend(_check_over(metric, mart, path))
             for clause in metric.filter:
                 violations.extend(_check_filter(metric, clause, mart, path))
 

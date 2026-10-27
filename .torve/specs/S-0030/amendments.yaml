@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-27T09:25:38Z'
+    title: >-
+      The non_additive_dimension name is the day bucket of the date role over over:
+    md: |-
+      The mapping table under `emitmanifest-ir-pydanticsemanticmanifest` writes the semi-additive lowering as `PydanticNonAdditiveDimensionParameters(name=over.qualified, …)`. That reads as though `over` were the bucket column, and it never was: the emitter has always looked `over.qualified` up as the source column of a date role and named the `<role>_day` bucket serving it, refusing a mart with no such role. Read the row as `name=<the day bucket of the date role over over.qualified>`.
+
+      The table stands as written; this entry is the correction. What `over` names, and that every mart listing the metric must declare the role, is S-0023/D-13.

@@ -23,7 +23,7 @@ import dataclasses
 from typing import TYPE_CHECKING
 
 from bloomery.errors import PlannerError, guaranteed
-from bloomery.guardrails.metrics import mart_roles
+from bloomery.guardrails.metrics import day_columns, mart_roles
 from bloomery.ir import COMPUTED, Additivity, Layer, SemiAdditiveRule
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import Op, Predicate, clause_predicates
@@ -58,18 +58,16 @@ _WINDOWS = {SemiAdditiveRule.LAST: "MAX", SemiAdditiveRule.FIRST: "MIN"}
 
 
 def _day_column(mart: MartIR, source_column: str) -> str:
-    """The day-bucket column serving a source date column — the same rule
-    the emitter's ``non_additive_dimension`` lowering applies."""
+    """The day-bucket column serving a source date column — the lookup the
+    emitter's ``non_additive_dimension`` lowering goes through.
 
-    for column in mart.columns:  # sorted by name; first role wins, as emitted
-        if (
-            column.ref is not None
-            and column.ref.dimension == "day"
-            and column.source_column == source_column
-        ):
-            return column.name
+    The fallback to the column's own name is unreachable for IR that passed
+    the guardrail stage, which refuses a semi-additive metric on any mart
+    without a date role over its ``over:`` (S-0023/D-13); it stays for an IR
+    built by hand.
+    """
 
-    return source_column
+    return day_columns(mart).get(source_column, source_column)
 
 
 # ....................... #

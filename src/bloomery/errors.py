@@ -515,7 +515,8 @@ class MetricFilterInvalid(GuardrailError):
 
 class MartMissingTimeDimension(GuardrailError):
     """Guardrail stage (S-0027/validation-compile-errors-batched-with-guardrails rule 6, S-0030 R1): a measure-carrying
-    mart that declares no date role."""
+    mart that declares no date role — or, for a semi-additive metric it lists,
+    none over the column the metric's ``over:`` names (S-0023/D-13)."""
 
 
 # ....................... #
