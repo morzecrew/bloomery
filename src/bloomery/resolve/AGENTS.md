@@ -462,6 +462,13 @@ A builder is told its **input logical type**. `Builder` becomes `(input type, co
 
 - Paths: `src/bloomery/resolve/graph.py` `tests/unit/test_resolve/test_edge_vocabulary.py` `tests/unit/test_resolve/test_lineage.py`
 
+### S-0048/D-9 — `ASSUMED` (Lineage)
+
+An expression metric draws an `expr` edge, `entity_field -> metric`, from each field of its grain entity that its `expr` names as a column, growing D-6's vocabulary by one label and one triple. The edge is lineage only: `MetricIR.depends_on`, reachability and `plan()` do not read it. A name that is no field of the grain entity draws nothing, and a metric whose grain is an imported entity draws no `expr` edge
+
+- Paths: `src/bloomery/resolve/graph.py` `tests/unit/test_resolve/test_edge_vocabulary.py` `tests/unit/test_resolve/test_lineage.py`
+- Consequence: `lineage()` walks from an expression metric with no `requires:` to the entity columns its `expr` reads, and from there to bronze. `topo_order`, the IR and every fingerprint are unchanged, since nothing past resolve reads the edges or the order. A field change still does not reach such a metric in `plan().downstream_impact`, which reads `depends_on`
+
 ### S-0049/D-1 — `LOCKED` (Mapping identity)
 
 **The identity is the document name.** It is unique by construction (a key of the `sources` mapping), already computed, already the ordering key for `Project.mappings`, and already the user-facing coordinate for refusals (S-0019/source-paths). Consequence: identity is a filename, so a rename changes it — accepted under D4's boundary.

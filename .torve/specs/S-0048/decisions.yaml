@@ -86,3 +86,32 @@ decisions:
       `_find_node`, which refuses an unknown id with at most five `difflib` near misses
       and refuses an id that names two nodes by listing both kinds.
     fingerprint: 632f0cb654bdbfaa/202c11f3690cefb1
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      An expression metric draws an `expr` edge, `entity_field -> metric`, from each
+      field of its grain entity that its `expr` names as a column, growing D-6's vocabulary
+      by one label and one triple. The edge is lineage only: `MetricIR.depends_on`,
+      reachability and `plan()` do not read it. A name that is no field of the grain
+      entity draws nothing, and a metric whose grain is an imported entity draws no
+      `expr` edge
+    paths:
+      - src/bloomery/resolve/graph.py
+      - tests/unit/test_resolve/test_edge_vocabulary.py
+      - tests/unit/test_resolve/test_lineage.py
+    consequence: >-
+      `lineage()` walks from an expression metric with no `requires:` to the entity
+      columns its `expr` reads, and from there to bronze. `topo_order`, the IR and
+      every fingerprint are unchanged, since nothing past resolve reads the edges
+      or the order. A field change still does not reach such a metric in `plan().downstream_impact`,
+      which reads `depends_on`
+    rationale: >-
+      Most real metrics are an `expr` over the grain entity with no `requires:`, and
+      the graph had no edge from them to anything (#330). A measure's `expr` is emitted
+      verbatim and read against the mart's columns, which keep the base entity's field
+      names, so the grain entity's fields are what it reads. `depends_on` holds canonical
+      and metric names, and `plan()` compares it as part of a metric's definition,
+      so field names there would redefine every expression metric: that reach is a
+      separate decision. Imported entities have no field nodes here, because this
+      graph is built from the imports document rather than the upstream IR
+    cites: [D-6, S-0022/D-1, S-0002/D-6]
