@@ -214,7 +214,7 @@ What binds is every value of a request `Predicate` and of the `RowPolicy`, one p
 
 ### S-0097/D-5 — `ASSUMED` (Bound parameters in planned queries)
 
-Binds travel through MetricFlow's where-constraints as opaque markers that no spec name can take, and the planner spells each as its placeholder in the rendered SQL. Under `format` and `pyformat` every `%` already in the text is doubled first
+Binds travel through MetricFlow's where-constraints as opaque markers that no spec name can take, and the planner spells each as its placeholder in the rendered SQL, read with the dialect's tokenizer, so only an unquoted marker is a bind and a quoted literal that spells one stays text. Under `format` and `pyformat` every `%` in the text is doubled
 
 - Paths: `src/bloomery/planner/filters.py` `src/bloomery/planner/metricflow_planner.py` `src/bloomery/planner/compose.py` `tests/unit/test_planner/test_binds.py`
 - Consequence: The bind mechanism needs nothing from MetricFlow, and a psycopg-style driver reads a metric filter's `%` or a modulo in a measure as the character it is

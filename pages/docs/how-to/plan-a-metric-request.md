@@ -173,8 +173,10 @@ rows = connection.execute(plan.sql, dict(plan.params)).fetchall()  # psycopg
 ```
 
 Each value is the Python value of its dimension's type: a `datetime.date` for a date, a
-`datetime` for a timestamp, a `Decimal` for a decimal, and `int`, `bool` or `str`
-otherwise, so the driver types the bind as the column it is compared with. A LIKE pattern
+naive `datetime` for a timestamp, a `Decimal` for a decimal, and `int`, `bool` or `str`
+otherwise, so the driver types the bind as the column it is compared with. A timestamp
+dimension holds the UTC wall clock, so a zoned value, such as `"2024-03-05T11:00:00+02:00"`,
+is converted to it (`09:00`), bound or inline. A LIKE pattern
 binds whole, with its `ESCAPE '\'` left in the text. A metric's own `filter:` and the
 `LIMIT` stay in the text. Under `format` and `pyformat`, every `%` already in the text,
 such as a metric filter's, is doubled, because the driver reads each one.

@@ -43,3 +43,24 @@ def test_bound_returns_the_inline_rows(
     assert bound.params
     assert conn.execute(bound.sql, [value for _name, value in bound.params]).fetchall() == expected
     assert any(row[1] is not None for row in expected), "a case that returns nothing proves nothing"
+
+
+def test_a_zoned_value_reads_its_instant_under_any_session_zone(conn: duckdb.DuckDBPyConnection) -> None:
+    """DuckDB binds an aware `datetime` as TIMESTAMPTZ and reads the column in
+    the session zone, and casts zoned text to TIMESTAMP by dropping the offset:
+    so each spelling of the zoned request runs under a zone that is not UTC,
+    held to the naive request for the same instant (S-0045)."""
+    ir = fixture_ir(BIND_FIXTURE)
+    naive, _ = BIND_REQUESTS["timestamp"]
+    zoned, _ = BIND_REQUESTS["zoned timestamp"]
+    expected = conn.execute(PLANNER.plan(ir, naive, dialect="duckdb").sql).fetchall()
+    inline = PLANNER.plan(ir, zoned, dialect="duckdb")
+    bound = PLANNER.plan(ir, zoned, dialect="duckdb", paramstyle="qmark")
+    (zone,) = conn.execute("SELECT current_setting('TimeZone')").fetchone() or ("UTC",)
+
+    conn.execute("SET TimeZone = 'Asia/Bangkok'")
+    try:
+        assert conn.execute(inline.sql).fetchall() == expected
+        assert conn.execute(bound.sql, [value for _name, value in bound.params]).fetchall() == expected
+    finally:
+        conn.execute(f"SET TimeZone = '{zone}'")

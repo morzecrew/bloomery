@@ -62,7 +62,7 @@ def _models(dialect: str) -> list[tuple[str, str, str]]:
 
 #: The cases whose inline plan Trino refuses: a request filter on a date or a
 #: timestamp dimension, the policy case's included.
-TRINO_INLINE_REFUSED = frozenset({"date", "timestamp", "policy"})
+TRINO_INLINE_REFUSED = frozenset({"date", "timestamp", "zoned timestamp", "policy"})
 
 
 @pytest.fixture(scope="module")

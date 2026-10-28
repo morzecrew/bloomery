@@ -421,14 +421,14 @@ What binds is every value of a request `Predicate` and of the `RowPolicy`, one p
 
 ### S-0097/D-4 — `ASSUMED` (Bound parameters in planned queries)
 
-A bound value is a Python value of the dimension's logical type, checked by the literal renderer's own rules: `datetime.date` for a date, `datetime` for a timestamp, `Decimal` for a decimal, `int`, `bool` or `str` otherwise
+A bound value is a Python value of the dimension's logical type, checked by the literal renderer's own rules: `datetime.date` for a date, a naive `datetime` for a timestamp, a zoned one converted to its UTC wall clock, `Decimal` for a decimal, `int`, `bool` or `str` otherwise
 
 - Paths: `src/bloomery/planner/filters.py` `tests/execution/test_planner_binds.py`
 - Consequence: The driver types each bind as the column it is compared to, and a value the literal renderer refuses is refused bound too
 
 ### S-0097/D-5 — `ASSUMED` (Bound parameters in planned queries)
 
-Binds travel through MetricFlow's where-constraints as opaque markers that no spec name can take, and the planner spells each as its placeholder in the rendered SQL. Under `format` and `pyformat` every `%` already in the text is doubled first
+Binds travel through MetricFlow's where-constraints as opaque markers that no spec name can take, and the planner spells each as its placeholder in the rendered SQL, read with the dialect's tokenizer, so only an unquoted marker is a bind and a quoted literal that spells one stays text. Under `format` and `pyformat` every `%` in the text is doubled
 
 - Paths: `src/bloomery/planner/filters.py` `src/bloomery/planner/metricflow_planner.py` `src/bloomery/planner/compose.py` `tests/unit/test_planner/test_binds.py`
 - Consequence: The bind mechanism needs nothing from MetricFlow, and a psycopg-style driver reads a metric filter's `%` or a modulo in a measure as the character it is

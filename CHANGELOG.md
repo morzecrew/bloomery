@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   psycopg, which reads every `%` once it is given parameters, can now pass them: under the
   percent styles a `%` in the text is doubled. `QueryPlan.shape` is `sha256(sql)`, shared
   by requests that differ only in values; `fingerprint` still covers the values. Without a
-  `paramstyle`, nothing changes. (#304)
+  `paramstyle`, nothing changes. A metric filter's literal that happens to spell a bind
+  marker stays text. (#304)
 - **A `pick` transform for name/value lists.** `{pick: [name, "Источник заказа", value]}`
   reads one attribute of a list of objects, such as МойСклад's, amoCRM's or Bitrix24's
   custom fields: the take path of the first object whose scalar field reads as the text, or
@@ -56,6 +57,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A zoned timestamp in a request filter reads its instant.** `booked_at <
+  "2024-03-05T11:00:00+02:00"` was rendered as zoned text, which DuckDB and PostgreSQL cast
+  to a zoneless `timestamp` by dropping the offset, so it compared against 11:00 UTC instead
+  of 09:00. A zoned value is now converted to the UTC wall clock a timestamp dimension
+  holds. (#354)
 - **A metric's `expr` reads the field its canonical links.** A catalog template is
   written in canonical names, and nothing bound them: with the line's field mapped as `qty`
   (`canonical: quantity`), Cube and MetricFlow emitted `unit_price * quantity` over a mart

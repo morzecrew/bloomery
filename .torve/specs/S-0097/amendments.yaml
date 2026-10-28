@@ -25,3 +25,52 @@ amendments:
       Measured in phase 2, which also settles Q-1. Trino's client spells each bound value as a typed literal: a `date` as `DATE '…'`, a naive `datetime` as `TIMESTAMP '…'` with microseconds, and a `Decimal` as `DECIMAL '…'` in fixed notation, so its scale survives. psycopg sends a `date` and a `Decimal` with their own types. DuckDB coerces a bound `str` to the column's type, so phase 1's DuckDB rows cannot tell a typed bind from its text; the unit tier asserts the values are typed, and only Trino refused a text bind when that was sabotaged.
 
       The original row compared bound rows to inline rows on the same engine. On Trino the inline plan of a request filter on a date or a timestamp does not run: the planner renders that literal as untyped text, and Trino refuses `date >= varchar(10)`. That defect predates this document and is filed as #351. The differential therefore holds both engines, bound and inline, to the rows DuckDB's inline plan returns, and marks Trino's three inline cases as strict expected failures, so fixing #351 turns them red until the marker is removed.
+  - id: A-2
+    at: '2026-10-28T09:56:35Z'
+    title: Only an unquoted marker is a bind
+    changes:
+      - subject: D-5
+        field: text
+        before: >-
+          Binds travel through MetricFlow's where-constraints as opaque markers that
+          no spec name can take, and the planner spells each as its placeholder in
+          the rendered SQL. Under `format` and `pyformat` every `%` already in the
+          text is doubled first
+        after: >-
+          Binds travel through MetricFlow's where-constraints as opaque markers that
+          no spec name can take, and the planner spells each as its placeholder in
+          the rendered SQL, read with the dialect's tokenizer, so only an unquoted
+          marker is a bind and a quoted literal that spells one stays text. Under
+          `format` and `pyformat` every `%` in the text is doubled
+      - subject: D-5
+        field: fingerprint
+        after: ffb65bb9dbb6a678/4578aec4dcecf4d8
+    md: |-
+      Found in review of #354. A metric's `filter:` value is free text baked into the manifest, and it reaches the SQL as a quoted literal, so `values: ["__bloomery_bind_1__"]` spelled a marker the row's premise said nothing could: the old regex over the whole statement turned that literal into a placeholder and appended a param, and `__bloomery_bind_9__` raised `IndexError`.
+
+      A real marker is always a bare word, because `to_where` writes it where a literal would go. The planner now reads the rendered SQL with the planner dialect's SQLGlot tokenizer and spells only an unquoted `VAR` token that is a whole marker. A string literal, a quoted identifier and a comment are left as they are. The `%` doubling covers every piece of text around the placeholders, so the behavior the row describes is unchanged.
+  - id: A-3
+    at: '2026-10-28T09:56:42Z'
+    title: A zoned timestamp is its UTC wall clock
+    changes:
+      - subject: D-4
+        field: text
+        before: >-
+          A bound value is a Python value of the dimension's logical type, checked
+          by the literal renderer's own rules: `datetime.date` for a date, `datetime`
+          for a timestamp, `Decimal` for a decimal, `int`, `bool` or `str` otherwise
+        after: >-
+          A bound value is a Python value of the dimension's logical type, checked
+          by the literal renderer's own rules: `datetime.date` for a date, a naive
+          `datetime` for a timestamp, a zoned one converted to its UTC wall clock,
+          `Decimal` for a decimal, `int`, `bool` or `str` otherwise
+      - subject: D-4
+        field: fingerprint
+        after: 3cc03b46646c373d/07eb84a2aa97ef89
+    md: |-
+      Found in review of #354, and measured on DuckDB. A timestamp dimension holds the UTC wall clock (S-0045). Zoned request values (`"2024-03-05T11:00:00+02:00"`, or an aware `datetime`) went wrong two ways:
+
+      - **Bound,** the aware `datetime` reached the driver as a `timestamptz`, which the engine compares by reading the column in its session zone. Under any session zone other than UTC the rows moved.
+      - **Inline,** the text `'2024-03-05 11:00:00+02:00'` was cast to `TIMESTAMP` by dropping the offset, so the request read 11:00 UTC instead of 09:00. This predates the document, because S-0032/D-5's renderer shares the same `_typed`.
+
+      A zoned value now becomes its UTC wall clock, naive, before it is bound or rendered. Inline and bound read the same instant under any session. A zoned value that would fall outside years 1 to 9999 in UTC is refused as a `FilterTypeMismatch`. The engine differential gains the zoned case, and on Trino its inline plan is a fourth strict expected failure under #351.

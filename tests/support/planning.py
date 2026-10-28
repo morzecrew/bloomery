@@ -86,6 +86,11 @@ BIND_REQUESTS: dict[str, tuple[MetricRequest, RowPolicy | None]] = {
         _by_month(Predicate("booked_at", Op.LT, (datetime.datetime(2024, 3, 5, 9, 0),))),
         None,
     ),
+    # The same instant as `timestamp`, zoned: s04, booked at 09:00 UTC, is out.
+    "zoned timestamp": (
+        _by_month(Predicate("booked_at", Op.LT, ("2024-03-05T11:00:00+02:00",))),
+        None,
+    ),
     "decimal": (_by_month(Predicate("amount", Op.GT, (Decimal("40.00"),))), None),
     "int in": (_by_month(Predicate("units", Op.IN, (2, 3))), None),
     "bool": (_by_month(Predicate("is_test", Op.EQ, (False,))), None),

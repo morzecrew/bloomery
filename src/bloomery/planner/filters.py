@@ -46,10 +46,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 from uuid import UUID
+
+from sqlglot.dialects.dialect import Dialect
+from sqlglot.tokens import TokenType
 
 from bloomery.errors import (
     FilterTypeMismatch,
@@ -87,8 +90,9 @@ __all__ = [
 #: (S-0097/D-1).
 PARAMSTYLES = frozenset({"qmark", "numeric", "named", "format", "pyformat"})
 
-#: The text a bound value travels through MetricFlow as: no spec identifier
-#: can spell it, since none starts with an underscore (S-0097/D-5).
+#: The bare word a bound value travels through MetricFlow as: no spec
+#: identifier can spell it, since none starts with an underscore (S-0097/D-5).
+#: A metric's filter value can, so a marker counts only as an unquoted token.
 _MARKER = re.compile(r"__bloomery_bind_([0-9]+)__")
 
 
@@ -99,9 +103,11 @@ class Binds:
 
     MetricFlow builds every where-filter with an empty bind set, so the values
     cannot ride its mechanism: they travel as markers, and :meth:`spelled`
-    turns the rendered SQL's markers into the caller's placeholders.
+    turns the rendered SQL's markers into the caller's placeholders, reading
+    the SQL with ``dialect``'s tokenizer so a quoted literal stays text.
     """
 
+    dialect: str
     values: list[Scalar] = field(default_factory=list)
 
     def marker(self, value: Scalar) -> str:
@@ -115,14 +121,19 @@ class Binds:
         (S-0097/D-2). Under ``format`` and ``pyformat`` every ``%`` already in
         the text is doubled first, because the driver reads every one."""
 
-        if paramstyle in {"format", "pyformat"}:
-            sql = sql.replace("%", "%%")
+        def text(piece: str) -> str:
+            return piece.replace("%", "%%") if paramstyle in {"format", "pyformat"} else piece
 
         params: list[tuple[str, Scalar]] = []
+        pieces: list[str] = []
+        start = 0
 
-        def placeholder(match: re.Match[str]) -> str:
+        for token in Dialect.get_or_raise(self.dialect).tokenize(sql):
+            marker = _MARKER.fullmatch(token.text) if token.token_type is TokenType.VAR else None
+            if marker is None:
+                continue
             name = f"p{len(params) + 1}"
-            params.append((name, self.values[int(match.group(1)) - 1]))
+            params.append((name, self.values[int(marker.group(1)) - 1]))
             spellings = {
                 "qmark": "?",
                 "numeric": f":{len(params)}",
@@ -130,9 +141,10 @@ class Binds:
                 "format": "%s",
                 "pyformat": f"%({name})s",
             }
-            return spellings[paramstyle]
+            pieces += [text(sql[start : token.start]), spellings[paramstyle]]
+            start = token.end + 1
 
-        return _MARKER.sub(placeholder, sql), tuple(params)
+        return "".join([*pieces, text(sql[start:])]), tuple(params)
 
 
 #: Jinja delimiter neutralization (rule 3): emitted through Jinja string
@@ -250,14 +262,26 @@ def _typed(value: Scalar, declared: LogicalType, *, dimension: str) -> Scalar:
             except ValueError as error:
                 raise _mismatch(dimension, declared, value, "an ISO date string") from error
         case TimestampType():
-            if isinstance(value, datetime):
-                return value
-            if not isinstance(value, str):
+            if isinstance(value, str):
+                try:
+                    value = datetime.fromisoformat(value)
+                except ValueError as error:
+                    raise _mismatch(
+                        dimension, declared, value, "an ISO timestamp string"
+                    ) from error
+            if not isinstance(value, datetime):
                 raise _mismatch(dimension, declared, value, "an ISO timestamp string")
+            if value.tzinfo is None:
+                return value
+            # A timestamp dimension is the UTC wall clock (S-0045): a zoned
+            # value is its instant there, never a `timestamptz` the engine reads
+            # in its session zone, nor text whose offset the engine drops.
             try:
-                return datetime.fromisoformat(value)
-            except ValueError as error:
-                raise _mismatch(dimension, declared, value, "an ISO timestamp string") from error
+                return value.astimezone(UTC).replace(tzinfo=None)
+            except OverflowError as error:
+                raise _mismatch(
+                    dimension, declared, value, "a timestamp in years 1 to 9999 in UTC"
+                ) from error
         case _:
             msg = (
                 f"dimension {dimension!r} has type {type(declared).__name__}, which "

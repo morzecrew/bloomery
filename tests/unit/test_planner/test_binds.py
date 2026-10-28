@@ -8,14 +8,15 @@ values in ``QueryPlan.params``; a metric's own ``filter:`` stays text.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
 
 from bloomery import AnyOf, MetricRequest, Op, Predicate, RowPolicy, TimeGrain
-from bloomery.errors import InvalidRequest
+from bloomery.errors import FilterTypeMismatch, InvalidRequest
 from bloomery.planner.filters import PARAMSTYLES
 from bloomery.planner.result import QueryPlan
 from support.planning import fixture_ir, make_planner, variant_ir
@@ -161,6 +162,29 @@ def test_a_composed_plan_binds_every_branch() -> None:
 
 
 # ....................... #
+# D-4: a bound value is the dimension's type
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["2024-05-01T11:30:00+02:00", datetime(2024, 5, 1, 11, 30, tzinfo=timezone(timedelta(hours=2)))],
+)
+def test_a_zoned_timestamp_is_its_utc_wall_clock(value: str | datetime) -> None:
+    """A timestamp dimension is zoneless UTC (S-0045). Bound zoned, a driver
+    sends a `timestamptz` the engine reads in its session zone; inline, the
+    engine drops the offset. Both carry the instant's UTC wall clock instead."""
+    request = _request(Predicate("booked_at", Op.LT, (value,)))
+
+    assert _plan(request, "qmark").params == (("p1", datetime(2024, 5, 1, 9, 30)),)
+    assert "'2024-05-01 09:30:00'" in _plan(request, None).sql
+
+
+def test_a_zoned_timestamp_outside_the_utc_calendar_is_refused() -> None:
+    with pytest.raises(FilterTypeMismatch, match="years 1 to 9999 in UTC"):
+        _plan(_request(Predicate("booked_at", Op.GTE, ("0001-01-01T00:30:00+01:00",))), "qmark")
+
+
+# ....................... #
 # D-5: `%` under format and pyformat
 
 
@@ -175,10 +199,29 @@ def test_a_percent_in_the_text_is_doubled_for_a_percent_style(paramstyle: str, l
             "      - {dimension: status, op: eq, values: [\"100%\"]}\n",
         ),
     )
-    request = _request(Predicate("channel", Op.EQ, ("web",)), metrics=("paid_revenue",))
-    plan = PLANNER.plan(ir, request, dialect="duckdb", paramstyle=paramstyle)
+    bound = _request(Predicate("channel", Op.EQ, ("web",)), metrics=("paid_revenue",))
+    unbound = _request(metrics=("paid_revenue",))
 
-    assert f"= {literal}" in plan.sql
+    for request in (bound, unbound):
+        assert f"= {literal}" in PLANNER.plan(ir, request, dialect="duckdb", paramstyle=paramstyle).sql
+
+
+@pytest.mark.parametrize("value", ["__bloomery_bind_1__", "__bloomery_bind_9__", "it's __bloomery_bind_1__"])
+def test_a_marker_a_metric_s_filter_spells_is_its_text(value: str) -> None:
+    """A metric's filter value is free text, so it can spell a marker; only a
+    bare word is a bind, and a quoted literal keeps its text."""
+    ir = variant_ir(
+        "period_over_period",
+        metrics=(
+            "      - {dimension: status, op: eq, values: [paid]}\n",
+            f"      - {{dimension: status, op: eq, values: [{json.dumps(value)}]}}\n",
+        ),
+    )
+    request = _request(Predicate("channel", Op.EQ, ("web",)), metrics=("paid_revenue",))
+    plan = PLANNER.plan(ir, request, dialect="duckdb", paramstyle="named")
+
+    assert plan.params == (("p1", "web"),)
+    assert "'" + value.replace("'", "''") + "'" in plan.sql
 
 
 # ....................... #
