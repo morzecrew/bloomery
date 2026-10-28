@@ -4685,8 +4685,22 @@ column's declared logical type and are never cast.</p>
 <td>instead of <code>values</code></td>
 <td>Another categorical dimension of the same mart to compare against; <code>eq</code>/<code>ne</code> only</td>
 </tr>
+<tr>
+<td><code>nulls</code></td>
+<td><code>include</code> | <code>exclude</code></td>
+<td>on <code>ne</code> / <code>not_in</code> over a dimension that can be NULL</td>
+<td>What a row whose dimension is NULL does: <code>include</code> keeps it, <code>exclude</code> drops it, as SQL's <code>&lt;&gt;</code> and <code>NOT IN</code> do</td>
+</tr>
 </tbody>
 </table>
+<p><code>ne</code> and <code>not_in</code> read as "everything except these values", but under SQL's
+three-valued logic they drop every row whose dimension is NULL. So on a dimension that
+can be NULL the filter must say which it means, or the metric is refused as
+<code>MetricFilterInvalid</code>. A dimension can be NULL unless it is a key or a <code>required</code> field
+of the mart's base entity. A column flattened from a joined entity can always be NULL,
+since the join misses wherever the row has no match. <code>nulls: include</code> renders
+<code>(dimension IS NULL OR dimension &lt;&gt; value)</code>; on a <code>column:</code> comparison, a NULL on either
+side is kept. <code>nulls:</code> on any other operator is refused at parse.</p>
 <p>A filter compares its dimension against literals (<code>values:</code>) or against another
 dimension (<code>column:</code>) — exactly one of the two. The comparison is admitted only when
 both columns are proven to be roles of one dimension member: both flatten steps

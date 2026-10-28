@@ -2362,7 +2362,7 @@ pulling in any pipeline stage.</p>
 <tr>
 <td><code>MetricFilterInvalid</code></td>
 <td>guardrails</td>
-<td>A metric <code>filter:</code> naming a dimension the carrying mart does not flatten, a date-role dimension, or a value that does not fit the column's declared type</td>
+<td>A metric <code>filter:</code> naming a dimension the carrying mart does not flatten, a date-role dimension, or a value that does not fit the column's declared type; or a <code>ne</code> / <code>not_in</code> on a dimension that can be NULL that does not say <code>nulls: include</code> or <code>nulls: exclude</code></td>
 </tr>
 <tr>
 <td><code>MartMissingTimeDimension</code></td>
