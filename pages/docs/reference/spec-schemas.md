@@ -241,6 +241,12 @@ member), and `fail` is deliberately unavailable — a pipeline-stopping orphan g
 `reconcile` check instead. `unknown_member` requires a string-typed fk; the relationship's
 `to` side may not be the declaring entity.
 
+The rule joins the `to` side inside the declaring entity's own model, so that side has to
+build first. A rule is refused when the `to` side is built from the declaring entity: a
+step output computed from it, or an entity whose own rule joins it back. A `coverage:`
+check is refused on the same terms, since its audit reads the `to` side from the same
+model.
+
 ### Dedupe
 
 | Field | Type | Required | Meaning |

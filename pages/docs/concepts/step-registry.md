@@ -180,9 +180,9 @@ marts:
 The compile checks the `via` columns on the step side against the output's
 `produces`. A `referential` rule or a `coverage:` check through such a
 relationship is refused when the step computes that output from the dependent
-entity itself, as `customer_segments` computes segments from `order`: both
-read the referenced relation from inside the dependent's own model, so each
-model would wait on the other.
+entity, as `customer_segments` computes segments from `order`, directly or
+through other models: both read the referenced relation from inside the
+dependent's own model, so each model would wait on the other.
 
 ### Linking an output to canonical fields
 

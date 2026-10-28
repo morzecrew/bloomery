@@ -922,9 +922,10 @@ decisions:
       through `flatten: via`. The reference stage checks the name; a relationship
       touching a step output has its `via` columns, on both sides, checked where
       steps lower, against the manifest's `produces`. A referential rule or a
-      coverage check through such a relationship is refused when the step computes
-      the referenced output from the dependent entity, directly or through another
-      step
+      coverage check is refused when the relation it reads is built from its own
+      dependent entity, over every read one silver model makes of another: a step
+      output reads its step's inputs, and a mapped entity reads what its rules and
+      coverage audits join
     paths:
       - src/bloomery/resolve/refs.py
       - src/bloomery/resolve/steps.py
@@ -933,7 +934,9 @@ decisions:
     consequence: >-
       Order metrics can be cut by a segment a step computes per customer, and a
       mistyped `via` column on the step side is refused at compile, one stage later
-      than on an authored entity, with both sides in the same report
+      than on an authored entity, with both sides in the same report. Two authored
+      entities whose referential rules join each other, which compiled to a pair of
+      models each reading the other, are refused too
     rationale: >-
       D-36 made a step output an entity that marts and downstream models reference
       like any other, and the reference check was the one place still reading only

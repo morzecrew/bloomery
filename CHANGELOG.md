@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `produces`, and a `referential` rule or `coverage:` check through one is refused when
   the step reads the dependent entity, a cycle. (#362)
 
+- **Two entities whose referential rules join each other are refused.** Each rule is a
+  LEFT JOIN inside its entity's model, so the pair compiled to two models that each read
+  the other, which no engine can build. The refusal names the chain of reads. (#363)
+
 ## [0.8.0] - 2026-10-28
 
 ### Added

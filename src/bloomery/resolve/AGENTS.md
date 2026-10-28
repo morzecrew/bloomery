@@ -339,10 +339,10 @@ A `StepParameter` bounds its value with optional, inclusive `min` and `max`, bot
 
 ### S-0034/D-59 — `ASSUMED` (The step registry: referenced implementations)
 
-A relationship's endpoint may be a step output, named by the bare relation the step writes, so a mart over another entity flattens what a step computes through `flatten: via`. The reference stage checks the name; a relationship touching a step output has its `via` columns, on both sides, checked where steps lower, against the manifest's `produces`. A referential rule or a coverage check through such a relationship is refused when the step computes the referenced output from the dependent entity, directly or through another step
+A relationship's endpoint may be a step output, named by the bare relation the step writes, so a mart over another entity flattens what a step computes through `flatten: via`. The reference stage checks the name; a relationship touching a step output has its `via` columns, on both sides, checked where steps lower, against the manifest's `produces`. A referential rule or a coverage check is refused when the relation it reads is built from its own dependent entity, over every read one silver model makes of another: a step output reads its step's inputs, and a mapped entity reads what its rules and coverage audits join
 
 - Paths: `src/bloomery/resolve/refs.py` `src/bloomery/resolve/steps.py` `src/bloomery/guardrails/quality.py` `tests/unit/test_steps/test_step_relationships.py`
-- Consequence: Order metrics can be cut by a segment a step computes per customer, and a mistyped `via` column on the step side is refused at compile, one stage later than on an authored entity, with both sides in the same report
+- Consequence: Order metrics can be cut by a segment a step computes per customer, and a mistyped `via` column on the step side is refused at compile, one stage later than on an authored entity, with both sides in the same report. Two authored entities whose referential rules join each other, which compiled to a pair of models each reading the other, are refused too
 
 ### S-0035/D-10 — `ASSUMED` (Public surface and stability policy)
 

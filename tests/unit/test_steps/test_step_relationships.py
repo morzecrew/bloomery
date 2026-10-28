@@ -295,7 +295,10 @@ def test_the_cycle_is_found_through_a_second_step() -> None:
         )
 
     (leaf,) = excinfo.value.collected
-    assert "step 'segment_labels@1' computes 'customer_label' from 'order'" in str(leaf)
+    assert (
+        "step 'segment_labels@1' computes 'customer_label' from 'customer_segment'; "
+        "step 'customer_segments@1' computes 'customer_segment' from 'order'"
+    ) in str(leaf)
 
 
 def test_a_referential_rule_into_a_step_built_from_elsewhere_compiles() -> None:
@@ -307,3 +310,137 @@ def test_a_referential_rule_into_a_step_built_from_elsewhere_compiles() -> None:
     assert [rule.name for rule in order.quality if "referential" in rule.name] == [
         "order_of_segment_referential"
     ]
+
+
+def test_an_unmapped_entity_s_rule_is_not_a_cycle() -> None:
+    """An entity no mapping targets emits no model, so its rule joins nothing:
+    the quality checks pass it by, and so does this one."""
+    documents_ = documents(marts=None, quality=REFERENTIAL)
+    del documents_["mapping_orders"]
+
+    build_project_ir(load_project(documents_), steps=registry())
+
+
+#: ``customer`` checks its segment, and ``order`` checks its customer, so the
+#: step reading ``order`` is downstream of ``customer`` through a rule, not a
+#: step.
+THROUGH_A_RULE = """spec_version: 1
+entities:
+  customer:
+    grain: one row per customer
+    key: [customer_id]
+    fields:
+      customer_id: {type: string, required: true}
+    quarantine: {retention: 90d}
+    quality:
+      - {rule: referential, via: customer_of_segment, on_missing: flag}
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      customer_id: {type: string}
+    quarantine: {retention: 90d}
+    quality:
+      - {rule: referential, via: order_of_customer, on_missing: flag}
+relationships:
+  - {name: order_of_customer, from: order, to: customer, via: {customer_id: customer_id}, cardinality: many_to_one}
+  - {name: customer_of_segment, from: customer, to: customer_segment, via: {customer_id: customer_id}, cardinality: one_to_one}
+"""
+
+
+def test_the_cycle_is_found_through_another_entity_s_rule() -> None:
+    customers = (
+        "mapping_version: 1\nsource: crm__customers\ntarget: customer\n"
+        'key:\n  customer_id: {from: "$.id"}\n'
+        "unmapped: ['$._ingested_at', '$._load_id', '$._source_row_id']\n"
+    )
+    documents_ = {
+        **documents(marts=None),
+        "entity_model": THROUGH_A_RULE,
+        "mapping_customers": customers,
+    }
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(load_project(documents_), steps=registry())
+
+    # Both rules sit on the cycle, and dropping either one breaks it.
+    by_path = {leaf.source_path: str(leaf) for leaf in excinfo.value.collected}
+    assert sorted(by_path) == [
+        "entity_model: entities.customer.quality",
+        "entity_model: entities.order.quality",
+    ]
+    assert (
+        "step 'customer_segments@1' computes 'customer_segment' from 'order'; "
+        "'order' joins 'customer' by a referential rule"
+    ) in by_path["entity_model: entities.customer.quality"]
+    assert (
+        "'customer' joins 'customer_segment' by a referential rule; "
+        "step 'customer_segments@1' computes 'customer_segment' from 'order'"
+    ) in by_path["entity_model: entities.order.quality"]
+
+
+#: ``customer`` and ``order`` check each other, with no step between them.
+MUTUAL = THROUGH_A_RULE.replace("customer_segment", "order").replace(
+    "customer_of_segment", "customer_of_last_order"
+)
+
+CUSTOMERS = (
+    "mapping_version: 1\nsource: crm__customers\ntarget: customer\n"
+    'key:\n  customer_id: {from: "$.id"}\n'
+    "unmapped: ['$._ingested_at', '$._load_id', '$._source_row_id']\n"
+)
+
+
+def _mutual_refusals(entity_model: str, **mappings: str) -> dict[str, str]:
+    documents_ = {
+        "entity_model": entity_model,
+        "mapping_orders": MAPPING,
+        "mapping_customers": CUSTOMERS,
+        **mappings,
+    }
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(load_project(documents_))
+    return {str(leaf.source_path): str(leaf) for leaf in excinfo.value.collected}
+
+
+def test_two_entities_whose_rules_join_each_other_are_refused() -> None:
+    """No step at all: the same guard, over the reads two rules make. Each
+    entity's model LEFT JOINs the other's, which compiled before (#363)."""
+    refused = _mutual_refusals(MUTUAL)
+
+    assert sorted(refused) == [
+        "entity_model: entities.customer.quality",
+        "entity_model: entities.order.quality",
+    ]
+    assert "but 'order' joins 'customer' by a referential rule" in refused[
+        "entity_model: entities.customer.quality"
+    ]
+    assert "but 'customer' joins 'order' by a referential rule" in refused[
+        "entity_model: entities.order.quality"
+    ]
+
+
+def test_a_rule_into_a_cycle_it_is_not_on_is_not_refused() -> None:
+    """``refund`` reads ``order``, which sits on a cycle with ``customer``,
+    and nothing reads ``refund``: the search walks that cycle, finds no way
+    back to ``refund`` and stops, rather than going round it."""
+    refunds = (
+        "  refund:\n    grain: one row per refund\n    key: [refund_id]\n    fields:\n"
+        "      refund_id: {type: string, required: true}\n      order_id: {type: string}\n"
+        "    quarantine: {retention: 90d}\n"
+        "    quality:\n      - {rule: referential, via: refund_of_order, on_missing: flag}\n"
+        "relationships:\n"
+        "  - {name: refund_of_order, from: refund, to: order, via: {order_id: order_id}, "
+        "cardinality: many_to_one}\n"
+    )
+    mapping = (
+        "mapping_version: 1\nsource: shop__refunds\ntarget: refund\n"
+        'key:\n  refund_id: {from: "$.id"}\nfields:\n  order_id: {from: "$.order_id"}\n'
+        "unmapped: ['$._ingested_at', '$._load_id', '$._source_row_id']\n"
+    )
+    entity_model = MUTUAL.replace("relationships:\n", refunds, 1)
+
+    refused = _mutual_refusals(entity_model, mapping_refunds=mapping)
+
+    assert "entity_model: entities.refund.quality" not in refused
+    assert len(refused) == 2
