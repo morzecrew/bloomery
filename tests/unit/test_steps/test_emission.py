@@ -628,3 +628,63 @@ def test_an_unflagged_tier_two_output_is_unchanged() -> None:
     model = _tier_two_model(PLAIN_WIRING)
     assert "_quality_flags" not in model
     assert "_quality_ok" not in model
+
+
+# ....................... #
+# Tier 2 inputs under a scoping naming policy (#348)
+
+
+def _scoped_tier_two(target: str, body: str) -> str:
+    """One Tier 2 output compiled under ``PrefixNaming("t0")``, with one bound
+    input, returned as the emitted model's query."""
+    from bloomery import compile_project, load_project
+    from bloomery.naming import PrefixNaming
+    from bloomery.steps import StepManifest, StepRegistry
+
+    manifest = StepManifest.model_validate(
+        SQL_MANIFEST | {"inputs": {"stock": {"grain": "stock_snapshot"}}}
+    )
+    project = load_project(
+        {
+            "entity_model": "spec_version: 1\nentities: {}\n",
+            "steps": (
+                "steps_version: 1\nsteps:\n  - use: scored@1\n"
+                "    inputs: {stock: silver.stock_snapshot}\n"
+                "    outputs: {out: silver.scored}\n"
+            ),
+        }
+    )
+    registry = StepRegistry({("scored", 1): manifest}, sql_bodies={("scored", 1): body})
+    artifacts = compile_project(
+        project, target=target, dialect="duckdb", naming=PrefixNaming("t0"), steps=registry
+    )
+    content = next(a.content for a in artifacts if a.path == "models/t0_silver/scored.sql")
+    return content.partition(");")[2] if target == "sqlmesh" else content
+
+
+@pytest.mark.parametrize("target", ["sqlmesh", "dbt"])
+def test_a_tier_two_body_reads_its_bound_input_through_the_naming_policy(target: str) -> None:
+    """D34's bug on the Tier 2 side: the output went through the policy and
+    the body's read did not, so the model wrote `t0_silver.scored` and read
+    `silver.stock_snapshot`, a relation a prefixed deployment does not have."""
+    query = _scoped_tier_two(target, "SELECT k FROM silver.stock_snapshot AS s WHERE s.k > ''")
+
+    assert "t0_silver.stock_snapshot AS s" in query
+    assert "FROM silver.stock_snapshot" not in query
+
+
+def test_a_table_the_wiring_does_not_bind_is_left_as_written() -> None:
+    """Only a bound input is the policy's to spell: the body names anything
+    else on its own authority, as dbt's references leave a table they do not
+    know."""
+    query = _scoped_tier_two(
+        "sqlmesh",
+        "WITH last AS (SELECT MAX(k) AS k FROM silver.stock_snapshot) "
+        "SELECT r.k FROM ext.reference AS r, other.silver.stock_snapshot AS o, last",
+    )
+
+    assert "FROM t0_silver.stock_snapshot" in query
+    assert "ext.reference AS r" in query
+    # Another catalog's relation of the same name is not the bound one.
+    assert "other.silver.stock_snapshot AS o" in query
+    assert "t0_silver.last" not in query

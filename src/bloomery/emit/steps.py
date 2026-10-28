@@ -137,7 +137,7 @@ def step_output_body(
         ),
         None,
     )
-    body = _with_parameters(step)
+    body = _with_bound_inputs(step, _with_parameters(step), ctx)
 
     if entity is None or not carries_quality_flags(entity):
         return body
@@ -378,6 +378,39 @@ def _with_parameters(step: StepIR) -> Expression:
         return node
 
     return step.body.ast().transform(_substitute)
+
+
+# ....................... #
+
+
+def _with_bound_inputs(step: StepIR, body: Expression, ctx: EmitContext) -> Expression:
+    """The Tier 2 body with each table that names a bound input spelled as the
+    naming policy spells it, as :func:`_bound` spells the Tier 3 wrapper's read
+    (S-0034/D-34, #348).
+
+    The output went through the policy and the read did not, so under a scoping
+    policy the model wrote ``t0_silver.product_health`` and read plain
+    ``silver.stock_snapshot``. A table the wiring does not bind is left as the
+    body wrote it, as dbt's references leave a table they do not know.
+    """
+
+    bound = {
+        tuple(relation.rsplit(".", 1)): _bound(relation, ctx).rsplit(".", 1)
+        for _name, relation in step.inputs
+    }
+
+    def spelled(node: Expression) -> Expression:
+        if not isinstance(node, exp.Table) or node.catalog:
+            return node
+        policy = bound.get((node.db, node.name))
+        if policy is None:
+            return node
+        table = node.copy()
+        table.set("db", exp.to_identifier(policy[0]))
+        table.set("this", exp.to_identifier(policy[1]))
+        return table
+
+    return body.transform(spelled)
 
 
 # ....................... #

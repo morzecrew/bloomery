@@ -82,6 +82,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A `sql_model` body reads its bound inputs through the naming policy.** Under a scoping
+  policy such as `PrefixNaming("t0")` the model was written as `t0_silver.<output>` but its
+  body still read `silver.<input>`, a relation a prefixed deployment does not have. Each
+  table naming a bound input is now spelled by the policy on SQLMesh and dbt, as a Tier 3
+  wrapper's read already was. A table the wiring does not bind is emitted as written.
+  (#348)
 - **A chain may parse ISO 8601 twice.** `[{parse_ts: ISO8601}, to_string, {parse_ts:
   ISO8601}]` was refused on every port as an unmeasured parse: the rewrite that spells the
   outer parse did not reach the inner one inside its operand. Every marker is now spelled
