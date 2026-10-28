@@ -10,6 +10,7 @@ from sqlglot.expressions.core import Expression
 
 from bloomery.dialects.base import (
     SQLGlotDialect,
+    pick_spelled,
     space_separated,
     strip_iso_text,
     utc_from_zone,
@@ -74,9 +75,75 @@ class DuckDBDialect(SQLGlotDialect):
             return exp.AtTimeZone(this=interpretation, zone=exp.Literal.string("UTC"))
 
         rewritten = strip_iso_text(node.copy(), space_separated, instant=utc_instant)
+        rewritten = pick_spelled(rewritten, _picked)
         rewritten = utc_from_zone(rewritten, utc)
         rewritten = rewritten.transform(_nfc_normalize)
         return super().render(rewritten)
+
+
+# ....................... #
+
+
+def _picked(items: Expression, field: str, text: str, take: str, _json: bool) -> Expression:
+    """``pick`` on DuckDB (S-0095/D-4), measured over the design's edge cases:
+
+    ``CASE WHEN json_type(m, '$.take') NOT IN ('OBJECT','ARRAY') THEN
+    json_extract_string(m, '$.take') END`` over the first element ``m`` of
+    ``list_filter(<the list as JSON[]>, e -> <e is an object whose scalar field
+    reads as the text>)``. ``TRY_CAST`` to ``JSON`` makes text that is not JSON
+    NULL, and the list is cast only once it is an array. The lambda reads the
+    field with ``json_extract_string`` rather than ``->>``: SQLGlot renders the
+    arrow lambda, and DuckDB parses ``e -> … e ->> '$.f'`` as JSON arrows.
+    """
+
+    def json_type(value: Expression, path: str | None = None) -> Expression:
+        args = [value] if path is None else [value, exp.Literal.string(path)]
+        return exp.Anonymous(this="json_type", expressions=args)
+
+    def scalar(value: Expression, path: str) -> Expression:
+        return exp.Not(
+            this=exp.In(
+                this=json_type(value, path),
+                expressions=[exp.Literal.string("OBJECT"), exp.Literal.string("ARRAY")],
+            )
+        )
+
+    def text_at(value: Expression, path: str) -> Expression:
+        return exp.Anonymous(
+            this="json_extract_string", expressions=[value, exp.Literal.string(path)]
+        )
+
+    parsed = exp.TryCast(this=items.copy(), to=exp.DataType.build("JSON"))
+    as_list = exp.Case(
+        ifs=[
+            exp.If(
+                this=exp.EQ(this=json_type(parsed.copy()), expression=exp.Literal.string("ARRAY")),
+                true=exp.cast(parsed.copy(), exp.DataType.build("JSON[]")),
+            )
+        ]
+    )
+    element = exp.column("e")
+    matches = exp.and_(
+        exp.EQ(this=json_type(element.copy()), expression=exp.Literal.string("OBJECT")),
+        scalar(element.copy(), f"$.{field}"),
+        exp.EQ(this=text_at(element.copy(), f"$.{field}"), expression=exp.Literal.string(text)),
+    )
+    first = exp.Anonymous(
+        this="list_extract",
+        expressions=[
+            exp.Anonymous(
+                this="list_filter",
+                expressions=[
+                    as_list,
+                    exp.Lambda(this=matches, expressions=[exp.to_identifier("e")]),
+                ],
+            ),
+            exp.Literal.number(1),
+        ],
+    )
+    return exp.Case(
+        ifs=[exp.If(this=scalar(first.copy(), f"$.{take}"), true=text_at(first, f"$.{take}"))]
+    )
 
 
 # ....................... #

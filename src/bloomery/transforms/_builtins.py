@@ -656,6 +656,77 @@ def nullif(col: Expression, sentinel: str | int, *, input_type: LogicalType) -> 
 # ....................... #
 
 
+#: The marker a ``pick`` lowers to, which a port rewrites into its measured
+#: spelling (S-0095/D-4).
+PICK_MARKER = "BLM_PICK"
+
+_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+#: Dotted identifiers, each optionally followed by ``[n]`` subscripts, relative
+#: to the matched element (S-0095/D-2). ``pick``'s own grammar: the shared
+#: ``JsonPath`` type six other fields read is not widened.
+_TAKE_PATH = re.compile(
+    r"[A-Za-z_][A-Za-z0-9_]*(?:\[[0-9]+\])*(?:\.[A-Za-z_][A-Za-z0-9_]*(?:\[[0-9]+\])*)*"
+)
+
+
+def _picked(_: LogicalType, args: tuple[str | int, ...]) -> LogicalType:
+    """``pick`` yields a string, once its arguments are in its grammar
+    (S-0095/D-2): one identifier to match on, non-empty text to match, and a
+    take path relative to the matched element."""
+
+    field, text, take = (str(arg) for arg in args)
+
+    if _IDENTIFIER.fullmatch(field) is None:
+        msg = f"pick matches on one identifier, not {field!r} (S-0095/D-2)"
+        raise TypeCheckError(msg)
+
+    if not text:
+        msg = "pick matches on non-empty text (S-0095/D-2)"
+        raise TypeCheckError(msg)
+
+    if _TAKE_PATH.fullmatch(take) is None:
+        msg = (
+            f"pick's take path {take!r} is not dotted identifiers with [n] subscripts, "
+            "relative to the matched element, such as 'value' or 'values[0].value' (S-0095/D-2)"
+        )
+        raise TypeCheckError(msg)
+
+    return StringType()
+
+
+@transform(
+    "pick",
+    arity=3,
+    arg_kinds=(ArgKind.STR, ArgKind.STR, ArgKind.STR),
+    input=(StringType, VariantType),
+    output=_picked,
+    nullifies=True,
+    types=True,
+)
+def pick(
+    col: Expression, field: str, text: str, take: str, *, input_type: LogicalType
+) -> Expression:
+    """``{pick: [<field>, <text>, <take>]}`` (S-0095/D-1): from a JSON list, the
+    ``<take>`` of the first object whose scalar ``<field>`` reads as ``<text>``,
+    as a string, or NULL. ``nullifies``: a row with no match is NULL from a
+    non-NULL list on purpose, which ``coercible`` must not read as a failed
+    cast. A port spells the marker; one that does not refuses it.
+
+    The marker's last argument says whether the list arrives as JSON text or
+    as a ``variant``: Trino parses text with ``json_parse`` but takes a JSON
+    value as it is, and a cast from text to ``JSON`` there makes a JSON string.
+    """
+
+    kind = "json" if isinstance(input_type, VariantType) else "text"
+    return exp.Anonymous(
+        this=PICK_MARKER,
+        expressions=[col, *(exp.Literal.string(arg) for arg in (field, text, take, kind))],
+    )
+
+
+# ....................... #
+
+
 @transform(
     "json_path",
     arity=1,

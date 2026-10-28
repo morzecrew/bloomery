@@ -1013,3 +1013,39 @@ def test_a_name_two_upstreams_supply_resolves_through_neither() -> None:
     names = {node.name for node in graph.nodes}
 
     assert not any(name.endswith(".order_item") for name in names), sorted(names)
+
+
+def test_two_attributes_picked_from_one_list_are_two_source_nodes() -> None:
+    """S-0095/D-6: a picked field's source node names its selection, so lineage
+    tells `channel` from `utm_source` though both read `$.attributes`; the edge
+    stays `direct`."""
+    sources = fixture_sources("ecom_basic")
+    old = "      customer_id: {type: string, classification: pii}\n"
+    assert sources["entity_model"].count(old) == 1
+    sources["entity_model"] = sources["entity_model"].replace(
+        old, old + "      channel: {type: string}\n      utm_source: {type: string}\n"
+    )
+    old = '  customer_id: {from: "$.customer.id", transform: [to_string]}\n'
+    assert sources["mapping_orders"].count(old) == 1
+    sources["mapping_orders"] = sources["mapping_orders"].replace(
+        old,
+        old
+        + '  channel: {from: "$.attributes", transform: [{pick: [name, Channel, value]}]}\n'
+        + '  utm_source: {from: "$.attributes", transform: [{pick: [field_code, UTM, "values[0].value"]}]}\n',
+    )
+    project = load_project(sources)
+    _project, catalog = load_fixture("ecom_basic")
+    graph = build_graph(project, catalog, effective_metrics(project, catalog))
+    into = {
+        edge.dst.name: (edge.src.name, edge.label)
+        for edge in graph.edges
+        if edge.dst.name in {"order.channel", "order.utm_source"}
+    }
+
+    assert into == {
+        "order.channel": ("source.shopify__orders.$.attributes[name=Channel].value", "direct"),
+        "order.utm_source": (
+            "source.shopify__orders.$.attributes[field_code=UTM].values[0].value",
+            "direct",
+        ),
+    }

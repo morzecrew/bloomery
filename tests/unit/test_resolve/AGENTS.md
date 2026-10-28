@@ -309,4 +309,11 @@ A rollup is a `mart` node, with a `rollup`-labelled edge from its parent. S-0065
 
 - Paths: `tests/unit/test_resolve/test_graph.py`
 
+### S-0095/D-6 — `ASSUMED` (Picking a list element by a field)
+
+A picked field's source node in lineage is `source.<relation>.<path>[<field>=<text>].<take>`, and its edge stays `direct`
+
+- Paths: `src/bloomery/resolve/graph.py` `tests/unit/test_resolve/test_graph.py`
+- Consequence: Two attributes read from one list are two lineage nodes, and a reader sees which attribute a field comes from
+
 <!-- /torve:managed -->

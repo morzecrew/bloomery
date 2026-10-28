@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-27T21:19:39Z'
+    title: >-
+      D-4, D-5: ports rewrite the pick marker themselves, with no new DialectFeature
+    changes:
+      - subject: D-4
+        field: text
+        before: >-
+          The builder returns a `BLM_PICK` marker, and `DialectFeature.PICK` is declared
+          by DuckDB, PostgreSQL and Trino, each rewriting the marker into a spelling
+          measured against the same edge cases. PostgreSQL compares the field as text
+          through an ordered `jsonb_array_elements` subquery, not through jsonpath
+          `==`, over an input it has first checked is JSON (`pg_input_is_valid(<x>,
+          'jsonb')`) and a top-level array (`jsonb_typeof`), because `jsonb_array_elements`
+          raises on an object. Trino parses text with a guarded `json_parse` before
+          casting it to `ARRAY(JSON)`, which takes a JSON value and not its text.
+          Every port reads the field and the take only when they are scalars, because
+          DuckDB's and PostgreSQL's `->>` turn an object or an array into its text
+        after: >-
+          The builder returns a `BLM_PICK` marker that DuckDB, PostgreSQL and Trino
+          each rewrite in their own render, through `dialects.base.pick_spelled`,
+          into a spelling measured against the same edge cases. The marker carries
+          whether the list arrives as JSON text or a `variant`. PostgreSQL compares
+          the field as text through an ordered `jsonb_array_elements` subquery, not
+          through jsonpath `==`, over an input it has first checked is JSON (`pg_input_is_valid(<x>,
+          'jsonb')`) and a top-level array (`jsonb_typeof`), because `jsonb_array_elements`
+          raises on an object. Trino parses text with a guarded `json_parse` before
+          casting it to `ARRAY(JSON)`, which takes a JSON value and not its text.
+          Every port reads the field and the take only when they are scalars, because
+          DuckDB's and PostgreSQL's `->>` turn an object or an array into its text
+      - subject: D-4
+        field: fingerprint
+        after: 80ff6fe0411fa459/058b8ca5c1f4dc5c
+    md: >-
+      Found while building, as the epoch formats' design found for its markers: every
+      port's `features` defaults to `frozenset(DialectFeature)`, so a `DialectFeature.PICK`
+      would be claimed by every port that did not subtract it. The ISO and epoch markers
+      settle the same question without a feature: each port rewrites its marker in
+      its own `render`, and the base render refuses one that survives. The marker
+      also gained the list's input kind, because Trino parses text with `json_parse`
+      but takes a JSON value as it is, and a cast from text to `JSON` there makes
+      a JSON string. The measured spellings and the scalar rule are unchanged.
+  - id: A-2
+    at: '2026-10-27T21:20:01Z'
+    title: >-
+      D-5: an unmeasured port refuses the surviving pick marker
+    changes:
+      - subject: D-5
+        field: text
+        before: >-
+          A port that does not declare `DialectFeature.PICK` refuses a mapping using
+          `pick` as `UnsupportedByTarget`, naming the transform and the dialect. Snowflake,
+          BigQuery, Databricks and Redshift refuse until a spelling is measured on
+          each engine
+        after: >-
+          A port that does not rewrite the `pick` marker refuses a mapping using `pick`
+          as `UnsupportedByTarget`, naming the transform and the dialect: the base
+          render refuses a surviving marker. Snowflake, BigQuery, Databricks and Redshift
+          refuse until a spelling is measured on each engine
+      - subject: D-5
+        field: fingerprint
+        after: 3664073b64393430/bde96ee36d9c5793
+    md: >-
+      The refusal D-5 promises, restated for the marker mechanism A-1 records: a port
+      that never rewrites `BLM_PICK` refuses by name, so a port added later inherits
+      the refusal rather than a feature flag it would have to remember to clear.

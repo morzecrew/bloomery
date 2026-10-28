@@ -156,4 +156,11 @@ A catalog recipe may declare `types:`, a mapping from names in its `requires` to
 - Paths: `src/bloomery/spec/catalog.py` `tests/golden/schema/catalog.json`
 - Consequence: a catalog author can say what each operand is, and a typo in `types:` is caught where it is written
 
+### S-0095/D-2 — `ASSUMED` (Picking a list element by a field)
+
+`<field>` is one identifier, `<text>` is any non-empty string, and `<take>` is a path relative to the element: dotted identifiers, each optionally followed by `[n]` subscripts. The grammar is `pick`'s own, and the shared `JsonPath` type is not widened
+
+- Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/spec/mapping.py` `tests/golden/schema/mapping.json`
+- Consequence: amoCRM's `values[0].value` is reachable through the take path, while a subscript in `from:`, `unmapped:` or `redact:` is still refused
+
 <!-- /torve:managed -->

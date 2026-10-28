@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A `pick` transform for name/value lists.** `{pick: [name, "Источник заказа", value]}`
+  reads one attribute of a list of objects, such as МойСклад's, amoCRM's or Bitrix24's
+  custom fields: the take path of the first object whose scalar field reads as the text, or
+  NULL. It reads the JSON text a `from:` extraction yields or a `variant`, is `nullifies`, and
+  names its selection in lineage (`source.<relation>.$.attributes[name=…].value`), so two
+  attributes from one list are two nodes. On DuckDB, PostgreSQL and Trino, held to one set of
+  answers by an engine differential; other ports refuse it. (#312)
 - **Expression metrics have lineage.** `lineage()` walked upstream from a metric defined
   by an `expr` with no `requires:` to nothing. An `expr` edge now runs from each field of the
   metric's grain entity that its `expr` names, so the walk reaches the entity column and,

@@ -732,6 +732,13 @@ Every handler that turns a SQLGlot parse into a refusal or a pass-on treats a `V
 - Paths: `src/bloomery/spec/common.py` `src/bloomery/resolve/steps.py` `src/bloomery/resolve/build.py`
 - Consequence: a body or expression SQLGlot cannot convert is refused like any other unparseable text, at the step or field that carries it, and the next handler that parses SQL takes the classes from one place
 
+### S-0095/D-6 — `ASSUMED` (Picking a list element by a field)
+
+A picked field's source node in lineage is `source.<relation>.<path>[<field>=<text>].<take>`, and its edge stays `direct`
+
+- Paths: `src/bloomery/resolve/graph.py` `tests/unit/test_resolve/test_graph.py`
+- Consequence: Two attributes read from one list are two lineage nodes, and a reader sees which attribute a field comes from
+
 ## Invariants holding over `src/bloomery/resolve/`
 
 - **S-0079/I-1**: The IR version is declared once, on the dataclass, and every project's fingerprint is stable across processes and `PYTHONHASHSEED` values
