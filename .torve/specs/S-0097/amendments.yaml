@@ -74,3 +74,33 @@ amendments:
       - **Inline,** the text `'2024-03-05 11:00:00+02:00'` was cast to `TIMESTAMP` by dropping the offset, so the request read 11:00 UTC instead of 09:00. This predates the document, because S-0032/D-5's renderer shares the same `_typed`.
 
       A zoned value now becomes its UTC wall clock, naive, before it is bound or rendered. Inline and bound read the same instant under any session. A zoned value that would fall outside years 1 to 9999 in UTC is refused as a `FilterTypeMismatch`. The engine differential gains the zoned case, and on Trino its inline plan is a fourth strict expected failure under #351.
+  - id: A-4
+    at: '2026-10-28T12:26:15Z'
+    title: Trino runs the inline plan too
+    changes:
+      - subject: D-7
+        field: text
+        before: >-
+          On PostgreSQL through psycopg (`pyformat`) and on Trino through its client
+          (`qmark`), every planner bind request returns DuckDB's inline rows when
+          bound, dates, timestamps and decimals included, and inline wherever the
+          engine runs the inline plan; Trino refuses an inline request filter on a
+          date or a timestamp (#351), so those cases are strict expected failures
+          there, checked by an engine differential
+        after: >-
+          On PostgreSQL through psycopg (`pyformat`) and on Trino through its client
+          (`qmark`), every planner bind request returns DuckDB's inline rows, bound
+          and inline, dates, timestamps and decimals included, checked by an engine
+          differential
+      - subject: D-7
+        field: fingerprint
+        before: abdda825ba28152a/9dbede4b19bcbad6
+        after: e115bb89ee4bb229/9dbede4b19bcbad6
+    md: >-
+      #351 is fixed. The planner now renders an inline date or timestamp as a typed
+      literal (`DATE '…'`, `TIMESTAMP '…'`), so Trino runs the inline plan of a request
+      filter on either type, and the policy case too. A-1 had marked those cases as
+      strict expected failures, to turn red on the fix. They did: with the markers
+      removed and the fix not yet in, the four failed with `TYPE_MISMATCH: Cannot
+      apply operator: date <= varchar(10)`. With the fix, all 40 cases pass on both
+      engines, bound and inline, so the row returns to its original claim.

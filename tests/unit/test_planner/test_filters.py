@@ -102,14 +102,14 @@ def test_range_composes_from_gte_and_lte_clauses() -> None:
         entity=ENTITY,
     )
     assert constraints == (
-        "{{ Dimension('order__ordered_day__day') }} >= '2024-01-01'",
-        "{{ Dimension('order__ordered_day__day') }} <= '2024-01-31'",
+        "{{ Dimension('order__ordered_day__day') }} >= DATE '2024-01-01'",
+        "{{ Dimension('order__ordered_day__day') }} <= DATE '2024-01-31'",
     )
 
 
 def test_time_dimension_filters_use_the_grain_suffixed_dunder() -> None:
     assert render(Predicate("ordered_month", Op.EQ, ("2024-01-01",)), ORDERED_MONTH) == (
-        "{{ Dimension('order__ordered_day__month') }} = '2024-01-01'"
+        "{{ Dimension('order__ordered_day__month') }} = DATE '2024-01-01'"
     )
 
 
@@ -180,13 +180,13 @@ def test_non_finite_string_carriers_are_invalid_literals(carrier: str, op: Op) -
 
 def test_date_literals_are_iso_validated_and_normalized() -> None:
     assert render(Predicate("ordered_day", Op.EQ, ("2024-01-03",)), ORDERED_DAY).endswith(
-        "= '2024-01-03'"
+        "= DATE '2024-01-03'"
     )
 
 
 def test_date_object_renders_iso() -> None:
     assert render(Predicate("ordered_day", Op.EQ, (date(2024, 1, 3),)), ORDERED_DAY).endswith(
-        "= '2024-01-03'"
+        "= DATE '2024-01-03'"
     )
 
 
@@ -307,11 +307,11 @@ def test_bool_dimension_refuses_non_bool() -> None:
 
 def test_timestamp_literals_are_iso_validated() -> None:
     assert _render_typed(Predicate("seen_at", Op.GTE, ("2024-01-02T03:04:05",))).endswith(
-        "'2024-01-02 03:04:05'"
+        "TIMESTAMP '2024-01-02 03:04:05'"
     )
     # A datetime object renders with the space separator directly.
     assert _render_typed(Predicate("seen_at", Op.EQ, (datetime(2024, 1, 2, 3, 4, 5),))).endswith(
-        "= '2024-01-02 03:04:05'"
+        "= TIMESTAMP '2024-01-02 03:04:05'"
     )
     with pytest.raises(FilterTypeMismatch, match="ISO timestamp"):
         _render_typed(Predicate("seen_at", Op.EQ, ("not a time",)))
