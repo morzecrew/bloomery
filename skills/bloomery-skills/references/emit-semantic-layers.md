@@ -56,7 +56,7 @@ One artifact, `semantic_manifest.json`, the file `dbt-semantic-interfaces` reads
 |---|---|
 | one `semantic_models` entry per mart | `node_relation` is the mart's gold table, e.g. `gold.mart_orders` |
 | the primary entity | the mart's grain; each single-column flattened join becomes a foreign entity, and a composite join emits none |
-| dimensions | every flattened column except the join keys; of each date role only its `<role>_day` bucket, a TIME dimension MetricFlow derives coarser grains from |
+| dimensions | every flattened column, a join key included (it is also its foreign entity); of each date role only its `<role>_day` bucket, a TIME dimension MetricFlow derives coarser grains from |
 | measures | each stored mart measure, with its aggregation and time dimension; ratios and derived metrics are metrics, never measures |
 | `metrics` | every metric it can serve: a ratio (`type: ratio`) when both operands are measures, a derived metric when all its inputs are emitted; any other is left out, and the planner refuses it by name at request time |
 | the time spine | the catalog's date dimension, at `gold.dim_date` |

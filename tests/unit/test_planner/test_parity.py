@@ -393,9 +393,16 @@ def test_the_corpus_is_the_size_it_claims_to_be() -> None:
 #: S-0055/A-2 (S-0082/D-1) adds seven to the first: a cross-mart request one of
 #: whose metrics carries its own restriction. The eighth such row stays refused
 #: for a semi-additive measure, which the composed path still holds back.
+#:
+#: #355 fixes that lowering defect: the emitter now makes a join key a dimension
+#: too, as every flattened column is (S-0027 (§10)). So the one filtered request
+#: P2 licensed into `UnknownMember` is answered, the twenty-third of the first
+#: move, and the eighteen requests grouped by a join key on nine fixtures move
+#: from `UnknownMember` to answered. Each is a column the IR and the planner
+#: already offered. None is a request a proof rule refused.
 CONVERSIONS = {
-    ("UnreachableAtGrain", "accepted"): 22,
-    ("UnreachableAtGrain", "UnknownMember"): 1,
+    ("UnreachableAtGrain", "accepted"): 23,
+    ("UnknownMember", "accepted"): 18,
 }
 
 #: How many requests moved in total. Pinned because "no unlicensed change" is
@@ -406,8 +413,10 @@ CONVERSIONS = {
 #: on different marts (logs/T-0027.md, D-179). Nothing single-mart moves: a
 #: filter on one mart was always placeable, and P2 changes only where a
 #: restriction has more than one branch to reach. The other seven are the
-#: restricted-metric pairs :func:`_restricted` asks.
-CONVERTED = 23
+#: restricted-metric pairs :func:`_restricted` asks. #355 adds eighteen, single-
+#: and cross-mart alike, each grouped by a join key, and moves P2's sixteenth
+#: from `UnknownMember` to answered.
+CONVERTED = 41
 
 
 def _unlicensed(
@@ -486,6 +495,13 @@ def test_only_the_licensed_conversion_moved() -> None:
     assert dropped == [], f"request(s) no longer in the corpus: {dropped}"
 
 
+def _grouped_by_a_join_key(key: str) -> bool:
+    fixture, mart_name, _metrics, dimensions = key.split("|")
+    mart = next(mart for mart in fixture_ir(fixture).marts if mart.name == mart_name)
+    keys = {column for join in mart.joins for column, _to in join.on}
+    return bool(keys & set(dimensions.split(",")))
+
+
 def test_only_cross_mart_requests_became_answerable() -> None:
     """The half of §8 a licensed conversion must not quietly carry with it.
 
@@ -500,6 +516,11 @@ def test_only_cross_mart_requests_became_answerable() -> None:
     Cross-mart requests are the keys the generator writes as `a+b`
     (:func:`_cross_mart`), so "which requests may move" is read off the corpus
     rather than off a list somebody keeps in step by hand.
+
+    #355 is the one other: a request grouped by a join key of its mart, which
+    MetricFlow refused as an `UnknownMember` because the emitter kept the
+    column out of the dimensions the IR and the planner offered. Its join keys
+    are read off the IR as well.
     """
     outcomes = _outcomes()
     baseline = _baseline()
@@ -508,7 +529,12 @@ def test_only_cross_mart_requests_became_answerable() -> None:
         for key, outcome in outcomes.items()
         if key in baseline and baseline[key] != "accepted" and outcome == "accepted"
     )
-    single_mart = [key for key in widened if "+" not in key.split("|")[1]]
+    single_mart = [
+        key
+        for key in widened
+        if "+" not in key.split("|")[1]
+        and not (baseline[key] == "UnknownMember" and _grouped_by_a_join_key(key))
+    ]
 
     assert single_mart == [], f"single-mart request(s) newly accepted: {single_mart}"
     assert widened, "no request became answerable — S-0055/phasing (P-1) is a capability phase"

@@ -82,6 +82,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A join key is a dimension the planner can group by.** Every flattened column is a
+  requestable mart dimension, and `MartIR.dimensions` and the planner say so. But the
+  MetricFlow manifest made a join key only a foreign entity, so `dimensions: [customer_id]`
+  (or a non-key `via: {article: sku}`) planned and MetricFlow refused it as an unknown
+  group-by. A join key is now a categorical dimension as well, unless an entity of the
+  model already has its name, in which case the entity serves it. The MetricFlow manifest of
+  every mart with a join gains these dimensions; no other artifact changes. (#355)
 - **A chain may parse ISO 8601 twice.** `[{parse_ts: ISO8601}, to_string, {parse_ts:
   ISO8601}]` was refused on every port as an unmeasured parse: the rewrite that spells the
   outer parse did not reach the inner one inside its operand. Every marker is now spelled

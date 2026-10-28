@@ -139,12 +139,27 @@ def test_composite_key_sets_primary_entity_on_the_model() -> None:
     assert all(entity.type is not EntityType.PRIMARY for entity in model.entities)
 
 
-def test_join_keys_become_foreign_entities_not_dimensions() -> None:
+def test_a_join_key_is_a_foreign_entity_and_a_dimension() -> None:
+    """Every flattened column is a requestable dimension (S-0027 (§10)), the
+    IR says so, and the planner offers it: kept out of the dimensions, a
+    request grouped by a join key planned and MetricFlow refused it (#355)."""
     model = _model(_manifest("ecom_basic"), "order_items")
     (foreign,) = [e for e in model.entities if e.type is EntityType.FOREIGN]
     assert foreign.name == "order"
     assert foreign.expr == "order_id"
-    assert "order_id" not in {dimension.name for dimension in model.dimensions}
+    (dimension,) = [d for d in model.dimensions if d.name == "order_id"]
+    assert dimension.type is DimensionType.CATEGORICAL
+
+
+def test_a_join_key_named_as_its_entity_is_served_by_the_entity() -> None:
+    """One name, two elements, is a duplicate to MetricFlow's validator; the
+    entity is groupable by that name already."""
+    ir = _fixture_ir("ecom_basic")
+    mart = next(m for m in ir.marts)
+    patched = replace(mart, joins=(replace(mart.joins[0], entity="order_id"),))
+    model = _model(emit_manifest(replace(ir, marts=(patched,)), naming=DefaultNaming()), "order_items")
+    assert "order_id" in {e.name for e in model.entities}
+    assert "order_id" not in {d.name for d in model.dimensions}
 
 
 def test_foreign_entity_names_dedupe_and_composite_joins_emit_no_entity() -> None:
@@ -171,6 +186,7 @@ def test_dimensions_are_day_time_plus_categoricals() -> None:
         "line_no",
         "order_customer_id",
         "order_date",
+        "order_id",  # the join key, also a dimension (#355)
         "order_order_id",
         "quantity",
         "unit_price",
