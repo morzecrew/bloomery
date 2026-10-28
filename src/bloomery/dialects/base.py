@@ -73,6 +73,28 @@ _ALL_ISO_MARKERS = _ISO_MARKERS | {ISO_INSTANT_TEXT_MARKER}
 _EPOCH_MARKERS = {EPOCH_SECONDS_MARKER: 1, EPOCH_MILLIS_MARKER: 1000}
 
 
+def _each_marker(node: Expression, replace: Callable[[Expression], Expression]) -> Expression:
+    """``node.transform(replace)``, again until a pass replaces nothing.
+    ``transform`` does not descend into what it replaces, so a marker inside
+    the operand a spelling reuses (a chain that parses twice, a ``pick`` of a
+    ``pick``) is reached one level per pass. A spelling may copy its operand,
+    so the markers can grow in number, but never in depth. A marker a port
+    leaves for :meth:`SQLGlotDialect.render` to refuse ends the loop too."""
+
+    replaced = True
+
+    def spelled(child: Expression) -> Expression:
+        nonlocal replaced
+        result = replace(child)
+        replaced = replaced or result is not child
+        return result
+
+    while replaced:
+        replaced = False
+        node = node.transform(spelled)
+    return node
+
+
 def _without_offset(text: Expression, parsed: Expression, *, zoned: bool = False) -> Expression:
     """``parsed``, or NULL when ``text`` carries a numeric UTC offset.
 
@@ -209,7 +231,7 @@ def pick_spelled(
 
         return child
 
-    return node.transform(replace)
+    return _each_marker(node, replace)
 
 
 # ....................... #
@@ -270,7 +292,7 @@ def strip_iso_text(
 
         return child
 
-    return node.transform(replace)
+    return _each_marker(node, replace)
 
 
 # ....................... #
@@ -297,7 +319,7 @@ def epoch_timestamps(
 
         return child
 
-    return node.transform(replace)
+    return _each_marker(node, replace)
 
 
 # ....................... #

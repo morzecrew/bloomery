@@ -73,6 +73,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A chain may parse ISO 8601 twice.** `[{parse_ts: ISO8601}, to_string, {parse_ts:
+  ISO8601}]` was refused on every port as an unmeasured parse: the rewrite that spells the
+  outer parse did not reach the inner one inside its operand. Every marker is now spelled
+  however deep it sits, which also covers an epoch parse inside another and a `pick` of a
+  `pick`. (#345)
 - **A metric's `expr` reads the field its canonical links.** A catalog template is
   written in canonical names, and nothing bound them: with the line's field mapped as `qty`
   (`canonical: quantity`), Cube and MetricFlow emitted `unit_price * quantity` over a mart
