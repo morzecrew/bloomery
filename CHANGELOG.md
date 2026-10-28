@@ -89,6 +89,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   group-by. A join key is now a categorical dimension as well, unless an entity of the
   model already has its name, in which case the entity serves it. The MetricFlow manifest of
   every mart with a join gains these dimensions; no other artifact changes. (#355)
+- **A `sql_model` body reads its bound inputs through the naming policy.** Under a scoping
+  policy such as `PrefixNaming("t0")` the model was written as `t0_silver.<output>` but its
+  body still read `silver.<input>`, a relation a prefixed deployment does not have. Each
+  table naming a bound input is now spelled by the policy on SQLMesh and dbt, as a Tier 3
+  wrapper's read already was. A table the wiring does not bind is emitted as written.
+  (#348)
 - **A request filter on a date or a timestamp runs on Trino.** The planner wrote the value
   as quoted ISO text, which Trino reads as a `varchar` and refuses to compare with a date
   (`TYPE_MISMATCH: Cannot apply operator: date <= varchar(10)`). A row policy on a date did

@@ -137,7 +137,7 @@ def step_output_body(
         ),
         None,
     )
-    body = _with_parameters(step)
+    body = _with_bound_inputs(step, _with_parameters(step), ctx)
 
     if entity is None or not carries_quality_flags(entity):
         return body
@@ -378,6 +378,80 @@ def _with_parameters(step: StepIR) -> Expression:
         return node
 
     return step.body.ast().transform(_substitute)
+
+
+# ....................... #
+
+
+def _with_bound_inputs(step: StepIR, body: Expression, ctx: EmitContext) -> Expression:
+    """The Tier 2 body with each table that names a bound input spelled as the
+    naming policy spells it, as :func:`_bound` spells the Tier 3 wrapper's read
+    (S-0034/D-34, #348).
+
+    The output went through the policy and the read did not, so under a scoping
+    policy the model wrote ``t0_silver.product_health`` and read plain
+    ``silver.stock_snapshot``. A table names the input by the binding's parts,
+    an unquoted part in any case, as SQL folds it. A bare name that is one of the
+    body's CTEs is the CTE. A column qualified by the relation follows it. A
+    policy that renames the relation keeps the old name as the table's alias,
+    so a column qualified by the table alone still reads it. Anything else is
+    left as the body wrote it, as dbt's references leave a table they do not know.
+    """
+
+    bound = {
+        tuple(part.lower() for part in relation.split(".")): tuple(
+            _bound(relation, ctx).split(".", 1)
+        )
+        for _name, relation in step.inputs
+    }
+    ctes = {cte.alias.lower() for cte in body.find_all(exp.CTE)}
+
+    def parts(node: Expression, *keys: str) -> tuple[str, ...]:
+        identifiers = [node.args.get(key) for key in keys]
+        return tuple(
+            identifier.name if identifier.quoted else identifier.name.lower()
+            for identifier in identifiers
+            if isinstance(identifier, exp.Identifier)
+        )
+
+    def respelled(node: Expression, key: str, name: str) -> exp.Identifier:
+        original = node.args.get(key)
+        quoted = original.quoted if isinstance(original, exp.Identifier) else None
+        return exp.to_identifier(name, quoted=quoted)
+
+    renamed: dict[tuple[str, ...], bool] = {}
+
+    def table(node: exp.Table) -> Expression:
+        key = parts(node, "catalog", "db", "this")
+        policy = bound.get(key)
+        if policy is None or (len(key) == 1 and key[0] in ctes):
+            return node
+        namespace, relation = policy
+        spelled = node.copy()
+        spelled.set("catalog", None)
+        spelled.set("db", respelled(node, "db", namespace))
+        spelled.set("this", respelled(node, "this", relation))
+        renamed[key] = relation != node.name
+        if renamed[key] and not node.alias:
+            spelled.set("alias", exp.TableAlias(this=respelled(node, "this", node.name)))
+        return spelled
+
+    def column(node: exp.Column) -> Expression:
+        key = parts(node, "catalog", "db", "table")
+        if len(key) < 2 or key not in bound:  # qualified by the table alone: it still resolves
+            return node
+        namespace, relation = bound[key]
+        spelled = node.copy()
+        spelled.set("catalog", None)
+        if renamed.get(key):
+            spelled.set("db", None)  # through the alias the table kept
+        else:
+            spelled.set("db", respelled(node, "db", namespace))
+            spelled.set("table", respelled(node, "table", relation))
+        return spelled
+
+    tables = body.transform(lambda node: table(node) if isinstance(node, exp.Table) else node)
+    return tables.transform(lambda node: column(node) if isinstance(node, exp.Column) else node)
 
 
 # ....................... #
