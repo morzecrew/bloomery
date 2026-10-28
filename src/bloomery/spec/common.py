@@ -36,12 +36,14 @@ __all__ = [
     "RESERVED_MEMBER_REASONS",
     "TYPE_STRING_PATTERN",
     "AdditivityName",
+    "Annotation",
     "CardinalityName",
     "ClassificationName",
     "CurrencyCode",
     "DimensionName",
     "Grants",
     "JsonPath",
+    "Label",
     "MaterializationName",
     "MemberName",
     "IDENTIFIER_PATTERN",
@@ -57,6 +59,7 @@ __all__ = [
     "SpecModel",
     "SqlText",
     "StepUse",
+    "Synonyms",
     "TypeString",
     "USE_PATTERN",
     "UTC_ZONES",
@@ -362,6 +365,36 @@ ZoneName = Annotated[str, StringConstraints(pattern=ZONE_NAME_PATTERN)]
 #: wants a spelling rather than a fact.
 UTC_ZONES = frozenset({"UTC", "Etc/UTC"})
 MemberName = Annotated[str, AfterValidator(_reject_reserved_member)]
+
+
+def _not_empty(value: str) -> str:
+    if not value:
+        msg = "an annotation may not be empty once stripped (S-0094/D-2)"
+        raise ValueError(msg)
+    return value
+
+
+def _one_line(value: str) -> str:
+    if "\n" in value or "\r" in value:
+        msg = "a label is one line: it names a column or a metric, and a description holds the sentence (S-0094/D-2)"
+        raise ValueError(msg)
+    return value
+
+
+def _distinct(values: tuple[str, ...]) -> tuple[str, ...]:
+    if (twice := next((value for value in values if values.count(value) > 1), None)) is not None:
+        msg = f"synonym {twice!r} appears twice (S-0094/D-3)"
+        raise ValueError(msg)
+    return values
+
+
+#: A description: free text, refused empty once stripped (S-0094/D-2).
+Annotation = Annotated[str, AfterValidator(_not_empty)]
+#: A label: a short display name on one line (S-0094/D-2).
+Label = Annotated[str, AfterValidator(_not_empty), AfterValidator(_one_line)]
+#: Synonyms: distinct non-empty strings, for a front end matching a question to
+#: a member; they never reach a label or a description (S-0094/D-3, D-5).
+Synonyms = Annotated[tuple[Annotation, ...], AfterValidator(_distinct)]
 
 #: What a SQLGlot parse raises when it rejects its input: its own error class,
 #: and the bare ``ValueError`` its JSON-arrow path parser raises on a number

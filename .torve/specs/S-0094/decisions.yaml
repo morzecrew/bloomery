@@ -173,3 +173,19 @@ decisions:
       the same kind of key as `classification:` (S-0062/D-13). A field has no template
       to merge from, so absence and an empty list mean the same thing here
     cites: [D-3, D-5, D-7, S-0011/D-15]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      The planner labels a measure column by its metric's `label`, and by its `description`
+      only where no label is authored
+    paths:
+      - src/bloomery/planner/names.py
+      - tests/unit/test_planner/test_names.py
+    consequence: >-
+      A caller rendering `QueryPlan.columns` gets a chart title rather than the explanation
+      sentence, and a project with no labels sees the description exactly as before
+    rationale: >-
+      #343: the planner used the description as the label, so a front end guessed the
+      name by cutting the sentence at its first comma. The fallback keeps every project
+      that has only descriptions where it is
+    cites: [D-3, D-5]

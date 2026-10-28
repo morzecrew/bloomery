@@ -60,6 +60,10 @@ class EffectiveMetric:
     #: nobody wrote, which is D2's argument against mart inheritance at the
     #: other edge. ``MetricTemplate`` therefore has no ``owner`` key to merge.
     owner: str | None = None
+    #: A display name and other names (S-0094/D-3), merged from a template as
+    #: ``description`` is. Appended with defaults, as ``id`` and ``owner`` are.
+    label: str | None = None
+    synonyms: tuple[str, ...] = ()
 
 
 # ....................... #
@@ -101,6 +105,15 @@ def _merge(name: str, metric: Metric, template: MetricTemplate | None) -> Effect
         derived=derived,
         filter=metric.filter or (template.filter if template else ()),
         description=metric.description or (template.description if template else None),
+        label=metric.label or (template.label if template else None),
+        # Absent takes the template's; an authored `[]` clears them (S-0094/D-3).
+        synonyms=tuple(
+            sorted(
+                metric.synonyms
+                if metric.synonyms is not None
+                else (template.synonyms if template else ())
+            )
+        ),
         source_path=source_path,
         id=metric.id,
         owner=metric.owner,

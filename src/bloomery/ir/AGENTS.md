@@ -546,6 +546,13 @@ No id-only fingerprint is introduced; if a guard ever needs a narrower scope it 
 - Paths: `src/bloomery/ir/fingerprint.py`
 - Consequence: the project fingerprint keeps every meaning it has
 
+### S-0094/D-4 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
+
+`ColumnIR` gains `label` and `synonyms`, and `MetricIR` gains `label` and `synonyms`. `bloomery_ir_version` moves by one with them
+
+- Paths: `src/bloomery/ir/nodes.py` `tests/unit/test_ir/**`
+- Consequence: Every project's fingerprint moves once, and `plan()` refuses to diff across the versions. A project's first plan after upgrading cannot be shown as metadata-only
+
 ## Invariants holding over `src/bloomery/ir/`
 
 - **S-0079/I-1**: The IR version is declared once, on the dataclass, and every project's fingerprint is stable across processes and `PYTHONHASHSEED` values

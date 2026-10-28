@@ -229,7 +229,7 @@ def composed_column(metric: MetricIR) -> ColumnDescriptor:
         sql_alias=metric.name,
         type=DecimalType(38, 9),
         role="measure",
-        label=metric.description,
+        label=metric.label or metric.description,
     )
 
 
@@ -288,7 +288,7 @@ def columns_from(
                 sql_alias=metric.name,
                 type=_measure_type(metric, mart),
                 role="measure",
-                label=metric.description,
+                label=metric.label or metric.description,
             )
         )
 

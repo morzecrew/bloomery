@@ -18,15 +18,18 @@ from pydantic import Field as PydanticField
 from pydantic import model_validator
 
 from bloomery.spec.common import (
+    Annotation,
     CardinalityName,
     ClassificationName,
     Grants,
+    Label,
     MaterializationName,
     MemberName,
     PartitionSpecString,
     RelationName,
     SeedsRefusal,
     SpecModel,
+    Synonyms,
     TypeString,
 )
 from bloomery.spec.quality import (
@@ -70,6 +73,13 @@ class Field(SpecModel):
     (S-0024/D-3), and assert clauses."""
 
     type: TypeString
+    #: What the field means, for a catalog page or a semantic layer; it wins over
+    #: its canonical field's description (S-0094/D-2).
+    description: Annotation | None = None
+    #: A short display name, from the field alone (S-0094/D-2).
+    label: Label | None = None
+    #: Other names a front end may match the field by (S-0094/D-9).
+    synonyms: Synonyms = ()
     required: bool = False
     canonical: str | None = None
     renamed_from: str | None = None
