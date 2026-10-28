@@ -18,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   by requests that differ only in values; `fingerprint` still covers the values. Without a
   `paramstyle`, nothing changes. A metric filter's literal that happens to spell a bind
   marker stays text. (#304)
+- **Descriptions, labels and synonyms on fields and metrics.** A field takes
+  `description:`, `label:` and `synonyms:`, and a metric `label:` and `synonyms:` beside its
+  description, merged from a template as the description is. Each reaches the slot every
+  target has for it and no other: MetricFlow's `description`, `label` and
+  `config.meta.synonyms`, Cube's `description`, `title` and `meta.synonyms`, dbt's column
+  `description` and `meta.synonyms`. A mart column carries the annotations of the column it
+  was flattened from. The planner labels a measure column by the metric's label, falling
+  back to its description. None changes SQL, and a change to any is ADDITIVE, metadata
+  only. Cube carries descriptions for the first time. (#311, #313, #343)
+
+  **Upgrade note.** `bloomery_ir_version` moves 27 → 28, so every project re-fingerprints
+  once, and `plan()` refuses to diff across the versions.
 - **A `pick` transform for name/value lists.** `{pick: [name, "Источник заказа", value]}`
   reads one attribute of a list of objects, such as МойСклад's, amoCRM's or Bitrix24's
   custom fields: the take path of the first object whose scalar field reads as the text, or

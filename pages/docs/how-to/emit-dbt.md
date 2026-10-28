@@ -57,7 +57,7 @@ for artifact in artifacts:
 | `models/silver/<entity>.sql` | model | One model per SCD type 1 entity, with a `{{ config(...) }}` header |
 | `snapshots/<entity>_snapshot.sql` | model | One snapshot per SCD type 2 entity (replaces its silver model) |
 | `models/gold/mart_<name>.sql`, `models/gold/dim_date.sql` | model | The same gold SELECTs SQLMesh emits |
-| `models/schema.yml` | config | Asserts lowered to schema tests |
+| `models/schema.yml` | config | Asserts lowered to schema tests; each annotated column's `description` and `meta.synonyms`, an entity's and a mart's ([annotate a spec](annotate-a-spec.md)) |
 | `macros/bloomery_expression_is_true.sql` | audit | The generic test the `min`/`max`/`regex` asserts name, emitted only when one does |
 | `macros/generate_schema_name.sql` | config | Keeps `+schema:` meaning the naming policy's namespace, not dbt's `<target>_<custom>` |
 | `tests/<check>.sql` | audit | One singular test per check with no schema-test shape — see below |

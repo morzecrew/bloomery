@@ -144,6 +144,11 @@ dimension type). Date-role bucket columns are `time` dimensions with a
 `meta.granularity` naming their bucket, so a Cube client can tell `ordered_month` is a
 month bucket without parsing the name.
 
+A dimension and a measure carry `title` and `description` from the field's or the metric's
+`label:` and `description:`, and `meta.synonyms` from `synonyms:` ([annotate a
+spec](annotate-a-spec.md)). A mart column reads the annotations of the column it was
+flattened from.
+
 ## Additivity metadata
 
 Every measure carries `meta.additivity` and `meta.grain` from the metric's declaration;

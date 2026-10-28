@@ -381,6 +381,45 @@ def test_description_only_change_is_additive_metadata() -> None:
     assert "metadata only" in change.detail
 
 
+@pytest.mark.parametrize(
+    ("update", "detail"),
+    [
+        ({"label": "Amount"}, "label changed (metadata only)"),
+        ({"synonyms": ("total",)}, "synonyms changed (metadata only)"),
+    ],
+)
+def test_a_column_s_label_or_synonyms_change_is_additive_metadata(
+    update: dict[str, object], detail: str
+) -> None:
+    """S-0094/D-8: no SELECT reads either, so nothing is rebuilt."""
+    schema, projection = plan_ir.column("amount")
+    old = entity_project((schema, projection))
+    new = entity_project((replace(schema, **update), projection))
+    change = only_change(old, new)
+    assert (change.change_class, change.detail) == (ChangeClass.ADDITIVE, detail)
+    assert plan(old, new).backfill_scope.entities == ()
+
+
+@pytest.mark.parametrize(
+    ("update", "detail"),
+    [
+        ({"label": "Revenue"}, "label changed (metadata only)"),
+        ({"synonyms": ("sales",)}, "synonyms changed (metadata only)"),
+    ],
+)
+def test_a_metric_s_label_or_synonyms_change_is_additive_metadata(
+    update: dict[str, object], detail: str
+) -> None:
+    old = plan_ir.project(metrics=(plan_ir.metric("m"),))
+    new = plan_ir.project(metrics=(replace(plan_ir.metric("m"), **update),))
+    (change,) = plan(old, new).changes
+    assert (change.subject, change.change_class, change.detail) == (
+        "metric:m",
+        ChangeClass.ADDITIVE,
+        detail,
+    )
+
+
 # ....................... #
 # Entity-level BREAKING (§5.2 rule 1, D7)
 

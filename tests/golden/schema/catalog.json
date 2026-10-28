@@ -518,6 +518,18 @@
           "default": null,
           "title": "Grain"
         },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
         "ratio": {
           "anyOf": [
             {
@@ -555,6 +567,14 @@
             }
           ],
           "default": null
+        },
+        "synonyms": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Synonyms",
+          "type": "array"
         }
       },
       "required": [

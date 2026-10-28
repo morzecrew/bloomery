@@ -188,6 +188,18 @@
           "default": null,
           "title": "Id"
         },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
         "owner": {
           "anyOf": [
             {
@@ -237,6 +249,21 @@
             }
           ],
           "default": null
+        },
+        "synonyms": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Synonyms"
         },
         "template": {
           "anyOf": [
