@@ -116,6 +116,13 @@ The compiler never chooses a recipe. The mapping's recorded `recipe:` id is vali
 
 - Paths: `src/bloomery/evidence.py` `src/bloomery/guardrails/operands.py` `src/bloomery/resolve/recipes.py` `src/bloomery/resolve/resolution.py` `src/bloomery/spec/catalog.py` `src/bloomery/spec/mapping.py` `tests/golden/schema/catalog.json` `tests/golden/schema/mapping.json` `tests/unit/test_resolve/test_edge_shapes_offcorpus.py` `tests/unit/test_resolve/test_recipes.py`
 
+### S-0022/D-10 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
+
+A metric's `expr` is written over its `requires:` canonicals, and the IR build binds each to the grain entity's column that links it where the two are spelled differently, so the emitted expression reads the mart's column. A canonical no grain column links, or two do, is left as written. The units guard looks a bound column up as its canonical. `plan()` and `timeline` compare a metric unbound, in the spelling it was authored in
+
+- Paths: `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `src/bloomery/guardrails/arithmetic.py` `tests/unit/test_resolve/test_canonical_binding.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/timeline.py`
+- Consequence: A catalog template works for a project whose field is spelled otherwise, the case `canonical:` links exist for: `unit_price * quantity` over a field `qty` emits `unit_price * qty`, and S-0034/D-49's step-output link counts `canonical_id` rather than a `customer_ref` the mart lacks. `MetricIR.expr` moves only where a spelling differs, so those projects re-fingerprint once; a field renamed under a metric respells it and does not restate it, as S-0024's v2 to v3 case requires
+
 ### S-0023/D-1 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
 All seven spec-§5.4 guardrails ship in v0.1 as compile errors — never warnings, no severity/suppression knob. A knob makes "error" negotiable, which defeats the stage's purpose.
@@ -397,6 +404,13 @@ Several mappings may target one entity; they are merged with `UNION ALL`. This r
 
 - Paths: `src/bloomery/emit/lower/predicates.py` `src/bloomery/errors.py` `src/bloomery/guardrails/metrics.py` `src/bloomery/semantic/additivity.py` `tests/fixtures/period_over_period/entity_model.yaml` `tests/unit/test_guardrails/test_metrics.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0050/D-16 — `ASSUMED` (Metrics over time: derived metrics, offsets, cumulative windows, metric filters)
+
+A measure whose `expr`, after S-0022/D-10's binding, names an unqualified column a mart carrying it lacks is refused at the guardrail stage as `InvalidMetricShape`, checked against every mart listing the metric
+
+- Paths: `src/bloomery/guardrails/metrics.py` `src/bloomery/errors.py` `tests/unit/test_guardrails/test_metrics.py`
+- Consequence: A typo in an `expr`, or a canonical bound on a joined entity whose column the mart prefixes, is a refusal at `check` naming the column and the mart rather than a query that fails in Cube or MetricFlow; the corpus raises none
 
 ### S-0053/D-1 — `LOCKED` (Measure semantic types and additivity algebra)
 

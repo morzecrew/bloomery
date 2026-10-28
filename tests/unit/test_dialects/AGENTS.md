@@ -80,4 +80,11 @@ The check exists, and it is a **conformance battery at the engine tiers over the
 - Paths: `src/bloomery/dialects/base.py` `tests/unit/test_dialects/test_duckdb.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0095/D-5 — `ASSUMED` (Picking a list element by a field)
+
+A port that does not rewrite the `pick` marker refuses a mapping using `pick` as `UnsupportedByTarget`, naming the transform and the dialect: the base render refuses a surviving marker. Snowflake, BigQuery, Databricks and Redshift refuse until a spelling is measured on each engine
+
+- Paths: `src/bloomery/dialects/base.py` `tests/unit/test_dialects/test_base.py`
+- Consequence: A project that moves to a cloud port learns at compile time that `pick` is not there yet, rather than at run time from its warehouse
+
 <!-- /torve:managed -->

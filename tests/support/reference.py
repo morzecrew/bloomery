@@ -401,6 +401,33 @@ def json_path(value: str | None, path: str) -> Any:
     return _walk_json(json.loads(value), path)
 
 
+def _scalar_text(value: Any) -> str | None:
+    """A JSON scalar's text: a string as it is, a number or a boolean as JSON
+    spells it; ``null``, an object and a list have none."""
+    if value is None or isinstance(value, (dict, list)):
+        return None
+    return value if isinstance(value, str) else json.dumps(value)
+
+
+def pick(value: str | None, field: str, text: str, take: str) -> str | None:
+    """From a JSON list, the ``take`` of the first object whose scalar ``field``
+    reads as ``text``, as a string, or NULL (S-0095/D-1). The first match wins
+    even when its ``take`` is absent: a later match is never consulted."""
+    if value is None:
+        return None
+    try:
+        document = json.loads(value)
+    except ValueError:
+        return None
+    if not isinstance(document, list):
+        return None
+    for element in document:
+        if isinstance(element, dict) and _scalar_text(element.get(field)) == text:
+            found = _walk_json(element, "$." + take)
+            return None if found is JSON_NULL else _scalar_text(found)
+    return None
+
+
 # ----------------------- #
 # Arithmetic
 
@@ -545,6 +572,7 @@ SEMANTICS: dict[str, Callable[..., Any]] = {
     "coalesce": coalesce,
     "nullif": nullif,
     "json_path": json_path,
+    "pick": pick,
     "multiply": multiply,
     "divide": divide,
     "round": round_,
@@ -734,6 +762,29 @@ _JSON = st.one_of(
     st.just("[]"),
 )
 
+#: JSON lists for ``pick``: a match, none, a duplicate, a skipped element, a
+#: numeric match field and value, a JSON ``null``, a nested take, and text
+#: that is not a list or not JSON at all.
+_PICK_LISTS = st.one_of(
+    st.none(),
+    st.sampled_from(
+        [
+            '[{"name": "a", "value": "x"}]',
+            '[{"name": "a", "value": 5}]',
+            '[{"name": "b", "value": "x"}]',
+            "[]",
+            '[{"value": "x"}]',
+            '{"name": "a", "value": "x"}',
+            '[{"name": "a", "value": "x"}, {"name": "a", "value": "y"}]',
+            '[{"name": "a", "value": null}, {"name": "a", "value": "y"}]',
+            '[5, {"name": "a", "value": "x"}]',
+            '[{"name": "a", "value": {"deep": 1}}]',
+            '[{"name": {"a": 1}, "value": "x"}]',
+            "not json",
+        ]
+    ),
+)
+
 #: A time-of-day with no ambiguity in the zone below: the fall-back hour is
 #: skipped, because DuckDB and ``zoneinfo`` resolve the repeated local hour to
 #: different offsets and neither is "the" answer this reference may name.
@@ -840,6 +891,12 @@ CASES: tuple[Case, ...] = (
         lambda text: fold((("enum_map", ("F", "female", "M", "male")),), text),
     ),
     Case("json_path", (("json_path", ("$.a",)),), _JSON, lambda text: fold((("json_path", ("$.a",)),), text)),
+    Case(
+        "pick",
+        (("pick", ("name", "a", "value")),),
+        _PICK_LISTS,
+        lambda text: fold((("pick", ("name", "a", "value")),), text),
+    ),
     Case("lower", (("lower", ()),), _TEXT, lambda text: fold((("lower", ()),), text)),
     Case("multiply", (_T0, ("multiply", (2,))), _DECIMAL, lambda text: fold((_T0, ("multiply", (2,))), text)),
     Case("nullif", (("nullif", ("N/A",)),), _TEXT, lambda text: fold((("nullif", ("N/A",)),), text)),

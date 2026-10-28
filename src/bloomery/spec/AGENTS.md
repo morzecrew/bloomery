@@ -876,4 +876,18 @@ Every handler that turns a SQLGlot parse into a refusal or a pass-on treats a `V
 - Paths: `src/bloomery/spec/entity.py` `src/bloomery/resolve/build.py` `tests/golden/schema/entity_model.json`
 - Consequence: A natural-language front end matches a user's words to dimensions as it does to metrics, and `product_brand` answers to «бренд» without its description carrying the list as prose
 
+### S-0095/D-2 — `ASSUMED` (Picking a list element by a field)
+
+`<field>` is one identifier, `<text>` is any non-empty string, and `<take>` is a path relative to the element: dotted identifiers, each optionally followed by `[n]` subscripts. The grammar is `pick`'s own, and the shared `JsonPath` type is not widened
+
+- Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/spec/mapping.py` `tests/golden/schema/mapping.json`
+- Consequence: amoCRM's `values[0].value` is reachable through the take path, while a subscript in `from:`, `unmapped:` or `redact:` is still refused
+
+### S-0095/D-3 — `ASSUMED` (Picking a list element by a field)
+
+The JSONPath filter form in `from:`, `[?(@.<field> == '<text>')]`, is declined
+
+- Paths: `src/bloomery/spec/common.py`
+- Consequence: A spec written with the filter form keeps being refused at load, by the path pattern it already fails
+
 <!-- /torve:managed -->

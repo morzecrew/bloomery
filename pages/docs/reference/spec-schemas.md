@@ -531,7 +531,7 @@ A metric is a template instantiation (`template:` plus overrides) or fully inlin
 | `grain` | string | no | Entity grain the metric aggregates from |
 | `additivity` | `additive` \| `semi_additive` \| `non_additive` \| `ratio` \| `distinct_count` | effectively yes (inline or via template) | Aggregation class, enforced by guardrails; `distinct_count` requires `agg: count_distinct` and an `expr` naming the counted identity |
 | `agg` | string | no | Aggregation function (`sum`, `count`, …) |
-| `expr` | string | no | Expression over the required names |
+| `expr` | string | no | Expression over the required names; a canonical is read as the grain entity's field that links it, and every name must be a column of each mart carrying the metric |
 | `ratio` | RatioSpec | required by, and requires, `additivity: ratio` | Additive decomposition to recompute from |
 | `semi_additive` | SemiAdditivePolicy | with `semi_additive` | The date-role source column and rule |
 | `cumulative` | CumulativeSpec | no | Accumulate this metric's own measure over time |

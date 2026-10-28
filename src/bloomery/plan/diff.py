@@ -110,7 +110,14 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
-from bloomery.ir import SOURCE_COLUMN, Materialization, OnFail, ProjectIR, SCDKind
+from bloomery.ir import (
+    SOURCE_COLUMN,
+    Materialization,
+    OnFail,
+    ProjectIR,
+    SCDKind,
+    unbound,
+)
 from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan, ReplayScope
 from bloomery.quality import disposition, payload_key
 from bloomery.spec.quality import EXACT_DECIMAL
@@ -2209,7 +2216,6 @@ def _diff_metrics(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     old_map = {metric.name: metric for metric in old.metrics} if old is not None else {}
     new_map = {metric.name: metric for metric in new.metrics}
     unreachable = {entry.name: entry for entry in new.unreachable}
-
     for name in sorted(old_map.keys() | new_map.keys()):
         subject = f"metric:{name}"
         if name not in old_map:
@@ -2224,7 +2230,13 @@ def _diff_metrics(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
             acc.changes.append(Change(None, subject, ChangeClass.BREAKING, detail))
             acc.seeds.add(name)
         else:
-            _metric_pair(old_map[name], new_map[name], acc)
+            # Compared as authored: a renamed field respells every expression
+            # bound to it and moves no number (S-0022/D-10).
+            _metric_pair(
+                unbound(old_map[name], old.entities if old is not None else ()),
+                unbound(new_map[name], new.entities),
+                acc,
+            )
 
 
 # ....................... #

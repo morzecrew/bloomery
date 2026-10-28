@@ -77,6 +77,13 @@ A ratio's `numerator` and `denominator` are unioned into `requires_metrics` by t
 - Paths: `src/bloomery/resolve/metrics.py` `src/bloomery/resolve/refs.py` `tests/unit/test_resolve/test_metrics.py` `tests/unit/test_resolve/test_refs.py`
 - Consequence: `lineage()` walks from a ratio to its operands, and `depends_on`, reachability and `plan().downstream_impact` follow them, without an author repeating the operands in `requires_metrics`; a ratio whose operand is unreachable is itself unreachable, and a typo'd operand is a `MissingReference` where before it compiled clean
 
+### S-0022/D-10 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
+
+A metric's `expr` is written over its `requires:` canonicals, and the IR build binds each to the grain entity's column that links it where the two are spelled differently, so the emitted expression reads the mart's column. A canonical no grain column links, or two do, is left as written. The units guard looks a bound column up as its canonical. `plan()` and `timeline` compare a metric unbound, in the spelling it was authored in
+
+- Paths: `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `src/bloomery/guardrails/arithmetic.py` `tests/unit/test_resolve/test_canonical_binding.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/timeline.py`
+- Consequence: A catalog template works for a project whose field is spelled otherwise, the case `canonical:` links exist for: `unit_price * quantity` over a field `qty` emits `unit_price * qty`, and S-0034/D-49's step-output link counts `canonical_id` rather than a `customer_ref` the mart lacks. `MetricIR.expr` moves only where a spelling differs, so those projects re-fingerprint once; a field renamed under a metric respells it and does not restate it, as S-0024's v2 to v3 case requires
+
 ### S-0025/D-13 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
 
 (Reverses D6) Bloomery owns the date dimension: one catalog definition emits both the SQLMesh `gold.dim_date` model and the MetricFlow time-spine declaration (S-0030 R1). D6's demand-gate is satisfied — MetricFlow is the demand.
@@ -301,5 +308,12 @@ The graph stays a **RESOLVE**-stage product, built from authored documents. No m
 A rollup is a `mart` node, with a `rollup`-labelled edge from its parent. S-0065/D-10 refuses a rollup that takes a mart's name, so one namespace is safe; row 14 keeps rollups out of *planner* walks, and a lineage node is not one.
 
 - Paths: `tests/unit/test_resolve/test_graph.py`
+
+### S-0095/D-6 — `ASSUMED` (Picking a list element by a field)
+
+A picked field's source node in lineage is `source.<relation>.<path>[<field>=<text>].<take>`, and its edge stays `direct`
+
+- Paths: `src/bloomery/resolve/graph.py` `tests/unit/test_resolve/test_graph.py`
+- Consequence: Two attributes read from one list are two lineage nodes, and a reader sees which attribute a field comes from
 
 <!-- /torve:managed -->
