@@ -240,3 +240,43 @@ def test_the_metricflow_manifest_and_the_explanation_carry_it() -> None:
     plan = make_planner().plan(ir, MetricRequest(metrics=("paid_revenue",)), dialect="duckdb")
     assert "IS NULL OR" in plan.sql
     assert "(NULL kept)" in str(plan.explanation)
+
+
+# ....................... #
+# A local mart over an imported base (S-0002)
+
+
+def _over_an_imported_base(clause: str) -> ProjectIR:
+    """`unit.test_resolve.test_build`'s downstream, whose mart is built on the
+    upstream's `order_item`, with a local metric filtered by ``clause``."""
+    from pathlib import Path
+
+    from bloomery import load_catalog
+    from unit.test_resolve.test_build import IMPORTING, _upstream_ir
+
+    documents = dict(IMPORTING)
+    documents["metrics"] = (
+        "metrics_version: 1\nmetrics:\n  kept_revenue:\n    grain: order_item\n"
+        '    additivity: additive\n    agg: sum\n    expr: "unit_price * quantity"\n'
+        f"    filter: [{clause}]\n"
+    )
+    documents["marts"] = documents["marts"].replace(
+        "measures: [gross_revenue]", "measures: [gross_revenue, kept_revenue]"
+    )
+    catalog = load_catalog(Path("tests/fixtures/ecom_basic/catalog.yaml").read_text(encoding="utf-8"))
+    return build_project_ir(load_project(documents), catalog=catalog, upstream={"platform": _upstream_ir()})
+
+
+def test_an_imported_base_s_key_needs_no_choice() -> None:
+    """The base entity is the upstream's, so the local draft does not carry it;
+    the nullability check reads the composed view, as the mart flattener does."""
+    _over_an_imported_base("{dimension: line_no, op: ne, values: [0]}")
+
+
+def test_an_imported_base_s_nullable_column_is_refused_by_name() -> None:
+    with pytest.raises(GuardrailError) as excinfo:
+        _over_an_imported_base("{dimension: quantity, op: ne, values: [0]}")
+
+    (leaf,) = excinfo.value.collected
+    assert isinstance(leaf, MetricFilterInvalid)
+    assert "'quantity' can be NULL" in str(leaf)

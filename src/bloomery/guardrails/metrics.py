@@ -44,7 +44,7 @@ from bloomery.typing import (
 )
 
 if TYPE_CHECKING:
-    from bloomery.ir import MartDimensionIR, MartIR, MetricFilterIR, MetricIR, ProjectIR
+    from bloomery.ir import EntityIR, MartDimensionIR, MartIR, MetricFilterIR, MetricIR, ProjectIR
     from bloomery.typing import LogicalType
 
 # ----------------------- #
@@ -215,7 +215,11 @@ def _check_measure_columns(metric: MetricIR, mart: MartIR, path: str) -> list[Gu
 
 
 def _check_filter(
-    metric: MetricIR, clause: MetricFilterIR, mart: MartIR, path: str, draft: ProjectIR
+    metric: MetricIR,
+    clause: MetricFilterIR,
+    mart: MartIR,
+    path: str,
+    entities: tuple[EntityIR, ...],
 ) -> list[GuardrailError]:
     """One filter clause against one mart carrying the metric (S-0050/D-9)."""
 
@@ -247,7 +251,7 @@ def _check_filter(
 
     if clause.column is not None:
         compared = _check_comparison(metric, clause, clause.column, mart, path, categorical)
-        return compared or _check_nulls(metric, clause, mart, path, draft)
+        return compared or _check_nulls(metric, clause, mart, path, entities)
 
     if clause.op == "is_null":
         return []
@@ -268,11 +272,15 @@ def _check_filter(
         )
         return [MetricFilterInvalid(msg, source_path=path)]
 
-    return _check_nulls(metric, clause, mart, path, draft)
+    return _check_nulls(metric, clause, mart, path, entities)
 
 
 def _check_nulls(
-    metric: MetricIR, clause: MetricFilterIR, mart: MartIR, path: str, draft: ProjectIR
+    metric: MetricIR,
+    clause: MetricFilterIR,
+    mart: MartIR,
+    path: str,
+    entities: tuple[EntityIR, ...],
 ) -> list[GuardrailError]:
     """A ``ne`` or ``not_in`` on a dimension that can be NULL says what NULL
     means (S-0050/D-17): SQL's answer drops those rows, and the filter reads as
@@ -284,7 +292,7 @@ def _check_nulls(
     nullable = [
         name
         for name in (clause.dimension, clause.column)
-        if name is not None and _can_be_null(name, mart, draft)
+        if name is not None and _can_be_null(name, mart, entities)
     ]
     if not nullable:
         return []
@@ -299,12 +307,16 @@ def _check_nulls(
     return [MetricFilterInvalid(msg, source_path=path)]
 
 
-def _can_be_null(name: str, mart: MartIR, draft: ProjectIR) -> bool:
+def _can_be_null(name: str, mart: MartIR, entities: tuple[EntityIR, ...]) -> bool:
     """Whether a mart column can hold NULL: unless it is a key or a required
     column of the mart's base entity. A column flattened from a joined entity
     is NULL wherever the LEFT JOIN misses, even when its own entity requires
     it. A base column keeps its own name; a joined one carries its prefix, so a
-    self-join is told apart by name, not by entity."""
+    self-join is told apart by name, not by entity.
+
+    ``entities`` is the composed view (S-0002/D-9): a local mart may be built
+    on an imported entity, which the draft's own entities do not carry.
+    """
 
     column = guaranteed(
         (column for column in mart.columns if column.name == name),
@@ -315,7 +327,7 @@ def _can_be_null(name: str, mart: MartIR, draft: ProjectIR) -> bool:
         return True
 
     base = guaranteed(
-        (entity for entity in draft.entities if entity.name == mart.base),
+        (entity for entity in entities if entity.name == mart.base),
         expected=f"the base entity {mart.base!r} of mart {mart.name!r}",
         by="the mart flattener, which resolves the base before any column",
     )
@@ -676,7 +688,9 @@ def _check_ratio_rows(metric: MetricIR, draft: ProjectIR, path: str) -> list[Gua
 # ....................... #
 
 
-def check_metrics(draft: ProjectIR) -> list[GuardrailError]:
+def check_metrics(
+    draft: ProjectIR, *, entities: tuple[EntityIR, ...] | None = None
+) -> list[GuardrailError]:
     """Every metric-shape, metric-filter and semi-additive ``over:`` violation
     across the draft.
 
@@ -686,9 +700,14 @@ def check_metrics(draft: ProjectIR) -> list[GuardrailError]:
     lowering package a layer above this one, and checking every candidate is a
     superset of what correctness needs (S-0050/D-9, S-0023/D-13). A metric no
     mart lists carries nothing checkable against a mart and none is claimed.
+
+    ``entities`` is the view a filter's nullability is read in, the composed one
+    when the project imports (S-0050/D-17): a local mart may be built on an
+    imported base. The draft's own entities otherwise.
     """
 
     violations: list[GuardrailError] = []
+    resolved = draft.entities if entities is None else entities
 
     for metric in draft.metrics:
         path = f"metrics: metrics.{metric.name}"
@@ -701,6 +720,6 @@ def check_metrics(draft: ProjectIR) -> list[GuardrailError]:
             violations.extend(_check_over(metric, mart, path))
             violations.extend(_check_measure_columns(metric, mart, path))
             for clause in metric.filter:
-                violations.extend(_check_filter(metric, clause, mart, path, draft))
+                violations.extend(_check_filter(metric, clause, mart, path, resolved))
 
     return violations
