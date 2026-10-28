@@ -16,3 +16,10 @@ amendments:
       Questions this document left to implementation were answered by the code, and no row said so. Each new row states what the code does, checked against it on 2026-09-29, and is graded ASSUMED; the owner's merge is the acceptance.
 
       - D-16 answers Q-1.
+  - id: A-2
+    at: '2026-10-28T12:26:23Z'
+    title: A date or a timestamp request literal is typed
+    md: |-
+      D-5's parenthetical, "rendered literals are already in the dimension's type", was false on Trino for a date or a timestamp. The renderer wrote ISO text in quotes, which is a `varchar` there, and Trino 483 refuses `date <= varchar(10)` and `timestamp(3) < varchar(19)`. DuckDB and PostgreSQL coerce the text to the column's type, so no test on either engine could see it. It was found by S-0097's engine differential (#351).
+
+      The value is now rendered as a typed literal: `DATE '2024-03-04'` and `TIMESTAMP '2024-03-05 09:00:00'`. A typed literal is not a cast, so D-5's "no SQL cast is ever emitted" still holds, and the parenthetical is now true on all three planner dialects. A zoned value is converted to its UTC wall clock first (S-0097/A-3). The metric filter's renderer keeps `CAST('…' AS DATE)`: it is a different surface, governed by S-0050, and it was already typed.
