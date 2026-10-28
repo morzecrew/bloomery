@@ -110,10 +110,10 @@ created_at:
   transform: [{parse_ts: UNIX_SECONDS}]   # UNIX_MILLIS for milliseconds
 ```
 
-The count is an optional sign and at most fifteen digits, with spaces around it, naming an
-instant from `0001-01-01 00:00:00` to `9999-12-31 23:59:59(.999)`. Anything else is NULL: a
-fraction, an exponent, text that is not a number, or a count out of range, because the
-engines' own casts disagree on those. On a quality-carrying entity that NULL is a coercion
+The count is an optional sign and at most fifteen digits, with spaces, and only spaces, around
+it, naming an instant from `0001-01-01 00:00:00` to `9999-12-31 23:59:59(.999)`. Anything else
+is NULL: a tab or a newline, a fraction, an exponent, text that is not a number, or a count out
+of range, because the engines' own casts disagree on those. On a quality-carrying entity that NULL is a coercion
 failure the `coercible` rule disposes of.
 
 An epoch count is an instant, under the same two rules as `ISO8601_INSTANT`: a `to_utc`

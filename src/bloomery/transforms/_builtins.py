@@ -83,8 +83,10 @@ _EPOCH_RANGE = {
 #: An optional sign and at most fifteen digits, spaces around them: fifteen is
 #: the widest count the range admits, so the cast to ``BIGINT`` cannot
 #: overflow, and a fraction or an exponent, on which the engines' casts
-#: disagree, never reaches it (S-0096/D-4).
-_EPOCH_COUNT = r"^\s*[+-]?[0-9]{1,15}\s*$"
+#: disagree, never reaches it (S-0096/D-4). Spaces, not ``\s``: PostgreSQL's
+#: ``\s`` matches an em space its ``BIGINT`` cast raises on, and a tab or a
+#: newline is read by some casts and not others.
+_EPOCH_COUNT = r"^ *[+-]?[0-9]{1,15} *$"
 
 #: A ``%z`` or ``%Z`` directive that is not the second half of an escaped
 #: ``%%`` (S-0081/D-3).
@@ -635,11 +637,16 @@ def _epoch(col: Expression, marker: str, low: int, high: int) -> Expression:
     ``AND``'s halves in order, and outside the quality system the cast is a
     plain ``CAST`` that raises on the text the pattern exists to keep from it.
     The pattern reads the value's text: a loader may land the count typed, and
-    PostgreSQL has no ``~`` over a ``bigint``.
+    PostgreSQL has no ``~`` over a ``bigint``. A newline is refused apart from
+    it, because Trino's ``$`` also matches before a final newline, and no end
+    anchor means the end of the text in RE2, PostgreSQL and Java alike.
     """
 
     def count() -> Expression:
         return exp.cast(col.copy(), exp.DataType.build("BIGINT"))
+
+    def text() -> Expression:
+        return exp.cast(col.copy(), exp.DataType.build("TEXT"))
 
     in_range = exp.Case(
         ifs=[
@@ -654,9 +661,14 @@ def _epoch(col: Expression, marker: str, low: int, high: int) -> Expression:
     shaped = exp.Case(
         ifs=[
             exp.If(
-                this=exp.RegexpLike(
-                    this=exp.cast(col.copy(), exp.DataType.build("TEXT")),
-                    expression=exp.Literal.string(_EPOCH_COUNT),
+                this=exp.and_(
+                    exp.RegexpLike(this=text(), expression=exp.Literal.string(_EPOCH_COUNT)),
+                    exp.EQ(
+                        this=exp.StrPosition(
+                            this=text(), substr=exp.Chr(expressions=[exp.Literal.number(10)])
+                        ),
+                        expression=exp.Literal.number(0),
+                    ),
                 ),
                 true=in_range,
             )

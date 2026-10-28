@@ -99,7 +99,7 @@ def test_postgres_reads_a_count_a_loader_landed_as_bigint(
     integral = {
         text: expected
         for text, expected in cases.items()
-        if text is None or text.strip().lstrip("+-").isdigit() and len(text.strip()) <= 18
+        if text is None or text.strip(" ").lstrip("+-").isdigit() and len(text.strip(" ")) <= 18
     }
     postgres.execute("SET TIME ZONE 'UTC'")
     answers = _postgres_answers(postgres, _rendered("postgres", fmt, quality=True), "bigint", list(integral))

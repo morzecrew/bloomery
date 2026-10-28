@@ -23,6 +23,11 @@ SECONDS: dict[str | None, datetime | None] = {
     "1.7615616E9": None,
     "abc": None,
     "99999999999999999": None,
+    # Spaces only (D-4): any other whitespace is NULL, never a cast that one
+    # engine trims and another raises on, as PostgreSQL's `\s` matched an em space.
+    "\t1761561600": None,
+    "1761561600\n": None,
+    "\u20031761561600": None,
     None: None,
 }
 
@@ -33,6 +38,7 @@ MILLIS: dict[str | None, datetime | None] = {
     "253402300799999": datetime(9999, 12, 31, 23, 59, 59, 999000),
     "253402300800000": None,
     "1761561600123.5": None,
+    "1761561600123\u2003": None,
     "abc": None,
     None: None,
 }
