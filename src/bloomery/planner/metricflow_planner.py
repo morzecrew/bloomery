@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import json
 import logging
 from typing import TYPE_CHECKING
 
@@ -63,7 +64,7 @@ if TYPE_CHECKING:
     from bloomery.ir import MetricIR, ProjectIR
     from bloomery.naming import NamingPolicy
     from bloomery.planner.policy import RowPolicy
-    from bloomery.planner.request import MetricRequest
+    from bloomery.planner.request import MetricRequest, Scalar
     from bloomery.runtime import LruManifestHydrator
 
 # ----------------------- #
@@ -163,6 +164,7 @@ class MetricFlowPlanner:
         *,
         request: MetricRequest,
         policy: RowPolicy | None,
+        binds: filters.Binds | None,
     ) -> tuple[str, tuple[ColumnDescriptor, ...], MetricFlowExplainResult]:
         """One branch, rendered by MetricFlow as the single-mart request it is.
 
@@ -195,6 +197,7 @@ class MetricFlowPlanner:
                     entity=entity,
                     policy=policy,
                     policy_dimension=resolved.policy_dimension,
+                    binds=binds,
                 )
             )
             or None,
@@ -260,6 +263,8 @@ class MetricFlowPlanner:
         *,
         dialect: str,
         policy: RowPolicy | None,
+        binds: filters.Binds | None,
+        paramstyle: str | None,
     ) -> QueryPlan:
         """A cross-mart request, answered by joining branch aggregates
         (S-0055/D-9).
@@ -291,7 +296,9 @@ class MetricFlowPlanner:
             return dataclasses.replace(request, metrics=resolved.metrics, order_by=(), limit=None)
 
         rendered = [
-            self._branch(engine, resolved, metrics_by_name, request=request, policy=policy)
+            self._branch(
+                engine, resolved, metrics_by_name, request=request, policy=policy, binds=binds
+            )
             for resolved in branches
         ]
         width = len(request.dimensions)
@@ -437,6 +444,7 @@ class MetricFlowPlanner:
             ),
         )
 
+        sql, params = _spelled(sql, binds, paramstyle)
         return QueryPlan(
             sql=sql,
             columns=columns,
@@ -444,7 +452,9 @@ class MetricFlowPlanner:
             marts=tuple(resolved.mart.name for resolved in branches),
             warnings=warnings,
             explanation=explanation,
-            fingerprint=hashlib.sha256(sql.encode("utf-8")).hexdigest(),
+            fingerprint=_fingerprint(sql, params),
+            params=params,
+            shape=_shape(sql),
             semantic=guaranteed(
                 (plan for plan in (composed,) if plan is not None),
                 expected="a semantic plan for every composed request this planner answers",
@@ -493,6 +503,7 @@ class MetricFlowPlanner:
         *,
         dialect: str,
         policy: RowPolicy | None = None,
+        paramstyle: str | None = None,
     ) -> QueryPlan:
         """Pure request-time planning: SQL text plus metadata out, nothing
         executed (S-0028/D-1). Refusals raise the S-0028 taxonomy —
@@ -517,8 +528,26 @@ class MetricFlowPlanner:
             dialect,
         )
 
+        # Request values bind in the caller's driver style, or stay inline
+        # literals as before (S-0097/D-1).
+        if paramstyle is not None and paramstyle not in filters.PARAMSTYLES:
+            msg = (
+                f"paramstyle {paramstyle!r} is not one of PEP 249's "
+                f"{sorted(filters.PARAMSTYLES)} (S-0097/D-1)"
+            )
+            raise InvalidRequest(msg)
+        binds = filters.Binds(dialect) if paramstyle is not None else None
+
         if len(branches) > 1:
-            return self._composed(ir, request, branches, dialect=dialect, policy=policy)
+            return self._composed(
+                ir,
+                request,
+                branches,
+                dialect=dialect,
+                policy=policy,
+                binds=binds,
+                paramstyle=paramstyle,
+            )
 
         resolved = branches[0]
         entity = names.entity_key(resolved.mart)
@@ -548,6 +577,7 @@ class MetricFlowPlanner:
                     entity=entity,
                     policy=policy,
                     policy_dimension=resolved.policy_dimension,
+                    binds=binds,
                 )
             )
             or None,
@@ -597,6 +627,7 @@ class MetricFlowPlanner:
             filters=explain.shared_predicates(explanation, resolved, policy=policy),
         )
 
+        sql, params = _spelled(sql, binds, paramstyle)
         return QueryPlan(
             sql=sql,
             columns=names.columns_from(
@@ -605,7 +636,9 @@ class MetricFlowPlanner:
             mart=resolved.mart.name,
             warnings=warnings,
             explanation=explanation,
-            fingerprint=hashlib.sha256(sql.encode("utf-8")).hexdigest(),
+            fingerprint=_fingerprint(sql, params),
+            params=params,
+            shape=_shape(sql),
             # Built from the same `Coverage` and the same renderers the
             # explanation reads, so the two are one account of the request
             # rather than two (S-0005 (§7)) — over every predicate the query
@@ -620,3 +653,44 @@ class MetricFlowPlanner:
                 ),
             ),
         )
+
+
+# ....................... #
+
+
+def _spelled(
+    sql: str, binds: filters.Binds | None, paramstyle: str | None
+) -> tuple[str, tuple[tuple[str, Scalar], ...]]:
+    """The rendered SQL with its bind markers spelled in ``paramstyle``, and
+    the params in placeholder order; inline, the SQL as it is (S-0097/D-5)."""
+
+    if binds is None or paramstyle is None:
+        return sql, ()
+    return binds.spelled(sql, paramstyle)
+
+
+# ....................... #
+
+
+def _shape(sql: str) -> str:
+    """``sha256(sql)``: under binds, one value for every request of one shape,
+    the key a prepared statement or a plan cache wants (S-0097/D-6)."""
+
+    return hashlib.sha256(sql.encode("utf-8")).hexdigest()
+
+
+# ....................... #
+
+
+def _fingerprint(sql: str, params: tuple[tuple[str, Scalar], ...]) -> str:
+    """The query's identity, values included, as the planner how-to documents a
+    result cache keying on it (S-0097/D-6): ``sha256(sql)`` inline, as before,
+    and over the text and the params under binds, so two filters' rows never
+    share a key. Each placeholder compares one dimension, whose values
+    :func:`filters._typed` gives one type, so a value's text is its identity."""
+
+    if not params:
+        return _shape(sql)
+
+    encoded = json.dumps(params, default=str, separators=(",", ":"))
+    return hashlib.sha256(f"{sql}\x00{encoded}".encode()).hexdigest()

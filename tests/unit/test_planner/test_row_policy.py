@@ -115,18 +115,25 @@ def _requests(scenario: Scenario) -> list[MetricRequest]:
     return requests
 
 
+@pytest.mark.parametrize("paramstyle", [None, "named"])
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: f"{s.fixture}-{s.metrics[0]}")
-def test_row_policy_survives_every_path(scenario: Scenario) -> None:
+def test_row_policy_survives_every_path(scenario: Scenario, paramstyle: str | None) -> None:
+    """Bound, the policy's placeholder must still sit in every scan, bound to
+    the policy's value (S-0097/D-3)."""
     ir = fixture_ir(scenario.fixture)
     requests = _requests(scenario)
     assert len(requests) == 48  # the matrix stays exhaustive, not vestigial
     for request in requests:
-        plan = PLANNER.plan(ir, request, dialect="duckdb", policy=scenario.policy)
+        plan = PLANNER.plan(
+            ir, request, dialect="duckdb", policy=scenario.policy, paramstyle=paramstyle
+        )
+        assert bool(plan.params) is (paramstyle is not None)
         verdicts = audit_scans(
             plan.sql,
             scenario.relation,
             scenario.policy.dimension,
             str(scenario.policy.value),
+            dict(plan.params),
         )
         assert verdicts, f"no scan of {scenario.relation} found:\n{plan.sql}"
         unprotected = [scan for scan, protected in verdicts if not protected]

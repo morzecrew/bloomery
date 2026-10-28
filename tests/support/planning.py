@@ -7,20 +7,39 @@ row-policy AST audit the M4.5 verification spike arrived at (S-0030
 from __future__ import annotations
 
 import datetime
+from collections.abc import Mapping
 from decimal import Decimal
 from functools import lru_cache
 
+import duckdb
 import sqlglot
 from sqlglot import expressions as exp
 
-from bloomery import MetricFlowPlanner, build_project_ir, load_catalog, load_project
+from bloomery import (
+    AnyOf,
+    MetricFlowPlanner,
+    MetricRequest,
+    Op,
+    OrderSpec,
+    Predicate,
+    RowPolicy,
+    TimeGrain,
+    build_project_ir,
+    load_catalog,
+    load_project,
+)
 from bloomery.ir import MartIR, ProjectIR
 from bloomery.naming import DefaultNaming
 from bloomery.runtime import LruManifestHydrator
-from support.compiling import FIXTURES, fixture_sources, load_fixture
+from support.compiling import FIXTURES, compile_fixture, fixture_sources, load_fixture
+from support.execution import materialize, warehouse
 
 __all__ = [
+    "BIND_FIXTURE",
+    "BIND_REQUESTS",
+    "BIND_SALES",
     "audit_scans",
+    "bind_warehouse",
     "fixture_ir",
     "fixture_mart",
     "make_planner",
@@ -28,6 +47,84 @@ __all__ = [
     "quantized",
     "variant_ir",
 ]
+
+
+#: The fixture bound plans run against on every engine (S-0097/D-4, D-7): it
+#: has a dimension of each type a filter value takes.
+BIND_FIXTURE = "period_over_period"
+
+#: ``(id, amount, units, is_test, status, channel, sold_at, booked_at)``, as
+#: bronze lands them: the execution tier's `period_over_period` seed.
+BIND_SALES = [
+    ("s01", "100.00", "1", "false", "paid", "web", "2023-03-15", "2023-03-15T09:00:00"),
+    ("s02", "100.00", "1", "false", "paid", "web", "2024-03-01", "2024-03-01T09:00:00"),
+    ("s03", "7.00", "1", "false", "paid", "store", "2024-03-04", "2024-03-04T09:00:00"),
+    ("s04", "50.00", "2", "false", "refunded", "web", "2024-03-05", "2024-03-05T09:00:00"),
+    ("s05", "100.00", "1", "false", "paid", "store", "2024-03-11", "2024-03-11T09:00:00"),
+    ("s06", "40.00", "1", "false", "paid", "store", "2023-04-10", "2023-04-10T09:00:00"),
+    ("s07", "40.00", "1", "false", "paid", "store", "2024-04-10", "2024-02-28T09:00:00"),
+    ("s08", "60.00", "3", "false", "paid", "web", "2024-05-02", "2024-05-02T09:00:00"),
+]
+
+
+def _by_month(*filters: Predicate | AnyOf, metrics: tuple[str, ...] = ("revenue",)) -> MetricRequest:
+    return MetricRequest(
+        metrics=metrics,
+        dimensions=("sold_month",),
+        time_grain=TimeGrain.MONTH,
+        filters=filters,
+        order_by=(OrderSpec("sold_month"),),
+    )
+
+
+#: Each request bound and inline must answer alike: one filter per type, the
+#: membership and pattern operators, a disjunction, a policy, and a metric
+#: whose own filter stays text beside a bound one.
+BIND_REQUESTS: dict[str, tuple[MetricRequest, RowPolicy | None]] = {
+    "date": (_by_month(Predicate("sold_at", Op.GTE, (datetime.date(2024, 3, 4),))), None),
+    "timestamp": (
+        _by_month(Predicate("booked_at", Op.LT, (datetime.datetime(2024, 3, 5, 9, 0),))),
+        None,
+    ),
+    # The same instant as `timestamp`, zoned: s04, booked at 09:00 UTC, is out.
+    "zoned timestamp": (
+        _by_month(Predicate("booked_at", Op.LT, ("2024-03-05T11:00:00+02:00",))),
+        None,
+    ),
+    "decimal": (_by_month(Predicate("amount", Op.GT, (Decimal("40.00"),))), None),
+    "int in": (_by_month(Predicate("units", Op.IN, (2, 3))), None),
+    "bool": (_by_month(Predicate("is_test", Op.EQ, (False,))), None),
+    "like": (_by_month(Predicate("channel", Op.LIKE, ("w%",))), None),
+    "any of": (
+        _by_month(
+            AnyOf((Predicate("status", Op.EQ, ("refunded",)), Predicate("amount", Op.GTE, ("100",))))
+        ),
+        None,
+    ),
+    "policy": (
+        _by_month(Predicate("sold_at", Op.LT, (datetime.date(2024, 5, 1),))),
+        RowPolicy("channel", Op.EQ, "store"),
+    ),
+    "metric filter": (
+        _by_month(Predicate("channel", Op.EQ, ("web",)), metrics=("revenue", "paid_revenue")),
+        None,
+    ),
+}
+
+
+def bind_warehouse() -> duckdb.DuckDBPyConnection:
+    """A DuckDB warehouse holding :data:`BIND_FIXTURE`'s marts over
+    :data:`BIND_SALES`: the rows every engine's bound plan is held to."""
+    connection = warehouse()
+    connection.execute(
+        "CREATE TABLE bronze.shop__sales (id VARCHAR, amount VARCHAR, units VARCHAR, "
+        "is_test VARCHAR, status VARCHAR, channel VARCHAR, sold_at VARCHAR, booked_at VARCHAR)"
+    )
+    connection.executemany(
+        "INSERT INTO bronze.shop__sales VALUES (?, ?, ?, ?, ?, ?, ?, ?)", BIND_SALES
+    )
+    materialize(connection, compile_fixture(BIND_FIXTURE, dialect="duckdb"))
+    return connection
 
 
 @lru_cache(maxsize=None)
@@ -103,21 +200,23 @@ def quantized(value: object) -> Decimal:
 # `git show <commit>^:spikes/metricflow/VERIFICATION.md` prints the finding.
 
 
-def _where_has_policy(select: exp.Select, column: str, value: str) -> bool:
-    """True when this SELECT's WHERE compares a ``*column`` to ``value``."""
+def _where_has_policy(
+    select: exp.Select, column: str, value: str, params: Mapping[str, object]
+) -> bool:
+    """True when this SELECT's WHERE compares a ``*column`` to ``value``,
+    inline or as a named placeholder ``params`` binds to it (S-0097/D-3)."""
     where = select.args.get("where")
     if where is None:
         return False
     for eq in where.find_all(exp.EQ):
         left, right = eq.left, eq.right
-        if isinstance(right, exp.Column) and isinstance(left, exp.Literal):
+        if isinstance(right, exp.Column) and isinstance(left, (exp.Literal, exp.Placeholder)):
             left, right = right, left
-        if (
-            isinstance(left, exp.Column)
-            and left.name.endswith(column)
-            and isinstance(right, exp.Literal)
-            and right.this == value
-        ):
+        if not (isinstance(left, exp.Column) and left.name.endswith(column)):
+            continue
+        if isinstance(right, exp.Literal) and right.this == value:
+            return True
+        if isinstance(right, exp.Placeholder) and str(params.get(right.name)) == value:
             return True
     return False
 
@@ -132,9 +231,17 @@ def _select_aggregates(select: exp.Select) -> bool:
     )
 
 
-def audit_scans(sql: str, mart_relation: str, column: str, value: str) -> list[tuple[str, bool]]:
+def audit_scans(
+    sql: str,
+    mart_relation: str,
+    column: str,
+    value: str,
+    params: Mapping[str, object] | None = None,
+) -> list[tuple[str, bool]]:
     """For every scan of ``mart_relation`` in the parsed AST: is the policy
     predicate applied at or below the first aggregation over that scan?
+    Under the ``named`` paramstyle, ``params`` is ``dict(plan.params)`` and
+    the predicate's placeholder must be bound to the policy value.
     A predicate applied only above an aggregation means the aggregate (the
     MAX-date subquery of a semi-additive plan, say) was computed over
     unscoped rows — the security defect V4 ruled out (S-0030/row-policy, S-0030/what-is-superseded-and-the-boundary-that-makes-it-reversible (§5.9d))."""
@@ -152,7 +259,7 @@ def audit_scans(sql: str, mart_relation: str, column: str, value: str) -> list[t
             select = node.find_ancestor(exp.Select)
             if select is None:
                 break
-            if _where_has_policy(select, column, value):
+            if _where_has_policy(select, column, value, params or {}):
                 protected = True
                 break
             if _select_aggregates(select):

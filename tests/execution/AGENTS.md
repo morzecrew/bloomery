@@ -331,4 +331,11 @@ A `to_utc` whose operand is an ISO wall-clock parse makes the parse zoned: every
 - Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py` `tests/execution/test_pick.py`
 - Consequence: One bronze row gives one answer on every port that ships `pick`, the non-scalar case included, and a row with no matching attribute is a NULL, not a coercion failure
 
+### S-0097/D-4 — `ASSUMED` (Bound parameters in planned queries)
+
+A bound value is a Python value of the dimension's logical type, checked by the literal renderer's own rules: `datetime.date` for a date, a naive `datetime` for a timestamp, a zoned one converted to its UTC wall clock, `Decimal` for a decimal, `int`, `bool` or `str` otherwise
+
+- Paths: `src/bloomery/planner/filters.py` `tests/execution/test_planner_binds.py`
+- Consequence: The driver types each bind as the column it is compared to, and a value the literal renderer refuses is refused bound too
+
 <!-- /torve:managed -->

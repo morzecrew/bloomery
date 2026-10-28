@@ -262,4 +262,11 @@ The builder returns a `BLM_PICK` marker that DuckDB, PostgreSQL and Trino each r
 - Paths: `src/bloomery/dialects/base.py` `src/bloomery/dialects/duckdb.py` `src/bloomery/dialects/postgres.py` `src/bloomery/dialects/trino.py` `tests/engines/test_pick_engines.py`
 - Consequence: The three engines a contributor can run locally agree byte for byte on `pick`'s answers, and a disagreement is a red engine test rather than a field report
 
+### S-0097/D-7 — `ASSUMED` (Bound parameters in planned queries)
+
+On PostgreSQL through psycopg (`pyformat`) and on Trino through its client (`qmark`), every planner bind request returns DuckDB's inline rows when bound, dates, timestamps and decimals included, and inline wherever the engine runs the inline plan; Trino refuses an inline request filter on a date or a timestamp (#351), so those cases are strict expected failures there, checked by an engine differential
+
+- Paths: `tests/engines/test_planner_binds_differential.py`
+- Consequence: D-4's typed values are evidence on the two server engines the tier runs, and Q-1 is settled by the same run
+
 <!-- /torve:managed -->
