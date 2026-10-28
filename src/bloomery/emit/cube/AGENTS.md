@@ -130,7 +130,7 @@ Only the build-time `divide` and a recipe's `/` carry the exact-division marker 
 - Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/planner/compose.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/planner/coverage.py`
 - Consequence: a reference for query-time SQL has a stated semantics to hold the planner to, instead of guessing which division is meant
 
-### S-0094/D-1 — `LOCKED` (Descriptions, labels and synonyms on fields and metrics) — implementation: partial
+### S-0094/D-1 — `LOCKED` (Descriptions, labels and synonyms on fields and metrics)
 
 Descriptions, labels and synonyms change no SELECT. They reach metadata slots only, and every existing golden's SQL is byte-identical with them absent, asserted rather than assumed
 
@@ -138,21 +138,21 @@ Descriptions, labels and synonyms change no SELECT. They reach metadata slots on
 - Consequence: A project can add or edit any of the three without its models rebuilding or its fingerprinted SQL moving, beyond the one IR version bump of D-4
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0094/D-5 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics) — implementation: partial
+### S-0094/D-5 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
 
 Each annotation reaches exactly the slots of the routing table in `where-each-lands` and no other. A field's description and label become a MetricFlow dimension's `description` and `label`, a Cube dimension's `description` and `title`, and a dbt column's `description`. A metric's label becomes MetricFlow's `label` and Cube's `title`, and its synonyms become `config.meta.synonyms` and `meta.synonyms`. Synonyms never go into a label or a description. dbt writes an entity's or a mart's `schema.yml` entry, and lists a column in it, whenever the column carries an annotation, whether or not it also has tests, a classification, an owner or grants
 
 - Paths: `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py`
 - Consequence: A reader of an artifact finds each annotation in the one place its target defines for it. SQLMesh carries none, until a consumer of its artifacts asks for `column_descriptions`
 
-### S-0094/D-6 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics) — implementation: partial
+### S-0094/D-6 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
 
 Cube emits `description` on its dimensions and measures, so a metric's authored description reaches Cube for the first time
 
 - Paths: `src/bloomery/emit/cube/__init__.py` `tests/golden/**/cube/**`
 - Consequence: Every Cube golden whose fixture describes a metric gains a `description:` line, and no other line of it moves
 
-### S-0094/D-7 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics) — implementation: partial
+### S-0094/D-7 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
 
 A mart column carries the description and label of the entity column it was flattened from, prefixed or not, and a date role's buckets carry their source column's. Every target looks a mart column up by `(source_entity, source_column)`, as MetricFlow already does for descriptions
 

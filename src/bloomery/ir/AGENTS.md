@@ -539,7 +539,7 @@ No id-only fingerprint is introduced; if a guard ever needs a narrower scope it 
 - Paths: `src/bloomery/ir/fingerprint.py`
 - Consequence: the project fingerprint keeps every meaning it has
 
-### S-0094/D-4 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics) — implementation: partial
+### S-0094/D-4 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
 
 `ColumnIR` gains `label` and `synonyms`, and `MetricIR` gains `label` and `synonyms`. `bloomery_ir_version` moves by one with them
 

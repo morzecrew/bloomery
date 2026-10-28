@@ -193,6 +193,9 @@ burden, which is why one is cheap and the other is not.
 | `required` | bool | no (`false`) | Whether the mapping must supply it |
 | `canonical` | string | no | Link to a catalog canonical field |
 | `renamed_from` | string | no | One-shot rename annotation for `plan()` |
+| `description` | string | no | What the field means; wins over its canonical field's description, and reaches every mart column flattened from it |
+| `label` | string, one line | no | A short display name: MetricFlow's `label`, Cube's `title` |
+| `synonyms` | list of distinct strings | no (`[]`) | Other names a front end may match the field by; never a label or a description |
 | `assert` | AssertClause | no | Range-sanity assertions, lowered to audits |
 
 ### AssertClause
@@ -520,7 +523,9 @@ A metric is a template instantiation (`template:` plus overrides) or fully inlin
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `template` | string | no | Catalog template to instantiate; own values win over the template's |
-| `description` | string | no | Carried into semantic-layer emissions |
+| `description` | string | no | Carried into semantic-layer emissions; the planner's column label when no `label` is set |
+| `label` | string, one line | no | A short display name: MetricFlow's `label`, Cube's `title`, the planner's column label |
+| `synonyms` | list of distinct strings | no (template's, or `[]`) | Other names a front end may match the metric by; an authored `[]` clears the template's |
 | `requires` | list of canonical field names | no (`[]`) | Leaves the metric reads |
 | `requires_metrics` | list of metric names | no (`[]`) | Further metrics this one reads; a ratio's operands and a derived metric's inputs are added on their own |
 | `grain` | string | no | Entity grain the metric aggregates from |

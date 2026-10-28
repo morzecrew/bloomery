@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Descriptions, labels and synonyms on fields and metrics.** A field takes
+  `description:`, `label:` and `synonyms:`, and a metric `label:` and `synonyms:` beside its
+  description, merged from a template as the description is. Each reaches the slot every
+  target has for it and no other: MetricFlow's `description`, `label` and
+  `config.meta.synonyms`, Cube's `description`, `title` and `meta.synonyms`, dbt's column
+  `description` and `meta.synonyms`. A mart column carries the annotations of the column it
+  was flattened from. The planner labels a measure column by the metric's label, falling
+  back to its description. None changes SQL, and a change to any is ADDITIVE, metadata
+  only. Cube carries descriptions for the first time. (#311, #313, #343)
+
+  **Upgrade note.** `bloomery_ir_version` moves 27 → 28, so every project re-fingerprints
+  once, and `plan()` refuses to diff across the versions.
 - **Expression metrics have lineage.** `lineage()` walked upstream from a metric defined
   by an `expr` with no `requires:` to nothing. An `expr` edge now runs from each field of the
   metric's grain entity that its `expr` names, so the walk reaches the entity column and,
