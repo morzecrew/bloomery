@@ -57,6 +57,37 @@ _ISO8601 = "ISO8601"
 #: :data:`_ISO8601`.
 ISO8601_INSTANT = "ISO8601_INSTANT"
 
+#: ``parse_ts``'s formats for a Unix epoch count, read as the UTC instant it
+#: names (S-0096/D-3). Instants, like :data:`ISO8601_INSTANT` (D-5).
+UNIX_SECONDS = "UNIX_SECONDS"
+UNIX_MILLIS = "UNIX_MILLIS"
+
+#: Every format whose value is an instant rather than a wall clock: the zone
+#: guard owes such a value no declared zone, and a ``to_utc`` after it is
+#: refused (S-0081/D-2, S-0096/D-5).
+INSTANT_FORMATS = frozenset({ISO8601_INSTANT, UNIX_SECONDS, UNIX_MILLIS})
+
+#: The markers an epoch parse lowers to, each over a guarded ``BIGINT`` count,
+#: which a port spells as integer arithmetic from 1970 (S-0096/D-6).
+EPOCH_SECONDS_MARKER = "BLM_EPOCH_SECONDS"
+EPOCH_MILLIS_MARKER = "BLM_EPOCH_MILLIS"
+
+#: Per epoch format: its marker and the counts naming 0001-01-01 00:00:00 to
+#: 9999-12-31 23:59:59(.999) (S-0096/D-4). PostgreSQL refuses year 10000,
+#: DuckDB accepts it, and past these an interval overflows on all three.
+_EPOCH_RANGE = {
+    UNIX_SECONDS: (EPOCH_SECONDS_MARKER, -62135596800, 253402300799),
+    UNIX_MILLIS: (EPOCH_MILLIS_MARKER, -62135596800000, 253402300799999),
+}
+
+#: An optional sign and at most fifteen digits, spaces around them: fifteen is
+#: the widest count the range admits, so the cast to ``BIGINT`` cannot
+#: overflow, and a fraction or an exponent, on which the engines' casts
+#: disagree, never reaches it (S-0096/D-4). Spaces, not ``\s``: PostgreSQL's
+#: ``\s`` matches an em space its ``BIGINT`` cast raises on, and a tab or a
+#: newline is read by some casts and not others.
+_EPOCH_COUNT = r"^ *[+-]?[0-9]{1,15} *$"
+
 #: A ``%z`` or ``%Z`` directive that is not the second half of an escaped
 #: ``%%`` (S-0081/D-3).
 _ZONE_DIRECTIVE = re.compile(r"(?<!%)(?:%%)*%[zZ]")
@@ -353,18 +384,59 @@ def prepend(col: Expression, text: str) -> Expression:
 # ....................... #
 
 
+#: The source a last ``enum_map`` pair names to make its target the fallback
+#: for every value no earlier pair lists (S-0096/D-1).
+ENUM_FALLBACK = "*"
+
+
+def _fallback_last(_: LogicalType, args: tuple[str | int, ...]) -> LogicalType:
+    """``enum_map`` produces a string, once a fallback ``"*"`` is proven to be
+    the last pair's source: anywhere else it would shadow the pairs after it,
+    and a source that sends a literal ``*`` maps it in any earlier pair."""
+
+    if ENUM_FALLBACK in args[0:-2:2]:
+        msg = (
+            f"enum_map's {ENUM_FALLBACK!r} is the fallback and only the last pair may name it "
+            "(S-0096/D-1). Fix: move the fallback pair last"
+        )
+        raise TypeCheckError(msg)
+
+    return StringType()
+
+
 @transform(
     "enum_map",
     arity=2,
     arg_kinds=(ArgKind.STR, ArgKind.STR),
     input=(StringType,),
-    output=StringType(),
+    output=_fallback_last,
     variadic=True,
 )
 def enum_map(col: Expression, *pairs: str) -> Expression:
     """``{enum_map: [raw, mapped, ...]}`` — flat from/to pairs. Values outside
     the map pass through: disposing of them is the ``in_enum`` quality rule's
-    job (S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-3 — superseding S-0025/D-7), not a chain concern."""
+    job (S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-3 — superseding S-0025/D-7), not a chain concern.
+
+    A ``"*"`` last pair is the fallback instead (S-0096/D-1): an unlisted value
+    yields its target, and NULL stays NULL, which the plain ``CASE x WHEN`` form
+    could not say once its ``ELSE`` is a constant.
+    """
+    if pairs[-2] == ENUM_FALLBACK:
+        listed = zip(pairs[0:-2:2], pairs[1:-2:2], strict=True)
+        return exp.Case(
+            ifs=[
+                exp.If(this=exp.Is(this=col.copy(), expression=exp.Null()), true=exp.Null()),
+                *(
+                    exp.If(
+                        this=exp.EQ(this=col.copy(), expression=exp.Literal.string(source)),
+                        true=exp.Literal.string(mapped),
+                    )
+                    for source, mapped in listed
+                ),
+            ],
+            default=exp.Literal.string(pairs[-1]),
+        )
+
     ifs = [
         exp.If(this=exp.Literal.string(source), true=exp.Literal.string(mapped))
         for source, mapped in zip(pairs[0::2], pairs[1::2], strict=True)
@@ -551,7 +623,58 @@ def parse_ts(col: Expression, fmt: str) -> Expression:
         marked = exp.Anonymous(this=ISO_INSTANT_TEXT_MARKER, expressions=[col])
         return exp.cast(marked, exp.DataType.build("TIMESTAMP"))
 
+    if fmt in _EPOCH_RANGE:
+        return _epoch(col, *_EPOCH_RANGE[fmt])
+
     return exp.StrToTime(this=col, format=exp.Literal.string(fmt))
+
+
+def _epoch(col: Expression, marker: str, low: int, high: int) -> Expression:
+    """``<marker>(n)`` over the count ``col`` spells, or over NULL where it spells
+    none in range (S-0096/D-4).
+
+    Nested ``CASE`` rather than ``AND``: SQL does not promise to evaluate
+    ``AND``'s halves in order, and outside the quality system the cast is a
+    plain ``CAST`` that raises on the text the pattern exists to keep from it.
+    The pattern reads the value's text: a loader may land the count typed, and
+    PostgreSQL has no ``~`` over a ``bigint``. A newline is refused apart from
+    it, because Trino's ``$`` also matches before a final newline, and no end
+    anchor means the end of the text in RE2, PostgreSQL and Java alike.
+    """
+
+    def count() -> Expression:
+        return exp.cast(col.copy(), exp.DataType.build("BIGINT"))
+
+    def text() -> Expression:
+        return exp.cast(col.copy(), exp.DataType.build("TEXT"))
+
+    in_range = exp.Case(
+        ifs=[
+            exp.If(
+                this=exp.Between(
+                    this=count(), low=exp.Literal.number(low), high=exp.Literal.number(high)
+                ),
+                true=count(),
+            )
+        ]
+    )
+    shaped = exp.Case(
+        ifs=[
+            exp.If(
+                this=exp.and_(
+                    exp.RegexpLike(this=text(), expression=exp.Literal.string(_EPOCH_COUNT)),
+                    exp.EQ(
+                        this=exp.StrPosition(
+                            this=text(), substr=exp.Chr(expressions=[exp.Literal.number(10)])
+                        ),
+                        expression=exp.Literal.number(0),
+                    ),
+                ),
+                true=in_range,
+            )
+        ]
+    )
+    return exp.Anonymous(this=marker, expressions=[shaped])
 
 
 # ....................... #

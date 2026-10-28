@@ -748,6 +748,18 @@ def test_an_instant_parse_owes_no_zone() -> None:
     assert refusals(mapping=mapping, marts=marts) == []
 
 
+@pytest.mark.parametrize("fmt", ["UNIX_SECONDS", "UNIX_MILLIS"])
+def test_an_epoch_parse_owes_no_zone(fmt: str) -> None:
+    """S-0096/D-5: a count since 1970 names one instant, as `Z` does, so a date
+    role over it needs no declared zone."""
+
+    marts = CARRIED.replace("flatten: []", "flatten:\n      - {date: placed_at, role: placed}")
+    mapping = MAPPING.replace(PARSED, PARSED.replace("{parse_ts: ISO8601}", f"{{parse_ts: {fmt}}}"))
+    assert mapping != MAPPING
+
+    assert refusals(mapping=mapping, marts=marts) == []
+
+
 def test_a_wall_clock_parse_re_read_as_an_instant_owes_no_zone() -> None:
     """The last parse made the value: a wall-clock parse the chain formatted
     and re-read as an instant is not what reaches the mart (bloomery #227)."""

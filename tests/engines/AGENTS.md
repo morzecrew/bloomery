@@ -262,6 +262,13 @@ The builder returns a `BLM_PICK` marker that DuckDB, PostgreSQL and Trino each r
 - Paths: `src/bloomery/dialects/base.py` `src/bloomery/dialects/duckdb.py` `src/bloomery/dialects/postgres.py` `src/bloomery/dialects/trino.py` `tests/engines/test_pick_engines.py`
 - Consequence: The three engines a contributor can run locally agree byte for byte on `pick`'s answers, and a disagreement is a red engine test rather than a field report
 
+### S-0096/D-7 — `ASSUMED` (An enum_map fallback and epoch timestamps)
+
+PostgreSQL and Trino declare `DialectFeature.EPOCH` with the measured arithmetic spellings, `TIMESTAMP '1970-01-01' + n * INTERVAL '1 second'` and `date_add('second', n, TIMESTAMP '1970-01-01 00:00:00.000000')` and their millisecond forms, held to DuckDB's answers by an engine differential under a UTC and a non-UTC session
+
+- Paths: `src/bloomery/dialects/postgres.py` `src/bloomery/dialects/trino.py` `tests/unit/test_dialects/test_postgres.py` `tests/unit/test_dialects/test_trino.py` `tests/engines/test_epoch_differential.py`
+- Consequence: One bronze row gives one instant on all three shipping ports under any session time zone; Snowflake, BigQuery, Databricks and Redshift still refuse
+
 ### S-0097/D-7 — `ASSUMED` (Bound parameters in planned queries)
 
 On PostgreSQL through psycopg (`pyformat`) and on Trino through its client (`qmark`), every planner bind request returns DuckDB's inline rows when bound, dates, timestamps and decimals included, and inline wherever the engine runs the inline plan; Trino refuses an inline request filter on a date or a timestamp (#351), so those cases are strict expected failures there, checked by an engine differential

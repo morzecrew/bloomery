@@ -80,3 +80,16 @@ def test_the_iso_text_marker_becomes_a_separator_rewrite() -> None:
         "  ELSE REPLACE(REPLACE(CAST(x AS TEXT), 'T', ' '), 't', ' ')\n"
         "END AS TIMESTAMP)"
     )
+
+
+@pytest.mark.parametrize(("fmt", "scale"), [("UNIX_SECONDS", "1000000"), ("UNIX_MILLIS", "1000")])
+def test_an_epoch_count_is_arithmetic_from_1970_never_to_timestamp(fmt: str, scale: str) -> None:
+    """`to_timestamp` returns a `TIMESTAMPTZ` whose cast reads the session zone;
+    `make_timestamp` over microseconds is zoneless (S-0096/D-6)."""
+    from bloomery.transforms import DEFAULT_REGISTRY
+
+    rendered = DuckDBDialect().render(DEFAULT_REGISTRY["parse_ts"].builder(exp.column("x"), fmt))
+
+    assert rendered.startswith("MAKE_TIMESTAMP(")
+    assert f"END * {scale}" in rendered
+    assert "TO_TIMESTAMP" not in rendered.upper()

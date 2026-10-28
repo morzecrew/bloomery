@@ -139,6 +139,7 @@ from bloomery.transforms import (
     CONVERT_MARKER,
     CONVERT_TO,
     DIVIDE_MARKER,
+    INSTANT_FORMATS,
     ISO8601_INSTANT,
     neutral_type,
     registry,
@@ -1261,9 +1262,15 @@ def _zone_declaration(
     """
 
     zone = source.zone_in
+    # An epoch count is an instant too (S-0096/D-5), under the same two rules.
     parses = [
-        step.name == "parse_ts" and step.args == (ISO8601_INSTANT,) for step in source.transform
+        step.name == "parse_ts" and next(iter(step.args), None) in INSTANT_FORMATS
+        for step in source.transform
     ]
+    instant = next(
+        (str(step.args[0]) for step, read in zip(source.transform, parses, strict=True) if read),
+        ISO8601_INSTANT,
+    )
 
     if any(parses):
         # A later `parse_ts` starts a new value, so a `to_utc` past it converts
@@ -1280,7 +1287,7 @@ def _zone_declaration(
 
         if any(step.name == "to_utc" for step in after):
             msg = (
-                f"to_utc after parse_ts: {ISO8601_INSTANT} on column {column!r} — the "
+                f"to_utc after parse_ts: {instant} on column {column!r} — the "
                 "parse already produced the UTC instant the text names, so converting "
                 "it from a zone shifts it a second time. Fix: drop the to_utc, or parse "
                 "with ISO8601 if the text is a wall clock without a zone"
@@ -1298,7 +1305,7 @@ def _zone_declaration(
         ):
             msg = (
                 f"zone_in: {zone!r} on column {column!r}, which parse_ts: "
-                f"{ISO8601_INSTANT} reads as an instant already in UTC. Fix: drop the "
+                f"{instant} reads as an instant already in UTC. Fix: drop the "
                 "declaration, or declare zone_in: UTC"
             )
             raise ResolutionError(msg, source_path=source_path)

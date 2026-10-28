@@ -89,7 +89,7 @@ match.
 
 - `{pick: [name, "Источник заказа", value]}` reads one attribute of a name/value pairs list by
   its name: the first object whose scalar field matches, its take path's scalar, else NULL.
-- `enum_map: [F, female, M, male]` maps pairs; unmapped values pass through.
+- `enum_map: [F, female, M, male]` maps pairs; unmapped values pass through. A `"*"` last pair is the fallback for every other non-NULL value (`["142", won, "143", lost, "*", open]`), so no nulling step and `coalesce` are needed, and the implicit `coercible` rule stays on.
 - Decimal precision is tracked: `multiply` / `divide` widen; crossing 38 digits is an error
   telling you to narrow with `to_decimal`.
 - `divide` is inexact on DuckDB; prefer `{multiply: "0.01"}` to `{divide: 100}`.
@@ -121,6 +121,8 @@ A parsed wall clock whose *position* decides an answer (a mart date role, an as-
 a literal comparison) needs `to_utc` or `zone_in:`, or it is refused as `UndeclaredZone`.
 `zone_in:` lives on the mapping, never the canonical field, because two feeds can run on two
 clocks. `to_utc` after `ISO8601_INSTANT` is refused; `zone_in:` beside it may only be `UTC`.
+An epoch count reads with `{parse_ts: UNIX_SECONDS}` or `UNIX_MILLIS`, an instant under the
+same two rules; a fraction or an out-of-range count is NULL.
 A `parse_ts` format with `%z` or `%Z` is refused. `parse_date` needs no zone.
 
 ## Currency conversion

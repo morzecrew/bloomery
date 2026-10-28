@@ -1034,6 +1034,15 @@ def test_in_enum_without_any_enum_map_is_refused() -> None:
     assert "rejects every row" in message
 
 
+def test_in_enum_over_an_enum_map_with_a_fallback_is_refused() -> None:
+    """With a `"*"` fallback every non-NULL value is admissible, so the rule
+    tests nothing; the opposite of an `in_enum` with no `enum_map`, whose set
+    is empty (S-0096/D-2)."""
+    message = _message(_chain('[to_string, {enum_map: [paid, paid, "*", other]}]', ENUM_RULE))
+    assert "fallback" in message
+    assert "can never fire" in message
+
+
 def test_to_string_after_enum_map_is_accepted() -> None:
     """``to_string`` is the identity on the string ``enum_map`` produces, so it
     cannot move the value off the set — refusing it was a false positive."""

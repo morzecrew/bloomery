@@ -79,6 +79,7 @@ from bloomery.spec.quality import (
     ReferentialRule,
     duration_hours,
 )
+from bloomery.transforms import ENUM_FALLBACK
 from bloomery.typing import BoolType, StringType, parse_type
 
 if TYPE_CHECKING:
@@ -606,6 +607,17 @@ def _check_chain_derived_rules(
                     f"to 'NOT {column} IN ()' — invalid SQL on every dialect, and semantically "
                     "a rule that rejects every row. Fix: add the enum_map step the rule reads, "
                     "or use in_set to state the members directly"
+                )
+                errors.append(GuardrailError(msg, source_path=f"{path}.quality"))
+            elif any(
+                step.name == "enum_map" and step.args[-2:-1] == (ENUM_FALLBACK,)
+                for step in field_mapping.transform
+            ):
+                msg = (
+                    f"field {column!r} of entity {entity_name!r} carries an in_enum rule but "
+                    f"its enum_map has a {ENUM_FALLBACK!r} fallback (S-0096/D-2): every "
+                    "non-NULL value then maps into the set, so the rule can never fire. "
+                    "Fix: drop the in_enum rule, or the fallback pair"
                 )
                 errors.append(GuardrailError(msg, source_path=f"{path}.quality"))
             elif trailing:

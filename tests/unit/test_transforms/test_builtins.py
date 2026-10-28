@@ -280,6 +280,26 @@ def test_enum_map_builder_maps_pairs_and_passes_unmapped_through() -> None:
     assert node.sql() == "CASE x WHEN 'paid' THEN 'PAID' ELSE x END"
 
 
+def test_a_star_last_pair_is_the_fallback_and_null_stays_null() -> None:
+    """amoCRM closes a pipeline in 142 (won) or 143 (lost), and any other id
+    is open: one step, with no nulling step ahead of it (S-0096/D-1, #323)."""
+    node = DEFAULT_REGISTRY["enum_map"].builder(
+        exp.column("x"), "142", "won", "143", "lost", "*", "open"
+    )
+    assert node.sql() == (
+        "CASE WHEN x IS NULL THEN NULL WHEN x = '142' THEN 'won' "
+        "WHEN x = '143' THEN 'lost' ELSE 'open' END"
+    )
+
+
+@pytest.mark.parametrize(
+    "args", [("*", "open", "142", "won"), ("142", "won", "*", "x", "143", "lost")]
+)
+def test_a_star_anywhere_but_the_last_pair_is_refused(args: tuple[str, ...]) -> None:
+    with pytest.raises(TypeCheckError, match="last pair"):
+        DEFAULT_REGISTRY["enum_map"].output_type(StringType(), args)
+
+
 def test_parse_builders_iso8601_is_a_marked_cast_and_formats_are_explicit() -> None:
     """The ISO8601 format name lowers to the engine's native cast over a
     *marked* operand; any other format is an explicit STR_TO_TIME/STR_TO_DATE.

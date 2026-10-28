@@ -10,6 +10,7 @@ from sqlglot.expressions.core import Expression
 
 from bloomery.dialects.base import (
     SQLGlotDialect,
+    epoch_timestamps,
     pick_spelled,
     space_separated,
     strip_iso_text,
@@ -75,6 +76,7 @@ class DuckDBDialect(SQLGlotDialect):
             return exp.AtTimeZone(this=interpretation, zone=exp.Literal.string("UTC"))
 
         rewritten = strip_iso_text(node.copy(), space_separated, instant=utc_instant)
+        rewritten = epoch_timestamps(rewritten, _make_timestamp)
         rewritten = pick_spelled(rewritten, _picked)
         rewritten = utc_from_zone(rewritten, utc)
         rewritten = rewritten.transform(_nfc_normalize)
@@ -82,6 +84,15 @@ class DuckDBDialect(SQLGlotDialect):
 
 
 # ....................... #
+
+
+def _make_timestamp(count: Expression, per_second: int) -> Expression:
+    """``make_timestamp(n * 1000000 / per_second)``: microseconds since 1970 as a
+    zoneless ``TIMESTAMP``, the same under every session zone (S-0096/D-6).
+    ``to_timestamp`` returns a ``TIMESTAMPTZ`` whose cast reads the session."""
+
+    micros = exp.Mul(this=count, expression=exp.Literal.number(1_000_000 // per_second))
+    return exp.Anonymous(this="make_timestamp", expressions=[micros])
 
 
 def _picked(items: Expression, field: str, text: str, take: str, _json: bool) -> Expression:

@@ -475,6 +475,19 @@ def test_the_instant_parse_lands_on_utc_on_duckdb(session: str, quality: bool) -
 
 
 @pytest.mark.parametrize("dialect", ["snowflake", "bigquery", "databricks", "redshift"])
+def test_an_unmeasured_port_refuses_an_epoch_parse(dialect: str) -> None:
+    """S-0096/D-6: a port ships the epoch formats once its spelling is measured;
+    until then the marker reaching the base render is a refusal naming them."""
+    from bloomery.dialects import get_dialect
+    from bloomery.transforms import DEFAULT_REGISTRY
+
+    node = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("x"), "UNIX_MILLIS")
+
+    with pytest.raises(UnsupportedByTarget, match="parse_ts: UNIX_MILLIS is not measured"):
+        get_dialect(dialect).render(node)
+
+
+@pytest.mark.parametrize("dialect", ["snowflake", "bigquery", "databricks", "redshift"])
 def test_an_unmeasured_port_refuses_pick(dialect: str) -> None:
     """S-0095/D-5: a port ships `pick` once its spelling is measured against
     DuckDB's answers; until then the surviving marker is a refusal by name."""
@@ -501,3 +514,51 @@ def test_a_measured_port_spells_pick_without_the_marker(dialect: str) -> None:
     )
 
     assert "BLM_PICK" not in get_dialect(dialect).render(node).upper()
+
+
+def _parsed_twice(first: str, second: str) -> Expression:
+    once = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("w"), first)
+    return DEFAULT_REGISTRY["parse_ts"].builder(DEFAULT_REGISTRY["to_string"].builder(once), second)
+
+
+def _picked_twice() -> Expression:
+    inner = DEFAULT_REGISTRY["pick"].builder(
+        exp.column("w"), "name", "a", "value", input_type=StringType()
+    )
+    return DEFAULT_REGISTRY["pick"].builder(inner, "name", "b", "value", input_type=StringType())
+
+
+#: A chain may parse more than once, judged by its last `parse_ts` (S-0081),
+#: and a `pick` may read the list an earlier `pick` took as text.
+NESTED: dict[str, Callable[[], Expression]] = {
+    "epoch in epoch": lambda: _parsed_twice("UNIX_SECONDS", "UNIX_MILLIS"),
+    "iso in iso": lambda: _parsed_twice("ISO8601", "ISO8601"),
+    "pick in pick": _picked_twice,
+}
+
+
+@pytest.mark.parametrize("dialect", ["duckdb", "postgres", "trino"])
+@pytest.mark.parametrize("chain", sorted(NESTED))
+def test_a_marker_inside_another_is_spelled(chain: str, dialect: str) -> None:
+    """`transform` does not descend into what it replaces, so a marker in the
+    operand a spelling reuses survived the pass, and the base render refused a
+    valid chain as unmeasured."""
+    from bloomery.dialects import get_dialect
+
+    assert "BLM_" not in get_dialect(dialect).render(NESTED[chain]()).upper()
+
+
+@pytest.mark.parametrize(
+    ("chain", "value", "expected"),
+    [
+        ("iso in iso", "2025-01-01T12:00:00", datetime(2025, 1, 1, 12)),
+        ("pick in pick", '[{"name": "a", "value": "[{\\"name\\": \\"b\\", \\"value\\": \\"deep\\"}]"}]', "deep"),
+    ],
+)
+def test_a_nested_chain_answers_on_duckdb(chain: str, value: str, expected: object) -> None:
+    duckdb = pytest.importorskip("duckdb")
+    from bloomery.dialects import get_dialect
+
+    sql = get_dialect("duckdb").render(NESTED[chain]())
+
+    assert duckdb.connect().execute(f"SELECT {sql} FROM (VALUES (?)) AS t(w)", [value]).fetchone() == (expected,)

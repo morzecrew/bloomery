@@ -24,7 +24,7 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 | `strip_suffix` | suffix (str) | string → string | `[{strip_suffix: "-eu"}]` — remove a trailing suffix if present |
 | `concat` | text (str) | string → string | `[{concat: "-eu"}]` — append a literal |
 | `prepend` | text (str) | string → string | `[{prepend: "amocrm:"}]` — put a literal in front, as for a key namespaced by source |
-| `enum_map` | from/to pairs (str…, variadic) | string → string | `[{enum_map: [F, female, M, male]}]` — map values; unmapped values pass through |
+| `enum_map` | from/to pairs (str…, variadic) | string → string | `[{enum_map: [F, female, M, male]}]` — map values; unmapped values pass through. A `"*"` last pair is the fallback: `[{enum_map: ["142", won, "143", lost, "*", open]}]` maps every other non-NULL value to `open`, and NULL stays NULL. A `"*"` in any other pair is refused, and so is `in_enum` over a field whose map has a fallback, since it could never fire |
 
 ## Casts and parses
 
@@ -34,7 +34,7 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 | `to_int` | — | string, int, decimal, bool → int | `[to_int]` — cast to integer |
 | `to_decimal` | precision (int), scale (int) | string, int, decimal → decimal(p, s) | `[{to_decimal: [12, 2]}]` — cast with explicit shape |
 | `to_bool` | — | string, int, bool → bool | `[to_bool]` — cast to boolean |
-| `parse_ts` | format (str) | string → timestamp | `[{parse_ts: ISO8601}]` — parse a timestamp as a **local wall clock**; `ISO8601` means the engine's native parse, `ISO8601_INSTANT` parses text that states its own offset to the UTC instant it names; any other string is an explicit format, which may not carry `%z` or `%Z`. Text carrying a UTC offset is refused as NULL, and a parsed wall clock read for its *position* needs a declared zone — both below |
+| `parse_ts` | format (str) | string → timestamp | `[{parse_ts: ISO8601}]` — parse a timestamp as a **local wall clock**; `ISO8601` means the engine's native parse, `ISO8601_INSTANT` parses text that states its own offset to the UTC instant it names, and `UNIX_SECONDS` / `UNIX_MILLIS` read an epoch count as the instant it names; any other string is an explicit format, which may not carry `%z` or `%Z`. Text carrying a UTC offset is refused as NULL, and a parsed wall clock read for its *position* needs a declared zone — both below |
 | `parse_date` | format (str) | string → date | `[{parse_date: ISO8601}]` — parse a date |
 | `to_utc` | zone (str) | timestamp → timestamp | `[{to_utc: Europe/Paris}]` — interpret a zoneless local timestamp in `zone`; the only door into the always-UTC timestamp type |
 
@@ -98,6 +98,30 @@ The value is already UTC, so the compiler holds the chain to that:
 - **A `zone_in:` beside it may only be `UTC`.** Any other zone is refused at resolve, and
   none is needed: an instant is never read as a wall clock, so no undeclared-zone check
   fires on it.
+
+### `UNIX_SECONDS` and `UNIX_MILLIS` — an epoch count
+
+A source that sends times as a count since 1970, such as `"created_at": 1761561600`, maps
+it without reshaping bronze:
+
+```yaml
+created_at:
+  from: "$.created_at"
+  transform: [{parse_ts: UNIX_SECONDS}]   # UNIX_MILLIS for milliseconds
+```
+
+The count is an optional sign and at most fifteen digits, with spaces, and only spaces, around
+it, naming an instant from `0001-01-01 00:00:00` to `9999-12-31 23:59:59(.999)`. Anything else
+is NULL: a tab or a newline, a fraction, an exponent, text that is not a number, or a count out
+of range, because the engines' own casts disagree on those. On a quality-carrying entity that NULL is a coercion
+failure the `coercible` rule disposes of.
+
+An epoch count is an instant, under the same two rules as `ISO8601_INSTANT`: a `to_utc`
+after it is refused, and `zone_in:` beside it may only be `UTC`. It lowers to integer
+arithmetic from 1970, never to the engine's own epoch function, which was measured to
+answer a different wall clock under a different session zone. It ships on DuckDB,
+PostgreSQL and Trino, held to one set of answers under two session zones; every other port
+refuses it as `UnsupportedByTarget` until its spelling is measured there.
 
 **A `parse_ts` format with `%z` or `%Z` is refused at parse**, naming `ISO8601_INSTANT`:
 no format parses a zone and then drops it. An escaped `%%z` or `%%Z` is literal text and

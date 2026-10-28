@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Epoch timestamps: `parse_ts: UNIX_SECONDS` and `UNIX_MILLIS`.** A count since 1970,
+  as amoCRM and many other APIs send times, maps to a `timestamp` in one step. It is an
+  instant, so `to_utc` after it is refused and `zone_in:` may only be `UTC`. The count must
+  be an integer of at most fifteen digits in year 1 to 9999; anything else is NULL, which
+  a quality-carrying entity quarantines. It lowers to integer arithmetic from 1970 and
+  reads the same under any session zone on DuckDB, PostgreSQL and Trino, held to one set
+  of answers by an engine differential; other ports refuse it until measured. (#324)
+- **An `enum_map` fallback.** A `"*"` last pair maps every non-NULL value no earlier pair
+  lists to its target: `{enum_map: ["142", won, "143", lost, "*", open]}` reads an open-ended
+  status id as one of three outcomes in one step. NULL stays NULL. Before, unlisted values
+  passed through, so the chain needed a nulling step and a `coalesce`, and the nulling step
+  turned the field's implicit `coercible` rule off. A `"*"` anywhere but the last pair is
+  refused, and so is `in_enum` over a field whose map has a fallback. (#323)
 - **The planner binds request values.** `plan(..., paramstyle="pyformat")`, or any of PEP
   249's five styles, puts a placeholder where each request filter value and the row
   policy's value went, and `QueryPlan.params` carries the values in placeholder order. Each
@@ -69,6 +82,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A chain may parse ISO 8601 twice.** `[{parse_ts: ISO8601}, to_string, {parse_ts:
+  ISO8601}]` was refused on every port as an unmeasured parse: the rewrite that spells the
+  outer parse did not reach the inner one inside its operand. Every marker is now spelled
+  however deep it sits, which also covers an epoch parse inside another and a `pick` of a
+  `pick`. (#345)
 - **A zoned timestamp in a request filter reads its instant.** `booked_at <
   "2024-03-05T11:00:00+02:00"` was rendered as zoned text, which DuckDB and PostgreSQL cast
   to a zoneless `timestamp` by dropping the offset, so it compared against 11:00 UTC instead
