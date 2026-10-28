@@ -96,8 +96,10 @@ based on it.
 A Tier 2 body uses `:name` placeholders for its parameters, and reads its inputs by the
 relations the wiring binds: `FROM` names the bound relation, not the input's name. Each
 bound relation is emitted as the naming policy spells it, so under `PrefixNaming("t0")`
-`silver.stock_snapshot` reads `t0_silver.stock_snapshot`. Bind every relation the body
-reads: one the wiring does not bind is emitted as written. Each placeholder is replaced by
+`silver.stock_snapshot` reads `t0_silver.stock_snapshot`. That covers a namespace-less
+binding, unquoted names in any case, and a column qualified by the relation. A CTE of
+the binding's name stays the CTE. Bind every relation the body reads: one the wiring
+does not bind is emitted as written. Each placeholder is replaced by
 a literal node, never text, so a parameter cannot carry SQL.
 
 ```sql
