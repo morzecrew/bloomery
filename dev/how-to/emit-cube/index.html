@@ -2231,6 +2231,10 @@ stay <code>string</code>, <code>int</code>/<code>decimal</code> become <code>num
 dimension type). Date-role bucket columns are <code>time</code> dimensions with a
 <code>meta.granularity</code> naming their bucket, so a Cube client can tell <code>ordered_month</code> is a
 month bucket without parsing the name.</p>
+<p>A dimension and a measure carry <code>title</code> and <code>description</code> from the field's or the metric's
+<code>label:</code> and <code>description:</code>, and <code>meta.synonyms</code> from <code>synonyms:</code> (<a href="../annotate-a-spec/">annotate a
+spec</a>). A mart column reads the annotations of the column it was
+flattened from.</p>
 <h2 id="additivity-metadata">Additivity metadata<a class="headerlink" href="#additivity-metadata" title="Permanent link">&para;</a></h2>
 <p>Every measure carries <code>meta.additivity</code> and <code>meta.grain</code> from the metric's declaration;
 a semi-additive measure additionally carries <code>meta.semi_additive</code> with its <code>over</code>

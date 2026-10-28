@@ -1320,6 +1320,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#description-label-and-synonyms-what-to-call-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>description:</code>, <code>label:</code> and <code>synonyms:</code> — what to call it
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-is-not-here" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1972,6 +1983,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#description-label-and-synonyms-what-to-call-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>description:</code>, <code>label:</code> and <code>synonyms:</code> — what to call it
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-is-not-here" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2222,6 +2244,69 @@ about the <strong>framework-managed</strong> grant set, never about every privil
 there would be a restriction in a file that restricts nothing. Compiling a granted project
 for Cube fails with a message saying so, rather than dropping the block and letting you
 believe the restriction is in force everywhere.</p>
+<h2 id="description-label-and-synonyms-what-to-call-it"><code>description:</code>, <code>label:</code> and <code>synonyms:</code> — what to call it<a class="headerlink" href="#description-label-and-synonyms-what-to-call-it" title="Permanent link">&para;</a></h2>
+<p>A field and a metric each take a description, a short label and synonyms. They change no
+SQL; each reaches the slot every target has for it, and no other:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># entity_model.yaml</span>
+<span class="nt">unit_price</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">"decimal(12,4)"</span><span class="p p-Indicator">,</span><span class="nt"> canonical</span><span class="p">:</span><span class="w"> </span><span class="nv">unit_price</span><span class="p p-Indicator">,</span>
+<span class="nt">             description</span><span class="p">:</span><span class="w"> </span><span class="s">"Net</span><span class="nv"> </span><span class="s">unit</span><span class="nv"> </span><span class="s">price,</span><span class="nv"> </span><span class="s">before</span><span class="nv"> </span><span class="s">discounts"</span><span class="p p-Indicator">,</span><span class="nt"> label</span><span class="p">:</span><span class="w"> </span><span class="nv">Unit price</span><span class="p p-Indicator">,</span>
+<span class="nt">             synonyms</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">price</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">cost</span><span class="p p-Indicator">]}</span>
+<span class="c1"># metrics.yaml</span>
+<span class="nt">gross_revenue</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">template</span><span class="p">:</span><span class="w"> </span><span class="nv">gross_revenue</span><span class="p p-Indicator">,</span><span class="nt"> label</span><span class="p">:</span><span class="w"> </span><span class="nv">Revenue</span><span class="p p-Indicator">,</span><span class="nt"> synonyms</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">turnover</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">sales</span><span class="p p-Indicator">]}</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Annotation</th>
+<th>MetricFlow</th>
+<th>Cube</th>
+<th>dbt <code>schema.yml</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>field <code>description</code></td>
+<td>dimension <code>description</code></td>
+<td>dimension <code>description</code></td>
+<td>column <code>description</code></td>
+</tr>
+<tr>
+<td>field <code>label</code></td>
+<td>dimension <code>label</code></td>
+<td>dimension <code>title</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>field <code>synonyms</code></td>
+<td>dimension <code>config.meta.synonyms</code></td>
+<td>dimension <code>meta.synonyms</code></td>
+<td>column <code>meta.synonyms</code></td>
+</tr>
+<tr>
+<td>metric <code>description</code></td>
+<td>metric <code>description</code></td>
+<td>measure <code>description</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>metric <code>label</code></td>
+<td>metric <code>label</code></td>
+<td>measure <code>title</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>metric <code>synonyms</code></td>
+<td>metric <code>config.meta.synonyms</code></td>
+<td>measure <code>meta.synonyms</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>A field's own description wins over its canonical field's. A mart column carries the
+annotations of the column it was flattened from, prefixed or not. A metric's label is the
+planner's column label too, with its description as the fallback. A label is one line, an
+annotation empty once stripped is refused, and two equal synonyms are refused. Changing any
+of them is an ADDITIVE, metadata-only change in <code>plan()</code>.</p>
 <h2 id="what-is-not-here">What is not here<a class="headerlink" href="#what-is-not-here" title="Permanent link">&para;</a></h2>
 <p><strong>Seeds.</strong> <code>seeds:</code> is refused permanently, and the message says "refused, not missing". A
 seed is a table of data in your repository; bloomery reads no files while compiling, so
