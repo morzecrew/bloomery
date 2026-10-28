@@ -34,6 +34,7 @@ from bloomery.emit.lower.marts import (
     mart_select,
     measure_metrics,
     measure_owners,
+    source_columns,
 )
 from bloomery.emit.lower.predicates import (
     as_of_conditions,
@@ -115,6 +116,7 @@ __all__ = [
     "mart_select",
     "measure_metrics",
     "measure_owners",
+    "source_columns",
     "metadata_audit_select",
     "metric_filter_sql",
     "quality_mart_select",

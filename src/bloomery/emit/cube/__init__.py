@@ -81,6 +81,7 @@ from bloomery.emit.lower import (
     measure_owners,
     metric_filter_sql,
     rollup_measures,
+    source_columns,
 )
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
@@ -155,6 +156,20 @@ def _yaml(document: dict[str, object]) -> str:
 # ....................... #
 
 
+def _annotations(description: str | None, label: str | None) -> dict[str, object]:
+    """A member's ``title`` and ``description`` (S-0094/D-5, D-6): Cube's
+    display name and explanation, each present only when authored. Metadata
+    only: no member's ``sql`` changes with them (S-0094/D-1)."""
+
+    return {
+        **({"title": label} if label is not None else {}),
+        **({"description": description} if description is not None else {}),
+    }
+
+
+# ....................... #
+
+
 def _metric_meta(metric: MetricIR) -> dict[str, object]:
     meta: dict[str, object] = {"additivity": metric.additivity.value}
 
@@ -176,6 +191,11 @@ def _metric_meta(metric: MetricIR) -> dict[str, object]:
             "over": metric.semi_additive.over.qualified,
             "rule": metric.semi_additive.rule.value,
         }
+
+    if metric.synonyms:
+        # Other names a front end may match the measure by, never its title
+        # (S-0094/D-5).
+        meta["synonyms"] = list(metric.synonyms)
 
     return meta
 
@@ -235,9 +255,22 @@ def _dimensions(mart: MartIR, ir: ProjectIR) -> list[object]:
         if column.role_of is not None
     }
     dimensions: list[object] = []
+    # Each mart column's source, whose annotations it carries (S-0094/D-7).
+    sources = source_columns(ir)
+    provenance = {column.name: column for column in mart.columns}
 
     for dimension in mart.dimensions:  # sorted by column name on MartIR
-        entry: dict[str, object] = {"name": dimension.column, "sql": dimension.column}
+        mart_column = provenance.get(dimension.column)
+        source = (
+            sources.get((mart_column.source_entity, mart_column.source_column))
+            if mart_column is not None
+            else None
+        )
+        entry: dict[str, object] = {
+            "name": dimension.column,
+            **(_annotations(source.description, source.label) if source is not None else {}),
+            "sql": dimension.column,
+        }
         meta: dict[str, object] = {}
         if dimension.ref.role is not None:
             # A date-role bucket column (S-0027/D-4): a time dimension whose
@@ -275,6 +308,9 @@ def _dimensions(mart: MartIR, ir: ProjectIR) -> list[object]:
         if classification in _UNSERVED:
             entry["public"] = False
 
+        if source is not None and source.synonyms:
+            meta["synonyms"] = list(source.synonyms)
+
         if meta:
             entry["meta"] = meta
 
@@ -303,7 +339,11 @@ def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
         )
         raise UnsupportedByTarget(msg)
 
-    entry: dict[str, object] = {"name": metric.name, "type": measure_type}
+    entry: dict[str, object] = {
+        "name": metric.name,
+        **_annotations(metric.description, metric.label),
+        "type": measure_type,
+    }
 
     if measure_type != "count":
         # Cube's ``count`` counts rows and takes no sql (see module docstring).
@@ -384,6 +424,7 @@ def _measures(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[ob
             measures.append(
                 {
                     "name": metric.name,
+                    **_annotations(metric.description, metric.label),
                     "type": "number",
                     "sql": f"{{{ratio.numerator}}} / NULLIF({{{ratio.denominator}}}, 0)",
                     "meta": _metric_meta(metric),
