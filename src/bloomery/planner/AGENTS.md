@@ -398,6 +398,13 @@ Only the build-time `divide` and a recipe's `/` carry the exact-division marker 
 - Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/planner/compose.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/planner/coverage.py`
 - Consequence: a reference for query-time SQL has a stated semantics to hold the planner to, instead of guessing which division is meant
 
+### S-0094/D-10 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
+
+The planner labels a measure column by its metric's `label`, and by its `description` only where no label is authored
+
+- Paths: `src/bloomery/planner/names.py` `tests/unit/test_planner/test_names.py`
+- Consequence: A caller rendering `QueryPlan.columns` gets a chart title rather than the explanation sentence, and a project with no labels sees the description exactly as before
+
 ## Invariants holding over `src/bloomery/planner/`
 
 - **S-0005/I-1**: The same specs produce byte-identical proof and semantic-plan serializations across processes and hash seeds

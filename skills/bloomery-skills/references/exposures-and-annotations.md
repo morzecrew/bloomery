@@ -125,6 +125,23 @@ on every run. An entity's reject table is granted with it.
 - **Cube refuses a `grants:` block**: it reads relations it does not own, so the grant would
   restrict nothing.
 
+## Descriptions, labels and synonyms
+
+A field takes `description:`, `label:` and `synonyms:`; a metric takes `label:` and
+`synonyms:` beside `description:`, merged from its template the way the description is
+(absent synonyms take the template's, an authored `[]` clears them). They change no SQL.
+
+- MetricFlow: `description`, `label`, `config.meta.synonyms`. Cube: `description`,
+  `title`, `meta.synonyms`. dbt: a column's `description` and `meta.synonyms`; dbt has no
+  label slot.
+- A field's own description wins over its canonical field's, and a mart column carries the
+  annotations of the column it was flattened from, prefixed or not.
+- The planner labels a measure column by the metric's `label`, falling back to its
+  `description`.
+- A label is one line; an empty annotation and two equal synonyms are refused. Synonyms
+  never land in a label or a description.
+- Changing any of them is ADDITIVE, metadata only, in `plan()`.
+
 ## What is not here
 
 - **Seeds.** `seeds:` is refused permanently ("refused, not missing"). Land the CSV with

@@ -671,6 +671,11 @@ class ColumnIR:
     #: it — the transitive closure, the mart-namespace mapping a rollup proof
     #: reads — is derived at the point of use and stored nowhere.
     determines: tuple[str, ...] = ()
+    #: A short display name and the other names a front end may match the
+    #: column by, from the entity field (S-0094/D-4). Metadata only: no SELECT
+    #: reads them (S-0094/D-1).
+    label: str | None = None
+    synonyms: tuple[str, ...] = ()
 
 
 # ....................... #
@@ -1065,6 +1070,10 @@ class MetricIR:
     #: verifies. Appended with a default so a positional construction keeps
     #: binding what it bound before.
     owner: str | None = None
+    #: A short display name beside the description, and the other names a
+    #: front end may match the metric by, sorted (S-0094/D-3, D-4).
+    label: str | None = None
+    synonyms: tuple[str, ...] = ()
 
 
 # ....................... #
@@ -1804,9 +1813,14 @@ class ProjectIR:
     date bucket a role declares over a flattened column. Every project with a
     mart encodes the field, ``None`` for every bucket of a base column, so every
     such fingerprint moves once.
+
+    Version 28 (S-0094/D-4) adds ``ColumnIR.label`` and ``ColumnIR.synonyms``,
+    and ``MetricIR.label`` and ``MetricIR.synonyms``. Every project encodes the
+    columns' fields, ``None`` and empty where nothing is annotated, so every
+    fingerprint moves once.
     """
 
-    bloomery_ir_version: int = 27
+    bloomery_ir_version: int = 28
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

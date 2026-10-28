@@ -100,6 +100,13 @@ The `HistoricalFanout` fix text leads with the current reading from phase 2 on â
 - Paths: `src/bloomery/marts/flatten.py` `tests/golden/test_refusal_messages.py`
 - Consequence: the refusal sends an author to the current reading only once a rollup over a current-reading mart proves, never from one refusal into another
 
+### S-0094/D-6 â€” `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
+
+Cube emits `description` on its dimensions and measures, so a metric's authored description reaches Cube for the first time
+
+- Paths: `src/bloomery/emit/cube/__init__.py` `tests/golden/**/cube/**`
+- Consequence: Every Cube golden whose fixture describes a metric gains a `description:` line, and no other line of it moves
+
 ## Invariants holding over `tests/golden/`
 
 - **S-0002/I-1**: A project carrying neither an exports nor an imports document compiles byte-identically to what it compiled before composition existed; the golden corpus is that test, and only a deliberate IR version bump may move a fingerprint in it
