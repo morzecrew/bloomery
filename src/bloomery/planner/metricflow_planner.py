@@ -536,9 +536,7 @@ class MetricFlowPlanner:
                 f"{sorted(filters.PARAMSTYLES)} (S-0097/D-1)"
             )
             raise InvalidRequest(msg)
-        binds = (
-            filters.Binds(get_dialect(dialect).sqlglot_dialect) if paramstyle is not None else None
-        )
+        binds = filters.Binds(dialect) if paramstyle is not None else None
 
         if len(branches) > 1:
             return self._composed(

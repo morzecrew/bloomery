@@ -51,8 +51,8 @@ from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from sqlglot import TokenType
 from sqlglot.dialects.dialect import Dialect
-from sqlglot.tokens import TokenType
 
 from bloomery.errors import (
     FilterTypeMismatch,
@@ -104,7 +104,9 @@ class Binds:
     MetricFlow builds every where-filter with an empty bind set, so the values
     cannot ride its mechanism: they travel as markers, and :meth:`spelled`
     turns the rendered SQL's markers into the caller's placeholders, reading
-    the SQL with ``dialect``'s tokenizer so a quoted literal stays text.
+    the SQL with ``dialect``'s tokenizer so a quoted literal stays text. It is
+    the planner dialect, whose MetricFlow renderer wrote the SQL; each of the
+    three ``sql_client_for_dialect`` wires has SQLGlot's name.
     """
 
     dialect: str
