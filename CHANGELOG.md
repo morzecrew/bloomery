@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A relationship may name a step output**, so a mart can flatten what a step computes,
+  such as revenue by the buyer's segment. Its `via` columns are checked against the step's
+  `produces`, and a `referential` rule or `coverage:` check through one is refused when
+  the step reads the dependent entity, a cycle. (#362)
+
 ## [0.8.0] - 2026-10-28
 
 ### Added

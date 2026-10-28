@@ -21,7 +21,11 @@ from bloomery.errors import BloomeryError, MissingReference, ResolutionError
 from bloomery.spec.mapping import mapping_doc
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+    from collections.abc import Mapping as AbcMapping
+
     from bloomery.spec.catalog import Catalog
+    from bloomery.spec.entity import Relationship
     from bloomery.spec.mapping import Mapping
     from bloomery.spec.project import Project
 
@@ -29,6 +33,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     "mapping_doc",
+    "relationship_column_errors",
+    "step_written",
     "validate_references",
 ]
 
@@ -214,42 +220,78 @@ def _check_relationship_names(project: Project, errors: list[BloomeryError]) -> 
 # ....................... #
 
 
+def step_written(project: Project) -> frozenset[str]:
+    """The entities the project's steps write, by the bare relation name the
+    synthesized :class:`~bloomery.ir.EntityIR` carries (S-0034/D-36)."""
+
+    if project.steps is None:
+        return frozenset()
+
+    return frozenset(
+        relation.rsplit(".", 1)[-1]
+        for wiring in project.steps.steps
+        for relation in wiring.outputs.values()
+    )
+
+
+# ....................... #
+
+
+def relationship_column_errors(
+    index: int, rel: Relationship, columns: AbcMapping[str, Collection[str]]
+) -> list[BloomeryError]:
+    """``rel``'s ``via`` columns against the columns of both endpoints, which
+    ``columns`` must hold."""
+
+    errors: list[BloomeryError] = []
+
+    for from_column, to_column in sorted(rel.via.items()):
+        for column, entity in ((from_column, rel.from_), (to_column, rel.to)):
+            if column not in columns[entity]:
+                errors.append(
+                    MissingReference(
+                        f"relationship {rel.name!r} via references unknown column "
+                        f"{column!r} of entity {entity!r}",
+                        source_path=f"entity_model: relationships[{index}].via.{from_column}",
+                    )
+                )
+
+    return errors
+
+
+# ....................... #
+
+
 def _check_relationships(project: Project, errors: list[BloomeryError]) -> None:
+    """Both endpoints exist, and the ``via`` columns do on each.
+
+    A step output is an endpoint like an authored entity (S-0034/D-59), known
+    here by name only: what it produces is the manifest's to say, and this
+    stage has never seen one. So a relationship touching a step output has
+    its columns checked where the step lowers, both sides together, rather
+    than its authored side here and the step side one run later.
+    """
     entities = project.entity_model.entities
+    written = step_written(project)
+    fields = {name: entity.fields.keys() for name, entity in entities.items()}
 
     _check_relationship_names(project, errors)
 
     for index, rel in enumerate(project.entity_model.relationships):
-        path = f"entity_model: relationships[{index}]"
-        endpoints_ok = True
-        for side, name in (("from", rel.from_), ("to", rel.to)):
-            if name not in entities:
-                endpoints_ok = False
-                errors.append(
-                    MissingReference(
-                        f"relationship {rel.name!r} references unknown entity {name!r}",
-                        source_path=f"{path}.{side}",
-                    )
+        unknown = [
+            (side, name)
+            for side, name in (("from", rel.from_), ("to", rel.to))
+            if name not in entities and name not in written
+        ]
+        for side, name in unknown:
+            errors.append(
+                MissingReference(
+                    f"relationship {rel.name!r} references unknown entity {name!r}",
+                    source_path=f"entity_model: relationships[{index}].{side}",
                 )
-        if not endpoints_ok:
-            continue
-        for from_column, to_column in sorted(rel.via.items()):
-            if from_column not in entities[rel.from_].fields:
-                errors.append(
-                    MissingReference(
-                        f"relationship {rel.name!r} via references unknown column "
-                        f"{from_column!r} of entity {rel.from_!r}",
-                        source_path=f"{path}.via.{from_column}",
-                    )
-                )
-            if to_column not in entities[rel.to].fields:
-                errors.append(
-                    MissingReference(
-                        f"relationship {rel.name!r} via references unknown column "
-                        f"{to_column!r} of entity {rel.to!r}",
-                        source_path=f"{path}.via.{from_column}",
-                    )
-                )
+            )
+        if not unknown and not {rel.from_, rel.to} & written:
+            errors.extend(relationship_column_errors(index, rel, fields))
 
 
 # ....................... #

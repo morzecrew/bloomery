@@ -124,6 +124,13 @@ A `StepParameter` bounds its value with optional, inclusive `min` and `max`, bot
 - Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_lowering.py` `tests/unit/test_steps/test_manifest_and_registry.py`
 - Consequence: A platform team states a parameter's range once and every tenant wiring that leaves it is refused before a run, while a default outside the range passes unchecked
 
+### S-0034/D-59 — `ASSUMED` (The step registry: referenced implementations)
+
+A relationship's endpoint may be a step output, named by the bare relation the step writes, so a mart over another entity flattens what a step computes through `flatten: via`. The reference stage checks the name; a relationship touching a step output has its `via` columns, on both sides, checked where steps lower, against the manifest's `produces`. A referential rule or a coverage check through such a relationship is refused when the step computes the referenced output from the dependent entity, directly or through another step
+
+- Paths: `src/bloomery/resolve/refs.py` `src/bloomery/resolve/steps.py` `src/bloomery/guardrails/quality.py` `tests/unit/test_steps/test_step_relationships.py`
+- Consequence: Order metrics can be cut by a segment a step computes per customer, and a mistyped `via` column on the step side is refused at compile, one stage later than on an authored entity, with both sides in the same report
+
 ### S-0035/D-3 — `ASSUMED` (Public surface and stability policy)
 
 **`assert_step_contract` is promoted to `bloomery.steps.__all__`** and the generated wrapper's import rewritten to the shallow path. The module path was de-facto public API — imported by bloomery's own artifacts shipped into consumer repositories — with no declaration and no test protecting it. `bloomery.steps.contract` keeps working; this adds a supported path rather than removing an unsupported one. A golden assertion pins the emitted import line.

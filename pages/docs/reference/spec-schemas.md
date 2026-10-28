@@ -217,7 +217,7 @@ custom audit artifacts.
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `name` | string | yes | Referenced by mart `via:` flatten steps |
-| `from` / `to` | string | yes | The two entities |
+| `from` / `to` | string | yes | The two entities. Either may be a step output, named after the last segment of the relation its wiring binds; its `via` columns are then checked against the manifest's `produces` |
 | `via` | map from-column → to-column, ≥ 1 | yes | Join columns — a relationship *is* its join, so an empty map is a `SpecParseError` |
 | `cardinality` | `many_to_one` \| `one_to_one` \| `one_to_many` | yes | Checked by the fan-out guardrail |
 | `imported_from` | string | no | The artifact this relationship was read out of. Its presence is the fact: a relationship carrying it grades `ASSUMED` and a mart declaring `requires_evidence: locked` over a column it carries is refused. Written by an importer, not by hand |

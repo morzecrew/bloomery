@@ -756,7 +756,8 @@ def _check_unknown_member(
 
     from_column = via[0]
     # Resolution (S-0022) refuses a relationship whose ``via`` names a column
-    # neither side declares, and the ``from`` side is this entity by the check
+    # neither side declares, or step lowering does where one side is a step
+    # output (S-0034/D-59), and the ``from`` side is this entity by the check
     # above — so the field lookup is total.
     field = entity.fields[from_column]
     declared = parse_type(
@@ -1355,6 +1356,87 @@ def _check_coverage(project: Project, draft: ProjectIR) -> list[GuardrailError]:
 # ....................... #
 
 
+def _built_from(draft: ProjectIR) -> dict[str, frozenset[str]]:
+    """Each step-written entity, with every entity its rows are computed from:
+    the step's inputs, and theirs where an input is another step's output. By
+    the bare relation name, which is how a step input binds (S-0034/D-57)."""
+    closed = {
+        output.relation.rsplit(".", 1)[-1]: frozenset(
+            relation.rsplit(".", 1)[-1] for _name, relation in step.inputs
+        )
+        for step in draft.steps
+        for output in step.outputs
+    }
+    grown = True
+
+    while grown:
+        grown = False
+        for name, reads in closed.items():
+            wider = reads.union(*(closed.get(read, frozenset()) for read in reads))
+            if wider != reads:
+                closed[name] = wider
+                grown = True
+
+    return closed
+
+
+# ....................... #
+
+
+def _check_reads_downstream(project: Project, draft: ProjectIR) -> list[GuardrailError]:
+    """A referential rule or a coverage check never reads a step output that
+    is computed from its own dependent entity (S-0034/D-59).
+
+    Both read the referenced side from inside the dependent's model: the rule
+    is a LEFT JOIN in its SELECT, and the coverage audit hangs off it with the
+    referenced relation in its ``depends_on``. So the referenced relation has
+    to build first, and a step that reads the dependent, directly or through
+    another step, builds after it: each model would wait on the other. This
+    could not arise while a relationship named only authored entities, which
+    read bronze alone.
+    """
+    built_from = _built_from(draft)
+    writers = {entity.name: entity.produced_by for entity in draft.entities}
+    declared = {rel.name: rel for rel in project.entity_model.relationships}
+    # (what, noun, relationship, the dependent it must run from, source path)
+    uses: list[tuple[str, str, str, str | None, str]] = [
+        ("a referential rule", "rule", rule.via, name, _entity_path(name, "quality"))
+        for name, entity in sorted(project.entity_model.entities.items())
+        for rule in entity.quality
+        if isinstance(rule, ReferentialRule)
+    ]
+    uses.extend(
+        (
+            f"coverage check {check.name!r}",
+            "check",
+            check.relationship,
+            None,
+            f"entity_model: coverage[{index}].relationship",
+        )
+        for index, check in enumerate(project.entity_model.coverage)
+    )
+    errors: list[GuardrailError] = []
+
+    for what, noun, via, dependent, path in uses:
+        rel = declared.get(via)
+        if rel is None or dependent not in (None, rel.from_):
+            continue  # `_check_referential` and `_check_coverage` refuse these
+        if rel.from_ in built_from.get(rel.to, frozenset()):
+            msg = (
+                f"{what} through relationship {via!r} reads {rel.to!r} from inside "
+                f"{rel.from_!r}'s own model, but step {writers[rel.to]!r} computes {rel.to!r} "
+                f"from {rel.from_!r}, so each model would wait on the other and no engine can "
+                f"build them. Fix: compute {rel.to!r} from a relation that does not read "
+                f"{rel.from_!r}, or drop the {noun}"
+            )
+            errors.append(GuardrailError(msg, source_path=path))
+
+    return errors
+
+
+# ....................... #
+
+
 def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     """Every data-quality guardrail over the whole project, in one pass.
 
@@ -1408,6 +1490,7 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     # belongs to neither, and the reserved metric names are one flat namespace.
     errors.extend(_check_reconcile(project, draft))
     errors.extend(_check_coverage(project, draft))
+    errors.extend(_check_reads_downstream(project, draft))
     errors.extend(_check_reserved_metric_names(project))
     errors.extend(_check_reserved_mart_name(project))
     errors.extend(_check_freshness_agreement(project))

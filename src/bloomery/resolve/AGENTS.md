@@ -337,6 +337,13 @@ A `StepParameter` bounds its value with optional, inclusive `min` and `max`, bot
 - Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_lowering.py` `tests/unit/test_steps/test_manifest_and_registry.py`
 - Consequence: A platform team states a parameter's range once and every tenant wiring that leaves it is refused before a run, while a default outside the range passes unchecked
 
+### S-0034/D-59 — `ASSUMED` (The step registry: referenced implementations)
+
+A relationship's endpoint may be a step output, named by the bare relation the step writes, so a mart over another entity flattens what a step computes through `flatten: via`. The reference stage checks the name; a relationship touching a step output has its `via` columns, on both sides, checked where steps lower, against the manifest's `produces`. A referential rule or a coverage check through such a relationship is refused when the step computes the referenced output from the dependent entity, directly or through another step
+
+- Paths: `src/bloomery/resolve/refs.py` `src/bloomery/resolve/steps.py` `src/bloomery/guardrails/quality.py` `tests/unit/test_steps/test_step_relationships.py`
+- Consequence: Order metrics can be cut by a segment a step computes per customer, and a mistyped `via` column on the step side is refused at compile, one stage later than on an authored entity, with both sides in the same report
+
 ### S-0035/D-10 — `ASSUMED` (Public surface and stability policy)
 
 **The `TYPE_CHECKING` guard is lifted on public signatures before the closure test lands.** `typing.get_type_hints` currently raises `NameError` on 7 of the 29 exports, including `compile_project`, because `from __future__ import annotations` plus a `TYPE_CHECKING`-only import leaves the annotation naming something absent at run time. Decision 1's enforcement is unimplementable until those names are importable at run time — a prerequisite the design did not see, found by running the proposed walk rather than by reading it. Guards on internal signatures are untouched.

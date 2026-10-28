@@ -154,6 +154,36 @@ A `variant` parameter cannot be substituted into a body: DuckDB, Postgres and
 Trino do not write a semi-structured literal the same way. Pass a scalar and
 cast in the body instead.
 
+### Joining an output into another mart
+
+A step output is an entity, so a relationship may name it, and a mart over
+another entity flattens it like any other:
+
+```yaml
+# entity_model.yaml
+relationships:
+  - name: order_of_segment
+    from: order
+    to: customer_segment          # written by the step, as silver.customer_segment
+    via: {customer_id: customer_id}
+    cardinality: many_to_one
+
+# marts.yaml
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {via: order_of_segment, prefix: buyer_}
+```
+
+The compile checks the `via` columns on the step side against the output's
+`produces`. A `referential` rule or a `coverage:` check through such a
+relationship is refused when the step computes that output from the dependent
+entity itself, as `customer_segments` computes segments from `order`: both
+read the referenced relation from inside the dependent's own model, so each
+model would wait on the other.
+
 ### Linking an output to canonical fields
 
 A mart can read a step output as soon as it exists. A **metric** needs one
