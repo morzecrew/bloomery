@@ -240,6 +240,6 @@ def test_an_epoch_count_is_date_add_never_from_unixtime(fmt: str, unit: str) -> 
 
     rendered = TrinoDialect().render(DEFAULT_REGISTRY["parse_ts"].builder(exp.column("x"), fmt))
 
-    assert f"DATE_ADD( '{unit}'," in " ".join(rendered.split())
+    assert f"DATE_ADD('{unit}'," in "".join(rendered.split())
     assert "FROM_UNIXTIME" not in rendered.upper()
     assert "TIMESTAMP(6)" in rendered
