@@ -3493,8 +3493,10 @@ rules</a>.</p>
 <h3 id="metricflowplannerhydrator-max_limit50_000-default_limitnone-namingnone"><code>MetricFlowPlanner(hydrator, max_limit=50_000, default_limit=None, *, naming=None)</code><a class="headerlink" href="#metricflowplannerhydrator-max_limit50_000-default_limitnone-namingnone" title="Permanent link">&para;</a></h3>
 <p>The planner port backed by an embedded, render-only MetricFlow. <code>naming</code> must match
 the policy the artifacts were emitted with.</p>
-<p><strong><code>.plan(ir, request, *, dialect, policy=None) -&gt; QueryPlan</code></strong> — validate the request,
-check mart coverage, and render SQL; nothing is executed. Refusals raise the planner
+<p><strong><code>.plan(ir, request, *, dialect, policy=None, paramstyle=None) -&gt; QueryPlan</code></strong> — validate
+the request, check mart coverage, and render SQL; nothing is executed. <code>paramstyle</code>, one
+of PEP 249's <code>qmark</code>, <code>numeric</code>, <code>named</code>, <code>format</code> and <code>pyformat</code>, binds every request
+filter and row-policy value instead of inlining it; any other value is <code>InvalidRequest</code>. Refusals raise the planner
 error taxonomy (<code>UnknownMember</code>, <code>UnreachableAtGrain</code>, <code>AmbiguousDimension</code>,
 <code>InvalidRequest</code>, <code>FilterTypeMismatch</code>, and the <code>UnsupportedFilter</code> family). See
 <a href="../../how-to/plan-a-metric-request/">Plan a metric request</a>.</p>
@@ -3528,8 +3530,10 @@ through the same escaping pipeline as user filters (via <code>as_clause()</code>
 to them, reaching every scan. A policy is one predicate; range policies compose into
 the request filters instead. Deciding whose policy applies is upstream work.</p>
 <h3 id="queryplan"><code>QueryPlan</code><a class="headerlink" href="#queryplan" title="Permanent link">&para;</a></h3>
-<p>The planner's product: <code>sql</code>, <code>columns</code> (tuple of <code>ColumnDescriptor</code>), <code>mart</code>,
-<code>warnings</code>, <code>explanation</code> (with <code>.render()</code>), and <code>fingerprint</code> (<code>sha256(sql)</code>).</p>
+<p>The planner's product: <code>sql</code>, <code>columns</code> (tuple of <code>ColumnDescriptor</code>), <code>mart</code>, <code>marts</code>,
+<code>warnings</code>, <code>explanation</code> (with <code>.render()</code>), <code>semantic</code>, <code>params</code> (the bound values as
+<code>(name, value)</code> pairs in placeholder order, empty inline), <code>fingerprint</code> (the query's
+identity, bound values included; <code>sha256(sql)</code> inline) and <code>shape</code> (<code>sha256(sql)</code> alone).</p>
 <h3 id="columndescriptor"><code>ColumnDescriptor</code><a class="headerlink" href="#columndescriptor" title="Permanent link">&para;</a></h3>
 <p>One output column, carrying both names it has:</p>
 <ul>

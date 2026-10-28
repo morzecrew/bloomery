@@ -1170,6 +1170,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#bind-the-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Bind the values
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#reading-the-derivation-back" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2045,6 +2056,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#bind-the-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Bind the values
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#reading-the-derivation-back" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2295,7 +2317,7 @@ malformed <code>nulls</code>, <code>limit</code>, or <code>offset</code> value i
 <tbody>
 <tr>
 <td><code>sql</code></td>
-<td>The rendered SQL text — a complete statement, runnable as-is on the requested dialect. Filter values are inlined as escaped literals and bloomery adds no bind placeholders, so <a href="#executing-the-sql">execute it with no parameters</a></td>
+<td>The rendered SQL text — a complete statement on the requested dialect. By default filter values are inlined as escaped literals, so <a href="#executing-the-sql">execute it with no parameters</a>; with a <code>paramstyle</code>, each value is a placeholder instead (<a href="#bind-the-values">bind the values</a>)</td>
 </tr>
 <tr>
 <td><code>columns</code></td>
@@ -2318,8 +2340,16 @@ malformed <code>nulls</code>, <code>limit</code>, or <code>offset</code> value i
 <td>Deterministic provenance — <code>explanation.render()</code> gives the human-readable block</td>
 </tr>
 <tr>
+<td><code>params</code></td>
+<td>The bound values as <code>(name, value)</code> pairs in placeholder order, named <code>p1</code>, <code>p2</code>, …; empty unless you passed a <code>paramstyle</code></td>
+</tr>
+<tr>
 <td><code>fingerprint</code></td>
-<td><code>sha256(sql)</code>: identical requests over identical specs give the same value, so it identifies the query; a result cache keys on it together with the data's freshness</td>
+<td>Identifies the query, its values included: identical requests over identical specs give the same value, so a result cache keys on it together with the data's freshness</td>
+</tr>
+<tr>
+<td><code>shape</code></td>
+<td><code>sha256(sql)</code> alone: under a <code>paramstyle</code>, requests that differ only in their values share it, so a prepared-statement or plan cache keys on it. Inline, it equals <code>fingerprint</code></td>
 </tr>
 <tr>
 <td><code>semantic</code></td>
@@ -2332,12 +2362,64 @@ malformed <code>nulls</code>, <code>limit</code>, or <code>offset</code> value i
 as none. psycopg reads placeholders only when it is given parameters: <code>execute(plan.sql)</code>
 sends the text as written, while <code>execute(plan.sql, {})</code> reads the <code>%</code> in a filter's
 <code>LIKE 'con%'</code> as a placeholder and refuses the statement. Call your driver's parameterless
-form. If your runtime always binds, escape the text for its placeholder syntax; for
-psycopg, <code>%</code> becomes <code>%%</code>. A <code>RowPolicy</code> predicate is SQL you wrote, so it carries whatever
-placeholders you put in it.</p>
-<p>The fingerprint is <code>sha256(sql)</code>, and the literals are part of that text: two requests that
-differ only in a filter value get different fingerprints, which is what makes it safe as a
-result-cache key.</p>
+form, or plan with a <code>paramstyle</code> and pass <code>plan.params</code>.</p>
+<p>Inline, the fingerprint is <code>sha256(sql)</code>, and the literals are part of that text: two
+requests that differ only in a filter value get different fingerprints, which is what
+makes it safe as a result-cache key.</p>
+<h3 id="bind-the-values">Bind the values<a class="headerlink" href="#bind-the-values" title="Permanent link">&para;</a></h3>
+<p>Pass <code>paramstyle</code> to have every request filter value and the row policy's value bound
+instead of inlined. It is one of PEP 249's five styles, the one your driver reads:</p>
+<table>
+<thead>
+<tr>
+<th><code>paramstyle</code></th>
+<th>Placeholder</th>
+<th>Pass</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>qmark</code></td>
+<td><code>?</code></td>
+<td><code>[value for _, value in plan.params]</code></td>
+</tr>
+<tr>
+<td><code>numeric</code></td>
+<td><code>:1</code></td>
+<td>the same list</td>
+</tr>
+<tr>
+<td><code>named</code></td>
+<td><code>:p1</code></td>
+<td><code>dict(plan.params)</code></td>
+</tr>
+<tr>
+<td><code>format</code></td>
+<td><code>%s</code></td>
+<td>the list</td>
+</tr>
+<tr>
+<td><code>pyformat</code></td>
+<td><code>%(p1)s</code></td>
+<td><code>dict(plan.params)</code></td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><span class="n">plan</span> <span class="o">=</span> <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span><span class="n">ir</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">"postgres"</span><span class="p">,</span> <span class="n">paramstyle</span><span class="o">=</span><span class="s2">"pyformat"</span><span class="p">)</span>
+<span class="n">rows</span> <span class="o">=</span> <span class="n">connection</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">plan</span><span class="o">.</span><span class="n">sql</span><span class="p">,</span> <span class="nb">dict</span><span class="p">(</span><span class="n">plan</span><span class="o">.</span><span class="n">params</span><span class="p">))</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>  <span class="c1"># psycopg</span>
+</code></pre></div>
+<p>Each value is the Python value of its dimension's type: a <code>datetime.date</code> for a date, a
+naive <code>datetime</code> for a timestamp, a <code>Decimal</code> for a decimal, and <code>int</code>, <code>bool</code> or <code>str</code>
+otherwise, so the driver types the bind as the column it is compared with. A timestamp
+dimension holds the UTC wall clock, so a zoned value, such as <code>"2024-03-05T11:00:00+02:00"</code>,
+is converted to it (<code>09:00</code>), bound or inline. A LIKE pattern
+binds whole, with its <code>ESCAPE '\'</code> left in the text. A metric's own <code>filter:</code> and the
+<code>LIMIT</code> stay in the text. Under <code>format</code> and <code>pyformat</code>, every <code>%</code> already in the text,
+such as a metric filter's, is doubled, because the driver reads each one.</p>
+<p>Under a <code>paramstyle</code>, the values are out of the text, so <code>sql</code> is the same for requests
+that differ only in their values. <code>shape</code> is its digest, the key for a prepared statement;
+<code>fingerprint</code> still covers the values, so a result cache keyed on it never serves one
+filter's rows for another.</p>
 <p>The explanation is generated from the plan, never from a model — every number ships
 with how it was computed:</p>
 <div class="highlight"><pre><span></span><code>revenue
