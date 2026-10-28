@@ -939,3 +939,18 @@ def test_a_computed_metric_names_its_inputs_restriction() -> None:
 
     assert "(line_discount restricted to order_region eq ['EU'])" in measure.note
     assert "(shipping_count restricted to region eq ['EU'])" in measure.note
+
+
+@pytest.mark.parametrize(
+    ("fixture", "metric", "dimension"),
+    [("cross_mart_branches", "shipping_count", "customer_id"), ("ecom_basic", "gross_revenue", "order_id")],
+)
+def test_a_join_key_is_a_group_by_the_mart_answers(fixture: str, metric: str, dimension: str) -> None:
+    """#355: the IR lists every flattened column as a requestable dimension and
+    the planner offered this one, but the manifest kept a join key out of the
+    dimensions, so MetricFlow refused the request as an unknown group-by."""
+    plan = PLANNER.plan(
+        fixture_ir(fixture), MetricRequest(metrics=(metric,), dimensions=(dimension,)), dialect="duckdb"
+    )
+
+    assert dimension in {column.name for column in plan.columns}

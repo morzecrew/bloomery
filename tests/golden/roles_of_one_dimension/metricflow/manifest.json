@@ -103,6 +103,18 @@
           "is_partition": false,
           "label": null,
           "metadata": null,
+          "name": "bill_to_id",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "datatype": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
           "name": "billing_address_id",
           "type": "categorical",
           "type_params": null
@@ -157,6 +169,18 @@
             "time_granularity": "day",
             "validity_params": null
           }
+        },
+        {
+          "config": null,
+          "datatype": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "ship_to_id",
+          "type": "categorical",
+          "type_params": null
         },
         {
           "config": null,

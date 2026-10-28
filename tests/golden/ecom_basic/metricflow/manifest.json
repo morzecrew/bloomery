@@ -131,6 +131,18 @@
           "is_partition": false,
           "label": null,
           "metadata": null,
+          "name": "order_id",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "datatype": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
           "name": "order_order_id",
           "type": "categorical",
           "type_params": null
