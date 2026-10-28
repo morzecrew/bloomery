@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Epoch timestamps: `parse_ts: UNIX_SECONDS` and `UNIX_MILLIS`.** A count since 1970,
+  as amoCRM and many other APIs send times, maps to a `timestamp` in one step. It is an
+  instant, so `to_utc` after it is refused and `zone_in:` may only be `UTC`. The count must
+  be an integer of at most fifteen digits in year 1 to 9999; anything else is NULL, which
+  a quality-carrying entity quarantines. It lowers to integer arithmetic from 1970 and
+  reads the same under any session zone. DuckDB only for now; other ports refuse it until
+  measured. (#324)
 - **An `enum_map` fallback.** A `"*"` last pair maps every non-NULL value no earlier pair
   lists to its target: `{enum_map: ["142", won, "143", lost, "*", open]}` reads an open-ended
   status id as one of three outcomes in one step. NULL stays NULL. Before, unlisted values

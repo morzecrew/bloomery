@@ -387,6 +387,27 @@ def test_a_zone_declared_for_a_later_wall_clock_parse_is_that_parse_s() -> None:
     assert _zone_of(ir) == "America/New_York"
 
 
+@pytest.mark.parametrize("fmt", ["UNIX_SECONDS", "UNIX_MILLIS"])
+def test_an_epoch_parse_is_an_instant_under_the_same_two_refusals(fmt: str) -> None:
+    """S-0096/D-5: the epoch formats are instants, so `to_utc` after one and a
+    zone other than UTC beside one are refused as for `ISO8601_INSTANT`, and the
+    message names the format the chain used."""
+
+    with pytest.raises(ResolutionError, match=f"to_utc after parse_ts: {fmt}"):
+        _build(
+            f'booked_at: {{from: "$.booked_at", transform: [{{parse_ts: {fmt}}}, '
+            "{to_utc: Europe/Paris}]}"
+        )
+    with pytest.raises(ResolutionError, match=f"which parse_ts: {fmt} reads as an instant"):
+        _build(
+            f'booked_at: {{from: "$.booked_at", transform: [{{parse_ts: {fmt}}}], '
+            "zone_in: Europe/Paris}"
+        )
+    assert _zone_of(
+        _build(f'booked_at: {{from: "$.booked_at", transform: [{{parse_ts: {fmt}}}], zone_in: UTC}}')
+    ) == "UTC"
+
+
 def test_a_non_utc_zone_beside_an_instant_parse_is_refused() -> None:
     with pytest.raises(ResolutionError, match="zone_in: 'Europe/Paris'"):
         _build(

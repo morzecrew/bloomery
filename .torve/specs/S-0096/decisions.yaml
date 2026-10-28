@@ -99,10 +99,11 @@ decisions:
     grade: ASSUMED
     text: >-
       The epoch formats lower to a `BLM_EPOCH_SECONDS` or `BLM_EPOCH_MILLIS` marker
-      that a port declaring `DialectFeature.EPOCH` renders as integer arithmetic from
-      the epoch, never as a zone-aware function. DuckDB declares it with `make_timestamp`;
-      every port that does not declare it refuses the marker as `UnsupportedByTarget`
-      until its spelling is measured on the engine
+      that a port rewrites in its own render, through `dialects.base.epoch_timestamps`,
+      as integer arithmetic from the epoch, never as a zone-aware function. DuckDB
+      does it with `make_timestamp`; the base render refuses a marker that survives
+      as `UnsupportedByTarget`, naming the format, so every port that does not rewrite
+      it refuses until its spelling is measured on the engine
     paths:
       - src/bloomery/dialects/base.py
       - src/bloomery/dialects/duckdb.py
@@ -118,6 +119,7 @@ decisions:
       agreed for every integer count in range. A marker refused by the base render
       is the S-0044 pattern for a transform a port must spell itself
     cites: [S-0012/D-2, S-0044, S-0020]
+    fingerprint: 3b3ef01ff85b923c/18abeb6e8f5a8b03
   - id: D-7
     grade: ASSUMED
     text: >-

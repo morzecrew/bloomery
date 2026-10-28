@@ -57,6 +57,35 @@ _ISO8601 = "ISO8601"
 #: :data:`_ISO8601`.
 ISO8601_INSTANT = "ISO8601_INSTANT"
 
+#: ``parse_ts``'s formats for a Unix epoch count, read as the UTC instant it
+#: names (S-0096/D-3). Instants, like :data:`ISO8601_INSTANT` (D-5).
+UNIX_SECONDS = "UNIX_SECONDS"
+UNIX_MILLIS = "UNIX_MILLIS"
+
+#: Every format whose value is an instant rather than a wall clock: the zone
+#: guard owes such a value no declared zone, and a ``to_utc`` after it is
+#: refused (S-0081/D-2, S-0096/D-5).
+INSTANT_FORMATS = frozenset({ISO8601_INSTANT, UNIX_SECONDS, UNIX_MILLIS})
+
+#: The markers an epoch parse lowers to, each over a guarded ``BIGINT`` count,
+#: which a port spells as integer arithmetic from 1970 (S-0096/D-6).
+EPOCH_SECONDS_MARKER = "BLM_EPOCH_SECONDS"
+EPOCH_MILLIS_MARKER = "BLM_EPOCH_MILLIS"
+
+#: Per epoch format: its marker and the counts naming 0001-01-01 00:00:00 to
+#: 9999-12-31 23:59:59(.999) (S-0096/D-4). PostgreSQL refuses year 10000,
+#: DuckDB accepts it, and past these an interval overflows on all three.
+_EPOCH_RANGE = {
+    UNIX_SECONDS: (EPOCH_SECONDS_MARKER, -62135596800, 253402300799),
+    UNIX_MILLIS: (EPOCH_MILLIS_MARKER, -62135596800000, 253402300799999),
+}
+
+#: An optional sign and at most fifteen digits, spaces around them: fifteen is
+#: the widest count the range admits, so the cast to ``BIGINT`` cannot
+#: overflow, and a fraction or an exponent, on which the engines' casts
+#: disagree, never reaches it (S-0096/D-4).
+_EPOCH_COUNT = r"^\s*[+-]?[0-9]{1,15}\s*$"
+
 #: A ``%z`` or ``%Z`` directive that is not the second half of an escaped
 #: ``%%`` (S-0081/D-3).
 _ZONE_DIRECTIVE = re.compile(r"(?<!%)(?:%%)*%[zZ]")
@@ -592,7 +621,43 @@ def parse_ts(col: Expression, fmt: str) -> Expression:
         marked = exp.Anonymous(this=ISO_INSTANT_TEXT_MARKER, expressions=[col])
         return exp.cast(marked, exp.DataType.build("TIMESTAMP"))
 
+    if fmt in _EPOCH_RANGE:
+        return _epoch(col, *_EPOCH_RANGE[fmt])
+
     return exp.StrToTime(this=col, format=exp.Literal.string(fmt))
+
+
+def _epoch(col: Expression, marker: str, low: int, high: int) -> Expression:
+    """``<marker>(n)`` over the count ``col`` spells, or over NULL where it spells
+    none in range (S-0096/D-4).
+
+    Nested ``CASE`` rather than ``AND``: SQL does not promise to evaluate
+    ``AND``'s halves in order, and outside the quality system the cast is a
+    plain ``CAST`` that raises on the text the pattern exists to keep from it.
+    """
+
+    def count() -> Expression:
+        return exp.cast(col.copy(), exp.DataType.build("BIGINT"))
+
+    in_range = exp.Case(
+        ifs=[
+            exp.If(
+                this=exp.Between(
+                    this=count(), low=exp.Literal.number(low), high=exp.Literal.number(high)
+                ),
+                true=count(),
+            )
+        ]
+    )
+    shaped = exp.Case(
+        ifs=[
+            exp.If(
+                this=exp.RegexpLike(this=col.copy(), expression=exp.Literal.string(_EPOCH_COUNT)),
+                true=in_range,
+            )
+        ]
+    )
+    return exp.Anonymous(this=marker, expressions=[shaped])
 
 
 # ....................... #

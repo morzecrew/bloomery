@@ -41,7 +41,7 @@ from bloomery.errors import UndeclaredZone
 from bloomery.semantic import Refutation
 from bloomery.semantic.zone import WallClock, prove_zone
 from bloomery.spec.mapping import mapping_doc
-from bloomery.transforms import ISO8601_INSTANT
+from bloomery.transforms import INSTANT_FORMATS
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -100,10 +100,10 @@ def _readings(entity: EntityIR, column: str) -> tuple[WallClock, ...]:
 
             names = {step.name for step in field.transform}
             # An instant parse is never a wall clock and owes no zone
-            # (S-0081/D-2); only a wall-clock parse does. The last parse is
+            # (S-0081/D-2, S-0096/D-5); only a wall-clock parse does. The last parse is
             # the one that made the value: a parse before it was re-read.
             parses = [step for step in field.transform if step.name == "parse_ts"]
-            wall_clock = bool(parses) and parses[-1].args != (ISO8601_INSTANT,)
+            wall_clock = bool(parses) and next(iter(parses[-1].args), None) not in INSTANT_FORMATS
             readings.append(
                 WallClock(
                     relation=source.relation,

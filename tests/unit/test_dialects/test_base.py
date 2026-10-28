@@ -472,3 +472,16 @@ def test_the_instant_parse_lands_on_utc_on_duckdb(session: str, quality: bool) -
 
     noon, ten = (datetime(2025, 1, 1, hour) for hour in (12, 10))
     assert [row[0] for row in rows] == [noon, noon, ten, None, None]
+
+
+@pytest.mark.parametrize("dialect", ["snowflake", "bigquery", "databricks", "redshift"])
+def test_an_unmeasured_port_refuses_an_epoch_parse(dialect: str) -> None:
+    """S-0096/D-6: a port ships the epoch formats once its spelling is measured;
+    until then the marker reaching the base render is a refusal naming them."""
+    from bloomery.dialects import get_dialect
+    from bloomery.transforms import DEFAULT_REGISTRY
+
+    node = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("x"), "UNIX_MILLIS")
+
+    with pytest.raises(UnsupportedByTarget, match="parse_ts: UNIX_MILLIS is not measured"):
+        get_dialect(dialect).render(node)
