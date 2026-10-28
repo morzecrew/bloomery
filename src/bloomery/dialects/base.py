@@ -25,6 +25,7 @@ from bloomery.transforms import (
     ISO_INSTANT_TEXT_MARKER,
     ISO_TEXT_MARKER,
     ISO_ZONED_TEXT_MARKER,
+    PICK_MARKER,
 )
 from bloomery.typing import (
     BoolType,
@@ -44,6 +45,7 @@ __all__ = [
     "DialectFeature",
     "space_separated",
     "epoch_timestamps",
+    "pick_spelled",
     "strip_iso_text",
     "utc_from_zone",
     "utc_instant",
@@ -186,6 +188,28 @@ def space_separated(text: Expression) -> Expression:
         )
 
     return replaced
+
+
+# ....................... #
+
+
+def pick_spelled(
+    node: Expression, spelling: Callable[[Expression, str, str, str, bool], Expression]
+) -> Expression:
+    """Each ``pick`` marker as the port's ``spelling(list, field, text, take,
+    json)`` (S-0095/D-4): the list expression, the three literal arguments, and
+    whether the list arrives as a JSON value rather than its text. A port
+    that does not call this leaves the marker for :meth:`SQLGlotDialect.render`
+    to refuse (S-0095/D-5)."""
+
+    def replace(child: Expression) -> Expression:
+        if isinstance(child, exp.Anonymous) and child.name.upper() == PICK_MARKER:
+            items, field, text, take, kind = child.expressions
+            return spelling(items, field.name, text.name, take.name, kind.name == "json")
+
+        return child
+
+    return node.transform(replace)
 
 
 # ....................... #
@@ -603,6 +627,15 @@ class SQLGlotDialect:
         time with the engine's own message — a worse version of the same
         refusal, arriving later and naming nothing actionable.
         """
+        if any(child.name.upper() == PICK_MARKER for child in node.find_all(exp.Anonymous)):
+            msg = (
+                f"pick is not measured on dialect {self.name!r} (S-0095/D-5): engines disagree "
+                "on what a JSON list's element reads as, so a port ships the transform only "
+                "once its spelling is measured against DuckDB's answers. Fix: pick on a port "
+                "that has it, or reshape the list upstream"
+            )
+            raise UnsupportedByTarget(msg)
+
         surviving = next(
             (
                 child

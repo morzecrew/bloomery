@@ -173,6 +173,47 @@ def _fits(value: str | int | bool | Decimal, declared: LogicalType) -> bool:
 # ....................... #
 
 
+def _check_measure_columns(metric: MetricIR, mart: MartIR, path: str) -> list[GuardrailError]:
+    """A measure's ``expr`` against one mart carrying it (S-0050/D-16).
+
+    The expression reaches MetricFlow, Cube and the rollups as written and is
+    read against the mart's columns. Nothing binds a template's canonical names
+    to the fields they link, so `unit_price * quantity` over a mart that spells
+    the field `qty` compiled clean and failed at query time (#338). Only an
+    unqualified name is checked: a qualified one names a relation this mart
+    does not have either, and is not this check's claim, and nor is a column
+    inside a subquery, which reads its own relation.
+    """
+
+    if metric.expr is None:
+        return []
+
+    carried = {column.name for column in mart.columns}
+    missing = sorted(
+        {
+            column.name
+            for column in metric.expr.ast().find_all(exp.Column)
+            if not column.table
+            and column.name not in carried
+            and column.find_ancestor(exp.Select) is None
+        }
+    )
+
+    if not missing:
+        return []
+
+    msg = (
+        f"metric {metric.name!r} reads {', '.join(repr(name) for name in missing)}, which "
+        f"mart {mart.name!r} carries no column for; its expr is emitted as written and read "
+        f"against the mart's columns (S-0050/D-16). Fix: name the field after its canonical, "
+        f"or write the metric's expr over the mart's column names"
+    )
+    return [InvalidMetricShape(msg, source_path=path)]
+
+
+# ....................... #
+
+
 def _check_filter(
     metric: MetricIR, clause: MetricFilterIR, mart: MartIR, path: str
 ) -> list[GuardrailError]:
@@ -604,6 +645,7 @@ def check_metrics(draft: ProjectIR) -> list[GuardrailError]:
             if metric.name not in mart.measures:
                 continue
             violations.extend(_check_over(metric, mart, path))
+            violations.extend(_check_measure_columns(metric, mart, path))
             for clause in metric.filter:
                 violations.extend(_check_filter(metric, clause, mart, path))
 

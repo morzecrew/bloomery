@@ -255,6 +255,13 @@ The rollup aggregates (`count`, `sum`, `min`, `max`) join the differential over 
 - Consequence: an empty or all-NULL group's value is a stated fact, not an accident of the engine
 - Check: `uv run pytest tests/property/test_reference_rollups.py -q` (shadow; runs as `decision:S-0092/D-7`, no log entry owed)
 
+### S-0095/D-4 — `ASSUMED` (Picking a list element by a field)
+
+The builder returns a `BLM_PICK` marker that DuckDB, PostgreSQL and Trino each rewrite in their own render, through `dialects.base.pick_spelled`, into a spelling measured against the same edge cases. The marker carries whether the list arrives as JSON text or a `variant`. PostgreSQL compares the field as text through an ordered `jsonb_array_elements` subquery, not through jsonpath `==`, over an input it has first checked is JSON (`pg_input_is_valid(<x>, 'jsonb')`) and a top-level array (`jsonb_typeof`), because `jsonb_array_elements` raises on an object. Trino parses text with a guarded `json_parse` before casting it to `ARRAY(JSON)`, which takes a JSON value and not its text. Every port reads the field and the take only when they are scalars, because DuckDB's and PostgreSQL's `->>` turn an object or an array into its text
+
+- Paths: `src/bloomery/dialects/base.py` `src/bloomery/dialects/duckdb.py` `src/bloomery/dialects/postgres.py` `src/bloomery/dialects/trino.py` `tests/engines/test_pick_engines.py`
+- Consequence: The three engines a contributor can run locally agree byte for byte on `pick`'s answers, and a disagreement is a red engine test rather than a field report
+
 ### S-0096/D-7 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
 
 PostgreSQL and Trino declare `DialectFeature.EPOCH` with the measured arithmetic spellings, `TIMESTAMP '1970-01-01' + n * INTERVAL '1 second'` and `date_add('second', n, TIMESTAMP '1970-01-01 00:00:00.000000')` and their millisecond forms, held to DuckDB's answers by an engine differential under a UTC and a non-UTC session

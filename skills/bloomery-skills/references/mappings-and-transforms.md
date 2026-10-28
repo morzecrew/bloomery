@@ -83,10 +83,12 @@ match.
 |---|---|
 | String | `trim`, `upper`, `lower`, `split_part`, `regex_extract`, `strip_prefix`, `strip_suffix`, `concat`, `prepend`, `enum_map` |
 | Casts and parses | `to_string`, `to_int`, `to_decimal`, `to_bool`, `parse_ts`, `parse_date`, `to_utc` |
-| Nulls and JSON | `coalesce`, `nullif`, `json_path` |
+| Nulls and JSON | `coalesce`, `nullif`, `json_path`, `pick` |
 | Arithmetic | `multiply`, `divide`, `round`, `abs` |
 | Currency | `convert` |
 
+- `{pick: [name, "Источник заказа", value]}` reads one attribute of a name/value pairs list by
+  its name: the first object whose scalar field matches, its take path's scalar, else NULL.
 - `enum_map: [F, female, M, male]` maps pairs; unmapped values pass through. A `"*"` last pair is the fallback for every other non-NULL value (`["142", won, "143", lost, "*", open]`), so no nulling step and `coalesce` are needed, and the implicit `coercible` rule stays on.
 - Decimal precision is tracked: `multiply` / `divide` widen; crossing 38 digits is an error
   telling you to narrow with `to_decimal`.

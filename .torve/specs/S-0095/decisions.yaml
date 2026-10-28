@@ -60,9 +60,10 @@ decisions:
   - id: D-4
     grade: ASSUMED
     text: >-
-      The builder returns a `BLM_PICK` marker, and `DialectFeature.PICK` is declared
-      by DuckDB, PostgreSQL and Trino, each rewriting the marker into a spelling measured
-      against the same edge cases. PostgreSQL compares the field as text through an
+      The builder returns a `BLM_PICK` marker that DuckDB, PostgreSQL and Trino each
+      rewrite in their own render, through `dialects.base.pick_spelled`, into a spelling
+      measured against the same edge cases. The marker carries whether the list arrives
+      as JSON text or a `variant`. PostgreSQL compares the field as text through an
       ordered `jsonb_array_elements` subquery, not through jsonpath `==`, over an
       input it has first checked is JSON (`pg_input_is_valid(<x>, 'jsonb')`) and a
       top-level array (`jsonb_typeof`), because `jsonb_array_elements` raises on an
@@ -84,12 +85,14 @@ decisions:
       its text on PostgreSQL alone, and PostgreSQL 16 has no `.string()` method to
       compare text. The other two compare text already
     cites: [D-1, S-0025/D-5]
+    fingerprint: 80ff6fe0411fa459/058b8ca5c1f4dc5c
   - id: D-5
     grade: ASSUMED
     text: >-
-      A port that does not declare `DialectFeature.PICK` refuses a mapping using `pick`
-      as `UnsupportedByTarget`, naming the transform and the dialect. Snowflake, BigQuery,
-      Databricks and Redshift refuse until a spelling is measured on each engine
+      A port that does not rewrite the `pick` marker refuses a mapping using `pick`
+      as `UnsupportedByTarget`, naming the transform and the dialect: the base render
+      refuses a surviving marker. Snowflake, BigQuery, Databricks and Redshift refuse
+      until a spelling is measured on each engine
     paths: [src/bloomery/dialects/base.py, tests/unit/test_dialects/test_base.py]
     consequence: >-
       A project that moves to a cloud port learns at compile time that `pick` is not
@@ -99,6 +102,7 @@ decisions:
       is evidence and never the oracle (S-0012/D-1), and no Snowflake rewrite is inherited
       without measurement on Snowflake (S-0013/D-2)
     cites: [S-0025/D-3, S-0012/D-1, S-0013/D-2, S-0015/D-4]
+    fingerprint: 3664073b64393430/bde96ee36d9c5793
   - id: D-6
     grade: ASSUMED
     text: >-

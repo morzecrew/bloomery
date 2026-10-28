@@ -198,6 +198,14 @@ a findable answer, and bloomery can only check that somebody answered it.
 | `coalesce` | fallback (literal) | any → same type | `[{coalesce: 0}]` — replace NULL with a literal |
 | `nullif` | sentinel (literal) | any → same type | `[{nullif: "N/A"}]` — turn a sentinel value into NULL |
 | `json_path` | path (str) | variant, string → variant | `[{json_path: "$.a.b"}]` — extract from a JSON value |
+| `pick` | field (str), text (str), take (str) | string, variant → string | `[{pick: [name, "Источник заказа", value]}]` — from a JSON list of objects, the `take` of the first whose scalar `field` reads as `text`; NULL when nothing matches, the input is not a list, or the taken value is NULL or not a scalar |
+
+`pick` is for sources that keep custom fields as a list of name and value pairs. The match
+field is one identifier, the text is any non-empty string, and the take path is dotted
+identifiers with `[n]` subscripts, relative to the element (`values[0].value`). The match
+reads the field as text, so a numeric field matches the text of its number, and the first
+match in list order wins. It is declared `nullifies`, so a row with no match is not a
+coercion failure. It ships on DuckDB, PostgreSQL and Trino; every other port refuses it.
 
 ## Arithmetic
 

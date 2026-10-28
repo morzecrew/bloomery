@@ -164,6 +164,8 @@ CASES: tuple[Case, ...] = (
     Case("json_path", VariantType(), '{"a": {"b": "x"}}', ("$.a",), "shallow"),
     Case("json_path", StringType(), '{"a": {"b": "x"}}', ("$.a.b",), "deep"),
     Case("json_path", StringType(), '{"a": {"b": "x"}}', ("$.a",), "shallow"),
+    Case("pick", VariantType(), '[{"name": "a", "value": "x"}]', ("name", "a", "value")),
+    Case("pick", StringType(), '[{"name": "a", "value": "x"}]', ("name", "a", "value")),
     # ....................... arithmetic
     Case("multiply", DECIMAL, "3.5", (2,)),
     Case("divide", DECIMAL, "3.5", (2,)),
