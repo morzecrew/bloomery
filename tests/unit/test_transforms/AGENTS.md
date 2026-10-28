@@ -72,6 +72,13 @@ A `parse_ts` format carrying a `%z` or `%Z` directive is refused at parse, namin
 - Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py`
 - Consequence: no format parses a zone and then drops it
 
+### S-0095/D-1 — `ASSUMED` (Picking a list element by a field)
+
+`{pick: [<field>, <text>, <take>]}` yields, from a JSON list, the `<take>` of the first element, in list order, that is an object whose `<field>` read as scalar text equals `<text>`. The result is a `string`. It is NULL when the input is not a list, text that is not JSON included, when nothing matches, or when the taken value is NULL or not a scalar. A field that is not a scalar never matches. The transform is declared `nullifies`
+
+- Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py` `tests/execution/test_pick.py`
+- Consequence: One bronze row gives one answer on every port that ships `pick`, the non-scalar case included, and a row with no matching attribute is a NULL, not a coercion failure
+
 ### S-0096/D-1 — `ASSUMED` (An enum_map fallback and epoch timestamps)
 
 A `"*"` as the source of `enum_map`'s last pair is the fallback: a non-NULL value no earlier pair lists yields that pair's target, and NULL stays NULL. A `"*"` in any other pair is refused at typecheck. The arguments stay flat string pairs

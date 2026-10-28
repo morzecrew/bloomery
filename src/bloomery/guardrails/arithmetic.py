@@ -37,11 +37,11 @@ from sqlglot.expressions.core import Expression
 
 from bloomery.errors import CurrencyMismatch, GuardrailError, TaxBasisMismatch, UnitMismatch
 from bloomery.guardrails.operands import OperandMeta, operand_meta
-from bloomery.ir import Unit
+from bloomery.ir import Unit, canonical_bindings
 
 if TYPE_CHECKING:
     from bloomery.guardrails.operands import Derivation
-    from bloomery.ir import MetricIR
+    from bloomery.ir import EntityIR, MetricIR
     from bloomery.spec.catalog import Catalog
 
 # ----------------------- #
@@ -246,10 +246,18 @@ def check_arithmetic(
     derivations: tuple[Derivation, ...],
     metrics: tuple[MetricIR, ...],
     catalog: Catalog | None,
+    entities: tuple[EntityIR, ...] = (),
 ) -> list[GuardrailError]:
     """Every unit/tax/currency violation across all derivation and metric
-    expressions, in walk order (the stage sorts before raising)."""
+    expressions, in walk order (the stage sorts before raising).
+
+    A metric's expression names the grain's spelling of each canonical it
+    requires (S-0022/D-10), so each bound field is looked up as its canonical:
+    keyed by the canonical alone, a field spelled otherwise was invisible to
+    ``_summarize``, and money beside a count passed.
+    """
     violations: list[GuardrailError] = []
+    columns = {entity.name: entity.columns for entity in entities}
     convertible = catalog is not None and catalog.fx_rates is not None
 
     for derivation in derivations:
@@ -264,6 +272,8 @@ def check_arithmetic(
         if metric.expr is None:
             continue
         lookup = _lookup(metric.depends_on, catalog)
+        bound = canonical_bindings(metric.depends_on, columns.get(metric.grain, ()))
+        lookup.update({field: lookup[canonical] for canonical, field in bound.items()})
         violations.extend(
             _walk(
                 metric.expr.sql,

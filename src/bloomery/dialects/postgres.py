@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import ClassVar, Final, cast
 
-from sqlglot import exp
+from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
 
 from bloomery.dialects.base import (
@@ -15,6 +15,7 @@ from bloomery.dialects.base import (
     capture_group,
     epoch_timestamps,
     known_type,
+    pick_spelled,
     strip_iso_text,
     utc_from_zone,
     utc_instant,
@@ -125,6 +126,7 @@ class PostgresDialect(SQLGlotDialect):
         rewritten = capture_group(node.copy())
         rewritten = strip_iso_text(rewritten, lambda text: text, instant=utc_instant)
         rewritten = epoch_timestamps(rewritten, _epoch_interval)
+        rewritten = pick_spelled(rewritten, _picked)
         rewritten = utc_from_zone(rewritten, utc)
         rewritten = rewritten.transform(zoneless_parse)
         rewritten = rewritten.transform(_pg_text_functions)
@@ -438,6 +440,44 @@ def _epoch_interval(count: Expression, per_second: int) -> Expression:
         this=exp.Add(this=epoch, expression=times(exp.Paren(this=seconds), "second")),
         expression=times(exp.Paren(this=rest), "millisecond"),
     )
+
+
+def _picked(items: Expression, field: str, text: str, take: str, _json: bool) -> Expression:
+    """``pick`` on PostgreSQL (S-0095/D-4): the first element, by ordinality,
+    of an ordered ``jsonb_array_elements`` that is an object whose scalar field
+    reads as the text, and its take when that is a scalar.
+
+    Not jsonpath ``==``, which compares JSON values, so a numeric ``name: 5``
+    would not match the text ``5`` there. The input is checked as ``jsonb``
+    before the cast, which raises on text that is not JSON, and as an array
+    before it is expanded, since ``jsonb_array_elements`` raises on an object;
+    nested ``CASE`` because ``AND`` does not promise its order.
+    """
+
+    path = "{" + ",".join(part for part in take.replace("[", ".").replace("]", "").split(".")) + "}"
+    quoted = {
+        name: exp.Literal.string(value).sql(dialect="postgres")
+        for name, value in (("path", path), ("field", field), ("text", text))
+    }
+    as_text = "CAST(pick_list AS TEXT)"
+    template = (
+        # Every interpolated value is a literal SQLGlot quoted for PostgreSQL.
+        f"(SELECT CASE WHEN jsonb_typeof(e #> {quoted['path']}) NOT IN ('object', 'array') "  # noqa: S608
+        f"THEN e #>> {quoted['path']} END "
+        f"FROM jsonb_array_elements(CASE WHEN pg_input_is_valid({as_text}, 'jsonb') "
+        f"THEN CASE WHEN jsonb_typeof(CAST({as_text} AS JSONB)) = 'array' "
+        f"THEN CAST({as_text} AS JSONB) END END) WITH ORDINALITY AS pick_rows(e, n) "
+        f"WHERE jsonb_typeof(e) = 'object' "
+        f"AND jsonb_typeof(e -> {quoted['field']}) NOT IN ('object', 'array') "
+        f"AND e ->> {quoted['field']} = {quoted['text']} ORDER BY n LIMIT 1)"
+    )
+
+    def substituted(child: Expression) -> Expression:
+        if isinstance(child, exp.Column) and child.name == "pick_list":
+            return items.copy()
+        return child
+
+    return cast("Expression", parse_one(template, read="postgres")).transform(substituted)
 
 
 # ....................... #

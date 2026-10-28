@@ -367,6 +367,20 @@ On Trino, a partition transform reaches the SQLMesh model in the connector's sin
 - Paths: `src/bloomery/dialects/trino.py` `src/bloomery/emit/sqlmesh/__init__.py`
 - Consequence: once phase 3 lands, a transform-partitioned model builds on a Trino Iceberg catalog; today that catalog refuses every transform bloomery emits
 
+### S-0095/D-4 — `ASSUMED` (Picking a list element by a field)
+
+The builder returns a `BLM_PICK` marker that DuckDB, PostgreSQL and Trino each rewrite in their own render, through `dialects.base.pick_spelled`, into a spelling measured against the same edge cases. The marker carries whether the list arrives as JSON text or a `variant`. PostgreSQL compares the field as text through an ordered `jsonb_array_elements` subquery, not through jsonpath `==`, over an input it has first checked is JSON (`pg_input_is_valid(<x>, 'jsonb')`) and a top-level array (`jsonb_typeof`), because `jsonb_array_elements` raises on an object. Trino parses text with a guarded `json_parse` before casting it to `ARRAY(JSON)`, which takes a JSON value and not its text. Every port reads the field and the take only when they are scalars, because DuckDB's and PostgreSQL's `->>` turn an object or an array into its text
+
+- Paths: `src/bloomery/dialects/base.py` `src/bloomery/dialects/duckdb.py` `src/bloomery/dialects/postgres.py` `src/bloomery/dialects/trino.py` `tests/engines/test_pick_engines.py`
+- Consequence: The three engines a contributor can run locally agree byte for byte on `pick`'s answers, and a disagreement is a red engine test rather than a field report
+
+### S-0095/D-5 — `ASSUMED` (Picking a list element by a field)
+
+A port that does not rewrite the `pick` marker refuses a mapping using `pick` as `UnsupportedByTarget`, naming the transform and the dialect: the base render refuses a surviving marker. Snowflake, BigQuery, Databricks and Redshift refuse until a spelling is measured on each engine
+
+- Paths: `src/bloomery/dialects/base.py` `tests/unit/test_dialects/test_base.py`
+- Consequence: A project that moves to a cloud port learns at compile time that `pick` is not there yet, rather than at run time from its warehouse
+
 ### S-0096/D-6 — `ASSUMED` (An enum_map fallback and epoch timestamps)
 
 The epoch formats lower to a `BLM_EPOCH_SECONDS` or `BLM_EPOCH_MILLIS` marker that a port rewrites in its own render, through `dialects.base.epoch_timestamps`, as integer arithmetic from the epoch, never as a zone-aware function. DuckDB does it with `make_timestamp`; the base render refuses a marker that survives as `UnsupportedByTarget`, naming the format, so every port that does not rewrite it refuses until its spelling is measured on the engine

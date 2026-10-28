@@ -486,7 +486,9 @@ class InvalidMetricShape(GuardrailError):
     """Guardrail stage (S-0050/D-5–S-0050/D-7): a metric whose declaration contradicts
     itself — ``derived:`` beside ``cumulative:``, a derived metric declared
     additive, a cumulative one with no measure to accumulate, or a derived
-    expression referencing an alias its ``inputs:`` do not declare.
+    expression referencing an alias its ``inputs:`` do not declare. A measure
+    whose ``expr`` names a column a mart carrying it lacks (S-0050/D-16) is the
+    same defect against the mart: an expression naming something not there.
 
     This is the narrower successor to the blanket ``cumulative:`` refusal that
     stood while nothing lowered it (S-0019/D-10). That refusal named reserved

@@ -169,6 +169,15 @@ whether a row carries a given flag matches a delimited member rather than indexi
 array, and the reject table's `failed_rules` carries the same delimited text. A mart's
 `has_quality_flags` is generated per shape and needs nothing from the reader.
 
+### `pick`
+
+| Port | Spelling |
+|---|---|
+| `duckdb` | `list_filter` over the list cast to `JSON[]`, matching with `json_extract_string` (an arrow lambda would read `->>` as a JSON arrow) |
+| `postgres` | an ordered `jsonb_array_elements` subquery, after `pg_input_is_valid(…, 'jsonb')` and a `jsonb_typeof` array check, comparing the field as text |
+| `trino` | `filter` over `TRY_CAST(… AS ARRAY(JSON))`, text parsed with `TRY(json_parse(…))` first |
+| every other port | refused as `UnsupportedByTarget` until measured |
+
 ## Two divergences the ports absorb for you
 
 Both of these are engine behaviour a spec cannot see, and both are the same shape: one

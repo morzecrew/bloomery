@@ -247,6 +247,20 @@ Only the build-time `divide` and a recipe's `/` carry the exact-division marker 
 - Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/planner/compose.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/planner/coverage.py`
 - Consequence: a reference for query-time SQL has a stated semantics to hold the planner to, instead of guessing which division is meant
 
+### S-0095/D-1 — `ASSUMED` (Picking a list element by a field)
+
+`{pick: [<field>, <text>, <take>]}` yields, from a JSON list, the `<take>` of the first element, in list order, that is an object whose `<field>` read as scalar text equals `<text>`. The result is a `string`. It is NULL when the input is not a list, text that is not JSON included, when nothing matches, or when the taken value is NULL or not a scalar. A field that is not a scalar never matches. The transform is declared `nullifies`
+
+- Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py` `tests/execution/test_pick.py`
+- Consequence: One bronze row gives one answer on every port that ships `pick`, the non-scalar case included, and a row with no matching attribute is a NULL, not a coercion failure
+
+### S-0095/D-2 — `ASSUMED` (Picking a list element by a field)
+
+`<field>` is one identifier, `<text>` is any non-empty string, and `<take>` is a path relative to the element: dotted identifiers, each optionally followed by `[n]` subscripts. The grammar is `pick`'s own, and the shared `JsonPath` type is not widened
+
+- Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/spec/mapping.py` `tests/golden/schema/mapping.json`
+- Consequence: amoCRM's `values[0].value` is reachable through the take path, while a subscript in `from:`, `unmapped:` or `redact:` is still refused
+
 ### S-0096/D-1 — `ASSUMED` (An enum_map fallback and epoch timestamps)
 
 A `"*"` as the source of `enum_map`'s last pair is the fallback: a non-NULL value no earlier pair lists yields that pair's target, and NULL stays NULL. A `"*"` in any other pair is refused at typecheck. The arguments stay flat string pairs

@@ -4,14 +4,15 @@ port-validation milestone."""
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import ClassVar
+from typing import ClassVar, cast
 
-from sqlglot import exp
+from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
 
 from bloomery.dialects.base import (
     SQLGlotDialect,
     epoch_timestamps,
+    pick_spelled,
     space_separated,
     strip_iso_text,
     utc_from_zone,
@@ -121,6 +122,7 @@ class TrinoDialect(SQLGlotDialect):
 
         rewritten: Expression = strip_iso_text(node.copy(), space_separated, instant=instant)
         rewritten = epoch_timestamps(rewritten, _epoch_date_add)
+        rewritten = pick_spelled(rewritten, _picked)
         return super().render(utc_from_zone(rewritten, utc))
 
     # ....................... #
@@ -198,3 +200,28 @@ def _epoch_date_add(count: Expression, per_second: int) -> Expression:
         exp.Literal.string("1970-01-01 00:00:00.000000"), exp.DataType.build("TIMESTAMP(6)")
     )
     return exp.Anonymous(this="date_add", expressions=[exp.Literal.string(unit), count, epoch])
+
+
+def _picked(items: Expression, field: str, text: str, take: str, json: bool) -> Expression:
+    """``pick`` on Trino (S-0095/D-4): ``json_extract_scalar`` of the take from
+    the first element ``filter`` keeps whose field reads as the text.
+    ``json_extract_scalar`` is NULL for an object or an array, which is the
+    scalar rule on both the field and the take. Text is parsed with a guarded
+    ``json_parse`` before the ``ARRAY(JSON)`` cast, which takes a JSON value: a
+    cast from text to ``JSON`` would make a JSON string."""
+
+    field_path = exp.Literal.string(f"$.{field}").sql(dialect="trino")
+    take_path = exp.Literal.string(f"$.{take}").sql(dialect="trino")
+    matched = exp.Literal.string(text).sql(dialect="trino")
+    value = "pick_list" if json else "TRY(json_parse(pick_list))"
+    template = (
+        f"json_extract_scalar(element_at(filter(TRY_CAST({value} AS ARRAY(JSON)), "
+        f"e -> json_extract_scalar(e, {field_path}) = {matched}), 1), {take_path})"
+    )
+
+    def substituted(child: Expression) -> Expression:
+        if isinstance(child, exp.Column) and child.name == "pick_list":
+            return items.copy()
+        return child
+
+    return cast("Expression", parse_one(template, read="trino")).transform(substituted)

@@ -80,6 +80,13 @@ The check exists, and it is a **conformance battery at the engine tiers over the
 - Paths: `src/bloomery/dialects/base.py` `tests/unit/test_dialects/test_duckdb.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0095/D-5 — `ASSUMED` (Picking a list element by a field)
+
+A port that does not rewrite the `pick` marker refuses a mapping using `pick` as `UnsupportedByTarget`, naming the transform and the dialect: the base render refuses a surviving marker. Snowflake, BigQuery, Databricks and Redshift refuse until a spelling is measured on each engine
+
+- Paths: `src/bloomery/dialects/base.py` `tests/unit/test_dialects/test_base.py`
+- Consequence: A project that moves to a cloud port learns at compile time that `pick` is not there yet, rather than at run time from its warehouse
+
 ### S-0096/D-6 — `ASSUMED` (An enum_map fallback and epoch timestamps)
 
 The epoch formats lower to a `BLM_EPOCH_SECONDS` or `BLM_EPOCH_MILLIS` marker that a port rewrites in its own render, through `dialects.base.epoch_timestamps`, as integer arithmetic from the epoch, never as a zone-aware function. DuckDB does it with `make_timestamp`; the base render refuses a marker that survives as `UnsupportedByTarget`, naming the format, so every port that does not rewrite it refuses until its spelling is measured on the engine

@@ -485,3 +485,32 @@ def test_an_unmeasured_port_refuses_an_epoch_parse(dialect: str) -> None:
 
     with pytest.raises(UnsupportedByTarget, match="parse_ts: UNIX_MILLIS is not measured"):
         get_dialect(dialect).render(node)
+
+
+@pytest.mark.parametrize("dialect", ["snowflake", "bigquery", "databricks", "redshift"])
+def test_an_unmeasured_port_refuses_pick(dialect: str) -> None:
+    """S-0095/D-5: a port ships `pick` once its spelling is measured against
+    DuckDB's answers; until then the surviving marker is a refusal by name."""
+    from bloomery.dialects import get_dialect
+    from bloomery.transforms import DEFAULT_REGISTRY
+    from bloomery.typing import StringType
+
+    node = DEFAULT_REGISTRY["pick"].builder(
+        exp.column("x"), "name", "a", "value", input_type=StringType()
+    )
+
+    with pytest.raises(UnsupportedByTarget, match="pick is not measured"):
+        get_dialect(dialect).render(node)
+
+
+@pytest.mark.parametrize("dialect", ["duckdb", "postgres", "trino"])
+def test_a_measured_port_spells_pick_without_the_marker(dialect: str) -> None:
+    from bloomery.dialects import get_dialect
+    from bloomery.transforms import DEFAULT_REGISTRY
+    from bloomery.typing import StringType
+
+    node = DEFAULT_REGISTRY["pick"].builder(
+        exp.column("x"), "name", "a", "value", input_type=StringType()
+    )
+
+    assert "BLM_PICK" not in get_dialect(dialect).render(node).upper()

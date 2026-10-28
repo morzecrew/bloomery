@@ -5,8 +5,8 @@ kind: design
 change:
   type: feat
   scope: transforms
-status: draft
-implementation: none
+status: accepted
+implementation: complete
 depends_on: [S-0025, S-0033]
 informed_by: [S-0012, S-0013, S-0044, S-0048]
 supersedes: []
