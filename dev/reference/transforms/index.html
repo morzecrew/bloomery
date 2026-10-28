@@ -2516,8 +2516,20 @@ a findable answer, and bloomery can only check that somebody answered it.</p>
 <td>variant, string → variant</td>
 <td><code>[{json_path: "$.a.b"}]</code> — extract from a JSON value</td>
 </tr>
+<tr>
+<td><code>pick</code></td>
+<td>field (str), text (str), take (str)</td>
+<td>string, variant → string</td>
+<td><code>[{pick: [name, "Источник заказа", value]}]</code> — from a JSON list of objects, the <code>take</code> of the first whose scalar <code>field</code> reads as <code>text</code>; NULL when nothing matches, the input is not a list, or the taken value is NULL or not a scalar</td>
+</tr>
 </tbody>
 </table>
+<p><code>pick</code> is for sources that keep custom fields as a list of name and value pairs. The match
+field is one identifier, the text is any non-empty string, and the take path is dotted
+identifiers with <code>[n]</code> subscripts, relative to the element (<code>values[0].value</code>). The match
+reads the field as text, so a numeric field matches the text of its number, and the first
+match in list order wins. It is declared <code>nullifies</code>, so a row with no match is not a
+coercion failure. It ships on DuckDB, PostgreSQL and Trino; every other port refuses it.</p>
 <h2 id="arithmetic">Arithmetic<a class="headerlink" href="#arithmetic" title="Permanent link">&para;</a></h2>
 <p>Decimal precision and scale are tracked through arithmetic: <code>multiply</code>/<code>divide</code> widen
 to <code>decimal(p1+p2, s1+s2)</code>; crossing the 38-digit precision cap is a loud

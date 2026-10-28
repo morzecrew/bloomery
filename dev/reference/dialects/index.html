@@ -1632,6 +1632,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#pick" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>pick</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1988,6 +1999,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Arrays, and the shape <code>_quality_flags</code> takes without them
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pick" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>pick</code>
       </span>
     </span>
   </a>
@@ -2512,6 +2534,33 @@ two lowerings. What differs is what a consumer writes: on <code>redshift</code>,
 whether a row carries a given flag matches a delimited member rather than indexing an
 array, and the reject table's <code>failed_rules</code> carries the same delimited text. A mart's
 <code>has_quality_flags</code> is generated per shape and needs nothing from the reader.</p>
+<h3 id="pick"><code>pick</code><a class="headerlink" href="#pick" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Spelling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>duckdb</code></td>
+<td><code>list_filter</code> over the list cast to <code>JSON[]</code>, matching with <code>json_extract_string</code> (an arrow lambda would read <code>-&gt;&gt;</code> as a JSON arrow)</td>
+</tr>
+<tr>
+<td><code>postgres</code></td>
+<td>an ordered <code>jsonb_array_elements</code> subquery, after <code>pg_input_is_valid(…, 'jsonb')</code> and a <code>jsonb_typeof</code> array check, comparing the field as text</td>
+</tr>
+<tr>
+<td><code>trino</code></td>
+<td><code>filter</code> over <code>TRY_CAST(… AS ARRAY(JSON))</code>, text parsed with <code>TRY(json_parse(…))</code> first</td>
+</tr>
+<tr>
+<td>every other port</td>
+<td>refused as <code>UnsupportedByTarget</code> until measured</td>
+</tr>
+</tbody>
+</table>
 <h2 id="two-divergences-the-ports-absorb-for-you">Two divergences the ports absorb for you<a class="headerlink" href="#two-divergences-the-ports-absorb-for-you" title="Permanent link">&para;</a></h2>
 <p>Both of these are engine behaviour a spec cannot see, and both are the same shape: one
 spelling, two meanings, and no error to tell you which you got. Trino is in both; DuckDB
