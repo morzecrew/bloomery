@@ -8,10 +8,9 @@ request in :data:`support.planning.BIND_REQUESTS` must return, bound and
 inline, the rows DuckDB's inline plan returns: one table of answers, held on
 three engines, because the claim is agreement.
 
-Trino refuses the *inline* plan of a request filter on a date or a timestamp
-(`date >= varchar(10)`): the planner renders that literal as untyped text,
-which DuckDB and PostgreSQL coerce and Trino does not. Bound, the client types
-it, so those cases pass bound and are strict expected failures inline (#351).
+Inline, a date or a timestamp is a typed literal (`DATE '…'`). It was untyped
+text until #351, which DuckDB and PostgreSQL coerce and Trino refuses
+(`date >= varchar(10)`), so only this tier could see it.
 
 Opt-in (Docker required); excluded from ``just test``.
 """
@@ -58,11 +57,6 @@ def _models(dialect: str) -> list[tuple[str, str, str]]:
         (PurePosixPath(a.path).parent.name, PurePosixPath(a.path).stem, extract_select(a.content))
         for a in artifacts
     ]
-
-
-#: The cases whose inline plan Trino refuses: a request filter on a date or a
-#: timestamp dimension, the policy case's included.
-TRINO_INLINE_REFUSED = frozenset({"date", "timestamp", "zoned timestamp", "policy"})
 
 
 @pytest.fixture(scope="module")
@@ -188,14 +182,5 @@ def test_trino_answers_as_duckdb_does(
     answers: dict[str, list[tuple[object, ...]]],
     case: str,
     paramstyle: str | None,
-    request: pytest.FixtureRequest,
 ) -> None:
-    if paramstyle is None and case in TRINO_INLINE_REFUSED:
-        request.applymarker(
-            pytest.mark.xfail(
-                raises=trino.exceptions.TrinoUserError,
-                strict=True,
-                reason="an inline date or timestamp request filter is untyped text on Trino (#351)",
-            )
-        )
     assert _rows(trino_engine, "trino", case, paramstyle) == answers[case]
