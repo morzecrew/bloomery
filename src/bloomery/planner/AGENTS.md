@@ -405,6 +405,48 @@ The planner labels a measure column by its metric's `label`, and by its `descrip
 - Paths: `src/bloomery/planner/names.py` `tests/unit/test_planner/test_names.py`
 - Consequence: A caller rendering `QueryPlan.columns` gets a chart title rather than the explanation sentence, and a project with no labels sees the description exactly as before
 
+### S-0097/D-1 — `ASSUMED` (Bound parameters in planned queries)
+
+`Planner.plan` takes `paramstyle`, one of PEP 249's `qmark`, `numeric`, `named`, `format` and `pyformat`, or `None`. `None` is the default and renders request literals inline as today; any style binds them
+
+- Paths: `src/bloomery/planner/metricflow_planner.py` `src/bloomery/planner/__init__.py` `tests/unit/test_planner/test_metricflow_planner.py`
+- Consequence: A runtime on a binding driver names the driver's style and executes the plan with its parameters; every caller that executes `plan.sql` alone is unchanged
+
+### S-0097/D-2 — `ASSUMED` (Bound parameters in planned queries)
+
+`QueryPlan.params` is a tuple of `(name, value)` pairs in placeholder order, empty when nothing is bound; names are `p1`, `p2`, … by order of occurrence in the text
+
+- Paths: `src/bloomery/planner/result.py` `tests/unit/test_planner/test_result.py`
+- Consequence: A positional style takes the values in order and a named style takes `dict(plan.params)`; `explain --format json` shows them, since it dumps every field
+
+### S-0097/D-3 — `ASSUMED` (Bound parameters in planned queries)
+
+What binds is every value of a request `Predicate` and of the `RowPolicy`, one placeholder per value; a LIKE pattern binds whole with `ESCAPE '\'` kept in the text. A metric's spec `filter:` and `LIMIT` stay text
+
+- Paths: `src/bloomery/planner/filters.py` `tests/unit/test_planner/test_filters.py`
+- Consequence: No request value reaches the plan text, so two requests differing only in values plan alike, and a caller's `%` or quote never meets the driver's parser
+
+### S-0097/D-4 — `ASSUMED` (Bound parameters in planned queries)
+
+A bound value is a Python value of the dimension's logical type, checked by the literal renderer's own rules: `datetime.date` for a date, a naive `datetime` for a timestamp, a zoned one converted to its UTC wall clock, `Decimal` for a decimal, `int`, `bool` or `str` otherwise
+
+- Paths: `src/bloomery/planner/filters.py` `tests/execution/test_planner_binds.py`
+- Consequence: The driver types each bind as the column it is compared to, and a value the literal renderer refuses is refused bound too
+
+### S-0097/D-5 — `ASSUMED` (Bound parameters in planned queries)
+
+Binds travel through MetricFlow's where-constraints as opaque markers that no spec name can take, and the planner spells each as its placeholder in the rendered SQL, read with the dialect's tokenizer, so only an unquoted marker is a bind and a quoted literal that spells one stays text. Under `format` and `pyformat` every `%` in the text is doubled
+
+- Paths: `src/bloomery/planner/filters.py` `src/bloomery/planner/metricflow_planner.py` `src/bloomery/planner/compose.py` `tests/unit/test_planner/test_binds.py`
+- Consequence: The bind mechanism needs nothing from MetricFlow, and a psycopg-style driver reads a metric filter's `%` or a modulo in a measure as the character it is
+
+### S-0097/D-6 — `ASSUMED` (Bound parameters in planned queries)
+
+`QueryPlan.fingerprint` identifies the query including its bound values: `sha256` over the text and the params in a canonical encoding under binds, `sha256(sql)` inline. `QueryPlan.shape` is `sha256(sql)` alone, equal for requests that differ only in bound values
+
+- Paths: `src/bloomery/planner/metricflow_planner.py` `src/bloomery/planner/result.py` `tests/unit/test_planner/test_binds.py`
+- Consequence: A result cache keyed on `fingerprint` with the data's freshness, as the planner how-to documents, never serves one filter's rows for another; a runtime keys a prepared statement or a plan cache on `shape`; inline, both are today's fingerprint
+
 ## Invariants holding over `src/bloomery/planner/`
 
 - **S-0005/I-1**: The same specs produce byte-identical proof and semantic-plan serializations across processes and hash seeds

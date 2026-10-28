@@ -54,8 +54,9 @@ decisions:
     grade: ASSUMED
     text: >-
       A bound value is a Python value of the dimension's logical type, checked by
-      the literal renderer's own rules: `datetime.date` for a date, `datetime` for
-      a timestamp, `Decimal` for a decimal, `int`, `bool` or `str` otherwise
+      the literal renderer's own rules: `datetime.date` for a date, a naive `datetime`
+      for a timestamp, a zoned one converted to its UTC wall clock, `Decimal` for
+      a decimal, `int`, `bool` or `str` otherwise
     paths: [src/bloomery/planner/filters.py, tests/execution/test_planner_binds.py]
     consequence: >-
       The driver types each bind as the column it is compared to, and a value the
@@ -65,13 +66,15 @@ decisions:
       the same text bound as a `str` is typed by the driver and may not compare with
       a date. DuckDB is measured in phase 1 and the other drivers by D-7
     cites: [S-0032/D-5, S-0032/D-6, S-0032/D-15]
+    fingerprint: 3cc03b46646c373d/07eb84a2aa97ef89
   - id: D-5
     grade: ASSUMED
     text: >-
       Binds travel through MetricFlow's where-constraints as opaque markers that no
       spec name can take, and the planner spells each as its placeholder in the rendered
-      SQL. Under `format` and `pyformat` every `%` already in the text is doubled
-      first
+      SQL, read with the dialect's tokenizer, so only an unquoted marker is a bind
+      and a quoted literal that spells one stays text. Under `format` and `pyformat`
+      every `%` in the text is doubled
     paths:
       - src/bloomery/planner/filters.py
       - src/bloomery/planner/metricflow_planner.py
@@ -85,6 +88,7 @@ decisions:
       so binds cannot ride its own mechanism; and a `pyformat` driver reads every
       `%` in the statement, which is the failure #304 reported
     cites: [D-3]
+    fingerprint: ffb65bb9dbb6a678/4578aec4dcecf4d8
   - id: D-6
     grade: ASSUMED
     text: >-
@@ -110,8 +114,10 @@ decisions:
     grade: ASSUMED
     text: >-
       On PostgreSQL through psycopg (`pyformat`) and on Trino through its client (`qmark`),
-      every planner execution request returns the same rows bound as inline, dates,
-      timestamps and decimals included, checked by an engine differential
+      every planner bind request returns DuckDB's inline rows when bound, dates, timestamps
+      and decimals included, and inline wherever the engine runs the inline plan;
+      Trino refuses an inline request filter on a date or a timestamp (#351), so those
+      cases are strict expected failures there, checked by an engine differential
     paths: [tests/engines/test_planner_binds_differential.py]
     consequence: >-
       D-4's typed values are evidence on the two server engines the tier runs, and
@@ -121,3 +127,4 @@ decisions:
       a `datetime.date` or a `Decimal` reaches the engine as the column's type. A
       row of its own because the differential lands in its own phase
     cites: [D-4, S-0012/D-2]
+    fingerprint: abdda825ba28152a/9dbede4b19bcbad6

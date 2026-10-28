@@ -247,8 +247,10 @@ rules](../how-to/add-quality-rules.md).
 The planner port backed by an embedded, render-only MetricFlow. `naming` must match
 the policy the artifacts were emitted with.
 
-**`.plan(ir, request, *, dialect, policy=None) -> QueryPlan`** — validate the request,
-check mart coverage, and render SQL; nothing is executed. Refusals raise the planner
+**`.plan(ir, request, *, dialect, policy=None, paramstyle=None) -> QueryPlan`** — validate
+the request, check mart coverage, and render SQL; nothing is executed. `paramstyle`, one
+of PEP 249's `qmark`, `numeric`, `named`, `format` and `pyformat`, binds every request
+filter and row-policy value instead of inlining it; any other value is `InvalidRequest`. Refusals raise the planner
 error taxonomy (`UnknownMember`, `UnreachableAtGrain`, `AmbiguousDimension`,
 `InvalidRequest`, `FilterTypeMismatch`, and the `UnsupportedFilter` family). See
 [Plan a metric request](../how-to/plan-a-metric-request.md).
@@ -298,8 +300,10 @@ the request filters instead. Deciding whose policy applies is upstream work.
 
 ### `QueryPlan`
 
-The planner's product: `sql`, `columns` (tuple of `ColumnDescriptor`), `mart`,
-`warnings`, `explanation` (with `.render()`), and `fingerprint` (`sha256(sql)`).
+The planner's product: `sql`, `columns` (tuple of `ColumnDescriptor`), `mart`, `marts`,
+`warnings`, `explanation` (with `.render()`), `semantic`, `params` (the bound values as
+`(name, value)` pairs in placeholder order, empty inline), `fingerprint` (the query's
+identity, bound values included; `sha256(sql)` inline) and `shape` (`sha256(sql)` alone).
 
 ### `ColumnDescriptor`
 

@@ -5,8 +5,8 @@ kind: design
 change:
   type: feat
   scope: planner
-status: draft
-implementation: none
+status: accepted
+implementation: complete
 depends_on: [S-0030, S-0032]
 informed_by: [S-0028, S-0050, S-0071]
 supersedes: []
@@ -118,3 +118,5 @@ questions:
       Whether the Trino client's `qmark` binding types a `datetime.date` as `DATE`,
       and a `Decimal` as `DECIMAL` with its scale, or sends text the engine then casts.
       Phase 2's differential answers it; until then the Trino rows of D-4 are assumed.
+    status: settled
+    settled_by: A-1

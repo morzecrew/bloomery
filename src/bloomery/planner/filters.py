@@ -44,10 +44,15 @@ the user filters (S-0030/D-9), via ``RowPolicy.as_clause()``.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+import re
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 from uuid import UUID
+
+from sqlglot import TokenType
+from sqlglot.dialects.dialect import Dialect
 
 from bloomery.errors import (
     FilterTypeMismatch,
@@ -76,8 +81,73 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 __all__ = [
+    "PARAMSTYLES",
+    "Binds",
     "to_where",
 ]
+
+#: PEP 249's five placeholder styles; the caller names its driver's
+#: (S-0097/D-1).
+PARAMSTYLES = frozenset({"qmark", "numeric", "named", "format", "pyformat"})
+
+#: The bare word a bound value travels through MetricFlow as: no spec
+#: identifier can spell it, since none starts with an underscore (S-0097/D-5).
+#: A metric's filter value can, so a marker counts only as an unquoted token.
+_MARKER = re.compile(r"__bloomery_bind_([0-9]+)__")
+
+
+@dataclass(slots=True)
+class Binds:
+    """The request values bound in place of literals, each behind a marker
+    (S-0097/D-3, D-5).
+
+    MetricFlow builds every where-filter with an empty bind set, so the values
+    cannot ride its mechanism: they travel as markers, and :meth:`spelled`
+    turns the rendered SQL's markers into the caller's placeholders, reading
+    the SQL with ``dialect``'s tokenizer so a quoted literal stays text. It is
+    the planner dialect, whose MetricFlow renderer wrote the SQL; each of the
+    three ``sql_client_for_dialect`` wires has SQLGlot's name.
+    """
+
+    dialect: str
+    values: list[Scalar] = field(default_factory=list)
+
+    def marker(self, value: Scalar) -> str:
+        self.values.append(value)
+        return f"__bloomery_bind_{len(self.values)}__"
+
+    def spelled(self, sql: str, paramstyle: str) -> tuple[str, tuple[tuple[str, Scalar], ...]]:
+        """``sql`` with each marker as a placeholder in ``paramstyle``, and the
+        params in placeholder order, named ``p1``, ``p2``, … by occurrence: a
+        filter MetricFlow repeats in two subqueries is two placeholders
+        (S-0097/D-2). Under ``format`` and ``pyformat`` every ``%`` already in
+        the text is doubled first, because the driver reads every one."""
+
+        def text(piece: str) -> str:
+            return piece.replace("%", "%%") if paramstyle in {"format", "pyformat"} else piece
+
+        params: list[tuple[str, Scalar]] = []
+        pieces: list[str] = []
+        start = 0
+
+        for token in Dialect.get_or_raise(self.dialect).tokenize(sql):
+            marker = _MARKER.fullmatch(token.text) if token.token_type is TokenType.VAR else None
+            if marker is None:
+                continue
+            name = f"p{len(params) + 1}"
+            params.append((name, self.values[int(marker.group(1)) - 1]))
+            spellings = {
+                "qmark": "?",
+                "numeric": f":{len(params)}",
+                "named": f":{name}",
+                "format": "%s",
+                "pyformat": f"%({name})s",
+            }
+            pieces += [text(sql[start : token.start]), spellings[paramstyle]]
+            start = token.end + 1
+
+        return "".join([*pieces, text(sql[start:])]), tuple(params)
+
 
 #: Jinja delimiter neutralization (rule 3): emitted through Jinja string
 #: literals, each brace renders back to itself *after* templating — so a
@@ -146,28 +216,33 @@ def _decimal_carrier(value: str, declared: LogicalType, *, dimension: str) -> De
 # ....................... #
 
 
-def _literal(value: Scalar, declared: LogicalType, *, dimension: str) -> str:
-    """One typed SQL literal (rules 1, 3, 5). Exhaustive over the closed
-    ``LogicalType`` set; ``variant`` columns cannot be filtered."""
+def _typed(value: Scalar, declared: LogicalType, *, dimension: str) -> Scalar:
+    """One filter value as the Python value of its dimension's type (rules 1, 3,
+    5): the checks every literal passes, inline or bound (S-0097/D-4).
+    Exhaustive over the closed ``LogicalType`` set; ``variant`` columns cannot
+    be filtered."""
 
     match declared:
         case StringType():
             if isinstance(value, UUID):
-                return _quoted(str(value), dimension=dimension)
+                value = str(value)
             if not isinstance(value, str):
                 raise _mismatch(dimension, declared, value, "a string")
-            return _quoted(value, dimension=dimension)
+            if "\x00" in value:
+                msg = f"filter value for {dimension!r} contains a NUL byte — refused"
+                raise InvalidRequest(msg)
+            return value
         case BoolType():
             if not isinstance(value, bool):
                 raise _mismatch(dimension, declared, value, "a bool")
-            return "TRUE" if value else "FALSE"
+            return value
         case IntType():
             if isinstance(value, bool) or not isinstance(value, int):
                 raise _mismatch(dimension, declared, value, "an int")
-            return str(value)
+            return value
         case DecimalType():
             if isinstance(value, str):
-                return str(_decimal_carrier(value, declared, dimension=dimension))
+                return _decimal_carrier(value, declared, dimension=dimension)
             if isinstance(value, bool) or not isinstance(value, (int, Decimal)):
                 raise _mismatch(dimension, declared, value, "an int, Decimal, or carrier string")
             if isinstance(value, Decimal) and not value.is_finite():
@@ -176,35 +251,66 @@ def _literal(value: Scalar, declared: LogicalType, *, dimension: str) -> str:
                     "NaN/Infinity comparisons fail open, refused (S-0032/D-5)"
                 )
                 raise InvalidLiteral(msg)
-            return str(value)
+            return value
         case DateType():
             if isinstance(value, datetime):
                 raise _mismatch(dimension, declared, value, "an ISO date")
             if isinstance(value, date):
-                return f"'{value.isoformat()}'"
+                return value
             if not isinstance(value, str):
                 raise _mismatch(dimension, declared, value, "an ISO date string")
             try:
-                parsed = date.fromisoformat(value)
+                return date.fromisoformat(value)
             except ValueError as error:
                 raise _mismatch(dimension, declared, value, "an ISO date string") from error
-            return f"'{parsed.isoformat()}'"
         case TimestampType():
-            if isinstance(value, datetime):
-                return f"'{value.isoformat(sep=' ')}'"
-            if not isinstance(value, str):
+            if isinstance(value, str):
+                try:
+                    value = datetime.fromisoformat(value)
+                except ValueError as error:
+                    raise _mismatch(
+                        dimension, declared, value, "an ISO timestamp string"
+                    ) from error
+            if not isinstance(value, datetime):
                 raise _mismatch(dimension, declared, value, "an ISO timestamp string")
+            if value.tzinfo is None:
+                return value
+            # A timestamp dimension is the UTC wall clock (S-0045): a zoned
+            # value is its instant there, never a `timestamptz` the engine reads
+            # in its session zone, nor text whose offset the engine drops.
             try:
-                parsed_ts = datetime.fromisoformat(value)
-            except ValueError as error:
-                raise _mismatch(dimension, declared, value, "an ISO timestamp string") from error
-            return f"'{parsed_ts.isoformat(sep=' ')}'"
+                return value.astimezone(UTC).replace(tzinfo=None)
+            except OverflowError as error:
+                raise _mismatch(
+                    dimension, declared, value, "a timestamp in years 1 to 9999 in UTC"
+                ) from error
         case _:
             msg = (
                 f"dimension {dimension!r} has type {type(declared).__name__}, which "
                 "cannot be filtered (S-0030/D-8)"
             )
             raise FilterTypeMismatch(msg)
+
+
+# ....................... #
+
+
+def _literal(value: Scalar, declared: LogicalType, *, dimension: str) -> str:
+    """One typed SQL literal, from :func:`_typed`'s value."""
+
+    typed = _typed(value, declared, dimension=dimension)
+
+    match typed:
+        case bool():
+            return "TRUE" if typed else "FALSE"
+        case str():
+            return _quoted(typed, dimension=dimension)
+        case datetime():
+            return f"'{typed.isoformat(sep=' ')}'"
+        case date():
+            return f"'{typed.isoformat()}'"
+        case _:
+            return str(typed)
 
 
 # ....................... #
@@ -244,6 +350,7 @@ def _predicate(
     *,
     mart: MartIR,
     entity: str,
+    binds: Binds | None = None,
 ) -> str:
     """One rendered predicate: a ``{{ Dimension('<validated dunder>') }}``
     reference plus typed literals — nothing else ever enters the template
@@ -254,12 +361,18 @@ def _predicate(
     op = predicate.op
     values = predicate.values
 
+    def literal(value: Scalar) -> str:
+        # Bound, the value is the typed one the literal would have spelled,
+        # checked by the same rules (S-0097/D-4).
+        if binds is None:
+            return _literal(value, declared, dimension=dimension)
+        return binds.marker(_typed(value, declared, dimension=dimension))
+
     if op in COMPARISON_OPS:
-        literal = _literal(values[0], declared, dimension=dimension)
-        return f"{reference} {_COMPARISONS[op]} {literal}"
+        return f"{reference} {_COMPARISONS[op]} {literal(values[0])}"
 
     if op in (Op.IN, Op.NOT_IN):
-        rendered = ", ".join(_literal(v, declared, dimension=dimension) for v in values)
+        rendered = ", ".join(literal(v) for v in values)
         keyword = "IN" if op is Op.IN else "NOT IN"
         return f"{reference} {keyword} ({rendered})"
 
@@ -268,6 +381,9 @@ def _predicate(
         matches: list[str] = []
         for value in values:
             pattern = _pattern_literal(value, declared, dimension=dimension)
+            if binds is not None:
+                # The whole pattern binds; `ESCAPE '\\'` stays text (S-0097/D-3).
+                pattern = binds.marker(_typed(value, declared, dimension=dimension))
             pattern = pattern if op is Op.LIKE else f"LOWER({pattern})"
             matches.append(f"{subject} LIKE {pattern} ESCAPE '\\'")
         if len(matches) == 1:
@@ -291,6 +407,7 @@ def _clause(
     *,
     mart: MartIR,
     entity: str,
+    binds: Binds | None = None,
 ) -> str:
     """One rendered where-constraint per clause (S-0032/D-11): an ``AnyOf``
     group is a parenthesized ``OR``-join — **always** parenthesized, since
@@ -298,7 +415,7 @@ def _clause(
     matching ``b``."""
     predicates = clause_predicates(clause)
     rendered = tuple(
-        _predicate(predicate, resolved, mart=mart, entity=entity)
+        _predicate(predicate, resolved, mart=mart, entity=entity, binds=binds)
         for predicate, resolved in zip(predicates, resolutions, strict=True)
     )
 
@@ -319,6 +436,7 @@ def to_where(
     entity: str,
     policy: RowPolicy | None = None,
     policy_dimension: ResolvedDimension | None = None,
+    binds: Binds | None = None,
 ) -> tuple[str, ...]:
     """Every where-constraint for the MetricFlow request — one entry per
     clause (S-0032/D-11), policy **first** (S-0030/D-9 — the policy is
@@ -335,11 +453,11 @@ def to_where(
             msg = "a row policy requires its resolved dimension"
             raise PlannerError(msg)
         constraints.append(
-            _predicate(policy.as_clause(), policy_dimension, mart=mart, entity=entity)
+            _predicate(policy.as_clause(), policy_dimension, mart=mart, entity=entity, binds=binds)
         )
 
     constraints.extend(
-        _clause(clause, resolutions, mart=mart, entity=entity)
+        _clause(clause, resolutions, mart=mart, entity=entity, binds=binds)
         for clause, resolutions in zip(filters, filter_dimensions, strict=True)
     )
 

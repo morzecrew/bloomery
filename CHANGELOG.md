@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   passed through, so the chain needed a nulling step and a `coalesce`, and the nulling step
   turned the field's implicit `coercible` rule off. A `"*"` anywhere but the last pair is
   refused, and so is `in_enum` over a field whose map has a fallback. (#323)
+- **The planner binds request values.** `plan(..., paramstyle="pyformat")`, or any of PEP
+  249's five styles, puts a placeholder where each request filter value and the row
+  policy's value went, and `QueryPlan.params` carries the values in placeholder order. Each
+  value is typed as its dimension is, so a driver binds a `date` as a date. A runtime on
+  psycopg, which reads every `%` once it is given parameters, can now pass them: under the
+  percent styles a `%` in the text is doubled. `QueryPlan.shape` is `sha256(sql)`, shared
+  by requests that differ only in values; `fingerprint` still covers the values. Without a
+  `paramstyle`, nothing changes. A metric filter's literal that happens to spell a bind
+  marker stays text. (#304)
 - **Descriptions, labels and synonyms on fields and metrics.** A field takes
   `description:`, `label:` and `synonyms:`, and a metric `label:` and `synonyms:` beside its
   description, merged from a template as the description is. Each reaches the slot every
@@ -78,6 +87,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   outer parse did not reach the inner one inside its operand. Every marker is now spelled
   however deep it sits, which also covers an epoch parse inside another and a `pick` of a
   `pick`. (#345)
+- **A zoned timestamp in a request filter reads its instant.** `booked_at <
+  "2024-03-05T11:00:00+02:00"` was rendered as zoned text, which DuckDB and PostgreSQL cast
+  to a zoneless `timestamp` by dropping the offset, so it compared against 11:00 UTC instead
+  of 09:00. A zoned value is now converted to the UTC wall clock a timestamp dimension
+  holds. (#354)
 - **A metric's `expr` reads the field its canonical links.** A catalog template is
   written in canonical names, and nothing bound them: with the line's field mapped as `qty`
   (`canonical: quantity`), Cube and MetricFlow emitted `unit_price * quantity` over a mart
