@@ -18,7 +18,9 @@ Deterministic choices pinned here (S-0030 R1; each is golden/unit-tested):
 - The from-side of each single-column ``MartIR.joins[].on`` pair becomes a
   FOREIGN entity named after the joined entity (prefix-qualified on a name
   collision); a composite ``on`` emits no entity — an entity carries one
-  ``expr``. Join key columns never double as categorical dimensions. A
+  ``expr``. A join key column is a CATEGORICAL dimension as well, since every
+  flattened column is requestable (S-0027 (§10)) and the planner offers it
+  (#355), unless an entity of the model already holds its name. A
   declared ``role_of:`` rides on that entity's ``role`` (S-0007/what-each-fact-buys):
   two foreign entities sharing one role are two roles of one dimension.
 - Only the day-grain bucket column of a date role is a TIME dimension
@@ -278,11 +280,9 @@ def _non_additive_dimension(
 # ....................... #
 
 
-def _entities(
-    mart: MartIR, base: EntityIR | None
-) -> tuple[list[PydanticEntity], str | None, frozenset[str]]:
-    """The model's entity elements, its ``primary_entity`` (composite-key
-    marts only), and the join-key columns consumed as entity expressions.
+def _entities(mart: MartIR, base: EntityIR | None) -> tuple[list[PydanticEntity], str | None]:
+    """The model's entity elements and its ``primary_entity`` (composite-key
+    marts only).
 
     ``base`` is ``None`` for the quality mart (S-0033/the-quality-mart): it has no
     silver entity underneath it, so there is no natural key column to make a
@@ -309,10 +309,8 @@ def _entities(
         primary_entity = entity_key(mart)
 
     used = {entity_key(mart)}
-    join_keys: set[str] = set()
 
     for join in mart.joins:
-        join_keys.update(from_column for from_column, _to in join.on)
         if len(join.on) != 1:
             continue  # a composite join key has no single entity expr
         name = join.entity if join.entity not in used else f"{join.prefix}{join.entity}"
@@ -337,14 +335,14 @@ def _entities(
 
     entities.sort(key=lambda e: e.name)
 
-    return entities, primary_entity, frozenset(join_keys)
+    return entities, primary_entity
 
 
 # ....................... #
 
 
 def _dimensions(
-    mart: MartIR, join_keys: frozenset[str], sources: dict[tuple[str, str], ColumnIR]
+    mart: MartIR, entity_names: frozenset[str], sources: dict[tuple[str, str], ColumnIR]
 ) -> list[PydanticDimension]:
     dimensions: list[PydanticDimension] = []
 
@@ -369,7 +367,7 @@ def _dimensions(
                     config=config,
                 )
             )
-        elif column.name not in join_keys:
+        elif column.name not in entity_names:  # an entity is groupable by its name
             dimensions.append(
                 PydanticDimension(
                     name=column.name,
@@ -481,13 +479,16 @@ def _semantic_model(
 ) -> PydanticSemanticModel:
     base = next((entity for entity in ir.entities if entity.name == mart.base), None)
     namespace, relation = naming.relation(mart.name, Layer.GOLD)
-    entities, primary_entity, join_keys = _entities(mart, base)
+    entities, primary_entity = _entities(mart, base)
+    entity_names = frozenset(
+        [entity.name for entity in entities] + ([primary_entity] if primary_entity else [])
+    )
     return PydanticSemanticModel(
         name=mart.name,
         node_relation=PydanticNodeRelation(schema_name=namespace, alias=relation),
         primary_entity=primary_entity,
         entities=entities,
-        dimensions=_dimensions(mart, join_keys, descriptions),
+        dimensions=_dimensions(mart, entity_names, descriptions),
         measures=_measures(mart, owners, metrics_by_name, day_columns(mart)),
         defaults=None,
         description=None,
