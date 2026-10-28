@@ -82,6 +82,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A request filter on a date or a timestamp runs on Trino.** The planner wrote the value
+  as quoted ISO text, which Trino reads as a `varchar` and refuses to compare with a date
+  (`TYPE_MISMATCH: Cannot apply operator: date <= varchar(10)`). A row policy on a date did
+  the same. DuckDB and PostgreSQL coerced the text, so nothing else saw it. The value is
+  now a typed literal, `DATE '2024-03-04'` or `TIMESTAMP '2024-03-05 09:00:00'`, on every
+  planner dialect. (#351)
 - **A chain may parse ISO 8601 twice.** `[{parse_ts: ISO8601}, to_string, {parse_ts:
   ISO8601}]` was refused on every port as an unmeasured parse: the rewrite that spells the
   outer parse did not reach the inner one inside its operand. Every marker is now spelled

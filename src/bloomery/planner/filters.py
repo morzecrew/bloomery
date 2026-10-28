@@ -23,7 +23,9 @@ on the query path. Non-negotiable rules, all enforced here and fuzz-tested
    dimension is the string carrier (S-0032/D-5): parsed as ``Decimal``
    here, non-finite refused as ``InvalidLiteral``, and **no SQL cast is
    ever emitted**; dates and timestamps are ISO-validated then
-   re-serialized.
+   re-serialized as typed literals (``DATE '…'``, ``TIMESTAMP '…'``), which
+   are not casts: quoted text is a ``varchar`` on Trino, which refuses to
+   compare it with a date (#351), where DuckDB and PostgreSQL coerce it.
 
 One ``where_constraints`` entry is emitted per :class:`Clause` (S-0032
 D11): an :class:`AnyOf` group renders as a parenthesized ``OR``-join —
@@ -306,9 +308,9 @@ def _literal(value: Scalar, declared: LogicalType, *, dimension: str) -> str:
         case str():
             return _quoted(typed, dimension=dimension)
         case datetime():
-            return f"'{typed.isoformat(sep=' ')}'"
+            return f"TIMESTAMP '{typed.isoformat(sep=' ')}'"
         case date():
-            return f"'{typed.isoformat()}'"
+            return f"DATE '{typed.isoformat()}'"
         case _:
             return str(typed)
 
