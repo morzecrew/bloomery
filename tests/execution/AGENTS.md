@@ -324,4 +324,18 @@ A `to_utc` whose operand is an ISO wall-clock parse makes the parse zoned: every
 - Paths: `src/bloomery/transforms/_builtins.py` `src/bloomery/dialects/base.py` `tests/execution/test_zoneless_utc.py`
 - Consequence: a UTC value is never shifted by a zone's offset a second time; it is NULL, which a quality rule can see
 
+### S-0095/D-1 — `ASSUMED` (Picking a list element by a field)
+
+`{pick: [<field>, <text>, <take>]}` yields, from a JSON list, the `<take>` of the first element, in list order, that is an object whose `<field>` read as scalar text equals `<text>`. The result is a `string`. It is NULL when the input is not a list, text that is not JSON included, when nothing matches, or when the taken value is NULL or not a scalar. A field that is not a scalar never matches. The transform is declared `nullifies`
+
+- Paths: `src/bloomery/transforms/_builtins.py` `tests/unit/test_transforms/test_builtins.py` `tests/execution/test_pick.py`
+- Consequence: One bronze row gives one answer on every port that ships `pick`, the non-scalar case included, and a row with no matching attribute is a NULL, not a coercion failure
+
+### S-0097/D-4 — `ASSUMED` (Bound parameters in planned queries)
+
+A bound value is a Python value of the dimension's logical type, checked by the literal renderer's own rules: `datetime.date` for a date, `datetime` for a timestamp, `Decimal` for a decimal, `int`, `bool` or `str` otherwise
+
+- Paths: `src/bloomery/planner/filters.py` `tests/execution/test_planner_binds.py`
+- Consequence: The driver types each bind as the column it is compared to, and a value the literal renderer refuses is refused bound too
+
 <!-- /torve:managed -->

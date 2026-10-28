@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Final
 from sqlglot import exp, parse_one
 
 from bloomery.spec.catalog import Catalog
-from bloomery.spec.mapping import ALIAS_BOUND, RecipeFieldMapping
+from bloomery.spec.mapping import ALIAS_BOUND, RecipeFieldMapping, SimpleFieldMapping
 from bloomery.spec.project import Project, key, node_keys
 
 if TYPE_CHECKING:
@@ -245,6 +245,24 @@ def exposure_node(name: str) -> Node:
 # ....................... #
 
 
+def _selected(field_mapping: SimpleFieldMapping) -> str:
+    """The path a field reads, naming a ``pick``'s selection where its chain has
+    one: ``$.attributes[name=Channel].value`` (S-0095/D-6). Two attributes
+    picked from one list are then two source nodes, and a reader of lineage
+    sees which attribute a field comes from; the edge stays ``direct``."""
+
+    picked = next((step for step in field_mapping.transform if step.name == "pick"), None)
+
+    if picked is None:
+        return field_mapping.from_
+
+    field, text, take = picked.args
+    return f"{field_mapping.from_}[{field}={text}].{take}"
+
+
+# ....................... #
+
+
 def _mapping_edges(
     mapping: Mapping, canonical_by_field: dict[str, str | None], ids: dict[str, str]
 ) -> list[Edge]:
@@ -274,7 +292,7 @@ def _mapping_edges(
         else:
             edges.append(
                 Edge(
-                    src=source_column_node(mapping.source, field_mapping.from_),
+                    src=source_column_node(mapping.source, _selected(field_mapping)),
                     dst=dst,
                     label="direct",
                 )

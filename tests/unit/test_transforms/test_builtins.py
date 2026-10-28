@@ -66,6 +66,7 @@ CASES: dict[str, tuple[tuple[str | int, ...], LogicalType, tuple[type, ...], Log
     "prepend": (("amocrm:",), StringType(), (StringType,), StringType()),
     "json_path": (("$.a.b",), VariantType(), (VariantType, StringType), VariantType()),
     "convert": (("EUR", "USD", "paid_at"), DecimalType(12, 4), (DecimalType,), DecimalType(12, 4)),
+    "pick": (("name", "x", "value"), StringType(), (StringType, VariantType), StringType()),
 }
 
 
@@ -480,3 +481,42 @@ def test_prepend_puts_the_literal_in_front() -> None:
     built = DEFAULT_REGISTRY["prepend"].builder(exp.column("x"), "amocrm:")
 
     assert built.sql() == "'amocrm:' || x"
+
+
+# ....................... #
+# S-0095: pick a list element by a field
+
+
+def test_pick_lowers_to_its_marker_over_the_list() -> None:
+    pick = DEFAULT_REGISTRY["pick"].builder
+    text = pick(exp.column("x"), "name", "Источник заказа", "value", input_type=StringType())
+    value = pick(exp.column("x"), "name", "a", "value", input_type=VariantType())
+
+    assert text.sql() == "BLM_PICK(x, 'name', 'Источник заказа', 'value', 'text')"
+    assert value.sql() == "BLM_PICK(x, 'name', 'a', 'value', 'json')"
+
+
+def test_pick_reads_text_or_variant_and_yields_a_string() -> None:
+    spec = DEFAULT_REGISTRY["pick"]
+
+    assert spec.input_domain == (StringType, VariantType)
+    assert spec.output_type(StringType(), ("name", "x", "values[0].value")) == StringType()
+    assert spec.nullifies
+
+
+@pytest.mark.parametrize(
+    ("args", "match"),
+    [
+        (("na me", "x", "value"), "identifier"),
+        (("name.first", "x", "value"), "identifier"),
+        (("name", "", "value"), "empty"),
+        (("name", "x", "values[0"), "take path"),
+        (("name", "x", "$.value"), "take path"),
+        (("name", "x", "a..b"), "take path"),
+    ],
+)
+def test_pick_refuses_arguments_outside_its_grammar(args: tuple[str, ...], match: str) -> None:
+    """S-0095/D-2: one identifier, non-empty text, and a take path of dotted
+    identifiers with `[n]` subscripts, relative to the element."""
+    with pytest.raises(TypeCheckError, match=match):
+        DEFAULT_REGISTRY["pick"].output_type(StringType(), args)

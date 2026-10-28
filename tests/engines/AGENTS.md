@@ -255,4 +255,18 @@ The rollup aggregates (`count`, `sum`, `min`, `max`) join the differential over 
 - Consequence: an empty or all-NULL group's value is a stated fact, not an accident of the engine
 - Check: `uv run pytest tests/property/test_reference_rollups.py -q` (shadow; runs as `decision:S-0092/D-7`, no log entry owed)
 
+### S-0095/D-4 — `ASSUMED` (Picking a list element by a field)
+
+The builder returns a `BLM_PICK` marker that DuckDB, PostgreSQL and Trino each rewrite in their own render, through `dialects.base.pick_spelled`, into a spelling measured against the same edge cases. The marker carries whether the list arrives as JSON text or a `variant`. PostgreSQL compares the field as text through an ordered `jsonb_array_elements` subquery, not through jsonpath `==`, over an input it has first checked is JSON (`pg_input_is_valid(<x>, 'jsonb')`) and a top-level array (`jsonb_typeof`), because `jsonb_array_elements` raises on an object. Trino parses text with a guarded `json_parse` before casting it to `ARRAY(JSON)`, which takes a JSON value and not its text. Every port reads the field and the take only when they are scalars, because DuckDB's and PostgreSQL's `->>` turn an object or an array into its text
+
+- Paths: `src/bloomery/dialects/base.py` `src/bloomery/dialects/duckdb.py` `src/bloomery/dialects/postgres.py` `src/bloomery/dialects/trino.py` `tests/engines/test_pick_engines.py`
+- Consequence: The three engines a contributor can run locally agree byte for byte on `pick`'s answers, and a disagreement is a red engine test rather than a field report
+
+### S-0097/D-7 — `ASSUMED` (Bound parameters in planned queries)
+
+On PostgreSQL through psycopg (`pyformat`) and on Trino through its client (`qmark`), every planner bind request returns DuckDB's inline rows when bound, dates, timestamps and decimals included, and inline wherever the engine runs the inline plan; Trino refuses an inline request filter on a date or a timestamp (#351), so those cases are strict expected failures there, checked by an engine differential
+
+- Paths: `tests/engines/test_planner_binds_differential.py`
+- Consequence: D-4's typed values are evidence on the two server engines the tier runs, and Q-1 is settled by the same run
+
 <!-- /torve:managed -->

@@ -263,6 +263,13 @@ A mart whose **`base`** is `scd: type2` is refused on the same account. There is
 - Paths: `src/bloomery/emit/lower/predicates.py` `src/bloomery/errors.py` `src/bloomery/guardrails/metrics.py` `src/bloomery/semantic/additivity.py` `tests/fixtures/period_over_period/entity_model.yaml` `tests/unit/test_guardrails/test_metrics.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0050/D-16 — `ASSUMED` (Metrics over time: derived metrics, offsets, cumulative windows, metric filters)
+
+A measure whose `expr`, after S-0022/D-10's binding, names an unqualified column a mart carrying it lacks is refused at the guardrail stage as `InvalidMetricShape`, checked against every mart listing the metric
+
+- Paths: `src/bloomery/guardrails/metrics.py` `src/bloomery/errors.py` `tests/unit/test_guardrails/test_metrics.py`
+- Consequence: A typo in an `expr`, or a canonical bound on a joined entity whose column the mart prefixes, is a refusal at `check` naming the column and the mart rather than a query that fails in Cube or MetricFlow; the corpus raises none
+
 ### S-0053/D-1 — `LOCKED` (Measure semantic types and additivity algebra)
 
 **The aggregation vocabulary is a closed typed set, never a target-interpreted string.** `Additive`, `SemiAdditive`, `NonAdditive`, `Ratio`, `DistinctCount`, `Snapshot`. Locked because the planner, the proof rules and every emitter branch on it: an open string set makes each target the authority for what a measure means, which is the arrangement this whole sequence exists to end. Staging the *implementation* across releases is fine; encoding a future class as a string is not.

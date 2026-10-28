@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   percent styles a `%` in the text is doubled. `QueryPlan.shape` is `sha256(sql)`, shared
   by requests that differ only in values; `fingerprint` still covers the values. Without a
   `paramstyle`, nothing changes. (#304)
+- **A `pick` transform for name/value lists.** `{pick: [name, "Источник заказа", value]}`
+  reads one attribute of a list of objects, such as МойСклад's, amoCRM's or Bitrix24's
+  custom fields: the take path of the first object whose scalar field reads as the text, or
+  NULL. It reads the JSON text a `from:` extraction yields or a `variant`, is `nullifies`, and
+  names its selection in lineage (`source.<relation>.$.attributes[name=…].value`), so two
+  attributes from one list are two nodes. On DuckDB, PostgreSQL and Trino, held to one set of
+  answers by an engine differential; other ports refuse it. (#312)
 - **Expression metrics have lineage.** `lineage()` walked upstream from a metric defined
   by an `expr` with no `requires:` to nothing. An `expr` edge now runs from each field of the
   metric's grain entity that its `expr` names, so the walk reaches the entity column and,
@@ -49,6 +56,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A metric's `expr` reads the field its canonical links.** A catalog template is
+  written in canonical names, and nothing bound them: with the line's field mapped as `qty`
+  (`canonical: quantity`), Cube and MetricFlow emitted `unit_price * quantity` over a mart
+  whose column is `qty`. It compiled clean and failed at query time, and the
+  `identity_resolution` fixture's MetricFlow measure counted a `customer_ref` its mart lacks.
+  Each `requires:` canonical is now bound to the grain entity's linking field, and a measure
+  whose `expr` still names a column a carrying mart lacks is refused as
+  `InvalidMetricShape`. (#338)
+
+  **Upgrade note.** A project whose field is spelled differently from its canonical
+  re-fingerprints once. A measure naming a column its mart does not carry, which failed at
+  query time before, no longer compiles.
 - **Every row whose dedupe key fails to cast reaches quarantine.** The dedupe window
   partitioned by the coerced key, and every key that fails its cast coerces to the same
   NULL. Two bronze rows with different uncastable keys therefore shared a partition: one was
