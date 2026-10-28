@@ -439,7 +439,7 @@ def _canonical(value: object, *, numeric: bool) -> str:
 
 def _restriction(
     metric: MetricIR, project: ProjectIR
-) -> tuple[tuple[str, str, tuple[str, ...], str], ...]:
+) -> tuple[tuple[str, str, tuple[str, ...], str, str], ...]:
     """One metric's restriction, canonically.
 
     Sorted, with each clause's values sorted inside it, because the IR keeps
@@ -473,6 +473,9 @@ def _restriction(
                 # column is the restriction, resolved the way the dimension is,
                 # or `a = column b` and `a = column c` would read as one.
                 "" if clause.column is None else source.get(clause.column, clause.column),
+                # `nulls: include` keeps rows the unqualified clause drops
+                # (S-0050/D-17); `exclude` is the unqualified clause.
+                "include" if clause.nulls == "include" else "",
             )
             for clause in metric.filter
         )
@@ -488,7 +491,8 @@ _MEMBERSHIP: Final[frozenset[str]] = frozenset({"eq", "in"})
 
 
 def _implies(
-    clause: tuple[str, str, tuple[str, ...], str], other: tuple[str, str, tuple[str, ...], str]
+    clause: tuple[str, str, tuple[str, ...], str, str],
+    other: tuple[str, str, tuple[str, ...], str, str],
 ) -> bool:
     """Whether every row ``clause`` keeps, ``other`` keeps too (S-0077/D-19).
 
@@ -502,8 +506,9 @@ def _implies(
     if clause == other:
         return True
 
-    dimension, op, values, column = clause
-    other_dimension, other_op, other_values, other_column = other
+    # `nulls` rides only on `ne` and `not_in`, never a membership operator.
+    dimension, op, values, column, _nulls = clause
+    other_dimension, other_op, other_values, other_column, _other_nulls = other
 
     return (
         dimension == other_dimension
@@ -516,8 +521,8 @@ def _implies(
 
 
 def _within(
-    numerator: tuple[tuple[str, str, tuple[str, ...], str], ...],
-    denominator: tuple[tuple[str, str, tuple[str, ...], str], ...],
+    numerator: tuple[tuple[str, str, tuple[str, ...], str, str], ...],
+    denominator: tuple[tuple[str, str, tuple[str, ...], str, str], ...],
 ) -> bool:
     """Whether a numerator restricted by ``numerator`` keeps only rows the
     denominator's restriction keeps: each denominator clause is implied by

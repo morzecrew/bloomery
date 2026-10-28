@@ -71,6 +71,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A metric filter's `ne` or `not_in` on a dimension that can be NULL says what NULL
+  means.** `{dimension: order_channel, op: ne, values: [Маркетплейс]}` read as "every
+  channel but the marketplace", but SQL's `<>` drops every row whose channel is NULL, so
+  orders with an unmapped channel vanished from the metric with no warning. Such a filter
+  now takes `nulls: include` (keep those rows: `(order_channel IS NULL OR order_channel <>
+  'Маркетплейс')`) or `nulls: exclude` (drop them, as before), and is refused as
+  `MetricFilterInvalid` without one. A key or a `required` field of the mart's base
+  entity cannot be NULL and needs neither. A column flattened from a joined entity always
+  can. (#357)
+
+  **Upgrade note.** A project with such a filter stops compiling until each one says
+  `nulls:`; `nulls: exclude` keeps today's numbers. `bloomery_ir_version` moves 28 → 29,
+  so every project with a metric filter re-fingerprints once.
 - **A ratio's numerator may range over a subset of its denominator's rows.** A conversion
   rate, `converted_leads` filtered to `outcome eq converted` over an unfiltered `leads`, was
   refused as `RatioOperandsDisagree`, because the two operands had to be restricted

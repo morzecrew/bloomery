@@ -235,3 +235,32 @@ decisions:
       reason, and binding cannot reach a joined entity's column, whose name depends
       on each mart's prefix
     cites: [D-9, S-0022/D-10, S-0025/D-3]
+  - id: D-17
+    grade: ASSUMED
+    text: >-
+      A metric filter's `ne` or `not_in`, against values or a `column:`, on a dimension
+      that can be NULL states what NULL means: `nulls: include` keeps those rows,
+      rendered `(ref IS NULL OR ref <> v)`, and `nulls: exclude` keeps SQL's three-valued
+      answer, rendered as before. Without it the metric is refused as `MetricFilterInvalid`
+      naming the filter and both choices. A dimension can be NULL unless it is a key
+      or a required column of the mart's base entity: a column flattened from a joined
+      entity is NULL wherever the LEFT JOIN misses. `nulls:` on any other operator
+      is refused at parse. Request filters (S-0032) are not covered
+    paths:
+      - src/bloomery/spec/metrics.py
+      - src/bloomery/guardrails/metrics.py
+      - src/bloomery/emit/lower/predicates.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/resolve/build.py
+    consequence: >-
+      A filter that read as "everything except these values" can no longer drop the
+      rows whose dimension is unmapped without the author saying so. A project with
+      such a filter fails to compile until it chooses, loudly, rather than changing
+      a metric's value on upgrade
+    rationale: >-
+      Under three-valued logic `col <> 'x'` is NULL, not true, for a NULL `col`, so
+      `ne` and `not_in` drop those rows; #357 lost every order of a source account
+      whose channel was not yet mapped. Including them by default would have changed
+      existing metrics silently, and an advisory is what was already easy to miss.
+      The owner chose the refusal over both on 2026-10-28
+    cites: [D-8, D-9, D-15, S-0025/D-3]

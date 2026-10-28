@@ -92,6 +92,10 @@ TimeWindowString = Annotated[str, StringConstraints(pattern=TIME_WINDOW_PATTERN)
 #: reach for the merge.
 FilterOpName = Literal["eq", "ne", "in", "not_in", "gt", "gte", "lt", "lte", "is_null"]
 
+#: What a ``ne`` or ``not_in`` filter does with a row whose dimension is NULL
+#: (S-0050/D-17): ``include`` keeps it, ``exclude`` is SQL's three-valued answer.
+FilterNulls = Literal["include", "exclude"]
+
 #: The operators taking exactly one value; everything else takes one or more.
 _SINGLE_VALUE_OPS = frozenset({"eq", "ne", "gt", "gte", "lt", "lte", "is_null"})
 
@@ -163,17 +167,30 @@ class MetricFilter(SpecModel):
     two columns are comparable at all is R021's question, asked by the
     guardrail; this layer checks only that exactly one of the two keys is
     present and that the operator is one a column comparison takes.
+
+    ``nulls`` says what ``ne`` or ``not_in`` does with a row whose dimension is
+    NULL (S-0050/D-17). Whether the dimension can be NULL, and so whether the
+    key is required, is the guardrail's question; this layer refuses it on any
+    other operator.
     """
 
     dimension: DimensionName
     op: FilterOpName
     values: tuple[FilterValue, ...] = ()
     column: DimensionName | None = None
+    nulls: FilterNulls | None = None
 
     # ....................... #
 
     @model_validator(mode="after")
     def _arity(self) -> MetricFilter:
+        if self.nulls is not None and self.op not in ("ne", "not_in"):
+            msg = (
+                f"filter on {self.dimension!r} ({self.op}) sets nulls:, which only ne and "
+                "not_in take: they are the operators whose answer on a NULL row reads as "
+                "the opposite of what the filter says (S-0050/D-17)"
+            )
+            raise ValueError(msg)
         if self.column is not None:
             if self.values:
                 msg = (

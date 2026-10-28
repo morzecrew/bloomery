@@ -1031,12 +1031,17 @@ class MetricFilterIR:
     ``column`` is set, and ``values`` empty, when the clause compares its
     dimension to another dimension column of the same mart (S-0007/D-9); the
     guardrail has proved the pair comparable by R021 before a renderer sees it.
+
+    ``nulls`` is ``"include"`` or ``"exclude"`` on a ``ne`` or ``not_in`` the
+    author qualified (S-0050/D-17), else ``None``: the guardrail has refused a
+    ``None`` on a dimension that can be NULL.
     """
 
     dimension: str
     op: str
     values: tuple[str | int | bool | Decimal, ...]
     column: str | None = None
+    nulls: str | None = None
 
 
 # ....................... #
@@ -1818,9 +1823,14 @@ class ProjectIR:
     and ``MetricIR.label`` and ``MetricIR.synonyms``. Every project encodes the
     columns' fields, ``None`` and empty where nothing is annotated, so every
     fingerprint moves once.
+
+    Version 29 (S-0050/D-17) adds ``MetricFilterIR.nulls``, what a ``ne`` or
+    ``not_in`` filter does with a NULL dimension. Every project with a metric
+    filter encodes the field, ``None`` where the operator takes none, so every
+    such fingerprint moves once.
     """
 
-    bloomery_ir_version: int = 28
+    bloomery_ir_version: int = 29
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

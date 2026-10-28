@@ -524,6 +524,13 @@ An expression metric draws an `expr` edge, `entity_field -> metric`, from each f
 - Paths: `src/bloomery/resolve/metrics.py` `src/bloomery/resolve/refs.py` `src/bloomery/spec/metrics.py` `tests/unit/test_resolve/test_metrics.py` `tests/unit/test_resolve/test_refs.py` `tests/unit/test_spec/test_metrics.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0050/D-17 — `ASSUMED` (Metrics over time: derived metrics, offsets, cumulative windows, metric filters)
+
+A metric filter's `ne` or `not_in`, against values or a `column:`, on a dimension that can be NULL states what NULL means: `nulls: include` keeps those rows, rendered `(ref IS NULL OR ref <> v)`, and `nulls: exclude` keeps SQL's three-valued answer, rendered as before. Without it the metric is refused as `MetricFilterInvalid` naming the filter and both choices. A dimension can be NULL unless it is a key or a required column of the mart's base entity: a column flattened from a joined entity is NULL wherever the LEFT JOIN misses. `nulls:` on any other operator is refused at parse. Request filters (S-0032) are not covered
+
+- Paths: `src/bloomery/spec/metrics.py` `src/bloomery/guardrails/metrics.py` `src/bloomery/emit/lower/predicates.py` `src/bloomery/ir/nodes.py` `src/bloomery/resolve/build.py`
+- Consequence: A filter that read as "everything except these values" can no longer drop the rows whose dimension is unmapped without the author saying so. A project with such a filter fails to compile until it chooses, loudly, rather than changing a metric's value on upgrade
+
 ### S-0059/D-6 — `LOCKED` (Loose ends inside shipped subsystems)
 
 The node-id collision is **refused**, not re-spelled. `Node.name` and the `lineage --node` argument are published surface, and the resolve API is not covered by the emitted-artifact stability caveat. Locks the bare `<entity>.<field>` spelling in: changing it later is a breaking change to every stored lineage id, which is exactly what this row buys.

@@ -1109,7 +1109,7 @@ def test_the_rfc_0034_metric_forms_restate_when_they_change() -> None:
         ('offset: {window: "1 year"}', 'offset: {window: "2 years"}', "revenue_yoy"),
         (
             "- {dimension: status, op: eq, values: [paid]}",
-            "- {dimension: status, op: ne, values: [refunded]}",
+            "- {dimension: status, op: ne, values: [refunded], nulls: exclude}",
             "paid_revenue",
         ),
     ):

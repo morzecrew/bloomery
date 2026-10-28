@@ -215,7 +215,7 @@ def _check_measure_columns(metric: MetricIR, mart: MartIR, path: str) -> list[Gu
 
 
 def _check_filter(
-    metric: MetricIR, clause: MetricFilterIR, mart: MartIR, path: str
+    metric: MetricIR, clause: MetricFilterIR, mart: MartIR, path: str, draft: ProjectIR
 ) -> list[GuardrailError]:
     """One filter clause against one mart carrying the metric (S-0050/D-9)."""
 
@@ -246,7 +246,8 @@ def _check_filter(
         return [MetricFilterInvalid(msg, source_path=path)]
 
     if clause.column is not None:
-        return _check_comparison(metric, clause, clause.column, mart, path, categorical)
+        compared = _check_comparison(metric, clause, clause.column, mart, path, categorical)
+        return compared or _check_nulls(metric, clause, mart, path, draft)
 
     if clause.op == "is_null":
         return []
@@ -267,7 +268,60 @@ def _check_filter(
         )
         return [MetricFilterInvalid(msg, source_path=path)]
 
-    return []
+    return _check_nulls(metric, clause, mart, path, draft)
+
+
+def _check_nulls(
+    metric: MetricIR, clause: MetricFilterIR, mart: MartIR, path: str, draft: ProjectIR
+) -> list[GuardrailError]:
+    """A ``ne`` or ``not_in`` on a dimension that can be NULL says what NULL
+    means (S-0050/D-17): SQL's answer drops those rows, and the filter reads as
+    keeping everything but its values."""
+
+    if clause.op not in ("ne", "not_in") or clause.nulls is not None:
+        return []
+
+    nullable = [
+        name
+        for name in (clause.dimension, clause.column)
+        if name is not None and _can_be_null(name, mart, draft)
+    ]
+    if not nullable:
+        return []
+
+    msg = (
+        f"metric {metric.name!r} filters {clause.dimension!r} with {clause.op}, and "
+        f"{' and '.join(repr(name) for name in nullable)} can be NULL on mart {mart.name!r}: "
+        f"SQL's {clause.op} drops those rows, which reads as the opposite of the filter. "
+        "Fix: say which you mean, nulls: include to keep them or nulls: exclude to drop them "
+        "(S-0050/D-17)"
+    )
+    return [MetricFilterInvalid(msg, source_path=path)]
+
+
+def _can_be_null(name: str, mart: MartIR, draft: ProjectIR) -> bool:
+    """Whether a mart column can hold NULL: unless it is a key or a required
+    column of the mart's base entity. A column flattened from a joined entity
+    is NULL wherever the LEFT JOIN misses, even when its own entity requires
+    it. A base column keeps its own name; a joined one carries its prefix, so a
+    self-join is told apart by name, not by entity."""
+
+    column = guaranteed(
+        (column for column in mart.columns if column.name == name),
+        expected=f"a column backing dimension {name!r} of mart {mart.name!r}",
+        by="the categorical check and R021, which name only flattened columns",
+    )
+    if column.source_entity != mart.base or column.name != column.source_column:
+        return True
+
+    base = guaranteed(
+        (entity for entity in draft.entities if entity.name == mart.base),
+        expected=f"the base entity {mart.base!r} of mart {mart.name!r}",
+        by="the mart flattener, which resolves the base before any column",
+    )
+    if column.source_column in base.key:
+        return False
+    return not any(field.name == column.source_column and field.required for field in base.columns)
 
 
 # ....................... #
@@ -647,6 +701,6 @@ def check_metrics(draft: ProjectIR) -> list[GuardrailError]:
             violations.extend(_check_over(metric, mart, path))
             violations.extend(_check_measure_columns(metric, mart, path))
             for clause in metric.filter:
-                violations.extend(_check_filter(metric, clause, mart, path))
+                violations.extend(_check_filter(metric, clause, mart, path, draft))
 
     return violations
