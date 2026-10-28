@@ -1672,6 +1672,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#parse_ts-unix_seconds-and-unix_millis" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>parse_ts: UNIX_SECONDS</code> and <code>UNIX_MILLIS</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#to_utc-the-zone-argument-and-the-zone-that-came-back" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2038,6 +2049,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         <code>parse_ts: ISO8601</code> and the <code>T</code> separator
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parse_ts-unix_seconds-and-unix_millis" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>parse_ts: UNIX_SECONDS</code> and <code>UNIX_MILLIS</code>
       </span>
     </span>
   </a>
@@ -2626,6 +2648,38 @@ into a hard <code>INVALID_CAST_ARGUMENT</code>.</p>
 engines truncate a <code>+01:00</code> identically, so the refusal lives in the shared rendering
 path and every port inherits the same guard around whatever its own cast spelling is. It is documented with the transform, in
 <a href="../transforms/#a-timestamp-that-states-its-own-offset">Transforms</a>.</p>
+<h3 id="parse_ts-unix_seconds-and-unix_millis"><code>parse_ts: UNIX_SECONDS</code> and <code>UNIX_MILLIS</code><a class="headerlink" href="#parse_ts-unix_seconds-and-unix_millis" title="Permanent link">&para;</a></h3>
+<p>An epoch count lowers to integer arithmetic from 1970 on a zoneless timestamp, never to the
+engine's own epoch function: DuckDB's and PostgreSQL's <code>to_timestamp</code> and Trino's
+<code>from_unixtime</code> were measured to answer a different wall clock under a different session
+zone (S-0096).</p>
+<table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Spelling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>duckdb</code></td>
+<td><code>make_timestamp(n * 1000000)</code>, or <code>* 1000</code> for milliseconds</td>
+</tr>
+<tr>
+<td><code>postgres</code></td>
+<td><code>TIMESTAMP '1970-01-01' + n * INTERVAL '1 second'</code>; milliseconds as <code>(n / 1000)</code> seconds plus <code>(n % 1000)</code> milliseconds, because <code>bigint * interval</code> multiplies in <code>float8</code> and a whole millisecond count near year 9999 read <code>…59.999008</code></td>
+</tr>
+<tr>
+<td><code>trino</code></td>
+<td><code>date_add('second', n, TIMESTAMP '1970-01-01 00:00:00.000000')</code>, or <code>'millisecond'</code></td>
+</tr>
+<tr>
+<td>every other port</td>
+<td>refused as <code>UnsupportedByTarget</code> until its spelling is measured</td>
+</tr>
+</tbody>
+</table>
+<p>PostgreSQL's guard reads the count's text, so a loader may land the column as <code>bigint</code>.</p>
 <h3 id="to_utc-the-zone-argument-and-the-zone-that-came-back"><code>to_utc</code>, the zone argument, and the zone that came back<a class="headerlink" href="#to_utc-the-zone-argument-and-the-zone-that-came-back" title="Permanent link">&para;</a></h3>
 <p>Two problems, one after the other, both now closed.</p>
 <p>Trino's <code>AT TIME ZONE</code> promotes a zoneless timestamp with the <strong>session</strong> zone before
