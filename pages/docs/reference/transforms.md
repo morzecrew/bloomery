@@ -119,8 +119,9 @@ failure the `coercible` rule disposes of.
 An epoch count is an instant, under the same two rules as `ISO8601_INSTANT`: a `to_utc`
 after it is refused, and `zone_in:` beside it may only be `UTC`. It lowers to integer
 arithmetic from 1970, never to the engine's own epoch function, which was measured to
-answer a different wall clock under a different session zone. It ships on DuckDB; every
-other port refuses it as `UnsupportedByTarget` until its spelling is measured there.
+answer a different wall clock under a different session zone. It ships on DuckDB,
+PostgreSQL and Trino, held to one set of answers under two session zones; every other port
+refuses it as `UnsupportedByTarget` until its spelling is measured there.
 
 **A `parse_ts` format with `%z` or `%Z` is refused at parse**, naming `ISO8601_INSTANT`:
 no format parses a zone and then drops it. An escaped `%%z` or `%%Z` is literal text and

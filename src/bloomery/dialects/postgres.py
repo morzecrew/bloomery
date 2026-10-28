@@ -13,6 +13,7 @@ from sqlglot.expressions.core import Expression
 from bloomery.dialects.base import (
     SQLGlotDialect,
     capture_group,
+    epoch_timestamps,
     known_type,
     pick_spelled,
     strip_iso_text,
@@ -124,6 +125,7 @@ class PostgresDialect(SQLGlotDialect):
         # a tree that already names a group is untouched.
         rewritten = capture_group(node.copy())
         rewritten = strip_iso_text(rewritten, lambda text: text, instant=utc_instant)
+        rewritten = epoch_timestamps(rewritten, _epoch_interval)
         rewritten = pick_spelled(rewritten, _picked)
         rewritten = utc_from_zone(rewritten, utc)
         rewritten = rewritten.transform(zoneless_parse)
@@ -408,6 +410,36 @@ def zoneless_parse(node: Expression) -> Expression:
 
 
 # ....................... #
+
+
+def _epoch_interval(count: Expression, per_second: int) -> Expression:
+    """``TIMESTAMP '1970-01-01' + n * INTERVAL '1 second'``: a zoneless
+    timestamp, the same under every session zone, where ``to_timestamp``
+    returns a ``timestamptz`` whose cast reads the session (S-0096/D-7).
+
+    ``bigint * interval`` multiplies in ``float8``. Whole seconds stay exact
+    across the range, since ``n * 10^6`` is ``n * 15625 * 2^6`` and
+    ``n * 15625`` stays under ``2^53``, but a millisecond count near year 9999
+    read ``…59.999008``. So a millisecond count is split into whole seconds,
+    by integer division, and its remainder in milliseconds. Measured against
+    DuckDB's answers in the engine tier.
+    """
+
+    def times(n: Expression, unit: str) -> Expression:
+        return exp.Mul(this=n, expression=exp.Interval(this=exp.Literal.string(f"1 {unit}")))
+
+    epoch = exp.cast(exp.Literal.string("1970-01-01 00:00:00"), exp.DataType.build("TIMESTAMP"))
+
+    if per_second == 1:
+        return exp.Add(this=epoch, expression=times(count, "second"))
+
+    scale = exp.Literal.number(per_second)
+    seconds = exp.Div(this=count.copy(), expression=scale.copy(), typed=True)
+    rest = exp.Mod(this=count.copy(), expression=scale)
+    return exp.Add(
+        this=exp.Add(this=epoch, expression=times(exp.Paren(this=seconds), "second")),
+        expression=times(exp.Paren(this=rest), "millisecond"),
+    )
 
 
 def _picked(items: Expression, field: str, text: str, take: str, _json: bool) -> Expression:

@@ -634,6 +634,8 @@ def _epoch(col: Expression, marker: str, low: int, high: int) -> Expression:
     Nested ``CASE`` rather than ``AND``: SQL does not promise to evaluate
     ``AND``'s halves in order, and outside the quality system the cast is a
     plain ``CAST`` that raises on the text the pattern exists to keep from it.
+    The pattern reads the value's text: a loader may land the count typed, and
+    PostgreSQL has no ``~`` over a ``bigint``.
     """
 
     def count() -> Expression:
@@ -652,7 +654,10 @@ def _epoch(col: Expression, marker: str, low: int, high: int) -> Expression:
     shaped = exp.Case(
         ifs=[
             exp.If(
-                this=exp.RegexpLike(this=col.copy(), expression=exp.Literal.string(_EPOCH_COUNT)),
+                this=exp.RegexpLike(
+                    this=exp.cast(col.copy(), exp.DataType.build("TEXT")),
+                    expression=exp.Literal.string(_EPOCH_COUNT),
+                ),
                 true=in_range,
             )
         ]

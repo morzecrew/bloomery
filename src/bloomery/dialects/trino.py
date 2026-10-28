@@ -11,6 +11,7 @@ from sqlglot.expressions.core import Expression
 
 from bloomery.dialects.base import (
     SQLGlotDialect,
+    epoch_timestamps,
     pick_spelled,
     space_separated,
     strip_iso_text,
@@ -120,6 +121,7 @@ class TrinoDialect(SQLGlotDialect):
             return exp.cast(in_utc, exp.DataType.build("TIMESTAMP"))
 
         rewritten: Expression = strip_iso_text(node.copy(), space_separated, instant=instant)
+        rewritten = epoch_timestamps(rewritten, _epoch_date_add)
         rewritten = pick_spelled(rewritten, _picked)
         return super().render(utc_from_zone(rewritten, utc))
 
@@ -185,6 +187,19 @@ class TrinoDialect(SQLGlotDialect):
 
 
 # ....................... #
+
+
+def _epoch_date_add(count: Expression, per_second: int) -> Expression:
+    """``date_add('second', n, TIMESTAMP '1970-01-01 00:00:00.000000')`` (or
+    ``'millisecond'``): zoneless, where ``from_unixtime`` returns a zoned value
+    read in the session zone (S-0096/D-7). The literal carries six digits so a
+    millisecond count keeps its fraction."""
+
+    unit = "second" if per_second == 1 else "millisecond"
+    epoch = exp.cast(
+        exp.Literal.string("1970-01-01 00:00:00.000000"), exp.DataType.build("TIMESTAMP(6)")
+    )
+    return exp.Anonymous(this="date_add", expressions=[exp.Literal.string(unit), count, epoch])
 
 
 def _picked(items: Expression, field: str, text: str, take: str, json: bool) -> Expression:

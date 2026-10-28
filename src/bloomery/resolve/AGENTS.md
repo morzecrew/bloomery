@@ -739,7 +739,7 @@ A picked field's source node in lineage is `source.<relation>.<path>[<field>=<te
 - Paths: `src/bloomery/resolve/graph.py` `tests/unit/test_resolve/test_graph.py`
 - Consequence: Two attributes read from one list are two lineage nodes, and a reader sees which attribute a field comes from
 
-### S-0096/D-5 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+### S-0096/D-5 — `ASSUMED` (An enum_map fallback and epoch timestamps)
 
 An epoch parse is an instant under S-0081/D-2's rules: the zone guard treats its value as never a wall clock, a `to_utc` after it is refused at resolve, and `zone_in:` may only be `UTC`
 

@@ -57,7 +57,7 @@ Unknown transform name → `UnknownTransformError` naming the closest match, com
 - Paths: `src/bloomery/semantic/denomination.py` `src/bloomery/spec/mapping.py` `src/bloomery/transforms/_builtins.py` `src/bloomery/typing/types.py` `tests/fixtures/semantic_corpus/011-timezone-boundary/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0096/D-1 — `ASSUMED` (An enum_map fallback and epoch timestamps) — implementation: partial
+### S-0096/D-1 — `ASSUMED` (An enum_map fallback and epoch timestamps)
 
 A `"*"` as the source of `enum_map`'s last pair is the fallback: a non-NULL value no earlier pair lists yields that pair's target, and NULL stays NULL. A `"*"` in any other pair is refused at typecheck. The arguments stay flat string pairs
 
