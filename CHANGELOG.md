@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-28
+
 ### Added
 
 - **Epoch timestamps: `parse_ts: UNIX_SECONDS` and `UNIX_MILLIS`.** A count since 1970,
@@ -16,12 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a quality-carrying entity quarantines. It lowers to integer arithmetic from 1970 and
   reads the same under any session zone on DuckDB, PostgreSQL and Trino, held to one set
   of answers by an engine differential; other ports refuse it until measured. (#324)
+
 - **An `enum_map` fallback.** A `"*"` last pair maps every non-NULL value no earlier pair
   lists to its target: `{enum_map: ["142", won, "143", lost, "*", open]}` reads an open-ended
   status id as one of three outcomes in one step. NULL stays NULL. Before, unlisted values
   passed through, so the chain needed a nulling step and a `coalesce`, and the nulling step
   turned the field's implicit `coercible` rule off. A `"*"` anywhere but the last pair is
   refused, and so is `in_enum` over a field whose map has a fallback. (#323)
+
 - **The planner binds request values.** `plan(..., paramstyle="pyformat")`, or any of PEP
   249's five styles, puts a placeholder where each request filter value and the row
   policy's value went, and `QueryPlan.params` carries the values in placeholder order. Each
@@ -31,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   by requests that differ only in values; `fingerprint` still covers the values. Without a
   `paramstyle`, nothing changes. A metric filter's literal that happens to spell a bind
   marker stays text. (#304)
+
 - **Descriptions, labels and synonyms on fields and metrics.** A field takes
   `description:`, `label:` and `synonyms:`, and a metric `label:` and `synonyms:` beside its
   description, merged from a template as the description is. Each reaches the slot every
@@ -41,8 +46,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   back to its description. None changes SQL, and a change to any is ADDITIVE, metadata
   only. Cube carries descriptions for the first time. (#311, #313, #343)
 
-  **Upgrade note.** `bloomery_ir_version` moves 27 → 28, so every project re-fingerprints
-  once, and `plan()` refuses to diff across the versions.
 - **A `pick` transform for name/value lists.** `{pick: [name, "Источник заказа", value]}`
   reads one attribute of a list of objects, such as МойСклад's, amoCRM's or Bitrix24's
   custom fields: the take path of the first object whose scalar field reads as the text, or
@@ -50,14 +53,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   names its selection in lineage (`source.<relation>.$.attributes[name=…].value`), so two
   attributes from one list are two nodes. On DuckDB, PostgreSQL and Trino, held to one set of
   answers by an engine differential; other ports refuse it. (#312)
+
 - **Expression metrics have lineage.** `lineage()` walked upstream from a metric defined
   by an `expr` with no `requires:` to nothing. An `expr` edge now runs from each field of the
   metric's grain entity that its `expr` names, so the walk reaches the entity column and,
   through its mapping, bronze. The edge is lineage only: `depends_on`, reachability and
   `plan()` are unchanged, and no artifact or fingerprint moves. (#330)
+
 - **A `prepend` transform.** `{prepend: "amocrm:"}` puts a literal in front of a string,
   as `concat` puts one after it, so a key two sources feed can be namespaced as
   `amocrm:31234567`, which sorts and groups by source. NULL stays NULL. (#325)
+
 - **A date role may name a column flattened through a to-one step.** A line-grain mart
   flattening its order can declare `{date: order_placed_at, role: placed}`, where before a
   role had to name a base column and projects copied the order's date onto every line at
@@ -65,11 +71,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entity's clock, and `MartColumnIR.via` records the join that owns them. A `date:` step
   naming a column a later step flattens is refused. (#310)
 
-  **Upgrade note.** `bloomery_ir_version` moves 26 → 27 with the new field, so every
-  project with a mart re-fingerprints once, and `plan()` refuses to diff across the
-  versions. No artifact's SQL changes.
-
 ### Changed
+
+- **`bloomery_ir_version` is 29 (it was 26 in 0.7.0).** The IR gains `MartColumnIR.via` (#310), the
+  annotation fields on columns and metrics (#311, #313, #343) and `MetricFilterIR.nulls`
+  (#357). Every project re-fingerprints once on upgrade, and `plan()` refuses to diff an
+  artifact set compiled by 0.7 against one compiled by 0.8: re-baseline after upgrading.
+  The annotations and `via` change no SQL.
 
 - **A metric filter's `ne` or `not_in` on a dimension that can be NULL says what NULL
   means.** `{dimension: order_channel, op: ne, values: [Маркетплейс]}` read as "every
@@ -82,8 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   can. (#357)
 
   **Upgrade note.** A project with such a filter stops compiling until each one says
-  `nulls:`; `nulls: exclude` keeps today's numbers. `bloomery_ir_version` moves 28 → 29,
-  so every project with a metric filter re-fingerprints once.
+  `nulls:`; `nulls: exclude` keeps today's numbers.
+
 - **A ratio's numerator may range over a subset of its denominator's rows.** A conversion
   rate, `converted_leads` filtered to `outcome eq converted` over an unfiltered `leads`, was
   refused as `RatioOperandsDisagree`, because the two operands had to be restricted
@@ -102,28 +110,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   group-by. A join key is now a categorical dimension as well, unless an entity of the
   model already has its name, in which case the entity serves it. The MetricFlow manifest of
   every mart with a join gains these dimensions; no other artifact changes. (#355)
+
 - **A `sql_model` body reads its bound inputs through the naming policy.** Under a scoping
   policy such as `PrefixNaming("t0")` the model was written as `t0_silver.<output>` but its
   body still read `silver.<input>`, a relation a prefixed deployment does not have. Each
   table naming a bound input is now spelled by the policy on SQLMesh and dbt, as a Tier 3
   wrapper's read already was. A table the wiring does not bind is emitted as written.
   (#348)
+
 - **A request filter on a date or a timestamp runs on Trino.** The planner wrote the value
   as quoted ISO text, which Trino reads as a `varchar` and refuses to compare with a date
   (`TYPE_MISMATCH: Cannot apply operator: date <= varchar(10)`). A row policy on a date did
   the same. DuckDB and PostgreSQL coerced the text, so nothing else saw it. The value is
   now a typed literal, `DATE '2024-03-04'` or `TIMESTAMP '2024-03-05 09:00:00'`, on every
   planner dialect. (#351)
+
 - **A chain may parse ISO 8601 twice.** `[{parse_ts: ISO8601}, to_string, {parse_ts:
   ISO8601}]` was refused on every port as an unmeasured parse: the rewrite that spells the
   outer parse did not reach the inner one inside its operand. Every marker is now spelled
   however deep it sits, which also covers an epoch parse inside another and a `pick` of a
   `pick`. (#345)
+
 - **A zoned timestamp in a request filter reads its instant.** `booked_at <
   "2024-03-05T11:00:00+02:00"` was rendered as zoned text, which DuckDB and PostgreSQL cast
   to a zoneless `timestamp` by dropping the offset, so it compared against 11:00 UTC instead
   of 09:00. A zoned value is now converted to the UTC wall clock a timestamp dimension
   holds. (#354)
+
 - **A metric's `expr` reads the field its canonical links.** A catalog template is
   written in canonical names, and nothing bound them: with the line's field mapped as `qty`
   (`canonical: quantity`), Cube and MetricFlow emitted `unit_price * quantity` over a mart
@@ -136,12 +149,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **Upgrade note.** A project whose field is spelled differently from its canonical
   re-fingerprints once. A measure naming a column its mart does not carry, which failed at
   query time before, no longer compiles.
+
 - **Every row whose dedupe key fails to cast reaches quarantine.** The dedupe window
   partitioned by the coerced key, and every key that fails its cast coerces to the same
   NULL. Two bronze rows with different uncastable keys therefore shared a partition: one was
   quarantined and the other was dropped as a dedupe loser, in neither the entity nor its
   reject table. Such a row is now partitioned by its own identity as well, so each failure
   is recorded. Genuine duplicates still collapse to their latest row. (#315)
+
 - **A ratio's operands are lineage edges.** `lineage()` walked upstream from a ratio to
   nothing unless `requires_metrics` repeated its numerator and denominator, and
   `plan().downstream_impact` could not reach it from a change to either. The operands are
@@ -149,12 +164,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   operand naming no metric is a `MissingReference` at `metrics.<name>.ratio.<operand>`,
   where before it compiled clean. A ratio over an unreachable operand is now unreachable
   itself. (#330)
+
 - **A dimension added to a mart is ADDITIVE in `plan()`.** One more optional field on an
   entity a mart flattens reported `dimensions changed` as BREAKING beside the additive
   `flattened column … added`, so `plan().breaking` was non-empty for a change no query
   could notice. A mart's dimensions now classify by presence, as its columns do:
   `dimension '<name>' added` is ADDITIVE, and `removed` or `re-pointed` (the same
   dimension reading another column) is BREAKING. (#331)
+
 - **PostgreSQL reads bronze landed as text or typed.** A single-key JSON read
   (`$.payload.channel`) over a `text` column failed with `operator does not exist: text
   ->> unknown`; every read's operand is now cast to `json`, as deeper paths already were.
@@ -165,6 +182,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   integer rounds, and a cast between `boolean` and `int` stays plain. A zone-aware
   `_ingested_at` stays refused, as on DuckDB: the metadata audit flags every row. (#305,
   #306, #307)
+
 - **Every cast in a quality-carrying chain is NULL-on-failure, not only the last.** The
   `Cast → TryCast` shaping rewrote only a chain's outermost cast, because SQLGlot's
   `transform` does not descend into a node it has replaced. A bad value at an inner cast,
@@ -173,12 +191,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Snowflake's string source had the same blind spot for a nested `TRY_CAST`. A cast from a
   boolean keeps its plain spelling on both, since it cannot fail and its string is not
   numeric input.
+
 - **A cast over a constant is not shaped.** A `coalesce` fallback after a cast, as in
   `[to_int, {coalesce: 0}]`, became `TRY_CAST(0 AS BIGINT)` on a quality-carrying entity.
   On PostgreSQL 0.7.0 that put `pg_input_is_valid` around the literal and the run failed
   with `42883`. Elsewhere, a fallback the engine cannot cast (`{coalesce: abc}` over an
   `int`) went NULL silently. A cast that reads no column now stays a `CAST`, so a bad
   fallback fails the run, as it already did on an entity without quality rules. (#322)
+
 - **A semi-additive metric's `over:` is checked at `check`.** Nothing validated it before
   emission: `over: snapshot_day` (the bucket a `snapshot` role produces, not the column
   it is declared over) and `over: warehouse_id` (not a date) both checked clean, and only
@@ -2685,7 +2705,8 @@ artifacts explicitly **not** stable across bloomery versions.
 - Documentation: get-started, concepts, how-to guides for every target and the planner,
   full spec/transform/error/API/stability references, and a runnable `examples/quickstart/`.
 
-[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/morzecrew/bloomery/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/morzecrew/bloomery/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/morzecrew/bloomery/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/morzecrew/bloomery/compare/v0.4.0...v0.5.0
