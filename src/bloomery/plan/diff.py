@@ -1858,12 +1858,17 @@ def _filter_key(clause: MetricFilterIR) -> tuple[str, ...]:
     `status IN (refunded, paid)` restricts, and repeating a value adds nothing,
     so the key drops both distinctions. Only for `in` and `not_in` — every other
     operator takes its values positionally, and `gte 10` is not `gte 20`.
+
+    `nulls: include` joins it as a different set of rows (S-0050/D-17), and
+    `nulls: exclude` does not: it renders what an unqualified clause does, so
+    stating it is not a restatement.
     """
 
     values = [repr(value) for value in clause.values]
     if clause.op in ("in", "not_in"):
         values = sorted(set(values))
-    return (clause.dimension, clause.op, clause.column or "", *values)
+    nulls = "include" if clause.nulls == "include" else ""
+    return (clause.dimension, clause.op, clause.column or "", nulls, *values)
 
 
 # ....................... #

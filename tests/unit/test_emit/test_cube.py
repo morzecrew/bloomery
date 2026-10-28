@@ -906,7 +906,9 @@ def test_a_filter_comparing_two_roles_renders_column_against_column() -> None:
     from bloomery import compile_project, load_project
     from golden.roles_of_one_dimension import DOCUMENTS
 
-    compared = "    filter: [{dimension: billing_region, op: ne, column: shipping_region}]\n"
+    compared = (
+        "    filter: [{dimension: billing_region, op: ne, column: shipping_region, nulls: exclude}]\n"
+    )
     sources = {**DOCUMENTS, "metrics": DOCUMENTS["metrics"] + compared}
     (cube, _view) = compile_project(load_project(sources), target=Target.CUBE, dialect="duckdb")
     assert "{CUBE}.billing_region <> {CUBE}.shipping_region" in cube.content

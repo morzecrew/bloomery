@@ -353,7 +353,25 @@ def metric_filter_sql(
     target's spelling of the other column, which the guardrail has proved
     comparable by R021. A caller that passes none cannot spell a
     column-to-column filter, and the clause is refused rather than approximated.
+
+    ``nulls: include`` (S-0050/D-17) keeps the rows SQL's three-valued logic
+    drops: ``(ref IS NULL OR ref <> v)``, and for a ``column:`` clause a NULL
+    on either side. Parenthesized, because the target ANDs clauses together.
     """
+
+    sql = _comparison_sql(clause, ref=ref, declared=declared, column_ref=column_ref)
+
+    if clause.nulls != "include":
+        return sql
+
+    nullable = [ref] if clause.column is None else [ref, cast("str", column_ref)]
+    return "(" + " OR ".join([*(f"{side} IS NULL" for side in nullable), sql]) + ")"
+
+
+def _comparison_sql(
+    clause: MetricFilterIR, *, ref: str, declared: LogicalType, column_ref: str | None
+) -> str:
+    """The clause's comparison under SQL's own three-valued logic."""
 
     if clause.column is not None:
         if column_ref is None:

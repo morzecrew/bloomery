@@ -137,10 +137,12 @@ def _clause_note(clause: MetricFilterIR, mart: MartIR | None) -> str:
     """One restriction as prose; a ``column:`` comparison carries its R021
     warrant (S-0007/D-9), the two role declarations that make it comparable."""
 
-    if clause.column is None:
-        return f"{clause.dimension} {clause.op} {list(clause.values)}"
+    kept = " (NULL kept)" if clause.nulls == "include" else ""  # S-0050/D-17
 
-    comparison = f"{clause.dimension} {clause.op} column {clause.column}"
+    if clause.column is None:
+        return f"{clause.dimension} {clause.op} {list(clause.values)}{kept}"
+
+    comparison = f"{clause.dimension} {clause.op} column {clause.column}{kept}"
     answer = (
         prove_comparable(clause.dimension, clause.column, mart_roles(mart))
         if mart is not None

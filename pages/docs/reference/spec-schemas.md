@@ -612,6 +612,16 @@ column's declared logical type and are never cast.
 | `op` | `eq` \| `ne` \| `in` \| `not_in` \| `gt` \| `gte` \| `lt` \| `lte` \| `is_null` | yes | Comparison |
 | `values` | list of scalars | per operator, or `column` | One for the comparisons, one bool for `is_null`, one or more for `in`/`not_in` |
 | `column` | column name, `^[a-z][a-z0-9_]*$` | instead of `values` | Another categorical dimension of the same mart to compare against; `eq`/`ne` only |
+| `nulls` | `include` \| `exclude` | on `ne` / `not_in` over a dimension that can be NULL | What a row whose dimension is NULL does: `include` keeps it, `exclude` drops it, as SQL's `<>` and `NOT IN` do |
+
+`ne` and `not_in` read as "everything except these values", but under SQL's
+three-valued logic they drop every row whose dimension is NULL. So on a dimension that
+can be NULL the filter must say which it means, or the metric is refused as
+`MetricFilterInvalid`. A dimension can be NULL unless it is a key or a `required` field
+of the mart's base entity. A column flattened from a joined entity can always be NULL,
+since the join misses wherever the row has no match. `nulls: include` renders
+`(dimension IS NULL OR dimension <> value)`; on a `column:` comparison, a NULL on either
+side is kept. `nulls:` on any other operator is refused at parse.
 
 A filter compares its dimension against literals (`values:`) or against another
 dimension (`column:`) — exactly one of the two. The comparison is admitted only when

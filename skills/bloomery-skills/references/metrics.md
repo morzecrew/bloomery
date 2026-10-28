@@ -165,7 +165,7 @@ paid_revenue:
   expr: "amount"
   filter:
     - {dimension: status, op: eq, values: [paid]}
-    - {dimension: channel, op: not_in, values: [internal, test]}
+    - {dimension: channel, op: not_in, values: [internal, test], nulls: include}
 ```
 
 - `dimension` is a **categorical** column of the mart carrying the metric, matching
@@ -174,6 +174,9 @@ paid_revenue:
   against the column's type and never cast.
 - `column:` instead of `values:` compares two dimensions (`eq` / `ne` only); both flatten
   steps must declare `role_of:` the same dimension, or `MetricFilterInvalid`.
+- `ne` / `not_in` on a dimension that can be NULL must say `nulls: include` (keep the
+  NULL rows) or `nulls: exclude` (drop them, as SQL does), or `MetricFilterInvalid`. Only
+  a key or a `required` base field cannot be NULL; a joined column always can.
 - No `like`; that belongs to request filters.
 
 ## Target boundaries

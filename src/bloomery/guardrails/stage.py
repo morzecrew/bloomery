@@ -159,7 +159,11 @@ def check_guardrails(
     violations.extend(check_additivity(draft))
     # A local mart may list an imported metric among its measures, and a
     # filter on that metric is checked against the marts that list it.
-    violations.extend(check_metrics(replace(draft, metrics=composed.metrics)))
+    # Its base may be imported too, and a filter's nullability reads the base
+    # entity (S-0050/D-17).
+    violations.extend(
+        check_metrics(replace(draft, metrics=composed.metrics), entities=composed.entities)
+    )
     violations.extend(check_lineage_names(draft))
     # Classification against grants (S-0062/D-9 S-0062/D-11): a published relation
     # carrying a `secret` column, or one granted wider than the entity the

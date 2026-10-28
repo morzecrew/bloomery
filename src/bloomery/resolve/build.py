@@ -2432,6 +2432,7 @@ def _metric_filters(filters: tuple[MetricFilter, ...]) -> tuple[MetricFilterIR, 
                 for value in clause.values
             ),
             column=clause.column,
+            nulls=clause.nulls,
         )
         for clause in filters
     )

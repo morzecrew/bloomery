@@ -595,6 +595,13 @@ A `_source` system column carries provenance. It is load-bearing rather than dia
 - Paths: `src/bloomery/emit/lower/predicates.py` `src/bloomery/spec/metrics.py` `tests/unit/test_spec/test_metrics.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0050/D-17 — `ASSUMED` (Metrics over time: derived metrics, offsets, cumulative windows, metric filters)
+
+A metric filter's `ne` or `not_in`, against values or a `column:`, on a dimension that can be NULL states what NULL means: `nulls: include` keeps those rows, rendered `(ref IS NULL OR ref <> v)`, and `nulls: exclude` keeps SQL's three-valued answer, rendered as before. Without it the metric is refused as `MetricFilterInvalid` naming the filter and both choices. A dimension can be NULL unless it is a key or a required column of the mart's base entity: a column flattened from a joined entity is NULL wherever the LEFT JOIN misses. `nulls:` on any other operator is refused at parse. Request filters (S-0032) are not covered
+
+- Paths: `src/bloomery/spec/metrics.py` `src/bloomery/guardrails/metrics.py` `src/bloomery/emit/lower/predicates.py` `src/bloomery/ir/nodes.py` `src/bloomery/resolve/build.py`
+- Consequence: A filter that read as "everything except these values" can no longer drop the rows whose dimension is unmapped without the author saying so. A project with such a filter fails to compile until it chooses, loudly, rather than changing a metric's value on upgrade
+
 ### S-0053/D-1 — `LOCKED` (Measure semantic types and additivity algebra)
 
 **The aggregation vocabulary is a closed typed set, never a target-interpreted string.** `Additive`, `SemiAdditive`, `NonAdditive`, `Ratio`, `DistinctCount`, `Snapshot`. Locked because the planner, the proof rules and every emitter branch on it: an open string set makes each target the authority for what a measure means, which is the arrangement this whole sequence exists to end. Staging the *implementation* across releases is fine; encoding a future class as a string is not.

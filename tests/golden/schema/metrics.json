@@ -283,7 +283,7 @@
     },
     "MetricFilter": {
       "additionalProperties": false,
-      "description": "One row-level restriction on a metric (S-0050/D-8).\n\n``dimension`` names a column flattened on the mart carrying the metric;\nthat it is flattened, and that ``values`` fit its declared type, is a\nguardrail (D9) \u2014 this layer checks only what is decidable from the\ndocument: the operator/arity coherence, and that the name is a bare\nidentifier. The second is not cosmetic \u2014 see\n:data:`~bloomery.spec.common.DimensionName`, which the reference is typed\nwith: this is the one place a member name reaches a template unquoted.\n\n``column`` names another dimension of the same mart to compare against in\nplace of ``values`` (S-0007/D-9), with ``eq`` or ``ne`` only. Whether the\ntwo columns are comparable at all is R021's question, asked by the\nguardrail; this layer checks only that exactly one of the two keys is\npresent and that the operator is one a column comparison takes.",
+      "description": "One row-level restriction on a metric (S-0050/D-8).\n\n``dimension`` names a column flattened on the mart carrying the metric;\nthat it is flattened, and that ``values`` fit its declared type, is a\nguardrail (D9) \u2014 this layer checks only what is decidable from the\ndocument: the operator/arity coherence, and that the name is a bare\nidentifier. The second is not cosmetic \u2014 see\n:data:`~bloomery.spec.common.DimensionName`, which the reference is typed\nwith: this is the one place a member name reaches a template unquoted.\n\n``column`` names another dimension of the same mart to compare against in\nplace of ``values`` (S-0007/D-9), with ``eq`` or ``ne`` only. Whether the\ntwo columns are comparable at all is R021's question, asked by the\nguardrail; this layer checks only that exactly one of the two keys is\npresent and that the operator is one a column comparison takes.\n\n``nulls`` says what ``ne`` or ``not_in`` does with a row whose dimension is\nNULL (S-0050/D-17). Whether the dimension can be NULL, and so whether the\nkey is required, is the guardrail's question; this layer refuses it on any\nother operator.",
       "properties": {
         "column": {
           "anyOf": [
@@ -302,6 +302,22 @@
           "pattern": "^[a-z][a-z0-9_]*$",
           "title": "Dimension",
           "type": "string"
+        },
+        "nulls": {
+          "anyOf": [
+            {
+              "enum": [
+                "include",
+                "exclude"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nulls"
         },
         "op": {
           "enum": [
