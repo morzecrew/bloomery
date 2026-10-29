@@ -4676,7 +4676,7 @@ column's declared logical type and are never cast.</p>
 <td><code>dimension</code></td>
 <td>column name, <code>^[a-z][a-z0-9_]*$</code></td>
 <td>yes</td>
-<td>A <strong>categorical</strong> dimension of the mart carrying the metric</td>
+<td>A <strong>categorical</strong> dimension of the mart carrying the metric. A name that no mart listing the metric carries, and exactly one column of the grain entity links as its canonical, reads that column, so a catalog template can filter in canonical names</td>
 </tr>
 <tr>
 <td><code>op</code></td>
@@ -4694,7 +4694,7 @@ column's declared logical type and are never cast.</p>
 <td><code>column</code></td>
 <td>column name, <code>^[a-z][a-z0-9_]*$</code></td>
 <td>instead of <code>values</code></td>
-<td>Another categorical dimension of the same mart to compare against; <code>eq</code>/<code>ne</code> only</td>
+<td>Another categorical dimension of the same mart to compare against; <code>eq</code>/<code>ne</code> only. Read through the grain's canonical links as <code>dimension</code> is</td>
 </tr>
 <tr>
 <td><code>nulls</code></td>
@@ -4748,7 +4748,7 @@ quotes it.</p>
 <td><code>over</code></td>
 <td>column name</td>
 <td>yes</td>
-<td>The column the metric is not additive over: the source column of a date role (<code>stock_date</code> under <code>{date: stock_date, role: snapshot}</code>, never its bucket <code>snapshot_day</code>), declared on every mart that lists the metric — a mart without it is <code>MartMissingTimeDimension</code></td>
+<td>The column the metric is not additive over: the source column of a date role (<code>stock_date</code> under <code>{date: stock_date, role: snapshot}</code>, never its bucket <code>snapshot_day</code>), declared on every mart that lists the metric — a mart without it is <code>MartMissingTimeDimension</code>. A canonical name reads the one grain entity column that links it, where the grain has no column of that name</td>
 </tr>
 <tr>
 <td><code>rule</code></td>
