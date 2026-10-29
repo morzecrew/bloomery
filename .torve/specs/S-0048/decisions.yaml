@@ -115,3 +115,37 @@ decisions:
       separate decision. Imported entities have no field nodes here, because this
       graph is built from the imports document rather than the upstream IR
     cites: [D-6, S-0022/D-1, S-0002/D-6]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      `resolve()` takes the step registry as `steps`, defaulting to the empty one,
+      and the compile pipeline passes it the registry it was handed. Where the registry
+      holds a wired step's manifest, the step draws a `step_output` edge to each column
+      its bound output produces, beside the relation node; a step input bound to that
+      output reads it whole, from each of those columns; and an expression metric whose
+      grain is that output draws `expr` edges from the produced columns its `expr`
+      names. A step the registry does not hold keeps the wiring-only edges. No label
+      or triple is added
+    paths:
+      - src/bloomery/resolve/graph.py
+      - src/bloomery/resolve/resolution.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_steps/test_step_lineage.py
+      - pages/docs/reference/api.md
+    consequence: >-
+      A walk runs through a `sql_model` step: downstream from an input column to the
+      columns the step produces and to the metrics and marts over them, and upstream
+      back again. `bloomery lineage` takes no registry, so it still shows the wiring
+      alone, and so does a caller of `resolve()` that passes none. Lowering, the IR
+      and every fingerprint are unchanged, since nothing past resolve reads the graph
+    rationale: >-
+      Only the manifest says what a step produces, and resolve never saw a manifest,
+      so a step was a dead end for lineage (#365): its one out-edge went to a node
+      named after the output, and a metric over the output read nothing. The registry
+      is a compile input the caller assembles (S-0034/purity-the-registry-is-a-compile-input),
+      so resolve takes it as an argument rather than finding it. A step's input is
+      still drawn from every column of the relation it binds rather than from its
+      `requires`, which is a lower bound the compile checks (S-0034/D-57) and can be
+      empty, so narrowing to it could cut a step off from what it reads. The relation
+      node stays because a timeline reads it as the whole relation
+    cites: [D-6, D-9, S-0034/D-11, S-0034/D-57]
