@@ -190,6 +190,13 @@ A metric's `expr` is written over its `requires:` canonicals, and the IR build b
 - Paths: `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `src/bloomery/guardrails/arithmetic.py` `tests/unit/test_resolve/test_canonical_binding.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/timeline.py`
 - Consequence: A catalog template works for a project whose field is spelled otherwise, the case `canonical:` links exist for: `unit_price * quantity` over a field `qty` emits `unit_price * qty`, and S-0034/D-49's step-output link counts `canonical_id` rather than a `customer_ref` the mart lacks. `MetricIR.expr` moves only where a spelling differs, so those projects re-fingerprint once; a field renamed under a metric respells it and does not restate it, as S-0024's v2 to v3 case requires
 
+### S-0022/D-11 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
+
+A metric's `filter[].dimension`, its `filter[].column` and its `semi_additive.over` are bound through the grain entity's canonical links, as its `expr` is under D-10. A filter's name that a mart listing the metric carries as written reads that column; it is bound once the marts are lowered, because a joined entity's column reaches a mart flattened under a prefix. An `over` names a column of the metric's own entity, so it is bound at the IR build and a grain column of its name keeps it. Otherwise the one grain column that links the name as its canonical is read, and a name no grain column links, or two do, is kept as written. `unbound` respells each as the canonical of the column it reads, where binding would read that column, so `plan()` and `timeline` compare them in canonical spelling
+
+- Paths: `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `tests/unit/test_resolve/test_canonical_filter_binding.py` `pages/docs/reference/spec-schemas.md`
+- Consequence: A catalog template that filters, or reads a snapshot along an axis, in canonical names compiles for every project that links each of those canonicals from exactly one grain column, whatever it calls the column. Every spec that compiled before reads the same columns: its names were each a column of every mart listing the metric, or of the grain for an `over`, and those keep their literal reading. A field renamed under such a metric respells it and does not restate it
+
 ### S-0023/D-2 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
 Violations are batched project-wide: leaf errors (`UnitMismatch`, `TaxBasisMismatch`, `CurrencyMismatch`, `GrainMismatch`, `AdditivityViolation`, `AssertLoweringError`) are collected and raised as one `GuardrailError` aggregate, sorted by `(source_path, type)`. Matches S-0019/D-6.

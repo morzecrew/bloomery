@@ -159,3 +159,37 @@ decisions:
       its lookup by canonical, so a bound column would have been invisible to it and
       money beside a count would have passed
     cites: [D-3, S-0034/D-49, S-0023/D-3]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      A metric's `filter[].dimension`, its `filter[].column` and its `semi_additive.over`
+      are bound through the grain entity's canonical links, as its `expr` is under
+      D-10. A filter's name that a mart listing the metric carries as written reads
+      that column; it is bound once the marts are lowered, because a joined entity's
+      column reaches a mart flattened under a prefix. An `over` names a column of the
+      metric's own entity, so it is bound at the IR build and a grain column of its
+      name keeps it. Otherwise the one grain column that links the name as its canonical
+      is read, and a name no grain column links, or two do, is kept as written. `unbound`
+      respells each as the canonical of the column it reads, where binding would read
+      that column, so `plan()` and `timeline` compare them in canonical spelling
+    paths:
+      - src/bloomery/ir/lower.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_resolve/test_canonical_filter_binding.py
+      - pages/docs/reference/spec-schemas.md
+    consequence: >-
+      A catalog template that filters, or reads a snapshot along an axis, in canonical
+      names compiles for every project that links each of those canonicals from exactly
+      one grain column, whatever it calls the column. Every spec that compiled before
+      reads the same columns: its names were each a column of every mart listing the
+      metric, or of the grain for an `over`, and those keep their literal reading.
+      A field renamed under such a metric respells it and does not restate it
+    rationale: >-
+      #368. Only the `expr` was bound, so a template's filter and `over` named one
+      project's columns, and those are the parts that decide which rows count and
+      how a snapshot is read. The column of that name wins over a link, unlike in
+      an `expr`, because a dimension declares no canonical: it names a mart column,
+      and the author who wrote a column's name meant that column, a joined one included.
+      The comparison respells a literal name of a linked grain column too, so a metric
+      that names the renamed column in each version agrees with itself
+    cites: [D-10, S-0050/D-9, S-0023/D-13]

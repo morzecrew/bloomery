@@ -90,6 +90,7 @@ from bloomery.ir import (
     TransformStepIR,
     Unit,
     bind_columns,
+    bound_name,
     canon,
     canonical_bindings,
     extraction,
@@ -2416,6 +2417,7 @@ def _derived(derived: DerivedSpec | None) -> DerivedIR | None:
 def _metric_filters(filters: tuple[MetricFilter, ...]) -> tuple[MetricFilterIR, ...]:
     """The ``filter:`` list as IR, in authored order — the clauses are ANDed,
     so the order is cosmetic in SQL and load-bearing in the artifact bytes.
+    The dimensions stay as written until the marts exist (:func:`_bind_filters`).
 
     A ``date``/``datetime`` value becomes its ISO text, the carrier
     :class:`~bloomery.ir.AuditIR` params already use: a temporal literal
@@ -2454,10 +2456,14 @@ def _build_metrics(
     for metric in effective_metrics(project, catalog):  # sorted by name
         if metric.name not in reachable_set:
             continue
+        grain = columns.get(metric.grain or "", ())
         semi_additive = None
         if metric.semi_additive is not None:
             semi_additive = SemiAdditivePolicy(
-                over=DimensionRef(dimension=metric.semi_additive.over),
+                # Through the grain's links (S-0022/D-11). `over` names a column
+                # of the metric's own entity, never a joined one, so the grain's
+                # columns are every literal reading it has.
+                over=DimensionRef(dimension=bound_name(metric.semi_additive.over, grain)),
                 rule=SemiAdditiveRule(metric.semi_additive.rule),
             )
         built.append(
@@ -2785,6 +2791,61 @@ def build_project_ir(
 # ....................... #
 
 
+def _filter_reads(name: str, carried: set[str], columns: tuple[ColumnIR, ...]) -> str:
+    """The column a filter's ``name`` reads: itself where a listing mart
+    carries it, else through the grain's canonical links (S-0022/D-11)."""
+
+    return name if name in carried else bound_name(name, columns)
+
+
+# ....................... #
+
+
+def _bind_filters(draft: ProjectIR) -> ProjectIR:
+    """Each metric filter's ``dimension`` and ``column`` through the grain's
+    canonical links, once the marts listing the metric exist (S-0022/D-11).
+
+    A filter names a mart column, and a joined entity's column reaches the
+    mart flattened under a prefix, so the grain alone cannot say what a name
+    reads: a name any listing mart carries as written is that column. Only a
+    name none of them carries is read through the grain's links.
+    """
+
+    grains = {entity.name: entity.columns for entity in with_imported(draft).entities}
+    bound: list[MetricIR] = []
+
+    for metric in draft.metrics:
+        carried = {
+            column.name
+            for mart in draft.marts
+            if metric.name in mart.measures
+            for column in mart.columns
+        }
+        columns = grains.get(metric.grain, ())
+        bound.append(
+            replace(
+                metric,
+                filter=tuple(
+                    replace(
+                        clause,
+                        dimension=_filter_reads(clause.dimension, carried, columns),
+                        column=(
+                            None
+                            if clause.column is None
+                            else _filter_reads(clause.column, carried, columns)
+                        ),
+                    )
+                    for clause in metric.filter
+                ),
+            )
+        )
+
+    return replace(draft, metrics=tuple(bound))
+
+
+# ....................... #
+
+
 def _lower_draft(
     project: Project,
     catalog: Catalog | None,
@@ -2841,7 +2902,9 @@ def _lower_draft(
     )
     # Mart flattening (S-0027/D-6): pure, total — violations are re-derived
     # and raised by the guardrail stage below; only clean marts attach here.
-    flattened = replace(draft, marts=lower_marts(project.marts, with_imported(draft)).marts)
+    flattened = _bind_filters(
+        replace(draft, marts=lower_marts(project.marts, with_imported(draft)).marts)
+    )
 
     # Rollups lower *against* the flattened draft (S-0065/the-obligation): a rollup
     # names a mart, and R013's premise is the mart contract, so the parent has

@@ -5,6 +5,7 @@ from bloomery.ir.fingerprint import project_fingerprint
 from bloomery.ir.json import ir_from_json, ir_json
 from bloomery.ir.lower import (
     bind_columns,
+    bound_name,
     canon,
     canonical_bindings,
     extraction,
@@ -160,6 +161,7 @@ __all__ = [
     "UnreachableMetric",
     "bind_columns",
     "canon",
+    "bound_name",
     "canonical_bindings",
     "extraction",
     "ir_from_json",
