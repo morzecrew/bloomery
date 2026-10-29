@@ -388,9 +388,11 @@ there is nothing there to attach one to and nothing is refused.
 | `currency_in` | ISO-4217 code, or `{column: <name>}` | no | What currency the path's values are in, where the chain converts |
 | `zone_in` | IANA zone name | no | What clock the path's wall clocks were written on — see [`zone_in:`](transforms.md#zone_in-what-clock-the-source-runs-on) |
 
-### FieldMapping — two forms
+### FieldMapping — forms
 
-A field mapping is **simple** or **recipe**, discriminated on the presence of `recipe`:
+A field mapping is **simple**, **recipe**, **const** or a Tier 1 `sql_macro` call
+(`step:`, see [the step registry](../concepts/step-registry.md)), discriminated on the
+presence of `recipe`, `step` or `const`:
 
 ```yaml
 # simple: one source path plus a transform chain
@@ -400,7 +402,19 @@ quantity: {from: "$.qty", transform: [to_int]}
 unit_price:
   recipe: from_total
   from: {line_total: "$.total", quantity: "$.qty"}
+
+# const: one literal for every row this mapping lands
+marketplace: {const: Wildberries}
 ```
+
+A **const** reads no source path. It is checked against the field's declared type when
+the project compiles, by the rule a metric filter's value is held to: a decimal or a date
+is written as the string it is, and text is never cast implicitly. It lowers to
+`CAST(<literal> AS <type>)`. With one constant per mapping, the rows of a merged entity
+say which source they came from in a business value, which `_source`, the relation name,
+is not. A single mapping can use one too. It takes no `transform:` and no `quality:`, gets no
+implicit `coercible` rule, and has no source column upstream of it in lineage. A key
+field cannot be one.
 
 | Form | Field | Type | Required | Meaning |
 |---|---|---|---|---|
@@ -413,6 +427,7 @@ unit_price:
 | recipe | `from` | map alias → source path | yes | Bindings for every name in the recipe's `requires` — exactly, no more, no fewer |
 | recipe | `direct` | source path | no | The source *also* carries the field directly — emits a `<name>__direct` shadow column and a reconciliation audit |
 | recipe | `quality` | list of field quality rules | no (`[]`) | See [Field quality rules](#field-quality-rules) |
+| const | `const` | boolean, integer or string | yes | The value. A float, a NUL byte and a `{` or `}` are refused: a float has no exact reading, and a brace would reach dbt's Jinja inside the model |
 
 ### Transform steps
 

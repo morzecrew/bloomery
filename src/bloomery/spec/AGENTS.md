@@ -251,6 +251,13 @@ Spec unions discriminate on their literal `rule` field where one exists, and oth
 - Paths: `src/bloomery/spec/*.py`
 - Consequence: A new spec union picks the member from a tag field or from which key is present, so pydantic reports an error against one member rather than listing every member's failures
 
+### S-0019/D-16 — `ASSUMED` (Spec layer and error model)
+
+A value field's mapping may be `{const: <literal>}`, a fourth shape beside a path, a recipe and a macro. The literal is a boolean, an integer, or a string that may carry a decimal or an ISO date or instant; a float, a non-finite number, a NUL byte and a template brace are refused at parse. It is checked against the field's declared type at the typecheck stage by the rule a metric filter's value is held to, and lowers to `CAST(<literal> AS <type>)`. It reads no source path, carries no `transform:` and no `quality:`, gets no implicit `coercible` rule, and draws no lineage edge. A key field is not a constant
+
+- Paths: `src/bloomery/spec/mapping.py` `src/bloomery/resolve/build.py` `src/bloomery/resolve/graph.py` `src/bloomery/quality/lower.py` `src/bloomery/guardrails/quality.py` `src/bloomery/guardrails/metrics.py` `tests/unit/test_spec/test_mapping_const.py` `tests/execution/test_mapping_const.py` `tests/golden/schema/mapping.json` `pages/docs/reference/spec-schemas.md`
+- Consequence: Two marketplaces landing in one merged entity each name their rows, and so does a single mapping, without `_source`, which names a relation and exists only once two mappings feed an entity. Lineage walks upstream from such a field to nothing, which is the truth, rather than to a source column it never reads. A value outside the field's type is refused with the field's path, not cast at run time
+
 ### S-0020/D-5 — `ASSUMED` (Intermediate representation and determinism contract)
 
 Floats are banned in IR and emission; `Decimal`/int only.

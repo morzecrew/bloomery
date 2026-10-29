@@ -110,6 +110,13 @@ Parse-stage errors are batched per document (all failures reported at once).
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/guardrails/metrics.py` `src/bloomery/spec/common.py` `src/bloomery/spec/entity.py` `src/bloomery/spec/marts.py` `src/bloomery/spec/metrics.py` `tests/golden/schema/catalog.json` `tests/golden/schema/entity_model.json` `tests/golden/schema/marts.json` `tests/golden/schema/metrics.json` `tests/unit/test_guardrails/test_metrics.py` `tests/unit/test_spec/test_metrics.py`
 
+### S-0019/D-16 — `ASSUMED` (Spec layer and error model)
+
+A value field's mapping may be `{const: <literal>}`, a fourth shape beside a path, a recipe and a macro. The literal is a boolean, an integer, or a string that may carry a decimal or an ISO date or instant; a float, a non-finite number, a NUL byte and a template brace are refused at parse. It is checked against the field's declared type at the typecheck stage by the rule a metric filter's value is held to, and lowers to `CAST(<literal> AS <type>)`. It reads no source path, carries no `transform:` and no `quality:`, gets no implicit `coercible` rule, and draws no lineage edge. A key field is not a constant
+
+- Paths: `src/bloomery/spec/mapping.py` `src/bloomery/resolve/build.py` `src/bloomery/resolve/graph.py` `src/bloomery/quality/lower.py` `src/bloomery/guardrails/quality.py` `src/bloomery/guardrails/metrics.py` `tests/unit/test_spec/test_mapping_const.py` `tests/execution/test_mapping_const.py` `tests/golden/schema/mapping.json` `pages/docs/reference/spec-schemas.md`
+- Consequence: Two marketplaces landing in one merged entity each name their rows, and so does a single mapping, without `_source`, which names a relation and exists only once two mappings feed an entity. Lineage walks upstream from such a field to nothing, which is the truth, rather than to a source column it never reads. A value outside the field's type is refused with the field's path, not cast at run time
+
 ### S-0022/D-2 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
 
 The compiler never chooses a recipe. The mapping's recorded `recipe:` id is validated — id exists on the catalog field, every `requires` name bound by the mapping's `from` aliases (exactly) — else `ResolutionError`. Choice happens upstream; the compiler reproduces it (determinism + auditability, spec §3.4). Consequence: catalog evolution can invalidate recorded choices, and that is a loud error, not a silent re-choice.

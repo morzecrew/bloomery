@@ -18,7 +18,12 @@ from typing import TYPE_CHECKING, Final
 from sqlglot import exp, parse_one
 
 from bloomery.spec.catalog import Catalog
-from bloomery.spec.mapping import ALIAS_BOUND, RecipeFieldMapping, SimpleFieldMapping
+from bloomery.spec.mapping import (
+    ALIAS_BOUND,
+    ConstFieldMapping,
+    RecipeFieldMapping,
+    SimpleFieldMapping,
+)
 from bloomery.spec.project import Project, key, node_keys
 from bloomery.steps import EMPTY_REGISTRY
 
@@ -281,6 +286,10 @@ def _mapping_edges(
 
     for field_name, field_mapping in mapping.fields.items():
         dst = entity_field_node(mapping.target, field_name)
+        if isinstance(field_mapping, ConstFieldMapping):
+            # Reads no source column, so nothing is upstream of it: the field
+            # node stands alone, as a zero-path macro's does (S-0019/D-16).
+            continue
         if isinstance(field_mapping, ALIAS_BOUND):
             label = (
                 f"recipe:{field_mapping.recipe}"

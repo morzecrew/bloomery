@@ -39,6 +39,7 @@ import re
 from collections.abc import Mapping as AbcMapping
 from dataclasses import dataclass, replace
 from datetime import date, datetime
+from decimal import Decimal
 from enum import StrEnum
 from types import MappingProxyType
 from typing import TYPE_CHECKING, cast
@@ -47,14 +48,18 @@ from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
 
 from bloomery.errors import (
+    BloomeryError,
     InvariantViolated,
     ResolutionError,
     StepDeterminismError,
     StepError,
+    TypeCheckError,
+    UnknownTransformError,
     guaranteed,
 )
 from bloomery.guardrails import check_guardrails
 from bloomery.guardrails.imports import declared_locally
+from bloomery.guardrails.metrics import literal_fits
 from bloomery.ir import (
     VALIDITY_COLUMNS,
     Additivity,
@@ -122,6 +127,7 @@ from bloomery.spec.catalog import Catalog
 from bloomery.spec.common import MAX_SQL_DEPTH, SQLGLOT_PARSE_FAILURES, UTC_ZONES, sql_depth
 from bloomery.spec.mapping import (
     ALIAS_BOUND,
+    ConstFieldMapping,
     CurrencyColumn,
     KeyField,
     MacroFieldMapping,
@@ -551,6 +557,7 @@ def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) ->
     as an empty chain so the batched check refuses it at the field, instead of
     the neutral cast refusing it at emit with no address."""
     checks: list[ChainCheck] = []
+    refusals: list[BloomeryError] = []
 
     for mapping in project.mappings:
         doc = mapping_doc(mapping)
@@ -572,6 +579,9 @@ def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) ->
             field_mapping = mapping.fields[field_name]
             declared = _field_type(mapping.target, field_name, entity.fields[field_name])
             path = f"{doc}: fields.{field_name}"
+            if isinstance(field_mapping, ConstFieldMapping):
+                refusals.extend(_const_refusal(field_mapping, declared, source_path=path))
+                continue
             # Before the alias skip: a recipe or macro aimed at a vector reaches
             # the same neutral cast at emit as a plain chain does.
             if isinstance(declared, VectorType):
@@ -586,7 +596,71 @@ def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) ->
                 )
             )
 
-    typecheck_chains(checks, registry=reg)
+    try:
+        typecheck_chains(checks, registry=reg)
+    except (TypeCheckError, UnknownTransformError) as exc:
+        # One batch with the constants' refusals, rather than a second round
+        # trip for whichever kind did not raise first (S-0021/typecheck-stage-bloomery-typing-check-py).
+        refusals.extend(exc.collected or (exc,))
+
+    if len(refusals) == 1:
+        raise refusals[0]
+
+    if refusals:
+        raise TypeCheckError.from_collected(tuple(refusals))
+
+
+# ....................... #
+
+
+def _const_literal(field_mapping: ConstFieldMapping) -> bool | int | Decimal | str:
+    """A constant as the scalar it carries: a date or an instant as its ISO
+    text, the carrier the IR has for one (S-0020/fingerprint)."""
+
+    value = field_mapping.const
+    return value.isoformat() if isinstance(value, date | datetime) else value
+
+
+# ....................... #
+
+
+def _const_refusal(
+    field_mapping: ConstFieldMapping, declared: LogicalType, *, source_path: str
+) -> list[BloomeryError]:
+    """A constant that is not a value of its field's declared type (S-0019/D-16),
+    by the rule a metric filter's value is held to: no implicit cast of text."""
+
+    value = _const_literal(field_mapping)
+
+    if literal_fits(value, declared):
+        return []
+
+    spelled = render_type(declared)
+    msg = (
+        f"const {field_mapping.const!r} is not a value of the field's declared type "
+        f"{spelled}. Fix: write a value of that type, quoting a decimal or a date as the "
+        "string it is, or change the field's type"
+    )
+    return [TypeCheckError(msg, source_path=source_path)]
+
+
+# ....................... #
+
+
+def _const_expr(field_mapping: ConstFieldMapping, declared: LogicalType) -> Expression:
+    """``CAST(<literal> AS <declared type>)``, the shape a plain path lowers to
+    with its extraction replaced by the literal. Built as an AST node, never
+    interpolated: the value is quoted SQL however it is spelled."""
+
+    value = _const_literal(field_mapping)
+    literal: Expression = (
+        exp.Boolean(this=value)
+        if isinstance(value, bool)
+        else exp.Literal.number(value)
+        if isinstance(value, int)
+        else exp.Literal.string(str(value))
+    )
+    return exp.cast(literal, neutral_type(declared))
 
 
 # ....................... #
@@ -1460,7 +1534,11 @@ def _build_source(
         field_mapping = mapping.fields[field_name]
         field = entity.fields[field_name]
         declared = _field_type(entity_name, field_name, field)
-        if isinstance(field_mapping, MacroFieldMapping):
+        if isinstance(field_mapping, ConstFieldMapping):
+            # Reads no path, so it contributes no source field: replay and the
+            # reject payload have nothing of bronze to carry for it.
+            add_column(field_name, field, declared, shape(_const_expr(field_mapping, declared)))
+        elif isinstance(field_mapping, MacroFieldMapping):
             expr = _macro_expr(
                 field_mapping, declared, steps, source_path=f"{doc}: fields.{field_name}"
             )

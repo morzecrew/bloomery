@@ -110,6 +110,42 @@
       "title": "CoercibleRule",
       "type": "object"
     },
+    "ConstFieldMapping": {
+      "additionalProperties": false,
+      "description": "A field set to one literal for every row the mapping lands\n(S-0019/D-16), typed against the field's declaration at the typecheck\nstage and lowered to a cast of it.\n\nIt reads no source path, so it carries no chain to transform and no\n``quality:`` surface: there is no bronze value to clean or to judge. That\nis what separates it from reading a path that is always present and\nmapping every value to the constant, which breaks on a NULL and makes\nlineage name a column the field never reads.",
+      "properties": {
+        "const": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "format": "date-time",
+              "type": "string"
+            }
+          ],
+          "title": "Const"
+        }
+      },
+      "required": [
+        "const"
+      ],
+      "title": "ConstFieldMapping",
+      "type": "object"
+    },
     "CurrencyColumn": {
       "additionalProperties": false,
       "description": "Per-row denomination: the sibling column holding this row's currency\ncode (S-0066/D-5).\n\nIn the vocabulary from the first commit and lowered by P2, because the\nalternative is a second way to say what currency a value is in, arriving\nlater \u2014 the argument that withdrew S-0054's P3. Resolution refuses it as\nunbuilt rather than as invalid, so the refusal says which it is.",
@@ -1198,6 +1234,9 @@
           },
           {
             "$ref": "#/$defs/MacroFieldMapping"
+          },
+          {
+            "$ref": "#/$defs/ConstFieldMapping"
           }
         ]
       },

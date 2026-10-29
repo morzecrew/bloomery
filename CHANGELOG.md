@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A field mapping can set a constant.** `marketplace: {const: Wildberries}` sets the field to
+  one literal for every row the mapping lands, typed against the field's declaration when
+  the project compiles and reading no source path. Two marketplaces feeding one merged
+  entity each name their rows, and a single mapping can too. Lineage shows no source
+  column for the field, and a value outside the field's type is refused with its path.
+  (#375)
+
 - **`unit: ratio` for a dimensionless factor.** A canonical field holding a percentage, a
   VAT rate, a ±1 sign or a 0/1 flag declares `unit: ratio`, and like a count it carries no
   tax basis. So `price * (100 - discount) / 100 - cost` compiles instead of being refused
