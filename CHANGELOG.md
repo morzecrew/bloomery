@@ -13,8 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the MetricFlow entity that stands for it, a mart's becomes MetricFlow's semantic model
   `label` and Cube's cube and view `title`, and a manifest's `produces:` column label
   reaches the output entity's column as a mapped field's does. No SQL changes, and
-  changing one is metadata only in `plan()`; a step whose column label changed is not
-  restated. (#373)
+  changing one is metadata only in `plan()` and `timeline()`; a step whose column label
+  changed is not restated. (#373)
 
 - **A field mapping can set a constant.** `marketplace: {const: Wildberries}` sets the field to
   one literal for every row the mapping lands, typed against the field's declaration when

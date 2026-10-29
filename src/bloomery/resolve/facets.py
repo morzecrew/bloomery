@@ -35,7 +35,7 @@ diff dressed as semantics.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from decimal import Decimal
 from enum import StrEnum
 from typing import Final, TypeGuard, cast
@@ -47,7 +47,7 @@ from bloomery.errors import InvariantViolated
 # `facets` are public, and S-0035/D-10 requires a public annotation to resolve
 # at run time — `tests/unit/test_signature_closure.py` calls `get_type_hints`
 # on every export and a guarded name fails it.
-from bloomery.ir import SourceColumnIR, SqlExpr
+from bloomery.ir import SourceColumnIR, SqlExpr, StepIR
 from bloomery.spec.catalog import CanonicalField
 from bloomery.transforms import DIVIDE_MARKER
 from bloomery.typing import LogicalType, render_type
@@ -210,6 +210,9 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     # as one that stops reading it.
     ("StepIR", "inputs"): Facet.INPUTS,
     ("StepIR", "outputs"): Facet.INPUTS,
+    # Not a field: the produced columns' labels, compared apart from the
+    # outputs they sit in (S-0094/D-13). See `_record_fields`.
+    ("StepIR", "output_labels"): Facet.METADATA,
     ("StepIR", "parameters"): Facet.INPUTS,
     ("StepIR", "body"): Facet.BODY,
     ("StepIR", "entrypoint"): Facet.BODY,
@@ -379,6 +382,28 @@ def _record_fields(record: object) -> dict[str, tuple[str, object]]:
             for field in CanonicalField.model_fields
             if field not in _IDENTITY
         }
+
+    if isinstance(record, StepIR):
+        # A produced column's label is metadata (S-0094/D-13), read by nothing
+        # that decides what the step computes. Compared inside `outputs` it
+        # moved the step's INPUTS, so it is lifted out into a field of its own.
+        flat = {
+            field.name: (name, getattr(record, field.name))
+            for field in fields(record)
+            if field.name not in _IDENTITY
+        }
+        flat["outputs"] = (
+            name,
+            tuple(
+                replace(output, columns=tuple(replace(c, label=None) for c in output.columns))
+                for output in record.outputs
+            ),
+        )
+        flat["output_labels"] = (
+            name,
+            tuple((o.name, c.name, c.label) for o in record.outputs for c in o.columns),
+        )
+        return flat
 
     if is_dataclass(record) and not isinstance(record, type):
         return {

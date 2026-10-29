@@ -597,9 +597,9 @@ No id-only fingerprint is introduced; if a guard ever needs a narrower scope it 
 
 ### S-0094/D-13 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
 
-A step manifest's `produces:` column gains optional `label`, under D-2's rule. It reaches `StepColumnIR.label` and the output entity's `ColumnIR.label`, and from there every slot a mapped field's label reaches under D-5 and D-7. A step's identity in `plan()` leaves the labels out, so a changed label restates no step and is reported on the output entity's column as ADDITIVE, metadata only. A wiring cannot override the manifest's label
+A step manifest's `produces:` column gains optional `label`, under D-2's rule. It reaches `StepColumnIR.label` and the output entity's `ColumnIR.label`, and from there every slot a mapped field's label reaches under D-5 and D-7. A step's identity in `plan()` leaves the labels out, so a changed label restates no step and is reported on the output entity's column as ADDITIVE, metadata only. A step's facets in `timeline()` compare the labels as `output_labels`, a METADATA facet, apart from the `outputs` they sit in. A wiring cannot override the manifest's label
 
-- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/diff.py` `tests/unit/test_spec/test_entity_mart_labels.py`
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/facets.py` `tests/unit/test_spec/test_entity_mart_labels.py`
 - Consequence: A column a step computes is named as one a mapping lands is, on the output entity and on every mart over it. Changing the label in a manifest moves the project fingerprint, as any manifest change does under S-0034/D-11, and backfills nothing
 
 ## Invariants holding over `src/bloomery/ir/`
