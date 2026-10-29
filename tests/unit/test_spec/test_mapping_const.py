@@ -17,9 +17,9 @@ import re
 from pathlib import Path
 
 import pytest
-from support.compiling import fixture_sources
+from support.compiling import FIXTURES, fixture_sources
 
-from bloomery import Direction, build_project_ir, lineage, load_project, resolve
+from bloomery import Direction, build_project_ir, lineage, load_catalog, load_project, resolve
 from bloomery.errors import SpecParseError, TypeCheckError
 from bloomery.ir import EntityIR
 from bloomery.resolve.graph import entity_field_node
@@ -188,3 +188,48 @@ def test_a_constant_gets_no_implicit_coercible_rule() -> None:
 
     assert "channel" not in {rule.column for rule in entity.quality if rule.kind == "coercible"}
     assert "sku" in {rule.column for rule in entity.quality if rule.kind == "coercible"}
+
+
+# ....................... #
+# Review round 2 (CodeRabbit on #377)
+
+
+@pytest.mark.parametrize("value", ["2026-01-01", "2026-01-01 10:00:00"])
+def test_an_unquoted_date_is_not_text(value: str) -> None:
+    """YAML reads it as a date, and its text does not survive the round trip:
+    `2026-01-01 10:00:00` comes back with a `T`. A string field takes it
+    quoted, as the text it is."""
+    with pytest.raises(TypeCheckError, match="quote it"):
+        build_project_ir(load_project(_sources(platform=value, legacy=None)))
+
+    entity = _entity(_sources(platform=f'"{value}"', legacy=None))
+    (source, _) = entity.sources
+    assert next(c.expr.sql for c in source.columns if c.name == "channel") == (
+        f"CAST('{value}' AS TEXT)"
+    )
+
+
+def test_a_string_constant_keeps_its_whitespace() -> None:
+    """Spec strings are stripped, which is right for names and wrong for a
+    value: the column must hold what was written."""
+    entity = _entity(_sources(platform='" VIP "', legacy=None))
+    (source, _) = entity.sources
+
+    assert next(c.expr.sql for c in source.columns if c.name == "channel") == "CAST(' VIP ' AS TEXT)"
+
+
+def test_a_constant_can_be_a_conversion_s_currency_column() -> None:
+    """A feed whose every row is in one currency, named by a sibling column
+    that is a constant: the conversion reads the literal."""
+    sources = fixture_sources("currency_convert_per_row")
+    old = '  currency_code: {from: "$.currency", transform: [to_string]}\n'
+    assert sources["mapping"].count(old) == 1
+    sources["mapping"] = sources["mapping"].replace(old, "  currency_code: {const: EUR}\n")
+    catalog = load_catalog(
+        (FIXTURES / "currency_convert_per_row" / "catalog.yaml").read_text(encoding="utf-8")
+    )
+    (entity,) = build_project_ir(load_project(sources), catalog).entities
+    (source,) = entity.sources
+
+    converted = next(c.expr.sql for c in source.columns if c.name == "amount_usd")
+    assert "CAST('EUR' AS TEXT)" in converted

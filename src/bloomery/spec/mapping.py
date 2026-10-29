@@ -265,9 +265,14 @@ def _const_value(value: object) -> object:
 #: a decimal is written as the string it is, so no ``number`` member exists for
 #: the JSON schema to advertise. The pattern says in the schema what
 #: :func:`_const_value` refuses, so an editor validating against it accepts what
-#: the loader does.
+#: the loader does. Not stripped, unlike every other spec string: this one is
+#: the column's value, and ``" VIP "`` is what was written.
 ConstValue = Annotated[
-    bool | int | date | datetime | Annotated[str, StringConstraints(pattern=r"^[^{}\x00]*$")],
+    bool
+    | int
+    | date
+    | datetime
+    | Annotated[str, StringConstraints(strip_whitespace=False, pattern=r"^[^{}\x00]*$")],
     BeforeValidator(_const_value),
 ]
 

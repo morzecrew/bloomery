@@ -632,6 +632,17 @@ def _const_refusal(
     """A constant that is not a value of its field's declared type (S-0019/D-16),
     by the rule a metric filter's value is held to: no implicit cast of text."""
 
+    if isinstance(field_mapping.const, date | datetime) and not isinstance(
+        declared, DateType | TimestampType
+    ):
+        # YAML read it as a date, and its text does not survive the round trip:
+        # `2026-01-01 10:00:00` comes back with a `T`, `Z` as `+00:00`.
+        msg = (
+            f"const {field_mapping.const!r} is a date, read unquoted, and the field is "
+            f"{render_type(declared)}. Fix: quote it to set the text as written"
+        )
+        return [TypeCheckError(msg, source_path=source_path)]
+
     value = _const_literal(field_mapping, declared)
 
     if literal_fits(value, declared):
@@ -3131,6 +3142,11 @@ def _sibling_expression(
             f"the one that has to supply {kind.supplies}"
         )
         raise ResolutionError(msg, source_path=source_path)
+
+    if isinstance(lowering, ConstFieldMapping):
+        # Its own lowering is a typed literal (S-0019/D-16): nothing is spliced,
+        # and no chain is there to carry a conversion of its own.
+        return _const_expr(lowering, declared)
 
     # Both direct-path shapes, and they are different classes: `key:` entries
     # are `KeyField`, `fields:` entries are `SimpleFieldMapping`. Testing only

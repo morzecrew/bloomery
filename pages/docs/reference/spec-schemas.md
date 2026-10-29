@@ -409,9 +409,11 @@ marketplace: {const: Wildberries}
 ```
 
 A **const** reads no source path. It is checked against the field's declared type when
-the project compiles, by the rule a metric filter's value is held to: a decimal or a date
-is written as the string it is, and text is never cast implicitly. It lowers to
-`CAST(<literal> AS <type>)`. With one constant per mapping, the rows of a merged entity
+the project compiles, by the rule a metric filter's value is held to: a decimal is written
+as the string it is, text is never cast implicitly, and an unquoted date fits only a date
+or timestamp field — quote it to set a string. A string is kept exactly as written. It
+lowers to `CAST(<literal> AS <type>)`, and a `convert` step may name it as its currency
+column or its date anchor. With one constant per mapping, the rows of a merged entity
 say which source they came from in a business value, which `_source`, the relation name,
 is not. A single mapping can use one too. It takes no `transform:` and no `quality:`, gets no
 implicit `coercible` rule, and has no source column upstream of it in lineage. A key

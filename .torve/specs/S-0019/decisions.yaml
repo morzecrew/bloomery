@@ -174,9 +174,12 @@ decisions:
       that may carry a decimal or an ISO date or instant; a float, a non-finite number,
       a NUL byte and a template brace are refused at parse. It is checked against
       the field's declared type at the typecheck stage by the rule a metric filter's
-      value is held to, and lowers to `CAST(<literal> AS <type>)`. It reads no source
-      path, carries no `transform:` and no `quality:`, gets no implicit `coercible`
-      rule, and draws no lineage edge. A key field is not a constant
+      value is held to, and lowers to `CAST(<literal> AS <type>)`, a temporal in UTC
+      without the ISO `T`. An unquoted YAML date fits only a date or timestamp field,
+      and a string is kept as written, whitespace included. It reads no source path,
+      carries no `transform:` and no `quality:`, gets no implicit `coercible` rule,
+      and draws no lineage edge; a `convert` step that names it as a sibling column
+      reads its literal. A key field is not a constant
     paths:
       - src/bloomery/spec/mapping.py
       - src/bloomery/resolve/build.py
