@@ -1732,10 +1732,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#resolveproject-project-catalog-catalog-none-none-resolution" class="md-nav__link">
+  <a href="#resolveproject-project-catalog-catalog-none-none-stepsempty_registry-resolution" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        <code>resolve(project: Project, catalog: Catalog | None = None) -&gt; Resolution</code>
+        <code>resolve(project: Project, catalog: Catalog | None = None, *, steps=EMPTY_REGISTRY) -&gt; Resolution</code>
       </span>
     </span>
   </a>
@@ -2604,10 +2604,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#resolveproject-project-catalog-catalog-none-none-resolution" class="md-nav__link">
+  <a href="#resolveproject-project-catalog-catalog-none-none-stepsempty_registry-resolution" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        <code>resolve(project: Project, catalog: Catalog | None = None) -&gt; Resolution</code>
+        <code>resolve(project: Project, catalog: Catalog | None = None, *, steps=EMPTY_REGISTRY) -&gt; Resolution</code>
       </span>
     </span>
   </a>
@@ -3299,12 +3299,17 @@ steps needs nothing here.</p>
 manifest object <code>emit_manifest</code> returns, and nothing else. A project with no
 marts emits no artifact.</p>
 <h2 id="analysis">Analysis<a class="headerlink" href="#analysis" title="Permanent link">&para;</a></h2>
-<h3 id="resolveproject-project-catalog-catalog-none-none-resolution"><code>resolve(project: Project, catalog: Catalog | None = None) -&gt; Resolution</code><a class="headerlink" href="#resolveproject-project-catalog-catalog-none-none-resolution" title="Permanent link">&para;</a></h3>
+<h3 id="resolveproject-project-catalog-catalog-none-none-stepsempty_registry-resolution"><code>resolve(project: Project, catalog: Catalog | None = None, *, steps=EMPTY_REGISTRY) -&gt; Resolution</code><a class="headerlink" href="#resolveproject-project-catalog-catalog-none-none-stepsempty_registry-resolution" title="Permanent link">&para;</a></h3>
 <p>Run reference validation, recipe validation, and reachability without emitting
 anything. The <code>Resolution</code> carries <code>reachable_metrics</code>, <code>unreachable_metrics</code> (each
 with its specific missing leaves), per-field <code>provenance</code> (direct / recipe / native),
 the deterministic topological order, and the dependency <code>graph</code> those three were
 computed from.</p>
+<p><code>steps</code> is read for lineage only. A step's manifest is what says which columns it
+produces, so pass the registry you compile with and the graph runs through each step:
+from the relation it reads, to every column it produces, to the metrics over them.
+Without it, a step's output is one node named after the output. Wiring and manifests
+are checked by <code>compile_project</code> and <code>build_project_ir</code>, not here.</p>
 <h3 id="lineagegraph-root-directiondirectionupstream-max_depthnone-lineage"><code>lineage(graph, root, direction=Direction.UPSTREAM, *, max_depth=None) -&gt; Lineage</code><a class="headerlink" href="#lineagegraph-root-directiondirectionupstream-max_depthnone-lineage" title="Permanent link">&para;</a></h3>
 <p>Walk a <code>Resolution.graph</code> from one node and return the <strong>reachable sub-DAG</strong> — the
 nodes and the labelled edges, never enumerated paths, whose count is exponential in
@@ -3365,22 +3370,22 @@ before returning.</p>
 <tr>
 <td><code>expr</code></td>
 <td>entity field → metric</td>
-<td>a grain-entity column an expression metric's <code>expr</code> names; lineage only</td>
+<td>a grain-entity column an expression metric's <code>expr</code> names, including a column a step produces; lineage only</td>
 </tr>
 <tr>
 <td><code>step_input</code></td>
 <td>entity field → step</td>
-<td>a step reading a mapped entity, whole</td>
+<td>a step reading a relation whole: each field of a mapped entity, or each column another step produces</td>
 </tr>
 <tr>
 <td><code>step_input</code></td>
 <td>step → step</td>
-<td>a step reading another step's output</td>
+<td>a step reading another step's output, when <code>resolve</code> was given no manifest for it</td>
 </tr>
 <tr>
 <td><code>step_output</code></td>
 <td>step → entity field</td>
-<td>a step's declared output</td>
+<td>a step's declared output relation and, given its manifest, each column it produces</td>
 </tr>
 </tbody>
 </table>

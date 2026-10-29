@@ -1888,6 +1888,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#s-0048d-10-assumed-lineage" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0048/D-10 — <code>ASSUMED</code> (Lineage)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#s-0091d-4-assumed-a-recipes-operands-carry-types" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1988,6 +1999,12 @@
 <ul>
 <li>Paths: <code>pages/docs/reference/stability.md</code></li>
 <li>Touching these paths owes a divergence entry: <code>torve log owed &lt;task&gt; --touched &lt;files&gt;</code> before you finish</li>
+</ul>
+<h3 id="s-0048d-10-assumed-lineage">S-0048/D-10 — <code>ASSUMED</code> (Lineage)<a class="headerlink" href="#s-0048d-10-assumed-lineage" title="Permanent link">&para;</a></h3>
+<p><code>resolve()</code> takes the step registry as <code>steps</code>, defaulting to the empty one, and the compile pipeline passes it the registry it was handed. Where the registry holds a wired step's manifest, the step draws a <code>step_output</code> edge to each column its bound output produces, beside the relation node; a step input bound to that output reads it whole, from each of those columns; and an expression metric whose grain is that output draws <code>expr</code> edges from the produced columns its <code>expr</code> names. A step the registry does not hold keeps the wiring-only edges. No label or triple is added</p>
+<ul>
+<li>Paths: <code>src/bloomery/resolve/graph.py</code> <code>src/bloomery/resolve/resolution.py</code> <code>src/bloomery/resolve/build.py</code> <code>tests/unit/test_steps/test_step_lineage.py</code> <code>pages/docs/reference/api.md</code></li>
+<li>Consequence: A walk runs through a <code>sql_model</code> step: downstream from an input column to the columns the step produces and to the metrics and marts over them, and upstream back again. <code>bloomery lineage</code> takes no registry, so it still shows the wiring alone, and so does a caller of <code>resolve()</code> that passes none. Lowering, the IR and every fingerprint are unchanged, since nothing past resolve reads the graph</li>
 </ul>
 <h3 id="s-0091d-4-assumed-a-recipes-operands-carry-types">S-0091/D-4 — <code>ASSUMED</code> (A recipe's operands carry types)<a class="headerlink" href="#s-0091d-4-assumed-a-recipes-operands-carry-types" title="Permanent link">&para;</a></h3>
 <p>Every catalog in the repository that computes a recipe over a non-canonical operand declares <code>types:</code>; the reference pages and the skill's catalog reference document the key, and the changelog marks the refusal as breaking with an upgrade note.</p>
