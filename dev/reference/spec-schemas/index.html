@@ -1740,10 +1740,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fieldmapping-two-forms" class="md-nav__link">
+  <a href="#fieldmapping-forms" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        FieldMapping — two forms
+        FieldMapping — forms
       </span>
     </span>
   </a>
@@ -2687,10 +2687,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fieldmapping-two-forms" class="md-nav__link">
+  <a href="#fieldmapping-forms" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        FieldMapping — two forms
+        FieldMapping — forms
       </span>
     </span>
   </a>
@@ -4137,8 +4137,10 @@ there is nothing there to attach one to and nothing is refused.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="fieldmapping-two-forms">FieldMapping — two forms<a class="headerlink" href="#fieldmapping-two-forms" title="Permanent link">&para;</a></h3>
-<p>A field mapping is <strong>simple</strong> or <strong>recipe</strong>, discriminated on the presence of <code>recipe</code>:</p>
+<h3 id="fieldmapping-forms">FieldMapping — forms<a class="headerlink" href="#fieldmapping-forms" title="Permanent link">&para;</a></h3>
+<p>A field mapping is <strong>simple</strong>, <strong>recipe</strong>, <strong>const</strong> or a Tier 1 <code>sql_macro</code> call
+(<code>step:</code>, see <a href="../../concepts/step-registry/">the step registry</a>), discriminated on the
+presence of <code>recipe</code>, <code>step</code> or <code>const</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># simple: one source path plus a transform chain</span>
 <span class="nt">quantity</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.qty"</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_int</span><span class="p p-Indicator">]}</span>
 
@@ -4146,7 +4148,20 @@ there is nothing there to attach one to and nothing is refused.</p>
 <span class="nt">unit_price</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">recipe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">from_total</span>
 <span class="w">  </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">line_total</span><span class="p">:</span><span class="w"> </span><span class="s">"$.total"</span><span class="p p-Indicator">,</span><span class="nt"> quantity</span><span class="p">:</span><span class="w"> </span><span class="s">"$.qty"</span><span class="p p-Indicator">}</span>
+
+<span class="c1"># const: one literal for every row this mapping lands</span>
+<span class="nt">marketplace</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">const</span><span class="p">:</span><span class="w"> </span><span class="nv">Wildberries</span><span class="p p-Indicator">}</span>
 </code></pre></div>
+<p>A <strong>const</strong> reads no source path. It is checked against the field's declared type when
+the project compiles, by the rule a metric filter's value is held to: a decimal is written
+as the string it is, text is never cast implicitly, and an unquoted date fits only a date
+or timestamp field — quote it to set a string. A string is kept exactly as written. It
+lowers to <code>CAST(&lt;literal&gt; AS &lt;type&gt;)</code>, and a <code>convert</code> step may name it as its currency
+column or its date anchor. With one constant per mapping, the rows of a merged entity
+say which source they came from in a business value, which <code>_source</code>, the relation name,
+is not. A single mapping can use one too. It takes no <code>transform:</code> and no <code>quality:</code>, gets no
+implicit <code>coercible</code> rule, and has no source column upstream of it in lineage. A key
+field cannot be one.</p>
 <table>
 <thead>
 <tr>
@@ -4220,6 +4235,13 @@ there is nothing there to attach one to and nothing is refused.</p>
 <td>list of field quality rules</td>
 <td>no (<code>[]</code>)</td>
 <td>See <a href="#field-quality-rules">Field quality rules</a></td>
+</tr>
+<tr>
+<td>const</td>
+<td><code>const</code></td>
+<td>boolean, integer or string</td>
+<td>yes</td>
+<td>The value. A float, a NUL byte and a <code>{</code> or <code>}</code> are refused: a float has no exact reading, and a brace would reach dbt's Jinja inside the model</td>
 </tr>
 </tbody>
 </table>
