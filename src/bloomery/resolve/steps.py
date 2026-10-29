@@ -367,6 +367,7 @@ def _outputs(wiring: StepWiring, manifest: StepManifest) -> tuple[StepOutputIR, 
                         name=column,
                         type=parse_type(produces.type, source_path=path),
                         required=produces.required,
+                        label=produces.label,
                     )
                     for column, produces in sorted(declared.produces.items())
                 ),
@@ -941,6 +942,7 @@ def step_entities(
                             tax_basis=None,
                             renamed_from=None,
                             required=column.required,
+                            label=column.label,
                         )
                         for column in output.columns
                     ),

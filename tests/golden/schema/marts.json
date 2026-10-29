@@ -90,6 +90,18 @@
           ],
           "default": null
         },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
         "materialization": {
           "anyOf": [
             {

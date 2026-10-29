@@ -202,6 +202,12 @@ gross_revenue: {template: gross_revenue, label: Revenue, synonyms: [turnover, sa
 | metric `description` | metric `description` | measure `description` | — |
 | metric `label` | metric `label` | measure `title` | — |
 | metric `synonyms` | metric `config.meta.synonyms` | measure `meta.synonyms` | — |
+| entity `label` | entity `label` | — | — |
+| mart `label` | semantic model `label` | cube and view `title` | — |
+
+An entity and a mart take a `label` too, and so does a column a step's manifest
+`produces`, which reaches the output entity's column like a mapped field's label.
+An entity whose key is composite has no MetricFlow entity element to carry its label.
 
 A field's own description wins over its canonical field's. A mart column carries the
 annotations of the column it was flattened from, prefixed or not. A metric's label is the

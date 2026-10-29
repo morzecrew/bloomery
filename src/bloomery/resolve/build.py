@@ -1634,6 +1634,7 @@ def _build_entity(
         partition_by=partition_specs(entity.partition_by),
         columns=columns,
         owner=entity.owner,
+        label=entity.label,
         grants=GrantsIR(select=entity.grants.select) if entity.grants is not None else None,
         sources=tuple(_filled(source, columns) for _columns, source in built),
         audits=(),  # populated by the guardrail stage: assert: lowering + reconcile (S-0023)

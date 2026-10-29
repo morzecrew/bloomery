@@ -26,7 +26,7 @@ from typing import Annotated, Literal, Self
 
 from pydantic import Field, StringConstraints, model_validator
 
-from bloomery.spec.common import SpecModel, TypeString
+from bloomery.spec.common import Label, SpecModel, TypeString
 
 # ----------------------- #
 
@@ -95,6 +95,9 @@ class StepProduces(SpecModel):
 
     type: TypeString
     required: bool = False
+    #: A short display name, reaching the output entity's column as a mapped
+    #: field's label does (S-0094/D-13). Metadata only: no contract reads it.
+    label: Label | None = None
 
 
 # ....................... #

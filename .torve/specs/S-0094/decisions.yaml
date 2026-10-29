@@ -222,3 +222,64 @@ decisions:
       from a ratio's parts fails on the first ratio of two costs whose quotient is
       good news when it falls, or when it rises, depending on which cost is on top
     cites: [D-3, D-5, D-8]
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      `Entity` and `Mart` gain optional `label`, under D-2's rule: refused empty once
+      stripped, refused with a line break. They reach `EntityIR.label` and `MartIR.label`,
+      and `bloomery_ir_version` moves by one with D-13. A mart's label becomes MetricFlow's
+      semantic model `label` and Cube's cube and view `title`. An entity's label becomes
+      the `label` of the MetricFlow entity element that stands for it in each semantic
+      model, the primary one where the base's key is a single column and a foreign one
+      per join. Nothing else carries them, and a change to either is ADDITIVE, metadata
+      only, as D-8 has it
+    paths:
+      - src/bloomery/spec/entity.py
+      - src/bloomery/spec/marts.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/marts/flatten.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/emit/cube/__init__.py
+      - src/bloomery/plan/diff.py
+      - tests/unit/test_spec/test_entity_mart_labels.py
+    consequence: >-
+      A catalog page or a semantic layer names an entity and a mart from the spec, so
+      one a tenant adds later shows its label rather than its identifier. dbt, which
+      has no label slot for a model, and SQLMesh carry neither, and no SELECT changes.
+      A composite-key base has no MetricFlow entity element to label, so its label
+      reaches the IR and Cube only. Every fingerprint moves once
+    rationale: >-
+      #373. D-2 and D-3 labelled fields and metrics and left out the two things a person
+      browses first, so a front end kept a dictionary beside the spec that drifted
+      from it. Synonyms were left out, which the issue offered as optional: no consumer
+      matches a question to a mart or an entity by another name yet, and each is a
+      second key to keep honest
+    cites: [D-1, D-2, D-5, D-8]
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      A step manifest's `produces:` column gains optional `label`, under D-2's rule.
+      It reaches `StepColumnIR.label` and the output entity's `ColumnIR.label`, and
+      from there every slot a mapped field's label reaches under D-5 and D-7. A step's
+      identity in `plan()` leaves the labels out, so a changed label restates no step
+      and is reported on the output entity's column as ADDITIVE, metadata only. A wiring
+      cannot override the manifest's label
+    paths:
+      - src/bloomery/steps/manifest.py
+      - src/bloomery/resolve/steps.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/plan/diff.py
+      - tests/unit/test_spec/test_entity_mart_labels.py
+    consequence: >-
+      A column a step computes is named as one a mapping lands is, on the output entity
+      and on every mart over it. Changing the label in a manifest moves the project
+      fingerprint, as any manifest change does under S-0034/D-11, and backfills nothing
+    rationale: >-
+      #373. The manifest declared a produced column's type and nullability only, so
+      `customer_profile.segment` had no label though the same column on a mapped entity
+      would. The issue suggested a wiring might override it, because the manifest is
+      the platform's and the words may be the tenant's. That waits for a tenant who
+      needs it: the override would be a second source for one value, with a precedence
+      rule to decide
+    cites: [D-2, D-5, D-7, D-8, S-0034/D-11]

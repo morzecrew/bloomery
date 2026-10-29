@@ -702,6 +702,7 @@ def _mart_ir(name: str, mart: Mart, state: _Flatten) -> MartIR:
         owner=mart.owner,
         grants=GrantsIR(select=mart.grants.select) if mart.grants is not None else None,
         reading=mart.reading,
+        label=mart.label,
     )
 
 

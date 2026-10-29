@@ -576,6 +576,8 @@ def _cube_artifact(
     namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
     cube: dict[str, object] = {
         "name": mart.name,
+        # Cube's display name for the cube (S-0094/D-12), present only when authored.
+        **_annotations(None, mart.label),
         "sql_table": f"{namespace}.{relation}",
         "dimensions": _dimensions(mart, ir),
         "measures": _measures(mart, ir, owners),
@@ -610,6 +612,8 @@ def _view_artifact(mart: MartIR, ctx: EmitContext) -> EmittedArtifact:
         "views": [
             {
                 "name": f"{mart.name}_view",
+                # The view a front end lists carries the mart's title too (S-0094/D-12).
+                **_annotations(None, mart.label),
                 "cubes": [{"join_path": mart.name, "includes": "*"}],
             }
         ]
