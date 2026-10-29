@@ -64,6 +64,9 @@ class EffectiveMetric:
     #: ``description`` is. Appended with defaults, as ``id`` and ``owner`` are.
     label: str | None = None
     synonyms: tuple[str, ...] = ()
+    #: Which direction of change is good news (S-0094/D-11), merged as
+    #: ``label`` is. Never inferred from a ratio's or a derived metric's parts.
+    better: str | None = None
 
 
 # ....................... #
@@ -106,6 +109,7 @@ def _merge(name: str, metric: Metric, template: MetricTemplate | None) -> Effect
         filter=metric.filter or (template.filter if template else ()),
         description=metric.description or (template.description if template else None),
         label=metric.label or (template.label if template else None),
+        better=metric.better or (template.better if template else None),
         # Absent takes the template's; an authored `[]` clears them (S-0094/D-3).
         synonyms=tuple(
             sorted(

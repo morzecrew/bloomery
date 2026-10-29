@@ -14,6 +14,7 @@ from pydantic import Field, model_validator
 
 from bloomery.spec.common import (
     AdditivityName,
+    BetterName,
     CardinalityName,
     CurrencyCode,
     Label,
@@ -228,6 +229,7 @@ class MetricTemplate(SpecModel):
     description: str | None = None
     label: Label | None = None
     synonyms: Synonyms = ()
+    better: BetterName | None = None
     requires: tuple[str, ...] = ()
     requires_metrics: tuple[str, ...] = ()
     grain: str | None = None

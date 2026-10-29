@@ -209,6 +209,25 @@ planner's column label too, with its description as the fallback. A label is one
 annotation empty once stripped is refused, and two equal synonyms are refused. Changing any
 of them is an ADDITIVE, metadata-only change in `plan()`.
 
+## `better:` — which way is good news
+
+A metric can say which direction of change is good news, so a dashboard colouring a delta
+or an alert reading a target takes it from the spec rather than from a list of metric
+names kept beside it:
+
+```yaml
+# metrics.yaml
+cost_of_goods: {grain: order_line, additivity: additive, agg: sum,
+                expr: "buy_price * quantity", better: lower}
+```
+
+`higher`, `lower` or `neither`, as for a stock level that is neither. It reaches MetricFlow
+as the metric's `config.meta.better` and Cube as the measure's `meta.better`, and a catalog
+template can give it, as it gives a label. A metric that does not say is undeclared and
+emits nothing, so your consumer picks its own default. A ratio or a derived metric does
+not take it from its parts: a ratio of two costs can be good news when it rises. Like the
+annotations above, it changes no SQL, and changing it is ADDITIVE in `plan()`.
+
 ## What is not here
 
 **Seeds.** `seeds:` is refused permanently, and the message says "refused, not missing". A

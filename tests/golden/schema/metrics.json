@@ -109,6 +109,23 @@
           "default": null,
           "title": "Agg"
         },
+        "better": {
+          "anyOf": [
+            {
+              "enum": [
+                "higher",
+                "lower",
+                "neither"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Better"
+        },
         "cumulative": {
           "anyOf": [
             {

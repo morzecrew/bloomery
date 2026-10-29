@@ -147,7 +147,7 @@ month bucket without parsing the name.
 A dimension and a measure carry `title` and `description` from the field's or the metric's
 `label:` and `description:`, and `meta.synonyms` from `synonyms:` ([annotate a
 spec](annotate-a-spec.md)). A mart column reads the annotations of the column it was
-flattened from.
+flattened from. A measure whose metric declares `better:` carries it as `meta.better`.
 
 ## Additivity metadata
 

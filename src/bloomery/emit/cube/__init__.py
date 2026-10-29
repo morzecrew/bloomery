@@ -197,6 +197,11 @@ def _metric_meta(metric: MetricIR) -> dict[str, object]:
         # (S-0094/D-5).
         meta["synonyms"] = list(metric.synonyms)
 
+    if metric.better is not None:
+        # Which direction of change is good news, for a front end colouring a
+        # delta (S-0094/D-11).
+        meta["better"] = metric.better
+
     return meta
 
 

@@ -178,14 +178,47 @@ decisions:
     text: >-
       The planner labels a measure column by its metric's `label`, and by its `description`
       only where no label is authored
-    paths:
-      - src/bloomery/planner/names.py
-      - tests/unit/test_planner/test_names.py
+    paths: [src/bloomery/planner/names.py, tests/unit/test_planner/test_names.py]
     consequence: >-
       A caller rendering `QueryPlan.columns` gets a chart title rather than the explanation
       sentence, and a project with no labels sees the description exactly as before
     rationale: >-
-      #343: the planner used the description as the label, so a front end guessed the
-      name by cutting the sentence at its first comma. The fallback keeps every project
-      that has only descriptions where it is
+      #343: the planner used the description as the label, so a front end guessed
+      the name by cutting the sentence at its first comma. The fallback keeps every
+      project that has only descriptions where it is
     cites: [D-3, D-5]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      `Metric` and `MetricTemplate` gain optional `better`, one of `higher`, `lower`
+      or `neither`: which direction of change in the metric is good news. It merges
+      from a template as `label` does, the authored value first, and `MetricIR` gains
+      it, with `bloomery_ir_version` moving by one. Absent from both, it is undeclared,
+      `None`, and nothing is emitted. A ratio or derived metric never infers it from
+      its parts. It becomes MetricFlow's `config.meta.better` and Cube's `meta.better`
+      on the metric's measure, changes no SELECT, and a change to it is ADDITIVE,
+      metadata only, as D-8 has it for the other annotations
+    paths:
+      - src/bloomery/spec/common.py
+      - src/bloomery/spec/metrics.py
+      - src/bloomery/spec/catalog.py
+      - src/bloomery/resolve/metrics.py
+      - src/bloomery/ir/nodes.py
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/emit/cube/__init__.py
+      - src/bloomery/plan/diff.py
+      - tests/unit/test_spec/test_metric_better.py
+    consequence: >-
+      A consumer that colours a delta, reads a target on a cost as a ceiling or alerts
+      on pace takes the direction from the semantic layer's metadata instead of a list
+      of metric names kept beside the display labels, which went stale on a rename.
+      An undeclared metric reads as undeclared, so a consumer still chooses its own
+      default for it. Every fingerprint of a project with a metric moves once
+    rationale: >-
+      #364. The issue proposed `higher` as the default. Absent is kept undeclared instead,
+      because a default written into every metric's metadata would state `higher`
+      for a stock level or a pipeline count whose author never said so, and a consumer
+      could no longer tell a declared `higher` from no declaration. Inferring it
+      from a ratio's parts fails on the first ratio of two costs whose quotient is
+      good news when it falls, or when it rises, depending on which cost is on top
+    cites: [D-3, D-5, D-8]

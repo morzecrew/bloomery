@@ -532,6 +532,7 @@ A metric is a template instantiation (`template:` plus overrides) or fully inlin
 | `description` | string | no | Carried into semantic-layer emissions; the planner's column label when no `label` is set |
 | `label` | string, one line | no | A short display name: MetricFlow's `label`, Cube's `title`, the planner's column label |
 | `synonyms` | list of distinct strings | no (template's, or `[]`) | Other names a front end may match the metric by; an authored `[]` clears the template's |
+| `better` | `higher` \| `lower` \| `neither` | no (template's, or undeclared) | Which direction of change is good news, for a consumer colouring a delta or reading a target as a floor or a ceiling: MetricFlow's `config.meta.better`, Cube's `meta.better`. Absent, nothing is emitted; a ratio or derived metric never takes it from its parts |
 | `requires` | list of canonical field names | no (`[]`) | Leaves the metric reads |
 | `requires_metrics` | list of metric names | no (`[]`) | Further metrics this one reads; a ratio's operands and a derived metric's inputs are added on their own |
 | `grain` | string | no | Entity grain the metric aggregates from |

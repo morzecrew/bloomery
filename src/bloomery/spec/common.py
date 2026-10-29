@@ -36,6 +36,7 @@ __all__ = [
     "RESERVED_MEMBER_REASONS",
     "TYPE_STRING_PATTERN",
     "AdditivityName",
+    "BetterName",
     "Annotation",
     "CardinalityName",
     "ClassificationName",
@@ -395,6 +396,10 @@ Label = Annotated[str, AfterValidator(_not_empty), AfterValidator(_one_line)]
 #: Synonyms: distinct non-empty strings, for a front end matching a question to
 #: a member; they never reach a label or a description (S-0094/D-3, D-5).
 Synonyms = Annotated[tuple[Annotation, ...], AfterValidator(_distinct)]
+#: Which direction of change in a metric is good news (S-0094/D-11). A consumer
+#: colouring a delta or reading a target as a floor or a ceiling needs it, and
+#: no SELECT does.
+BetterName = Literal["higher", "lower", "neither"]
 
 #: What a SQLGlot parse raises when it rejects its input: its own error class,
 #: and the bare ``ValueError`` its JSON-arrow path parser raises on a number

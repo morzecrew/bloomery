@@ -159,4 +159,11 @@ A mart column carries the description and label of the entity column it was flat
 - Paths: `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/dbt/__init__.py`
 - Consequence: `product_brand` on a wide mart shows the `brand` field's description, and no mart can describe one column differently from another
 
+### S-0094/D-11 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
+
+`Metric` and `MetricTemplate` gain optional `better`, one of `higher`, `lower` or `neither`: which direction of change in the metric is good news. It merges from a template as `label` does, the authored value first, and `MetricIR` gains it, with `bloomery_ir_version` moving by one. Absent from both, it is undeclared, `None`, and nothing is emitted. A ratio or derived metric never infers it from its parts. It becomes MetricFlow's `config.meta.better` and Cube's `meta.better` on the metric's measure, changes no SELECT, and a change to it is ADDITIVE, metadata only, as D-8 has it for the other annotations
+
+- Paths: `src/bloomery/spec/common.py` `src/bloomery/spec/metrics.py` `src/bloomery/spec/catalog.py` `src/bloomery/resolve/metrics.py` `src/bloomery/ir/nodes.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/plan/diff.py` `tests/unit/test_spec/test_metric_better.py`
+- Consequence: A consumer that colours a delta, reads a target on a cost as a ceiling or alerts on pace takes the direction from the semantic layer's metadata instead of a list of metric names kept beside the display labels, which went stale on a rename. An undeclared metric reads as undeclared, so a consumer still chooses its own default for it. Every fingerprint of a project with a metric moves once
+
 <!-- /torve:managed -->
