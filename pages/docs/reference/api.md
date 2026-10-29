@@ -52,13 +52,19 @@ marts emits no artifact.
 
 ## Analysis
 
-### `resolve(project: Project, catalog: Catalog | None = None) -> Resolution`
+### `resolve(project: Project, catalog: Catalog | None = None, *, steps=EMPTY_REGISTRY) -> Resolution`
 
 Run reference validation, recipe validation, and reachability without emitting
 anything. The `Resolution` carries `reachable_metrics`, `unreachable_metrics` (each
 with its specific missing leaves), per-field `provenance` (direct / recipe / native),
 the deterministic topological order, and the dependency `graph` those three were
 computed from.
+
+`steps` is read for lineage only. A step's manifest is what says which columns it
+produces, so pass the registry you compile with and the graph runs through each step:
+from the relation it reads, to every column it produces, to the metrics over them.
+Without it, a step's output is one node named after the output. Wiring and manifests
+are checked by `compile_project` and `build_project_ir`, not here.
 
 ### `lineage(graph, root, direction=Direction.UPSTREAM, *, max_depth=None) -> Lineage`
 
@@ -91,10 +97,10 @@ Each edge carries a **label** saying how one node feeds the next. The vocabulary
 | `canonical` | entity field → canonical field | the field links to a catalog canonical |
 | `requires` | canonical field → metric | a metric's leaf requirement |
 | `requires_metrics` | metric → metric | a metric composed of metrics |
-| `expr` | entity field → metric | a grain-entity column an expression metric's `expr` names; lineage only |
-| `step_input` | entity field → step | a step reading a mapped entity, whole |
-| `step_input` | step → step | a step reading another step's output |
-| `step_output` | step → entity field | a step's declared output |
+| `expr` | entity field → metric | a grain-entity column an expression metric's `expr` names, including a column a step produces; lineage only |
+| `step_input` | entity field → step | a step reading a relation whole: each field of a mapped entity, or each column another step produces |
+| `step_input` | step → step | a step reading another step's output, when `resolve` was given no manifest for it |
+| `step_output` | step → entity field | a step's declared output relation and, given its manifest, each column it produces |
 
 The two parameterised labels carry a suffix after the `:` — a recipe id, or a macro's
 `ref@version`. Split on the colon to compare *families*.

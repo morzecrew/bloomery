@@ -276,7 +276,7 @@ def pipeline(
     a shared generator is what makes it not a matter of discipline.
     """
     yield Stage.RESOLVE, StageProgress()
-    resolution = resolve(project, catalog)
+    resolution = resolve(project, catalog, steps=steps)
     _LOG.info(
         "resolve: %d metric(s) reachable, %d unreachable",
         len(resolution.reachable_metrics),
