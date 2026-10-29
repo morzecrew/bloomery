@@ -17,6 +17,13 @@ The retrieval kind carries the same spec-YAML promise as every kind from its fir
 - Paths: `src/bloomery/spec/retrieval.py` `pages/docs/reference/stability.md`
 - Consequence: a retrieval spec written against 0.3.0 keeps compiling under the same promise as every other kind, the two refusals the stability page names included
 
+### S-0022/D-11 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
+
+A metric's `filter[].dimension`, its `filter[].column` and its `semi_additive.over` are bound through the grain entity's canonical links at the IR build, as its `expr` is under D-10. A name the grain has a column of keeps that column. Otherwise the one grain column that links the name as its canonical is read. Otherwise the name is kept as written. `unbound` respells each of them as the canonical of the column it reads, where binding would read that column, so `plan()` and `timeline` compare them in canonical spelling
+
+- Paths: `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `tests/unit/test_resolve/test_canonical_filter_binding.py` `pages/docs/reference/spec-schemas.md`
+- Consequence: A catalog template that filters, or reads a snapshot along an axis, in canonical names compiles for every project that links those canonicals, whatever it calls the columns. A spec that compiled before reads the same columns unless a filter named a flattened column whose name a grain column also links as its canonical, which now reads the grain's column; no fixture or golden has one. A field renamed under such a metric respells it and does not restate it
+
 ### S-0023/D-13 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
 The `over` of a semi-additive metric names the source column of a date role — the column a `{date: …, role: …}` flatten step is declared over — never a bucket that role produces (`<role>_day` and the rest), and every mart listing the metric among its measures must declare a date role over that column. A mart that does not is refused at the guardrail stage as `MartMissingTimeDimension`, and the MetricFlow emitter re-refuses it

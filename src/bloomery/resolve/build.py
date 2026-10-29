@@ -90,6 +90,7 @@ from bloomery.ir import (
     TransformStepIR,
     Unit,
     bind_columns,
+    bound_name,
     canon,
     canonical_bindings,
     extraction,
@@ -2413,9 +2414,13 @@ def _derived(derived: DerivedSpec | None) -> DerivedIR | None:
 # ....................... #
 
 
-def _metric_filters(filters: tuple[MetricFilter, ...]) -> tuple[MetricFilterIR, ...]:
+def _metric_filters(
+    filters: tuple[MetricFilter, ...], columns: tuple[ColumnIR, ...]
+) -> tuple[MetricFilterIR, ...]:
     """The ``filter:`` list as IR, in authored order — the clauses are ANDed,
     so the order is cosmetic in SQL and load-bearing in the artifact bytes.
+    Each dimension a clause names is read through the grain's canonical links,
+    as a template's ``expr`` is (S-0022/D-11).
 
     A ``date``/``datetime`` value becomes its ISO text, the carrier
     :class:`~bloomery.ir.AuditIR` params already use: a temporal literal
@@ -2425,13 +2430,13 @@ def _metric_filters(filters: tuple[MetricFilter, ...]) -> tuple[MetricFilterIR, 
 
     return tuple(
         MetricFilterIR(
-            dimension=clause.dimension,
+            dimension=bound_name(clause.dimension, columns),
             op=clause.op,
             values=tuple(
                 value.isoformat() if isinstance(value, (date, datetime)) else value
                 for value in clause.values
             ),
-            column=clause.column,
+            column=None if clause.column is None else bound_name(clause.column, columns),
             nulls=clause.nulls,
         )
         for clause in filters
@@ -2454,10 +2459,12 @@ def _build_metrics(
     for metric in effective_metrics(project, catalog):  # sorted by name
         if metric.name not in reachable_set:
             continue
+        grain = columns.get(metric.grain or "", ())
         semi_additive = None
         if metric.semi_additive is not None:
             semi_additive = SemiAdditivePolicy(
-                over=DimensionRef(dimension=metric.semi_additive.over),
+                # Through the grain's links, as the filters are (S-0022/D-11).
+                over=DimensionRef(dimension=bound_name(metric.semi_additive.over, grain)),
                 rule=SemiAdditiveRule(metric.semi_additive.rule),
             )
         built.append(
@@ -2507,7 +2514,7 @@ def _build_metrics(
                     else None
                 ),
                 derived=_derived(metric.derived),
-                filter=_metric_filters(metric.filter),
+                filter=_metric_filters(metric.filter, grain),
                 description=metric.description,
                 label=metric.label,
                 synonyms=metric.synonyms,

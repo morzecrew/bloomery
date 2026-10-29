@@ -29,6 +29,7 @@ from bloomery.spec.common import PARTITION_SPEC_PATTERN
 
 __all__ = [
     "bind_columns",
+    "bound_name",
     "canon",
     "canonical_bindings",
     "extraction",
@@ -88,6 +89,25 @@ def canonical_bindings(names: tuple[str, ...], columns: tuple[ColumnIR, ...]) ->
 # ....................... #
 
 
+def bound_name(name: str, columns: tuple[ColumnIR, ...]) -> str:
+    """The grain column a metric's filter dimension or ``semi_additive.over``
+    reads (S-0022/D-11): the column spelled ``name`` where the grain has one,
+    else the one column that links ``name`` as its canonical, else ``name``.
+
+    The column spelled as written comes first because, unlike an ``expr``, a
+    dimension name declares no canonical: it names a mart column, and a
+    template's canonical spelling is the fallback for a grain that lacks one.
+    """
+
+    if any(column.name == name for column in columns):
+        return name
+
+    return canonical_bindings((name,), columns).get(name, name)
+
+
+# ....................... #
+
+
 def bind_columns(node: Expression, bindings: dict[str, str]) -> Expression:
     """``node`` with each unqualified column ``bindings`` names renamed, outside
     any subquery: a scalar subquery reads its own relation, not the mart."""
@@ -111,7 +131,9 @@ def bind_columns(node: Expression, bindings: dict[str, str]) -> Expression:
 
 def unbound(metric: MetricIR, entities: tuple[EntityIR, ...]) -> MetricIR:
     """``metric`` with its expression back in the canonical spelling it was
-    written in, undoing :func:`canonical_bindings` against this IR's own grain.
+    written in, undoing :func:`canonical_bindings` against this IR's own grain,
+    and its filter dimensions and ``semi_additive.over`` in the canonical of the
+    column each reads, undoing :func:`bound_name` (S-0022/D-11).
 
     Binding follows the field: renaming a linked field respells every metric
     bound to it and changes no number. Two versions compared in this form agree
@@ -119,19 +141,45 @@ def unbound(metric: MetricIR, entities: tuple[EntityIR, ...]) -> MetricIR:
     ``timeline`` mean by a metric that did not move (S-0022/D-10).
     """
 
-    if metric.expr is None:
-        return metric
-
     columns = next((entity.columns for entity in entities if entity.name == metric.grain), ())
     spelled = {
         field: canonical
         for canonical, field in canonical_bindings(metric.depends_on, columns).items()
     }
 
-    if not spelled:
-        return metric
+    def canonical(name: str) -> str:
+        # A dimension name back in the canonical a template would have written:
+        # the canonical of the column it reads, where `bound_name` reads that
+        # column for it (S-0022/D-11).
+        link = next((column.canonical for column in columns if column.name == name), None)
+        return link if link is not None and bound_name(link, columns) == name else name
 
-    return replace(metric, expr=canon(bind_columns(metric.expr.ast(), spelled)))
+    semi_additive = metric.semi_additive
+
+    return replace(
+        metric,
+        expr=(
+            canon(bind_columns(metric.expr.ast(), spelled))
+            if metric.expr is not None and spelled
+            else metric.expr
+        ),
+        filter=tuple(
+            replace(
+                clause,
+                dimension=canonical(clause.dimension),
+                column=None if clause.column is None else canonical(clause.column),
+            )
+            for clause in metric.filter
+        ),
+        semi_additive=(
+            None
+            if semi_additive is None
+            else replace(
+                semi_additive,
+                over=replace(semi_additive.over, dimension=canonical(semi_additive.over.dimension)),
+            )
+        ),
+    )
 
 
 # ....................... #

@@ -615,10 +615,10 @@ column's declared logical type and are never cast.
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
-| `dimension` | column name, `^[a-z][a-z0-9_]*$` | yes | A **categorical** dimension of the mart carrying the metric |
+| `dimension` | column name, `^[a-z][a-z0-9_]*$` | yes | A **categorical** dimension of the mart carrying the metric. A name the grain entity has no column for, and one of its columns links as its canonical, reads that column, so a catalog template can filter in canonical names |
 | `op` | `eq` \| `ne` \| `in` \| `not_in` \| `gt` \| `gte` \| `lt` \| `lte` \| `is_null` | yes | Comparison |
 | `values` | list of scalars | per operator, or `column` | One for the comparisons, one bool for `is_null`, one or more for `in`/`not_in` |
-| `column` | column name, `^[a-z][a-z0-9_]*$` | instead of `values` | Another categorical dimension of the same mart to compare against; `eq`/`ne` only |
+| `column` | column name, `^[a-z][a-z0-9_]*$` | instead of `values` | Another categorical dimension of the same mart to compare against; `eq`/`ne` only. Read through the grain's canonical links as `dimension` is |
 | `nulls` | `include` \| `exclude` | on `ne` / `not_in` over a dimension that can be NULL | What a row whose dimension is NULL does: `include` keeps it, `exclude` drops it, as SQL's `<>` and `NOT IN` do |
 
 `ne` and `not_in` read as "everything except these values", but under SQL's
@@ -661,7 +661,7 @@ quotes it.
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
-| `over` | column name | yes | The column the metric is not additive over: the source column of a date role (`stock_date` under `{date: stock_date, role: snapshot}`, never its bucket `snapshot_day`), declared on every mart that lists the metric — a mart without it is `MartMissingTimeDimension` |
+| `over` | column name | yes | The column the metric is not additive over: the source column of a date role (`stock_date` under `{date: stock_date, role: snapshot}`, never its bucket `snapshot_day`), declared on every mart that lists the metric — a mart without it is `MartMissingTimeDimension`. A canonical name reads the grain entity's column that links it, where the grain has no column of that name |
 | `rule` | `last` \| `first` \| `avg` \| `min` \| `max` | yes | Rule applied along `over` |
 
 ## MartSet (`marts_version`)

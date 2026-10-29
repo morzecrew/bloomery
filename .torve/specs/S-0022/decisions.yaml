@@ -159,3 +159,34 @@ decisions:
       its lookup by canonical, so a bound column would have been invisible to it and
       money beside a count would have passed
     cites: [D-3, S-0034/D-49, S-0023/D-3]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      A metric's `filter[].dimension`, its `filter[].column` and its `semi_additive.over`
+      are bound through the grain entity's canonical links at the IR build, as its
+      `expr` is under D-10. A name the grain has a column of keeps that column. Otherwise
+      the one grain column that links the name as its canonical is read. Otherwise
+      the name is kept as written. `unbound` respells each of them as the canonical
+      of the column it reads, where binding would read that column, so `plan()` and
+      `timeline` compare them in canonical spelling
+    paths:
+      - src/bloomery/ir/lower.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_resolve/test_canonical_filter_binding.py
+      - pages/docs/reference/spec-schemas.md
+    consequence: >-
+      A catalog template that filters, or reads a snapshot along an axis, in canonical
+      names compiles for every project that links those canonicals, whatever it calls
+      the columns. A spec that compiled before reads the same columns unless a filter
+      named a flattened column whose name a grain column also links as its canonical,
+      which now reads the grain's column; no fixture or golden has one. A field renamed
+      under such a metric respells it and does not restate it
+    rationale: >-
+      #368. Only the `expr` was bound, so a template's filter and `over` named one
+      project's columns, and those are the parts that decide which rows count and
+      how a snapshot is read. The column of that name wins over a link, unlike in
+      an `expr`, because a dimension declares no canonical: it names a mart column,
+      and the author who wrote a grain column's name meant that column. The comparison
+      respells a literal name of a linked column too, so a metric that names the
+      renamed column in each version agrees with itself
+    cites: [D-10, S-0050/D-9, S-0023/D-13]
