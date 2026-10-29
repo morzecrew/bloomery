@@ -43,10 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A metric template's filter and `semi_additive.over` read the project's columns.** Both
   were read as one project's literal column names, so a template filtering on
   `deal_outcome` or reading a snapshot over `stock_at` could not be used by a project
-  that spells those columns otherwise. A name the grain entity has no column for now reads
-  the column that links it as its canonical, as the template's `expr` already did. A name
-  the grain has a column of keeps that column, and a name no grain column links is read as
-  written. (#368)
+  that spells those columns otherwise. A filter name that no mart listing the metric
+  carries, or an `over` the grain entity has no column for, now reads the one grain column
+  that links it as its canonical, as the template's `expr` already did. A name that is
+  already a column keeps it, so every spec that compiled reads what it read. (#368)
 
 ## [0.8.0] - 2026-10-28
 

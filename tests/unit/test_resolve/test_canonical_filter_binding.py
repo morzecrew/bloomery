@@ -181,3 +181,38 @@ def test_the_semantic_layers_filter_on_the_project_s_column() -> None:
     assert "{{ Dimension('inventory_level__warehouse_id') }} = 'w1'" in artifacts[Target.METRICFLOW]
     assert "{CUBE}.warehouse_id = ''w1''" in artifacts[Target.CUBE]
     assert not any("warehouse_code" in text or "stock_at" in text for text in artifacts.values())
+
+
+def test_a_joined_column_the_filter_names_is_read_as_written() -> None:
+    """The name a filter writes is a mart column first. `order_customer_id`
+    is the order's customer, flattened onto the line mart; a line field linking
+    a canonical of that name must not take the filter over (codeant on #371)."""
+    _project, catalog = load_fixture("ecom_basic")
+    assert catalog is not None
+    sources = fixture_sources("ecom_basic")
+    old = "      line_no: {type: int, required: true, classification: internal}\n"
+    assert sources["entity_model"].count(old) == 1
+    sources["entity_model"] = sources["entity_model"].replace(
+        old,
+        "      line_no: {type: int, required: true, classification: internal}\n"
+        "      buyer_ref: {type: string, canonical: order_customer_id}\n",
+    )
+    sources["mapping_order_items"] = sources["mapping_order_items"].replace(
+        "fields:\n", 'fields:\n  buyer_ref: {from: "$.buyer", transform: [to_string]}\n', 1
+    )
+    sources["metrics"] = sources["metrics"].replace(
+        "    template: gross_revenue\n",
+        "    template: gross_revenue\n"
+        "    filter: [{dimension: order_customer_id, op: eq, values: [c1]}]\n",
+        1,
+    )
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")
+    text = text.replace(
+        "canonical_fields:\n",
+        "canonical_fields:\n  order_customer_id:\n    entity: order_item\n    type: string\n",
+        1,
+    )
+    ir = build_project_ir(load_project(sources), load_catalog(text))
+
+    (metric,) = (metric for metric in ir.metrics if metric.name == "gross_revenue")
+    assert [clause.dimension for clause in metric.filter] == ["order_customer_id"]
