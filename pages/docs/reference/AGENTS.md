@@ -64,6 +64,13 @@ The perf gate is an **absolute ceiling with headroom** against S-0031's budgets,
 - Paths: `pages/docs/reference/stability.md`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0048/D-10 — `ASSUMED` (Lineage)
+
+`resolve()` takes the step registry as `steps`, defaulting to the empty one, and the compile pipeline passes it the registry it was handed. Where the registry holds a wired step's manifest, the step draws a `step_output` edge to each column its bound output produces, beside the relation node; a step input bound to that output reads it whole, from each of those columns; and an expression metric whose grain is that output draws `expr` edges from the produced columns its `expr` names. A step the registry does not hold keeps the wiring-only edges. No label or triple is added
+
+- Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/resolution.py` `src/bloomery/resolve/build.py` `tests/unit/test_steps/test_step_lineage.py` `pages/docs/reference/api.md`
+- Consequence: A walk runs through a `sql_model` step: downstream from an input column to the columns the step produces and to the metrics and marts over them, and upstream back again. `bloomery lineage` takes no registry, so it still shows the wiring alone, and so does a caller of `resolve()` that passes none. Lowering, the IR and every fingerprint are unchanged, since nothing past resolve reads the graph
+
 ### S-0091/D-4 — `ASSUMED` (A recipe's operands carry types)
 
 Every catalog in the repository that computes a recipe over a non-canonical operand declares `types:`; the reference pages and the skill's catalog reference document the key, and the changelog marks the refusal as breaking with an upgrade note.

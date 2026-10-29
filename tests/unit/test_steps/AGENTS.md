@@ -164,6 +164,13 @@ A `_source` system column carries provenance. It is load-bearing rather than dia
 - Paths: `src/bloomery/emit/base.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/lower/silver.py` `src/bloomery/emit/steps.py` `tests/unit/test_emit/test_dbt.py` `tests/unit/test_steps/test_dbt_and_cube_emission.py`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0048/D-10 — `ASSUMED` (Lineage)
+
+`resolve()` takes the step registry as `steps`, defaulting to the empty one, and the compile pipeline passes it the registry it was handed. Where the registry holds a wired step's manifest, the step draws a `step_output` edge to each column its bound output produces, beside the relation node; a step input bound to that output reads it whole, from each of those columns; and an expression metric whose grain is that output draws `expr` edges from the produced columns its `expr` names. A step the registry does not hold keeps the wiring-only edges. No label or triple is added
+
+- Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/resolution.py` `src/bloomery/resolve/build.py` `tests/unit/test_steps/test_step_lineage.py` `pages/docs/reference/api.md`
+- Consequence: A walk runs through a `sql_model` step: downstream from an input column to the columns the step produces and to the metrics and marts over them, and upstream back again. `bloomery lineage` takes no registry, so it still shows the wiring alone, and so does a caller of `resolve()` that passes none. Lowering, the IR and every fingerprint are unchanged, since nothing past resolve reads the graph
+
 ### S-0053/D-2 — `LOCKED` (Measure semantic types and additivity algebra)
 
 **A ratio is stored as its operands, not as a materialized quotient.** `SUM(num)/SUM(den)` and `AVG(ratio)` differ, the second is what a numeric-looking column invites, and the difference is a plausible wrong number. This is also S-0055's precondition — a derived metric spanning two branches cannot be reconstructed after the operands are gone — so reversing it later strands that document.

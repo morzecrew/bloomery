@@ -483,6 +483,13 @@ An expression metric draws an `expr` edge, `entity_field -> metric`, from each f
 - Paths: `src/bloomery/resolve/graph.py` `tests/unit/test_resolve/test_edge_vocabulary.py` `tests/unit/test_resolve/test_lineage.py`
 - Consequence: `lineage()` walks from an expression metric with no `requires:` to the entity columns its `expr` reads, and from there to bronze. `topo_order`, the IR and every fingerprint are unchanged, since nothing past resolve reads the edges or the order. A field change still does not reach such a metric in `plan().downstream_impact`, which reads `depends_on`
 
+### S-0048/D-10 — `ASSUMED` (Lineage)
+
+`resolve()` takes the step registry as `steps`, defaulting to the empty one, and the compile pipeline passes it the registry it was handed. Where the registry holds a wired step's manifest, the step draws a `step_output` edge to each column its bound output produces, beside the relation node; a step input bound to that output reads it whole, from each of those columns; and an expression metric whose grain is that output draws `expr` edges from the produced columns its `expr` names. A step the registry does not hold keeps the wiring-only edges. No label or triple is added
+
+- Paths: `src/bloomery/resolve/graph.py` `src/bloomery/resolve/resolution.py` `src/bloomery/resolve/build.py` `tests/unit/test_steps/test_step_lineage.py` `pages/docs/reference/api.md`
+- Consequence: A walk runs through a `sql_model` step: downstream from an input column to the columns the step produces and to the metrics and marts over them, and upstream back again. `bloomery lineage` takes no registry, so it still shows the wiring alone, and so does a caller of `resolve()` that passes none. Lowering, the IR and every fingerprint are unchanged, since nothing past resolve reads the graph
+
 ### S-0049/D-1 — `LOCKED` (Mapping identity)
 
 **The identity is the document name.** It is unique by construction (a key of the `sources` mapping), already computed, already the ordering key for `Project.mappings`, and already the user-facing coordinate for refusals (S-0019/source-paths). Consequence: identity is a filename, so a rename changes it — accepted under D4's boundary.

@@ -25,6 +25,7 @@ from bloomery.resolve.refs import validate_references
 from bloomery.spec.catalog import Catalog
 from bloomery.spec.mapping import RecipeFieldMapping
 from bloomery.spec.project import Project, node_keys
+from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 
 # ----------------------- #
 
@@ -189,19 +190,25 @@ def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, 
 # ....................... #
 
 
-def resolve(project: Project, catalog: Catalog | None = None) -> Resolution:
+def resolve(
+    project: Project, catalog: Catalog | None = None, *, steps: StepRegistry = EMPTY_REGISTRY
+) -> Resolution:
     """Resolve a project against a catalog (public API, spec §8).
 
     Stages, in order (S-0022/cross-spec-reference-validation-bloomery-resolve-refs-py): cross-spec reference validation, then
     recorded-recipe validation, both batched; template merge; DAG assembly;
     cycle detection (:class:`~bloomery.errors.CircularDerivation`); then
     availability, reachability, and provenance over the clean, acyclic graph.
+
+    ``steps`` is read for lineage alone: given the registry a compile is
+    handed, the graph runs through each step to the columns it produces
+    (S-0048/D-10). Wiring and manifests are checked where steps lower.
     """
     validate_references(project, catalog)
     validate_recipes(project, catalog)
 
     metrics = effective_metrics(project, catalog)
-    graph = build_graph(project, catalog, metrics)
+    graph = build_graph(project, catalog, metrics, steps)
     topo_order = toposort(graph)
     reachable, unreachable = compute_reachability(
         metrics, available_canonicals(graph), node_keys(project, catalog)["canonical"]

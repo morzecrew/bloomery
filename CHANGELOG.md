@@ -33,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   LEFT JOIN inside its entity's model, so the pair compiled to two models that each read
   the other, which no engine can build. The refusal names the chain of reads. (#363)
 
+- **Lineage runs through a `sql_model` step.** `resolve()` takes the step registry as
+  `steps=`, and with it the graph draws the step to each column it produces, a metric over
+  a step output to the columns its `expr` reads, and a step reading another step's output
+  from each of that output's columns. A walk from a step's input now reaches the metrics
+  over its output, and back. Without a registry, as in `bloomery lineage`, the graph is as
+  before. (#365)
+
 ## [0.8.0] - 2026-10-28
 
 ### Added

@@ -20,10 +20,12 @@ from sqlglot import exp, parse_one
 from bloomery.spec.catalog import Catalog
 from bloomery.spec.mapping import ALIAS_BOUND, RecipeFieldMapping, SimpleFieldMapping
 from bloomery.spec.project import Project, key, node_keys
+from bloomery.steps import EMPTY_REGISTRY
 
 if TYPE_CHECKING:
     from bloomery.resolve.metrics import EffectiveMetric
     from bloomery.spec.mapping import Mapping
+    from bloomery.steps import StepRegistry
 
 # ----------------------- #
 
@@ -315,7 +317,32 @@ def _mapping_edges(
 # ....................... #
 
 
-def _step_edges(project: Project, ids: dict[str, dict[str, str]]) -> list[Edge]:
+def _produced_columns(project: Project, steps: StepRegistry) -> dict[str, tuple[str, ...]]:
+    """The columns each step output produces, by the bare name of the relation
+    it writes, sorted (S-0048/D-10).
+
+    Only the manifest says what a step produces, so a step the registry does
+    not hold contributes nothing here: lowering refuses it (`UnknownStep`), and
+    until then the graph has the wiring's relation node alone.
+    """
+    produced: dict[str, tuple[str, ...]] = {}
+
+    for wiring in project.steps.steps if project.steps is not None else ():
+        manifest = steps.get(wiring.ref, wiring.version)
+        for name, relation in wiring.outputs.items():
+            output = manifest.outputs.get(name) if manifest is not None else None
+            if output is not None:
+                produced[relation.rsplit(".", 1)[-1]] = tuple(sorted(output.produces))
+
+    return produced
+
+
+# ....................... #
+
+
+def _step_edges(
+    project: Project, ids: dict[str, dict[str, str]], columns: dict[str, tuple[str, ...]]
+) -> list[Edge]:
     """Wire each step between what fills its inputs and what it produces
     (S-0034/runtime-pinning, S-0034/D-11).
 
@@ -334,6 +361,11 @@ def _step_edges(project: Project, ids: dict[str, dict[str, str]]) -> list[Edge]:
     looking only in the entity table silently produced no edge at all, which
     is exactly the common case (one step feeding another) and exactly where
     cycle detection was lost.
+
+    Where the manifest is known, a step output is read like an entity, from
+    each column it produces, and the step feeds each of those columns as well
+    as the relation node (S-0048/D-10). Without it, the step-to-step edge and
+    the relation node are all the wiring says.
     """
 
     if project.steps is None:
@@ -352,6 +384,12 @@ def _step_edges(project: Project, ids: dict[str, dict[str, str]]) -> list[Edge]:
         for _name, bound in sorted(wiring.inputs.items()):
             relation = bound.rsplit(".", 1)[-1]
             producer = producer_of.get(relation)
+            if producer is not None and producer != wiring.ref and relation in columns:
+                edges.extend(
+                    Edge(src=entity_field_node(relation, column), dst=node, label="step_input")
+                    for column in columns[relation]
+                )
+                continue
             if producer is not None and producer != wiring.ref:
                 edges.append(
                     Edge(src=step_node(key(producer, ids["step"])), dst=node, label="step_input")
@@ -372,6 +410,10 @@ def _step_edges(project: Project, ids: dict[str, dict[str, str]]) -> list[Edge]:
             produced = relation.rsplit(".", 1)[-1]
             edges.append(
                 Edge(src=node, dst=entity_field_node(produced, output_name), label="step_output")
+            )
+            edges.extend(
+                Edge(src=node, dst=entity_field_node(produced, column), label="step_output")
+                for column in columns.get(produced, ())
             )
             # A declared `canonical:` link makes the column *available*, which
             # is the whole of what a metric's reachability asks (S-0022
@@ -603,7 +645,9 @@ def node_labels(project: Project, catalog: Catalog | None) -> dict[str, str]:
 # ....................... #
 
 
-def _expr_fields(metric: EffectiveMetric, project: Project) -> tuple[str, ...]:
+def _expr_fields(
+    metric: EffectiveMetric, project: Project, produced: dict[str, tuple[str, ...]]
+) -> tuple[str, ...]:
     """The fields of a metric's grain entity its ``expr`` names, sorted
     (S-0048/D-9).
 
@@ -611,20 +655,22 @@ def _expr_fields(metric: EffectiveMetric, project: Project) -> tuple[str, ...]:
     keep the base entity's field names, so these are what it reads. A name
     that is no field of the grain (a flattened column, a qualified one) draws
     nothing, and nor does an imported grain: this graph has no field nodes for
-    an entity the project does not declare. Lineage only: ``depends_on`` and
-    reachability never read these edges.
+    an entity the project does not declare. A grain a step writes has the
+    columns its manifest produces, where the registry holds it (S-0048/D-10).
+    Lineage only: ``depends_on`` and reachability never read these edges.
     """
 
     entity = project.entity_model.entities.get(metric.grain or "")
+    fields = entity.fields.keys() if entity is not None else produced.get(metric.grain or "")
 
-    if metric.expr is None or entity is None:
+    if metric.expr is None or fields is None:
         return ()
 
     named = {
         column.name for column in parse_one(metric.expr).find_all(exp.Column) if not column.table
     }
 
-    return tuple(sorted(named & entity.fields.keys()))
+    return tuple(sorted(named.intersection(fields)))
 
 
 # ....................... #
@@ -634,6 +680,7 @@ def build_graph(
     project: Project,
     catalog: Catalog | None,
     metrics: tuple[EffectiveMetric, ...],
+    steps: StepRegistry = EMPTY_REGISTRY,
 ) -> Graph:
     """Assemble the DAG from reference-clean specs (S-0022/the-graph-bloomery-resolve-graph-py).
 
@@ -642,12 +689,15 @@ def build_graph(
     links); canonical fields feed metrics (``requires``); metrics feed
     metrics (``requires_metrics``); metrics feed the marts that carry them as
     measures, and marts feed rollups of themselves (S-0072/the-edges); metrics
-    and marts feed the exposures that declare them (S-0063/the-graph).
+    and marts feed the exposures that declare them (S-0063/the-graph). A step
+    sits between the relations it reads and the columns its manifest in
+    ``steps`` says it produces (S-0048/D-10).
     """
     ids = node_keys(project, catalog)
     imported = _imported_names(project)
+    produced = _produced_columns(project, steps)
     edges: list[Edge] = []
-    edges.extend(_step_edges(project, ids))
+    edges.extend(_step_edges(project, ids, produced))
     edges.extend(_mart_edges(project, ids, imported))
 
     for mapping in project.mappings:
@@ -667,7 +717,7 @@ def build_graph(
         )
         edges.extend(
             Edge(src=entity_field_node(metric.grain or "", name), dst=dst, label="expr")
-            for name in _expr_fields(metric, project)
+            for name in _expr_fields(metric, project, produced)
         )
 
     if project.exposures is not None:
