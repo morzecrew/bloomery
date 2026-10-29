@@ -34,6 +34,11 @@ tax-basis check below, which refuses an operand with a currency or undeclared un
 `tax_basis` is absent or `unknown` beside a monetary one. Multiplication and division
 are exempt: currency × count is how extensive quantities work. Violation: `UnitMismatch`.
 
+A percentage, a rate, a sign or a 0/1 flag is declared `unit: ratio`, a dimensionless
+unit. Like a count it has no tax basis, so `price * (100 - discount) / 100 - cost` passes
+both checks. Left undeclared, the factor is an unknown basis beside money and poisons the
+expression. A ratio is still a unit: `price + discount` is refused.
+
 ## Tax basis
 
 `net` and `gross` may never meet in `+`/`-`, and a `tax_basis` that is absent or
