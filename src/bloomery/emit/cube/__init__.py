@@ -91,6 +91,7 @@ from bloomery.ir import (
     MartIR,
     MetricIR,
     ProjectIR,
+    mart_expr,
 )
 from bloomery.ir.nodes import with_imported
 from bloomery.typing import (
@@ -327,7 +328,7 @@ def _dimensions(mart: MartIR, ir: ProjectIR) -> list[object]:
 # ....................... #
 
 
-def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
+def _stored_measure(metric: MetricIR, mart: MartIR, ir: ProjectIR) -> dict[str, object]:
     measure_type = _MEASURE_TYPES.get(metric.agg) if metric.agg is not None else None
 
     if measure_type is None:
@@ -337,7 +338,9 @@ def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
         )
         raise UnsupportedByTarget(msg)
 
-    if metric.expr is None:
+    expr = mart_expr(metric, mart, ir)
+
+    if expr is None:
         msg = (
             f"metric {metric.name!r} has no expression to emit as a Cube measure — only "
             "agg-over-expr metrics lower to stored measures (S-0025/cube-emitter-semantic)"
@@ -352,7 +355,8 @@ def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
 
     if measure_type != "count":
         # Cube's ``count`` counts rows and takes no sql (see module docstring).
-        entry["sql"] = metric.expr.sql
+        # As this mart reads it (S-0022/D-12).
+        entry["sql"] = expr.sql
 
     if metric.filter:
         # Cube's own measure-level filter (S-0050): the same clauses the
@@ -412,7 +416,7 @@ def _measures(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[ob
             raise UnsupportedByTarget(msg)
 
     measures: list[object] = [
-        _stored_measure(metrics_by_name[name], mart)
+        _stored_measure(metrics_by_name[name], mart, ir)
         for name in owned
         if metrics_by_name[name].additivity not in COMPUTED
     ]

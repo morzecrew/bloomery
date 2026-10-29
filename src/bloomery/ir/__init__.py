@@ -8,6 +8,7 @@ from bloomery.ir.lower import (
     canon,
     canonical_bindings,
     extraction,
+    mart_expr,
     partition_specs,
     unbound,
 )
@@ -164,6 +165,7 @@ __all__ = [
     "extraction",
     "ir_from_json",
     "ir_json",
+    "mart_expr",
     "partition_specs",
     "unbound",
     "project_fingerprint",

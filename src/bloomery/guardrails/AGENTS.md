@@ -123,6 +123,13 @@ A metric's `expr` is written over its `requires:` canonicals, and the IR build b
 - Paths: `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `src/bloomery/guardrails/arithmetic.py` `tests/unit/test_resolve/test_canonical_binding.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/timeline.py`
 - Consequence: A catalog template works for a project whose field is spelled otherwise, the case `canonical:` links exist for: `unit_price * quantity` over a field `qty` emits `unit_price * qty`, and S-0034/D-49's step-output link counts `canonical_id` rather than a `customer_ref` the mart lacks. `MetricIR.expr` moves only where a spelling differs, so those projects re-fingerprint once; a field renamed under a metric respells it and does not restate it, as S-0024's v2 to v3 case requires
 
+### S-0022/D-12 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
+
+A canonical a metric requires that a joined entity's column links, rather than a grain column, is bound per mart and not in the IR. Where a mart flattens that column, the expression the mart's measure, rollup and plan explanation read names the one mart column flattened from it, under that mart's prefix. The IR keeps the canonical. D-10's rules carry over: a date bucket is not such a column, a canonical two columns could stand for is left as written, and so is one whose column is spelled as a name the expression reads. The measure check of S-0050/D-16 reads the same bound expression, so a mart that does not flatten the column is refused by name
+
+- Paths: `src/bloomery/ir/lower.py` `src/bloomery/guardrails/metrics.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/lower/rollups.py` `src/bloomery/planner/explain.py` `tests/unit/test_guardrails/test_per_unit_parent.py`
+- Consequence: A template can name a parent's canonical, and two marts that flatten the parent under different prefixes each read their own column from one definition. The IR, every fingerprint and `plan()` are unchanged, because the binding happens after them. The planner's declared type for a bare-column measure still reads the expression as the IR has it, so a bare per-unit canonical gets the wide decimal it gives any expression
+
 ### S-0023/D-1 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
 All seven spec-§5.4 guardrails ship in v0.1 as compile errors — never warnings, no severity/suppression knob. A knob makes "error" negotiable, which defeats the stage's purpose.
@@ -202,6 +209,13 @@ The `over` of a semi-additive metric names the source column of a date role — 
 
 - Paths: `src/bloomery/guardrails/metrics.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/planner/explain.py` `tests/unit/test_guardrails/test_metrics.py` `tests/fixtures/semi_additive_over_refusal/metrics.yaml` `tests/golden/refusals/semi_additive_over_refusal.txt` `pages/docs/reference/spec-schemas.md`
 - Consequence: `over: snapshot_day` beside `{date: stock_date, role: snapshot}` is refused at `bloomery check`, naming `stock_date`, rather than compiling clean and failing only when the MetricFlow manifest is built; a mart added to a metric's listing without the role is refused even when another mart owns the metric
+
+### S-0023/D-15 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
+
+A canonical field may declare `per_unit: true`: its value is a rate that holds per unit of each row reading it, such as a unit cost or a price, rather than an amount of its own entity. The grain guard admits such an operand, in a metric or a derivation, where the grain reaches the operand's entity through one declared many-to-one relationship, either way round. Every other foreign-grain operand is refused under D-5 as before, a per-unit one read from the parent side included, and the refusal names the declaration where it would apply
+
+- Paths: `src/bloomery/spec/catalog.py` `src/bloomery/guardrails/grain.py` `src/bloomery/guardrails/operands.py` `tests/unit/test_guardrails/test_per_unit_parent.py` `tests/golden/refusals/fanout_trap.txt` `pages/docs/reference/spec-schemas.md`
+- Consequence: Cost of goods at order-line grain, `product_cost * line_quantity` with the cost on `product`, compiles once the catalog declares the cost per unit. Order shipping read per line, the `fanout_trap`, is refused as before, in the same expression shape. The declaration is not verified, so a per-unit amount summed per line overstates exactly as the fan-out D-5 refuses, and the declaration is where a reviewer looks for it. A chain of two many-to-one hops is still refused
 
 ### S-0026/D-9 — `ASSUMED` (Testing strategy and fixture corpus)
 

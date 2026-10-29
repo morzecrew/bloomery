@@ -89,6 +89,15 @@ GrainMismatch at entity_model: entities.order_item.fields.landed_cost
   derivation on entity 'order'.
 ```
 
+What the join copies is a *value*, and some values are meant to be read on every row
+they are copied to. A product's unit cost times the line's quantity is the line's cost of
+goods. A catalog field that is such a rate (a unit cost, a price, an exchange rate)
+declares `per_unit: true`. The guard then admits it where the grain reaches its entity
+through one many-to-one relationship. `product_cost * line_quantity` compiles, and
+`shipping_cost * line_quantity` is refused as before. The two have the same shape, which
+is why this is a declaration bloomery cannot infer. A per-unit field read from the parent's
+side, where each parent row has many child values, is still refused.
+
 The same guard also runs where fan-out would actually be *built*: over each mart
 definition, at compile time. A measure whose grain differs from the mart's grain is a
 `GrainViolation` at the declaration site —

@@ -139,7 +139,7 @@ from bloomery.emit.lower import (
 )
 from bloomery.errors import EmitError, UnsupportedByTarget, guaranteed
 from bloomery.guardrails.metrics import day_columns
-from bloomery.ir import COMPUTED, Additivity, Layer, SemiAdditiveRule
+from bloomery.ir import COMPUTED, Additivity, Layer, SemiAdditiveRule, mart_expr
 from bloomery.ir.nodes import with_imported
 
 if TYPE_CHECKING:
@@ -388,6 +388,7 @@ def _dimensions(
 
 def _measures(
     mart: MartIR,
+    ir: ProjectIR,
     owners: dict[str, MartIR],
     metrics_by_name: dict[str, MetricIR],
     day_by_source: dict[str, str],
@@ -399,7 +400,8 @@ def _measures(
         metric = metrics_by_name[name]
         if metric.additivity in COMPUTED:
             continue  # never a measure — recomputed at query time (S-0030/D-4)
-        if metric.expr is None:
+        expr = mart_expr(metric, mart, ir)
+        if expr is None:
             msg = (
                 f"metric {metric.name!r} has no expression to emit as a MetricFlow measure "
                 "— only agg-over-expr metrics lower to measures (S-0030/emitmanifest-ir-pydanticsemanticmanifest)"
@@ -412,7 +414,9 @@ def _measures(
             PydanticMeasure(
                 name=metric.name,
                 agg=_aggregation(metric),
-                expr=metric.expr.sql,
+                # As this mart reads it: a joined entity's canonical is the
+                # column the mart flattened it into (S-0022/D-12).
+                expr=expr.sql,
                 agg_time_dimension=_agg_time_dimension(mart),
                 non_additive_dimension=non_additive,
                 description=None,
@@ -492,7 +496,7 @@ def _semantic_model(
         primary_entity=primary_entity,
         entities=entities,
         dimensions=_dimensions(mart, entity_names, descriptions),
-        measures=_measures(mart, owners, metrics_by_name, day_columns(mart)),
+        measures=_measures(mart, ir, owners, metrics_by_name, day_columns(mart)),
         defaults=None,
         description=None,
         metadata=None,

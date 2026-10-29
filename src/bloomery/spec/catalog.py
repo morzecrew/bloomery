@@ -108,6 +108,12 @@ class CanonicalField(SpecModel):
     unit: Literal["currency", "count"] | None = None
     tax_basis: Literal["net", "gross", "unknown"] | None = None
     currency: CurrencyCode | None = None
+    #: The value holds per unit of each row that reads it — a unit cost, a
+    #: price, a rate — rather than being an amount of its own entity. Read at a
+    #: finer grain through a many-to-one relationship it is copied as a rate,
+    #: not summed as an amount, so the grain guard admits it (S-0023/D-15).
+    #: A declaration bloomery does not verify.
+    per_unit: bool = False
     recipes: tuple[Recipe, ...] = ()
 
 

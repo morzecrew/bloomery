@@ -8,6 +8,14 @@ fine-grained row and every downstream ``SUM`` overstates it. There is no
 "distribute evenly" auto-fix — allocation is a modelling decision the author
 must write as an explicit expression.
 
+What a many-to-one join copies is a *value*, and a value that is a rate rather
+than an amount — a unit cost, a price, an exchange rate — is meant to be read on
+every row it is copied to: ``product_cost * quantity`` is cost of goods. The
+catalog declares such a field ``per_unit`` (S-0023/D-15), and an operand so
+declared is admitted where the grain reaches its entity through one
+many-to-one relationship. The guard cannot tell a rate from an amount by
+itself, which is why it is a declaration and not an inference.
+
 The same rule runs over metric expressions whose ``requires`` span entities
 with different grains. The mart-level leaves (``GrainViolation``,
 ``FanoutRisk`` — S-0023/D-10) run where marts are lowered, with M5
@@ -88,6 +96,37 @@ def _relationship_between(draft: ProjectIR, from_entity: str, to_entity: str) ->
 # ....................... #
 
 
+def _copied_down(draft: ProjectIR, anchor: str, home: str) -> bool:
+    """``anchor`` reaches ``home`` many-to-one through one declared relationship,
+    either way round: each ``anchor`` row reads exactly one ``home`` row, so a
+    value of ``home`` is copied onto the rows and never combined across them."""
+
+    return any(
+        (rel.from_entity, rel.to_entity, rel.cardinality)
+        in ((anchor, home, Cardinality.MANY_TO_ONE), (home, anchor, Cardinality.ONE_TO_MANY))
+        for rel in draft.relationships
+    )
+
+
+# ....................... #
+
+
+def _per_unit_fix(draft: ProjectIR, anchor: str, home: str, operand: str) -> str:
+    """The way out a per-unit declaration offers, where it would offer one."""
+
+    if not _copied_down(draft, anchor, home):
+        return ""
+
+    return (
+        f"; or, if {operand!r} is a rate that holds per unit of each row reading it (a unit "
+        "cost, a price) rather than an amount of its entity, declare per_unit: true on its "
+        "canonical field (S-0023/D-15)"
+    )
+
+
+# ....................... #
+
+
 def _fully_aggregated(tree: Expression, name: str) -> bool:
     """Every occurrence of ``name`` in the expression sits under an explicit
     aggregation — the sanctioned way to bring a foreign grain in (D5)."""
@@ -144,6 +183,8 @@ def check_grain(
                 continue
             if tree is not None and _fully_aggregated(tree, operand):
                 continue
+            if meta.per_unit and _copied_down(draft, derivation.entity, meta.entity):
+                continue
             violations.append(
                 _mismatch(
                     operand=operand,
@@ -154,6 +195,7 @@ def check_grain(
                     fix=(
                         f"add an explicit aggregation/allocation over {derivation.entity!r}, "
                         f"or declare the derivation on entity {meta.entity!r}"
+                        + _per_unit_fix(draft, derivation.entity, meta.entity, operand)
                     ),
                     grains=grains,
                     source_path=derivation.source_path,
@@ -176,11 +218,12 @@ def _check_metric_grain(
     for metric in draft.metrics:
         if metric.expr is None:
             continue
-        homes = {
-            name: meta.entity
+        metas = {
+            name: meta
             for name in metric.depends_on
             if (meta := operand_meta(name, catalog)) is not None
         }
+        homes = {name: meta.entity for name, meta in metas.items()}
         distinct = sorted(set(homes.values()))
         if len(distinct) <= 1:
             continue
@@ -189,6 +232,8 @@ def _check_metric_grain(
         if metric.grain in grains:
             for name in sorted(homes):
                 if homes[name] == metric.grain or _fully_aggregated(tree, name):
+                    continue
+                if metas[name].per_unit and _copied_down(draft, metric.grain, homes[name]):
                     continue
                 violations.append(
                     _mismatch(
@@ -200,6 +245,7 @@ def _check_metric_grain(
                         fix=(
                             f"aggregate {name!r} explicitly inside expr, or split the "
                             f"metric per entity"
+                            + _per_unit_fix(draft, metric.grain, homes[name], name)
                         ),
                         grains=grains,
                         source_path=source_path,

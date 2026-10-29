@@ -262,6 +262,7 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("CanonicalField", "unit"): Facet.UNIT,
     ("CanonicalField", "tax_basis"): Facet.UNIT,
     ("CanonicalField", "currency"): Facet.UNIT,
+    ("CanonicalField", "per_unit"): Facet.UNIT,
     ("CanonicalField", "entity"): Facet.INPUTS,
     ("CanonicalField", "recipes"): Facet.BODY,
     ("CanonicalField", "description"): Facet.METADATA,
