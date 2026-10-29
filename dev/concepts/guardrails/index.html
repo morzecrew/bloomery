@@ -2151,6 +2151,10 @@ unknown unit is not a unit verdict at all: it poisons additive arithmetic throug
 tax-basis check below, which refuses an operand with a currency or undeclared unit whose
 <code>tax_basis</code> is absent or <code>unknown</code> beside a monetary one. Multiplication and division
 are exempt: currency × count is how extensive quantities work. Violation: <code>UnitMismatch</code>.</p>
+<p>A percentage, a rate, a sign or a 0/1 flag is declared <code>unit: ratio</code>, a dimensionless
+unit. Like a count it has no tax basis, so <code>price * (100 - discount) / 100 - cost</code> passes
+both checks. Left undeclared, the factor is an unknown basis beside money and poisons the
+expression. A ratio is still a unit: <code>price + discount</code> is refused.</p>
 <h2 id="tax-basis">Tax basis<a class="headerlink" href="#tax-basis" title="Permanent link">&para;</a></h2>
 <p><code>net</code> and <code>gross</code> may never meet in <code>+</code>/<code>-</code>, and a <code>tax_basis</code> that is absent or
 explicitly <code>unknown</code> alongside a monetary operand is equally refused. A margin computed

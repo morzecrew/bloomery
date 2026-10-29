@@ -3374,9 +3374,9 @@ relation, and a shared name makes the emitted predicate compare a column against
 </tr>
 <tr>
 <td><code>unit</code></td>
-<td><code>currency</code> | <code>count</code></td>
+<td><code>currency</code> | <code>count</code> | <code>ratio</code></td>
 <td>no</td>
-<td>Drives the unit guardrail; absent = unknown</td>
+<td>Drives the unit guardrail; absent = unknown. <code>ratio</code> is dimensionless — a percentage, a rate, a sign or a 0/1 flag: like <code>count</code> it carries no tax basis, so it can scale money, and it may not be added to money or a count. It declares no <code>currency</code> or <code>tax_basis</code></td>
 </tr>
 <tr>
 <td><code>tax_basis</code></td>
