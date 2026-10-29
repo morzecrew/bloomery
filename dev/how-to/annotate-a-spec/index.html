@@ -1331,6 +1331,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#better-which-way-is-good-news" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>better:</code> — which way is good news
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-is-not-here" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1994,6 +2005,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#better-which-way-is-good-news" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>better:</code> — which way is good news
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-is-not-here" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2307,6 +2329,20 @@ annotations of the column it was flattened from, prefixed or not. A metric's lab
 planner's column label too, with its description as the fallback. A label is one line, an
 annotation empty once stripped is refused, and two equal synonyms are refused. Changing any
 of them is an ADDITIVE, metadata-only change in <code>plan()</code>.</p>
+<h2 id="better-which-way-is-good-news"><code>better:</code> — which way is good news<a class="headerlink" href="#better-which-way-is-good-news" title="Permanent link">&para;</a></h2>
+<p>A metric can say which direction of change is good news, so a dashboard colouring a delta
+or an alert reading a target takes it from the spec rather than from a list of metric
+names kept beside it:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># metrics.yaml</span>
+<span class="nt">cost_of_goods</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="nv">order_line</span><span class="p p-Indicator">,</span><span class="nt"> additivity</span><span class="p">:</span><span class="w"> </span><span class="nv">additive</span><span class="p p-Indicator">,</span><span class="nt"> agg</span><span class="p">:</span><span class="w"> </span><span class="nv">sum</span><span class="p p-Indicator">,</span>
+<span class="nt">                expr</span><span class="p">:</span><span class="w"> </span><span class="s">"buy_price</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">quantity"</span><span class="p p-Indicator">,</span><span class="nt"> better</span><span class="p">:</span><span class="w"> </span><span class="nv">lower</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p><code>higher</code>, <code>lower</code> or <code>neither</code>, as for a stock level that is neither. It reaches MetricFlow
+as the metric's <code>config.meta.better</code> and Cube as the measure's <code>meta.better</code>, and a catalog
+template can give it, as it gives a label. A metric that does not say is undeclared and
+emits nothing, so your consumer picks its own default. A ratio or a derived metric does
+not take it from its parts: a ratio of two costs can be good news when it rises. Like the
+annotations above, it changes no SQL, and changing it is ADDITIVE in <code>plan()</code>.</p>
 <h2 id="what-is-not-here">What is not here<a class="headerlink" href="#what-is-not-here" title="Permanent link">&para;</a></h2>
 <p><strong>Seeds.</strong> <code>seeds:</code> is refused permanently, and the message says "refused, not missing". A
 seed is a table of data in your repository; bloomery reads no files while compiling, so

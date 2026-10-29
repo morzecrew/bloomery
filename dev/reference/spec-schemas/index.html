@@ -4430,6 +4430,12 @@ above is what carries the portability claim.</p>
 <td>Other names a front end may match the metric by; an authored <code>[]</code> clears the template's</td>
 </tr>
 <tr>
+<td><code>better</code></td>
+<td><code>higher</code> | <code>lower</code> | <code>neither</code></td>
+<td>no (template's, or undeclared)</td>
+<td>Which direction of change is good news, for a consumer colouring a delta or reading a target as a floor or a ceiling: MetricFlow's <code>config.meta.better</code>, Cube's <code>meta.better</code>. Absent, nothing is emitted; a ratio or derived metric never takes it from its parts</td>
+</tr>
+<tr>
 <td><code>requires</code></td>
 <td>list of canonical field names</td>
 <td>no (<code>[]</code>)</td>

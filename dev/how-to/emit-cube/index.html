@@ -2234,7 +2234,7 @@ month bucket without parsing the name.</p>
 <p>A dimension and a measure carry <code>title</code> and <code>description</code> from the field's or the metric's
 <code>label:</code> and <code>description:</code>, and <code>meta.synonyms</code> from <code>synonyms:</code> (<a href="../annotate-a-spec/">annotate a
 spec</a>). A mart column reads the annotations of the column it was
-flattened from.</p>
+flattened from. A measure whose metric declares <code>better:</code> carries it as <code>meta.better</code>.</p>
 <h2 id="additivity-metadata">Additivity metadata<a class="headerlink" href="#additivity-metadata" title="Permanent link">&para;</a></h2>
 <p>Every measure carries <code>meta.additivity</code> and <code>meta.grain</code> from the metric's declaration;
 a semi-additive measure additionally carries <code>meta.semi_additive</code> with its <code>over</code>
