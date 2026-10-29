@@ -48,6 +48,8 @@ class OperandMeta:
     unit: str | None
     tax_basis: str | None
     currency: str | None
+    #: Declared per unit of the row that reads it (S-0023/D-15).
+    per_unit: bool = False
 
 
 # ....................... #
@@ -114,6 +116,7 @@ def operand_meta(name: str, catalog: Catalog | None) -> OperandMeta | None:
         unit=field.unit,
         tax_basis=field.tax_basis,
         currency=field.currency,
+        per_unit=field.per_unit,
     )
 
 

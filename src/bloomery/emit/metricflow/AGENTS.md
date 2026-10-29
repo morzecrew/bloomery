@@ -2,6 +2,13 @@
 
 ## Decisions governing `src/bloomery/emit/metricflow/`
 
+### S-0022/D-12 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
+
+When a metric requires a canonical that a joined entity's column links, rather than a grain column, that canonical is bound per mart and not in the IR. Where a mart flattens that column, the expression the mart's measure, its rollups and the query planner's explanation read names the one mart column flattened from it, under that mart's prefix, and a name the mart already carries is read as written. The IR keeps the canonical. D-10's rules carry over: a date bucket is not such a column, a canonical two columns could stand for is left as written, and so is one whose column is spelled as a name the expression reads. The measure check of S-0050/D-16 reads the same bound expression, so a mart that does not flatten the column is refused by name
+
+- Paths: `src/bloomery/ir/lower.py` `src/bloomery/guardrails/metrics.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/lower/rollups.py` `src/bloomery/planner/explain.py` `tests/unit/test_guardrails/test_per_unit_parent.py`
+- Consequence: A template can name a parent's canonical, and two marts that flatten the parent under different prefixes each read their own column from one definition. The IR, every fingerprint and `plan()`'s diff of two IRs are unchanged, because the binding happens after them; a query plan's SQL and explanation read the bound column. The planner's declared type for a bare-column measure still reads the expression as the IR has it, so a bare per-unit canonical gets the wide decimal it gives any expression
+
 ### S-0023/D-13 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
 The `over` of a semi-additive metric names the source column of a date role — the column a `{date: …, role: …}` flatten step is declared over — never a bucket that role produces (`<role>_day` and the rest), and every mart listing the metric among its measures must declare a date role over that column. A mart that does not is refused at the guardrail stage as `MartMissingTimeDimension`, and the MetricFlow emitter re-refuses it

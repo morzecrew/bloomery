@@ -31,7 +31,7 @@ from bloomery.errors import (
     UndeclaredRatioRows,
     guaranteed,
 )
-from bloomery.ir import COMPUTED, Additivity
+from bloomery.ir import COMPUTED, Additivity, mart_expr
 from bloomery.semantic import RatioRowsRefusal, Refutation, prove_ratio_rows
 from bloomery.semantic.proof import prove_comparable
 from bloomery.typing import (
@@ -173,7 +173,9 @@ def _fits(value: str | int | bool | Decimal, declared: LogicalType) -> bool:
 # ....................... #
 
 
-def _check_measure_columns(metric: MetricIR, mart: MartIR, path: str) -> list[GuardrailError]:
+def _check_measure_columns(
+    metric: MetricIR, mart: MartIR, path: str, draft: ProjectIR
+) -> list[GuardrailError]:
     """A measure's ``expr`` against one mart carrying it (S-0050/D-16).
 
     The expression reaches MetricFlow, Cube and the rollups as written and is
@@ -183,16 +185,21 @@ def _check_measure_columns(metric: MetricIR, mart: MartIR, path: str) -> list[Gu
     unqualified name is checked: a qualified one names a relation this mart
     does not have either, and is not this check's claim, and nor is a column
     inside a subquery, which reads its own relation.
+
+    It reads the expression as this mart's emitters do, with a joined entity's
+    canonical bound to the column the mart flattened it into (S-0022/D-12).
     """
 
-    if metric.expr is None:
+    expr = mart_expr(metric, mart, draft)
+
+    if expr is None:
         return []
 
     carried = {column.name for column in mart.columns}
     missing = sorted(
         {
             column.name
-            for column in metric.expr.ast().find_all(exp.Column)
+            for column in expr.ast().find_all(exp.Column)
             if not column.table
             and column.name not in carried
             and column.find_ancestor(exp.Select) is None
@@ -718,7 +725,7 @@ def check_metrics(
             if metric.name not in mart.measures:
                 continue
             violations.extend(_check_over(metric, mart, path))
-            violations.extend(_check_measure_columns(metric, mart, path))
+            violations.extend(_check_measure_columns(metric, mart, path, draft))
             for clause in metric.filter:
                 violations.extend(_check_filter(metric, clause, mart, path, resolved))
 

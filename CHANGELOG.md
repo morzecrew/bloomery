@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as an unknown basis beside money, and `price + discount` is still a `UnitMismatch`.
   (#367)
 
+- **A metric template can read a per-unit field of a many-to-one parent.** A catalog field
+  that is a rate rather than an amount, such as a product's unit cost, declares
+  `per_unit: true`. A template at order-line grain can then compute
+  `product_cost * line_quantity`: the grain guard admits the field read down one
+  many-to-one relationship, and each mart reads the column it flattened the field into,
+  under its own prefix. An amount of the parent, such as order shipping read per line, is
+  refused as before. (#366)
+
 - **A metric says which direction of change is good news.** `better: higher`, `lower` or
   `neither` on a metric or its catalog template reaches MetricFlow as `config.meta.better`
   and Cube as the measure's `meta.better`, so a dashboard colouring a delta or reading a

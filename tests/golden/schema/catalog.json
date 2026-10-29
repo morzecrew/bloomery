@@ -46,6 +46,11 @@
           "default": null,
           "title": "Id"
         },
+        "per_unit": {
+          "default": false,
+          "title": "Per Unit",
+          "type": "boolean"
+        },
         "recipes": {
           "default": [],
           "items": {

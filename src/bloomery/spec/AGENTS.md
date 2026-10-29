@@ -282,6 +282,13 @@ A canonical field may declare `unit: ratio`: a dimensionless number such as a pe
 - Paths: `src/bloomery/spec/catalog.py` `src/bloomery/ir/nodes.py` `tests/unit/test_guardrails/test_dimensionless_unit.py` `tests/golden/schema/catalog.json` `pages/docs/reference/spec-schemas.md`
 - Consequence: `price * (100 - discount) / 100 - cost` compiles once `discount` is declared a ratio, and `price + discount` is still refused. An undeclared factor keeps poisoning, so nothing that compiled or was refused before changes. A factor no longer has to be declared a count, a unit that is wrong for a percentage
 
+### S-0023/D-15 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
+
+A canonical field may declare `per_unit: true`: its value is a rate that holds per unit of each row reading it, such as a unit cost or a price, rather than an amount of its own entity. The grain guard admits such an operand, in a metric or a derivation, where the grain reaches the operand's entity through one declared many-to-one relationship, either way round. Every other foreign-grain operand is refused under D-5 as before, a per-unit one read from the parent side included, and the refusal names the declaration where it would apply
+
+- Paths: `src/bloomery/spec/catalog.py` `src/bloomery/guardrails/grain.py` `src/bloomery/guardrails/operands.py` `tests/unit/test_guardrails/test_per_unit_parent.py` `tests/golden/refusals/fanout_trap.txt` `pages/docs/reference/spec-schemas.md`
+- Consequence: Cost of goods at order-line grain, `product_cost * line_quantity` with the cost on `product`, compiles once the catalog declares the cost per unit. Order shipping read per line, the `fanout_trap`, is refused as before, in the same expression shape. The declaration is not verified, so a per-unit amount summed per line overstates exactly as the fan-out D-5 refuses, and the declaration is where a reviewer looks for it. A chain of two many-to-one hops is still refused
+
 ### S-0024/D-3 — `ASSUMED` (Plan: spec diff and change classification)
 
 Renames are explicit only: `renamed_from: <old>` in the spec (carried as `ColumnIR.renamed_from`, an S-0020 amendment). No heuristic inference — determinism and auditability beat convenience. A stale annotation (old name absent from `old`, including `old is None`) raises `RenameTargetMissing` (`PlanError`), which forces the annotation to be dropped after one applied plan.

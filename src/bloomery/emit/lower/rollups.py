@@ -27,11 +27,11 @@ from typing import TYPE_CHECKING
 from sqlglot import exp
 
 from bloomery.errors import UnsupportedByTarget
-from bloomery.ir import COMPUTED, Layer
+from bloomery.ir import COMPUTED, Layer, mart_expr
 
 if TYPE_CHECKING:
     from bloomery.emit.base import EmitContext
-    from bloomery.ir import MetricIR, ProjectIR, RollupIR
+    from bloomery.ir import MartIR, MetricIR, ProjectIR, RollupIR
 
 # ----------------------- #
 
@@ -88,8 +88,10 @@ def rollup_measures(rollup: RollupIR, ir: ProjectIR) -> tuple[MetricIR, ...]:
 # ....................... #
 
 
-def _aggregate(metric: MetricIR) -> exp.AggFunc:
-    if metric.agg is None or metric.expr is None:
+def _aggregate(metric: MetricIR, parent: MartIR | None, ir: ProjectIR) -> exp.AggFunc:
+    expr = metric.expr if parent is None else mart_expr(metric, parent, ir)
+
+    if metric.agg is None or expr is None:
         msg = (
             f"metric {metric.name!r} has no aggregation to build a rollup measure from — "
             "only agg-over-expr metrics become rollup columns (S-0065/targets)"
@@ -105,7 +107,8 @@ def _aggregate(metric: MetricIR) -> exp.AggFunc:
         )
         raise UnsupportedByTarget(msg)
 
-    return aggregate(this=metric.expr.ast())
+    # Over the parent mart's columns, as that mart reads the expression (S-0022/D-12).
+    return aggregate(this=expr.ast())
 
 
 # ....................... #
@@ -121,13 +124,16 @@ def rollup_select(rollup: RollupIR, ir: ProjectIR, ctx: EmitContext) -> exp.Sele
 
     namespace, relation = ctx.naming.relation(rollup.of, Layer.GOLD)
     kept = [exp.column(column) for column in rollup.keep]
+    # A rollup's `of:` is a mart of its own document (S-0065/D-10); an IR
+    # assembled without it reads the expression as written.
+    parent = next((mart for mart in ir.marts if mart.name == rollup.of), None)
 
     return (
         exp.Select()
         .select(
             *kept,
             *[
-                exp.alias_(_aggregate(metric), metric.name)
+                exp.alias_(_aggregate(metric, parent, ir), metric.name)
                 for metric in rollup_measures(rollup, ir)
             ],
         )

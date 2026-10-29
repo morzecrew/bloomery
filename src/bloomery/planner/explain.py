@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 
 from bloomery.errors import PlannerError, guaranteed
 from bloomery.guardrails.metrics import day_columns, mart_roles
-from bloomery.ir import COMPUTED, Additivity, Layer, SemiAdditiveRule
+from bloomery.ir import COMPUTED, Additivity, Layer, SemiAdditiveRule, mart_expr
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import Op, Predicate, clause_predicates
 from bloomery.planner.result import BranchSource, Explanation, MeasureExplanation
@@ -172,7 +172,9 @@ def _filter_note(metric: MetricIR, mart: MartIR | None) -> str:
 # ....................... #
 
 
-def _measure_explanation(metric: MetricIR, mart: MartIR | None) -> MeasureExplanation:
+def _measure_explanation(
+    metric: MetricIR, mart: MartIR | None, ir: ProjectIR | None = None
+) -> MeasureExplanation:
     """How one measure was computed.
 
     ``mart`` is optional because a metric the composed statement computes above
@@ -194,14 +196,16 @@ def _measure_explanation(metric: MetricIR, mart: MartIR | None) -> MeasureExplan
         return MeasureExplanation(metric.name, expr, additivity, _RATIO_NOTE)
 
     agg = (metric.agg or "sum").upper()
-    if metric.expr is None:
+    # As the branch's mart reads it, where there is one (S-0022/D-12).
+    read = mart_expr(metric, mart, ir) if mart is not None and ir is not None else metric.expr
+    if read is None:
         expr = metric.name
     elif metric.agg == "count_distinct":
         # The SQL spelling, not the keyword's: the note beside it says
         # COUNT(DISTINCT), and the two are read together.
-        expr = f"COUNT(DISTINCT {metric.expr.sql})"
+        expr = f"COUNT(DISTINCT {read.sql})"
     else:
-        expr = f"{agg}({metric.expr.sql})"
+        expr = f"{agg}({read.sql})"
     restriction = _filter_note(metric, mart)
 
     if cumulative := _cumulative_note(metric, agg):
@@ -465,7 +469,7 @@ def build(
     """The plan's :class:`Explanation`, from the typed ``query_spec`` and IR."""
     metrics_by_name = {metric.name: metric for metric in ir.metrics}
     measures = tuple(
-        _measure_explanation(metrics_by_name[spec.element_name], coverage.mart)
+        _measure_explanation(metrics_by_name[spec.element_name], coverage.mart, ir)
         for spec in result.query_spec.input_spec_order.metric_specs
         if spec.element_name in metrics_by_name
     )

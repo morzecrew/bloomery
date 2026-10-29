@@ -249,3 +249,37 @@ decisions:
       would pass `gross / unknown_money - cost`, where the quotient is not money at
       all. A declared unit is opt-in and says what the number is
     cites: [D-3]
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      A canonical field may declare `per_unit: true`: its value is a rate that holds
+      per unit of each row reading it, such as a unit cost or a price, rather than
+      an amount of its own entity. The grain guard admits such an operand, in a metric
+      or a derivation, where the grain reaches the operand's entity through one declared
+      many-to-one relationship, either way round. Every other foreign-grain operand
+      is refused under D-5 as before, a per-unit one read from the parent side included,
+      and the refusal names the declaration where it would apply
+    paths:
+      - src/bloomery/spec/catalog.py
+      - src/bloomery/guardrails/grain.py
+      - src/bloomery/guardrails/operands.py
+      - tests/unit/test_guardrails/test_per_unit_parent.py
+      - tests/golden/refusals/fanout_trap.txt
+      - pages/docs/reference/spec-schemas.md
+    consequence: >-
+      Cost of goods at order-line grain, `product_cost * line_quantity` with the cost
+      on `product`, compiles once the catalog declares the cost per unit. Order shipping
+      read per line, the `fanout_trap`, is refused as before, in the same expression
+      shape. The declaration is not verified, so a per-unit amount summed per line
+      overstates exactly as the fan-out D-5 refuses, and the declaration is where
+      a reviewer looks for it. A chain of two many-to-one hops is still refused
+    rationale: >-
+      #366. A many-to-one join multiplies no rows, but it copies the parent's value
+      onto each child row. A SUM of a copied amount overstates it (`fanout_trap`'s
+      27.00 for 9.00), and a SUM of a rate times the child's quantity is the right
+      number. The two have the same expression shape, so the guard cannot tell them
+      apart without being told. The issue's proposal was to refuse only the one-to-many
+      direction, which would compile the `fanout_trap`. The owner chose a catalog
+      declaration over a per-metric acknowledgement (2026-10-29), so one declaration
+      covers every template that reads the field
+    cites: [D-5, D-3, S-0022/D-12]

@@ -22,7 +22,16 @@ from dataclasses import replace
 from sqlglot import exp, jsonpath
 from sqlglot.expressions.core import Expression
 
-from bloomery.ir.nodes import ColumnIR, EntityIR, MetricIR, PartitionSpec, SqlExpr
+from bloomery.ir.nodes import (
+    ColumnIR,
+    EntityIR,
+    MartIR,
+    MetricIR,
+    PartitionSpec,
+    ProjectIR,
+    SqlExpr,
+    with_imported,
+)
 from bloomery.spec.common import PARTITION_SPEC_PATTERN
 
 # ----------------------- #
@@ -33,6 +42,7 @@ __all__ = [
     "canon",
     "canonical_bindings",
     "extraction",
+    "mart_expr",
     "partition_specs",
     "unbound",
 ]
@@ -103,6 +113,52 @@ def bound_name(name: str, columns: tuple[ColumnIR, ...]) -> str:
         return name
 
     return canonical_bindings((name,), columns).get(name, name)
+
+
+# ....................... #
+
+
+def mart_expr(metric: MetricIR, mart: MartIR, ir: ProjectIR) -> SqlExpr | None:
+    """``metric``'s expression as ``mart`` reads it (S-0022/D-12).
+
+    The IR build binds a canonical to the grain column that links it (D-10).
+    One that a joined entity's column links reaches a mart only through a
+    flatten, under that mart's prefix, so it is bound here, per mart: each
+    canonical the expression still names and the mart carries no column of
+    reads the one mart column flattened from another entity's column linking
+    it. The grain's own columns are D-10's, including the bindings it declined.
+    So are D-10's rules: a date bucket is not such a column, a canonical two
+    columns could stand for is left as written, and so is one whose column is
+    spelled as a name the expression reads as written. The measure check
+    refuses whatever is left.
+    """
+
+    if metric.expr is None:
+        return None
+
+    carried = {column.name for column in mart.columns}
+    links = {
+        (entity.name, column.name): column.canonical
+        for entity in with_imported(ir).entities
+        for column in entity.columns
+    }
+    flattened: dict[str, list[str]] = {}
+
+    for column in mart.columns:
+        canonical = links.get((column.source_entity, column.source_column))
+        if (
+            column.ref is None
+            and column.source_entity != metric.grain
+            and canonical is not None
+            and canonical in metric.depends_on
+            and canonical not in carried
+            and column.name not in metric.depends_on
+        ):
+            flattened.setdefault(canonical, []).append(column.name)
+
+    bindings = {canonical: names[0] for canonical, names in flattened.items() if len(names) == 1}
+
+    return canon(bind_columns(metric.expr.ast(), bindings)) if bindings else metric.expr
 
 
 # ....................... #
