@@ -98,7 +98,7 @@ relation, and a shared name makes the emitted predicate compare a column against
 | `entity` | string | yes | Home entity of the field |
 | `type` | type string | yes | Logical type |
 | `description` | string | no | Carried into semantic-layer emissions |
-| `unit` | `currency` \| `count` | no | Drives the unit guardrail; absent = unknown |
+| `unit` | `currency` \| `count` \| `ratio` | no | Drives the unit guardrail; absent = unknown. `ratio` is dimensionless — a percentage, a rate, a sign or a 0/1 flag: like `count` it carries no tax basis, so it can scale money, and it may not be added to money or a count |
 | `tax_basis` | `net` \| `gross` \| `unknown` | no | Drives the tax-basis guardrail |
 | `currency` | ISO 4217 code | no | Drives the currency guardrail |
 | `recipes` | list of Recipe | no (`[]`) | Alternative derivation paths, ordered by reliability |

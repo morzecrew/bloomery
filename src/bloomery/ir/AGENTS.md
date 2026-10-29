@@ -116,6 +116,13 @@ Path conflict does not raise (`PathConflict` is not an error class): the compile
 
 - Paths: `src/bloomery/emit/lower/predicates.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/guardrails/conflict.py` `src/bloomery/guardrails/quality.py` `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/mapping.py` `tests/fixtures/path_conflict/entity_model.yaml` `tests/fixtures/path_conflict/mapping.yaml` `tests/unit/test_emit/test_sqlmesh.py` `tests/unit/test_guardrails/test_conflict.py` `tests/unit/test_guardrails/test_quality.py` `tests/unit/test_ir/test_lower.py` `tests/unit/test_spec/test_mapping.py`
 
+### S-0023/D-14 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
+
+A canonical field may declare `unit: ratio`: a dimensionless number such as a percentage, a rate, a sign or a 0/1 flag. Like `count`, it is a declared unit that is not money, so the tax-basis rule does not read it as the `unknown` that poisons, and the unit rule compares it as a unit of its own: a ratio beside currency or count at `+`/`-` is a `UnitMismatch`, and two ratios meet
+
+- Paths: `src/bloomery/spec/catalog.py` `src/bloomery/ir/nodes.py` `tests/unit/test_guardrails/test_dimensionless_unit.py` `tests/golden/schema/catalog.json` `pages/docs/reference/spec-schemas.md`
+- Consequence: `price * (100 - discount) / 100 - cost` compiles once `discount` is declared a ratio, and `price + discount` is still refused. An undeclared factor keeps poisoning, so nothing that compiled or was refused before changes. A factor no longer has to be declared a count, a unit that is wrong for a percentage
+
 ### S-0025/D-11 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
 
 (Amended, S-0027) The SQLMesh emitter also builds marts: one gold-layer model per `MartIR`, the only join-emitting path for marts.

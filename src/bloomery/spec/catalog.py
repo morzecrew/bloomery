@@ -105,7 +105,10 @@ class CanonicalField(SpecModel):
     entity: str
     type: TypeString
     description: str | None = None
-    unit: Literal["currency", "count"] | None = None
+    #: ``ratio`` is dimensionless — a percentage, a rate, a sign or a 0/1
+    #: flag that scales money: like ``count``, it carries no tax basis
+    #: (S-0023/D-14).
+    unit: Literal["currency", "count", "ratio"] | None = None
     tax_basis: Literal["net", "gross", "unknown"] | None = None
     currency: CurrencyCode | None = None
     recipes: tuple[Recipe, ...] = ()

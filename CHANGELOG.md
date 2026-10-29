@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`unit: ratio` for a dimensionless factor.** A canonical field holding a percentage, a
+  VAT rate, a ±1 sign or a 0/1 flag declares `unit: ratio`, and like a count it carries no
+  tax basis. So `price * (100 - discount) / 100 - cost` compiles instead of being refused
+  as an unknown basis beside money, and `price + discount` is still a `UnitMismatch`.
+  (#367)
+
 - **A metric says which direction of change is good news.** `better: higher`, `lower` or
   `neither` on a metric or its catalog template reaches MetricFlow as `config.meta.better`
   and Cube as the measure's `meta.better`, so a dashboard colouring a delta or reading a

@@ -275,6 +275,13 @@ Range sanity: the guardrail stage validates `assert:` clauses for well-typedness
 
 - Paths: `src/bloomery/errors.py` `src/bloomery/guardrails/asserts.py` `src/bloomery/guardrails/stage.py` `src/bloomery/quality/predicates.py` `src/bloomery/spec/entity.py` `src/bloomery/spec/quality.py` `tests/golden/schema/entity_model.json` `tests/golden/schema/mapping.json` `tests/unit/test_guardrails/test_asserts.py` `tests/unit/test_guardrails/test_quality.py`
 
+### S-0023/D-14 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
+
+A canonical field may declare `unit: ratio`: a dimensionless number such as a percentage, a rate, a sign or a 0/1 flag. Like `count`, it is a declared unit that is not money, so the tax-basis rule does not read it as the `unknown` that poisons, and the unit rule compares it as a unit of its own: a ratio beside currency or count at `+`/`-` is a `UnitMismatch`, and two ratios meet
+
+- Paths: `src/bloomery/spec/catalog.py` `src/bloomery/ir/nodes.py` `tests/unit/test_guardrails/test_dimensionless_unit.py` `tests/golden/schema/catalog.json` `pages/docs/reference/spec-schemas.md`
+- Consequence: `price * (100 - discount) / 100 - cost` compiles once `discount` is declared a ratio, and `price + discount` is still refused. An undeclared factor keeps poisoning, so nothing that compiled or was refused before changes. A factor no longer has to be declared a count, a unit that is wrong for a percentage
+
 ### S-0024/D-3 — `ASSUMED` (Plan: spec diff and change classification)
 
 Renames are explicit only: `renamed_from: <old>` in the spec (carried as `ColumnIR.renamed_from`, an S-0020 amendment). No heuristic inference — determinism and auditability beat convenience. A stale annotation (old name absent from `old`, including `old is None`) raises `RenameTargetMissing` (`PlanError`), which forces the annotation to be dropped after one applied plan.

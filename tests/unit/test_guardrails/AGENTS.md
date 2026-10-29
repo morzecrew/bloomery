@@ -126,6 +126,13 @@ The `over` of a semi-additive metric names the source column of a date role — 
 - Paths: `src/bloomery/guardrails/metrics.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/planner/explain.py` `tests/unit/test_guardrails/test_metrics.py` `tests/fixtures/semi_additive_over_refusal/metrics.yaml` `tests/golden/refusals/semi_additive_over_refusal.txt` `pages/docs/reference/spec-schemas.md`
 - Consequence: `over: snapshot_day` beside `{date: stock_date, role: snapshot}` is refused at `bloomery check`, naming `stock_date`, rather than compiling clean and failing only when the MetricFlow manifest is built; a mart added to a metric's listing without the role is refused even when another mart owns the metric
 
+### S-0023/D-14 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
+
+A canonical field may declare `unit: ratio`: a dimensionless number such as a percentage, a rate, a sign or a 0/1 flag. Like `count`, it is a declared unit that is not money, so the tax-basis rule does not read it as the `unknown` that poisons, and the unit rule compares it as a unit of its own: a ratio beside currency or count at `+`/`-` is a `UnitMismatch`, and two ratios meet
+
+- Paths: `src/bloomery/spec/catalog.py` `src/bloomery/ir/nodes.py` `tests/unit/test_guardrails/test_dimensionless_unit.py` `tests/golden/schema/catalog.json` `pages/docs/reference/spec-schemas.md`
+- Consequence: `price * (100 - discount) / 100 - cost` compiles once `discount` is declared a ratio, and `price + discount` is still refused. An undeclared factor keeps poisoning, so nothing that compiled or was refused before changes. A factor no longer has to be declared a count, a unit that is wrong for a percentage
+
 ### S-0030/D-8 — `ASSUMED` (MetricFlow backend: manifest emitter and planner adapter)
 
 Filters (Jinja `where_constraints`) are the highest-risk surface: values never interpolated raw — typed per-dialect literal renderer or bind parameters; dimension names only from validated `DimensionRef`s via `names.py`; values type-checked against the dimension (`FilterTypeMismatch`); `contains`/`like` escape wildcards. Adversarial fuzz property test (injection strings, template syntax, unicode quotes, newlines) asserts parsed-SQL predicate structure unchanged and scanned relations exactly the expected mart — **merge-blocking**. *(Superseded by D16 — see §5.6 note.)*

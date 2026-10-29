@@ -81,7 +81,8 @@
             {
               "enum": [
                 "currency",
-                "count"
+                "count",
+                "ratio"
               ],
               "type": "string"
             },
