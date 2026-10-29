@@ -111,3 +111,14 @@ def test_the_catalog_refuses_any_other_unit() -> None:
 
 def test_the_ir_unit_is_the_catalog_s() -> None:
     assert Unit("ratio") is Unit.RATIO
+
+
+@pytest.mark.parametrize("declared", ["currency: EUR", "tax_basis: net"])
+def test_a_ratio_declares_no_currency_and_no_tax_basis(declared: str) -> None:
+    """A dimensionless number is not money. A currency on one would make the
+    currency rule read `price_usd * vat_rate` as two currencies meeting, and
+    a tax basis would be a declaration no rule reads."""
+    with pytest.raises(SpecParseError, match="unit: ratio") as refused:
+        load_catalog(CATALOG.format(discount=f", unit: ratio, {declared}", flag=""))
+
+    assert "canonical_fields.line_discount" in (refused.value.source_path or "")
