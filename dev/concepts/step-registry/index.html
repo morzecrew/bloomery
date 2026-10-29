@@ -932,6 +932,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#joining-an-output-into-another-mart" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Joining an output into another mart
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#linking-an-output-to-canonical-fields" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2072,6 +2083,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#joining-an-output-into-another-mart" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Joining an output into another mart
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#linking-an-output-to-canonical-fields" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2458,6 +2480,31 @@ is a compile error rather than something an engine discovers:</p>
 <p>A <code>variant</code> parameter cannot be substituted into a body: DuckDB, Postgres and
 Trino do not write a semi-structured literal the same way. Pass a scalar and
 cast in the body instead.</p>
+<h3 id="joining-an-output-into-another-mart">Joining an output into another mart<a class="headerlink" href="#joining-an-output-into-another-mart" title="Permanent link">&para;</a></h3>
+<p>A step output is an entity, so a relationship may name it, and a mart over
+another entity flattens it like any other:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># entity_model.yaml</span>
+<span class="nt">relationships</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_of_segment</span>
+<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order</span>
+<span class="w">    </span><span class="nt">to</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer_segment</span><span class="w">          </span><span class="c1"># written by the step, as silver.customer_segment</span>
+<span class="w">    </span><span class="nt">via</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">customer_id</span><span class="p">:</span><span class="w"> </span><span class="nv">customer_id</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">cardinality</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">many_to_one</span>
+
+<span class="c1"># marts.yaml</span>
+<span class="nt">marts</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">orders</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order</span>
+<span class="w">    </span><span class="nt">base</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order</span>
+<span class="w">    </span><span class="nt">flatten</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">via</span><span class="p">:</span><span class="w"> </span><span class="nv">order_of_segment</span><span class="p p-Indicator">,</span><span class="nt"> prefix</span><span class="p">:</span><span class="w"> </span><span class="nv">buyer_</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p>The compile checks the <code>via</code> columns on the step side against the output's
+<code>produces</code>. A <code>referential</code> rule or a <code>coverage:</code> check through such a
+relationship is refused when the step computes that output from the dependent
+entity, as <code>customer_segments</code> computes segments from <code>order</code>, directly or
+through other models: both read the referenced relation from inside the
+dependent's own model, so each model would wait on the other.</p>
 <h3 id="linking-an-output-to-canonical-fields">Linking an output to canonical fields<a class="headerlink" href="#linking-an-output-to-canonical-fields" title="Permanent link">&para;</a></h3>
 <p>A mart can read a step output as soon as it exists. A <strong>metric</strong> needs one
 more thing: it resolves against canonical fields, and something has to say

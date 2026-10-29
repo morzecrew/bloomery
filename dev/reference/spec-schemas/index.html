@@ -3761,7 +3761,7 @@ custom audit artifacts.</p>
 <td><code>from</code> / <code>to</code></td>
 <td>string</td>
 <td>yes</td>
-<td>The two entities</td>
+<td>The two entities. Either may be a step output, named after the last segment of the relation its wiring binds; its <code>via</code> columns are then checked against the manifest's <code>produces</code></td>
 </tr>
 <tr>
 <td><code>via</code></td>
@@ -3839,6 +3839,11 @@ other rule has (the row passes with its fk rewritten to the reserved <code>'__un
 member), and <code>fail</code> is deliberately unavailable — a pipeline-stopping orphan gate is a
 <code>reconcile</code> check instead. <code>unknown_member</code> requires a string-typed fk; the relationship's
 <code>to</code> side may not be the declaring entity.</p>
+<p>The rule joins the <code>to</code> side inside the declaring entity's own model, so that side has to
+build first. A rule is refused when the <code>to</code> side is built from the declaring entity: a
+step output computed from it, or an entity whose own rule joins it back. A <code>coverage:</code>
+check is refused on the same terms, since its audit reads the <code>to</code> side from the same
+model.</p>
 <h3 id="dedupe">Dedupe<a class="headerlink" href="#dedupe" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
