@@ -3576,6 +3576,12 @@ declaration — bounds are calendar years, never a clock.</p>
 <td>Prose grain — appears in error messages and explanations</td>
 </tr>
 <tr>
+<td><code>label</code></td>
+<td>string, one line</td>
+<td>no</td>
+<td>A short display name: the <code>label</code> of the MetricFlow entity that stands for it in each semantic model. No SQL reads it</td>
+</tr>
+<tr>
 <td><code>key</code></td>
 <td>list of field names, ≥ 1</td>
 <td>yes</td>
@@ -4818,6 +4824,12 @@ quotes it.</p>
 <td>entity name</td>
 <td>yes</td>
 <td>The fact the mart is built from</td>
+</tr>
+<tr>
+<td><code>label</code></td>
+<td>string, one line</td>
+<td>no</td>
+<td>A short display name: MetricFlow's semantic model <code>label</code>, Cube's cube and view <code>title</code>. No SQL reads it</td>
 </tr>
 <tr>
 <td><code>reading</code></td>

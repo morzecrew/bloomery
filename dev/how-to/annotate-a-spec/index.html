@@ -2322,8 +2322,23 @@ SQL; each reaches the slot every target has for it, and no other:</p>
 <td>measure <code>meta.synonyms</code></td>
 <td>—</td>
 </tr>
+<tr>
+<td>entity <code>label</code></td>
+<td>entity <code>label</code></td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>mart <code>label</code></td>
+<td>semantic model <code>label</code></td>
+<td>cube and view <code>title</code></td>
+<td>—</td>
+</tr>
 </tbody>
 </table>
+<p>An entity and a mart take a <code>label</code> too, and so does a column a step's manifest
+<code>produces</code>, which reaches the output entity's column like a mapped field's label.
+An entity whose key is composite has no MetricFlow entity element to carry its label.</p>
 <p>A field's own description wins over its canonical field's. A mart column carries the
 annotations of the column it was flattened from, prefixed or not. A metric's label is the
 planner's column label too, with its description as the fallback. A label is one line, an
