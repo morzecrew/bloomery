@@ -133,6 +133,13 @@ The `over` of a semi-additive metric names the source column of a date role — 
 - Paths: `src/bloomery/guardrails/metrics.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/planner/explain.py` `tests/unit/test_guardrails/test_metrics.py` `tests/fixtures/semi_additive_over_refusal/metrics.yaml` `tests/golden/refusals/semi_additive_over_refusal.txt` `pages/docs/reference/spec-schemas.md`
 - Consequence: `over: snapshot_day` beside `{date: stock_date, role: snapshot}` is refused at `bloomery check`, naming `stock_date`, rather than compiling clean and failing only when the MetricFlow manifest is built; a mart added to a metric's listing without the role is refused even when another mart owns the metric
 
+### S-0023/D-14 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
+
+A canonical field may declare `unit: ratio`: a dimensionless number such as a percentage, a rate, a sign or a 0/1 flag. Like `count`, it is a declared unit that is not money, so the tax-basis rule does not read it as the `unknown` that poisons, and the unit rule compares it as a unit of its own: a ratio beside currency or count at `+`/`-` is a `UnitMismatch`, and two ratios meet. A ratio declares no `currency` and no `tax_basis`; the catalog refuses either at load, because the currency rule reads a declared code at every operator
+
+- Paths: `src/bloomery/spec/catalog.py` `src/bloomery/ir/nodes.py` `tests/unit/test_guardrails/test_dimensionless_unit.py` `tests/golden/schema/catalog.json` `pages/docs/reference/spec-schemas.md`
+- Consequence: `price * (100 - discount) / 100 - cost` compiles once `discount` is declared a ratio, and `price + discount` is still refused. An undeclared factor keeps poisoning, so nothing that compiled or was refused before changes. A factor no longer has to be declared a count, a unit that is wrong for a percentage
+
 ### S-0023/D-15 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
 A canonical field may declare `per_unit: true`: its value is a rate that holds per unit of each row reading it, such as a unit cost or a price, rather than an amount of its own entity. The grain guard admits such an operand, in a metric or a derivation, where the grain reaches the operand's entity through one declared many-to-one relationship, either way round. Every other foreign-grain operand is refused under D-5 as before, a per-unit one read from the parent side included, and the refusal names the declaration where it would apply

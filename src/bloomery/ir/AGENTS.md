@@ -110,6 +110,13 @@ A metric's `expr` is written over its `requires:` canonicals, and the IR build b
 - Paths: `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `src/bloomery/guardrails/arithmetic.py` `tests/unit/test_resolve/test_canonical_binding.py` `src/bloomery/plan/diff.py` `src/bloomery/resolve/timeline.py`
 - Consequence: A catalog template works for a project whose field is spelled otherwise, the case `canonical:` links exist for: `unit_price * quantity` over a field `qty` emits `unit_price * qty`, and S-0034/D-49's step-output link counts `canonical_id` rather than a `customer_ref` the mart lacks. `MetricIR.expr` moves only where a spelling differs, so those projects re-fingerprint once; a field renamed under a metric respells it and does not restate it, as S-0024's v2 to v3 case requires
 
+### S-0022/D-11 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
+
+A metric's `filter[].dimension`, its `filter[].column` and its `semi_additive.over` are bound through the grain entity's canonical links, as its `expr` is under D-10. A filter's name that a mart listing the metric carries as written reads that column; it is bound once the marts are lowered, because a joined entity's column reaches a mart flattened under a prefix. An `over` names a column of the metric's own entity, so it is bound at the IR build and a grain column of its name keeps it. Otherwise the one grain column that links the name as its canonical is read, and a name no grain column links, or two do, is kept as written. `unbound` respells each as the canonical of the column it reads, where binding would read that column, so `plan()` and `timeline` compare them in canonical spelling
+
+- Paths: `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `tests/unit/test_resolve/test_canonical_filter_binding.py` `pages/docs/reference/spec-schemas.md`
+- Consequence: A catalog template that filters, or reads a snapshot along an axis, in canonical names compiles for every project that links each of those canonicals from exactly one grain column, whatever it calls the column. Every spec that compiled before reads the same columns: its names were each a column of every mart listing the metric, or of the grain for an `over`, and those keep their literal reading. A field renamed under such a metric respells it and does not restate it
+
 ### S-0022/D-12 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
 
 A canonical a metric requires that a joined entity's column links, rather than a grain column, is bound per mart and not in the IR. Where a mart flattens that column, the expression the mart's measure, rollup and plan explanation read names the one mart column flattened from it, under that mart's prefix. The IR keeps the canonical. D-10's rules carry over: a date bucket is not such a column, a canonical two columns could stand for is left as written, and so is one whose column is spelled as a name the expression reads. The measure check of S-0050/D-16 reads the same bound expression, so a mart that does not flatten the column is refused by name
@@ -122,6 +129,13 @@ A canonical a metric requires that a joined entity's column links, rather than a
 Path conflict does not raise (`PathConflict` is not an error class): the compiler emits the derived column, a `<name>__direct` shadow, and a `RECONCILE` `AuditIR`. The forbidden thing is the silent choice; both paths are valid, so the refusal targets the silence, not the spec.
 
 - Paths: `src/bloomery/emit/lower/predicates.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/guardrails/conflict.py` `src/bloomery/guardrails/quality.py` `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/mapping.py` `tests/fixtures/path_conflict/entity_model.yaml` `tests/fixtures/path_conflict/mapping.yaml` `tests/unit/test_emit/test_sqlmesh.py` `tests/unit/test_guardrails/test_conflict.py` `tests/unit/test_guardrails/test_quality.py` `tests/unit/test_ir/test_lower.py` `tests/unit/test_spec/test_mapping.py`
+
+### S-0023/D-14 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
+
+A canonical field may declare `unit: ratio`: a dimensionless number such as a percentage, a rate, a sign or a 0/1 flag. Like `count`, it is a declared unit that is not money, so the tax-basis rule does not read it as the `unknown` that poisons, and the unit rule compares it as a unit of its own: a ratio beside currency or count at `+`/`-` is a `UnitMismatch`, and two ratios meet. A ratio declares no `currency` and no `tax_basis`; the catalog refuses either at load, because the currency rule reads a declared code at every operator
+
+- Paths: `src/bloomery/spec/catalog.py` `src/bloomery/ir/nodes.py` `tests/unit/test_guardrails/test_dimensionless_unit.py` `tests/golden/schema/catalog.json` `pages/docs/reference/spec-schemas.md`
+- Consequence: `price * (100 - discount) / 100 - cost` compiles once `discount` is declared a ratio, and `price + discount` is still refused. An undeclared factor keeps poisoning, so nothing that compiled or was refused before changes. A factor no longer has to be declared a count, a unit that is wrong for a percentage
 
 ### S-0025/D-11 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
 

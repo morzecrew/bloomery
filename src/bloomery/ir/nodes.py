@@ -255,6 +255,8 @@ class Unit(StrEnum):
 
     CURRENCY = "currency"
     COUNT = "count"
+    #: Dimensionless: a percentage, a rate, a sign (S-0023/D-14).
+    RATIO = "ratio"
     UNKNOWN = "unknown"
 
 

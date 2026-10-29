@@ -105,7 +105,10 @@ class CanonicalField(SpecModel):
     entity: str
     type: TypeString
     description: str | None = None
-    unit: Literal["currency", "count"] | None = None
+    #: ``ratio`` is dimensionless — a percentage, a rate, a sign or a 0/1
+    #: flag that scales money: like ``count``, it carries no tax basis
+    #: (S-0023/D-14).
+    unit: Literal["currency", "count", "ratio"] | None = None
     tax_basis: Literal["net", "gross", "unknown"] | None = None
     currency: CurrencyCode | None = None
     #: The value holds per unit of each row that reads it — a unit cost, a
@@ -115,6 +118,31 @@ class CanonicalField(SpecModel):
     #: A declaration bloomery does not verify.
     per_unit: bool = False
     recipes: tuple[Recipe, ...] = ()
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _a_ratio_is_not_money(self) -> Self:
+        """A dimensionless field declares no currency and no tax basis
+        (S-0023/D-14): the currency rule reads a declared code at every
+        operator, so a ratio carrying one would turn scaling a price into two
+        currencies meeting, and no rule reads a ratio's tax basis."""
+
+        declared = [
+            key
+            for key, value in (("currency", self.currency), ("tax_basis", self.tax_basis))
+            if value is not None
+        ]
+
+        if self.unit == "ratio" and declared:
+            msg = (
+                f"unit: ratio is dimensionless and declares no {' or '.join(declared)}; a "
+                "percentage or a rate scales money without being money. Fix: drop "
+                f"{', '.join(declared)}, or declare the field's unit currency if it is an amount"
+            )
+            raise ValueError(msg)
+
+        return self
 
 
 # ....................... #

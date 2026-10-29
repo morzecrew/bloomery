@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`unit: ratio` for a dimensionless factor.** A canonical field holding a percentage, a
+  VAT rate, a ±1 sign or a 0/1 flag declares `unit: ratio`, and like a count it carries no
+  tax basis. So `price * (100 - discount) / 100 - cost` compiles instead of being refused
+  as an unknown basis beside money, and `price + discount` is still a `UnitMismatch`.
+  (#367)
+
 - **A metric template can read a per-unit field of a many-to-one parent.** A catalog field
   that is a rate rather than an amount, such as a product's unit cost, declares
   `per_unit: true`. A template at order-line grain can then compute
@@ -47,6 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from each of that output's columns. A walk from a step's input now reaches the metrics
   over its output, and back. Without a registry, as in `bloomery lineage`, the graph is as
   before. (#365)
+
+- **A metric template's filter and `semi_additive.over` read the project's columns.** Both
+  were read as one project's literal column names, so a template filtering on
+  `deal_outcome` or reading a snapshot over `stock_at` could not be used by a project
+  that spells those columns otherwise. A filter name that no mart listing the metric
+  carries, or an `over` the grain entity has no column for, now reads the one grain column
+  that links it as its canonical, as the template's `expr` already did. A name that is
+  already a column keeps it, so every spec that compiled reads what it read. (#368)
 
 ## [0.8.0] - 2026-10-28
 

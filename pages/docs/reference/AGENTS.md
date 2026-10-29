@@ -17,12 +17,26 @@ The retrieval kind carries the same spec-YAML promise as every kind from its fir
 - Paths: `src/bloomery/spec/retrieval.py` `pages/docs/reference/stability.md`
 - Consequence: a retrieval spec written against 0.3.0 keeps compiling under the same promise as every other kind, the two refusals the stability page names included
 
+### S-0022/D-11 — `ASSUMED` (Resolution: dependency DAG, recipes, reachability)
+
+A metric's `filter[].dimension`, its `filter[].column` and its `semi_additive.over` are bound through the grain entity's canonical links, as its `expr` is under D-10. A filter's name that a mart listing the metric carries as written reads that column; it is bound once the marts are lowered, because a joined entity's column reaches a mart flattened under a prefix. An `over` names a column of the metric's own entity, so it is bound at the IR build and a grain column of its name keeps it. Otherwise the one grain column that links the name as its canonical is read, and a name no grain column links, or two do, is kept as written. `unbound` respells each as the canonical of the column it reads, where binding would read that column, so `plan()` and `timeline` compare them in canonical spelling
+
+- Paths: `src/bloomery/ir/lower.py` `src/bloomery/resolve/build.py` `tests/unit/test_resolve/test_canonical_filter_binding.py` `pages/docs/reference/spec-schemas.md`
+- Consequence: A catalog template that filters, or reads a snapshot along an axis, in canonical names compiles for every project that links each of those canonicals from exactly one grain column, whatever it calls the column. Every spec that compiled before reads the same columns: its names were each a column of every mart listing the metric, or of the grain for an `over`, and those keep their literal reading. A field renamed under such a metric respells it and does not restate it
+
 ### S-0023/D-13 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
 The `over` of a semi-additive metric names the source column of a date role — the column a `{date: …, role: …}` flatten step is declared over — never a bucket that role produces (`<role>_day` and the rest), and every mart listing the metric among its measures must declare a date role over that column. A mart that does not is refused at the guardrail stage as `MartMissingTimeDimension`, and the MetricFlow emitter re-refuses it
 
 - Paths: `src/bloomery/guardrails/metrics.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/planner/explain.py` `tests/unit/test_guardrails/test_metrics.py` `tests/fixtures/semi_additive_over_refusal/metrics.yaml` `tests/golden/refusals/semi_additive_over_refusal.txt` `pages/docs/reference/spec-schemas.md`
 - Consequence: `over: snapshot_day` beside `{date: stock_date, role: snapshot}` is refused at `bloomery check`, naming `stock_date`, rather than compiling clean and failing only when the MetricFlow manifest is built; a mart added to a metric's listing without the role is refused even when another mart owns the metric
+
+### S-0023/D-14 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
+
+A canonical field may declare `unit: ratio`: a dimensionless number such as a percentage, a rate, a sign or a 0/1 flag. Like `count`, it is a declared unit that is not money, so the tax-basis rule does not read it as the `unknown` that poisons, and the unit rule compares it as a unit of its own: a ratio beside currency or count at `+`/`-` is a `UnitMismatch`, and two ratios meet. A ratio declares no `currency` and no `tax_basis`; the catalog refuses either at load, because the currency rule reads a declared code at every operator
+
+- Paths: `src/bloomery/spec/catalog.py` `src/bloomery/ir/nodes.py` `tests/unit/test_guardrails/test_dimensionless_unit.py` `tests/golden/schema/catalog.json` `pages/docs/reference/spec-schemas.md`
+- Consequence: `price * (100 - discount) / 100 - cost` compiles once `discount` is declared a ratio, and `price + discount` is still refused. An undeclared factor keeps poisoning, so nothing that compiled or was refused before changes. A factor no longer has to be declared a count, a unit that is wrong for a percentage
 
 ### S-0023/D-15 — `ASSUMED` (Guardrails: refusing plausible-but-wrong arithmetic)
 
