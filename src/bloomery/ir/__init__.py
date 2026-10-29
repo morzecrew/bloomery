@@ -11,6 +11,7 @@ from bloomery.ir.lower import (
     extraction,
     mart_expr,
     partition_specs,
+    temporal_text,
     unbound,
 )
 from bloomery.ir.nodes import (
@@ -169,6 +170,7 @@ __all__ = [
     "ir_json",
     "mart_expr",
     "partition_specs",
+    "temporal_text",
     "unbound",
     "project_fingerprint",
     "quality_sort_key",

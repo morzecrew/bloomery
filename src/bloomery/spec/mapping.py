@@ -13,10 +13,9 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping as AbcMapping
 from datetime import date, datetime
-from decimal import Decimal
 from typing import Annotated, ClassVar, Literal, Self, cast
 
-from pydantic import BeforeValidator, Discriminator, Field, Tag, model_validator
+from pydantic import BeforeValidator, Discriminator, Field, StringConstraints, Tag, model_validator
 from pydantic.json_schema import SkipJsonSchema
 
 from bloomery.spec.common import (
@@ -252,9 +251,6 @@ def _const_value(value: object) -> object:
         )
         raise ValueError(msg)
 
-    if isinstance(value, Decimal) and not value.is_finite():
-        raise ValueError(f"const {value!r} is not a finite number")
-
     if isinstance(value, str) and ("\x00" in value or re.search(r"[{}]", value)):
         msg = (
             f"const {value!r} carries a NUL byte or a template brace, which dbt's Jinja "
@@ -266,8 +262,14 @@ def _const_value(value: object) -> object:
 
 
 #: A constant's literal: ``bool`` before ``int`` so ``true`` stays a boolean;
-#: a decimal or a temporal may be written as the string it is.
-ConstValue = Annotated[bool | int | Decimal | date | datetime | str, BeforeValidator(_const_value)]
+#: a decimal is written as the string it is, so no ``number`` member exists for
+#: the JSON schema to advertise. The pattern says in the schema what
+#: :func:`_const_value` refuses, so an editor validating against it accepts what
+#: the loader does.
+ConstValue = Annotated[
+    bool | int | date | datetime | Annotated[str, StringConstraints(pattern=r"^[^{}\x00]*$")],
+    BeforeValidator(_const_value),
+]
 
 
 class ConstFieldMapping(SpecModel):

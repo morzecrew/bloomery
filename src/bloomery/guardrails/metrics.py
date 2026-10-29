@@ -133,6 +133,10 @@ def _within(value: Decimal, declared: DecimalType) -> bool:
 # ....................... #
 
 
+#: The range an ``int`` column holds: BIGINT, signed 64-bit, on every port.
+_INT64_MIN, _INT64_MAX = -(2**63), 2**63 - 1
+
+
 def literal_fits(value: str | int | bool | Decimal, declared: LogicalType) -> bool:
     """Whether one filter value can be compared against a column of this type
     without a cast (S-0030/D-8's rule, applied at compile time), and whether a
@@ -152,7 +156,8 @@ def literal_fits(value: str | int | bool | Decimal, declared: LogicalType) -> bo
         return False
 
     if isinstance(declared, IntType):
-        return isinstance(value, int)
+        # An `int` column is a BIGINT on every port: a signed 64-bit integer.
+        return isinstance(value, int) and _INT64_MIN <= value <= _INT64_MAX
 
     if isinstance(declared, DecimalType):
         try:

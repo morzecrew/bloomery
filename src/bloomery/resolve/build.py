@@ -39,7 +39,6 @@ import re
 from collections.abc import Mapping as AbcMapping
 from dataclasses import dataclass, replace
 from datetime import date, datetime
-from decimal import Decimal
 from enum import StrEnum
 from types import MappingProxyType
 from typing import TYPE_CHECKING, cast
@@ -102,6 +101,7 @@ from bloomery.ir import (
     partition_specs,
     project_fingerprint,
     quality_sort_key,
+    temporal_text,
 )
 from bloomery.ir.nodes import UpstreamIR, upstream_ancestry, with_imported
 from bloomery.marts import lower_marts, lower_rollups
@@ -613,12 +613,14 @@ def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) ->
 # ....................... #
 
 
-def _const_literal(field_mapping: ConstFieldMapping) -> bool | int | Decimal | str:
+def _const_literal(field_mapping: ConstFieldMapping, declared: LogicalType) -> bool | int | str:
     """A constant as the scalar it carries: a date or an instant as its ISO
-    text, the carrier the IR has for one (S-0020/fingerprint)."""
+    text, the carrier the IR has for one (S-0020/fingerprint), spelled for a
+    temporal column as every port casts it, without the ISO `T` and in UTC."""
 
     value = field_mapping.const
-    return value.isoformat() if isinstance(value, date | datetime) else value
+    text = value.isoformat() if isinstance(value, date | datetime) else value
+    return temporal_text(text, declared) if isinstance(text, str) else text
 
 
 # ....................... #
@@ -630,7 +632,7 @@ def _const_refusal(
     """A constant that is not a value of its field's declared type (S-0019/D-16),
     by the rule a metric filter's value is held to: no implicit cast of text."""
 
-    value = _const_literal(field_mapping)
+    value = _const_literal(field_mapping, declared)
 
     if literal_fits(value, declared):
         return []
@@ -652,7 +654,7 @@ def _const_expr(field_mapping: ConstFieldMapping, declared: LogicalType) -> Expr
     with its extraction replaced by the literal. Built as an AST node, never
     interpolated: the value is quoted SQL however it is spelled."""
 
-    value = _const_literal(field_mapping)
+    value = _const_literal(field_mapping, declared)
     literal: Expression = (
         exp.Boolean(this=value)
         if isinstance(value, bool)

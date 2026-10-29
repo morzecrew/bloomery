@@ -12,6 +12,10 @@ that reads no path.
 
 from __future__ import annotations
 
+import json
+import re
+from pathlib import Path
+
 import pytest
 from support.compiling import fixture_sources
 
@@ -85,6 +89,10 @@ def test_one_mapping_alone_has_the_column() -> None:
         ('"decimal(5,2)"', '"12.50"', "CAST('12.50' AS DECIMAL(5, 2))"),
         ("bool", "true", "CAST(TRUE AS BOOLEAN)"),
         ("date", "2026-01-01", "CAST('2026-01-01' AS DATE)"),
+        # Without the ISO `T`, which Trino refuses to cast, and in UTC, which is
+        # what a timestamp is (codeant on #377).
+        ("timestamp", '"2026-01-01T10:00:00+03:00"', "CAST('2026-01-01 07:00:00' AS TIMESTAMP)"),
+        ("timestamp", "2026-01-01T10:00:00", "CAST('2026-01-01 10:00:00' AS TIMESTAMP)"),
     ],
 )
 def test_a_constant_is_typed_against_the_field(declared: str, value: str, sql: str) -> None:
@@ -102,6 +110,9 @@ def test_a_constant_is_typed_against_the_field(declared: str, value: str, sql: s
         ('"decimal(3,2)"', '"123.45"'),
         ("date", "Wildberries"),
         ("bool", "1"),
+        # A BIGINT holds a signed 64-bit integer (codeant on #377).
+        ("int", str(2**63)),
+        ("int", str(-(2**63) - 1)),
     ],
 )
 def test_a_constant_that_does_not_fit_the_field_is_refused(declared: str, value: str) -> None:
@@ -123,13 +134,30 @@ def test_a_float_a_brace_and_a_null_are_refused_at_parse(value: str) -> None:
         load_project(_sources(platform=value, legacy=None))
 
 
-def test_a_constant_takes_no_transform_and_no_quality() -> None:
+@pytest.mark.parametrize(
+    "extra", ["transform: [to_string]", "quality: [{rule: not_null, on_fail: fail}]"]
+)
+def test_a_constant_takes_no_transform_and_no_quality(extra: str) -> None:
     sources = _sources(legacy=None)
     sources["mapping_platform"] = sources["mapping_platform"].replace(
-        "  channel: {const: Shopify}\n", "  channel: {const: Shopify, transform: [to_string]}\n"
+        "  channel: {const: Shopify}\n", f"  channel: {{const: Shopify, {extra}}}\n"
     )
     with pytest.raises(SpecParseError):
         load_project(sources)
+
+
+def test_the_schema_advertises_what_parsing_accepts() -> None:
+    """An editor validating against the JSON schema accepts what the loader
+    does: no number but an integer, no string carrying a brace or a NUL."""
+    schema = json.loads(Path("tests/golden/schema/mapping.json").read_text(encoding="utf-8"))
+    branches = schema["$defs"]["ConstFieldMapping"]["properties"]["const"]["anyOf"]
+
+    assert {"type": "number"} not in branches
+    (text,) = (b for b in branches if b.get("type") == "string" and "format" not in b)
+    pattern = re.compile(text["pattern"])
+    assert pattern.search("Wildberries")
+    assert not pattern.search("{{ var }}")
+    assert not pattern.search("a\x00b")
 
 
 # ....................... #
