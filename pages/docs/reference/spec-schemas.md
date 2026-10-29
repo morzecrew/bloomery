@@ -155,6 +155,7 @@ Exactly one per project.
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `grain` | string | yes | Prose grain — appears in error messages and explanations |
+| `label` | string, one line | no | A short display name: the `label` of the MetricFlow entity that stands for it in each semantic model. No SQL reads it |
 | `key` | list of field names, ≥ 1 | yes | Entity key, authored order kept |
 | `scd` | `type1` \| `type2` | no (`type1`) | Slowly-changing-dimension kind |
 | `partition_by` | list of partition specs | no (`[]`) | Physical partitioning |
@@ -696,6 +697,7 @@ At most one per project; a project without marts compiles silver only.
 |---|---|---|---|
 | `grain` | string | yes | Must equal the base entity's grain; every measure's grain must match it strictly |
 | `base` | entity name | yes | The fact the mart is built from |
+| `label` | string, one line | no | A short display name: MetricFlow's semantic model `label`, Cube's cube and view `title`. No SQL reads it |
 | `reading` | `current` | on an `scd: type2` base | Reads only the base's current version (`WHERE valid_to IS NULL`). Required to base a mart on a historical entity, refused on any other; the mart must then be `materialization: full` |
 | `flatten` | list of flatten steps | no (`[]`) | Applied in authored order; chains flatten transitively |
 | `measures` | list of metric names | no (`[]`) | Metrics this mart serves; a mart with measures must declare a date role |

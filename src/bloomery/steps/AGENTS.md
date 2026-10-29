@@ -81,4 +81,11 @@ A `StepParameter` bounds its value with optional, inclusive `min` and `max`, bot
 - Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_lowering.py` `tests/unit/test_steps/test_manifest_and_registry.py`
 - Consequence: A platform team states a parameter's range once and every tenant wiring that leaves it is refused before a run, while a default outside the range passes unchecked
 
+### S-0094/D-13 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
+
+A step manifest's `produces:` column gains optional `label`, under D-2's rule. It reaches `StepColumnIR.label` and the output entity's `ColumnIR.label`, and from there every slot a mapped field's label reaches under D-5 and D-7. A step's identity in `plan()` leaves the labels out, so a changed label restates no step and is reported on the output entity's column as ADDITIVE, metadata only. A wiring cannot override the manifest's label
+
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/diff.py` `tests/unit/test_spec/test_entity_mart_labels.py`
+- Consequence: A column a step computes is named as one a mapping lands is, on the output entity and on every mart over it. Changing the label in a manifest moves the project fingerprint, as any manifest change does under S-0034/D-11, and backfills nothing
+
 <!-- /torve:managed -->

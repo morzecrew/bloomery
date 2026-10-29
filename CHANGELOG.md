@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Entities, marts and step-produced columns take a `label:`.** An entity's label reaches
+  the MetricFlow entity that stands for it, a mart's becomes MetricFlow's semantic model
+  `label` and Cube's cube and view `title`, and a manifest's `produces:` column label
+  reaches the output entity's column as a mapped field's does. No SQL changes, and
+  changing one is metadata only in `plan()`; a step whose column label changed is not
+  restated. (#373)
+
 - **A field mapping can set a constant.** `marketplace: {const: Wildberries}` sets the field to
   one literal for every row the mapping lands, typed against the field's declaration when
   the project compiles and reading no source path. Two marketplaces feeding one merged
@@ -39,9 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **`bloomery_ir_version` is 30.** The IR gains `MetricIR.better` (#364). Every project with
-  a metric re-fingerprints once on upgrade, and `plan()` refuses to diff an artifact set
-  compiled by 0.8 against one compiled by this version: re-baseline after upgrading.
+- **`bloomery_ir_version` is 31.** The IR gains `MetricIR.better` (#364), and `EntityIR.label`,
+  `MartIR.label` and `StepColumnIR.label` (#373). Every project re-fingerprints once on
+  upgrade, and `plan()` refuses to diff an artifact set compiled by 0.8 against one compiled
+  by this version: re-baseline after upgrading.
 
 ### Fixed
 

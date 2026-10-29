@@ -177,6 +177,9 @@ class Entity(SpecModel):
     #: like one who has not. Not validated as an email, a handle or a team name
     #: either (D8): every project spells this differently, and a format rule
     #: would refuse spellings that are correct for their reader.
+    #: A short display name for a person reading a catalog or a semantic
+    #: layer, beside the identifier (S-0094/D-12). Metadata only.
+    label: Label | None = None
     owner: str | None = None
     #: Who may read the relation this becomes (S-0062/grants). Unlike the two
     #: annotations above, this one is **applied** — by the framework, on the

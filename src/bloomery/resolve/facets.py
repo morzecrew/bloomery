@@ -190,6 +190,7 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("MartIR", "partition_by"): Facet.STORAGE,
     ("MartIR", "cost_hint"): Facet.STORAGE,
     ("MartIR", "owner"): Facet.METADATA,
+    ("MartIR", "label"): Facet.METADATA,
     ("MartIR", "grants"): Facet.ACCESS,
     # A rollup, which shares the mart's node prefix (S-0072/the-node).
     ("RollupIR", "keep"): Facet.GRAIN,
@@ -234,6 +235,7 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("EntityIR", "partition_by"): Facet.STORAGE,
     ("EntityIR", "arrival_lag_hours"): Facet.STORAGE,
     ("EntityIR", "owner"): Facet.METADATA,
+    ("EntityIR", "label"): Facet.METADATA,
     ("EntityIR", "grants"): Facet.ACCESS,
     # An entity field: the schema half.
     ("ColumnIR", "type"): Facet.UNIT,
