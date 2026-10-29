@@ -452,17 +452,20 @@ def _agg_time_dimension(mart: MartIR) -> str:
 
 
 def _config(
-    owner: str | None, synonyms: tuple[str, ...] = ()
+    owner: str | None, synonyms: tuple[str, ...] = (), better: str | None = None
 ) -> PydanticSemanticLayerElementConfig | None:
-    """The owner as ``config.meta.owner`` (S-0087/D-1) and the synonyms as
-    ``config.meta.synonyms`` (S-0094/D-5), or no config at all: a node with
-    neither serializes byte for byte as before."""
+    """The owner as ``config.meta.owner`` (S-0087/D-1), the synonyms as
+    ``config.meta.synonyms`` (S-0094/D-5) and a metric's direction as
+    ``config.meta.better`` (S-0094/D-11), or no config at all: a node with none
+    of them serializes byte for byte as before."""
 
     meta: dict[str, object] = {}
     if owner is not None:
         meta["owner"] = owner
     if synonyms:
         meta["synonyms"] = list(synonyms)
+    if better is not None:
+        meta["better"] = better
     return PydanticSemanticLayerElementConfig(meta=meta) if meta else None
 
 
@@ -693,7 +696,7 @@ def _metric(
             filter=None,
             metadata=None,
             label=metric.label,
-            config=_config(metric.owner, metric.synonyms),
+            config=_config(metric.owner, metric.synonyms, metric.better),
         )
 
     if metric.additivity is Additivity.RATIO:
@@ -713,7 +716,7 @@ def _metric(
             filter=None,
             metadata=None,
             label=metric.label,
-            config=_config(metric.owner, metric.synonyms),
+            config=_config(metric.owner, metric.synonyms, metric.better),
         )
 
     measure = PydanticMetricInputMeasure(name=metric.name, filter=None, alias=None)
@@ -728,7 +731,7 @@ def _metric(
             filter=where,
             metadata=None,
             label=metric.label,
-            config=_config(metric.owner, metric.synonyms),
+            config=_config(metric.owner, metric.synonyms, metric.better),
         )
 
     return PydanticMetric(
@@ -752,7 +755,7 @@ def _metric(
         filter=where,
         metadata=None,
         label=metric.label,
-        config=_config(metric.owner, metric.synonyms),
+        config=_config(metric.owner, metric.synonyms, metric.better),
     )
 
 

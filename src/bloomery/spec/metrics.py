@@ -32,6 +32,7 @@ from pydantic import BeforeValidator, Field, StringConstraints, model_validator
 
 from bloomery.spec.common import (
     AdditivityName,
+    BetterName,
     DimensionName,
     Label,
     MemberName,
@@ -385,6 +386,9 @@ class Metric(SpecModel):
     label: Label | None = None
     #: ``None`` takes the template's, and an authored ``[]`` clears them (S-0094/D-3).
     synonyms: Synonyms | None = None
+    #: Which direction of change is good news (S-0094/D-11). Absent, the
+    #: template's; absent there too, undeclared.
+    better: BetterName | None = None
     requires: tuple[str, ...] = ()
     requires_metrics: tuple[str, ...] = ()
     grain: str | None = None

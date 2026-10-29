@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A metric says which direction of change is good news.** `better: higher`, `lower` or
+  `neither` on a metric or its catalog template reaches MetricFlow as `config.meta.better`
+  and Cube as the measure's `meta.better`, so a dashboard colouring a delta or reading a
+  target on a cost as a ceiling takes it from the spec. A metric that does not say emits
+  nothing, and a ratio or derived metric does not take it from its parts. No SQL changes.
+  (#364)
+
+### Changed
+
+- **`bloomery_ir_version` is 30.** The IR gains `MetricIR.better` (#364). Every project with
+  a metric re-fingerprints once on upgrade, and `plan()` refuses to diff an artifact set
+  compiled by 0.8 against one compiled by this version: re-baseline after upgrading.
+
 ### Fixed
 
 - **A relationship may name a step output**, so a mart can flatten what a step computes,

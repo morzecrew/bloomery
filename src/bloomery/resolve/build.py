@@ -2511,6 +2511,7 @@ def _build_metrics(
                 description=metric.description,
                 label=metric.label,
                 synonyms=metric.synonyms,
+                better=metric.better,
                 depends_on=tuple(sorted({*metric.requires, *metric.requires_metrics})),
                 owner=metric.owner,
             )

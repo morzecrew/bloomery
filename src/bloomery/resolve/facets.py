@@ -171,6 +171,7 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("MetricIR", "owner"): Facet.METADATA,
     ("MetricIR", "label"): Facet.METADATA,
     ("MetricIR", "synonyms"): Facet.METADATA,
+    ("MetricIR", "better"): Facet.METADATA,
     # A metric the IR could not reach: what is missing, and through what.
     ("UnreachableMetric", "missing"): Facet.INPUTS,
     ("UnreachableMetric", "via"): Facet.INPUTS,

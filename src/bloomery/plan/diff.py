@@ -1946,6 +1946,7 @@ def _metric_pair(old_m: MetricIR, new_m: MetricIR, acc: _Acc) -> None:
         ("description", old_m.description, new_m.description),
         ("label", old_m.label, new_m.label),
         ("synonyms", old_m.synonyms, new_m.synonyms),
+        ("better", old_m.better, new_m.better),
     ):
         if old_value != new_value:
             acc.changes.append(

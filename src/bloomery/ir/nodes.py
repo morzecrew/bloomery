@@ -1079,6 +1079,10 @@ class MetricIR:
     #: front end may match the metric by, sorted (S-0094/D-3, D-4).
     label: str | None = None
     synonyms: tuple[str, ...] = ()
+    #: Which direction of change is good news: ``higher``, ``lower`` or
+    #: ``neither``, or ``None`` where the spec does not say (S-0094/D-11).
+    #: Metadata for a consumer; no SELECT reads it.
+    better: str | None = None
 
 
 # ....................... #
@@ -1828,9 +1832,13 @@ class ProjectIR:
     ``not_in`` filter does with a NULL dimension. Every project with a metric
     filter encodes the field, ``None`` where the operator takes none, so every
     such fingerprint moves once.
+
+    Version 30 (S-0094/D-11) adds ``MetricIR.better``, which direction of
+    change is good news. Every project with a metric encodes the field,
+    ``None`` where it is undeclared, so every such fingerprint moves once.
     """
 
-    bloomery_ir_version: int = 29
+    bloomery_ir_version: int = 30
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()
