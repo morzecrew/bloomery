@@ -788,6 +788,20 @@ Every handler that turns a SQLGlot parse into a refusal or a pass-on treats a `V
 - Paths: `src/bloomery/spec/common.py` `src/bloomery/spec/metrics.py` `src/bloomery/spec/catalog.py` `src/bloomery/resolve/metrics.py` `src/bloomery/ir/nodes.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/plan/diff.py` `tests/unit/test_spec/test_metric_better.py`
 - Consequence: A consumer that colours a delta, reads a target on a cost as a ceiling or alerts on pace takes the direction from the semantic layer's metadata instead of a list of metric names kept beside the display labels, which went stale on a rename. An undeclared metric reads as undeclared, so a consumer still chooses its own default for it. Every fingerprint of a project with a metric moves once
 
+### S-0094/D-12 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
+
+`Entity` and `Mart` gain optional `label`, under D-2's rule: refused empty once stripped, refused with a line break. They reach `EntityIR.label` and `MartIR.label`, and `bloomery_ir_version` moves by one with D-13. A mart's label becomes MetricFlow's semantic model `label` and Cube's cube and view `title`. An entity's label becomes the `label` of the MetricFlow entity element that stands for it in each semantic model, the primary one where the base's key is a single column and a foreign one per join. Nothing else carries them, and a change to either is ADDITIVE, metadata only, as D-8 has it
+
+- Paths: `src/bloomery/spec/entity.py` `src/bloomery/spec/marts.py` `src/bloomery/ir/nodes.py` `src/bloomery/marts/flatten.py` `src/bloomery/resolve/build.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/plan/diff.py` `tests/unit/test_spec/test_entity_mart_labels.py`
+- Consequence: A catalog page or a semantic layer names an entity and a mart from the spec, so one a tenant adds later shows its label rather than its identifier. dbt, which has no label slot for a model, and SQLMesh carry neither, and no SELECT changes. A composite-key base has no MetricFlow entity element to label, so its label reaches the IR and Cube only. Every fingerprint moves once
+
+### S-0094/D-13 — `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
+
+A step manifest's `produces:` column gains optional `label`, under D-2's rule. It reaches `StepColumnIR.label` and the output entity's `ColumnIR.label`, and from there every slot a mapped field's label reaches under D-5 and D-7. A step's identity in `plan()` leaves the labels out, so a changed label restates no step and is reported on the output entity's column as ADDITIVE, metadata only. A wiring cannot override the manifest's label
+
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `src/bloomery/ir/nodes.py` `src/bloomery/plan/diff.py` `tests/unit/test_spec/test_entity_mart_labels.py`
+- Consequence: A column a step computes is named as one a mapping lands is, on the output entity and on every mart over it. Changing the label in a manifest moves the project fingerprint, as any manifest change does under S-0034/D-11, and backfills nothing
+
 ### S-0095/D-6 — `ASSUMED` (Picking a list element by a field)
 
 A picked field's source node in lineage is `source.<relation>.<path>[<field>=<text>].<take>`, and its edge stays `direct`

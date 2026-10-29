@@ -888,6 +888,9 @@ class EntityIR:
     #: or ``None`` for no lag declared. Only an ``incremental_by_partition``
     #: type 1 entity carries one; SQLMesh reads it as ``lookback`` in days.
     arrival_lag_hours: int | None = None
+    #: A short display name (S-0094/D-12), carried to whichever targets have
+    #: a label slot for an entity. Metadata only.
+    label: str | None = None
 
 
 # ....................... #
@@ -1276,6 +1279,9 @@ class MartIR:
     #: ``"current"`` reads only the base's current version (``valid_to IS
     #: NULL``) of an ``scd: type2`` base (S-0080/D-2); ``None`` otherwise.
     reading: str | None = None
+    #: A short display name (S-0094/D-12): MetricFlow's semantic model
+    #: ``label`` and Cube's cube and view ``title``. Metadata only.
+    label: str | None = None
 
 
 # ....................... #
@@ -1493,6 +1499,9 @@ class StepColumnIR:
     name: str
     type: LogicalType
     required: bool = False
+    #: The manifest's display name for the column (S-0094/D-13). Read by the
+    #: output entity's column and by nothing that decides what a step computes.
+    label: str | None = None
 
 
 # ....................... #
@@ -1838,9 +1847,13 @@ class ProjectIR:
     Version 30 (S-0094/D-11) adds ``MetricIR.better``, which direction of
     change is good news. Every project with a metric encodes the field,
     ``None`` where it is undeclared, so every such fingerprint moves once.
+
+    Version 31 (S-0094/D-12, D-13) adds ``EntityIR.label``, ``MartIR.label``
+    and ``StepColumnIR.label``. Every project encodes the entity's and the
+    mart's, ``None`` where nothing is labelled, so every fingerprint moves once.
     """
 
-    bloomery_ir_version: int = 30
+    bloomery_ir_version: int = 31
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

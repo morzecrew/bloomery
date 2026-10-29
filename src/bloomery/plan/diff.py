@@ -411,6 +411,12 @@ def _entity_level_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
             Change(new_e.name, subject, ChangeClass.ADDITIVE, "audits changed (metadata only)")
         )
 
+    if old_e.label != new_e.label:
+        # As a column's and a metric's (S-0094/D-8, D-12): no SELECT reads it.
+        acc.changes.append(
+            Change(new_e.name, subject, ChangeClass.ADDITIVE, "label changed (metadata only)")
+        )
+
 
 # ....................... #
 
@@ -1699,7 +1705,13 @@ def _step_identity(step: StepIR) -> tuple[object, ...]:
         step.seed,
         step.inputs,
         step.parameters,
-        step.outputs,
+        # Without the produced columns' labels (S-0094/D-13): a label changes
+        # what a person reads, not what the step computes. The output entity's
+        # column diff reports it, as metadata.
+        tuple(
+            replace(output, columns=tuple(replace(column, label=None) for column in output.columns))
+            for output in step.outputs
+        ),
         step.body.sql if step.body is not None else None,
     )
 
@@ -2343,6 +2355,11 @@ def _mart_pair(old_m: MartIR, new_m: MartIR, acc: _Acc) -> None:
                 old=str(old_m.cost_hint),
                 new=str(new_m.cost_hint),
             )
+        )
+
+    if old_m.label != new_m.label:
+        acc.changes.append(
+            Change(None, subject, ChangeClass.ADDITIVE, "label changed (metadata only)")
         )
 
 

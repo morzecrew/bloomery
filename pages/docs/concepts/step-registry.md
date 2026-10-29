@@ -49,14 +49,16 @@ outputs:
     key: [canonical_id]          # what the runtime assertion enforces
     produces:
       canonical_id: {type: string, required: true}
-      confidence:   {type: decimal(4,3)}
+      confidence:   {type: decimal(4,3), label: Match confidence}
 parameters:
   threshold: {type: decimal(4,3), default: 0.85, min: 0, max: 1}
 lineage: coarse
 ```
 
 `grain` is prose for humans; `key` is the machine-readable half, and the
-difference matters — a grain sentence cannot be checked, a key can.
+difference matters — a grain sentence cannot be checked, a key can. A
+`produces:` column may carry a `label`, which the output entity's column takes
+as a mapped field's would. Changing it restates nothing.
 
 An input's `requires` names the columns the step reads, and it is a lower bound
 the compile checks. When the wiring binds the input to an entity the project

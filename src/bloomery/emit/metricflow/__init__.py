@@ -280,9 +280,12 @@ def _non_additive_dimension(
 # ....................... #
 
 
-def _entities(mart: MartIR, base: EntityIR | None) -> tuple[list[PydanticEntity], str | None]:
+def _entities(
+    mart: MartIR, base: EntityIR | None, labels: dict[str, str | None]
+) -> tuple[list[PydanticEntity], str | None]:
     """The model's entity elements and its ``primary_entity`` (composite-key
-    marts only).
+    marts only). Each element carries its entity's ``label`` (S-0094/D-12),
+    read from ``labels`` by entity name.
 
     ``base`` is ``None`` for the quality mart (S-0033/the-quality-mart): it has no
     silver entity underneath it, so there is no natural key column to make a
@@ -300,6 +303,7 @@ def _entities(mart: MartIR, base: EntityIR | None) -> tuple[list[PydanticEntity]
                 expr=base.key[0],
                 description=None,
                 role=None,
+                label=base.label,
                 config=None,
             )
         )
@@ -329,6 +333,7 @@ def _entities(mart: MartIR, base: EntityIR | None) -> tuple[list[PydanticEntity]
                 # *names* stay distinct because `reference` ignores the role,
                 # so one name twice is a duplicate element to MSI's validator.
                 role=join.role_of,
+                label=labels.get(join.entity),
                 config=None,
             )
         )
@@ -486,7 +491,9 @@ def _semantic_model(
 ) -> PydanticSemanticModel:
     base = next((entity for entity in ir.entities if entity.name == mart.base), None)
     namespace, relation = naming.relation(mart.name, Layer.GOLD)
-    entities, primary_entity = _entities(mart, base)
+    entities, primary_entity = _entities(
+        mart, base, {entity.name: entity.label for entity in with_imported(ir).entities}
+    )
     entity_names = frozenset(
         [entity.name for entity in entities] + ([primary_entity] if primary_entity else [])
     )
@@ -500,6 +507,7 @@ def _semantic_model(
         defaults=None,
         description=None,
         metadata=None,
+        label=mart.label,
         config=_config(mart.owner),
     )
 

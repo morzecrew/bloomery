@@ -236,6 +236,13 @@ The `HistoricalFanout` fix text leads with the current reading from phase 2 on â
 - Paths: `src/bloomery/marts/flatten.py` `tests/golden/test_refusal_messages.py`
 - Consequence: the refusal sends an author to the current reading only once a rollup over a current-reading mart proves, never from one refusal into another
 
+### S-0094/D-12 â€” `ASSUMED` (Descriptions, labels and synonyms on fields and metrics)
+
+`Entity` and `Mart` gain optional `label`, under D-2's rule: refused empty once stripped, refused with a line break. They reach `EntityIR.label` and `MartIR.label`, and `bloomery_ir_version` moves by one with D-13. A mart's label becomes MetricFlow's semantic model `label` and Cube's cube and view `title`. An entity's label becomes the `label` of the MetricFlow entity element that stands for it in each semantic model, the primary one where the base's key is a single column and a foreign one per join. Nothing else carries them, and a change to either is ADDITIVE, metadata only, as D-8 has it
+
+- Paths: `src/bloomery/spec/entity.py` `src/bloomery/spec/marts.py` `src/bloomery/ir/nodes.py` `src/bloomery/marts/flatten.py` `src/bloomery/resolve/build.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/plan/diff.py` `tests/unit/test_spec/test_entity_mart_labels.py`
+- Consequence: A catalog page or a semantic layer names an entity and a mart from the spec, so one a tenant adds later shows its label rather than its identifier. dbt, which has no label slot for a model, and SQLMesh carry neither, and no SELECT changes. A composite-key base has no MetricFlow entity element to label, so its label reaches the IR and Cube only. Every fingerprint moves once
+
 ## Invariants holding over `src/bloomery/marts/`
 
 - **S-0079/I-2**: No IR node carries a mapping; the canonical encoder writes `None`, `bool`, `Enum`, `int`, `str`, `Decimal`, tuples and frozen dataclasses, and raises on anything else
