@@ -3391,6 +3391,12 @@ relation, and a shared name makes the emitted predicate compare a column against
 <td>Drives the currency guardrail</td>
 </tr>
 <tr>
+<td><code>per_unit</code></td>
+<td>bool</td>
+<td>no (<code>false</code>)</td>
+<td>The value is a rate that holds per unit of each row reading it (a unit cost, a price) rather than an amount of its entity. The grain guard admits it read down one many-to-one relationship, and a metric template can name it on a mart that flattens its entity. Not verified: a per-unit amount summed per row overstates it</td>
+</tr>
+<tr>
 <td><code>recipes</code></td>
 <td>list of Recipe</td>
 <td>no (<code>[]</code>)</td>
@@ -4469,7 +4475,7 @@ above is what carries the portability claim.</p>
 <td><code>expr</code></td>
 <td>string</td>
 <td>no</td>
-<td>Expression over the required names; a canonical is read as the grain entity's field that links it, and every name must be a column of each mart carrying the metric</td>
+<td>Expression over the required names; a canonical is read as the grain entity's field that links it, or, on each mart, as the column that mart flattens from a joined entity's field linking it. Every unqualified name outside a subquery must be a column of each mart carrying the metric</td>
 </tr>
 <tr>
 <td><code>ratio</code></td>

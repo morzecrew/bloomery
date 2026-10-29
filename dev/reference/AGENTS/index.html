@@ -1844,6 +1844,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#s-0023d-15-assumed-guardrails-refusing-plausible-but-wrong-arithmetic" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0023/D-15 — <code>ASSUMED</code> (Guardrails: refusing plausible-but-wrong arithmetic)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1999,6 +2010,12 @@
 <ul>
 <li>Paths: <code>src/bloomery/spec/catalog.py</code> <code>src/bloomery/ir/nodes.py</code> <code>tests/unit/test_guardrails/test_dimensionless_unit.py</code> <code>tests/golden/schema/catalog.json</code> <code>pages/docs/reference/spec-schemas.md</code></li>
 <li>Consequence: <code>price * (100 - discount) / 100 - cost</code> compiles once <code>discount</code> is declared a ratio, and <code>price + discount</code> is still refused. An undeclared factor keeps poisoning, so nothing that compiled or was refused before changes. A factor no longer has to be declared a count, a unit that is wrong for a percentage</li>
+</ul>
+<h3 id="s-0023d-15-assumed-guardrails-refusing-plausible-but-wrong-arithmetic">S-0023/D-15 — <code>ASSUMED</code> (Guardrails: refusing plausible-but-wrong arithmetic)<a class="headerlink" href="#s-0023d-15-assumed-guardrails-refusing-plausible-but-wrong-arithmetic" title="Permanent link">&para;</a></h3>
+<p>A canonical field may declare <code>per_unit: true</code>: its value is a rate that holds per unit of each row reading it, such as a unit cost or a price, rather than an amount of its own entity. The grain guard admits such an operand, in a metric or a derivation, where the grain reaches the operand's entity through one declared many-to-one relationship, either way round. Every other foreign-grain operand is refused under D-5 as before, a per-unit one read from the parent side included, and the refusal names the declaration where it would apply</p>
+<ul>
+<li>Paths: <code>src/bloomery/spec/catalog.py</code> <code>src/bloomery/guardrails/grain.py</code> <code>src/bloomery/guardrails/operands.py</code> <code>tests/unit/test_guardrails/test_per_unit_parent.py</code> <code>tests/golden/refusals/fanout_trap.txt</code> <code>pages/docs/reference/spec-schemas.md</code></li>
+<li>Consequence: Cost of goods at order-line grain, <code>product_cost * line_quantity</code> with the cost on <code>product</code>, compiles once the catalog declares the cost per unit. Order shipping read per line, the <code>fanout_trap</code>, is refused as before, in the same expression shape. The declaration is not verified, so a per-unit amount summed per line overstates exactly as the fan-out D-5 refuses, and the declaration is where a reviewer looks for it. A chain of two many-to-one hops is still refused</li>
 </ul>
 <h3 id="s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine">S-0033/D-30 — <code>ASSUMED</code> (Data quality: declarative cleansing, dispositions, quarantine)<a class="headerlink" href="#s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine" title="Permanent link">&para;</a></h3>
 <p><em>(2026-08-08, M12; closed by D84)</em> <strong>Postgres cannot host quality-carrying entities.</strong> <code>coercible</code> needs a real NULL-on-failure cast (<code>DialectFeature.TRY_CAST</code>); sqlglot renders <code>TRY_CAST</code> on Postgres as a plain <code>CAST</code>, which aborts the run instead of marking the row, so the dialect declares the feature gap and compiling a quality-carrying entity for it raises <code>UnsupportedByTarget</code> — loud, never a silent degradation into an aborted run. Consequence for §6's dialect matrix: there is no Postgres dirty-corpus tier to add until either sqlglot renders a real <code>TRY_CAST</code> or the lowering grows a per-type <code>CASE</code>-based fallback whose semantics are proven equal to <code>TRY_CAST</code>'s on the corpus. Named as the escape hatch, not built.</p>

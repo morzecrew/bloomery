@@ -2198,6 +2198,14 @@ modeling decision the author must write out. The derivation-level violation is
   Fix: add an explicit aggregation/allocation over 'order_item', or declare the
   derivation on entity 'order'.
 </code></pre></div>
+<p>What the join copies is a <em>value</em>, and some values are meant to be read on every row
+they are copied to. A product's unit cost times the line's quantity is the line's cost of
+goods. A catalog field that is such a rate (a unit cost, a price, an exchange rate)
+declares <code>per_unit: true</code>. The guard then admits it where the grain reaches its entity
+through one many-to-one relationship. <code>product_cost * line_quantity</code> compiles, and
+<code>shipping_cost * line_quantity</code> is refused as before. The two have the same shape, which
+is why this is a declaration bloomery cannot infer. A per-unit field read from the parent's
+side, where each parent row has many child values, is still refused.</p>
 <p>The same guard also runs where fan-out would actually be <em>built</em>: over each mart
 definition, at compile time. A measure whose grain differs from the mart's grain is a
 <code>GrainViolation</code> at the declaration site —</p>
