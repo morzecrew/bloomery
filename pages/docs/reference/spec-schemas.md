@@ -217,7 +217,7 @@ custom audit artifacts.
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `name` | string | yes | Referenced by mart `via:` flatten steps |
-| `from` / `to` | string | yes | The two entities |
+| `from` / `to` | string | yes | The two entities. Either may be a step output, named after the last segment of the relation its wiring binds; its `via` columns are then checked against the manifest's `produces` |
 | `via` | map from-column → to-column, ≥ 1 | yes | Join columns — a relationship *is* its join, so an empty map is a `SpecParseError` |
 | `cardinality` | `many_to_one` \| `one_to_one` \| `one_to_many` | yes | Checked by the fan-out guardrail |
 | `imported_from` | string | no | The artifact this relationship was read out of. Its presence is the fact: a relationship carrying it grades `ASSUMED` and a mart declaring `requires_evidence: locked` over a column it carries is refused. Written by an importer, not by hand |
@@ -240,6 +240,12 @@ other rule has (the row passes with its fk rewritten to the reserved `'__unknown
 member), and `fail` is deliberately unavailable — a pipeline-stopping orphan gate is a
 `reconcile` check instead. `unknown_member` requires a string-typed fk; the relationship's
 `to` side may not be the declaring entity.
+
+The rule joins the `to` side inside the declaring entity's own model, so that side has to
+build first. A rule is refused when the `to` side is built from the declaring entity: a
+step output computed from it, or an entity whose own rule joins it back. A `coverage:`
+check is refused on the same terms, since its audit reads the `to` side from the same
+model.
 
 ### Dedupe
 

@@ -756,7 +756,8 @@ def _check_unknown_member(
 
     from_column = via[0]
     # Resolution (S-0022) refuses a relationship whose ``via`` names a column
-    # neither side declares, and the ``from`` side is this entity by the check
+    # neither side declares, or step lowering does where one side is a step
+    # output (S-0034/D-59), and the ``from`` side is this entity by the check
     # above — so the field lookup is total.
     field = entity.fields[from_column]
     declared = parse_type(
@@ -1355,6 +1356,121 @@ def _check_coverage(project: Project, draft: ProjectIR) -> list[GuardrailError]:
 # ....................... #
 
 
+def _hops(reads: dict[str, dict[str, str]], start: str, goal: str) -> list[str] | None:
+    """How ``start`` is built from ``goal``, one sentence per read on the
+    shortest chain, or ``None`` when it is not. Breadth first over sorted
+    reads, so the chain reported is one and the same across runs."""
+    came: dict[str, tuple[str, str]] = {}
+    frontier = [start]
+
+    while frontier:
+        following: list[str] = []
+        for node in frontier:
+            for read, hop in sorted(reads.get(node, {}).items()):
+                if read == start or read in came:
+                    continue
+                came[read] = (node, hop)
+                following.append(read)
+        if goal in came:
+            hops: list[str] = []
+            at = goal
+            while at != start:
+                at, hop = came[at]
+                hops.append(hop)
+            return hops[::-1]
+        frontier = following
+
+    return None
+
+
+# ....................... #
+
+
+def _check_reads_downstream(project: Project, draft: ProjectIR) -> list[GuardrailError]:
+    """A referential rule or a coverage check never reads a relation built
+    from its own dependent entity (S-0034/D-59).
+
+    Both read the referenced side from inside the dependent's model: the rule
+    is a LEFT JOIN in its SELECT, and the coverage audit hangs off it with the
+    referenced relation in its ``depends_on``. So the referenced relation has
+    to build first, which it cannot when it is built from the dependent: by a
+    step reading it, or through another model, whether a second step or an
+    entity whose own rule joins one. Each model would wait on the other.
+
+    The reads are every one a silver model makes of another, by bare relation
+    name (S-0034/D-57): a step output reads its step's inputs, and a mapped
+    entity reads what its rules and coverage audits join. An unmapped entity
+    emits no model, so its rules read nothing, as the other quality checks
+    already hold.
+    """
+    declared = {rel.name: rel for rel in project.entity_model.relationships}
+    mapped = frozenset(mapping.target for mapping in project.mappings)
+    reads: dict[str, dict[str, str]] = {}
+
+    for step in draft.steps:
+        for output in step.outputs:
+            name = output.relation.rsplit(".", 1)[-1]
+            for _input, relation in step.inputs:
+                read = relation.rsplit(".", 1)[-1]
+                reads.setdefault(name, {})[read] = (
+                    f"step '{step.ref}@{step.version}' computes {name!r} from {read!r}"
+                )
+
+    # (what, noun, relationship, the dependent it must run from, source path)
+    candidates: list[tuple[str, str, str, str | None, str]] = [
+        ("a referential rule", "rule", rule.via, name, _entity_path(name, "quality"))
+        for name, entity in sorted(project.entity_model.entities.items())
+        for rule in entity.quality
+        if isinstance(rule, ReferentialRule)
+    ]
+    candidates.extend(
+        (
+            f"coverage check {check.name!r}",
+            "check",
+            check.relationship,
+            None,
+            f"entity_model: coverage[{index}].relationship",
+        )
+        for index, check in enumerate(project.entity_model.coverage)
+    )
+    uses: list[tuple[str, str, Relationship, str]] = []
+
+    for what, noun, via, dependent, path in candidates:
+        rel = declared.get(via)
+        # `_check_referential` and `_check_coverage` refuse the rest, and a
+        # self-referencing coverage check reads its own model on purpose.
+        if rel is None or dependent not in (None, rel.from_) or rel.from_ == rel.to:
+            continue
+        if rel.from_ not in mapped:
+            continue
+        uses.append((what, noun, rel, path))
+        hop = (
+            f"{rel.from_!r} joins {rel.to!r} by a referential rule"
+            if noun == "rule"
+            else f"the {what} of {rel.from_!r} reads {rel.to!r}"
+        )
+        reads.setdefault(rel.from_, {}).setdefault(rel.to, hop)
+
+    errors: list[GuardrailError] = []
+
+    for what, noun, rel, path in uses:
+        hops = _hops(reads, rel.to, rel.from_)
+        if hops is None:
+            continue
+        msg = (
+            f"{what} through relationship {rel.name!r} reads {rel.to!r} from inside the "
+            f"model of {rel.from_!r}, but {'; '.join(hops)}, so each model would wait on "
+            f"the other and no engine can build them. Fix: drop the {noun}, or have "
+            f"{rel.to!r} built from relations that do not read {rel.from_!r}"
+        )
+        errors.append(GuardrailError(msg, source_path=path))
+
+    return errors
+
+
+# ....................... #
+
+
 def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     """Every data-quality guardrail over the whole project, in one pass.
 
@@ -1408,6 +1524,7 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     # belongs to neither, and the reserved metric names are one flat namespace.
     errors.extend(_check_reconcile(project, draft))
     errors.extend(_check_coverage(project, draft))
+    errors.extend(_check_reads_downstream(project, draft))
     errors.extend(_check_reserved_metric_names(project))
     errors.extend(_check_reserved_mart_name(project))
     errors.extend(_check_freshness_agreement(project))

@@ -323,6 +323,13 @@ Ingestion metadata contract: entities using `quarantine` or `dedupe` require bro
 
 - Paths: `src/bloomery/guardrails/quality.py` `src/bloomery/resolve/graph.py` `src/bloomery/resolve/refs.py` `src/bloomery/spec/steps.py` `tests/fixtures/identity_resolution/catalog.yaml` `tests/fixtures/identity_resolution/steps.yaml` `tests/unit/test_quality/test_reconcile.py` `tests/unit/test_steps/test_step_canonicals.py` `tests/unit/test_unresolved.py`
 
+### S-0034/D-59 — `ASSUMED` (The step registry: referenced implementations)
+
+A relationship's endpoint may be a step output, named by the bare relation the step writes, so a mart over another entity flattens what a step computes through `flatten: via`. The reference stage checks the name; a relationship touching a step output has its `via` columns, on both sides, checked where steps lower, against the manifest's `produces`. A referential rule or a coverage check is refused when the relation it reads is built from its own dependent entity, over every read one silver model makes of another: a step output reads its step's inputs, and a mapped entity reads what its rules and coverage audits join
+
+- Paths: `src/bloomery/resolve/refs.py` `src/bloomery/resolve/steps.py` `src/bloomery/guardrails/quality.py` `tests/unit/test_steps/test_step_relationships.py`
+- Consequence: Order metrics can be cut by a segment a step computes per customer, and a mistyped `via` column on the step side is refused at compile, one stage later than on an authored entity, with both sides in the same report. Two authored entities whose referential rules join each other, which compiled to a pair of models each reading the other, are refused too
+
 ### S-0040/D-5 — `LOCKED` (Temporal joins: SCD2 flattening and currency conversion)
 
 `_CONVERT_MARKER` is removed from the currency guardrail with D4. It is the token that permits mixed-currency arithmetic; leaving it would keep a compile-time "yes" whose only outcome is a run-time failure. Consequence: `CurrencyMismatch` becomes unconditional until §5.4 ships.

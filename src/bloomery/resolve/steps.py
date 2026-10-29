@@ -49,6 +49,7 @@ from bloomery.ir import (
     canon,
     step_sort_key,
 )
+from bloomery.resolve.refs import relationship_column_errors, step_written
 from bloomery.spec.common import (
     MAX_SQL_DEPTH,
     RESERVED_MEMBER_REASONS,
@@ -593,6 +594,30 @@ def _check_input_columns(
 # ....................... #
 
 
+def _check_relationship_columns(
+    project: Project, relations: dict[str, frozenset[str]]
+) -> list[BloomeryError]:
+    """A relationship naming a step output has its ``via`` columns checked
+    here, on both sides (S-0034/D-59).
+
+    The reference stage checks the name and leaves the columns, because only
+    the manifest says what an output produces: :func:`_check_canonical`'s
+    split, for the same reason. One whose step is unknown or unbound is
+    skipped, since the step itself is refused for that.
+    """
+    written = step_written(project)
+
+    return [
+        error
+        for index, rel in enumerate(project.entity_model.relationships)
+        if {rel.from_, rel.to} & written and {rel.from_, rel.to} <= relations.keys()
+        for error in relationship_column_errors(index, rel, relations)
+    ]
+
+
+# ....................... #
+
+
 def _check_reserved_columns(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryError]:
     """No output may produce a column whose name the spec layer reserves.
 
@@ -1096,6 +1121,7 @@ def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tu
             ordered, frozenset(project.entity_model.entities), tuple(claimed)
         )
     )
+    errors.extend(_check_relationship_columns(project, relations))
 
     if errors:
         batched = tuple(sorted(errors, key=lambda e: (e.source_path or "", str(e))))

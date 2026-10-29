@@ -914,3 +914,36 @@ decisions:
       out as S-0020/D-5 requires; the `requires` half of the question is settled by
       S-0034/D-57
     cites: [D-2, D-7, S-0020/D-5, D-57]
+  - id: D-59
+    grade: ASSUMED
+    text: >-
+      A relationship's endpoint may be a step output, named by the bare relation
+      the step writes, so a mart over another entity flattens what a step computes
+      through `flatten: via`. The reference stage checks the name; a relationship
+      touching a step output has its `via` columns, on both sides, checked where
+      steps lower, against the manifest's `produces`. A referential rule or a
+      coverage check is refused when the relation it reads is built from its own
+      dependent entity, over every read one silver model makes of another: a step
+      output reads its step's inputs, and a mapped entity reads what its rules and
+      coverage audits join
+    paths:
+      - src/bloomery/resolve/refs.py
+      - src/bloomery/resolve/steps.py
+      - src/bloomery/guardrails/quality.py
+      - tests/unit/test_steps/test_step_relationships.py
+    consequence: >-
+      Order metrics can be cut by a segment a step computes per customer, and a
+      mistyped `via` column on the step side is refused at compile, one stage later
+      than on an authored entity, with both sides in the same report. Two authored
+      entities whose referential rules join each other, which compiled to a pair of
+      models each reading the other, are refused too
+    rationale: >-
+      D-36 made a step output an entity that marts and downstream models reference
+      like any other, and the reference check was the one place still reading only
+      authored entities (#362). The columns are split from the name for D-49's reason:
+      only the manifest says what an output produces. The refusal is the cycle and
+      not the step, since a referential rule is a LEFT JOIN inside the dependent's
+      model and a coverage audit declares the referenced side in its `depends_on`
+      (S-0033/D-90): a parent computed from elsewhere builds first, and one computed
+      from the dependent cannot
+    cites: [D-36, D-49, D-57, S-0033/D-90]
