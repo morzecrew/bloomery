@@ -10,10 +10,12 @@ parse (S-0019/D-4).
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping as AbcMapping
-from typing import Annotated, Literal, Self, cast
+from datetime import date, datetime
+from typing import Annotated, ClassVar, Literal, Self, cast
 
-from pydantic import Discriminator, Field, Tag, model_validator
+from pydantic import BeforeValidator, Discriminator, Field, StringConstraints, Tag, model_validator
 from pydantic.json_schema import SkipJsonSchema
 
 from bloomery.spec.common import (
@@ -30,6 +32,7 @@ from bloomery.spec.steps import ParameterValue, StepUse
 
 __all__ = [
     "ALIAS_BOUND",
+    "ConstFieldMapping",
     "CurrencyColumn",
     "CurrencyIn",
     "FieldMapping",
@@ -232,18 +235,86 @@ class MacroFieldMapping(SpecModel):
 # ....................... #
 
 
+def _const_value(value: object) -> object:
+    """One authored constant, before coercion, so a YAML ``1.5`` is still a
+    ``float`` here and refused by type (S-0019/D-16).
+
+    A float has no exact reading in an emission path (S-0020/D-5), and a brace
+    would reach dbt's Jinja inside the model it lands in: the literal is quoted
+    SQL, and Jinja renders the whole text, quotes included.
+    """
+
+    if isinstance(value, float):
+        msg = (
+            f"const {value!r} is a float, and no float reaches an emission path "
+            '(S-0020/D-5). Fix: write it as a quoted string — "1.5" — which is read exactly'
+        )
+        raise ValueError(msg)
+
+    if isinstance(value, str) and ("\x00" in value or re.search(r"[{}]", value)):
+        msg = (
+            f"const {value!r} carries a NUL byte or a template brace, which dbt's Jinja "
+            "would read inside the model's SQL. Fix: drop it from the value"
+        )
+        raise ValueError(msg)
+
+    return value
+
+
+#: A constant's literal: ``bool`` before ``int`` so ``true`` stays a boolean;
+#: a decimal is written as the string it is, so no ``number`` member exists for
+#: the JSON schema to advertise. The pattern says in the schema what
+#: :func:`_const_value` refuses, so an editor validating against it accepts what
+#: the loader does. Not stripped, unlike every other spec string: this one is
+#: the column's value, and ``" VIP "`` is what was written.
+ConstValue = Annotated[
+    bool
+    | int
+    | date
+    | datetime
+    | Annotated[str, StringConstraints(strip_whitespace=False, pattern=r"^[^{}\x00]*$")],
+    BeforeValidator(_const_value),
+]
+
+
+class ConstFieldMapping(SpecModel):
+    """A field set to one literal for every row the mapping lands
+    (S-0019/D-16), typed against the field's declaration at the typecheck
+    stage and lowered to a cast of it.
+
+    It reads no source path, so it carries no chain to transform and no
+    ``quality:`` surface: there is no bronze value to clean or to judge. That
+    is what separates it from reading a path that is always present and
+    mapping every value to the constant, which breaks on a NULL and makes
+    lineage name a column the field never reads.
+    """
+
+    const: ConstValue
+    #: No authored rules, so no ``quality:`` key; readers that ask every
+    #: field mapping for its rules get none.
+    quality: ClassVar[tuple[FieldQualityRule, ...]] = ()
+
+
+# ....................... #
+
+
 def _field_mapping_tag(value: object) -> str:
     if isinstance(value, AbcMapping):
         if "recipe" in value:
             return "recipe"
         if "step" in value:
             return "macro"
+        if "const" in value:
+            return "const"
 
     if isinstance(value, RecipeFieldMapping):
         return "recipe"
 
     if isinstance(value, MacroFieldMapping):
         return "macro"
+
+    if isinstance(value, ConstFieldMapping):
+        return "const"
 
     return "simple"
 
@@ -254,11 +325,12 @@ def _field_mapping_tag(value: object) -> str:
 FieldMapping = Annotated[
     Annotated[SimpleFieldMapping, Tag("simple")]
     | Annotated[RecipeFieldMapping, Tag("recipe")]
-    | Annotated[MacroFieldMapping, Tag("macro")],
+    | Annotated[MacroFieldMapping, Tag("macro")]
+    | Annotated[ConstFieldMapping, Tag("const")],
     Discriminator(_field_mapping_tag),
 ]
-"""Discriminated union on the presence of ``recipe`` or ``step`` (S-0019
-§5.5, S-0034/D-50)."""
+"""Discriminated union on the presence of ``recipe``, ``step`` or ``const``
+(S-0019 §5.5, S-0034/D-50, S-0019/D-16)."""
 
 #: The two shapes that bind **several** source paths under aliases, rather
 #: than one path directly. They differ in where the expression comes from — a

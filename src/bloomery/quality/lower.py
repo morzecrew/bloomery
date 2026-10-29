@@ -50,7 +50,7 @@ from bloomery.ir import (
     quality_sort_key,
 )
 from bloomery.quality.charset import expand_codepoints
-from bloomery.spec.mapping import ALIAS_BOUND
+from bloomery.spec.mapping import ALIAS_BOUND, ConstFieldMapping
 from bloomery.spec.quality import (
     CharsetRule,
     CoercibleRule,
@@ -135,7 +135,9 @@ def field_sources(mapping: Mapping, field_name: str) -> tuple[str, ...]:
 
     field_mapping = mapping.fields[field_name]
 
-    if isinstance(field_mapping, ALIAS_BOUND):
+    if isinstance(field_mapping, ConstFieldMapping):
+        paths = []  # a constant reads no path (S-0019/D-16)
+    elif isinstance(field_mapping, ALIAS_BOUND):
         paths = sorted(field_mapping.from_.values())
     else:
         paths = [field_mapping.from_]
@@ -165,8 +167,8 @@ def enum_chain(mapping: Mapping, field_name: str) -> tuple[tuple[str, ...], tupl
     # ``quality:`` surface), so the lookup is total.
     field_mapping = mapping.fields[field_name]
 
-    if isinstance(field_mapping, ALIAS_BOUND):
-        return ((), ())  # a recipe or macro binds aliases, not a chain — no enum_map
+    if isinstance(field_mapping, (*ALIAS_BOUND, ConstFieldMapping)):
+        return ((), ())  # aliases or a constant, not a chain — no enum_map
 
     spellings: set[str] = set()
     targets: set[str] = set()
@@ -209,8 +211,8 @@ def nullifying_steps(
     it, and reporting it twice would only crowd the batch.
     """
 
-    if isinstance(field_mapping, ALIAS_BOUND):
-        return ()  # a recipe or macro binds aliases, not a chain
+    if isinstance(field_mapping, (*ALIAS_BOUND, ConstFieldMapping)):
+        return ()  # aliases or a constant, not a chain
 
     if field_mapping is None:
         key_field = mapping.key.get(column)
@@ -494,7 +496,7 @@ def _draft_rules(
         # (D80). A `nullif` on a sort column is the author's to see.
         skip = (
             bool(nullifying_steps(mapping, column, field_mapping)) and column not in dedupe_fields
-        )
+        ) or isinstance(field_mapping, ConstFieldMapping)  # casts nothing from bronze
         if not any(isinstance(rule, CoercibleRule) for rule in declared) and not skip:
             on_fail = OnFail.FAIL if column in dedupe_fields else OnFail.QUARANTINE
             generated.append(

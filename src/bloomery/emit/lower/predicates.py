@@ -11,7 +11,6 @@ twice is one that drifts.
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import cast
 
@@ -20,14 +19,13 @@ from sqlglot.expressions.core import Expression
 
 from bloomery.errors import UnsupportedByTarget, guaranteed
 from bloomery.ir import VALID_TO, AuditIR, EntityIR, MartIR, MetricFilterIR
+from bloomery.ir.lower import temporal_text
 from bloomery.transforms import neutral_type
 from bloomery.typing import (
-    DateType,
     DecimalType,
     IntType,
     LogicalType,
     StringType,
-    TimestampType,
 )
 
 # ....................... #
@@ -47,68 +45,6 @@ def column_type(entity: EntityIR, name: str) -> LogicalType:
 # ....................... #
 
 
-#: What a temporal literal must look like by the time it reaches a ``CAST``.
-#:
-#: **Trino will not cast an ISO 8601 timestamp.** Measured on Trino 483,
-#: ``CAST('2024-01-01T00:00:00' AS TIMESTAMP)`` is an `INVALID_CAST_ARGUMENT`;
-#: the space-separated form and a bare date both parse, and DuckDB and
-#: PostgreSQL take either. The separator is not the only spelling that reaches
-#: here, though — ``datetime.fromisoformat`` also accepts a lowercase ``t``, a
-#: space, a trailing ``Z`` and an explicit offset, so substituting one character
-#: fixes one of four inputs. The value is parsed and re-rendered instead.
-#:
-#: An offset is *converted*, not dropped: S-0045 makes ``timestamp`` zoneless
-#: UTC on every port, so ``2024-01-01T09:00:00+02:00`` is the instant
-#: ``2024-01-01 07:00:00`` and comparing it as though it were 09:00 would be
-#: wrong by the offset. Refusing the spelling instead would lose a legitimate
-#: one for no gain.
-#:
-#: One rule, both callers: an audit bound (S-0023/range-sanity) and a metric filter
-#: (S-0050/D-8) build the same construct — a text literal cast to the column's
-#: neutral type — and the audit path carried the un-normalized form too,
-#: pre-existing and unexercised because no fixture asserts a ``min``/``max`` on
-#: a timestamp column.
-#:
-#: Rendered with ``isoformat`` rather than ``strftime``: ``%Y`` delegates year
-#: padding to the C library, which is free to write ``1-01-01`` for year 1, and
-#: S-0020 requires the same specs to produce byte-identical artifacts *across
-#: machines*. It does pad on this platform — the point is that nothing promises
-#: it will on the next one, and ``isoformat`` needs no promise. It also picks
-#: the microsecond suffix itself, so there is no second branch to keep in step.
-
-
-def _temporal_text(value: str, declared: LogicalType) -> str:
-    """One temporal literal in the spelling every shipped dialect casts.
-
-    Gated on the declared type rather than on whether the text happens to look
-    like a date: a ``string`` column may hold ``"2024-01-01T09:00:00"`` as data,
-    and rewriting it there would silently change what the comparison matches.
-
-    A value that does not parse is returned untouched — the metric-filter
-    guardrail has already refused those (S-0050/D-9), and an audit bound has
-    its own validation, so this is not the place to invent a second refusal.
-    """
-
-    if isinstance(declared, DateType):
-        try:
-            return date.fromisoformat(value).isoformat()
-        except ValueError:
-            return value
-
-    if not isinstance(declared, TimestampType):
-        return value
-
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return value
-
-    if parsed.tzinfo is not None:
-        parsed = parsed.astimezone(UTC).replace(tzinfo=None)
-
-    return parsed.isoformat(sep=" ", timespec="auto")
-
-
 # ....................... #
 
 
@@ -120,7 +56,7 @@ def _bound_literal(value: str, bound_type: LogicalType) -> Expression:
     if isinstance(bound_type, (IntType, DecimalType)):
         return exp.Literal.number(value)
 
-    return exp.cast(exp.Literal.string(_temporal_text(value, bound_type)), neutral_type(bound_type))
+    return exp.cast(exp.Literal.string(temporal_text(value, bound_type)), neutral_type(bound_type))
 
 
 # ....................... #
@@ -305,8 +241,8 @@ def _metric_filter_literal(value: str | int | bool | Decimal, declared: LogicalT
 
     # A temporal, or any other type whose literal is written as text: cast, so
     # the comparison never depends on the engine's coercion rules — and without
-    # the ISO `T`, which Trino refuses to cast (see `_ISO_SEPARATOR`).
-    return f"CAST('{_temporal_text(escaped, declared)}' AS {neutral_type(declared).sql()})"
+    # the ISO `T`, which Trino refuses to cast (see `ir.lower.temporal_text`).
+    return f"CAST('{temporal_text(escaped, declared)}' AS {neutral_type(declared).sql()})"
 
 
 # ....................... #

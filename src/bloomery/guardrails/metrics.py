@@ -52,6 +52,7 @@ if TYPE_CHECKING:
 __all__ = [
     "check_metrics",
     "day_columns",
+    "literal_fits",
     "mart_roles",
 ]
 
@@ -132,9 +133,14 @@ def _within(value: Decimal, declared: DecimalType) -> bool:
 # ....................... #
 
 
-def _fits(value: str | int | bool | Decimal, declared: LogicalType) -> bool:
+#: The range an ``int`` column holds: BIGINT, signed 64-bit, on every port.
+_INT64_MIN, _INT64_MAX = -(2**63), 2**63 - 1
+
+
+def literal_fits(value: str | int | bool | Decimal, declared: LogicalType) -> bool:
     """Whether one filter value can be compared against a column of this type
-    without a cast (S-0030/D-8's rule, applied at compile time).
+    without a cast (S-0030/D-8's rule, applied at compile time), and whether a
+    mapping's constant can be that column's value (S-0019/D-16).
 
     ``str`` is the carrier for decimals YAML would round and for temporals the
     IR has no tag for, so it is accepted against a numeric or temporal column
@@ -150,7 +156,8 @@ def _fits(value: str | int | bool | Decimal, declared: LogicalType) -> bool:
         return False
 
     if isinstance(declared, IntType):
-        return isinstance(value, int)
+        # An `int` column is a BIGINT on every port: a signed 64-bit integer.
+        return isinstance(value, int) and _INT64_MIN <= value <= _INT64_MAX
 
     if isinstance(declared, DecimalType):
         try:
@@ -268,7 +275,7 @@ def _check_filter(
         expected=f"a column backing dimension {clause.dimension!r} of mart {mart.name!r}",
         by="the mart flattener, which builds every dimension from a column it flattened",
     )
-    unfit = [value for value in clause.values if not _fits(value, declared)]
+    unfit = [value for value in clause.values if not literal_fits(value, declared)]
 
     if unfit:
         msg = (
