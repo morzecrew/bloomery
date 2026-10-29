@@ -13,8 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the MetricFlow entity that stands for it, a mart's becomes MetricFlow's semantic model
   `label` and Cube's cube and view `title`, and a manifest's `produces:` column label
   reaches the output entity's column as a mapped field's does. No SQL changes, and
-  changing one is metadata only in `plan()`; a step whose column label changed is not
-  restated. (#373)
+  changing one is metadata only in `plan()` and `timeline()`; a step whose column label
+  changed is not restated. (#373)
 
 - **`unit: ratio` for a dimensionless factor.** A canonical field holding a percentage, a
   VAT rate, a ±1 sign or a 0/1 flag declares `unit: ratio`, and like a count it carries no

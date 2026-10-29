@@ -10,6 +10,7 @@ up as its bare identifier. Metadata only: no SELECT reads a label (S-0094/D-1).
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import pytest
 import yaml
@@ -19,6 +20,7 @@ from bloomery import Target, build_project_ir, compile_project, load_project, pl
 from bloomery.errors import SpecParseError
 from bloomery.ir import ProjectIR
 from bloomery.plan import ChangeClass
+from bloomery.resolve.facets import Facet, facets
 from bloomery.steps import StepManifest, StepRegistry
 
 pytestmark = pytest.mark.unit
@@ -230,3 +232,31 @@ def test_a_produced_column_s_label_change_restates_no_step() -> None:
     assert changes == {
         ("field:segment", ChangeClass.ADDITIVE, "label changed (metadata only)")
     }
+
+
+def test_a_produced_column_s_label_change_is_metadata_in_the_timeline() -> None:
+    """`timeline()` classifies a step's change by facet, and compared the
+    outputs whole, so a relabelled column read as the step's wiring moving
+    (CodeRabbit on #376)."""
+    _project, catalog = load_fixture("ecom_basic")
+    old = build_project_ir(load_project(_step_sources()), catalog, steps=_registry("Сегмент"))
+    new = build_project_ir(load_project(_step_sources()), catalog, steps=_registry("Группа"))
+
+    assert [(d.facet, d.field) for d in facets(old.steps[0], new.steps[0])] == [
+        (Facet.METADATA, "output_labels")
+    ]
+
+
+def test_a_produced_column_s_structure_still_moves_the_step_s_inputs() -> None:
+    """Only the label is lifted out: a column the step stops producing is
+    still its wiring changing."""
+    _project, catalog = load_fixture("ecom_basic")
+    ir = build_project_ir(load_project(_step_sources()), catalog, steps=_registry("Сегмент"))
+    (step,) = ir.steps
+    (output,) = step.outputs
+    narrowed = replace(step, outputs=(replace(output, columns=output.columns[:1]),))
+
+    assert [(d.facet, d.field) for d in facets(step, narrowed)] == [
+        (Facet.INPUTS, "outputs"),
+        (Facet.METADATA, "output_labels"),
+    ]
