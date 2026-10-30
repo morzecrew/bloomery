@@ -7,13 +7,21 @@ downstream metric impact from the IR's own
 (:class:`~bloomery.errors.ContractViolation` — the stage's only refusal)."""
 
 from bloomery.plan.diff import plan
-from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan, ReplayScope
+from bloomery.plan.model import (
+    BackfillScope,
+    Change,
+    ChangeAction,
+    ChangeClass,
+    Plan,
+    ReplayScope,
+)
 
 # ----------------------- #
 
 __all__ = [
     "BackfillScope",
     "Change",
+    "ChangeAction",
     "ChangeClass",
     "Plan",
     "ReplayScope",

@@ -118,7 +118,14 @@ from bloomery.ir import (
     SCDKind,
     unbound,
 )
-from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan, ReplayScope
+from bloomery.plan.model import (
+    BackfillScope,
+    Change,
+    ChangeAction,
+    ChangeClass,
+    Plan,
+    ReplayScope,
+)
 from bloomery.quality import disposition, payload_key
 from bloomery.spec.quality import EXACT_DECIMAL
 from bloomery.typing import (
@@ -224,7 +231,13 @@ def _added_entity(entity: EntityIR, acc: _Acc) -> None:
             _raise_stale_rename(entity.name, column)
 
     acc.changes.append(
-        Change(entity.name, f"entity:{entity.name}", ChangeClass.ADDITIVE, "entity added")
+        Change(
+            entity.name,
+            f"entity:{entity.name}",
+            ChangeClass.ADDITIVE,
+            "entity added",
+            action=ChangeAction.ADDED,
+        )
     )
     acc.changes.extend(
         Change(
@@ -233,6 +246,8 @@ def _added_entity(entity: EntityIR, acc: _Acc) -> None:
             ChangeClass.ADDITIVE,
             "field added",
             new=_render_shape(column),
+            action=ChangeAction.ADDED,
+            member=column.name,
         )
         for column in entity.columns
     )
@@ -248,6 +263,7 @@ def _dropped_entity(entity: EntityIR, acc: _Acc) -> None:
             f"entity:{entity.name}",
             ChangeClass.BREAKING,
             f"entity dropped ({len(entity.columns)} fields)",
+            action=ChangeAction.REMOVED,
         )
     )
 
@@ -327,6 +343,7 @@ def _source_set_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> bool:
                 "source relation changed",
                 old=old_relations[0],
                 new=new_relations[0],
+                action=ChangeAction.CHANGED,
             )
         )
         acc.backfill.add(new_e.name)
@@ -339,7 +356,9 @@ def _source_set_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> bool:
         detail = f"source added to the union merge ({', '.join(added)})"
         if len(old_relations) == 1:
             detail += f"; the {SOURCE_COLUMN} column appears"
-        acc.changes.append(Change(new_e.name, subject, ChangeClass.ADDITIVE, detail))
+        acc.changes.append(
+            Change(new_e.name, subject, ChangeClass.ADDITIVE, detail, action=ChangeAction.CHANGED)
+        )
         # Seeded despite being ADDITIVE, which no other addition in this differ
         # is. A column addition seeds nothing because no *existing* number
         # moves — the metric reading it had no value before. A **source**
@@ -355,7 +374,9 @@ def _source_set_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> bool:
         detail = f"source removed from the union merge ({', '.join(removed)})"
         if len(new_relations) == 1:
             detail += f"; the {SOURCE_COLUMN} column is dropped"
-        acc.changes.append(Change(new_e.name, subject, ChangeClass.RESTATING, detail))
+        acc.changes.append(
+            Change(new_e.name, subject, ChangeClass.RESTATING, detail, action=ChangeAction.CHANGED)
+        )
         acc.backfill.add(new_e.name)
 
     return bool(removed)
@@ -387,6 +408,7 @@ def _entity_level_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                     f"{label} changed",
                     old=old_repr,
                     new=new_repr,
+                    action=ChangeAction.CHANGED,
                 )
             )
 
@@ -403,18 +425,31 @@ def _entity_level_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 subject,
                 ChangeClass.ADDITIVE,
                 "partition_by changed (metadata only)",
+                action=ChangeAction.CHANGED,
             )
         )
 
     if old_e.audits != new_e.audits:
         acc.changes.append(
-            Change(new_e.name, subject, ChangeClass.ADDITIVE, "audits changed (metadata only)")
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.ADDITIVE,
+                "audits changed (metadata only)",
+                action=ChangeAction.CHANGED,
+            )
         )
 
     if old_e.label != new_e.label:
         # As a column's and a metric's (S-0094/D-8, D-12): no SELECT reads it.
         acc.changes.append(
-            Change(new_e.name, subject, ChangeClass.ADDITIVE, "label changed (metadata only)")
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.ADDITIVE,
+                "label changed (metadata only)",
+                action=ChangeAction.CHANGED,
+            )
         )
 
 
@@ -595,8 +630,9 @@ def _semantic_signature(
 # ....................... #
 
 
-def _dbt_refresh(entity: EntityIR) -> str:
-    """What a field added to, dropped from or renamed on ``entity`` costs on dbt (S-0086/D-10).
+def _dbt_refresh(entity: EntityIR) -> tuple[tuple[str, str], ...]:
+    """What a field added to, dropped from or renamed on ``entity`` costs on dbt (S-0086/D-10),
+    as the change's advice for that target rather than a tail on its ``detail`` (S-0024/D-11).
 
     dbt's incremental models carry ``on_schema_change='fail'``, so a changed
     column set fails the next run until it is rebuilt. Two relations can be
@@ -616,10 +652,10 @@ def _dbt_refresh(entity: EntityIR) -> str:
         targets.append(f"{entity.name}__reject")
 
     if not targets:
-        return ""
+        return ()
 
     lost = " — resolved reject rows are lost" if entity.quarantine is not None else ""
-    return f"; on dbt, run `dbt build --full-refresh -s {' '.join(targets)}`{lost}"
+    return (("dbt", f"run `dbt build --full-refresh -s {' '.join(targets)}`{lost}"),)
 
 
 # ....................... #
@@ -636,8 +672,11 @@ def _added_column(new_e: EntityIR, column: ColumnIR, acc: _Acc) -> None:
                 f"field:{column.name}",
                 ChangeClass.BREAKING,
                 "new field is required — historical rows cannot satisfy it; add it "
-                "optional, backfill, then tighten (S-0024/D-7)" + refresh,
+                "optional, backfill, then tighten (S-0024/D-7)",
                 new=_render_shape(column),
+                action=ChangeAction.ADDED,
+                member=column.name,
+                advice=refresh,
             )
         )
         return
@@ -647,8 +686,11 @@ def _added_column(new_e: EntityIR, column: ColumnIR, acc: _Acc) -> None:
             entity_name,
             f"field:{column.name}",
             ChangeClass.ADDITIVE,
-            "field added" + refresh,
+            "field added",
             new=_render_shape(column),
+            action=ChangeAction.ADDED,
+            member=column.name,
+            advice=refresh,
         )
     )
 
@@ -674,8 +716,11 @@ def _dropped_column(old_e: EntityIR, new_e: EntityIR, column: ColumnIR, acc: _Ac
             new_e.name,
             f"field:{column.name}",
             ChangeClass.BREAKING,
-            f"field dropped{hint}{_dbt_refresh(new_e)}",
+            f"field dropped{hint}",
             old=_render_shape(column),
+            action=ChangeAction.REMOVED,
+            member=column.name,
+            advice=_dbt_refresh(new_e),
         )
     )
     acc.contract_fields.append((f"{new_e.name}.{column.name}", "dropped", _ref_names(column)))
@@ -706,9 +751,12 @@ def _column_pair(
                 new_e.name,
                 subject,
                 ChangeClass.RENAME,
-                f"renamed from {renamed_from!r}{_dbt_refresh(new_e)}",
+                f"renamed from {renamed_from!r}",
                 old=renamed_from,
                 new=new_c.name,
+                action=ChangeAction.RENAMED,
+                member=new_c.name,
+                advice=_dbt_refresh(new_e),
             )
         )
 
@@ -727,6 +775,8 @@ def _column_pair(
                     " and ".join(facets),
                     old=_render_shape(old_c),
                     new=_render_shape(new_c),
+                    action=ChangeAction.RETYPED,
+                    member=new_c.name,
                 )
             )
             if not widened:
@@ -743,6 +793,8 @@ def _column_pair(
                     detail,
                     old=_render_shape(old_c),
                     new=_render_shape(new_c),
+                    action=ChangeAction.RETYPED,
+                    member=new_c.name,
                 )
             )
         acc.seeds |= refs
@@ -768,6 +820,8 @@ def _column_pair(
                 f"semantics changed ({', '.join(facets)})",
                 old=old_recipe if old_recipe != new_recipe else None,
                 new=new_recipe if old_recipe != new_recipe else None,
+                action=ChangeAction.CHANGED,
+                member=new_c.name,
             )
         )
         acc.backfill.add(new_e.name)
@@ -783,7 +837,12 @@ def _column_pair(
         if old_value != new_value:
             acc.changes.append(
                 Change(
-                    new_e.name, subject, ChangeClass.ADDITIVE, f"{facet} changed (metadata only)"
+                    new_e.name,
+                    subject,
+                    ChangeClass.ADDITIVE,
+                    f"{facet} changed (metadata only)",
+                    action=ChangeAction.CHANGED,
+                    member=new_c.name,
                 )
             )
 
@@ -1090,7 +1149,16 @@ def _admits_outside_bounds(old_params: dict[str, str], new_params: dict[str, str
 # ....................... #
 
 
-def _restates(acc: _Acc, entity: EntityIR, subject: str, detail: str, **reprs: str | None) -> None:
+def _restates(
+    acc: _Acc,
+    entity: EntityIR,
+    subject: str,
+    detail: str,
+    *,
+    action: ChangeAction,
+    member: str | None = None,
+    **reprs: str | None,
+) -> None:
     """One RESTATING quality change: recompute the entity, and seed the
     downstream impact — every metric reading these columns reports different
     numbers after it."""
@@ -1102,6 +1170,8 @@ def _restates(acc: _Acc, entity: EntityIR, subject: str, detail: str, **reprs: s
             detail,
             old=reprs.get("old"),
             new=reprs.get("new"),
+            action=action,
+            member=member,
         )
     )
     acc.backfill.add(entity.name)
@@ -1127,6 +1197,8 @@ def _quality_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 new_e,
                 subject,
                 f"quality rule added ({kind})",
+                action=ChangeAction.ADDED,
+                member=new_rule.column,
                 new=_disposition_label(new_rule),
             )
             continue
@@ -1136,6 +1208,8 @@ def _quality_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 new_e,
                 subject,
                 f"quality rule removed ({kind})",
+                action=ChangeAction.REMOVED,
+                member=old_rule.column,
                 old=_disposition_label(old_rule),
             )
             _replay(old_rule, None, old_e, new_e, acc)
@@ -1158,6 +1232,8 @@ def _quality_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
             new_e,
             subject,
             f"quality rule changed ({', '.join(facets)})",
+            action=ChangeAction.CHANGED,
+            member=new_rule.column,
             old=old_label,
             new=new_label,
         )
@@ -1391,6 +1467,7 @@ def _dedupe_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
         new_e,
         f"dedupe:{new_e.name}",
         f"dedupe changed ({', '.join(facets)})",
+        action=ChangeAction.CHANGED,
         old=" / ".join(old_repr) or None,
         new=" / ".join(new_repr) or None,
     )
@@ -1437,6 +1514,7 @@ def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 "(S-0033/quarantine-one-reject-table-per-entity, S-0033/D-2). Drain the reject table via replay before applying",
                 old=old_retention or None,
                 new=None,
+                action=ChangeAction.REMOVED,
             )
         )
     elif old_retention != new_retention:
@@ -1448,6 +1526,7 @@ def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 "quarantine retention changed (policy only)",
                 old=old_retention or None,
                 new=new_retention or None,
+                action=ChangeAction.CHANGED,
             )
         )
 
@@ -1467,6 +1546,7 @@ def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 f"quarantine redact widened ({', '.join(widened)}) — reject payloads written "
                 "from now on carry less than the stored ones; no backfill or replay can "
                 "restore a redacted path",
+                action=ChangeAction.CHANGED,
             )
         )
 
@@ -1478,6 +1558,7 @@ def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 ChangeClass.ADDITIVE,
                 f"quarantine redact narrowed ({', '.join(narrowed)}) — reject payloads written "
                 "from now on carry a path the stored ones scrubbed",
+                action=ChangeAction.CHANGED,
             )
         )
 
@@ -1561,6 +1642,7 @@ def _reject_schema_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 "mapping_version changed (reject provenance stamp)",
                 old=_render_versions(old_versions),
                 new=_render_versions(new_versions),
+                action=ChangeAction.CHANGED,
             )
         )
 
@@ -1576,6 +1658,7 @@ def _reject_schema_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 ChangeClass.ADDITIVE,
                 f"reject payload widened ({', '.join(gained)}) — raw carries bronze columns "
                 "the stored reject rows do not",
+                action=ChangeAction.CHANGED,
             )
         )
 
@@ -1588,6 +1671,7 @@ def _reject_schema_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 f"reject payload narrowed ({', '.join(lost)}) — raw stops carrying bronze "
                 "columns the stored reject rows have; no backfill or replay can restore a "
                 "column the write path no longer projects",
+                action=ChangeAction.CHANGED,
             )
         )
 
@@ -1625,6 +1709,7 @@ def _freshness_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 "stale, not what any stored value means",
                 old=_render_freshness(before),
                 new=_render_freshness(after),
+                action=ChangeAction.CHANGED,
             )
         )
 
@@ -1665,10 +1750,24 @@ def _diff_reconcile(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     for name in sorted(old_map.keys() | new_map.keys()):
         subject = f"reconcile:{name}"
         if name not in old_map:
-            acc.changes.append(Change(None, subject, ChangeClass.ADDITIVE, "reconcile check added"))
+            acc.changes.append(
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.ADDITIVE,
+                    "reconcile check added",
+                    action=ChangeAction.ADDED,
+                )
+            )
         elif name not in new_map:
             acc.changes.append(
-                Change(None, subject, ChangeClass.RESTATING, "reconcile check removed")
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.RESTATING,
+                    "reconcile check removed",
+                    action=ChangeAction.REMOVED,
+                )
             )
         elif _reconcile_definition(old_map[name]) != _reconcile_definition(new_map[name]):
             acc.changes.append(
@@ -1677,6 +1776,7 @@ def _diff_reconcile(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
                     subject,
                     ChangeClass.RESTATING,
                     "reconcile check changed — every row it recorded restates",
+                    action=ChangeAction.CHANGED,
                 )
             )
 
@@ -1759,6 +1859,7 @@ def _diff_steps(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
                     ChangeClass.ADDITIVE,
                     "step added",
                     new=f"@{new_map[ref].version}",
+                    action=ChangeAction.ADDED,
                 )
             )
             continue
@@ -1772,6 +1873,7 @@ def _diff_steps(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
                     f"step removed — {', '.join(sorted(_step_entities(old_step)))} is no "
                     "longer produced by anything",
                     old=f"@{old_step.version}",
+                    action=ChangeAction.REMOVED,
                 )
             )
             continue
@@ -1794,6 +1896,7 @@ def _diff_steps(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
                 detail,
                 old=f"@{old_step.version}",
                 new=f"@{new_step.version}",
+                action=ChangeAction.CHANGED,
             )
         )
         acc.backfill |= _step_entities(new_step)
@@ -1937,6 +2040,7 @@ def _metric_pair(old_m: MetricIR, new_m: MetricIR, acc: _Acc) -> None:
                 "grain changed",
                 old=old_m.grain,
                 new=new_m.grain,
+                action=ChangeAction.CHANGED,
             )
         )
         acc.seeds.add(new_m.name)
@@ -1949,6 +2053,7 @@ def _metric_pair(old_m: MetricIR, new_m: MetricIR, acc: _Acc) -> None:
                 subject,
                 ChangeClass.RESTATING,
                 "definition changed — every number this metric reported restates",
+                action=ChangeAction.CHANGED,
             )
         )
         acc.seeds.add(new_m.name)
@@ -1962,7 +2067,13 @@ def _metric_pair(old_m: MetricIR, new_m: MetricIR, acc: _Acc) -> None:
     ):
         if old_value != new_value:
             acc.changes.append(
-                Change(None, subject, ChangeClass.ADDITIVE, f"{facet} changed (metadata only)")
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.ADDITIVE,
+                    f"{facet} changed (metadata only)",
+                    action=ChangeAction.CHANGED,
+                )
             )
 
 
@@ -2237,7 +2348,11 @@ def _diff_metrics(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     for name in sorted(old_map.keys() | new_map.keys()):
         subject = f"metric:{name}"
         if name not in old_map:
-            acc.changes.append(Change(None, subject, ChangeClass.ADDITIVE, "metric added"))
+            acc.changes.append(
+                Change(
+                    None, subject, ChangeClass.ADDITIVE, "metric added", action=ChangeAction.ADDED
+                )
+            )
         elif name not in new_map:
             gone = unreachable.get(name)
             detail = (
@@ -2245,7 +2360,9 @@ def _diff_metrics(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
                 if gone is None
                 else f"metric became unreachable (missing: {', '.join(gone.missing)})"
             )
-            acc.changes.append(Change(None, subject, ChangeClass.BREAKING, detail))
+            acc.changes.append(
+                Change(None, subject, ChangeClass.BREAKING, detail, action=ChangeAction.REMOVED)
+            )
             acc.seeds.add(name)
         else:
             # Compared as authored: a renamed field respells every expression
@@ -2281,6 +2398,7 @@ def _mart_pair(old_m: MartIR, new_m: MartIR, acc: _Acc) -> None:
                     f"{label} changed",
                     old=old_repr,
                     new=new_repr,
+                    action=ChangeAction.CHANGED,
                 )
             )
 
@@ -2290,25 +2408,62 @@ def _mart_pair(old_m: MartIR, new_m: MartIR, acc: _Acc) -> None:
     for name in sorted(old_cols.keys() | new_cols.keys()):
         if name not in old_cols:
             acc.changes.append(
-                Change(None, subject, ChangeClass.ADDITIVE, f"flattened column {name!r} added")
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.ADDITIVE,
+                    f"flattened column {name!r} added",
+                    action=ChangeAction.ADDED,
+                    member=name,
+                )
             )
         elif name not in new_cols:
             acc.changes.append(
-                Change(None, subject, ChangeClass.BREAKING, f"flattened column {name!r} dropped")
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.BREAKING,
+                    f"flattened column {name!r} dropped",
+                    action=ChangeAction.REMOVED,
+                    member=name,
+                )
             )
         elif old_cols[name] != new_cols[name]:
             acc.changes.append(
-                Change(None, subject, ChangeClass.BREAKING, f"flattened column {name!r} changed")
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.BREAKING,
+                    f"flattened column {name!r} changed",
+                    action=ChangeAction.CHANGED,
+                    member=name,
+                )
             )
 
     old_measures, new_measures = set(old_m.measures), set(new_m.measures)
     acc.changes.extend(
-        Change(None, subject, ChangeClass.ADDITIVE, f"measure {name!r} added")
+        Change(
+            None,
+            subject,
+            ChangeClass.ADDITIVE,
+            f"measure {name!r} added",
+            action=ChangeAction.ADDED,
+            member=name,
+        )
         for name in sorted(new_measures - old_measures)
     )
 
     for name in sorted(old_measures - new_measures):
-        acc.changes.append(Change(None, subject, ChangeClass.BREAKING, f"measure {name!r} removed"))
+        acc.changes.append(
+            Change(
+                None,
+                subject,
+                ChangeClass.BREAKING,
+                f"measure {name!r} removed",
+                action=ChangeAction.REMOVED,
+                member=name,
+            )
+        )
         acc.dropped_measures.append((new_m.name, name))
 
     # Classified by presence, as columns are: one more dimension breaks no
@@ -2319,11 +2474,25 @@ def _mart_pair(old_m: MartIR, new_m: MartIR, acc: _Acc) -> None:
     for ref in sorted(old_dims.keys() | new_dims.keys(), key=lambda r: (r.qualified, r.dimension)):
         if ref not in old_dims:
             acc.changes.append(
-                Change(None, subject, ChangeClass.ADDITIVE, f"dimension {ref.qualified!r} added")
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.ADDITIVE,
+                    f"dimension {ref.qualified!r} added",
+                    action=ChangeAction.ADDED,
+                    member=new_dims[ref],
+                )
             )
         elif ref not in new_dims:
             acc.changes.append(
-                Change(None, subject, ChangeClass.BREAKING, f"dimension {ref.qualified!r} removed")
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.BREAKING,
+                    f"dimension {ref.qualified!r} removed",
+                    action=ChangeAction.REMOVED,
+                    member=old_dims[ref],
+                )
             )
         elif old_dims[ref] != new_dims[ref]:
             acc.changes.append(
@@ -2334,15 +2503,27 @@ def _mart_pair(old_m: MartIR, new_m: MartIR, acc: _Acc) -> None:
                     f"dimension {ref.qualified!r} re-pointed",
                     old=old_dims[ref],
                     new=new_dims[ref],
+                    action=ChangeAction.CHANGED,
+                    member=new_dims[ref],
                 )
             )
 
     if old_m.joins != new_m.joins:
-        acc.changes.append(Change(None, subject, ChangeClass.BREAKING, "joins changed"))
+        acc.changes.append(
+            Change(
+                None, subject, ChangeClass.BREAKING, "joins changed", action=ChangeAction.CHANGED
+            )
+        )
 
     if old_m.partition_by != new_m.partition_by:
         acc.changes.append(
-            Change(None, subject, ChangeClass.ADDITIVE, "partition_by changed (metadata only)")
+            Change(
+                None,
+                subject,
+                ChangeClass.ADDITIVE,
+                "partition_by changed (metadata only)",
+                action=ChangeAction.CHANGED,
+            )
         )
 
     if old_m.cost_hint != new_m.cost_hint:
@@ -2354,12 +2535,19 @@ def _mart_pair(old_m: MartIR, new_m: MartIR, acc: _Acc) -> None:
                 "cost_hint changed (metadata only)",
                 old=str(old_m.cost_hint),
                 new=str(new_m.cost_hint),
+                action=ChangeAction.CHANGED,
             )
         )
 
     if old_m.label != new_m.label:
         acc.changes.append(
-            Change(None, subject, ChangeClass.ADDITIVE, "label changed (metadata only)")
+            Change(
+                None,
+                subject,
+                ChangeClass.ADDITIVE,
+                "label changed (metadata only)",
+                action=ChangeAction.CHANGED,
+            )
         )
 
 
@@ -2373,9 +2561,15 @@ def _diff_marts(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     for name in sorted(old_map.keys() | new_map.keys()):
         subject = f"mart:{name}"
         if name not in old_map:
-            acc.changes.append(Change(None, subject, ChangeClass.ADDITIVE, "mart added"))
+            acc.changes.append(
+                Change(None, subject, ChangeClass.ADDITIVE, "mart added", action=ChangeAction.ADDED)
+            )
         elif name not in new_map:
-            acc.changes.append(Change(None, subject, ChangeClass.BREAKING, "mart dropped"))
+            acc.changes.append(
+                Change(
+                    None, subject, ChangeClass.BREAKING, "mart dropped", action=ChangeAction.REMOVED
+                )
+            )
             acc.dropped_measures.extend((name, measure) for measure in old_map[name].measures)
         else:
             _mart_pair(old_map[name], new_map[name], acc)
@@ -2416,9 +2610,21 @@ def _diff_rollups(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
         subject = f"rollup:{name}"
 
         if name not in old_map:
-            acc.changes.append(Change(None, subject, ChangeClass.ADDITIVE, "rollup added"))
+            acc.changes.append(
+                Change(
+                    None, subject, ChangeClass.ADDITIVE, "rollup added", action=ChangeAction.ADDED
+                )
+            )
         elif name not in new_map:
-            acc.changes.append(Change(None, subject, ChangeClass.BREAKING, "rollup dropped"))
+            acc.changes.append(
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.BREAKING,
+                    "rollup dropped",
+                    action=ChangeAction.REMOVED,
+                )
+            )
         else:
             _rollup_pair(old_map[name], new_map[name], acc)
 
@@ -2441,13 +2647,23 @@ def _rollup_pair(old_r: RollupIR, new_r: RollupIR, acc: _Acc) -> None:
     if replace(old_r, partition_by=()) != replace(new_r, partition_by=()):
         acc.changes.append(
             Change(
-                None, subject, ChangeClass.BREAKING, "rollup redefined — the rows it holds changed"
+                None,
+                subject,
+                ChangeClass.BREAKING,
+                "rollup redefined — the rows it holds changed",
+                action=ChangeAction.CHANGED,
             )
         )
 
     if old_r.partition_by != new_r.partition_by:
         acc.changes.append(
-            Change(None, subject, ChangeClass.ADDITIVE, "partition_by changed (metadata only)")
+            Change(
+                None,
+                subject,
+                ChangeClass.ADDITIVE,
+                "partition_by changed (metadata only)",
+                action=ChangeAction.CHANGED,
+            )
         )
 
 
@@ -2465,9 +2681,25 @@ def _diff_relationships(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> Non
     for name in sorted(old_map.keys() | new_map.keys()):
         subject = f"relationship:{name}"
         if name not in old_map:
-            acc.changes.append(Change(None, subject, ChangeClass.ADDITIVE, "relationship added"))
+            acc.changes.append(
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.ADDITIVE,
+                    "relationship added",
+                    action=ChangeAction.ADDED,
+                )
+            )
         elif name not in new_map:
-            acc.changes.append(Change(None, subject, ChangeClass.BREAKING, "relationship dropped"))
+            acc.changes.append(
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.BREAKING,
+                    "relationship dropped",
+                    action=ChangeAction.REMOVED,
+                )
+            )
         elif old_map[name] != new_map[name]:
             acc.changes.append(
                 Change(
@@ -2475,6 +2707,7 @@ def _diff_relationships(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> Non
                     subject,
                     ChangeClass.BREAKING,
                     "relationship redefined — join semantics changed",
+                    action=ChangeAction.CHANGED,
                 )
             )
 
@@ -2494,6 +2727,7 @@ def _diff_date_dimension(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> No
                     f"date_dimension:{old_d.name}",
                     ChangeClass.BREAKING,
                     "date dimension removed",
+                    action=ChangeAction.REMOVED,
                 )
             )
         return
@@ -2501,7 +2735,11 @@ def _diff_date_dimension(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> No
     if old_d is None:
         acc.changes.append(
             Change(
-                None, f"date_dimension:{new_d.name}", ChangeClass.ADDITIVE, "date dimension added"
+                None,
+                f"date_dimension:{new_d.name}",
+                ChangeClass.ADDITIVE,
+                "date dimension added",
+                action=ChangeAction.ADDED,
             )
         )
         return
@@ -2525,6 +2763,7 @@ def _diff_date_dimension(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> No
             detail,
             old=f"{old_d.start_year}-{old_d.end_year}",
             new=f"{new_d.start_year}-{new_d.end_year}",
+            action=ChangeAction.CHANGED,
         )
     )
 
@@ -2697,7 +2936,7 @@ def _enforce_contract(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
 # ....................... #
 
 
-def _sort_key(change: Change) -> tuple[str, str, str, str, str, str]:
+def _sort_key(change: Change) -> tuple[object, ...]:
     return (
         change.entity or "",
         change.subject,
@@ -2705,6 +2944,8 @@ def _sort_key(change: Change) -> tuple[str, str, str, str, str, str]:
         change.detail,
         change.old or "",
         change.new or "",
+        change.member or "",
+        change.advice,
     )
 
 
@@ -2771,6 +3012,7 @@ def plan(
                 old=was,
                 new=now,
                 citations=_citations(old, was),
+                action=ChangeAction.RENAMED,
             )
             for was, now in sorted(renamed_metrics.items())
         )
@@ -2783,6 +3025,7 @@ def plan(
                 old=was,
                 new=now,
                 citations=(),
+                action=ChangeAction.RENAMED,
             )
             for was, now in sorted(renamed_steps.items())
         )

@@ -31,6 +31,7 @@ def test_public_api_surface() -> None:
         "Builder",
         "Catalog",
         "Change",
+        "ChangeAction",
         "ChangeClass",
         "CheckedSurfaces",
         "Clause",

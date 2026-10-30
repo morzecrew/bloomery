@@ -2990,4 +2990,6 @@ def test_plan_names_the_dbt_full_refresh_in_text_and_json(
     payload = _json(capsys, "plan", *sides, "--format", "json")
     (added,) = [c for c in payload["changes"] if c["subject"] == "field:discount"]  # type: ignore[index]
     assert added["change_class"] == "additive"
-    assert refresh in added["detail"]
+    # Beside the sentence rather than in it (S-0024/D-11).
+    assert (added["detail"], added["action"], added["member"]) == ("field added", "added", "discount")
+    assert added["advice"] == [["dbt", "run `dbt build --full-refresh -s order_item`"]]

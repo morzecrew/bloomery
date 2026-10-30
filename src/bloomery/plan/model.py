@@ -1,5 +1,6 @@
 """The plan-stage value objects (S-0024/public-shape, amended by S-0033/plan-integration-rfc-0007-amendment):
-the five-member :class:`ChangeClass`, the :class:`Change` record,
+the five-member :class:`ChangeClass`, the :class:`ChangeAction` vocabulary,
+the :class:`Change` record,
 :class:`BackfillScope`, :class:`ReplayScope`, and the :class:`Plan` a diff
 returns.
 
@@ -18,6 +19,7 @@ from enum import StrEnum
 __all__ = [
     "BackfillScope",
     "Change",
+    "ChangeAction",
     "ChangeClass",
     "Plan",
     "ReplayScope",
@@ -39,6 +41,26 @@ class ChangeClass(StrEnum):
     #: Drop / narrow / grain / key / scd / materialization — classified and
     #: returned, never raised (D5): the caller decides.
     BREAKING = "breaking"
+
+
+# ....................... #
+
+
+class ChangeAction(StrEnum):
+    """What happened, closed beside :class:`ChangeClass` (S-0024/D-11): the
+    verb a change's ``detail`` spells, for a reader that must not parse it.
+
+    It describes :attr:`Change.member` where one is set, else the subject.
+    Retyping covers a column's whole shape, type and nullability alike, as
+    ``old``/``new`` render it; any other edit to something that stays is
+    ``CHANGED``.
+    """
+
+    ADDED = "added"
+    REMOVED = "removed"
+    RENAMED = "renamed"
+    RETYPED = "retyped"
+    CHANGED = "changed"
 
 
 # ....................... #
@@ -81,6 +103,21 @@ class Change:
     #: and is outside the project, which is why the list is what it is rather
     #: than everything §2 imagines.
     citations: tuple[str, ...] = ()
+    #: The verb of ``detail`` as a value (S-0024/D-11). The default is the
+    #: catch-all, so a change built positionally still reads as one.
+    action: ChangeAction = ChangeAction.CHANGED
+    #: The column, measure, dimension column or judged field the change is
+    #: about, where ``subject`` names its container (S-0024/D-11). A
+    #: ``field:`` subject repeats its own name here, so "which column" has
+    #: one answer for every change. A new mart column is reported once as a
+    #: flattened column and once per dimension it serves, and both entries
+    #: carry the column's name: ``(subject, member)`` says they are one.
+    member: str | None = None
+    #: What the change costs on one target, as ``(target, sentence)`` pairs
+    #: sorted by target (S-0024/D-11). ``plan()`` does not know which target
+    #: a project ships to, so advice for one never rides in ``detail``, where
+    #: a reader on another target would take it as theirs.
+    advice: tuple[tuple[str, str], ...] = ()
 
 
 # ....................... #

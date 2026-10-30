@@ -38,7 +38,7 @@ from bloomery.ir import (
     UnreachableMetric,
 )
 from bloomery import build_project_ir, load_project
-from bloomery.plan import Change, ChangeClass, plan
+from bloomery.plan import Change, ChangeAction, ChangeClass, plan
 from bloomery.typing import DecimalType, IntType, StringType, TimestampType, VariantType
 
 pytestmark = pytest.mark.unit
@@ -108,7 +108,13 @@ def test_new_optional_column_is_additive() -> None:
     new = entity_project(plan_ir.column("id", required=True), plan_ir.column("note"))
     change = only_change(old, new)
     assert change == Change(
-        "order_item", "field:note", ChangeClass.ADDITIVE, "field added", new="string, optional"
+        "order_item",
+        "field:note",
+        ChangeClass.ADDITIVE,
+        "field added",
+        new="string, optional",
+        action=ChangeAction.ADDED,
+        member="note",
     )
 
 
@@ -146,6 +152,11 @@ def test_dropped_unreferenced_column_is_breaking_not_raised() -> None:
 
 
 _REFRESH = "dbt build --full-refresh -s order_item`"
+
+
+def dbt(change: Change) -> str:
+    """The change's advice for dbt, which no longer rides in `detail` (S-0024/D-11)."""
+    return dict(change.advice).get("dbt", "")
 _REJECT_REFRESH = "dbt build --full-refresh -s order_item order_item__reject"
 
 
@@ -157,15 +168,15 @@ def test_the_refresh_names_the_reject_table_only_where_the_emitter_writes_one() 
     old = entity_project(plan_ir.column("id", required=True), **quarantined)
     new = entity_project(plan_ir.column("id", required=True), plan_ir.column("note"), **quarantined)
     change = only_change(old, new)
-    assert _REJECT_REFRESH in change.detail
-    assert "resolved reject rows are lost" in change.detail
+    assert _REJECT_REFRESH in dbt(change)
+    assert "resolved reject rows are lost" in dbt(change)
 
     bare = {"materialization": Materialization.INCREMENTAL_BY_KEY}
     old = entity_project(plan_ir.column("id", required=True), **bare)
     new = entity_project(plan_ir.column("id", required=True), plan_ir.column("note"), **bare)
     change = only_change(old, new)
-    assert "__reject" not in change.detail
-    assert "reject rows" not in change.detail
+    assert "__reject" not in dbt(change)
+    assert "reject rows" not in dbt(change)
 
 
 def test_a_field_added_to_an_incremental_entity_names_the_dbt_full_refresh() -> None:
@@ -175,7 +186,7 @@ def test_a_field_added_to_an_incremental_entity_names_the_dbt_full_refresh() -> 
     change = only_change(old, new)
     assert change.change_class is ChangeClass.ADDITIVE
     assert change.detail.startswith("field added")
-    assert _REFRESH in change.detail
+    assert _REFRESH in dbt(change)
 
 
 def test_a_field_dropped_from_an_incremental_entity_names_the_dbt_full_refresh() -> None:
@@ -184,7 +195,7 @@ def test_a_field_dropped_from_an_incremental_entity_names_the_dbt_full_refresh()
     new = entity_project(plan_ir.column("id", required=True), **incremental)
     change = only_change(old, new)
     assert change.change_class is ChangeClass.BREAKING
-    assert _REFRESH in change.detail
+    assert _REFRESH in dbt(change)
 
 
 def test_a_field_renamed_on_an_incremental_entity_names_the_dbt_full_refresh() -> None:
@@ -196,7 +207,7 @@ def test_a_field_renamed_on_an_incremental_entity_names_the_dbt_full_refresh() -
     change = only_change(old, new)
     assert change.change_class is ChangeClass.RENAME
     assert change.detail.startswith("renamed from 'quantity'")
-    assert _REFRESH in change.detail
+    assert _REFRESH in dbt(change)
 
 
 def test_the_refresh_reads_the_new_materialization() -> None:
@@ -207,10 +218,10 @@ def test_the_refresh_reads_the_new_materialization() -> None:
         materialization=Materialization.INCREMENTAL_BY_KEY,
     )
     added = next(c for c in plan(old, new).changes if c.subject == "field:note")
-    assert _REFRESH in added.detail
+    assert _REFRESH in dbt(added)
 
     back = next(c for c in plan(new, old).changes if c.subject == "field:note")
-    assert "full-refresh" not in back.detail
+    assert "full-refresh" not in dbt(back)
 
 
 def test_dropped_column_hints_renamed_from_when_a_same_typed_field_appears() -> None:
@@ -227,7 +238,11 @@ def test_dropped_entity_is_one_breaking_entity_change() -> None:
     new = plan_ir.project(entities=(plan_ir.entity("order"),))
     change = only_change(old, new)
     assert change == Change(
-        "customer", "entity:customer", ChangeClass.BREAKING, "entity dropped (1 fields)"
+        "customer",
+        "entity:customer",
+        ChangeClass.BREAKING,
+        "entity dropped (1 fields)",
+        action=ChangeAction.REMOVED,
     )
 
 
@@ -246,6 +261,8 @@ def test_widened_decimal_is_widening() -> None:
         "type widened",
         old="decimal(10,2), optional",
         new="decimal(12,4), optional",
+        action=ChangeAction.RETYPED,
+        member="amount",
     )
 
 
@@ -598,6 +615,8 @@ def test_annotated_rename_is_one_rename_change_with_no_backfill() -> None:
             "renamed from 'quantity'",
             old="quantity",
             new="qty",
+            action=ChangeAction.RENAMED,
+            member="qty",
         ),
     )
     assert result.backfill_scope.entities == ()
@@ -1366,12 +1385,12 @@ def test_a_type_2_entity_refreshes_only_its_reject_table() -> None:
     type2 = {"materialization": Materialization.INCREMENTAL_BY_KEY, "scd": SCDKind.TYPE2}
     old = entity_project(plan_ir.column("id", required=True), **type2)
     new = entity_project(plan_ir.column("id", required=True), plan_ir.column("note"), **type2)
-    assert "full-refresh" not in only_change(old, new).detail
+    assert "full-refresh" not in dbt(only_change(old, new))
 
     quarantined = {**type2, "quarantine": QuarantineIR(retention="90d")}
     old = entity_project(plan_ir.column("id", required=True), **quarantined)
     new = entity_project(plan_ir.column("id", required=True), plan_ir.column("note"), **quarantined)
-    detail = only_change(old, new).detail
+    detail = dbt(only_change(old, new))
     assert "dbt build --full-refresh -s order_item__reject`" in detail
     assert "-s order_item order_item__reject" not in detail
 
@@ -1383,6 +1402,6 @@ def test_a_full_table_that_quarantines_refreshes_its_reject_table() -> None:
     quarantined = {"materialization": Materialization.FULL, "quarantine": QuarantineIR(retention="90d")}
     old = entity_project(plan_ir.column("id", required=True), **quarantined)
     new = entity_project(plan_ir.column("id", required=True), plan_ir.column("note"), **quarantined)
-    detail = only_change(old, new).detail
+    detail = dbt(only_change(old, new))
     assert "dbt build --full-refresh -s order_item__reject`" in detail
     assert "-s order_item order_item__reject" not in detail
