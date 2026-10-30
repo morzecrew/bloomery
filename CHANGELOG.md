@@ -24,9 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dropped from or renamed on an incremental entity used to end its `detail` with `; on dbt,
   run …`; that sentence is now in `advice` under `dbt`, so a project shipped to SQLMesh is
   not told to run a dbt command. A reader matching the old `detail` text must read
-  `advice`. `bloomery plan`'s text output still prints it after the sentence. A new
-  `quarantine:` block now reads `quarantine block added` rather than `quarantine retention
-  changed`. (#383)
+  `advice`. `bloomery plan`'s text output still prints it after the sentence. A flattened
+  mart column whose type alone moved now reads `flattened column '…' retyped`, with the two
+  types in `old`/`new`, and a new `quarantine:` block reads `quarantine block added`;
+  both read `changed` before. (#383)
   
 ### Fixed
 

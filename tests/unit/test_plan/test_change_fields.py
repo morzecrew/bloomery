@@ -16,6 +16,7 @@ from bloomery import build_project_ir, load_project
 from bloomery.cli.render import render_plan
 from bloomery.ir import Materialization, OnFail, QuarantineIR
 from bloomery.plan import Change, ChangeAction, ChangeClass, plan
+from bloomery.typing import parse_type
 
 pytestmark = pytest.mark.unit
 
@@ -154,6 +155,39 @@ def test_a_new_mart_column_reported_twice_names_one_member_in_both() -> None:
     assert (flattened.subject, flattened.member) == (dimension.subject, dimension.member)
     assert flattened.member == "order_channel"
     assert flattened.action is dimension.action is ChangeAction.ADDED
+
+
+def test_a_flattened_column_whose_type_alone_moved_is_retyped() -> None:
+    def over(column: object) -> object:
+        return plan_ir.project(marts=(plan_ir.mart(columns=(column,)),))  # type: ignore[arg-type]
+
+    def on_the_column(old: object, new: object) -> Change:
+        (change,) = (
+            c
+            for c in plan(over(old), over(new)).changes  # type: ignore[arg-type]
+            if c.detail.startswith("flattened column")
+        )
+        return change
+
+    retyped = on_the_column(
+        plan_ir.mart_column("amount", type_=parse_type("int", source_path="t")),
+        plan_ir.mart_column("amount", type_=parse_type("decimal(12,2)", source_path="t")),
+    )
+    moved = on_the_column(
+        plan_ir.mart_column("amount"), plan_ir.mart_column("amount", source_column="total")
+    )
+
+    assert (retyped.action, retyped.member, retyped.old, retyped.new) == (
+        ChangeAction.RETYPED,
+        "amount",
+        "int",
+        "decimal(12,2)",
+    )
+    assert retyped.detail == "flattened column 'amount' retyped"
+    assert (moved.action, moved.detail) == (
+        ChangeAction.CHANGED,
+        "flattened column 'amount' changed",
+    )
 
 
 def test_the_cli_still_prints_the_advice_after_the_sentence() -> None:

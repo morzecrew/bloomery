@@ -220,7 +220,8 @@ program that must not parse it:
 
 - `action` (`ChangeAction`) is what happened: `added`, `removed`, `renamed`, `retyped` (a
   column's type or nullability) or `changed`. It describes `member` where one is set,
-  else the subject.
+  else the subject. On a `quality:` subject it describes the rule, and `member` names
+  the field the rule judges.
 - `member` is the column, measure, dimension column or judged field the change is about,
   where `subject` names its container; a `field:` subject repeats its own name. A new
   mart column is reported as a flattened column and as each dimension it serves, and

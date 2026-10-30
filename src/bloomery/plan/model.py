@@ -50,7 +50,10 @@ class ChangeAction(StrEnum):
     """What happened, closed beside :class:`ChangeClass` (S-0024/D-11): the
     verb a change's ``detail`` spells, for a reader that must not parse it.
 
-    It describes :attr:`Change.member` where one is set, else the subject.
+    It describes :attr:`Change.member` where one is set, else the subject. A
+    ``quality:`` subject is the exception: the action is the rule's, and
+    ``member`` names the field the rule judges, which was neither added nor
+    removed.
     Retyping covers a column's whole shape, type and nullability alike, as
     ``old``/``new`` render it; any other edit to something that stays is
     ``CHANGED``.

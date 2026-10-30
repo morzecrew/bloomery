@@ -134,7 +134,8 @@ decisions:
       `Change` carries what its `detail` says as values beside it: `action`, one of
       `ChangeAction`'s `added`, `removed`, `renamed`, `retyped` (a column's type or
       nullability) and `changed`, describing `member` where one is set and the subject
-      otherwise; `member`, the column, measure, dimension column or judged field the
+      otherwise, except that on a `quality:` subject it describes the rule and `member`
+      names the field the rule judges; `member`, the column, measure, dimension column or judged field the
       change is about where `subject` names its container, and the field's own name on a
       `field:` subject; and `advice`, target-specific advice as `(target, sentence)` pairs
       sorted by target, which `detail` no longer carries. All three default, so a

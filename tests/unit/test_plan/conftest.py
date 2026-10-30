@@ -41,6 +41,7 @@ _LAST_WORD: dict[str, ChangeAction] = {
     "added": ChangeAction.ADDED,
     "dropped": ChangeAction.REMOVED,
     "removed": ChangeAction.REMOVED,
+    "retyped": ChangeAction.RETYPED,
     "unreachable": ChangeAction.REMOVED,
 }
 _QUOTED = re.compile(r"\b(flattened column|measure|dimension) '([^']+)'")

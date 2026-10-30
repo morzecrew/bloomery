@@ -928,7 +928,7 @@ def test_mart_flattened_column_changes() -> None:
     assert by_detail == {
         "flattened column 'fresh' added": ChangeClass.ADDITIVE,
         "flattened column 'gone' dropped": ChangeClass.BREAKING,
-        "flattened column 'kept' changed": ChangeClass.BREAKING,
+        "flattened column 'kept' retyped": ChangeClass.BREAKING,
     }
 
 

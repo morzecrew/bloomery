@@ -2434,13 +2434,19 @@ def _mart_pair(old_m: MartIR, new_m: MartIR, acc: _Acc) -> None:
                 )
             )
         elif old_cols[name] != new_cols[name]:
+            was, now = old_cols[name], new_cols[name]
+            # Retyped only where the type is all that moved; a column that is
+            # also read from elsewhere is changed, and says nothing narrower.
+            retyped = replace(was, type=now.type) == now
             acc.changes.append(
                 Change(
                     None,
                     subject,
                     ChangeClass.BREAKING,
-                    f"flattened column {name!r} changed",
-                    action=ChangeAction.CHANGED,
+                    f"flattened column {name!r} {'retyped' if retyped else 'changed'}",
+                    old=_render_type(was.type) if retyped else None,
+                    new=_render_type(now.type) if retyped else None,
+                    action=ChangeAction.RETYPED if retyped else ChangeAction.CHANGED,
                     member=name,
                 )
             )
