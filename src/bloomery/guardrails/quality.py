@@ -113,7 +113,9 @@ def _read_paths(mapping: Mapping) -> tuple[str, ...]:
     ``raw`` — redacting it would leave the replay reading a key redaction had
     removed.
     """
-    paths: set[str] = {key_field.from_ for key_field in mapping.key.values()}
+    paths: set[str] = {
+        part.from_ for part in mapping.key.values() if not isinstance(part, ConstFieldMapping)
+    }
 
     for field_mapping in mapping.fields.values():
         if isinstance(field_mapping, ConstFieldMapping):

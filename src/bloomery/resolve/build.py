@@ -563,9 +563,13 @@ def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) ->
         doc = mapping_doc(mapping)
         entity = project.entity_model.entities[mapping.target]
         for field_name in sorted(mapping.key):
-            steps = mapping.key[field_name].transform
+            key_part = mapping.key[field_name]
             declared = _field_type(mapping.target, field_name, entity.fields[field_name])
             path = f"{doc}: key.{field_name}"
+            if isinstance(key_part, ConstFieldMapping):
+                refusals.extend(_const_refusal(key_part, declared, source_path=path))
+                continue
+            steps = key_part.transform
             if isinstance(declared, VectorType):
                 checks.append(ChainCheck(declared, (), declared, path))
             elif steps:
@@ -1502,6 +1506,11 @@ def _build_source(
         key_field = mapping.key[field_name]
         field = entity.fields[field_name]
         declared = _field_type(entity_name, field_name, field)
+        if isinstance(key_field, ConstFieldMapping):
+            # As a constant field is (S-0019/D-17): no source field, so replay
+            # and the reject payload carry nothing of bronze for it.
+            add_column(field_name, field, declared, shape(_const_expr(key_field, declared)))
+            continue
         expr = _lower_chain(
             key_field.from_,
             key_field.transform,
@@ -2197,6 +2206,17 @@ def _produced(mapping: Mapping) -> frozenset[str]:
 # ....................... #
 
 
+def _read(mapping: Mapping) -> frozenset[str]:
+    """The entity columns this mapping reads from bronze: what it produces,
+    less what it sets as a constant."""
+
+    parts = (*mapping.key.items(), *mapping.fields.items())
+    return frozenset(name for name, part in parts if not isinstance(part, ConstFieldMapping))
+
+
+# ....................... #
+
+
 def _rules_over(
     rules: tuple[QualityRuleIR, ...], columns: frozenset[str]
 ) -> tuple[QualityRuleIR, ...]:
@@ -2303,6 +2323,14 @@ def _rule_agreement_refusals(
     maps nothing (:func:`~bloomery.quality.branch_violation` reads no sources
     as FALSE) and an authored one judges the NULLs that branch supplies, which
     is the true statement about the merged relation.
+
+    **Nor is a column a mapping sets as a constant** (S-0019/D-16, D-17). The
+    constant reads no path, so it gets no implicit ``coercible`` and carries
+    no ``quality:``, while the branch that reads the column gets its rule;
+    requiring agreement would refuse a key part one source reads and another
+    fixes, with nothing either side could declare. The rule joins the union as
+    an omitted column's does, and is inert on the constant's branch for the
+    same reason: that branch reads no sources for it.
     """
     if len(mappings) < 2:
         return []
@@ -2321,7 +2349,7 @@ def _rule_agreement_refusals(
     # rules then land in the union and one silently wins by name.
     for index, reference in enumerate(mappings):
         for mapping in mappings[index + 1 :]:
-            shared = _produced(reference) & _produced(mapping)
+            shared = _read(reference) & _read(mapping)
             left = _rules_over(lowered[reference.source], shared)
             right = _rules_over(lowered[mapping.source], shared)
 

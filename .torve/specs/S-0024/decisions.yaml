@@ -128,3 +128,37 @@ decisions:
       "flatten changes are BREAKING" was read as covering a dimension set that
       only grew, which breaks no query that ran before (#331)
     cites: [D-1, D-9]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      `Change` carries what its `detail` says as values beside it: `action`, one of
+      `ChangeAction`'s `added`, `removed`, `renamed`, `retyped` (a column's type or
+      nullability) and `changed`, describing `member` where one is set and the subject
+      otherwise, except that on a `quality:` subject it describes the rule and `member`
+      names the field the rule judges; `member`, the column, measure, dimension column or judged field the
+      change is about where `subject` names its container, and the field's own name on a
+      `field:` subject; and `advice`, target-specific advice as `(target, sentence)` pairs
+      sorted by target, which `detail` no longer carries. All three default, so a
+      positional construction still builds
+    paths:
+      - src/bloomery/plan/model.py
+      - src/bloomery/plan/diff.py
+      - src/bloomery/cli/render.py
+      - tests/unit/test_plan/conftest.py
+      - tests/unit/test_plan/test_change_fields.py
+      - pages/docs/reference/api.md
+    consequence: >-
+      A consumer groups and translates a plan from values rather than from English, and a
+      new mart column reported as a flattened column and as a dimension carries one
+      `member` in both. The dbt full-refresh sentence leaves `detail`, so a reader matching
+      the old text breaks once, and `bloomery plan`'s text output still prints the advice
+      after the sentence. Every plan the plan tests build is checked so that `action`
+      matches the verb `detail` spells and `member` the name it quotes
+    rationale: >-
+      #383: a reader showing changes to analysts took the verb as the last word of
+      `detail`, the mart column from inside its quotes, a rule's field from the IR by
+      name, and stripped the dbt tail by regex, so any rewording broke it silently. The
+      advice is keyed by target because `plan()` does not know which target a project
+      ships to, and on SQLMesh the dbt sentence is wrong. `retyped` covers nullability
+      because `old` and `new` render the whole shape, type and `required` together
+    cites: [D-9, D-10]

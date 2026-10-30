@@ -4,7 +4,7 @@ deterministically into SQLMesh, dbt, and Cube artifacts.
 Public API (spec §8): the pure loaders (``load_catalog``, ``load_project``),
 compilation (``compile_project`` with ``Target``), analysis without emission
 (``resolve`` / ``Resolution``, ``build_project_ir``, ``project_fingerprint``),
-spec-diff planning (``plan`` with ``Plan`` / ``Change`` / ``ChangeClass`` /
+spec-diff planning (``plan`` with ``Plan`` / ``Change`` / ``ChangeClass`` / ``ChangeAction`` /
 ``BackfillScope`` / ``ReplayScope`` — S-0024, S-0033), the request-time planner (``MetricFlowPlanner`` with the ``MetricRequest`` /
 ``QueryPlan`` port types and ``RowPolicy`` — S-0028, S-0030), manifest
 hydration (``LruManifestHydrator``, ``HydrationKey`` — S-0031), the
@@ -52,7 +52,15 @@ from bloomery.evidence import (
 )
 from bloomery.ir import Materialization, ProjectIR, UnreachableMetric, project_fingerprint
 from bloomery.naming import DefaultNaming, NamingPolicy
-from bloomery.plan import BackfillScope, Change, ChangeClass, Plan, ReplayScope, plan
+from bloomery.plan import (
+    BackfillScope,
+    Change,
+    ChangeAction,
+    ChangeClass,
+    Plan,
+    ReplayScope,
+    plan,
+)
 from bloomery.planner import (
     AnyOf,
     BranchSource,
@@ -170,6 +178,7 @@ __all__ = [
     "Builder",
     "Catalog",
     "Change",
+    "ChangeAction",
     "ChangeClass",
     "CheckedSurfaces",
     "Clause",

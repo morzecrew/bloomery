@@ -276,6 +276,8 @@ def _mapping_edges(
     edges: list[Edge] = []
 
     for field_name, key_field in mapping.key.items():
+        if isinstance(key_field, ConstFieldMapping):
+            continue  # as a constant field: nothing upstream (S-0019/D-17)
         edges.append(
             Edge(
                 src=source_column_node(mapping.source, key_field.from_),

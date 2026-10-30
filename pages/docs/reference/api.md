@@ -215,7 +215,24 @@ Properties: `has_changes`, `breaking`.
 ### `Change`
 
 One classified difference: `entity`, `subject` (`<kind>:<name>`), `change_class`,
-human-readable `detail`, and compact `old`/`new` value reprs.
+human-readable `detail`, and compact `old`/`new` value reprs. Beside the sentence, for a
+program that must not parse it:
+
+- `action` (`ChangeAction`) is what happened: `added`, `removed`, `renamed`, `retyped` (a
+  column's type or nullability) or `changed`. It describes `member` where one is set,
+  else the subject. On a `quality:` subject it describes the rule, and `member` names
+  the field the rule judges.
+- `member` is the column, measure, dimension column or judged field the change is about,
+  where `subject` names its container; a `field:` subject repeats its own name. A new
+  mart column is reported as a flattened column and as each dimension it serves, and
+  every one of those entries carries the column's name.
+- `advice` is what the change costs on one target, as sorted `(target, sentence)` pairs:
+  today, the `dbt build --full-refresh` a changed column set needs on dbt. `plan()` does
+  not know the target, so this advice is not part of `detail`.
+
+### `ChangeAction`
+
+What a change did: `ADDED`, `REMOVED`, `RENAMED`, `RETYPED`, `CHANGED`.
 
 ### `ChangeClass`
 

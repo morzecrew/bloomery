@@ -18,7 +18,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from bloomery.errors import BloomeryError, MissingReference, ResolutionError
-from bloomery.spec.mapping import mapping_doc
+from bloomery.spec.mapping import ConstFieldMapping, mapping_doc
 
 if TYPE_CHECKING:
     from collections.abc import Collection
@@ -78,14 +78,29 @@ def _check_mapping(mapping: Mapping, project: Project, errors: list[BloomeryErro
                 )
             )
 
-    for key_column in entity.key:
-        if key_column not in mapping.key:
-            errors.append(
-                ResolutionError(
-                    f"entity key column {key_column!r} is not lowered by the mapping's key:",
-                    source_path=f"{doc}: key",
-                )
+    missing = [key_column for key_column in entity.key if key_column not in mapping.key]
+
+    for key_column in missing:
+        errors.append(
+            ResolutionError(
+                f"entity key column {key_column!r} is not lowered by the mapping's key:",
+                source_path=f"{doc}: key",
             )
+        )
+
+    # The entity's key, not the mapping's: `key:` may also lower a declared
+    # non-key field, and a path read there keys nothing (S-0019/D-17).
+    if not missing and all(
+        isinstance(mapping.key[key_column], ConstFieldMapping) for key_column in entity.key
+    ):
+        errors.append(
+            ResolutionError(
+                f"every key column of entity {mapping.target!r} is set by a const, so every "
+                "row of this mapping would carry one key: at least one of them must read a "
+                "path (S-0019/D-17)",
+                source_path=f"{doc}: key",
+            )
+        )
 
 
 # ....................... #

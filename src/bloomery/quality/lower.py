@@ -111,8 +111,12 @@ def _rule_name(stem: str) -> str:
 
 def mapped_fields(mapping: Mapping) -> tuple[tuple[str, FieldMapping | None], ...]:
     """Every field the mapping lowers, sorted: key fields first (they carry no
-    ``quality:`` surface of their own, hence ``None``), then value fields."""
-    keys: list[tuple[str, FieldMapping | None]] = [(name, None) for name in sorted(mapping.key)]
+    ``quality:`` surface of their own, hence ``None``, or the constant a key
+    part sets, which carries none either), then value fields."""
+    keys: list[tuple[str, FieldMapping | None]] = [
+        (name, part if isinstance(part, ConstFieldMapping) else None)
+        for name, part in sorted(mapping.key.items())
+    ]
     values: list[tuple[str, FieldMapping | None]] = [
         (name, mapping.fields[name]) for name in sorted(mapping.fields)
     ]
@@ -130,13 +134,10 @@ def field_sources(mapping: Mapping, field_name: str) -> tuple[str, ...]:
     :func:`bloomery.quality.predicates.violation`).
     """
 
-    if field_name in mapping.key:
-        return (canon(extraction(mapping.key[field_name].from_)).sql,)
-
-    field_mapping = mapping.fields[field_name]
+    field_mapping = mapping.key.get(field_name) or mapping.fields[field_name]
 
     if isinstance(field_mapping, ConstFieldMapping):
-        paths = []  # a constant reads no path (S-0019/D-16)
+        paths = []  # a constant reads no path (S-0019/D-16, D-17)
     elif isinstance(field_mapping, ALIAS_BOUND):
         paths = sorted(field_mapping.from_.values())
     else:
@@ -211,17 +212,12 @@ def nullifying_steps(
     it, and reporting it twice would only crowd the batch.
     """
 
-    if isinstance(field_mapping, (*ALIAS_BOUND, ConstFieldMapping)):
+    lowering = field_mapping if field_mapping is not None else mapping.key.get(column)
+
+    if lowering is None or isinstance(lowering, (*ALIAS_BOUND, ConstFieldMapping)):
         return ()  # aliases or a constant, not a chain
 
-    if field_mapping is None:
-        key_field = mapping.key.get(column)
-        if key_field is None:
-            return ()
-        chain = key_field.transform
-    else:
-        chain = field_mapping.transform
-
+    chain = lowering.transform
     specs = registry()
     return tuple(
         sorted(

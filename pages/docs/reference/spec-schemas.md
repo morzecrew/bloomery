@@ -321,7 +321,7 @@ One document per (source, target entity) pair.
 | `mapping_version` | int ≥ 1 | yes | Document version key |
 | `source` | string | yes | Bronze relation name |
 | `target` | string | yes | Target entity |
-| `key` | map key-column → KeyField | yes | Key lowering |
+| `key` | map key-column → KeyField or const | yes | Key lowering |
 | `fields` | map field → FieldMapping | no (`{}`) | Field lowering |
 | `unmapped` | list of source paths | no (`[]`) | The explicitly unmapped tail |
 | `freshness` | Freshness | no (absent) | Staleness thresholds for `source` |
@@ -389,6 +389,20 @@ there is nothing there to attach one to and nothing is refused.
 | `currency_in` | ISO-4217 code, or `{column: <name>}` | no | What currency the path's values are in, where the chain converts |
 | `zone_in` | IANA zone name | no | What clock the path's wall clocks were written on — see [`zone_in:`](transforms.md#zone_in-what-clock-the-source-runs-on) |
 
+A key part may instead be a [const](#fieldmapping-forms), typed and lowered as a field's
+constant is. It is how two sources feeding one merged entity tell their rows apart where
+their own ids overlap:
+
+```yaml
+key:
+  marketplace: {const: Ozon}
+  order_id: {from: "$._source_row_id"}
+```
+
+At least one of the entity's key columns must read a path: a mapping that sets them all
+as constants gives every row one key, and is refused. A path read under `key:` for a
+non-key field does not count, since it keys no row.
+
 ### FieldMapping — forms
 
 A field mapping is **simple**, **recipe**, **const** or a Tier 1 `sql_macro` call
@@ -417,7 +431,7 @@ column or its date anchor. With one constant per mapping, the rows of a merged e
 say which source they came from in a business value, which `_source`, the relation name,
 is not. A single mapping can use one too. It takes no `transform:` and no `quality:`, gets no
 implicit `coercible` rule, and has no source column upstream of it in lineage. A key
-field cannot be one.
+part can be one too: see [KeyField](#keyfield).
 
 | Form | Field | Type | Required | Meaning |
 |---|---|---|---|---|

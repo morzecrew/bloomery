@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A key part can be a constant.** `key: {marketplace: {const: Ozon}, order_id: {from: …}}`
+  keys each mapping's rows by a value fixed for that mapping beside the source's own id,
+  so two sources feeding one merged entity land as distinct rows where their ids overlap,
+  and the collision audit stays silent on them. It is typed and lowered as a field's
+  constant is, and a quarantined row replays with it. A mapping that sets every key
+  column of the entity as a constant is refused, since every row of it would carry one
+  key. (#380)
+
+- **A plan change says what happened, and to which column, as values.** `Change` gains
+  `action` (`added`, `removed`, `renamed`, `retyped` or `changed`, the new `ChangeAction`
+  enum), `member` (the column, measure, dimension column or judged field, where `subject`
+  names the mart or entity holding it) and `advice` (per-target advice as
+  `(target, sentence)` pairs). A program showing a plan in another language, or grouped by
+  column, no longer reads them off `detail`'s English, and a new mart column reported as a
+  flattened column and as a dimension carries one `member` in both. `bloomery plan
+  --format json` carries the three fields. (#383)
+
 ### Changed
 
 - **A `per_unit` field can be read through a chain of many-to-one relationships**, not
@@ -15,6 +34,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a parent to its children, anywhere in the chain still refuses it, and a refusal now
   names the chain it was reached by rather than "no declared relationship". (#382)
 
+- **`Change.detail` no longer carries the dbt full-refresh advice.** A field added to,
+  dropped from or renamed on an incremental entity used to end its `detail` with `; on dbt,
+  run …`; that sentence is now in `advice` under `dbt`, so a project shipped to SQLMesh is
+  not told to run a dbt command. A reader matching the old `detail` text must read
+  `advice`. `bloomery plan`'s text output still prints it after the sentence. A flattened
+  mart column whose type alone moved now reads `flattened column '…' retyped`, with the two
+  types in `old`/`new`, and a new `quarantine:` block reads `quarantine block added`;
+  both read `changed` before. (#383)
+  
 ### Fixed
 
 - **Lineage through a step no longer shows a column named after the step's output.**
@@ -24,6 +52,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is still the step's one out-edge, standing for the whole relation it writes. In
   `timeline()`, a change to a `quality:` rule a wiring declares on its output is now
   reported on the step's node. (#381)
+
+- **A field one mapping reads and another sets as a constant no longer refuses the merge.**
+  On a merged entity in the quality system, the reading mapping's implicit `coercible`
+  rule was taken for a `quality:` disagreement with the constant, which has no rule to
+  agree with, and nothing either mapping declared could fix it. The rule now applies to
+  the reading source's rows only. (#386)
 
 ## [0.9.0] - 2026-10-29
 
