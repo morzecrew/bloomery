@@ -105,8 +105,7 @@ def edges(graph: Graph) -> set[tuple[str, str, str]]:
 
 
 def test_the_step_feeds_each_column_it_produces() -> None:
-    """The issue's second point. The relation node stays: it is the whole
-    relation, which is what a timeline asks about."""
+    """The issue's second point."""
     graph = resolve(project(), steps=REGISTRY).graph
 
     assert {
@@ -114,6 +113,24 @@ def test_the_step_feeds_each_column_it_produces() -> None:
         ("step.customer_segments", "step_output", "customer_segment.segment"),
     } <= edges(graph)
     assert entity_field_node("customer_segment", "segment") in graph.nodes
+
+
+def test_the_step_feeds_no_node_named_after_its_output() -> None:
+    """#381: an output named `profile` is not a column of what it writes, so
+    with the manifest at hand the step feeds the produced columns alone."""
+    wired = load_project(
+        {
+            "entity_model": ENTITY_MODEL,
+            "mapping_orders": MAPPING,
+            "steps": STEPS.replace("segment: silver.customer_segment", "profile: silver.customer_profile"),
+        }
+    )
+    profile = manifest("customer_segments", "orders", "profile", ("customer_id", "segment"))
+    graph = resolve(wired, steps=StepRegistry({("customer_segments", 1): profile})).graph
+
+    produced = {dst for src, label, dst in edges(graph) if (src, label) == ("step.customer_segments", "step_output")}
+    assert produced == {"customer_profile.customer_id", "customer_profile.segment"}
+    assert entity_field_node("customer_profile", "profile") not in graph.nodes
 
 
 def test_a_metric_over_a_step_output_reads_its_columns() -> None:
@@ -152,8 +169,9 @@ def test_a_step_reading_another_step_reads_its_columns() -> None:
 
 
 def test_without_a_registry_the_graph_is_the_wiring_alone() -> None:
-    """`bloomery lineage` passes no registry: the step's out-edge is the
-    relation node, and the step-to-step edge stands in for the columns."""
+    """`bloomery lineage` passes no registry: the step's out-edge is the node
+    named after the output, and the step-to-step edge stands in for the
+    columns."""
     graph = resolve(project(labels=True)).graph
 
     touching = {edge for edge in edges(graph) if "step." in edge[0] or "step." in edge[2]}

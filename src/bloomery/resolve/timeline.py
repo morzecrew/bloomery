@@ -340,19 +340,11 @@ def _entity_field(ir: ProjectIR, spelling: str) -> object | None:
         return None
 
     column = next((one for one in entity.columns if one.name == field), None)
-    if column is None:
-        # **A step output is a relation, not a field**, and it lives in this
-        # namespace anyway: `_step_edges` mints `<produced relation>.<output
-        # name>` for each `outputs:` entry, so `customer.customer` is the whole
-        # `customer` relation that `resolve_customers` produces. Its definition
-        # is the entity, and comparing nothing instead would report every step
-        # output as present in every version and changed in none — a silent
-        # wrong answer, which is the one failure this walk must not produce.
-        #
-        # The ambiguity is the graph's rather than this table's: an output
-        # named after a real column of the same relation mints the id a field
-        # would, and nothing downstream can separate the two.
-        return entity
+    if column is None:  # pragma: no cover — see :func:`_definition`
+        # A step output's node named after the output was one (#381); the
+        # compile passes its registry, so the graph draws the produced columns
+        # instead.
+        return None
     return (
         column,
         tuple(
@@ -384,9 +376,8 @@ def _definition(kind: NodeKind, spelling: str, ir: ProjectIR, catalog: Catalog |
       that takes a mart's name, so the one lookup cannot be ambiguous.
     - **exposure** — the ``ExposureIR``.
     - **step** — the ``StepIR``, keyed by ``ref`` as its node is.
-    - **entity field** — the `ColumnIR` with its per-source lowerings, or
-      the whole `EntityIR` where the node is a step output rather than a
-      field. See :func:`_entity_field`.
+    - **entity field** — the `ColumnIR` with its per-source lowerings. See
+      :func:`_entity_field`.
     - **canonical field** — the catalog's own ``CanonicalField``. There is no
       canonical-field record anywhere in ``ProjectIR``; the field survives
       lowering only as ``ColumnIR.canonical``, a string reference. The spec
@@ -399,17 +390,18 @@ def _definition(kind: NodeKind, spelling: str, ir: ProjectIR, catalog: Catalog |
       no definition beyond its existence, and presence is the whole of what can
       change about it. Forced rather than chosen.
 
-    The two remaining "not found" paths — an entity-field node whose entity the
-    IR has none of, and a canonical node asked of a project with no catalog —
-    are unreachable, because this is called only for a node the version's
+    The three remaining "not found" paths — an entity-field node whose entity
+    or column the IR has none of, and a canonical node asked of a project with
+    no catalog — are unreachable, because this is called only for a node the version's
     *graph* carried and the graph and the IR are built from one pipeline pass
     over one project. **That is measured rather than argued**:
     ``test_every_node_the_graph_carries_has_a_definition`` sweeps every node of
     every fixture and requires a record for every kind but a source column. The
-    sweep is there because it found one — step outputs, which live in this
-    namespace and are relations rather than fields, were reported present in
-    every version and changed in none, which is the one failure shape this walk
-    must never produce (``logs/T-0043.md``).
+    sweep is there because it found one — step outputs, whose node was named
+    after the output rather than a column, were reported present in every
+    version and changed in none, which is the one failure shape this walk must
+    never produce (``logs/T-0043.md``). The graph now draws the columns a step
+    produces instead (#381).
     """
 
     match kind:
