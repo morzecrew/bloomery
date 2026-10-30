@@ -4011,7 +4011,7 @@ that compares NULL keys on two engines out of three.</p>
 </tr>
 <tr>
 <td><code>key</code></td>
-<td>map key-column → KeyField</td>
+<td>map key-column → KeyField or const</td>
 <td>yes</td>
 <td>Key lowering</td>
 </tr>
@@ -4137,6 +4137,16 @@ there is nothing there to attach one to and nothing is refused.</p>
 </tr>
 </tbody>
 </table>
+<p>A key part may instead be a <a href="#fieldmapping-forms">const</a>, typed and lowered as a field's
+constant is. It is how two sources feeding one merged entity tell their rows apart where
+their own ids overlap:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">key</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">marketplace</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">const</span><span class="p">:</span><span class="w"> </span><span class="nv">Ozon</span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="nt">order_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$._source_row_id"</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p>At least one of the entity's key columns must read a path: a mapping that sets them all
+as constants gives every row one key, and is refused. A path read under <code>key:</code> for a
+non-key field does not count, since it keys no row.</p>
 <h3 id="fieldmapping-forms">FieldMapping — forms<a class="headerlink" href="#fieldmapping-forms" title="Permanent link">&para;</a></h3>
 <p>A field mapping is <strong>simple</strong>, <strong>recipe</strong>, <strong>const</strong> or a Tier 1 <code>sql_macro</code> call
 (<code>step:</code>, see <a href="../../concepts/step-registry/">the step registry</a>), discriminated on the
@@ -4161,7 +4171,7 @@ column or its date anchor. With one constant per mapping, the rows of a merged e
 say which source they came from in a business value, which <code>_source</code>, the relation name,
 is not. A single mapping can use one too. It takes no <code>transform:</code> and no <code>quality:</code>, gets no
 implicit <code>coercible</code> rule, and has no source column upstream of it in lineage. A key
-field cannot be one.</p>
+part can be one too: see <a href="#keyfield">KeyField</a>.</p>
 <table>
 <thead>
 <tr>

@@ -1822,6 +1822,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#s-0019d-17-assumed-spec-layer-and-error-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0019/D-17 — <code>ASSUMED</code> (Spec layer and error model)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#s-0022d-11-assumed-resolution-dependency-dag-recipes-reachability" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2016,10 +2027,16 @@
 <li>Consequence: a retrieval spec written against 0.3.0 keeps compiling under the same promise as every other kind, the two refusals the stability page names included</li>
 </ul>
 <h3 id="s-0019d-16-assumed-spec-layer-and-error-model">S-0019/D-16 — <code>ASSUMED</code> (Spec layer and error model)<a class="headerlink" href="#s-0019d-16-assumed-spec-layer-and-error-model" title="Permanent link">&para;</a></h3>
-<p>A value field's mapping may be <code>{const: &lt;literal&gt;}</code>, a fourth shape beside a path, a recipe and a macro. The literal is a boolean, an integer, or a string that may carry a decimal or an ISO date or instant; a float, a non-finite number, a NUL byte and a template brace are refused at parse. It is checked against the field's declared type at the typecheck stage by the rule a metric filter's value is held to, and lowers to <code>CAST(&lt;literal&gt; AS &lt;type&gt;)</code>, a temporal in UTC without the ISO <code>T</code>. An unquoted YAML date fits only a date or timestamp field, and a string is kept as written, whitespace included. It reads no source path, carries no <code>transform:</code> and no <code>quality:</code>, gets no implicit <code>coercible</code> rule, and draws no lineage edge; a <code>convert</code> step that names it as a sibling column reads its literal. A key field is not a constant</p>
+<p>A value field's mapping may be <code>{const: &lt;literal&gt;}</code>, a fourth shape beside a path, a recipe and a macro. The literal is a boolean, an integer, or a string that may carry a decimal or an ISO date or instant; a float, a non-finite number, a NUL byte and a template brace are refused at parse. It is checked against the field's declared type at the typecheck stage by the rule a metric filter's value is held to, and lowers to <code>CAST(&lt;literal&gt; AS &lt;type&gt;)</code>, a temporal in UTC without the ISO <code>T</code>. An unquoted YAML date fits only a date or timestamp field, and a string is kept as written, whitespace included. It reads no source path, carries no <code>transform:</code> and no <code>quality:</code>, gets no implicit <code>coercible</code> rule, and draws no lineage edge; a <code>convert</code> step that names it as a sibling column reads its literal. A key part may be one too, under D-17</p>
 <ul>
 <li>Paths: <code>src/bloomery/spec/mapping.py</code> <code>src/bloomery/resolve/build.py</code> <code>src/bloomery/resolve/graph.py</code> <code>src/bloomery/quality/lower.py</code> <code>src/bloomery/guardrails/quality.py</code> <code>src/bloomery/guardrails/metrics.py</code> <code>tests/unit/test_spec/test_mapping_const.py</code> <code>tests/execution/test_mapping_const.py</code> <code>tests/golden/schema/mapping.json</code> <code>pages/docs/reference/spec-schemas.md</code></li>
 <li>Consequence: Two marketplaces landing in one merged entity each name their rows, and so does a single mapping, without <code>_source</code>, which names a relation and exists only once two mappings feed an entity. Lineage walks upstream from such a field to nothing, which is the truth, rather than to a source column it never reads. A value outside the field's type is refused with the field's path, not cast at run time</li>
+</ul>
+<h3 id="s-0019d-17-assumed-spec-layer-and-error-model">S-0019/D-17 — <code>ASSUMED</code> (Spec layer and error model)<a class="headerlink" href="#s-0019d-17-assumed-spec-layer-and-error-model" title="Permanent link">&para;</a></h3>
+<p>A part of a mapping's <code>key:</code> may be <code>{const: &lt;literal&gt;}</code>, D-16's shape, typed against the key column's declaration and lowered to the same cast. It reads no source path, takes no <code>transform:</code>, contributes no source field to the reject payload or replay, gets no implicit <code>coercible</code> rule and draws no lineage edge. A mapping that sets every key column of the entity as a constant is refused at resolve: at least one of them must read a path, and a path read under <code>key:</code> for a declared non-key field does not count. A column one mapping reads and another sets as a constant is no S-0041/D-33 disagreement: the reading branch's rules join the entity's set, inert on the constant's branch, which reads no sources for the column</p>
+<ul>
+<li>Paths: <code>src/bloomery/spec/mapping.py</code> <code>src/bloomery/resolve/refs.py</code> <code>src/bloomery/resolve/build.py</code> <code>src/bloomery/resolve/graph.py</code> <code>src/bloomery/quality/lower.py</code> <code>src/bloomery/guardrails/quality.py</code> <code>tests/unit/test_spec/test_key_const.py</code> <code>tests/execution/test_key_const.py</code> <code>tests/golden/schema/mapping.json</code> <code>pages/docs/reference/spec-schemas.md</code></li>
+<li>Consequence: Two sources feeding one merged entity can key their rows by a value fixed per mapping, a marketplace beside the source's own id, so ids that overlap across sources land as distinct rows and the collision audit stays silent on them. A quarantined row replays with its constant, since replay re-runs the branch's lowering and the constant reads nothing of the payload</li>
 </ul>
 <h3 id="s-0022d-11-assumed-resolution-dependency-dag-recipes-reachability">S-0022/D-11 — <code>ASSUMED</code> (Resolution: dependency DAG, recipes, reachability)<a class="headerlink" href="#s-0022d-11-assumed-resolution-dependency-dag-recipes-reachability" title="Permanent link">&para;</a></h3>
 <p>A metric's <code>filter[].dimension</code>, its <code>filter[].column</code> and its <code>semi_additive.over</code> are bound through the grain entity's canonical links, as its <code>expr</code> is under D-10. A filter's name that a mart listing the metric carries as written reads that column; it is bound once the marts are lowered, because a joined entity's column reaches a mart flattened under a prefix. An <code>over</code> names a column of the metric's own entity, so it is bound at the IR build and a grain column of its name keeps it. Otherwise the one grain column that links the name as its canonical is read, and a name no grain column links, or two do, is kept as written. <code>unbound</code> respells each as the canonical of the column it reads, where binding would read that column, so <code>plan()</code> and <code>timeline</code> compare them in canonical spelling</p>
