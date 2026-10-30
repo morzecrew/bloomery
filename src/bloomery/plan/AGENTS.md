@@ -65,6 +65,13 @@ A mart's dimensions classify by presence, keyed by their `DimensionRef`, as its 
 - Paths: `src/bloomery/plan/diff.py` `tests/unit/test_plan/test_diff.py`
 - Consequence: One more field on an entity a mart flattens leaves `plan().breaking` empty, where the whole-tuple comparison reported `dimensions changed` as BREAKING beside the additive column; a removed or re-pointed dimension still breaks the queries that grouped by it
 
+### S-0024/D-11 — `ASSUMED` (Plan: spec diff and change classification)
+
+`Change` carries what its `detail` says as values beside it: `action`, one of `ChangeAction`'s `added`, `removed`, `renamed`, `retyped` (a column's type or nullability) and `changed`, describing `member` where one is set and the subject otherwise, except that on a `quality:` subject it describes the rule and `member` names the field the rule judges; `member`, the column, measure, dimension column or judged field the change is about where `subject` names its container, and the field's own name on a `field:` subject; and `advice`, target-specific advice as `(target, sentence)` pairs sorted by target, which `detail` no longer carries. All three default, so a positional construction still builds
+
+- Paths: `src/bloomery/plan/model.py` `src/bloomery/plan/diff.py` `src/bloomery/cli/render.py` `tests/unit/test_plan/conftest.py` `tests/unit/test_plan/test_change_fields.py` `pages/docs/reference/api.md`
+- Consequence: A consumer groups and translates a plan from values rather than from English, and a new mart column reported as a flattened column and as a dimension carries one `member` in both. The dbt full-refresh sentence leaves `detail`, so a reader matching the old text breaks once, and `bloomery plan`'s text output still prints the advice after the sentence. Every plan the plan tests build is checked so that `action` matches the verb `detail` spells and `member` the name it quotes
+
 ### S-0033/D-2 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 `OnFail = flag | quarantine | fail` (v1 — `repair` deferred, decision 17; landed in D87), explicit per rule, never a global default. Deliberately no `drop`: quarantine is drop plus recoverability; deletion happens via retention policy, with a paper trail.

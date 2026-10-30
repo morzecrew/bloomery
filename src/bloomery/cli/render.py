@@ -439,9 +439,19 @@ def render_plan(plan: Plan) -> str:
         return "No changes."
 
     lines = [f"Changes ({len(plan.changes)}, {len(plan.breaking)} breaking)"]
+    # A terminal reader is told every target's cost, as before the advice left
+    # `detail` (S-0024/D-11): the CLI knows the target no better than `plan()`.
     lines.extend(
         _table(
-            [(change.change_class.value, change.subject, change.detail) for change in plan.changes]
+            [
+                (
+                    change.change_class.value,
+                    change.subject,
+                    change.detail
+                    + "".join(f"; on {target}, {advice}" for target, advice in change.advice),
+                )
+                for change in plan.changes
+            ]
         )
     )
     lines.append("")

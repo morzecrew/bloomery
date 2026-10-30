@@ -13,7 +13,7 @@ from support.compiling import FIXTURES, fixture_sources, load_fixture
 from bloomery import build_project_ir, load_catalog, load_project, plan
 from bloomery.errors import ContractViolation, RenameTargetMissing
 from bloomery.ir import ProjectIR
-from bloomery.plan import BackfillScope, Change, ChangeClass, Plan
+from bloomery.plan import BackfillScope, Change, ChangeAction, ChangeClass, Plan
 
 pytestmark = pytest.mark.unit
 
@@ -46,36 +46,32 @@ def test_initial_deploy_is_all_additive() -> None:
     result = plan(None, evolution_ir(1))
     assert result == Plan(
         changes=(
-            Change(None, "metric:gross_revenue", ChangeClass.ADDITIVE, "metric added"),
-            Change("order_item", "entity:order_item", ChangeClass.ADDITIVE, "entity added"),
+            Change(None, "metric:gross_revenue", ChangeClass.ADDITIVE, "metric added", action=ChangeAction.ADDED),
+            Change("order_item", "entity:order_item", ChangeClass.ADDITIVE, "entity added", action=ChangeAction.ADDED),
             Change(
                 "order_item",
                 "field:line_no",
                 ChangeClass.ADDITIVE,
                 "field added",
-                new="int, required",
-            ),
+                new="int, required", action=ChangeAction.ADDED, member="line_no"),
             Change(
                 "order_item",
                 "field:order_id",
                 ChangeClass.ADDITIVE,
                 "field added",
-                new="string, required",
-            ),
+                new="string, required", action=ChangeAction.ADDED, member="order_id"),
             Change(
                 "order_item",
                 "field:quantity",
                 ChangeClass.ADDITIVE,
                 "field added",
-                new="int, optional",
-            ),
+                new="int, optional", action=ChangeAction.ADDED, member="quantity"),
             Change(
                 "order_item",
                 "field:unit_price",
                 ChangeClass.ADDITIVE,
                 "field added",
-                new="decimal(10,2), optional",
-            ),
+                new="decimal(10,2), optional", action=ChangeAction.ADDED, member="unit_price"),
         ),
         backfill_scope=EMPTY_SCOPE,
         downstream_impact=(),
@@ -91,16 +87,14 @@ def test_v1_to_v2_is_additive_discount_plus_widened_unit_price() -> None:
             "field:discount",
             ChangeClass.ADDITIVE,
             "field added",
-            new="decimal(12,4), optional",
-        ),
+            new="decimal(12,4), optional", action=ChangeAction.ADDED, member="discount"),
         Change(
             "order_item",
             "field:unit_price",
             ChangeClass.WIDENING,
             "type widened",
             old="decimal(10,2), optional",
-            new="decimal(12,4), optional",
-        ),
+            new="decimal(12,4), optional", action=ChangeAction.RETYPED, member="unit_price"),
     )
     assert result.backfill_scope == EMPTY_SCOPE
 
@@ -108,15 +102,14 @@ def test_v1_to_v2_is_additive_discount_plus_widened_unit_price() -> None:
 def test_v2_to_v3_is_one_rename_plus_one_added_metric() -> None:
     result = plan(evolution_ir(2), evolution_ir(3))
     assert result.changes == (
-        Change(None, "metric:net_revenue", ChangeClass.ADDITIVE, "metric added"),
+        Change(None, "metric:net_revenue", ChangeClass.ADDITIVE, "metric added", action=ChangeAction.ADDED),
         Change(
             "order_item",
             "field:qty",
             ChangeClass.RENAME,
             "renamed from 'quantity'",
             old="quantity",
-            new="qty",
-        ),
+            new="qty", action=ChangeAction.RENAMED, member="qty"),
     )
     assert result.backfill_scope == EMPTY_SCOPE
 
@@ -131,8 +124,7 @@ def test_v3_to_v4_recipe_switch_restates_history() -> None:
                 ChangeClass.RESTATING,
                 "semantics changed (recipe, expression, source)",
                 old="direct",
-                new="from_total",
-            ),
+                new="from_total", action=ChangeAction.CHANGED, member="unit_price"),
         ),
         backfill_scope=BackfillScope(entities=("order_item",), restates_history=True),
         downstream_impact=("gross_revenue", "net_revenue"),
@@ -142,15 +134,14 @@ def test_v3_to_v4_recipe_switch_restates_history() -> None:
 def test_v4_to_v5_breaking_changes_are_returned_not_raised() -> None:
     result = plan(evolution_ir(4), evolution_ir(5))
     assert result.changes == (
-        Change(None, "metric:net_revenue", ChangeClass.BREAKING, "metric removed"),
+        Change(None, "metric:net_revenue", ChangeClass.BREAKING, "metric removed", action=ChangeAction.REMOVED),
         Change(
             "order_item",
             "entity:order_item",
             ChangeClass.BREAKING,
             "scd changed",
             old="type1",
-            new="type2",
-        ),
+            new="type2", action=ChangeAction.CHANGED),
     )
     assert result.breaking == result.changes
     assert result.backfill_scope == EMPTY_SCOPE

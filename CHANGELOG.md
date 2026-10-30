@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A plan change says what happened, and to which column, as values.** `Change` gains
+  `action` (`added`, `removed`, `renamed`, `retyped` or `changed`, the new `ChangeAction`
+  enum), `member` (the column, measure, dimension column or judged field, where `subject`
+  names the mart or entity holding it) and `advice` (per-target advice as
+  `(target, sentence)` pairs). A program showing a plan in another language, or grouped by
+  column, no longer reads them off `detail`'s English, and a new mart column reported as a
+  flattened column and as a dimension carries one `member` in both. `bloomery plan
+  --format json` carries the three fields. (#383)
+
+### Changed
+
+- **`Change.detail` no longer carries the dbt full-refresh advice.** A field added to,
+  dropped from or renamed on an incremental entity used to end its `detail` with `; on dbt,
+  run …`; that sentence is now in `advice` under `dbt`, so a project shipped to SQLMesh is
+  not told to run a dbt command. A reader matching the old `detail` text must read
+  `advice`. `bloomery plan`'s text output still prints it after the sentence. A flattened
+  mart column whose type alone moved now reads `flattened column '…' retyped`, with the two
+  types in `old`/`new`, and a new `quarantine:` block reads `quarantine block added`;
+  both read `changed` before. (#383)
+  
 ### Fixed
 
 - **Lineage through a step no longer shows a column named after the step's output.**
