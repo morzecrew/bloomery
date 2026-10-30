@@ -63,7 +63,8 @@ computed from.
 `steps` is read for lineage only. A step's manifest is what says which columns it
 produces, so pass the registry you compile with and the graph runs through each step:
 from the relation it reads, to every column it produces, to the metrics over them.
-Without it, a step's output is one node named after the output. Wiring and manifests
+Without it, a step's output is one node named after the output, which stands for the
+relation the step writes rather than for a column of it. Wiring and manifests
 are checked by `compile_project` and `build_project_ir`, not here.
 
 ### `lineage(graph, root, direction=Direction.UPSTREAM, *, max_depth=None) -> Lineage`
