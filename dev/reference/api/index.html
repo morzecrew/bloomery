@@ -3308,7 +3308,8 @@ computed from.</p>
 <p><code>steps</code> is read for lineage only. A step's manifest is what says which columns it
 produces, so pass the registry you compile with and the graph runs through each step:
 from the relation it reads, to every column it produces, to the metrics over them.
-Without it, a step's output is one node named after the output. Wiring and manifests
+Without it, a step's output is one node named after the output, which stands for the
+relation the step writes rather than for a column of it. Wiring and manifests
 are checked by <code>compile_project</code> and <code>build_project_ir</code>, not here.</p>
 <h3 id="lineagegraph-root-directiondirectionupstream-max_depthnone-lineage"><code>lineage(graph, root, direction=Direction.UPSTREAM, *, max_depth=None) -&gt; Lineage</code><a class="headerlink" href="#lineagegraph-root-directiondirectionupstream-max_depthnone-lineage" title="Permanent link">&para;</a></h3>
 <p>Walk a <code>Resolution.graph</code> from one node and return the <strong>reachable sub-DAG</strong> — the
