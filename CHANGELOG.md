@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-30
+
 ### Added
 
 - **A key part can be a constant.** `key: {marketplace: {const: Ozon}, order_id: {from: …}}`
@@ -2829,7 +2831,8 @@ artifacts explicitly **not** stable across bloomery versions.
 - Documentation: get-started, concepts, how-to guides for every target and the planner,
   full spec/transform/error/API/stability references, and a runnable `examples/quickstart/`.
 
-[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/morzecrew/bloomery/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/morzecrew/bloomery/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/morzecrew/bloomery/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/morzecrew/bloomery/compare/v0.6.0...v0.7.0
