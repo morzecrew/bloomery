@@ -133,8 +133,12 @@ def test_a_quarantined_row_replays_with_its_shop(conn: duckdb.DuckDBPyConnection
     sources["mapping_legacy"] = sources["mapping_legacy"].replace(
         anchor, "{enum_map: [PROCESSING, open, COMPLETE, closed, reversed, closed]}"
     )
+    # Bronze's window has moved past `w3`, which is why it waits in the reject
+    # table: only replay can admit it now, so the rebuild below cannot.
+    conn.execute("DELETE FROM bronze.woo__order_lines WHERE _source_row_id = 'w3'")
     artifacts = _compile(sources)
     materialize(conn, artifacts)
+    assert _rows(conn, "SELECT shop FROM silver.order_line") == [("Shopify",)]
     (replay,) = (a for a in artifacts if a.path.endswith("replay/order_line.sql"))
     for statement in replay_statements(replay):
         conn.execute(statement)
