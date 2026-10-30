@@ -27,7 +27,6 @@ from bloomery.errors import GuardrailError, InvariantViolated
 from bloomery.ir import (
     Additivity,
     ColumnIR,
-    EntityIR,
     ExposureIR,
     ExposureKind,
     Materialization,
@@ -78,7 +77,6 @@ COMPARABLE = (
     RollupIR,
     ExposureIR,
     StepIR,
-    EntityIR,
     ColumnIR,
     SourceColumnIR,
     CanonicalField,

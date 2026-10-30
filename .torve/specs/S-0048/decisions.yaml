@@ -152,6 +152,12 @@ decisions:
       after the output first stayed beside the columns, as the whole relation a timeline
       compared, and a walk then showed a field the entity does not have (#381). Once the
       columns are known it says nothing they and the step's own node do not: a timeline
-      compares each produced column, and the step's record carries the outputs. Without
-      a manifest it is the only thing the wiring says the step writes, so it stays there
+      compares each produced column, and the step's node carries the outputs and the
+      `quality:` rules its wiring declares on them, which live on the produced entity
+      and on nothing else the graph has a node for. Without
+      a manifest it is the only thing the wiring says the step writes, so it stays there.
+      The owner kept it an `entity_field` node, documented as the relation (2026-10-30),
+      over a node kind of its own: a new kind would add a node-id prefix, and every
+      prefix is a reserved entity name (S-0059/D-6), so a project with an entity of
+      that name would stop compiling
     cites: [D-6, D-9, S-0034/D-11, S-0034/D-57]

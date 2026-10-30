@@ -375,7 +375,10 @@ def _definition(kind: NodeKind, spelling: str, ir: ProjectIR, catalog: Catalog |
       under one node prefix (S-0072/the-node) and S-0065/D-10 refuses a rollup
       that takes a mart's name, so the one lookup cannot be ambiguous.
     - **exposure** — the ``ExposureIR``.
-    - **step** — the ``StepIR``, keyed by ``ref`` as its node is.
+    - **step** — the ``StepIR``, keyed by ``ref`` as its node is, with the
+      ``quality:`` rules its wiring declares on what it produces. Those live on
+      the produced ``EntityIR`` (``resolve.steps``) and on nothing the graph
+      has a node for, so the step, which declares them, reports them (#381).
     - **entity field** — the `ColumnIR` with its per-source lowerings. See
       :func:`_entity_field`.
     - **canonical field** — the catalog's own ``CanonicalField``. There is no
@@ -419,7 +422,21 @@ def _definition(kind: NodeKind, spelling: str, ir: ProjectIR, catalog: Catalog |
         case NodeKind.EXPOSURE:
             return next((one for one in ir.exposures if one.name == spelling), None)
         case NodeKind.STEP:
-            return next((step for step in ir.steps if step.ref == spelling), None)
+            return next(
+                (
+                    (
+                        step,
+                        tuple(
+                            (entity.name, entity.quality)
+                            for entity in ir.entities
+                            if entity.produced_by == f"{step.ref}@{step.version}"
+                        ),
+                    )
+                    for step in ir.steps
+                    if step.ref == spelling
+                ),
+                None,
+            )
         case NodeKind.ENTITY_FIELD:
             return _entity_field(ir, spelling)
         case NodeKind.CANONICAL_FIELD:

@@ -748,6 +748,28 @@ def test_a_step_output_is_the_columns_it_produces() -> None:
         assert isinstance(definition, tuple) and definition[0] is column
 
 
+def test_a_step_output_s_rule_moves_the_step() -> None:
+    """A wiring's `quality:` rule lives on the entity the step produces, and
+    the node named after the output was the walk's one way to it. With that
+    node gone (#381), the step reports it, as the record that declares it."""
+    project, catalog = load_fixture("identity_resolution")
+    stricter = fixture_sources("identity_resolution")
+    stricter["steps"] = stricter["steps"].replace("confidence >= 0.8", "confidence >= 0.9")
+    steps = registry_for("identity_resolution")
+    walk = timeline(
+        [
+            SpecVersion(label="a", project=project, catalog=catalog, steps=steps),
+            SpecVersion(label="b", project=load_project(stricter), catalog=catalog, steps=steps),
+        ],
+        "step.resolve_customers",
+    )
+
+    (change,) = walk.changes
+    assert [(delta.facet, delta.field) for delta in change.facets] == [
+        (Facet.QUALITY, "output_quality")
+    ]
+
+
 def test_a_catalog_node_asked_of_a_project_with_no_catalog_is_absent() -> None:
     """A canonical field's only record is the catalog's, so a history with no
     catalog can carry no such node — reported absent rather than raised."""
