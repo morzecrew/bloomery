@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A `per_unit` field can be read through a chain of many-to-one relationships**, not
+  only one: a marketplace sale reading the product's unit cost through its item compiles,
+  and each mart reads the column it flattened the cost into. A hop read one-to-many, from
+  a parent to its children, anywhere in the chain still refuses it, and a refusal now
+  names the chain it was reached by rather than "no declared relationship". (#382)
+
 - **`Change.detail` no longer carries the dbt full-refresh advice.** A field added to,
   dropped from or renamed on an incremental entity used to end its `detail` with `; on dbt,
   run …`; that sentence is now in `advice` under `dbt`, so a project shipped to SQLMesh is

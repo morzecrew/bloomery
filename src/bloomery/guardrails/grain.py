@@ -12,8 +12,8 @@ What a many-to-one join copies is a *value*, and a value that is a rate rather
 than an amount — a unit cost, a price, an exchange rate — is meant to be read on
 every row it is copied to: ``product_cost * quantity`` is cost of goods. The
 catalog declares such a field ``per_unit`` (S-0023/D-15), and an operand so
-declared is admitted where the grain reaches its entity through one
-many-to-one relationship. The guard cannot tell a rate from an amount by
+declared is admitted where the grain reaches its entity through a chain of
+many-to-one relationships. The guard cannot tell a rate from an amount by
 itself, which is why it is a declaration and not an inference.
 
 The same rule runs over metric expressions whose ``requires`` span entities
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from bloomery.guardrails.operands import Derivation
-    from bloomery.ir import ProjectIR
+    from bloomery.ir import ProjectIR, RelationshipIR
     from bloomery.spec.catalog import Catalog
     from bloomery.spec.project import Project
 
@@ -90,22 +90,55 @@ def _relationship_between(draft: ProjectIR, from_entity: str, to_entity: str) ->
         if rel.from_entity == to_entity and rel.to_entity == from_entity:
             return f"relationship {rel.name!r} ({_INVERSE[rel.cardinality]}, read inversely)"
 
+    chain = _parent_chain(draft, from_entity, to_entity)
+    if chain:
+        names = ", ".join(repr(rel.name) for rel in chain)
+        return f"relationships {names} (many_to_one at each hop)"
+
     return "no declared relationship"
 
 
 # ....................... #
 
 
-def _copied_down(draft: ProjectIR, anchor: str, home: str) -> bool:
-    """``anchor`` reaches ``home`` many-to-one through one declared relationship,
-    either way round: each ``anchor`` row reads exactly one ``home`` row, so a
-    value of ``home`` is copied onto the rows and never combined across them."""
+def _parent_chain(draft: ProjectIR, anchor: str, home: str) -> tuple[RelationshipIR, ...]:
+    """The shortest run of declared relationships from ``anchor`` to ``home``
+    whose every hop is many-to-one, read either way round, or none.
 
-    return any(
-        (rel.from_entity, rel.to_entity, rel.cardinality)
-        in ((anchor, home, Cardinality.MANY_TO_ONE), (home, anchor, Cardinality.ONE_TO_MANY))
-        for rel in draft.relationships
-    )
+    Breadth first over the relationships in their IR order, so the chain a
+    message names is the same on every run.
+    """
+
+    chains: dict[str, tuple[RelationshipIR, ...]] = {anchor: ()}
+    frontier = [anchor]
+    while frontier and home not in chains:
+        reached: list[str] = []
+        for entity in frontier:
+            for rel in draft.relationships:
+                if (rel.from_entity, rel.cardinality) == (entity, Cardinality.MANY_TO_ONE):
+                    parent = rel.to_entity
+                elif (rel.to_entity, rel.cardinality) == (entity, Cardinality.ONE_TO_MANY):
+                    parent = rel.from_entity
+                else:
+                    continue
+                if parent not in chains:
+                    chains[parent] = (*chains[entity], rel)
+                    reached.append(parent)
+        frontier = reached
+
+    return chains.get(home, ())
+
+
+# ....................... #
+
+
+def _copied_down(draft: ProjectIR, anchor: str, home: str) -> bool:
+    """``anchor`` reaches ``home`` through declared relationships that are each
+    many-to-one, either way round (#382): each ``anchor`` row reads exactly one
+    row at every hop, so one ``home`` row, and a value of ``home`` is copied onto
+    the rows and never combined across them."""
+
+    return bool(_parent_chain(draft, anchor, home))
 
 
 # ....................... #
