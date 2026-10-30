@@ -2202,7 +2202,8 @@ modeling decision the author must write out. The derivation-level violation is
 they are copied to. A product's unit cost times the line's quantity is the line's cost of
 goods. A catalog field that is such a rate (a unit cost, a price, an exchange rate)
 declares <code>per_unit: true</code>. The guard then admits it where the grain reaches its entity
-through one many-to-one relationship. <code>product_cost * line_quantity</code> compiles, and
+through many-to-one relationships, one or a chain of them, such as a sale reaching the
+product through its item. <code>product_cost * line_quantity</code> compiles, and
 <code>shipping_cost * line_quantity</code> is refused as before. The two have the same shape, which
 is why this is a declaration bloomery cannot infer. A per-unit field read from the parent's
 side, where each parent row has many child values, is still refused.</p>
