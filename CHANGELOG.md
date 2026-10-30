@@ -13,8 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keys each mapping's rows by a value fixed for that mapping beside the source's own id,
   so two sources feeding one merged entity land as distinct rows where their ids overlap,
   and the collision audit stays silent on them. It is typed and lowered as a field's
-  constant is, and a quarantined row replays with it. A key of constants alone is refused,
-  since every row of the mapping would carry one key. (#380)
+  constant is, and a quarantined row replays with it. A mapping that sets every key
+  column of the entity as a constant is refused, since every row of it would carry one
+  key. (#380)
 
 - **A plan change says what happened, and to which column, as values.** `Change` gains
   `action` (`added`, `removed`, `renamed`, `retyped` or `changed`, the new `ChangeAction`
@@ -45,6 +46,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is still the step's one out-edge, standing for the whole relation it writes. In
   `timeline()`, a change to a `quality:` rule a wiring declares on its output is now
   reported on the step's node. (#381)
+
+- **A field one mapping reads and another sets as a constant no longer refuses the merge.**
+  On a merged entity in the quality system, the reading mapping's implicit `coercible`
+  rule was taken for a `quality:` disagreement with the constant, which has no rule to
+  agree with, and nothing either mapping declared could fix it. The rule now applies to
+  the reading source's rows only. (#386)
 
 ## [0.9.0] - 2026-10-29
 

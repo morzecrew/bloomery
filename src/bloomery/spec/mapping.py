@@ -458,22 +458,6 @@ class Mapping(SpecModel):
     # value now simply fails the ``in_enum`` rule and takes that rule's
     # disposition, through one mechanism and one reject table.
 
-    # ....................... #
-
-    @model_validator(mode="after")
-    def _key_reads_a_path(self) -> Self:
-        """A key of constants alone gives every row of the mapping one key
-        (S-0019/D-17)."""
-
-        if self.key and all(isinstance(part, ConstFieldMapping) for part in self.key.values()):
-            msg = (
-                "every key part is a const, so every row of this mapping would carry one "
-                "key: at least one key part must read a path (S-0019/D-17)"
-            )
-            raise ValueError(msg)
-
-        return self
-
 
 # ....................... #
 

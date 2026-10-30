@@ -30,7 +30,7 @@ from bloomery import (
     load_project,
     resolve,
 )
-from bloomery.errors import SpecParseError, TypeCheckError
+from bloomery.errors import ResolutionError, SpecParseError, TypeCheckError
 from bloomery.ir import EntityIR
 from bloomery.resolve.graph import entity_field_node
 
@@ -108,6 +108,13 @@ def test_a_key_part_that_does_not_fit_its_field_is_refused() -> None:
     assert "const 'Ozon'" in str(leaf)
 
 
+def _refused(sources: dict[str, str]) -> list[tuple[str | None, str]]:
+    with pytest.raises(ResolutionError) as refused:
+        build_project_ir(load_project(sources))
+
+    return [(leaf.source_path, str(leaf)) for leaf in refused.value.collected or (refused.value,)]
+
+
 def test_a_key_of_constants_alone_is_refused() -> None:
     """Every row of the mapping would carry one key, so dedupe or the merge
     would fold the source into a single row."""
@@ -120,8 +127,64 @@ def test_a_key_of_constants_alone_is_refused() -> None:
         "  order_id: {const: S1}\n  line_no: {const: 1}\n",
     )
 
-    with pytest.raises(SpecParseError, match="at least one key part must read a path"):
-        load_project(sources)
+    ((source_path, message),) = _refused(sources)
+    assert source_path == "mapping[shopify__order_lines->order_line]: key"
+    assert "at least one of them must read a path" in message
+
+
+def test_a_path_read_under_key_for_a_non_key_field_keys_nothing() -> None:
+    """`key:` may lower a declared non-key field too. Keyed by the shop alone,
+    each mapping's `order_id` is read but keys no row, and its shop is still
+    the one key all of its rows carry."""
+    sources = _sources()
+    _swap(sources, "entity_model", "    key: [marketplace, order_id, line_no]\n", "    key: [marketplace]\n")
+
+    assert sorted(source_path for source_path, _message in _refused(sources)) == [
+        "mapping[shopify__order_lines->order_line]: key",
+        "mapping[woo__order_lines->order_line]: key",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("column", "document", "old", "new"),
+    [
+        (
+            "marketplace",
+            "mapping_platform",
+            "  marketplace: {const: Shopify}\n",
+            '  marketplace: {from: "$.shop"}\n',
+        ),
+        (
+            "sku",
+            "mapping_legacy",
+            '  sku: {from: "$.product_sku", transform: [to_string]}\n',
+            "  sku: {const: GHI}\n",
+        ),
+    ],
+    ids=["key", "field"],
+)
+def test_a_column_one_source_reads_and_another_sets_keeps_its_rule(
+    column: str, document: str, old: str, new: str
+) -> None:
+    """Shopify reads the column and Woo sets it. Shopify's implicit
+    `coercible` is no disagreement: Woo's constant has no rule to agree with,
+    and the rule is inert on Woo's branch, which reads no sources for it."""
+    sources = _sources()
+    _swap(
+        sources,
+        "entity_model",
+        "    key: [marketplace, order_id, line_no]\n",
+        "    key: [marketplace, order_id, line_no]\n    quarantine: {retention: 30d}\n",
+    )
+    for key in ("mapping_platform", "mapping_legacy"):
+        sources[key] += "unmapped: ['$._ingested_at', '$._load_id', '$._source_row_id']\n"
+    _swap(sources, document, old, new)
+    entity = _entity(sources)
+    (woo,) = (one for one in entity.sources if one.relation == "woo__order_lines")
+    (set_by_woo,) = (one for one in woo.columns if one.name == column)
+
+    assert f"{column}_coercible" in {rule.name for rule in entity.quality}
+    assert set_by_woo.sources == ()
 
 
 def test_a_constant_key_part_takes_no_transform() -> None:

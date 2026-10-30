@@ -90,15 +90,16 @@ def test_overlapping_ids_from_two_shops_are_two_rows(conn: duckdb.DuckDBPyConnec
     assert _rows(conn, audit_body(collision, "silver.order_line")) == []
 
 
-def test_a_quarantined_row_replays_with_its_shop(conn: duckdb.DuckDBPyConnection) -> None:
-    """Woo's `B-3` carries a status only Shopify's chain maps. Once Woo's chain
-    learns it, replay admits the row, keyed by Woo's constant."""
+def _quality_bronze(conn: duckdb.DuckDBPyConnection, *, woo_state: str, shop: str = "") -> None:
+    """`multi_source_quality`'s bronze, one `B-3` line from each shop; `shop`
+    adds the column Shopify's export would name its shop in."""
     conn.execute(
-        """
+        f"""
         CREATE TABLE bronze.shopify__order_lines (
           "order" JSON, position VARCHAR, variant JSON, quantity VARCHAR,
           properties JSON, created_at VARCHAR, financial_status VARCHAR,
           _load_id VARCHAR, _ingested_at VARCHAR, _source_row_id VARCHAR
+          {", shop VARCHAR" if shop else ""}
         )
         """
     )
@@ -114,12 +115,40 @@ def test_a_quarantined_row_replays_with_its_shop(conn: duckdb.DuckDBPyConnection
     conn.execute(
         "INSERT INTO bronze.shopify__order_lines VALUES (json_object('id', 'B-3'), '1', "
         "json_object('sku', 'SKU-1'), '2', json_object('gift_note', NULL), "
-        "'2024-03-01T00:00:00', 'paid', 'load-1', '2024-03-10T00:00:00', 's1')"
+        "'2024-03-01T00:00:00', 'paid', 'load-1', '2024-03-10T00:00:00', 's1'"
+        + (f", '{shop}')" if shop else ")")
     )
     conn.execute(
         "INSERT INTO bronze.woo__order_lines VALUES ('B-3', '1', 'SKU-7', '1', "
-        "'2024-03-03T00:00:00', 'reversed', 'load-1', '2024-03-10T00:00:00', 'w3')"
+        f"'2024-03-03T00:00:00', '{woo_state}', 'load-1', '2024-03-10T00:00:00', 'w3')"
     )
+
+
+def test_a_shop_one_source_reads_is_judged_on_that_source_alone(
+    conn: duckdb.DuckDBPyConnection,
+) -> None:
+    """Shopify's export names its shop and Woo's mapping sets it. The shop's
+    `coercible` rule, which Shopify's read part gets, reads no sources on
+    Woo's branch, so Woo's row is not quarantined for a cast it never made."""
+    _quality_bronze(conn, woo_state="COMPLETE", shop="Shopify")
+    sources = _keyed_by_shop("multi_source_quality")
+    assert sources["mapping_platform"].count("  shop: {const: Shopify}\n") == 1
+    sources["mapping_platform"] = sources["mapping_platform"].replace(
+        "  shop: {const: Shopify}\n", '  shop: {from: "$.shop"}\n'
+    )
+    materialize(conn, _compile(sources))
+
+    assert _rows(conn, "SELECT shop, order_id FROM silver.order_line ORDER BY 1") == [
+        ("Shopify", "B-3"),
+        ("WooCommerce", "B-3"),
+    ]
+    assert _rows(conn, "SELECT count(*) FROM silver.order_line__reject") == [(0,)]
+
+
+def test_a_quarantined_row_replays_with_its_shop(conn: duckdb.DuckDBPyConnection) -> None:
+    """Woo's `B-3` carries a status only Shopify's chain maps. Once Woo's chain
+    learns it, replay admits the row, keyed by Woo's constant."""
+    _quality_bronze(conn, woo_state="reversed")
     sources = _keyed_by_shop("multi_source_quality")
     materialize(conn, _compile(sources))
 

@@ -243,7 +243,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `pages/docs/contributing/` — 0 decision(s)
 - `pages/docs/get-started/` — 0 decision(s)
 - `pages/docs/how-to/` — 9 decision(s)
-- `pages/docs/reference/` — 16 decision(s)
+- `pages/docs/reference/` — 17 decision(s)
 - `skills/` — 9 decision(s)
 - `skills/bloomery-skills/references/` — 1 decision(s)
 - `src/bloomery/` — 112 decision(s)

@@ -399,8 +399,9 @@ key:
   order_id: {from: "$._source_row_id"}
 ```
 
-At least one key part must read a path: a key of constants alone gives every row of the
-mapping one key, and is refused at parse.
+At least one of the entity's key columns must read a path: a mapping that sets them all
+as constants gives every row one key, and is refused. A path read under `key:` for a
+non-key field does not count, since it keys no row.
 
 ### FieldMapping — forms
 
