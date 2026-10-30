@@ -1925,6 +1925,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#changeaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ChangeAction</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#changeclass" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2797,6 +2808,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#changeaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ChangeAction</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#changeclass" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -3470,7 +3492,23 @@ the downstream metrics, so an exposure that depends only on a mart is not omitte
 Properties: <code>has_changes</code>, <code>breaking</code>.</p>
 <h3 id="change"><code>Change</code><a class="headerlink" href="#change" title="Permanent link">&para;</a></h3>
 <p>One classified difference: <code>entity</code>, <code>subject</code> (<code>&lt;kind&gt;:&lt;name&gt;</code>), <code>change_class</code>,
-human-readable <code>detail</code>, and compact <code>old</code>/<code>new</code> value reprs.</p>
+human-readable <code>detail</code>, and compact <code>old</code>/<code>new</code> value reprs. Beside the sentence, for a
+program that must not parse it:</p>
+<ul>
+<li><code>action</code> (<code>ChangeAction</code>) is what happened: <code>added</code>, <code>removed</code>, <code>renamed</code>, <code>retyped</code> (a
+  column's type or nullability) or <code>changed</code>. It describes <code>member</code> where one is set,
+  else the subject. On a <code>quality:</code> subject it describes the rule, and <code>member</code> names
+  the field the rule judges.</li>
+<li><code>member</code> is the column, measure, dimension column or judged field the change is about,
+  where <code>subject</code> names its container; a <code>field:</code> subject repeats its own name. A new
+  mart column is reported as a flattened column and as each dimension it serves, and
+  every one of those entries carries the column's name.</li>
+<li><code>advice</code> is what the change costs on one target, as sorted <code>(target, sentence)</code> pairs:
+  today, the <code>dbt build --full-refresh</code> a changed column set needs on dbt. <code>plan()</code> does
+  not know the target, so this advice is not part of <code>detail</code>.</li>
+</ul>
+<h3 id="changeaction"><code>ChangeAction</code><a class="headerlink" href="#changeaction" title="Permanent link">&para;</a></h3>
+<p>What a change did: <code>ADDED</code>, <code>REMOVED</code>, <code>RENAMED</code>, <code>RETYPED</code>, <code>CHANGED</code>.</p>
 <h3 id="changeclass"><code>ChangeClass</code><a class="headerlink" href="#changeclass" title="Permanent link">&para;</a></h3>
 <p>The closed classification vocabulary: <code>ADDITIVE</code>, <code>WIDENING</code>, <code>RENAME</code>, <code>RESTATING</code>,
 <code>BREAKING</code>.</p>

@@ -1866,6 +1866,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#s-0024d-11-assumed-plan-spec-diff-and-change-classification" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0024/D-11 — <code>ASSUMED</code> (Plan: spec diff and change classification)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2033,6 +2044,12 @@
 <ul>
 <li>Paths: <code>src/bloomery/spec/catalog.py</code> <code>src/bloomery/guardrails/grain.py</code> <code>src/bloomery/guardrails/operands.py</code> <code>tests/unit/test_guardrails/test_per_unit_parent.py</code> <code>tests/golden/refusals/fanout_trap.txt</code> <code>pages/docs/reference/spec-schemas.md</code></li>
 <li>Consequence: Cost of goods at order-line grain, <code>product_cost * line_quantity</code> with the cost on <code>product</code>, compiles once the catalog declares the cost per unit. Order shipping read per line, the <code>fanout_trap</code>, is refused as before, in the same expression shape. The declaration is not verified, so a per-unit amount summed per line overstates exactly as the fan-out D-5 refuses, and the declaration is where a reviewer looks for it. A chain of two many-to-one hops is still refused</li>
+</ul>
+<h3 id="s-0024d-11-assumed-plan-spec-diff-and-change-classification">S-0024/D-11 — <code>ASSUMED</code> (Plan: spec diff and change classification)<a class="headerlink" href="#s-0024d-11-assumed-plan-spec-diff-and-change-classification" title="Permanent link">&para;</a></h3>
+<p><code>Change</code> carries what its <code>detail</code> says as values beside it: <code>action</code>, one of <code>ChangeAction</code>'s <code>added</code>, <code>removed</code>, <code>renamed</code>, <code>retyped</code> (a column's type or nullability) and <code>changed</code>, describing <code>member</code> where one is set and the subject otherwise, except that on a <code>quality:</code> subject it describes the rule and <code>member</code> names the field the rule judges; <code>member</code>, the column, measure, dimension column or judged field the change is about where <code>subject</code> names its container, and the field's own name on a <code>field:</code> subject; and <code>advice</code>, target-specific advice as <code>(target, sentence)</code> pairs sorted by target, which <code>detail</code> no longer carries. All three default, so a positional construction still builds</p>
+<ul>
+<li>Paths: <code>src/bloomery/plan/model.py</code> <code>src/bloomery/plan/diff.py</code> <code>src/bloomery/cli/render.py</code> <code>tests/unit/test_plan/conftest.py</code> <code>tests/unit/test_plan/test_change_fields.py</code> <code>pages/docs/reference/api.md</code></li>
+<li>Consequence: A consumer groups and translates a plan from values rather than from English, and a new mart column reported as a flattened column and as a dimension carries one <code>member</code> in both. The dbt full-refresh sentence leaves <code>detail</code>, so a reader matching the old text breaks once, and <code>bloomery plan</code>'s text output still prints the advice after the sentence. Every plan the plan tests build is checked so that <code>action</code> matches the verb <code>detail</code> spells and <code>member</code> the name it quotes</li>
 </ul>
 <h3 id="s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine">S-0033/D-30 — <code>ASSUMED</code> (Data quality: declarative cleansing, dispositions, quarantine)<a class="headerlink" href="#s-0033d-30-assumed-data-quality-declarative-cleansing-dispositions-quarantine" title="Permanent link">&para;</a></h3>
 <p><em>(2026-08-08, M12; closed by D84)</em> <strong>Postgres cannot host quality-carrying entities.</strong> <code>coercible</code> needs a real NULL-on-failure cast (<code>DialectFeature.TRY_CAST</code>); sqlglot renders <code>TRY_CAST</code> on Postgres as a plain <code>CAST</code>, which aborts the run instead of marking the row, so the dialect declares the feature gap and compiling a quality-carrying entity for it raises <code>UnsupportedByTarget</code> — loud, never a silent degradation into an aborted run. Consequence for §6's dialect matrix: there is no Postgres dirty-corpus tier to add until either sqlglot renders a real <code>TRY_CAST</code> or the lowering grows a per-type <code>CASE</code>-based fallback whose semantics are proven equal to <code>TRY_CAST</code>'s on the corpus. Named as the escape hatch, not built.</p>
