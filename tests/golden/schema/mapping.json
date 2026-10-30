@@ -1254,7 +1254,14 @@
     },
     "key": {
       "additionalProperties": {
-        "$ref": "#/$defs/KeyField"
+        "oneOf": [
+          {
+            "$ref": "#/$defs/KeyField"
+          },
+          {
+            "$ref": "#/$defs/ConstFieldMapping"
+          }
+        ]
       },
       "title": "Key",
       "type": "object"

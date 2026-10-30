@@ -38,6 +38,7 @@ __all__ = [
     "FieldMapping",
     "Freshness",
     "KeyField",
+    "KeyPart",
     "MacroFieldMapping",
     "Mapping",
     "RecipeFieldMapping",
@@ -340,6 +341,21 @@ FieldMapping = Annotated[
 ALIAS_BOUND = (RecipeFieldMapping, MacroFieldMapping)
 
 
+def _key_part_tag(value: object) -> str:
+    if isinstance(value, ConstFieldMapping) or (isinstance(value, AbcMapping) and "const" in value):
+        return "const"
+
+    return "simple"
+
+
+KeyPart = Annotated[
+    Annotated[KeyField, Tag("simple")] | Annotated[ConstFieldMapping, Tag("const")],
+    Discriminator(_key_part_tag),
+]
+"""A key part reads a path or sets a constant (S-0019/D-17). The path form is
+``simple``, as a field's is, so a parse refusal inside one reads ``key.<name>.simple``."""
+
+
 class Freshness(SpecModel):
     """``freshness: {warn_after: 6h, error_after: 24h}`` — the thresholds at
     which this mapping's bronze relation counts as stale (S-0064/the-spec-surface).
@@ -433,7 +449,7 @@ class Mapping(SpecModel):
     #: ``freshness:`` in the emitted ``sources.yml``, because a defaulted six
     #: hours would emit an assertion nobody made.
     freshness: Freshness | None = None
-    key: dict[str, KeyField]
+    key: dict[str, KeyPart]
     fields: dict[MemberName, FieldMapping] = Field(default_factory=dict)
     unmapped: tuple[JsonPath, ...] = ()
     # ``on_unmapped_enum`` is retired here (S-0033/coercion-failure-is-a-rule-the-assert-boundary, S-0033/D-3 — an S-0019

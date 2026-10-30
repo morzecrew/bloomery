@@ -86,7 +86,7 @@ def test_bad_transform_step_shape_two_keys() -> None:
             'mapping_version: 1\nsource: s\ntarget: t\n'
             'key:\n  k: {from: "$.k", transform: [{a: 1, b: 2}]}\nfields: {}\n'
         )
-    assert excinfo.value.source_path == "mappings/orders: key.k.transform[0]"
+    assert excinfo.value.source_path == "mappings/orders: key.k.simple.transform[0]"
     assert "single-key mapping" in str(excinfo.value)
 
 
@@ -96,7 +96,7 @@ def test_bad_transform_step_shape_not_a_name() -> None:
             'mapping_version: 1\nsource: s\ntarget: t\n'
             'key:\n  k: {from: "$.k", transform: [17]}\nfields: {}\n'
         )
-    assert excinfo.value.source_path == "mappings/orders: key.k.transform[0]"
+    assert excinfo.value.source_path == "mappings/orders: key.k.simple.transform[0]"
 
 
 def test_bad_jsonpath_grammar() -> None:
@@ -105,7 +105,7 @@ def test_bad_jsonpath_grammar() -> None:
             "mapping_version: 1\nsource: s\ntarget: t\n"
             "key:\n  k: {from: order_id}\nfields: {}\n"
         )
-    assert excinfo.value.source_path == "mappings/orders: key.k.from"
+    assert excinfo.value.source_path == "mappings/orders: key.k.simple.from"
 
 
 def test_recipe_mapping_records_an_optional_direct_path() -> None:
