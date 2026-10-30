@@ -563,9 +563,13 @@ def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) ->
         doc = mapping_doc(mapping)
         entity = project.entity_model.entities[mapping.target]
         for field_name in sorted(mapping.key):
-            steps = mapping.key[field_name].transform
+            key_part = mapping.key[field_name]
             declared = _field_type(mapping.target, field_name, entity.fields[field_name])
             path = f"{doc}: key.{field_name}"
+            if isinstance(key_part, ConstFieldMapping):
+                refusals.extend(_const_refusal(key_part, declared, source_path=path))
+                continue
+            steps = key_part.transform
             if isinstance(declared, VectorType):
                 checks.append(ChainCheck(declared, (), declared, path))
             elif steps:
@@ -1502,6 +1506,11 @@ def _build_source(
         key_field = mapping.key[field_name]
         field = entity.fields[field_name]
         declared = _field_type(entity_name, field_name, field)
+        if isinstance(key_field, ConstFieldMapping):
+            # As a constant field is (S-0019/D-17): no source field, so replay
+            # and the reject payload carry nothing of bronze for it.
+            add_column(field_name, field, declared, shape(_const_expr(key_field, declared)))
+            continue
         expr = _lower_chain(
             key_field.from_,
             key_field.transform,

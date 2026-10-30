@@ -179,7 +179,7 @@ decisions:
       and a string is kept as written, whitespace included. It reads no source path,
       carries no `transform:` and no `quality:`, gets no implicit `coercible` rule,
       and draws no lineage edge; a `convert` step that names it as a sibling column
-      reads its literal. A key field is not a constant
+      reads its literal. A key part may be one too, under D-17
     paths:
       - src/bloomery/spec/mapping.py
       - src/bloomery/resolve/build.py
@@ -204,6 +204,39 @@ decisions:
       and named the path in lineage. The brace is refused because dbt renders the
       whole model as Jinja, quoted literals included. The literal is typed as a filter
       value is, so no text is implicitly cast. Transforms and rules are left out because
-      there is no bronze value for them to read, and a constant key would make every
-      row of a mapping share one key
+      there is no bronze value for them to read
     cites: [D-15, S-0030/D-8, S-0033/D-3, S-0020/D-5]
+  - id: D-17
+    grade: ASSUMED
+    text: >-
+      A part of a mapping's `key:` may be `{const: <literal>}`, D-16's shape, typed
+      against the key column's declaration and lowered to the same cast. It reads no
+      source path, takes no `transform:`, contributes no source field to the reject
+      payload or replay, gets no implicit `coercible` rule and draws no lineage edge.
+      A key every part of which is a constant is refused at parse: at least one part
+      must read a path
+    paths:
+      - src/bloomery/spec/mapping.py
+      - src/bloomery/resolve/build.py
+      - src/bloomery/resolve/graph.py
+      - src/bloomery/quality/lower.py
+      - src/bloomery/guardrails/quality.py
+      - tests/unit/test_spec/test_key_const.py
+      - tests/execution/test_key_const.py
+      - tests/golden/schema/mapping.json
+      - pages/docs/reference/spec-schemas.md
+    consequence: >-
+      Two sources feeding one merged entity can key their rows by a value fixed per
+      mapping, a marketplace beside the source's own id, so ids that overlap across
+      sources land as distinct rows and the collision audit stays silent on them. A
+      quarantined row replays with its constant, since replay re-runs the branch's
+      lowering and the constant reads nothing of the payload
+    rationale: >-
+      #380. D-16 left keys out because a constant key gives every row of a mapping
+      one key; a composite key with one constant part does not, and it is the shape
+      that tells merged sources' rows apart. The workaround kept in the key read a
+      path that is always present through an `enum_map` fallback, so a NULL there
+      dropped or merged rows and lineage named the path. An all-constant key is the
+      case D-16 feared, and refusing it can be relaxed later where allowing it could
+      not be taken back
+    cites: [D-16, S-0041/D-5]

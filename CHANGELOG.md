@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A key part can be a constant.** `key: {marketplace: {const: Ozon}, order_id: {from: …}}`
+  keys each mapping's rows by a value fixed for that mapping beside the source's own id,
+  so two sources feeding one merged entity land as distinct rows where their ids overlap,
+  and the collision audit stays silent on them. It is typed and lowered as a field's
+  constant is, and a quarantined row replays with it. A key of constants alone is refused,
+  since every row of the mapping would carry one key. (#380)
+
 ## [0.9.0] - 2026-10-29
 
 ### Added
