@@ -213,6 +213,9 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     # Not a field: the produced columns' labels, compared apart from the
     # outputs they sit in (S-0094/D-13). See `_record_fields`.
     ("StepIR", "output_labels"): Facet.METADATA,
+    # Not a field either: the rules the wiring declares on what the step
+    # produces, which live on the produced entities. See `_flatten`.
+    ("StepIR", "output_quality"): Facet.QUALITY,
     ("StepIR", "parameters"): Facet.INPUTS,
     ("StepIR", "body"): Facet.BODY,
     ("StepIR", "entrypoint"): Facet.BODY,
@@ -222,24 +225,6 @@ _FACETS: Final[dict[tuple[str, str], Facet]] = {
     ("StepIR", "runtime_lock"): Facet.RUNTIME,
     ("StepIR", "lineage"): Facet.RUNTIME,
     ("StepIR", "seed"): Facet.RUNTIME,
-    # An entity, which reaches this table as the definition of a step's
-    # produced relation rather than of a field (see `_entity_field`).
-    ("EntityIR", "grain"): Facet.GRAIN,
-    ("EntityIR", "key"): Facet.GRAIN,
-    ("EntityIR", "scd"): Facet.GRAIN,
-    ("EntityIR", "columns"): Facet.INPUTS,
-    ("EntityIR", "sources"): Facet.INPUTS,
-    ("EntityIR", "produced_by"): Facet.INPUTS,
-    ("EntityIR", "audits"): Facet.QUALITY,
-    ("EntityIR", "quality"): Facet.QUALITY,
-    ("EntityIR", "dedupe"): Facet.QUALITY,
-    ("EntityIR", "quarantine"): Facet.QUALITY,
-    ("EntityIR", "materialization"): Facet.STORAGE,
-    ("EntityIR", "partition_by"): Facet.STORAGE,
-    ("EntityIR", "arrival_lag_hours"): Facet.STORAGE,
-    ("EntityIR", "owner"): Facet.METADATA,
-    ("EntityIR", "label"): Facet.METADATA,
-    ("EntityIR", "grants"): Facet.ACCESS,
     # An entity field: the schema half.
     ("ColumnIR", "type"): Facet.UNIT,
     ("ColumnIR", "unit"): Facet.UNIT,
@@ -422,7 +407,7 @@ def _record_fields(record: object) -> dict[str, tuple[str, object]]:
 def _flatten(definition: object) -> dict[str, tuple[str, object]]:
     """A definition as one flat field map, whatever shape it arrived in.
 
-    Three shapes reach here, and flattening them to one removes every special
+    Four shapes reach here, and flattening them to one removes every special
     case downstream — including the one that has no name: a node whose *kind
     of record* changed between two versions, a metric that stopped resolving
     and became an ``UnreachableMetric``. Two field maps compare whether or not
@@ -440,10 +425,17 @@ def _flatten(definition: object) -> dict[str, tuple[str, object]]:
     if definition is None:
         return {}
 
+    if isinstance(definition, tuple) and isinstance(definition[0], StepIR):
+        # A step and its outputs' rules, by produced relation (#381).
+        step, rules = cast("tuple[StepIR, object]", definition)
+        flat = _record_fields(step)
+        flat["output_quality"] = (type(step).__name__, rules)
+        return flat
+
     if isinstance(definition, tuple):
-        # `_definition` returns `object`, and this is the one shape it builds
-        # rather than looks up: the schema half and the lowering half of one
-        # entity field (S-0041/D-26).
+        # `_definition` returns `object`, and these are the two shapes it builds
+        # rather than looks up: a step with its outputs' rules, above, and the
+        # schema half and the lowering half of one entity field (S-0041/D-26).
         column, lowerings = cast(
             "tuple[object, tuple[tuple[str, SourceColumnIR], ...]]", definition
         )

@@ -727,23 +727,47 @@ def test_a_step_is_compared_by_its_manifest() -> None:
     )
 
 
-def test_a_step_output_is_the_relation_it_produces() -> None:
-    """`<relation>.<output name>` is an entity-field *node* and not a field.
-
-    `_step_edges` mints one per `outputs:` entry, so `customer.customer` is the
-    whole relation `resolve_customers` produces — and `customer` has no column
-    called `customer`. Before this was handled, the lookup found nothing and
-    the walk reported every step output as present in every version and changed
-    in none, which is a wrong answer shaped exactly like a right one.
+def test_a_step_output_is_the_columns_it_produces() -> None:
+    """`customer` has no column called `customer`, the output's name, so the
+    compile's graph draws no such node (#381): a walk over one would report it
+    present in every version and changed in none, a wrong answer shaped
+    exactly like a right one. Each produced column is a node with a column's
+    definition instead.
     """
     project, catalog = load_fixture("identity_resolution")
     steps = registry_for("identity_resolution")
     graph, ir = _compile(SpecVersion(label="x", project=project, catalog=catalog, steps=steps))
 
-    assert Node(kind=NodeKind.ENTITY_FIELD, name="customer.customer") in graph.nodes
     entity = next(one for one in ir.entities if one.name == "customer")
     assert "customer" not in {column.name for column in entity.columns}
-    assert _definition(*_kind_and_spelling("customer.customer"), ir, catalog) is entity
+    assert Node(kind=NodeKind.ENTITY_FIELD, name="customer.customer") not in graph.nodes
+    for column in entity.columns:
+        node = Node(kind=NodeKind.ENTITY_FIELD, name=f"customer.{column.name}")
+        assert node in graph.nodes
+        definition = _definition(*_kind_and_spelling(node.name), ir, catalog)
+        assert isinstance(definition, tuple) and definition[0] is column
+
+
+def test_a_step_output_s_rule_moves_the_step() -> None:
+    """A wiring's `quality:` rule lives on the entity the step produces, and
+    the node named after the output was the walk's one way to it. With that
+    node gone (#381), the step reports it, as the record that declares it."""
+    project, catalog = load_fixture("identity_resolution")
+    stricter = fixture_sources("identity_resolution")
+    stricter["steps"] = stricter["steps"].replace("confidence >= 0.8", "confidence >= 0.9")
+    steps = registry_for("identity_resolution")
+    walk = timeline(
+        [
+            SpecVersion(label="a", project=project, catalog=catalog, steps=steps),
+            SpecVersion(label="b", project=load_project(stricter), catalog=catalog, steps=steps),
+        ],
+        "step.resolve_customers",
+    )
+
+    (change,) = walk.changes
+    assert [(delta.facet, delta.field) for delta in change.facets] == [
+        (Facet.QUALITY, "output_quality")
+    ]
 
 
 def test_a_catalog_node_asked_of_a_project_with_no_catalog_is_absent() -> None:
@@ -803,9 +827,9 @@ def test_every_node_the_graph_carries_has_a_definition(fixture: str) -> None:
     column must find a record. A kind that quietly stopped finding one would
     not raise: it would report the node present in every version and changed in
     none, which is the failure mode this whole walk has to avoid — and it is
-    exactly what this sweep caught for step outputs, which live in the
-    entity-field namespace as `<relation>.<output name>` and are relations
-    rather than fields (`logs/T-0043.md`).
+    exactly what this sweep caught for step outputs, whose node was named
+    `<relation>.<output name>` rather than after a column (`logs/T-0043.md`,
+    #381).
     """
     if fixture in REFUSED_AT_GUARDRAILS:
         with pytest.raises(GuardrailError):
